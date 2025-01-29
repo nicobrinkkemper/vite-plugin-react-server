@@ -1,0 +1,106 @@
+{
+    "name": "vite-plugin-react-server",
+    "version": "0.1.0",
+    "description": "Vite plugin for React Server Components (RSC)",
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist",
+        "src",
+        "README.md",
+        "LICENSE",
+        "tsconfig.json"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "react-server": "./dist/react-server/plugin.js",
+            "default": "./dist/react-client/plugin.js"
+        },
+        "./client": {
+            "types": "./dist/react-client/plugin.d.ts",
+            "import": "./dist/react-client/plugin.js",
+            "default": "./dist/react-client/plugin.js"
+        },
+        "./server": {
+            "types": "./dist/react-server/plugin.d.ts",
+            "import": "./dist/react-server/plugin.js",
+            "react-server": "./dist/react-server/plugin.js",
+            "default": "./dist/react-server/plugin.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "typesVersions": {
+        "*": {
+            ".": [
+                "./dist/index.d.ts"
+            ],
+            "client": [
+                "./dist/react-client/plugin.d.ts"
+            ],
+            "server": [
+                "./dist/react-server/plugin.d.ts"
+            ]
+        }
+    },
+    "sideEffects": false,
+    "scripts": {
+        "build": "npm run clean && npm run build:types && npm run build:vite",
+        "build:types": "tsc --build --force",
+        "build:vite": "vite build",
+        "clean": "rm -rf dist",
+        "prepublishOnly": "npm run build",
+        "lint": "eslint ./src --fix",
+        "test": "echo \"No tests specified\" && exit 0",
+        "copy-oss": "cp -r ./oss-experimental/* ./node_modules/",
+        "patch-oss": "npx patch-package react-server-dom-esm --exclude 'nothing' && npx patch-package react react-dom"
+    },
+    "keywords": [
+        "vite",
+        "vite-plugin",
+        "react",
+        "rsc",
+        "server-components"
+    ],
+    "author": "Nico Brinkkemper",
+    "license": "MIT",
+    "engines": {
+        "node": "^20.0.0 || >=21.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/nicobrinkkemper/vite-plugin-react-server.git"
+    },
+    "bugs": {
+        "url": "https://github.com/nicobrinkkemper/vite-plugin-react-server/issues"
+    },
+    "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
+    "peerDependencies": {
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "vite": "^5.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        },
+        "react-dom": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/node": "^20.17.16",
+        "@types/react": "^19.0.8",
+        "@types/react-dom": "^19.0.3",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "source-map": "^0.7.4",
+        "typescript": "^5.7.3",
+        "vite": "^5.4.14",
+        "acorn-loose": "^8.3.0",
+        "webpack-sources": "^3.2.0"
+    }
+}

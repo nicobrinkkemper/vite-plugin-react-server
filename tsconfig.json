@@ -1,0 +1,79 @@
+{
+  // when we extend a tsconfig.json file, it will merge and override the compilerOptions but not the arrays like lib, rootDirs, etc.
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    // idk whatever this does but strict sounds like a good idea. (https://www.typescriptlang.org/tsconfig/#strict)
+    "strict": true,
+    // Should you want to just import a js file anyway. You can use type comments in a .js file like: /* @type {string} */
+    "allowJs": true,
+    // prevents issues when renaming files only in casing
+    "forceConsistentCasingInFileNames": true,
+    // our jsx type's will be configured for react.
+    "jsx": "react",
+    // RSC portability - JSX will be transpiled to React.createElement
+    "jsxFactory": "React.createElement",
+    // The fragment refers to the empty component, like <></>
+    "jsxFragmentFactory": "React.Fragment",
+    // We force module detection to be sure that the module system is detected correctly.
+    "moduleDetection": "force",
+    // To indicate that we are NOT going to be emitting files
+    // This just means that when you write a switch statement, you will get an error once you forget to add a break statement.
+    "noFallthroughCasesInSwitch": true,
+    // We don't allow property access from index signatures. In this case we prefer to write record['images'] instead of record.images
+    "noPropertyAccessFromIndexSignature": true,
+    // You'll get an error if you forget to remove a variable. If you intended not to use it, you can prefix the variable with an underscore or change to a underscore variable to indicate unused variables.
+    "noUnusedLocals": false,
+    // Same as above, but for function parameters.
+    "noUnusedParameters": false,
+    // We allow JSON imports. In fact we promote using them. We need to use the `with {type: 'json'}` which is the most recent way to do it.
+    "resolveJsonModule": true,
+    // If you are having issues with libraries, you can disable this and it won't check the types of the libraries.
+    "skipLibCheck": false,
+    // The source folder is intended for polymorphic code that can work on the client, server, or during development. By default new code should go here, and should follow the types defined here.
+    "rootDir": "src",
+    // We collect all of our compiled files into the dist folder so that we do not clutter our source directories with distilled files.
+    "outDir": "dist",
+    // We tell the transpiler that we are using vite and that we want to use the client types. This makes sure that our import.meta.env types are available, as well as the experimental react types.
+    "types": [
+      "vite/client",
+    ],
+    "typeRoots": [
+      "./node_modules/@types",
+      "./node_modules",
+      "./types",
+    ],
+    "resolvePackageJsonImports": true,
+    "resolvePackageJsonExports": true,
+    "emitDeclarationOnly": true,
+    "verbatimModuleSyntax": true,
+    // The very latest ES features
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": [
+      "es2023",
+      "dom",
+      "dom.iterable",
+    ]
+  },
+  "include": [
+    // support just normal ts
+    "src/**/*.ts",
+    // support tsx
+    "src/**/*.tsx",
+    // support mts
+    "src/**/*.mts",
+    // support json
+    "src/**/*.json",
+    // package.json
+    "package.json",
+    // types
+    "types/**/*.d.ts",
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
+}
