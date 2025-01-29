@@ -1,8 +1,8 @@
 # Vite React Server Components Plugin
 
-A Vite plugin that enables React Server Components (RSC) without a full-stack framework. Uses experimental dependencies from React, specifically `react-server-dom-esm/server.node`.
+A Vite plugin that enables React Server Components (RSC) streaming and static building of html pages. Uses experimental dependencies from React, specifically `react-server-dom-esm/server.node`.
 
-Temporary patch is included in this repository. Example project:
+Temporary patch-package is included in this repository. Example project:
 
 the [mmcelebration.com project](https://github.com/nicobrinkkemper/mmc) is using this plugin. The build time for this website of roughly 200 html pages is a couple of seconds - depending on your machine.
 
