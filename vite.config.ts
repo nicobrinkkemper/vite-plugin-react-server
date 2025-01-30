@@ -2,9 +2,13 @@ import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
 export default defineConfig({
+  ssr: {
+    noExternal: true,
+  },
   build: {
     minify: false,
-    target: "node23",
+    target: "es2020",
+    
     lib: {
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
@@ -18,12 +22,14 @@ export default defineConfig({
         'vite',
         'react',
         'react-dom',
-        'react-server-dom-esm/client',
-        'react-server-dom-esm/client.node',
-        'react-server-dom-esm/server.node',
-        'react-server-dom-esm/node-loader',
         'acorn-loose',
         'webpack-sources',
+        'stream',
+        'util',
+        'crypto',
+        'async_hooks',
+        'fs',
+        'path',
         /^node:.*/,
       ],
       output: {
