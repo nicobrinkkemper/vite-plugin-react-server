@@ -3,14 +3,13 @@ import { viteReactClientTransformPlugin } from "./transformer/index.js";
 import { preserveDirectives } from "./transformer/preserveDirectives.js";
 import type { StreamPluginOptions } from "./types.js";
 
-export const condition = process.env["NODE_OPTIONS"]?.match(
-  // regex for --conditions followed by react-server
-  /--conditions=react-server/
-)
-  ? "server"
-  : "client";
+export const getCondition = (options: { env?: typeof process.env } = {}) => {
+  const nodeOptions = options?.env?.['NODE_OPTIONS'] ?? process.env['NODE_OPTIONS'];
+  return nodeOptions?.match(/--conditions=react-server/) ? "server" : "client";
+};
 
 export const reactStreamPlugin = async (options: StreamPluginOptions) => {
+  const condition = getCondition();
   try {
     const resolvedOptions = resolveOptions(options);
     if (resolvedOptions.type === "error") {

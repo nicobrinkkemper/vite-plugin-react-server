@@ -22,6 +22,10 @@ npm install vite-plugin-react-server
 
 ## Usage
 
+Single vite.config.ts file for server and client build - though you can split it up if you want.
+The import `import { viteReactStreamPlugin } from 'vite-plugin-react-server'` will import the
+right client/server plugin based on the NODE_OPTIONS environment variable.
+
 ```typescript
 // vite.config.ts
 import { defineConfig } from 'vite'
@@ -39,7 +43,7 @@ const createRouter = (fileName: string) => (url: string) => {
 export default defineConfig({
   plugins: [
     viteReactStreamPlugin({
-      moduleBase: "/src",
+      moduleBase: "src",
       Page: createRouter("page.tsx"),
       props: createRouter("props.ts"),
       pageExportName: "Page",
@@ -53,22 +57,59 @@ export default defineConfig({
   ]
 })
 ```
-In package.json, add the scripts:
+
+If you want to import the right plugin directly, you can do so like this:
+
+```typescript
+// vite.react.config.ts
+import type { Options } from 'vite-plugin-react-server/server'
+
+export const streamPluginOptions: Options = {
+  moduleBase: "src",
+  Page: `src/page/index.tsx`,
+  props: `src/page/index.tsx`,
+  pageExportName: "Page",
+  propsExportName: "props",
+  Html: ({children})=>(<html><body>{children}</body></html>),
+  build: {
+    client: "dist/client",
+    server: "dist/server",
+    pages: ()=>["/"]
+  },
+}
+```
+
+```typescript
+// vite.server.config.ts
+import { viteReactStreamPlugin } from 'vite-plugin-react-server/server'
+import { streamPluginOptions } from './vite.react.config.js'
+
+export default defineConfig({
+  plugins: [viteReactStreamPlugin(streamPluginOptions)]
+})
+```
+```typescript
+// vite.config.ts
+import { viteReactStreamPlugin } from 'vite-plugin-react-server/client'
+import { streamPluginOptions } from './vite.react.config.js'
+
+export default defineConfig({
+  plugins: [viteReactStreamPlugin(streamPluginOptions)]
+})
+```
+Then in the package.json, add the scripts:
 
 ```json
 "scripts": {
-  "build": "NODE_OPTIONS=--conditions=react-server vite build",
-  "start": "NODE_OPTIONS=--conditions=react-server vite --ssr"
+  "start": "NODE_OPTIONS=--conditions=react-server vite",
+  "build": "npm run build:client && npm run build:server",
+  "build:client": "vite build",
+  "build:server": "NODE_OPTIONS=--conditions=react-server vite build --ssr --config vite.server.config.ts",
+  "test:server": "NODE_OPTIONS=--conditions=react-server vitest --config vite.server.config.ts"
 }
 ```
-This may be ugly but, it's the best way I can garrantee you that the react server components will work,
-throughout the vite build process, and this allways you to inlcude react components and pass them directly to the config too!
-```typescript
-{
-  Html: ()=>React.createElement("div", null, "Hello World")
-}
-```
-Unfortunately, you can not write jsx in the config file since vite does not support the tsx extension - any other file will be fine and jsx works like you would expect.
+
+Unfortunately, you can not write jsx in the config file since vite does not support the `.tsx` extension - any other file will be fine and jsx works like you would expect.
 
 
 ## Server Components

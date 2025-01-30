@@ -4,7 +4,6 @@ import {
   type PipeableStream,
 } from "react-server-dom-esm/server.node";
 import { CssCollector } from "../components.js";
-import { DEFAULT_CONFIG } from "../options.js";
 import type { RscStreamOptions } from "../types.js";
 
 export function createRscStream(
@@ -42,7 +41,7 @@ export function createRscStream(
       React.createElement(Page, { key: "page", ...props }),
       ...css
     ),
-    moduleBasePath ?? DEFAULT_CONFIG.MODULE_BASE_PATH,
+    moduleBasePath,
     {
       onError: logger?.error ?? console.error,
       onPostpone: logger?.info ?? console.info,

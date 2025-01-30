@@ -4,7 +4,6 @@ import { DEFAULT_CONFIG } from "../options.js";
 import { createRscTransformer } from "./transformer.js";
 import type { ViteReactClientTransformOptions } from "./types.js";
 
-const fileExtensionRE = /\.m?[jt]sx?$/;
 
 /**
  * Plugin for transforming React Client Components.
@@ -34,8 +33,13 @@ const fileExtensionRE = /\.m?[jt]sx?$/;
 export function viteReactClientTransformPlugin(
   options?: ViteReactClientTransformOptions
 ): Plugin {
+  if(process.env['NODE_OPTIONS']?.match(/--conditions=react-server/)) {
+    console.log('react-server')
+  } else {
+    throw new Error('react-server condition not found, set NODE_OPTIONS="--conditions react-server"')
+  }
   const projectRoot = options?.projectRoot || process.cwd();
-  const include = options?.include || fileExtensionRE;
+  const include = options?.include || DEFAULT_CONFIG.FILE_REGEX;
   const exclude = options?.exclude;
   let transform: any;
   // get the file we are imported from (parent)
@@ -67,7 +71,7 @@ export function viteReactClientTransformPlugin(
         return null;
       }
 
-      // Look for use client directive at start of file (after any comments)
+      // Look for use client directive at start of file (no exceptions)
       const directiveMatch =
         code.startsWith('"use client"') || code.startsWith("'use client'");
       if (!directiveMatch) return null;
@@ -81,7 +85,7 @@ export function viteReactClientTransformPlugin(
 const moduleIdDefault =
   ({
     projectRoot,
-    output: { dir },
+    output: _,
     isProduction,
   }: {
     isProduction: boolean;

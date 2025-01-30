@@ -51,6 +51,7 @@ export const resolveConfig = <T extends ResolvedConfig>(
 
 export const resolveUserConfig = (
   condition: "react-client" | "react-server",
+  input: string[],
   config: UserConfig,
   configEnv: ConfigEnv,
   userOptions: ResolvedUserOptions
@@ -63,27 +64,43 @@ export const resolveUserConfig = (
     } => {
   const isReactServer = condition === "react-server";
   const isViteServer = configEnv.command === "serve";
-  const isViteSsrBuild = configEnv.isSsrBuild;
   const isVitePreview = configEnv.isPreview;
-  const shouldBeReactServer = !!(isViteSsrBuild || isViteServer);
 
-  if (userOptions.assetsDir !== config.build?.assetsDir) {
+  if (isReactServer && configEnv.command === "build") {
+    if (!config.build?.rollupOptions?.input) {
+      config = {
+        ...config,
+        build: {
+          ...config.build,
+          rollupOptions: {
+            ...config.build?.rollupOptions,
+            input: input
+          }
+        }
+      }
+    }
+  }
+
+  if (typeof config.build?.assetsDir === 'string' && userOptions.assetsDir !== config.build?.assetsDir) {
     return {
       type: "error",
       error: new Error(
-        "assetsDir cannot be changed after the config has been resolved"
+        `assetsDir cannot be changed after the config has been resolved, before: ${userOptions.assetsDir}, after: ${config.build?.assetsDir}`
       ),
     };
   }
-  if (isReactServer !== shouldBeReactServer) {
+
+  if (isReactServer) {
     if (configEnv.command === "build") {
-      return {
-        type: "error",
-        error: new Error(
-          "ssr must be true when using the server plugin, vite build --ssr"
-        ),
-      };
-    } else if (!isReactServer && shouldBeReactServer) {
+      if (!configEnv.isSsrBuild) {
+        return {
+          type: "error",
+          error: new Error(
+            "ssr must be true when using the server plugin, NODE_OPTIONS='--conditions react-server' vite build --ssr"
+          ),
+        };
+      }
+    } else if (!isViteServer) {
       return {
         type: "error",
         error: new Error(
@@ -94,7 +111,7 @@ export const resolveUserConfig = (
             : "react-server condition was not set. Please use `NODE_OPTIONS='--conditions react-server' vite build --ssr`"
         ),
       };
-    } else if (!shouldBeReactServer && isReactServer) {
+    } else if (!configEnv.isSsrBuild && configEnv.command !== 'serve') {
       return {
         type: "error",
         error: new Error(
@@ -103,8 +120,10 @@ export const resolveUserConfig = (
       };
     }
   }
+
   const { root: configRoot, mode: configMode, ...configRest } = config;
-  const { outDir: configOutDir, assetsDir: configAssetsDir, ssr: configSsr, manifest: configManifest, ssrManifest: configSsrManifest, target: configTarget, ...configBuildRest } = config.build;
+  const { outDir: configOutDir, assetsDir: configAssetsDir, ssr: configSsr, manifest: configManifest, ssrManifest: configSsrManifest, target: configTarget, ...configBuildRest } = config.build ?? {};
+
   return {
     type: "success",
     userConfig: {
@@ -113,20 +132,20 @@ export const resolveUserConfig = (
       mode: configMode ?? process.env["NODE_ENV"] ?? "production",
       build: {
         ...configBuildRest,
-        ssr: condition === "react-server",
+        ssr: configSsr ?? isReactServer,
         manifest: configManifest ?? true,
         ssrManifest: configSsrManifest ?? true,
         target: configTarget ?? "es2020",
         outDir:
           typeof configOutDir === "string"
             ? configOutDir
-            : condition === "react-server"
+            : isReactServer
             ? userOptions.build.server
             : userOptions.build.client,
         assetsDir:
           typeof configAssetsDir === "string"
             ? configAssetsDir
-            : condition === "react-server"
+            : isReactServer
             ? ''
             : DEFAULT_CONFIG.CLIENT_ASSETS_DIR,
       },
@@ -234,8 +253,6 @@ export const resolveOptions = (
     } satisfies ResolvedUserOptions,
   };
 };
-
-
 
 export async function resolvePages(
   pages: ResolvedUserOptions["build"]["pages"]

@@ -54,7 +54,11 @@
         "clean": "rm -rf dist",
         "prepublishOnly": "npm run build",
         "lint": "eslint ./src --fix",
-        "test": "echo \"No tests specified\" && exit 0",
+        "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
+        "test:client": "vitest run",
+        "test": "npm run test:client && npm run test:server",
+        "test:coverage": "vitest run --coverage",
+        "test:ui": "vitest --ui",
         "copy-oss": "cp -r ./oss-experimental/* ./node_modules/",
         "patch-oss": "npx patch-package react-server-dom-esm --exclude 'nothing' && npx patch-package react react-dom"
     },
@@ -95,12 +99,14 @@
         "@types/node": "^20.17.16",
         "@types/react": "^19.0.8",
         "@types/react-dom": "^19.0.3",
+        "acorn-loose": "^8.3.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "source-map": "^0.7.4",
         "typescript": "^5.7.3",
         "vite": "^5.4.14",
-        "acorn-loose": "^8.3.0",
-        "webpack-sources": "^3.2.0"
+        "vitest": "^3.0.4",
+        "webpack-sources": "^3.2.0",
+        "react-server-dom-esm": "^0.0.1"
     }
 }

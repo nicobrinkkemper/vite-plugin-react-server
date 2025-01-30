@@ -69,7 +69,7 @@ export async function reactStreamPlugin(
       },
     },
     configResolved(resolvedConfig) {
-      if (config.command === "build") {
+      if (resolvedConfig.command === "build") {
         timing.configResolved = performance.now();
         console.log("[vite-react-stream] Starting build...");
       }
@@ -147,8 +147,14 @@ export async function reactStreamPlugin(
     },
 
     async config(config, configEnv): Promise<UserConfig> {
+      const resolvedPages = await resolvePages(userOptions.build.pages);
+      if(resolvedPages.type === 'error') {
+        throw resolvedPages.error;
+      }
+      const { pages } = resolvedPages;
       const resolvedConfig = resolveUserConfig(
         "react-server",
+        pages,
         config,
         configEnv,
         userOptions
@@ -157,11 +163,6 @@ export async function reactStreamPlugin(
         throw resolvedConfig.error;
       }
       const { userConfig } = resolvedConfig;
-      const resolvedPages = await resolvePages(userOptions.build.pages);
-      if(resolvedPages.type === 'error') {
-        throw resolvedPages.error;
-      }
-      const { pages } = resolvedPages;
 
       const envResult = getEnv(userConfig, configEnv);
       const files = await checkFilesExist(pages, userOptions, userConfig.root);
