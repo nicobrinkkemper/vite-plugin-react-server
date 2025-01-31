@@ -16,7 +16,8 @@ export default defineConfig({
         'react-server/plugin': resolve(__dirname, 'src/react-server/plugin.ts'),
         'worker/worker': resolve(__dirname, 'src/worker/worker.tsx'),
         'worker/loader': resolve(__dirname, 'src/worker/loader.ts'),
-        'bin/patch': './bin/patch.ts'
+        'bin/patch': './bin/patch.ts',
+        'scripts/check-react-version': './scripts/check-react-version.mjs',
       },
       formats: ['es'],
     },

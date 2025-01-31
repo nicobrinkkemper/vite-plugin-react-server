@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/index.js",
@@ -108,6 +108,6 @@
     "webpack-sources": "^3.2.0"
   },
   "bin": {
-    "vite-react-stream-patch": "./dist/bin/patch.js"
+    "vite-react-stream-patch": "./dist/scripts/check-react-version.mjs"
   }
 }
