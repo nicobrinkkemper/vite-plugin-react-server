@@ -39,7 +39,7 @@ async function main() {
     const newPatchPath = path.resolve(userPatchesDir, newFileName)
     await fs.writeFile(newPatchPath, patchContent)
 
-    console.log(`Updated patch for React ${installedVersion}`)
+    console.log(`Updated patch to match React version ${installedVersion}`)
   } catch (error) {
     
   }

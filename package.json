@@ -10,6 +10,7 @@
     "dist",
     "src",
     "patches",
+    "scripts",
     "README.md",
     "LICENSE",
     "tsconfig.json"
@@ -55,7 +56,7 @@
     "experimental:patch": "npx patch-package react-server-dom-esm --exclude 'nothing'",
     "experimental:setup": "npm run experimental:copy && npm run experimental:patch",
     "experimental:check": "node scripts/check-react-version.mjs",
-    "postinstall": "npm run experimental:check && patch-package"
+    "postinstall": "npm run experimental:check && npx patch-package react-server-dom-esm"
   },
   "keywords": [
     "vite",
