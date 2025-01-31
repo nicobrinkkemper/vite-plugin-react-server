@@ -2,8 +2,6 @@ import type { InlineConfig } from "vite";
 import type { ResolvedUserConfig, ResolvedUserOptions } from "../types.js";
 import type { InputOption } from "rollup";
 import { mergeInputs } from "./mergeInputs.js";
-import { join } from "node:path";
-import { createNormalizedRelativePath } from "../helpers/normalizedRelativePath.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 type CreateBuildConfigOptions = {

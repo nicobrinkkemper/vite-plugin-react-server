@@ -71,6 +71,8 @@ export const createPageLoader = ({
     outDir,
     moduleBase,
     noLeadingSlash: true,
+    noTrailingSlash: true,
+    moduleBaseExceptions: [],
   });
   return async (id: string) => {
     const normalizedId = pathNormalizer(id);
