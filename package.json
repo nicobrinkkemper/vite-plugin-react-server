@@ -1,112 +1,112 @@
 {
-    "name": "vite-plugin-react-server",
-    "version": "0.3.1",
-    "description": "Vite plugin for React Server Components (RSC)",
-    "type": "module",
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "files": [
-        "dist",
-        "src",
-        "patches",
-        "README.md",
-        "LICENSE",
-        "tsconfig.json"
-    ],
-    "exports": {
-        ".": "./dist/index.js",
-        "./client": "./dist/client.js",
-        "./server": "./dist/server.js",
-        "./worker": "./dist/worker/worker.js",
-        "./loader": "./dist/worker/loader.js",
-        "./package.json": "./package.json"
-    },
-    "typesVersions": {
-        "*": {
-            ".": [
-                "./dist/index.d.ts"
-            ],
-            "client": [
-                "./dist/react-client/plugin.d.ts"
-            ],
-            "server": [
-                "./dist/react-server/plugin.d.ts"
-            ]
-        }
-    },
-    "sideEffects": false,
-    "scripts": {
-        "version:major": "node --loader ts-node/esm scripts/bump-version.ts major",
-        "version:minor": "node --loader ts-node/esm scripts/bump-version.ts minor",
-        "version:patch": "node --loader ts-node/esm scripts/bump-version.ts patch",
-        "build": "npm run clean && npm run build:types && npm run build:vite",
-        "build:types": "tsc --build --force",
-        "build:vite": "vite build && chmod +x dist/bin/patch.js",
-        "clean": "rm -rf dist",
-        "prepublishOnly": "npm run build",
-        "lint": "eslint ./src --fix",
-        "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
-        "test:client": "vitest run",
-        "test": "npm run test:client && npm run test:server",
-        "test:coverage": "vitest run --coverage",
-        "test:ui": "vitest --ui",
-        "experimental:copy": "cp -r ./oss-experimental/react-server-dom-esm ./node_modules/",
-        "experimental:patch": "npx patch-package react-server-dom-esm --exclude 'nothing'",
-        "experimental:setup": "npm run experimental:copy && npm run experimental:patch",
-        "experimental:check": "node scripts/check-react-version.mjs",
-        "postinstall": "npm run experimental:check && patch-package"
-    },
-    "keywords": [
-        "vite",
-        "vite-plugin",
-        "react",
-        "rsc",
-        "server-components"
-    ],
-    "author": "Nico Brinkkemper",
-    "license": "MIT",
-    "engines": {
-        "node": "^23.6.0"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/nicobrinkkemper/vite-plugin-react-server.git"
-    },
-    "bugs": {
-        "url": "https://github.com/nicobrinkkemper/vite-plugin-react-server/issues"
-    },
-    "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
-    "peerDependencies": {
-        "react": "*",
-        "react-dom": "*",
-        "vite": "*"
-    },
-    "peerDependenciesMeta": {
-        "react": {
-            "optional": true
-        },
-        "react-dom": {
-            "optional": true
-        }
-    },
-    "devDependencies": {
-        "@types/node": "^20.17.16",
-        "@types/react": "^19.0.8",
-        "@types/react-dom": "^19.0.3",
-        "acorn-loose": "^8.3.0",
-        "patch-package": "^8.0.0",
-        "react": "^19.1.0-canary-bb9a24d9-20250130",
-        "react-dom": "^19.1.0-canary-bb9a24d9-20250130",
-        "react-server-dom-esm": "^0.0.1",
-        "source-map": "^0.7.4",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.7.3",
-        "vite": "^5.4.14",
-        "vitest": "^3.0.4",
-        "webpack-sources": "^3.2.0"
-    },
-    "bin": {
-        "vite-react-stream-patch": "./dist/bin/patch.js"
+  "name": "vite-plugin-react-server",
+  "version": "0.3.3",
+  "description": "Vite plugin for React Server Components (RSC)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "patches",
+    "README.md",
+    "LICENSE",
+    "tsconfig.json"
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./server": "./dist/server.js",
+    "./worker": "./dist/worker/worker.js",
+    "./loader": "./dist/worker/loader.js",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/index.d.ts"
+      ],
+      "client": [
+        "./dist/react-client/plugin.d.ts"
+      ],
+      "server": [
+        "./dist/react-server/plugin.d.ts"
+      ]
     }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "version:major": "node scripts/bump-version.mjs major",
+    "version:minor": "node scripts/bump-version.mjs minor",
+    "version:patch": "node scripts/bump-version.mjs patch",
+    "build": "npm run clean && npm run build:types && npm run build:vite",
+    "build:types": "tsc --build --force",
+    "build:vite": "vite build && chmod +x dist/bin/patch.js",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "lint": "eslint ./src --fix",
+    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
+    "test:client": "vitest run",
+    "test": "npm run test:client && npm run test:server",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "experimental:copy": "cp -r ./oss-experimental/react-server-dom-esm ./node_modules/",
+    "experimental:patch": "npx patch-package react-server-dom-esm --exclude 'nothing'",
+    "experimental:setup": "npm run experimental:copy && npm run experimental:patch",
+    "experimental:check": "node scripts/check-react-version.mjs",
+    "postinstall": "npm run experimental:check && patch-package"
+  },
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "react",
+    "rsc",
+    "server-components"
+  ],
+  "author": "Nico Brinkkemper",
+  "license": "MIT",
+  "engines": {
+    "node": "^23.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicobrinkkemper/vite-plugin-react-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nicobrinkkemper/vite-plugin-react-server/issues"
+  },
+  "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
+  "peerDependencies": {
+    "react": "*",
+    "react-dom": "*",
+    "vite": "*"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.16",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "acorn-loose": "^8.3.0",
+    "patch-package": "^8.0.0",
+    "react": "^19.1.0-canary-bb9a24d9-20250130",
+    "react-dom": "^19.1.0-canary-bb9a24d9-20250130",
+    "react-server-dom-esm": "^0.0.1",
+    "source-map": "^0.7.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "vite": "^5.4.14",
+    "vitest": "^3.0.4",
+    "webpack-sources": "^3.2.0"
+  },
+  "bin": {
+    "vite-react-stream-patch": "./dist/bin/patch.js"
+  }
 }

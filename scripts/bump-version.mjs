@@ -1,9 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-type VersionType = 'major' | 'minor' | 'patch'
 
-async function bumpVersion(type: VersionType) {
+/**
+ * Bumps the version of the package.
+ * @param {'major' | 'minor' | 'patch'} type - The type of version to bump.
+ */
+async function bumpVersion(type) {
   // Read package.json
   const packageJson = JSON.parse(
     await fs.readFile(path.resolve('package.json'), 'utf-8')
@@ -16,7 +19,11 @@ async function bumpVersion(type: VersionType) {
   const [major, minor, patch] = packageJson.version.split('.').map(Number)
 
   // Calculate new version
-  let newVersion: string
+  /**
+   * The new version of the package.
+   * @type {string}
+   */
+  let newVersion
   switch (type) {
     case 'major':
       newVersion = `${major + 1}.0.0`
@@ -48,7 +55,11 @@ async function bumpVersion(type: VersionType) {
 }
 
 // Get version type from command line argument
-const type = process.argv[2] as VersionType
+/**
+ * The type of version to bump.
+ * @type {'major' | 'minor' | 'patch'}
+ */
+const type = process.argv[2]
 if (!type || !['major', 'minor', 'patch'].includes(type)) {
   console.error('Please specify version type: major, minor, or patch')
   process.exit(1)
