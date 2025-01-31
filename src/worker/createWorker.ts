@@ -1,23 +1,28 @@
-import { resolve } from "node:path";
+import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 
+type CreateWorkerOptions = {
+  workerPath: string;
+  nodePath: string;
+  mode: "production" | "development";
+  workerOptions?: WorkerOptions;
+};
+
 export async function createWorker(
-  projectRoot: string,
-  outDir: string,
-  fileName: string,
-  mode: "production" | "development"
+  options: CreateWorkerOptions
 ) {
+  const { workerPath, nodePath, mode, workerOptions } = options;
   console.log("[Worker] Creating worker...");
-  const workerPath = resolve(projectRoot, outDir, fileName);
   console.log("[Worker] Worker path:", workerPath);
 
   try {
     const worker = new Worker(workerPath, {
       env: {
         NODE_OPTIONS: "",
-        NODE_PATH: resolve(projectRoot, "node_modules"),
         NODE_ENV: mode,
+        NODE_PATH: nodePath,
       },
+      ...workerOptions,
     });
     worker.setMaxListeners(1000);
 

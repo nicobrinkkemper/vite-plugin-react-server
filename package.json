@@ -1,6 +1,6 @@
 {
     "name": "vite-plugin-react-server",
-    "version": "0.1.0",
+    "version": "0.3.1",
     "description": "Vite plugin for React Server Components (RSC)",
     "type": "module",
     "main": "./dist/index.js",
@@ -9,28 +9,17 @@
     "files": [
         "dist",
         "src",
+        "patches",
         "README.md",
         "LICENSE",
         "tsconfig.json"
     ],
     "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "react-server": "./dist/react-server/plugin.js",
-            "default": "./dist/react-client/plugin.js"
-        },
-        "./client": {
-            "types": "./dist/react-client/plugin.d.ts",
-            "import": "./dist/react-client/plugin.js",
-            "default": "./dist/react-client/plugin.js"
-        },
-        "./server": {
-            "types": "./dist/react-server/plugin.d.ts",
-            "import": "./dist/react-server/plugin.js",
-            "react-server": "./dist/react-server/plugin.js",
-            "default": "./dist/react-server/plugin.js"
-        },
+        ".": "./dist/index.js",
+        "./client": "./dist/client.js",
+        "./server": "./dist/server.js",
+        "./worker": "./dist/worker/worker.js",
+        "./loader": "./dist/worker/loader.js",
         "./package.json": "./package.json"
     },
     "typesVersions": {
@@ -48,9 +37,12 @@
     },
     "sideEffects": false,
     "scripts": {
+        "version:major": "node --loader ts-node/esm scripts/bump-version.ts major",
+        "version:minor": "node --loader ts-node/esm scripts/bump-version.ts minor",
+        "version:patch": "node --loader ts-node/esm scripts/bump-version.ts patch",
         "build": "npm run clean && npm run build:types && npm run build:vite",
         "build:types": "tsc --build --force",
-        "build:vite": "vite build",
+        "build:vite": "vite build && chmod +x dist/bin/patch.js",
         "clean": "rm -rf dist",
         "prepublishOnly": "npm run build",
         "lint": "eslint ./src --fix",
@@ -59,10 +51,11 @@
         "test": "npm run test:client && npm run test:server",
         "test:coverage": "vitest run --coverage",
         "test:ui": "vitest --ui",
-        "copy-oss": "cp -r ./oss-experimental/* ./node_modules/",
-        "patch-oss": "npx patch-package react-server-dom-esm --exclude 'nothing' && npx patch-package react react-dom",
-        "apply-patch": "npm run copy-oss && npm run patch-oss",
-        "postinstall": "patch-package"
+        "experimental:copy": "cp -r ./oss-experimental/react-server-dom-esm ./node_modules/",
+        "experimental:patch": "npx patch-package react-server-dom-esm --exclude 'nothing'",
+        "experimental:setup": "npm run experimental:copy && npm run experimental:patch",
+        "experimental:check": "node scripts/check-react-version.mjs",
+        "postinstall": "npm run experimental:check && patch-package"
     },
     "keywords": [
         "vite",
@@ -74,7 +67,7 @@
     "author": "Nico Brinkkemper",
     "license": "MIT",
     "engines": {
-        "node": "^20.0.0 || >=21.0.0"
+        "node": "^23.6.0"
     },
     "repository": {
         "type": "git",
@@ -85,9 +78,9 @@
     },
     "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
     "peerDependencies": {
-        "react": "^19.0.0",
-        "react-dom": "^19.0.0",
-        "vite": "^5.0.0"
+        "react": "*",
+        "react-dom": "*",
+        "vite": "*"
     },
     "peerDependenciesMeta": {
         "react": {
@@ -103,13 +96,17 @@
         "@types/react-dom": "^19.0.3",
         "acorn-loose": "^8.3.0",
         "patch-package": "^8.0.0",
-        "react": "^19.0.0",
-        "react-dom": "^19.0.0",
+        "react": "^19.1.0-canary-bb9a24d9-20250130",
+        "react-dom": "^19.1.0-canary-bb9a24d9-20250130",
         "react-server-dom-esm": "^0.0.1",
         "source-map": "^0.7.4",
+        "ts-node": "^10.9.2",
         "typescript": "^5.7.3",
         "vite": "^5.4.14",
         "vitest": "^3.0.4",
         "webpack-sources": "^3.2.0"
+    },
+    "bin": {
+        "vite-react-stream-patch": "./dist/bin/patch.js"
     }
 }

@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 
 describe('client build', () => {
-  const testDir = resolve(__dirname, '../fixtures/test-project')
+  const testDir = resolve(__dirname, '../fixtures/test-project/')
   
   beforeAll(() => {
     // Clean up any previous test files

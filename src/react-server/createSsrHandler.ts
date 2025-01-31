@@ -30,7 +30,7 @@ export function createSsrHandler(
   const worker = new Worker(
     options?.workerPath
       ? resolve(server.config.root, options?.workerPath)
-      : resolve(__dirname, "..", DEFAULT_CONFIG.WORKER_PATH),
+      : DEFAULT_CONFIG.WORKER_PATH,
     {
       env: {
         NODE_OPTIONS: "--conditions ''",

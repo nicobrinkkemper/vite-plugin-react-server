@@ -13,7 +13,10 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
         'react-client/plugin': resolve(__dirname, 'src/react-client/plugin.ts'),
-        'react-server/plugin': resolve(__dirname, 'src/react-server/plugin.ts')
+        'react-server/plugin': resolve(__dirname, 'src/react-server/plugin.ts'),
+        'worker/worker': resolve(__dirname, 'src/worker/worker.tsx'),
+        'worker/loader': resolve(__dirname, 'src/worker/loader.ts'),
+        'bin/patch': './bin/patch.ts'
       },
       formats: ['es'],
     },
@@ -22,6 +25,7 @@ export default defineConfig({
         'vite',
         'react',
         'react-dom',
+        'react-dom/server',
         'react-server-dom-esm',
         'react-server-dom-esm/client.node',
         'react-server-dom-esm/server.node',

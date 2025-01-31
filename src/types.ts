@@ -1,9 +1,11 @@
 import type {
   AliasOptions,
+  BuildOptions,
   Connect,
   Logger,
   Manifest,
   ModuleGraph,
+  UserConfig,
   ViteDevServer,
 } from "vite";
 
@@ -35,8 +37,23 @@ export type ResolvedUserOptions = Required<
     | "collectCss"
     | "collectAssets"
     | "assetsDir"
+    | "workerPath"
+    | "loaderPath"
+    | "clientEntry"
+    | "serverOutDir"
+    | "clientOutDir"
+    | "moduleBaseExceptions"
   >
-> & { build: NonNullable<Required<StreamPluginOptions["build"]>> };
+> & {
+  build: NonNullable<Required<StreamPluginOptions["build"]>>;
+  autoDiscover: NonNullable<Required<StreamPluginOptions["autoDiscover"]>>;
+};
+
+export type ResolvedUserConfig = Required<Pick<UserConfig, "root" | "mode">> &
+  Omit<UserConfig, "root" | "mode" | "build"> & {
+  build: Required<Pick<BuildOptions, "target" | "outDir" | "assetsDir" | "ssr" | "ssrEmitAssets" | "ssrManifest" | "manifest">> &
+    Partial<Omit<BuildOptions, "target" | "outDir" | "assetsDir" | "ssr" | "ssrEmitAssets" | "ssrManifest" | "manifest">>;
+};
 
 export interface StreamPluginOptions {
   projectRoot?: string;
@@ -70,6 +87,7 @@ export interface StreamPluginOptions {
   collectCss?: boolean;
   collectAssets?: boolean;
   build?: BuildConfig;
+  moduleBaseExceptions?: string[];
 }
 
 export interface CreateHandlerOptions<T = any> {

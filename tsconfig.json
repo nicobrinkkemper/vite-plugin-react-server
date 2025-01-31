@@ -67,6 +67,8 @@
     "src/**/*.mts",
     // support json
     "src/**/*.json",
+    // support css
+    "src/**/*.css",
     // package.json
     "package.json",
     // types

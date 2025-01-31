@@ -1,62 +1,45 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { InlineConfig } from "vite";
-import { DEFAULT_CONFIG } from "../options.js";
-import type { StreamPluginOptions } from "../types.js";
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import type { ResolvedUserConfig, ResolvedUserOptions } from "../types.js";
+import type { InputOption } from "rollup";
+import { mergeInputs } from "./mergeInputs.js";
+import { join } from "node:path";
+import { createNormalizedRelativePath } from "../helpers/normalizedRelativePath.js";
+import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 type CreateBuildConfigOptions = {
+  input: InputOption;
+  userOptions:  ResolvedUserOptions;
+  userConfig: ResolvedUserConfig;
   root: string;
-  base: string;
-  outDir: string;
-  entries: string[];
-  options?: StreamPluginOptions;
+  moduleBaseExceptions: string[];
 };
+
 
 export function createBuildConfig({
   root,
-  base,
-  outDir,
-  entries,
-  options,
+  input,
+  userOptions,
+  userConfig,
+  moduleBaseExceptions
 }: CreateBuildConfigOptions) {
-  // Transform entries into proper input format with unique keys
-  const entryInputs = Object.fromEntries(
-    entries.map((entry) => {
-      // Get the path relative to root
-      const relativePath = entry.replace(root + "/", "");
-      // Create a unique key based on the full path
-      const key = relativePath.replace(/\.[^/.]+$/, ""); // Remove extension
+  const { output, input: inputConfig, ...restRollupOptions } =
+    userConfig.build.rollupOptions ?? {};
 
-      return [key, entry];
-    })
-  );
+  let mergedInputs = mergeInputs(input, inputConfig);
 
-  const workerPath = options?.workerPath
-    ? resolve(root, options.workerPath)
-    : resolve(__dirname, "..", DEFAULT_CONFIG.WORKER_PATH);
-
-  const loaderPath = options?.loaderPath
-    ? resolve(root, options.loaderPath)
-    : resolve(__dirname, "..", DEFAULT_CONFIG.LOADER_PATH);
-
+  let inputNormalizer = createInputNormalizer({
+    root,
+  });
+  if(typeof mergedInputs === 'object' && mergedInputs != null) {
+    mergedInputs = Object.fromEntries(Object.entries(mergedInputs).map(inputNormalizer));
+  }
   const config: InlineConfig = {
     configFile: false,
-    root,
-    base,
+    ...userConfig,
     build: {
-      target: "node18",
-      ssr: true,
-      ssrEmitAssets: false,
-      manifest: true,
-      ssrManifest: true,
-      outDir,
+      ...userConfig.build,
       rollupOptions: {
-        input: {
-          ...entryInputs,
-          worker: workerPath,
-          loader: loaderPath,
-        },
+        input: mergedInputs,
         output: {
           format: "esm",
           preserveModules: true,
@@ -65,7 +48,9 @@ export function createBuildConfig({
           entryFileNames: "[name].js",
           chunkFileNames: "[name].js",
           assetFileNames: "[name][extname]",
+          ...output,
         },
+        ...restRollupOptions,
       },
     },
   };

@@ -1,10 +1,13 @@
 import { beforeAll } from 'vitest'
 import { resolve } from 'node:path'
 import { mkdir, writeFile } from 'node:fs/promises'
+import { exec } from 'child_process'
+import fs from 'fs/promises'
+import { execSync } from 'node:child_process'
 
 // Create test project structure
 beforeAll(async () => {
-  const testDir = resolve(__dirname, 'fixtures/test-project')
+  const testDir = resolve(__dirname, 'fixtures/test-project/')
   
   // Create all required directories
   await mkdir(resolve(testDir, 'src/page'), { recursive: true })
@@ -56,10 +59,12 @@ beforeAll(async () => {
   await writeFile(resolve(testDir, 'package.json'), JSON.stringify({
     "name": "test-project",
     "type": "module",
-    "dependencies": {
-      "react": "^19.0.0",
-      "react-dom": "^19.0.0",
-      "react-server-dom-esm": "^0.0.1"
-    }
+    "homepage": ".",
+    "scripts": {
+      "postinstall": "patch-package",
+      "patch": "node vite-plugin-react-server/patch"
+    },
+    "dependencies": {    }
   }, null, 2))
+
 }) 

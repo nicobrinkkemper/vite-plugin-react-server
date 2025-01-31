@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
-import { resolve as resolvePath } from "node:path";
+import { join, relative, resolve, resolve as resolvePath } from "node:path";
 import { performance } from "node:perf_hooks";
 import { Worker } from "node:worker_threads";
 import type { Plugin as RollupPlugin } from "rollup";
@@ -21,15 +21,18 @@ import type { BuildTiming, ReactStreamPluginMeta } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { createWorker } from "../worker/createWorker.js";
 import { createHandler } from "./createHandler.js";
+import { tryManifest } from "../helpers/tryManifest.js";
+import { createNormalizedRelativePath } from "../helpers/normalizedRelativePath.js";
 
-let pageSet: Set<string>;
-let pageMap: Map<string, string>;
+let files: Awaited<ReturnType<typeof checkFilesExist>>;
+let env: Awaited<ReturnType<typeof getEnv>>;
 let worker: Worker;
 let config: ResolvedConfig;
 let cssModules = new Set<string>();
 let clientComponents = new Map<string, string>();
 let define: Record<string, string>;
 let buildCssFiles = new Set<string>();
+let root: string = process.cwd();
 
 interface BuildStats {
   htmlFiles: number;
@@ -127,7 +130,7 @@ export async function reactStreamPlugin(
               propsExportName: userOptions.propsExportName,
               moduleBase: userOptions.moduleBase,
               moduleBasePath: userOptions.moduleBasePath,
-              projectRoot: server.config.root,
+              projectRoot: server.config.root ?? userOptions.projectRoot,
             },
             {
               cssFiles: Array.from(cssModules),
@@ -148,39 +151,70 @@ export async function reactStreamPlugin(
 
     async config(config, configEnv): Promise<UserConfig> {
       const resolvedPages = await resolvePages(userOptions.build.pages);
-      if(resolvedPages.type === 'error') {
+      if (resolvedPages.type === "error") {
         throw resolvedPages.error;
       }
       const { pages } = resolvedPages;
+      env = getEnv(config, configEnv);
+      define = env.define;
+      files = await checkFilesExist(
+        pages,
+        userOptions,
+        config.root ?? userOptions.projectRoot
+      );
+      root = config.root ?? userOptions.projectRoot;
       const resolvedConfig = resolveUserConfig(
         "react-server",
-        pages,
+        [...pages, userOptions.workerPath, userOptions.loaderPath],
         config,
         configEnv,
         userOptions
       );
-      if(resolvedConfig.type === "error") {
+      if (resolvedConfig.type === "error") {
         throw resolvedConfig.error;
       }
       const { userConfig } = resolvedConfig;
+      console.log({
+        worker: userOptions.workerPath,
+        loader: userOptions.loaderPath,
+      });
+      const entriesClient = Object.fromEntries([
+        ...Array.from(files.pageMap.entries()).map(([key, value]) => [
+          key,
+          relative(root, value),
+        ]),
+        ...Array.from(files.propsMap.entries()).map(([key, value]) => [
+          key,
+          relative(root, value),
+        ]),
+      ]);
+      const entriesResolved = Object.fromEntries(
+        (Object.entries(entriesClient) as [string, string][]).map(
+          ([key, entry]) => {
+            if (typeof entry !== "string") {
+              return [key, entry];
+            }
 
-      const envResult = getEnv(userConfig, configEnv);
-      const files = await checkFilesExist(pages, userOptions, userConfig.root);
-      pageSet = files.pageSet;
-      pageMap = files.pageMap;
-      define = envResult.define;
-      const entries = Array.from(
-        new Set([
-          ...Array.from(files.pageSet.values()),
-          ...Array.from(files.propsSet.values()),
-        ]).values()
+            return [key, entry];
+          }
+        )
       );
+      const serverEntries = {
+        ...entriesResolved,
+        ["worker/worker"]: userOptions.workerPath,
+        ["worker/loader"]: userOptions.loaderPath,
+      };
 
       const buildConfig = createBuildConfig({
-        root: config.root ?? process.cwd(),
-        base: config.base ?? envResult.publicUrl,
-        outDir: config.build?.outDir ?? "dist/server",
-        entries,
+        input: serverEntries,
+        userConfig: userConfig,
+        userOptions: userOptions,
+        root,
+        moduleBaseExceptions: [
+          userOptions.workerPath,
+          userOptions.loaderPath,
+          ...userOptions.moduleBaseExceptions,
+        ],
       });
       return {
         ...buildConfig,
@@ -192,44 +226,70 @@ export async function reactStreamPlugin(
       timing.buildStart = performance.now();
     },
     async closeBundle() {
-      if(!config) return;
+      if (!config) return;
       console.log("RSC CLOSE BUNDLE CALLED");
-      if (!pageSet?.size) return;
+      if (!files.pageSet.size) return;
       timing.renderStart = performance.now();
 
       try {
-        const manifest = JSON.parse(
-          readFileSync(
-            resolvePath(
-              config.root,
-              config.build.outDir,
-              ".vite",
-              "manifest.json"
-            ),
-            "utf-8"
-          )
-        ) as Manifest;
-        const clientManifest = JSON.parse(
-          readFileSync(
-            resolvePath(
-              config.root,
-              userOptions.build.client,
-              ".vite",
-              "manifest.json"
-            ),
-            "utf-8"
-          )
-        ) as Manifest;
+        const resolvedServerManifest = tryManifest({
+          root,
+          outDir: userOptions.build.server,
+          ssrManifest: false,
+        });
+        if (resolvedServerManifest.type === "error") {
+          console.error(
+            "[vite-react-stream] Server Build failed, can not build without a server manifest. Please set `manifest: true` in your vite config.",
+            resolvedServerManifest.error
+          );
+          return;
+        }
+        const { manifest: serverManifest } = resolvedServerManifest;
+
+        // get worker path from server manifest
+        const workerPath =
+          serverManifest[userOptions.workerPath]?.file ??
+          serverManifest[relative(root, userOptions.workerPath)]?.file ??
+          serverManifest[
+            relative(
+              join(root, userOptions.build.server),
+              userOptions.workerPath
+            )
+          ]?.file;
+        if (!workerPath) {
+          console.log(serverManifest, userOptions.build.server);
+          throw new Error(
+            `Worker path not found in server manifest, tried: ${userOptions.workerPath}, ${relative(root, userOptions.workerPath)}, ${join(root, userOptions.build.server, userOptions.workerPath)}`
+          );
+        }
+        console.log("workerPath", workerPath);
+        // client
+        const resolvedClientManifest = tryManifest({
+          root,
+          outDir: userOptions.build.client,
+          ssrManifest: false,
+        });
+        if (resolvedClientManifest.type === "error") {
+          console.error(
+            "[vite-react-stream] Server Build failed, can not build without a client manifest. Make sure to run the client build before the server build and set `manifest: true` in your vite config.",
+            resolvedClientManifest.error
+          );
+          return;
+        }
+        const { manifest: clientManifest } = resolvedClientManifest;
+
         // Create a single worker for all routes
         if (!worker)
-          worker = await createWorker(
-            config.root,
-            config.build.outDir,
-            "worker.js",
-            process.env["NODE_ENV"] === "development" ? "development" : "production"
-          );
+          worker = await createWorker({
+            workerPath: join(root, userOptions.build.server, workerPath),
+            nodePath: process.env["NODE_PATH"] ?? resolve(root, "node_modules"),
+            mode:
+              process.env["NODE_ENV"] === "development"
+                ? "development"
+                : "production",
+          });
         // this is based on the user config - the routes should lead to a page and props but the rendering is agnostic of that
-        const routes = Array.from(pageMap.keys());
+        const routes = Array.from(files.pageMap.keys());
         const indexEntry = clientManifest["index.html"];
         if (!indexEntry) {
           throw new Error("root /index.html not found");
@@ -250,19 +310,19 @@ export async function reactStreamPlugin(
             moduleBase: userOptions.moduleBase,
             moduleBasePath: userOptions.moduleBasePath,
             moduleBaseURL: userOptions.moduleBaseURL,
-            projectRoot: config.root,
+            projectRoot: root,
           },
           worker: worker,
-          manifest: clientManifest as Manifest,
+          manifest: clientManifest,
           loader: createPageLoader({
-            manifest,
+            manifest: clientManifest,
             root: config.root,
             outDir: config.build.outDir,
             moduleBase: userOptions.moduleBase,
             alwaysRegisterServer: false,
             alwaysRegisterClient: false,
             registerServer: [],
-            registerClient: Object.keys(clientManifest).filter(
+            registerClient: Object.keys(resolvedClientManifest).filter(
               (key) =>
                 key.endsWith(".client.tsx") && clientManifest[key].isEntry
             ),

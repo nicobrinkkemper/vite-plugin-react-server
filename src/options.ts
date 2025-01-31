@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { ConfigEnv, ResolvedConfig, UserConfig } from "vite";
-import type { ResolvedUserOptions, StreamPluginOptions } from "./types.js";
+import type { ResolvedUserConfig, ResolvedUserOptions, StreamPluginOptions } from "./types.js";
+import type { InputOption } from "rollup";
 // Default configuration values
 export const DEFAULT_CONFIG = {
   FILE_REGEX: /\.(m|c)?(j|t)sx?$/,
@@ -14,9 +15,9 @@ export const DEFAULT_CONFIG = {
   CLIENT_ENTRY: "/src/client.tsx",
   PAGE_EXPORT: "Page",
   PROPS_EXPORT: "props",
-  // relative from plugin root
-  WORKER_PATH: "worker/worker.tsx",
-  LOADER_PATH: "worker/loader.ts",
+  // Use package name paths instead of relative paths
+  WORKER_PATH: "vite-plugin-react-server/worker",
+  LOADER_PATH: "vite-plugin-react-server/loader",
   RSC_EXTENSION: ".rsc",
   HTML: ({ children }: { children: any }) => children,
   COLLECT_CSS: true,
@@ -32,6 +33,10 @@ export const DEFAULT_CONFIG = {
     pages: () => ["/"],
     client: "dist/client",
     server: "dist/server",
+  },
+  AUTO_DISCOVER: {
+    pagePattern: "**/*.page.tsx",
+    propsPattern: "**/*.props.ts",
   },
 } as const;
 
@@ -51,7 +56,7 @@ export const resolveConfig = <T extends ResolvedConfig>(
 
 export const resolveUserConfig = (
   condition: "react-client" | "react-server",
-  input: string[],
+  input: InputOption,
   config: UserConfig,
   configEnv: ConfigEnv,
   userOptions: ResolvedUserOptions
@@ -59,8 +64,7 @@ export const resolveUserConfig = (
   | { type: "error"; error: Error }
   | {
       type: "success";
-      userConfig: Required<Pick<UserConfig, "root" | "build" | "mode">> &
-        Omit<UserConfig, "root" | "build" | "mode">;
+      userConfig: ResolvedUserConfig;
     } => {
   const isReactServer = condition === "react-server";
   const isViteServer = configEnv.command === "serve";
@@ -74,14 +78,17 @@ export const resolveUserConfig = (
           ...config.build,
           rollupOptions: {
             ...config.build?.rollupOptions,
-            input: input
-          }
-        }
-      }
+            input: input,
+          },
+        },
+      };
     }
   }
 
-  if (typeof config.build?.assetsDir === 'string' && userOptions.assetsDir !== config.build?.assetsDir) {
+  if (
+    typeof config.build?.assetsDir === "string" &&
+    userOptions.assetsDir !== config.build?.assetsDir
+  ) {
     return {
       type: "error",
       error: new Error(
@@ -111,7 +118,7 @@ export const resolveUserConfig = (
             : "react-server condition was not set. Please use `NODE_OPTIONS='--conditions react-server' vite build --ssr`"
         ),
       };
-    } else if (!configEnv.isSsrBuild && configEnv.command !== 'serve') {
+    } else if (!configEnv.isSsrBuild && configEnv.command !== "serve") {
       return {
         type: "error",
         error: new Error(
@@ -122,7 +129,16 @@ export const resolveUserConfig = (
   }
 
   const { root: configRoot, mode: configMode, ...configRest } = config;
-  const { outDir: configOutDir, assetsDir: configAssetsDir, ssr: configSsr, manifest: configManifest, ssrManifest: configSsrManifest, target: configTarget, ...configBuildRest } = config.build ?? {};
+  const {
+    outDir: configOutDir,
+    assetsDir: configAssetsDir,
+    ssr: configSsr,
+    manifest: configManifest,
+    ssrManifest: configSsrManifest,
+    ssrEmitAssets: configSsrEmitAssets,
+    target: configTarget,
+    ...configBuildRest
+  } = config.build ?? {};
 
   return {
     type: "success",
@@ -135,6 +151,7 @@ export const resolveUserConfig = (
         ssr: configSsr ?? isReactServer,
         manifest: configManifest ?? true,
         ssrManifest: configSsrManifest ?? true,
+        ssrEmitAssets: configSsrEmitAssets ?? true,
         target: configTarget ?? "es2020",
         outDir:
           typeof configOutDir === "string"
@@ -146,7 +163,7 @@ export const resolveUserConfig = (
           typeof configAssetsDir === "string"
             ? configAssetsDir
             : isReactServer
-            ? ''
+            ? ""
             : DEFAULT_CONFIG.CLIENT_ASSETS_DIR,
       },
     },
@@ -156,37 +173,63 @@ export const resolveUserConfig = (
 export const resolveOptions = (
   options: StreamPluginOptions
 ):
-  | { type: "error"; error: Error }
   | {
       type: "success";
       userOptions: ResolvedUserOptions;
+    }
+  | {
+      type: "error";
+      error: Error;
     } => {
-  const projectRoot = options.projectRoot ?? process.cwd();
+  const {
+    workerPath: optionsWorkerPath,
+    loaderPath: optionsLoaderPath,
+    projectRoot: optionsProjectRoot,
+    moduleBase: optionsModuleBase,
+    moduleBasePath: optionsModuleBasePath,
+    moduleBaseURL: optionsModuleBaseURL,
+    build: optionsBuild,
+    Page: optionsPage,
+    props: optionsProps,
+    Html: optionsHtml,
+    pageExportName: optionsPageExportName,
+    propsExportName: optionsPropsExportName,
+    collectCss: optionsCollectCss,
+    collectAssets: optionsCollectAssets,
+    assetsDir: optionsAssetsDir,
+    clientEntry: optionsClientEntry,
+    serverOutDir: optionsServerOutDir,
+    clientOutDir: optionsClientOutDir,
+    autoDiscover: optionsAutoDiscover,
+    moduleBaseExceptions: optionsModuleBaseExceptions,
+    ...restOptions
+  } = options;
+  const projectRoot = optionsProjectRoot ?? process.cwd();
   /** the module base can be assumed to not have a leading slash */
   const moduleBase =
-    typeof options.moduleBase === "string"
-      ? options.moduleBase.startsWith(path.sep)
-        ? options.moduleBase.slice(path.sep.length)
-        : options.moduleBase
+    typeof optionsModuleBase === "string"
+      ? optionsModuleBase.startsWith(path.sep)
+        ? optionsModuleBase.slice(path.sep.length)
+        : optionsModuleBase
       : DEFAULT_CONFIG.MODULE_BASE;
 
   if (
-    typeof options.moduleBase === "string" &&
-    options.moduleBase !== moduleBase
+    typeof optionsModuleBase === "string" &&
+    optionsModuleBase !== moduleBase
   ) {
     return {
       type: "error",
       error: new Error(
-        `moduleBase ${options.moduleBase} is invalid, should be like ${moduleBase}`
+        `moduleBase ${optionsModuleBase} is invalid, should be like ${moduleBase}`
       ),
     };
   }
 
   const moduleBasePath =
-    typeof options.moduleBasePath === "string"
-      ? !options.moduleBasePath.startsWith(path.sep)
-        ? `${path.sep}${options.moduleBasePath}`
-        : options.moduleBasePath
+    typeof optionsModuleBasePath === "string"
+      ? !optionsModuleBasePath.startsWith(path.sep)
+        ? `${path.sep}${optionsModuleBasePath}`
+        : optionsModuleBasePath
       : `${path.sep}${moduleBase}`;
 
   if (!moduleBasePath.includes(moduleBase)) {
@@ -199,10 +242,10 @@ export const resolveOptions = (
   }
 
   const moduleBaseURL =
-    typeof options.moduleBaseURL === "string"
-      ? !options.moduleBaseURL.endsWith(moduleBasePath)
-        ? path.join(options.moduleBaseURL, moduleBasePath)
-        : options.moduleBaseURL
+    typeof optionsModuleBaseURL === "string"
+      ? !optionsModuleBaseURL.endsWith(moduleBasePath)
+        ? path.join(optionsModuleBaseURL, moduleBasePath)
+        : optionsModuleBaseURL
       : moduleBasePath;
 
   if (!moduleBaseURL.includes(moduleBasePath)) {
@@ -215,41 +258,70 @@ export const resolveOptions = (
   }
 
   if (
-    typeof options.moduleBaseURL === "string" &&
-    options.moduleBaseURL !== moduleBaseURL
+    typeof optionsModuleBaseURL === "string" &&
+    optionsModuleBaseURL !== moduleBaseURL
   ) {
     return {
       type: "error",
       error: new Error(
-        `moduleBaseURL ${options.moduleBaseURL} is invalid, should be like ${moduleBaseURL}`
+        `moduleBaseURL ${optionsModuleBaseURL} is invalid, should be like ${moduleBaseURL}`
       ),
     };
   }
 
-  const build = options.build
+  const build = optionsBuild
     ? {
-        client: options.build.client ?? DEFAULT_CONFIG.BUILD.client,
-        pages: options.build.pages ?? DEFAULT_CONFIG.BUILD.pages,
-        server: options.build.server ?? DEFAULT_CONFIG.BUILD.server,
+        client: optionsBuild.client ?? DEFAULT_CONFIG.BUILD.client,
+        pages: optionsBuild.pages ?? DEFAULT_CONFIG.BUILD.pages,
+        server: optionsBuild.server ?? DEFAULT_CONFIG.BUILD.server,
       }
     : DEFAULT_CONFIG.BUILD;
 
+  const autoDiscover =
+    typeof optionsAutoDiscover === "object"
+      ? {
+          pagePattern:
+            typeof optionsAutoDiscover.pagePattern === "string"
+              ? optionsAutoDiscover.pagePattern
+              : DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern,
+          propsPattern:
+            typeof optionsAutoDiscover.propsPattern === "string"
+              ? optionsAutoDiscover.propsPattern
+              : DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern,
+        }
+      : DEFAULT_CONFIG.AUTO_DISCOVER;
+
+  const workerPath = typeof optionsWorkerPath === "string" ? optionsWorkerPath : DEFAULT_CONFIG.WORKER_PATH;
+  const loaderPath = typeof optionsLoaderPath === "string" ? optionsLoaderPath : DEFAULT_CONFIG.LOADER_PATH;
   return {
     type: "success",
     userOptions: {
+      ...DEFAULT_CONFIG,
+      ...restOptions,
       moduleBase,
       moduleBasePath,
       moduleBaseURL,
       build,
-      Page: options.Page ?? DEFAULT_CONFIG.PAGE,
-      props: options.props ?? DEFAULT_CONFIG.PROPS,
-      Html: options.Html ?? DEFAULT_CONFIG.HTML,
-      pageExportName: options.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT,
-      propsExportName: options.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT,
-      collectCss: options.collectCss ?? DEFAULT_CONFIG.COLLECT_CSS,
-      collectAssets: options.collectAssets ?? DEFAULT_CONFIG.COLLECT_ASSETS,
+      Page: optionsPage ?? DEFAULT_CONFIG.PAGE,
+      props: optionsProps ?? DEFAULT_CONFIG.PROPS,
+      Html: optionsHtml ?? DEFAULT_CONFIG.HTML,
+      pageExportName: optionsPageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT,
+      propsExportName: optionsPropsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT,
+      collectCss: optionsCollectCss ?? DEFAULT_CONFIG.COLLECT_CSS,
+      collectAssets: optionsCollectAssets ?? DEFAULT_CONFIG.COLLECT_ASSETS,
       projectRoot: projectRoot,
-      assetsDir: options.assetsDir ?? DEFAULT_CONFIG.CLIENT_ASSETS_DIR,
+      assetsDir: optionsAssetsDir ?? DEFAULT_CONFIG.CLIENT_ASSETS_DIR,
+      workerPath: workerPath,
+      loaderPath: loaderPath,
+      clientEntry: optionsClientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
+      serverOutDir: optionsServerOutDir ?? DEFAULT_CONFIG.BUILD.server,
+      clientOutDir: optionsClientOutDir ?? DEFAULT_CONFIG.BUILD.client,
+      autoDiscover: autoDiscover,
+      moduleBaseExceptions: [
+        workerPath,
+        loaderPath,
+        ...(optionsModuleBaseExceptions ?? []),
+      ],
     } satisfies ResolvedUserOptions,
   };
 };

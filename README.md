@@ -1,12 +1,40 @@
 # Vite React Server Components Plugin
 
-A Vite plugin that enables React Server Components (RSC) streaming and static building of html pages. Uses experimental dependencies from React, specifically `react-server-dom-esm/server.node`.
+A Vite plugin that enables React Server Components (RSC) streaming and static building of html pages. Uses experimental dependencies from React, specifically `react-server-dom-esm`.
 
 Temporary patch-package is included in this repository. Example project:
 
 the [mmcelebration.com project](https://github.com/nicobrinkkemper/mmc) is using this plugin. The build time for this website of roughly 200 html pages is a couple of seconds - depending on your machine.
 
-To achieve a simple workflow, it uses a node worker thread to generate the html for the pages. The reason for this is that we need to keep the client and server build processes separate - yet streaming data towards each other. Running the worker avoids running a server for the build process - and as such doesn't need to run a server to export all the html pages.
+## Canary first development
+
+This plugin was developed using the react version currrently hosted on the official react github repository. You can
+only get this version of react-server-dom-esm by actually building react from source. There's a patch system included
+that allows you to download the stub version of react-server-dom-esm and apply the patch to it.
+
+```bash
+npm install react-server-dom-esm
+```
+This package exists, but is empty! So, we need to patch it.
+
+```bash
+npx vite-react-stream/patch
+```
+This will do two things:
+- Look for your installed react version
+- Change the patch around so it matches your react version
+- Writes a file to patches/react-server-dom-esm+YOUR-REACT-VERSION.patch
+```bash
+npm install patch-package --save-dev
+```
+Add to postinstall script in package.json: (you need to do this yourself)
+```json
+"postinstall": "patch-package"
+```
+Now anytime you run install, it will patch the react-server-dom-esm package. Wait until the package is released
+and you can remove the patch-package script.
+
+If you don't want to rely on this, you can also build react from source yourself and run `npm run link` where the package.json is, then `npm link react-server-dom-esm` where you need to use it. However, make sure to also link the react and react-dom package as well or the versions will mismatch (hence the patch-package system).
 
 ## Features
 
@@ -19,64 +47,69 @@ To achieve a simple workflow, it uses a node worker thread to generate the html 
 npm install vite-plugin-react-server
 ```
 
-
 ## Usage
 
 Single vite.config.ts file for server and client build - though you can split it up if you want.
 The import `import { viteReactStreamPlugin } from 'vite-plugin-react-server'` will import the
 right client/server plugin based on the NODE_OPTIONS environment variable.
 
+Checkout the [template directory](./template) for a complete example.
+
+
+## Configuration
+To keep the client and server build processes easy to seperate, I suggest creating two vite.config.ts files and import the config in both. Let's make the stream plugin config file and name it `.tsx`. Vite config files can't end with `.tsx` but our own files can.
+
+```typescript
+// vite.react-server.config.ts
+import { defineConfig } from 'vite'
+import type { Options } from 'vite-plugin-react-server'
+
+// Custom router example
+const createRouter = (file: 'props.ts' | 'Page.tsx') => (url: string) => {
+  console.log(url)
+  if(url.includes('bidoof'))
+    return `src/page/bidoof/${file}`
+  if(url === '/index.rsc')
+    return `src/page/${file}`;
+  return `src/page/404/${file}`;
+}
+
+export const streamPluginOptions: Options = {
+  moduleBase: "src",
+  Page: createRouter('Page.tsx'),
+  props: createRouter('props.ts'),
+  pageExportName: "Page",
+  propsExportName: "props",
+}
+```
+Now let's make the client build config file.
 ```typescript
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { viteReactStreamPlugin } from 'vite-plugin-react-server'
+import { viteReactStreamPlugin } from 'vite-plugin-react-server/client'
+import { streamPluginOptions } from './vite.react-server.config.js'
 
-// Custom router example
-const createRouter = (fileName: string) => (url: string) => {
-  try {
-    return new URL(`file://./src/page${url}/${fileName}`).pathname
-  } catch (e) {
-    return `src/page/404/${fileName}`
-  }
-};
 
 export default defineConfig({
   plugins: [
-    viteReactStreamPlugin({
-      moduleBase: "src",
-      Page: createRouter("page.tsx"),
-      props: createRouter("props.ts"),
-      pageExportName: "Page",
-      propsExportName: "props",
-      build: {
-        client: "dist/client",
-        server: "dist/server",
-        pages: ()=>["/"]
-      },
-    })
+    viteReactStreamPlugin(streamPluginOptions)
   ]
 })
 ```
 
-If you want to import the right plugin directly, you can do so like this:
+And the server build config file:
 
 ```typescript
-// vite.react.config.ts
-import type { Options } from 'vite-plugin-react-server/server'
+// vite.server.config.ts
+import { defineConfig } from 'vite'
+import { viteReactStreamPlugin } from 'vite-plugin-react-server/server'
+import { streamPluginOptions } from './vite.react-server.config.js'
 
-export const streamPluginOptions: Options = {
-  moduleBase: "src",
-  Page: `src/page/index.tsx`,
-  props: `src/page/index.tsx`,
-  pageExportName: "Page",
-  propsExportName: "props",
-  Html: ({children})=>(<html><body>{children}</body></html>),
-  build: {
-    client: "dist/client",
-    server: "dist/server",
-    pages: ()=>["/"]
-  },
-}
+export default defineConfig({
+  plugins: [
+    viteReactStreamPlugin(streamPluginOptions)
+  ]
+})
 ```
 
 ```typescript

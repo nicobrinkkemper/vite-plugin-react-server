@@ -20,7 +20,17 @@ describe('SSR configuration', () => {
     projectRoot: process.cwd(),
     assetsDir: "assets",
     collectCss: true,
-    collectAssets: true
+    collectAssets: true,
+    workerPath: "../../../src/worker/worker.tsx",
+    loaderPath: "../../../src/worker/loader.ts",
+    clientEntry: "src/client.tsx",
+    serverOutDir: "dist/server",
+    clientOutDir: "dist/client",
+    autoDiscover: {
+      pagePattern: "**/*.page.tsx",
+      propsPattern: "**/*.props.ts",
+    },
+    moduleBaseExceptions: [],
   } satisfies ResolvedUserOptions
 
   it('sets ssr=true for react-server condition', () => {

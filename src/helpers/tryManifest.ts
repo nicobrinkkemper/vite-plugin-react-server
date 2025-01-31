@@ -1,13 +1,20 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { Manifest } from "vite";
 
-type TryManifestOptions = {
+type TryManifestOptions<SSR extends boolean> = {
   root: string;
   outDir: string;
-  ssrManifest: boolean;
+  ssrManifest: SSR;
 };
 
-export function tryManifest(options: TryManifestOptions) {
+export function tryManifest<SSR extends boolean>(options: TryManifestOptions<SSR>): {
+  type: "success";
+  manifest: SSR extends true ? Record<string, string[]> : Manifest;
+} | {
+  type: "error";
+  error: Error;
+} {
   const manifestPath = resolve(
     options.root,
     options.outDir,
@@ -15,9 +22,16 @@ export function tryManifest(options: TryManifestOptions) {
     options.ssrManifest ? "ssr-manifest.json" : "manifest.json"
   );
   try {
-    return JSON.parse(readFileSync(manifestPath, "utf-8"));
+    const result=  JSON.parse(readFileSync(manifestPath, "utf-8"));
+    return {
+      type: "success",
+      manifest: result,
+    }
   } catch (e) {
     console.log("No manifest found", manifestPath);
-    return null;
+    return {
+      type: "error",
+      error: e as Error,
+    }
   }
 }

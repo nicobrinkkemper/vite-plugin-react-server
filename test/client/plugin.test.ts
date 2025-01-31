@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { reactStreamPlugin } from '../../src'
+import { reactStreamPlugin } from '../../src/react-client/plugin.js'
 
 describe('reactStreamPlugin', () => {
   it('creates a valid vite plugin', async () => {
