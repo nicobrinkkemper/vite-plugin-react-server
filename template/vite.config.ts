@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
-import { reactStreamPlugin } from 'vite-plugin-react-server';
+// @ts-ignore
+import { vitePluginReactServer } from 'vite-plugin-react-server';
 
 const createRouter = (file: 'props.ts' | 'Page.tsx') => (url: string) => {
   console.log(url)
@@ -12,13 +13,16 @@ const createRouter = (file: 'props.ts' | 'Page.tsx') => (url: string) => {
   return `src/page/404/${file}`;
 }
 
+const config = {
+  moduleBase: 'src',
+  Page: createRouter('Page.tsx'),
+  props: createRouter('props.ts'),
+  build: {
+    pages: ['/', '/404', '/bidoof']
+  },
+}
+
 export default defineConfig({
-  plugins: [reactStreamPlugin({
-    moduleBase: 'src',
-    Page: createRouter('Page.tsx'),
-    props: createRouter('props.ts'),
-    build: {
-      pages: ['/']
-    }
-  })],
-}); 
+  mode: 'development',
+  plugins: [vitePluginReactServer(config)],
+});

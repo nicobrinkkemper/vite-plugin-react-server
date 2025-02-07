@@ -4,7 +4,6 @@ import React, {
   useCallback,
   useState,
   useTransition,
-  type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
 import { useEventListener } from "./hooks/useEventListener.js";
@@ -55,7 +54,7 @@ const Shell: React.FC<{
 
   const content = use(storeData);
 
-  return <ErrorBoundary>{content as ReactNode}</ErrorBoundary>;
+  return <ErrorBoundary>{content as React.ReactNode}</ErrorBoundary>;
 };
 // Initialize the app
 const rootElement = document.getElementById("root");
@@ -69,6 +68,9 @@ createRoot(rootElement).render(<Shell data={intitalData} />);
 
 const Redirect = ({ search }: { search?: string }) => {
   React.useEffect(() => {
+    if(import.meta?.['env']?.['DEV'] || window.location.origin.includes('localhost')|| window.location.origin.includes('127.0.0.1')) {
+      return;
+    }
     if (!window.location.href.includes("/404")) {
       const timeout = setTimeout(() => {
         window.location.href = "/404" + search;

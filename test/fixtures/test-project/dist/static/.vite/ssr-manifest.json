@@ -1,0 +1,7 @@
+{
+  "../../../plugin/worker/createHtmlStream.ts": [],
+  "../../../plugin/worker/html-worker.tsx": [],
+  "../../../plugin/worker/rsc-worker.tsx": [],
+  "src/page/page.tsx": [],
+  "src/page/props.ts": []
+}

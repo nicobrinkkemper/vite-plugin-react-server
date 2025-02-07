@@ -1,48 +1,42 @@
-import { beforeAll } from 'vitest'
-import { resolve } from 'node:path'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { exec } from 'child_process'
-import fs from 'fs/promises'
-import { execSync } from 'node:child_process'
+import { mkdirSync, writeFileSync } from "fs";
+import { dirname, resolve } from "path";
 
-// Create test project structure
-beforeAll(async () => {
-  const testDir = resolve(__dirname, 'fixtures/test-project/')
-  
-  // Create all required directories
-  await mkdir(resolve(testDir, 'src/page'), { recursive: true })
-  
-  // Create client component
-  await writeFile(resolve(testDir, 'src/client.tsx'), `
+export async function setupTestProject(testDir: string) {
+  // Ensure directories exist
+  mkdirSync(resolve(testDir, 'src'), { recursive: true });
+  mkdirSync(resolve(testDir, 'src/page'), { recursive: true });
+
+  // Create test files
+  writeFileSync(resolve(testDir, 'src/client.tsx'), `
     "use client"
     import React from 'react'
-    export function Client() { 
-      return <div>Client Component</div> 
+    export default function Client() {
+      return <div>Client</div>
     }
-  `)
-  
-  // Create server component that uses client component
-  await writeFile(resolve(testDir, 'src/page/page.tsx'), `
+  `);
+
+  writeFileSync(resolve(testDir, 'src/server.tsx'), `
+    "use server"
     import React from 'react'
-    import { Client } from '../client.js'
-    
-    export function Page() { 
-      return (
-        <div>
-          Server Page with client component:
-          <Client />
-        </div>
-      )
+    export function TestServerAction() {
+      return <div>Server</div>
     }
-  `)
+  `);
 
-  await writeFile(resolve(testDir, 'src/page/props.ts'), `
-    export const props = {
-      message: "Hello from test app!"
+  writeFileSync(resolve(testDir, 'src/page/page.tsx'), `
+    import React from 'react'
+    export function Page() {
+      return <div>Page</div>
     }
-  `)
+  `);
 
-  await writeFile(resolve(testDir, 'index.html'), `
+  writeFileSync(resolve(testDir, 'src/page/props.ts'), `
+    export const props = ()=>({
+      title: 'Test'
+    })
+  `);
+
+  writeFileSync(resolve(testDir, 'index.html'), `
     <!DOCTYPE html>
     <html>
       <head>
@@ -54,17 +48,7 @@ beforeAll(async () => {
         <script type="module" src="/src/client.tsx"></script>
       </body>
     </html>
-  `)
+  `);
 
-  await writeFile(resolve(testDir, 'package.json'), JSON.stringify({
-    "name": "test-project",
-    "type": "module",
-    "homepage": ".",
-    "scripts": {
-      "postinstall": "patch-package",
-      "patch": "node vite-plugin-react-server/patch"
-    },
-    "dependencies": {    }
-  }, null, 2))
-
-}) 
+  
+} 

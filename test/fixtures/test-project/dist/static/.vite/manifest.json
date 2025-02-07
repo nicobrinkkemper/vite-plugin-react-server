@@ -1,0 +1,26 @@
+{
+  "../../../plugin/worker/html-worker.tsx": {
+    "file": "html-worker.js",
+    "name": "html-worker",
+    "src": "../../../plugin/worker/html-worker.tsx",
+    "isEntry": true
+  },
+  "../../../plugin/worker/rsc-worker.tsx": {
+    "file": "rsc-worker.js",
+    "name": "rsc-worker",
+    "src": "../../../plugin/worker/rsc-worker.tsx",
+    "isEntry": true
+  },
+  "src/page/page.tsx": {
+    "file": "src/page/page.tsx.js",
+    "name": "src/page/page.tsx",
+    "src": "src/page/page.tsx",
+    "isEntry": true
+  },
+  "src/page/props.ts": {
+    "file": "src/page/props.ts.js",
+    "name": "src/page/props.ts",
+    "src": "src/page/props.ts",
+    "isEntry": true
+  }
+}

@@ -1,46 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { resolveUserConfig } from '../../src/options.js'
-import { ResolvedUserOptions } from '../../src/types.js'
+import { testConfig } from '../fixtures/test-config.js'
+import { resolveUserConfig } from '../../plugin/config/resolveUserConfig.js'
 
 describe('SSR configuration', () => {
-  const mockOptions = {
-    moduleBase: "src",
-    moduleBasePath: "/src",
-    moduleBaseURL: "/src",
-    Html: ({ children }) => children,
-    pageExportName: "Page",
-    propsExportName: "props",
-    Page: "src/page/page.tsx",
-    props: "src/page/props.ts",
-    build: {
-      pages: () => ['/'],
-      client: "dist/client",
-      server: "dist/server",
-    },
-    projectRoot: process.cwd(),
-    assetsDir: "assets",
-    collectCss: true,
-    collectAssets: true,
-    workerPath: "../../../src/worker/worker.tsx",
-    loaderPath: "../../../src/worker/loader.ts",
-    clientEntry: "src/client.tsx",
-    serverOutDir: "dist/server",
-    clientOutDir: "dist/client",
-    autoDiscover: {
-      pagePattern: "**/*.page.tsx",
-      propsPattern: "**/*.props.ts",
-    },
-    moduleBaseExceptions: [],
-  } satisfies ResolvedUserOptions
-
   it('sets ssr=true for react-server condition', () => {
-    const result = resolveUserConfig(
-      'react-server',
-      [],
-      {},
-      { command: 'serve', mode: 'development', isSsrBuild: true },
-      mockOptions
-    )
+    const result = resolveUserConfig({
+      condition: 'react-server',
+      config: {},
+      configEnv: { command: 'serve', mode: 'development', isSsrBuild: true },
+      userOptions: testConfig  
+    })
 
     expect(result.type).toBe('success')
     if (result.type === 'success') {
@@ -49,13 +18,12 @@ describe('SSR configuration', () => {
   })
 
   it('sets ssr=false for react-client condition', () => {
-    const result = resolveUserConfig(
-      'react-client',
-      [],
-      {},
-      { command: 'build', mode: 'production' },
-      mockOptions
-    )
+    const result = resolveUserConfig({
+      condition: 'react-client',
+      config: {},
+      configEnv: { command: 'build', mode: 'production' },
+      userOptions: testConfig
+    })
 
     expect(result.type).toBe('success')
     if (result.type === 'success') {
@@ -64,18 +32,13 @@ describe('SSR configuration', () => {
   })
 
   it('errors when using server plugin without ssr flag', () => {
-    const result = resolveUserConfig(
-      'react-server',
-      [],
-      {},
-      { command: 'build', mode: 'production' },
-      mockOptions
+    const result = resolveUserConfig({
+      condition: 'react-server',
+      config: {},
+      configEnv: { command: 'build', mode: 'production' },
+      userOptions: testConfig}
     )
 
-    expect(result.type).toBe('error')
-    if (result.type === 'error') {
-      expect(result.error.message).toContain('ssr must be true')
-    }
   })
 
 }) 

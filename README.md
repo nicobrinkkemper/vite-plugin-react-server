@@ -18,7 +18,7 @@ npm install react-server-dom-esm
 This package exists, but is empty! So, we need to patch it.
 
 ```bash
-npx vite-react-stream/patch
+npx vite-plugin-react-server/patch
 ```
 This will do two things:
 - Look for your installed react version
@@ -57,7 +57,6 @@ Checkout the [template directory](./template) for a complete example.
 
 
 ## Configuration
-To keep the client and server build processes easy to seperate, I suggest creating two vite.config.ts files and import the config in both. Let's make the stream plugin config file and name it `.tsx`. Vite config files can't end with `.tsx` but our own files can.
 
 ```typescript
 // vite.react-server.config.ts
@@ -317,6 +316,46 @@ export const Html = ({
 ## License
 
 MIT
+
+## FAQ
+
+### Why does this plugin use two separate workers?
+
+The plugin uses a dual-worker architecture to handle the complex boundary between server and client code in React 19's new paradigm. This design enables four key scenarios:
+
+1. **Pure Client** - Client-side React rendering
+2. **Pure Server** - Server-side RSC streaming
+3. **Client-with-server-worker** - Thread WITHOUT React server conditions using dependencies that are ONLY available using the server condition
+4. **Server-with-client-worker** - Thread WITH React server conditions using dependencies that are ONLY available WITHOUT the server condition
+
+This architecture is necessary because React 19 introduces a fundamental shift in how server/client boundaries work. While React was traditionally client/browser-oriented, version 19 moves much of the functionality to the server by default.
+
+## When to use which directive?
+
+The "use client" should be used for components that use client-only things, like hooks - browser window, localStorage, etc.
+
+
+The "use server" directive is *not* for server components, it's for server actions. Every component is a server component by default. If the "use server" directive is present, 
+this plugin will register it as a server action - which means you can intend the exported functions to be API endpoints.
+
+## What about .client.tsx files, .server.tsx files?
+
+Whenever you use the directive, it's recommended to also name the file with the .client.tsx or .server.tsx extension respectively.
+While this isn't required for the plugin to work - it's the only way to make sure all client and server files are included in the build - 
+even if they are not a main entry point.
+
+### What's the deal with NODE_OPTIONS and conditions?
+
+The React Server Components system requires specific Node conditions:
+
+- `NODE_OPTIONS='--conditions=react-server'` is required for RSC functionality (generating RSC streams)
+- This condition must NOT be present for client-side React operations (generating HTML from RSC streams)
+
+The plugin recommends using the react-server condition in the main thread to enable React server features from the start. When different conditions are needed (e.g., generating static HTML), the plugin uses workers with appropriate conditions.
+
+### Why start with "use client"?
+
+With React 19's server-first approach, many existing ecosystem tools and patterns need the "use client" directive to work as they did before. It's becoming a common pattern to start with "use client" to maintain compatibility with existing code while gradually adopting the new server-first paradigm.
 
 
 

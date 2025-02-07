@@ -2,28 +2,33 @@ import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
 export default defineConfig({
-  ssr: {
-    noExternal: true,
-  },
   build: {
     minify: false,
     target: "es2020",
-    
+    // already taken care of by rm -rf dist before tsc, and we don't want to remove the .d.ts files
+    // this avoids the @rollup/plugin-typescript for re-adding them (You can technically leave out this entire vite build step, it 
+    // should work with tsc (I might remove this step in the future, as vite is more browser oriented than node library oriented
+    // you need to fight it to not try and externalize things for the browser)
+    emptyOutDir: false,
     lib: {
       entry: {
-        index: resolve(__dirname, 'src/index.ts'),
-        'react-client/plugin': resolve(__dirname, 'src/react-client/plugin.ts'),
-        'react-server/plugin': resolve(__dirname, 'src/react-server/plugin.ts'),
-        'worker/worker': resolve(__dirname, 'src/worker/worker.tsx'),
-        'worker/loader': resolve(__dirname, 'src/worker/loader.ts'),
-        'bin/patch': './bin/patch.ts',
-        'scripts/check-react-version': './scripts/check-react-version.mjs',
+        "client": resolve(__dirname, 'client.ts'),
+        "server": resolve(__dirname, 'server.ts'),
+        "index": resolve(__dirname, 'index.ts'),
+        'plugin/react-client/plugin': resolve(__dirname, 'plugin/react-client/plugin.ts'),
+        'plugin/react-server/plugin': resolve(__dirname, 'plugin/react-server/plugin.ts'),
+        'plugin/worker/html-worker': resolve(__dirname, 'plugin/worker/html-worker.tsx'),
+        'plugin/worker/rsc-worker': resolve(__dirname, 'plugin/worker/rsc-worker.tsx'),
+        'plugin/worker/loader': resolve(__dirname, 'plugin/worker/loader.ts'),
+        'plugin/preserver/plugin': resolve(__dirname, 'plugin/preserver/plugin.ts'),
+        'plugin/transformer/plugin': resolve(__dirname, 'plugin/transformer/plugin.ts'),
       },
       formats: ['es'],
     },
     rollupOptions: {
       external: [
         'vite',
+        'rollup',
         'react',
         'react-dom',
         'react-dom/server',
@@ -40,9 +45,12 @@ export default defineConfig({
         'async_hooks',
         'fs',
         'path',
+        'worker_threads',
+        // if we use node: paths in our code, it should always be catched by below rule.
         /^node:.*/,
       ],
       output: {
+        dir: 'dist',
         exports: 'named',
         preserveModules: true,
         esModule: true,
@@ -52,12 +60,5 @@ export default defineConfig({
     },
     sourcemap: true,
     // Preserve module structure for proper tree-shaking
-    modulePreload: false,
-    // Don't empty outDir since we need type definitions
-    emptyOutDir: false,
-  },
-  resolve: {
-    // Add conditions for RSC
-    conditions: ['react-server'],
-  },
+    modulePreload: false,  },
 }); 

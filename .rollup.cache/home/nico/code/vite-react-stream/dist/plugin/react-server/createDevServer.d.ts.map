@@ -1,0 +1,1 @@
+{"version":3,"file":"createDevServer.d.ts","sourceRoot":"","sources":["../../../plugin/react-server/createDevServer.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,MAAM,CAAC;AAE1C,OAAO,EAAuB,KAAK,oBAAoB,EAAE,MAAM,0BAA0B,CAAC;AAE1F,wBAAgB,eAAe,CAC7B,MAAM,EAAE,aAAa,EACrB,OAAO,EAAE,oBAAoB,QAG9B"}

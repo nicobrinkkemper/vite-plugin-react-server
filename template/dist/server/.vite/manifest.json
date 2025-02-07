@@ -1,0 +1,41 @@
+{
+  "index.html": {
+    "file": "index.html.js",
+    "name": "index.html",
+    "src": "index.html",
+    "isEntry": true,
+    "css": [
+      "assets/index-ISxL9s3x.css"
+    ]
+  },
+  "src/page/404/Page.tsx": {
+    "file": "src/page/404/Page.js",
+    "name": "src/page/404/Page",
+    "src": "src/page/404/Page.tsx",
+    "isEntry": true
+  },
+  "src/page/404/props.ts": {
+    "file": "src/page/404/props.js",
+    "name": "src/page/404/props",
+    "src": "src/page/404/props.ts",
+    "isEntry": true
+  },
+  "src/page/bidoof/Page.tsx": {
+    "file": "src/page/bidoof/Page.js",
+    "name": "src/page/bidoof/Page",
+    "src": "src/page/bidoof/Page.tsx",
+    "isEntry": true
+  },
+  "src/page/bidoof/props.ts": {
+    "file": "src/page/bidoof/props.js",
+    "name": "src/page/bidoof/props",
+    "src": "src/page/bidoof/props.ts",
+    "isEntry": true
+  },
+  "src/server.tsx": {
+    "file": "server.js",
+    "name": "server",
+    "src": "src/server.tsx",
+    "isEntry": true
+  }
+}

@@ -32,21 +32,18 @@
     // If you are having issues with libraries, you can disable this and it won't check the types of the libraries.
     "skipLibCheck": false,
     // The source folder is intended for polymorphic code that can work on the client, server, or during development. By default new code should go here, and should follow the types defined here.
-    "rootDir": "src",
+    "rootDir": "./",
     // We collect all of our compiled files into the dist folder so that we do not clutter our source directories with distilled files.
     "outDir": "dist",
     // We tell the transpiler that we are using vite and that we want to use the client types. This makes sure that our import.meta.env types are available, as well as the experimental react types.
     "types": [
+      "node",
       "vite/client",
-    ],
-    "typeRoots": [
-      "./node_modules/@types",
-      "./node_modules",
-      "./types",
+      "react/canary",
+      "react-dom/canary"
     ],
     "resolvePackageJsonImports": true,
     "resolvePackageJsonExports": true,
-    "emitDeclarationOnly": true,
     "verbatimModuleSyntax": true,
     // The very latest ES features
     "target": "es2022",
@@ -60,19 +57,24 @@
   },
   "include": [
     // support just normal ts
-    "src/**/*.ts",
+    "plugin/**/*.ts",
     // support tsx
-    "src/**/*.tsx",
+    "plugin/**/*.tsx",
     // support mts
-    "src/**/*.mts",
+    "plugin/**/*.mts",
     // support json
-    "src/**/*.json",
+    "plugin/**/*.json",
     // support css
-    "src/**/*.css",
+    "plugin/**/*.css",
     // package.json
     "package.json",
     // types
     "types/**/*.d.ts",
+    // entry
+    "index.ts",
+    "server.ts",
+    "client.ts",
+    "types.ts",
   ],
   "exclude": [
     "dist",

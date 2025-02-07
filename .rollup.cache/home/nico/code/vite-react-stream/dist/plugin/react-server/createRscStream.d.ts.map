@@ -1,0 +1,1 @@
+{"version":3,"file":"createRscStream.d.ts","sourceRoot":"","sources":["../../../plugin/react-server/createRscStream.ts"],"names":[],"mappings":"AACA,OAAO,EAEL,KAAK,cAAc,EAEpB,MAAM,kCAAkC,CAAC;AAE1C,OAAO,KAAK,EAAE,gBAAgB,EAAE,MAAM,aAAa,CAAC;AAEpD,wBAAgB,eAAe,CAC7B,aAAa,EAAE,gBAAgB,GAC9B,cAAc,CAyChB"}

@@ -1,0 +1,43 @@
+import { moduleIdDefault } from "./moduleIdDefault.js";
+
+export const DEFAULT_CONFIG = {
+  FILE_REGEX: /\.(m|c)?(j|t)sx?$/,
+  CLIENT_ASSETS_DIR: "assets",
+  RSC_DIR: "rsc",
+  MODULE_BASE: "src",
+  MODULE_BASE_PATH: "/src",
+  MODULE_BASE_URL: "/src",
+  PAGE: "/src/page/page.tsx",
+  PROPS: "/src/page/props.ts",
+  CLIENT_ENTRY: "/src/client.tsx",
+  SERVER_ENTRY: "/src/server.tsx",
+  PAGE_EXPORT: "Page",
+  PROPS_EXPORT: "props",
+  HTML_WORKER_PATH: 'vite-plugin-react-server/html-worker',
+  RSC_WORKER_PATH: 'vite-plugin-react-server/rsc-worker',
+  LOADER_PATH: 'vite-plugin-react-server/loader',
+  RSC_EXTENSION: ".rsc",
+  HTML: ({ children }: { children: any }) => children,
+  COLLECT_CSS: true,
+  COLLECT_ASSETS: true,
+  PAGE_PATTERN: "/src/page/**/*.page.tsx",
+  PROPS_PATTERN: "/src/page/**/*.props.ts",
+  DEV_PORT: 5173,
+  PREVIEW_PORT: 4173,
+  DEV_HOST: "localhost",
+  PREVIEW_HOST: "localhost",
+  ENV_PREFIX: "VITE_",
+  BUILD: {
+    pages: () => ["/"],
+    client: "dist/client",
+    server: "dist/server",
+    static: "dist/static",
+  },
+  AUTO_DISCOVER: {
+    pagePattern: /page\.(m|c)?(j|t)sx?/,
+    propsPattern: /props\.(m|c)?(j|t)sx?/,
+    clientComponents: /client\.(m|c)?(j|t)sx?/,
+    serverFunctions: /server\.(m|c)?(j|t)sx?/,
+  },
+  MODULE_ID: moduleIdDefault
+} as const; 

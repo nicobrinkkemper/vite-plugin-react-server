@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { createFromFetch } from "react-server-dom-esm/client.browser";
+// @ts-ignore
+import ReactDOMESM from "react-server-dom-esm/client.browser";
 import { callServer } from "./callServer.js";
 
 export function createReactFetcher({
@@ -11,7 +12,7 @@ export function createReactFetcher({
   moduleBaseURL?: string;
   headers?: HeadersInit;
 } = {}): Promise<ReactNode> {
-  return createFromFetch(
+  return ReactDOMESM.createFromFetch(
     fetch(url, {
       headers: headers,
     }),

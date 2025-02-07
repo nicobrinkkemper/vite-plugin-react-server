@@ -1,0 +1,1 @@
+{"version":3,"file":"server.js","sourceRoot":"","sources":["../server.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,iBAAiB,EAAE,MAAM,mBAAmB,CAAC","sourcesContent":["export { reactStreamPlugin } from './plugin/index.js';\n\n// Export types\nexport type * from './plugin/types.js';\n"]}

@@ -1,0 +1,1 @@
+{"version":3,"file":"vite-types.js","sourceRoot":"","sources":["../vite-types.ts"],"names":[],"mappings":"","sourcesContent":["// Import types from vite but export them as our own interfaces\nimport type * as Vite from 'vite';\nimport type * as Rollup from 'rollup';\n    \nexport type { Vite, Rollup };"]}

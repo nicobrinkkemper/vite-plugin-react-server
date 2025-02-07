@@ -1,0 +1,20 @@
+{
+  "src/page/page.tsx": {
+    "file": "page/src/page/page.js",
+    "name": "page/src/page/page",
+    "src": "src/page/page.tsx",
+    "isEntry": true
+  },
+  "src/page/props.ts": {
+    "file": "props/src/page/props.js",
+    "name": "props/src/page/props",
+    "src": "src/page/props.ts",
+    "isEntry": true
+  },
+  "src/server.tsx": {
+    "file": "server.js",
+    "name": "server",
+    "src": "src/server.tsx",
+    "isEntry": true
+  }
+}

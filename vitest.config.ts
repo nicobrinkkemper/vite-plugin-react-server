@@ -22,7 +22,7 @@ export default defineConfig({
       '**/dist/**',
       '**/cypress/**',
       '**/.{idea,git,cache,output,temp}/**',
-      process.env.NODE_OPTIONS?.includes('react-server') ? 'test/client/**/*.test.ts' : 'test/server/**/*.test.ts'
+      process.env['NODE_OPTIONS']?.includes('react-server') ? 'test/client/**/*.test.ts' : 'test/server/**/*.test.ts'
     ]
   }
 }) 

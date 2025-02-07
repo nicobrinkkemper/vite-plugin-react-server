@@ -1,0 +1,1 @@
+{"version":3,"file":"preserveDirectives.d.ts","sourceRoot":"","sources":["../../../plugin/transformer/preserveDirectives.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,MAAM,EAAE,MAAM,QAAQ,CAAC;AAGrC,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,aAAa,CAAC;AAQ3C,wBAAgB,kBAAkB,CAAC,OAAO,CAAC,EAAE,IAAI,CAAC,OAAO,EAAE,SAAS,CAAC,GAAG,MAAM,CAuF7E"}

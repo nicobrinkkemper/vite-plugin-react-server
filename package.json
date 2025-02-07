@@ -3,36 +3,45 @@
   "version": "0.3.4",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/plugin/index.js",
+  "module": "./dist/plugin/index.js",
+  "types": "./dist/plugin/index.d.ts",
   "files": [
     "dist",
-    "src",
-    "patches",
+    "plugin",
+    "bin",
     "scripts",
     "README.md",
     "LICENSE",
     "tsconfig.json"
   ],
   "exports": {
-    ".": "./dist/index.js",
+    ".": "./dist/plugin/index.js",
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",
-    "./worker": "./dist/worker/worker.js",
-    "./loader": "./dist/worker/loader.js",
-    "./package.json": "./package.json"
+    "./html-worker": "./dist/plugin/worker/html-worker.js",
+    "./rsc-worker": "./dist/plugin/worker/rsc-worker.js",
+    "./loader": "./dist/plugin/worker/loader.js",
+    "./package.json": "./package.json",
+    "./patch": "./scripts/patch.mjs",
+    "./check-react-version": "./scripts/check-react-version.mjs"
   },
   "typesVersions": {
     "*": {
       ".": [
-        "./dist/index.d.ts"
+        "./dist/plugin/index.d.ts"
       ],
       "client": [
-        "./dist/react-client/plugin.d.ts"
+        "./dist/plugin/react-client/plugin.d.ts"
       ],
       "server": [
-        "./dist/react-server/plugin.d.ts"
+        "./dist/plugin/react-server/plugin.d.ts"
+      ],
+      "worker": [
+        "./dist/plugin/worker/worker.d.ts"
+      ],
+      "loader": [
+        "./dist/plugin/worker/loader.d.ts"
       ]
     }
   },
@@ -43,20 +52,22 @@
     "version:patch": "node scripts/bump-version.mjs patch",
     "build": "npm run clean && npm run build:types && npm run build:vite",
     "build:types": "tsc --build --force",
-    "build:vite": "vite build && chmod +x dist/bin/patch.js",
+    "build:vite": "vite build && chmod +x bin/patch.mjs",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build",
     "lint": "eslint ./src --fix",
     "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
     "test:client": "vitest run",
-    "test": "npm run test:client && npm run test:server",
+    "test": "npm run build && npm run test:client && npm run test:server",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "experimental:copy": "cp -r ./oss-experimental/react-server-dom-esm ./node_modules/",
+    "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm --exclude 'nothing'",
-    "experimental:setup": "npm run experimental:copy && npm run experimental:patch",
+    "experimental:setup": "npm install react-server-dom-esm react@canary react-dom@canary && npm run experimental:copy && npm run experimental:patch && mv patches/react-server-dom-esm+0.0.0-experimental-b3a95caf-20250113.patch ./scripts/ && node scripts/check-react-version.mjs",
     "experimental:check": "node scripts/check-react-version.mjs",
-    "postinstall": "npm run experimental:check && npx patch-package react-server-dom-esm"
+    "postinstall": "npm install react-server-dom-esm && node scripts/check-react-version.mjs &&  patch-package",
+    "start": "cd template; NODE_OPTIONS='--conditions react-server' npx vite",
+    "template:build": "cd template && NODE_OPTIONS='--conditions react-server' npx vite build"
   },
   "keywords": [
     "vite",
@@ -85,10 +96,13 @@
   },
   "peerDependenciesMeta": {
     "react": {
-      "optional": true
+      "optional": false
     },
     "react-dom": {
-      "optional": true
+      "optional": false
+    },
+    "vite": {
+      "optional": false
     }
   },
   "devDependencies": {
@@ -97,17 +111,20 @@
     "@types/react-dom": "^19.0.3",
     "acorn-loose": "^8.3.0",
     "patch-package": "^8.0.0",
-    "react": "^19.1.0-canary-bb9a24d9-20250130",
-    "react-dom": "^19.1.0-canary-bb9a24d9-20250130",
+    "react": "^19.1.0-canary-0a82580b-20250203",
+    "react-dom": "^19.1.0-canary-0a82580b-20250203",
     "react-server-dom-esm": "^0.0.1",
+    "rollup": "^4.34.0",
+    "rollup-plugin-dts": "^6.1.1",
     "source-map": "^0.7.4",
     "ts-node": "^10.9.2",
+    "tslib": "^2.8.1",
     "typescript": "^5.7.3",
-    "vite": "^5.4.14",
+    "vite": "^6.0.11",
     "vitest": "^3.0.4",
     "webpack-sources": "^3.2.0"
   },
   "bin": {
-    "vite-react-stream-patch": "./dist/scripts/check-react-version.mjs"
+    "vite-plugin-react-server-patch": "./dist/scripts/check-react-version.mjs"
   }
 }

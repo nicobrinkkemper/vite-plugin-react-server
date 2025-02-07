@@ -1,59 +1,45 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { build } from 'vite'
 import { resolve } from 'node:path'
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { testConfig } from '../fixtures/test-config.js'
+import { reactClientPlugin } from '../../plugin/react-client/plugin.js'
+import { reactWorkerPlugin } from '../../plugin/worker/plugin.js'
 
 describe('client build', () => {
   const testDir = resolve(__dirname, '../fixtures/test-project/')
-  
-  beforeAll(() => {
-    // Clean up any previous test files
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true })
-    }
-    
-    // Ensure directories exist
-    mkdirSync(resolve(testDir, 'src/page'), { recursive: true })
-    
-    // Create index.html with client entry point
-    writeFileSync(resolve(testDir, 'index.html'), `
-      <!DOCTYPE html>
-      <html>
-        <head><title>Test</title></head>
-        <body>
-          <div id="root"></div>
-          <script type="module" src="/src/client.js"></script>
-        </body>
-      </html>
-    `)
-    
-    // Create client entry
-    writeFileSync(resolve(testDir, 'src/client.js'), `
-      const root = document.getElementById('root')
-      root.textContent = 'Hello from client!'
-    `)
-  })
-
-  afterAll(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true })
-    }
-  })
 
   it('builds client successfully', async () => {
-    await build({
+    const buildMetaWorker = await build({
       root: testDir,
-      logLevel: 'error',
+      plugins: [reactWorkerPlugin(testConfig)],
       build: {
-        outDir: 'dist/client'
-      },
-      mode: 'production',
-      configFile: false
-    })
+        emptyOutDir: false,
+      }
+    }) as any
+    const output = Array.isArray(buildMetaWorker) ? buildMetaWorker[0].output : buildMetaWorker.output;
 
-    const clientDir = resolve(testDir, 'dist/client')
-    expect(existsSync(clientDir)).toBe(true)
-    expect(existsSync(resolve(clientDir, 'assets'))).toBe(true)
-    expect(existsSync(resolve(clientDir, 'index.html'))).toBe(true)
+    // Check worker build output
+    if(Array.isArray(output)){
+      expect(output).toBeDefined();
+      expect(output.map(o => o.fileName)).toContain('html-worker.js');
+      expect(output.map(o => o.fileName)).toContain('rsc-worker.js');
+    } else {
+      throw new Error('Worker build failed')
+    }
+
+    // Use the built worker path for client build
+    const buildMetaClient = await build({
+      root: testDir,
+      plugins: [reactClientPlugin(testConfig)],
+      build: {
+        emptyOutDir: false,
+      }
+    }) as any
+
+    expect(buildMetaClient.output).toBeDefined()
+    expect(buildMetaClient.output.some(o => 
+      o.fileName.includes('index') || 
+      o.fileName.includes('assets/')
+    )).toBe(true)
   })
 }) 

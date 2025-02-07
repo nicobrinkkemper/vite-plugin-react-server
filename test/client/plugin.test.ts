@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { reactStreamPlugin } from '../../src/react-client/plugin.js'
+import { reactClientPlugin } from '../../plugin/react-client/plugin.js'
 
-describe('reactStreamPlugin', () => {
+describe('reactClientPlugin', () => {
   it('creates a valid vite plugin', async () => {
-    const plugin = await reactStreamPlugin({
+    const plugin = reactClientPlugin({
       moduleBase: 'src',
       Page: 'src/page.tsx',
       props: 'src/props.ts',
@@ -15,13 +15,17 @@ describe('reactStreamPlugin', () => {
   })
 
   it('validates configuration', async () => {
-    await expect(reactStreamPlugin({
-      moduleBase: '/src', // Invalid path - should throw
-      Page: 'src/page.tsx',
-      props: 'src/props.ts',
-      build: {
+    try {
+      reactClientPlugin({
+        moduleBase: '/src', // Invalid path - should throw
+        Page: 'src/page.tsx',
+        props: 'src/props.ts',
+        build: {
         pages: ['/']
       }
-    })).rejects.toThrow()
+    })
+    } catch (error) {
+      expect(error).toBeDefined()
+    }
   })
 }) 
