@@ -24,9 +24,9 @@
     // We don't allow property access from index signatures. In this case we prefer to write record['images'] instead of record.images
     "noPropertyAccessFromIndexSignature": true,
     // You'll get an error if you forget to remove a variable. Toggle on when you want to clean up code, turn off when you are working on a new feature.
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
     // Same as above, but for function parameters.
-    "noUnusedParameters": true,
+    "noUnusedParameters": false,
     // We allow JSON imports. In fact we promote using them. We need to use the `with {type: 'json'}` which is the most recent way to do it.
     "resolveJsonModule": true,
     // If you are having issues with libraries, you can disable this and it won't check the types of the libraries.

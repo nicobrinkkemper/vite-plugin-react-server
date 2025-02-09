@@ -1,9 +1,6 @@
 import { Worker, type ResourceLimits } from "node:worker_threads";
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
-import React from "react";
-
-
 
 type CreateWorkerOptions = {
   projectRoot?: string;
@@ -45,7 +42,6 @@ export async function createWorker(options: CreateWorkerOptions) {
       (condition === 'react-server' ? '--conditions=react-client' : '--conditions=react-server') 
       : process.env['NODE_OPTIONS']
   };
-  console.log('React version:', React);
   const maxRetries = 3;
   for (let tries = 0; tries < maxRetries; tries++) {
     try {
@@ -60,7 +56,7 @@ export async function createWorker(options: CreateWorkerOptions) {
       // Wait for worker to be ready and verify environment
       const ready = await Promise.race([
         new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Worker startup timeout')), 5000);
+          setTimeout(() => reject(new Error(`Worker startup timeout: ${workerPath}`)), 5000);
         }),
         new Promise((resolve, reject) => {
           worker.once('message', (msg) => {

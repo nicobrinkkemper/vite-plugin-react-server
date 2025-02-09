@@ -1,13 +1,5 @@
-export { reactHtmlWorkerPlugin } from "./plugin.js";
-
-// Dynamic import based on NODE_ENV
-export const worker = await (
+await (
   process.env['NODE_ENV'] === 'production' 
-    ? import('./production.js') 
-    : import('./development.js')
+    ? import('./html-worker.production.js') 
+    : import('./html-worker.development.js')
 );
-
-// Re-export worker functions
-export const {
-  createWorker
-} = worker;

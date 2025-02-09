@@ -1,6 +1,3 @@
-if(process.env['NODE_OPTIONS']?.includes('--conditions=react-server')) {
-  throw new Error('React Server Components are not supported in this environment. Please use a supported environment.');
-}
 import * as React from "react";
 // @ts-ignore
 import { renderToPipeableStream } from "react-server-dom-esm/server.node";

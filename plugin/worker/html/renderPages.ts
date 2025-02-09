@@ -2,7 +2,7 @@ import { join, resolve as resolvePath } from "node:path";
 import { Transform } from "node:stream";
 import type { Worker } from "node:worker_threads";
 import { createHandler } from "../../react-server/createHandler.js";
-import type { StreamPluginOptions } from "../../types.js";
+import type { ResolvedUserConfig, StreamPluginOptions } from "../../types.js";
 import { mkdir, writeFile } from "node:fs/promises";
 
 interface PipeableStreamOptions {
@@ -33,7 +33,7 @@ type RenderPagesOptions = {
       StreamPluginOptions,
       "Page" | "props" | "build" | "Html" | "pageExportName" | "propsExportName"
     >;
-  outDir: string;
+  userConfig: ResolvedUserConfig;
   manifest: Record<string, { file: string }>;
   worker: Worker;
   pipableStreamOptions?: PipeableStreamOptions;
@@ -50,14 +50,15 @@ export async function renderPages(
 ) {
   console.log("[renderPages] Starting render for routes:", routes);
 
-  const destinationRoot = resolvePath(options.pluginOptions.projectRoot, options.outDir);
+  const destinationRoot = resolvePath(options.userConfig.root, options.userConfig.build.outDir);
   const failedRoutes = new Map<string, Error>();
-  const moduleRootPath = join(destinationRoot, options.pluginOptions.moduleBasePath);
-  const moduleBaseURL = options.pluginOptions.moduleBaseURL;
-  const htmlRoot = resolvePath(
-    options.pluginOptions.projectRoot,
-    options.pluginOptions.build?.client ?? options.outDir
+  const moduleRootPath = join(destinationRoot, options.moduleBasePath);
+  const moduleBaseURL = options.moduleBaseURL;
+  const htmlRoot = join(
+    options.userConfig.root,
+    options.pluginOptions.build?.client ?? options.userConfig.build.outDir.replace('server', 'client')
   );
+  console.log("[renderPages] HTML root:", htmlRoot);
 
   const streamStarted = new Set<string>();
   const completedRoutes = new Set<string>();
@@ -71,20 +72,16 @@ export async function renderPages(
     }, 5000);
 
     options.worker.on("message", function messageHandler(msg: any) {
-      console.log("[renderPages] Raw message:", msg);
       switch (msg.type) {
         case "SHELL_READY": {
-          console.log("[renderPages] Shell ready");
           streamStarted.add(msg.id);
           break;
         }
         case "HTML_READY": {
-          console.log("[renderPages] HTML ready for", msg.id);
           htmlContent.set(msg.id, msg.html);
           break;
         }
         case "ALL_READY": {
-          console.log("[renderPages] All streams ready");
           completedRoutes.add(msg.id);
           
           if (completedRoutes.size === routes.length) {
@@ -94,8 +91,8 @@ export async function renderPages(
             // Write all HTML files
             for (const [route, html] of htmlContent) {
               const outputPath = route === '/' 
-                ? resolvePath(htmlRoot, 'index.html')
-                : resolvePath(htmlRoot, route, 'index.html');
+                ? join(htmlRoot, 'index.html')
+                : join(htmlRoot, route, 'index.html');
               
               const writePromise = writeFile(outputPath, html)
                 .catch(error => {
@@ -152,7 +149,7 @@ export async function renderPages(
               moduleRootPath: moduleRootPath,
               moduleBaseURL: moduleBaseURL,
               htmlOutputPath,
-              outDir: options.outDir,
+              outDir: options.userConfig.build.outDir,
               pipableStreamOptions: options.pipableStreamOptions ?? {},
             });
             callback(null, chunk);

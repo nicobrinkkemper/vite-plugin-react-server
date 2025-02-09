@@ -28,13 +28,20 @@ describe('server build', () => {
 
       // Build server (needs server condition)
       const buildMetaServer = await build({
+        root: testDir,
         plugins: [
           serverPlugin
         ],
       }) as any
       // Check server build output
-      for(const {output} of buildMetaServer) {
-        for(const file of output) {
+      if(Array.isArray(buildMetaServer)) {
+        for(const {output} of buildMetaServer) {
+          for(const file of output) {
+            expect(file.fileName).toBeDefined()
+          }
+        }
+      } else {
+        for(const file of buildMetaServer.output) {
           expect(file.fileName).toBeDefined()
         }
       }

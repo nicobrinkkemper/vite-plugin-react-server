@@ -111,12 +111,10 @@ export function reactServerPlugin(
       );
 
       if (transformerIndex === -1) {
-        console.warn("Transformer plugin not installed");
+        throw new Error("Transformer plugin not installed");
       }
       if (preserverIndex < transformerIndex) {
-        console.warn(
-          "Transformer plugin isn't installed or isn't running before preserver"
-        );
+        throw new Error("Transformer plugin isn't installed or isn't running before preserver");
       }
     },
     async configureServer(server: ViteDevServer) {
@@ -294,6 +292,7 @@ export function reactServerPlugin(
         const css = entries.flatMap((entry) => entry.css);
         const loader = createBuildLoader({ 
           root,
+          userConfig,
           pluginContext: this
         });
 
@@ -303,20 +302,9 @@ export function reactServerPlugin(
           },
           moduleBasePath: userOptions.moduleBasePath,
           moduleBaseURL: userOptions.moduleBaseURL,
-          outDir: finalConfig.build.outDir,
           clientCss: css?.map((css) => "/" + css) ?? [],
-          pluginOptions: {
-            Page: userOptions.Page,
-            props: userOptions.props,
-            build: userOptions.build,
-            Html: userOptions.Html,
-            pageExportName: userOptions.pageExportName,
-            propsExportName: userOptions.propsExportName,
-            moduleBase: userOptions.moduleBase,
-            moduleBasePath: userOptions.moduleBasePath,
-            moduleBaseURL: userOptions.moduleBaseURL,
-            projectRoot: root,
-          },
+          userConfig,
+          pluginOptions: userOptions,
           worker: worker,
           manifest: serverManifest,
           loader,
