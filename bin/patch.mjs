@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url';
 
-const PATCH_RECONCILER_VERSION = '19.1.0-canary-8759c5c8-20250207'
+const PATCH_RECONCILER_VERSION = '0.0.0-experimental-b3a95caf-20250113.patch'
 const STUB_VERSION = '0.0.1'
 const __dirname = dirname(fileURLToPath(import.meta.url));  
 
@@ -21,15 +21,15 @@ async function patchReactExperimental() {
     // Define patches to process
     const patches = [
       {
-        template: '../scripts/react-server-dom-esm+0.0.0-canary-8759c5c8-20250207.patch',
+        template: `../scripts/react-server-dom-esm+${PATCH_RECONCILER_VERSION}`,
         output: `react-server-dom-esm+${STUB_VERSION}.patch`
       },
       {
-        template: '../scripts/react+0.0.0-canary-8759c5c8-20250207.patch',
+        template: `../scripts/react+${PATCH_RECONCILER_VERSION}`,
         output: `react+${installedVersion}.patch`
       },
       {
-        template: '../scripts/react-dom+0.0.0-canary-8759c5c8-20250207.patch',
+        template: `../scripts/react-dom+${PATCH_RECONCILER_VERSION}`,
         output: `react-dom+${installedVersion}.patch`
       }
     ]
