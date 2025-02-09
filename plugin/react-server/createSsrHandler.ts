@@ -67,7 +67,7 @@ export function createSsrHandler(
           moduleGraph: server.moduleGraph,
         }
       );
-      const moduleBasePath = join(
+      const moduleRootPath = join(
         server.config.cacheDir,
         options.moduleBasePath
       );
@@ -111,7 +111,7 @@ export function createSsrHandler(
           type: "RSC_CHUNK",
           id: req.url ?? "/",
           chunk: rscData,
-          moduleBasePath,
+          moduleRootPath: moduleRootPath,
           moduleBaseURL: options.moduleBaseURL,
           // Don't need file paths in dev mode
           outDir: "",

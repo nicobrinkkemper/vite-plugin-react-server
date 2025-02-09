@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { testConfig } from '../fixtures/test-config.js'
+import { testConfig } from '../test-config.js'
 import { resolveUserConfig } from '../../plugin/config/resolveUserConfig.js'
 
 describe('Build configuration', () => {

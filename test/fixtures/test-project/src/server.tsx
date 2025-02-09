@@ -1,7 +1,6 @@
-
-    "use server"
-    import React from 'react'
-    export function TestServerAction() {
-      return <div>Server</div>
-    }
+"use server"
+  import React from 'react'
+  export function TestServerAction() {
+    return React.createElement('div', null, 'Server')
+  }
   

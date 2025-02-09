@@ -1,6 +1,9 @@
-import { Worker } from "node:worker_threads";
+import { Worker, type ResourceLimits, type WorkerOptions } from "node:worker_threads";
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
+import React from "react";
+
+
 
 type CreateWorkerOptions = {
   projectRoot?: string;
@@ -8,53 +11,68 @@ type CreateWorkerOptions = {
   nodePath?: string;
   nodeOptions?: string;
   mode?: "production" | "development";
-  workerOptions?: WorkerOptions;
   reverseCondition?: boolean;
   maxListeners?: number;
   workerPath: string;
+  resourceLimits?: ResourceLimits;
 };
+
 export async function createWorker(options: CreateWorkerOptions) {
-  let {
+  const {
     projectRoot = process.cwd(),
     nodePath = getNodePath(projectRoot),
     condition = getCondition(),
     reverseCondition = true,
-    nodeOptions = reverseCondition ? condition === "react-server"
-        ? "--conditions=react-client"
-        : "--conditions=react-server"
-      : condition === "react-server" ? "--conditions=react-server"
-      : "--conditions=react-client",
+    maxListeners = 100,
     mode = getMode(),
-    workerOptions,
-    maxListeners = 1000,
     workerPath,
+    resourceLimits = {
+      maxOldGenerationSizeMb: 512,
+      maxYoungGenerationSizeMb: 128,
+    }
   } = options;
 
-  if(nodeOptions === '--conditions=') nodeOptions = '';
+  // Ensure consistent NODE_ENV between main thread and worker
+  const isTestEnv = process.env['VITEST'] || process.env['NODE_ENV'] === 'test';
+  const nodeEnv = isTestEnv ? 'development' : mode;
 
+  const env = {
+    ...process.env,
+    NODE_ENV: nodeEnv,
+    NODE_PATH: nodePath,
+    // Clear any inherited conditions for worker
+    NODE_OPTIONS: reverseCondition ? 
+      (condition === 'react-server' ? '--conditions=react-client' : '--conditions=react-server') 
+      : process.env['NODE_OPTIONS']
+  };
+  console.log('React version:', React);
   const maxRetries = 3;
-  const timeout = 5000;
-  
   for (let tries = 0; tries < maxRetries; tries++) {
     try {
-      
       const worker = new Worker(workerPath, {
-        env: {
-          NODE_OPTIONS: nodeOptions,
-          NODE_ENV: mode,
-          NODE_PATH: nodePath,
-        },
-        ...workerOptions,
+        env,
+        // Increase resource limits for stream handling
+        resourceLimits: resourceLimits
       });
+
       worker.setMaxListeners(maxListeners);
-      
+
+      // Wait for worker to be ready and verify environment
       const ready = await Promise.race([
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Worker startup timeout')), timeout)
-        ),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Worker startup timeout')), 5000);
+        }),
         new Promise((resolve, reject) => {
-          worker.once('message', msg => {
-            if (msg.type === 'READY') resolve(true);
+          worker.once('message', (msg) => {
+            if (msg.type === 'READY') {
+              if(msg.env === nodeEnv) {
+                resolve(true);
+              } else {
+                reject(new Error(`Worker environment mismatch: expected ${nodeEnv}, got ${msg.env}`));
+              }
+            } else if (msg.type === 'ERROR') {
+              reject(new Error(msg.error));
+            }
           });
           worker.once('error', reject);
         })

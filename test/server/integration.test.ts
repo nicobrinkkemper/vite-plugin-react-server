@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { build } from 'vite'
 import { join, resolve } from 'node:path'
 import { vitePluginReactServer } from '../../plugin/react-server/index.js'
-import { testConfig } from '../fixtures/test-config.js'
+import { testConfig } from '../test-config.js'
 import { fileURLToPath } from 'node:url'
 describe('server integration', () => {
   if (!process.env['	NODE_OPTION']?.includes('react-server')) {
@@ -16,11 +16,7 @@ describe('server integration', () => {
     const serverPlugin = vitePluginReactServer(testConfig)   
 
     const rollupOutput = await build({
-      root: testDir,
-      plugins: [serverPlugin],
-      build: {
-        emptyOutDir: false,
-      }
+      plugins: [serverPlugin]
     }).then(async (rollupOutput) => {
       return rollupOutput
     })

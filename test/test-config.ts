@@ -1,7 +1,8 @@
-import { join, relative } from "path";
-import { ResolvedUserOptions } from "../../plugin/types.js";
-import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
-export const testDir = join(process.cwd(), 'test/fixtures/test-project')
+import { dirname, join, relative } from "path";
+import { ResolvedUserOptions } from "../plugin/types.js";
+import { DEFAULT_CONFIG } from "../plugin/config/defaults.js";
+import { fileURLToPath } from "node:url";
+export const testDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/test-project')
 export const testConfig = {
   moduleBase: DEFAULT_CONFIG.MODULE_BASE,
   moduleBasePath: DEFAULT_CONFIG.MODULE_BASE_PATH,

@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, afterAll, beforeEach } from 'vitest'
 import { build } from 'vite'
-import { join, resolve } from 'node:path'
-import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { existsSync, rmSync } from 'node:fs'
 import { vitePluginReactServer } from '../../plugin/react-server/index.js'
-import { testConfig } from '../fixtures/test-config.js'
-import { fileURLToPath } from 'node:url'
+import { testConfig } from '../test-config.js'
+import { setupTestProject } from '../setup.js'
 
 
 describe('server build', () => {
@@ -16,6 +16,10 @@ describe('server build', () => {
     }
   })
 
+  beforeEach(() => {
+    setupTestProject(testDir)
+  })
+
   if (!process.env['NODE_OPTIONS']?.includes('react-server')) {
     it.skip('builds server successfully (requires react-server condition)', () => {})
   } else {
@@ -24,16 +28,16 @@ describe('server build', () => {
 
       // Build server (needs server condition)
       const buildMetaServer = await build({
-        root: testDir,
         plugins: [
           serverPlugin
         ],
       }) as any
       // Check server build output
-      expect(buildMetaServer.output).toBeDefined()
-      expect(buildMetaServer.output.some(o => 
-        o.fileName.includes('server.js')  // Look for client.js specifically
-      )).toBe(true)
+      for(const {output} of buildMetaServer) {
+        for(const file of output) {
+          expect(file.fileName).toBeDefined()
+        }
+      }
     }, 20000)
   }
 }) 

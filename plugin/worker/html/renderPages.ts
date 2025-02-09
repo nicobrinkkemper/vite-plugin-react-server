@@ -6,7 +6,7 @@ import type {
 } from "../types.js";
 import { createHandler } from "../../react-server/createHandler.js";
 import type { StreamPluginOptions } from "../../types.js";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 
 interface PipeableStreamOptions {
   bootstrapModules?: string[];
@@ -53,75 +53,80 @@ export async function renderPages(
 ) {
   console.log("[renderPages] Starting render for routes:", routes);
 
-  const destinationRoot = resolvePath(
-    options.pluginOptions.projectRoot,
-    options.outDir
-  );
+  const destinationRoot = resolvePath(options.pluginOptions.projectRoot, options.outDir);
   const failedRoutes = new Map<string, Error>();
-  const moduleBasePath = join(
-    destinationRoot,
-    options.pluginOptions.moduleBasePath
-  );
+  const moduleRootPath = join(destinationRoot, options.pluginOptions.moduleBasePath);
   const moduleBaseURL = options.pluginOptions.moduleBaseURL;
-
   const htmlRoot = resolvePath(
     options.pluginOptions.projectRoot,
     options.pluginOptions.build?.client ?? options.outDir
   );
-  const filesOutputted: string[] = [];
-  const renderPromises: Promise<void>[] = [];
 
-  // Set up message handler
-  options.worker.on("message", (msg) => {
-    console.log("[renderPages] Raw message:", msg);
-    switch (msg.type) {
-      case "ERROR":
-        console.error("[RenderPages] Worker error:", msg.error);
-        break;
-      case "WROTE_FILE":
-        filesOutputted.push(msg.outputPath);
-        if (filesOutputted.length === routes.length) {
-          renderPromises.push(
-            new Promise<void>((resolve) => {
-              options.worker.removeAllListeners();
-              options.worker.terminate();
-              resolve();
-            })
-          );
+  const streamStarted = new Set<string>();
+  const completedRoutes = new Set<string>();
+  const htmlContent = new Map<string, string>();
+  const writePromises = new Map<string, Promise<void>>();
+
+  // Create a promise that resolves when all routes are complete
+  const allRoutesComplete = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`Render timeout - Started: ${streamStarted.size}, Completed: ${completedRoutes.size}`));
+    }, 5000);
+
+    options.worker.on("message", function messageHandler(msg: any) {
+      console.log("[renderPages] Raw message:", msg);
+      switch (msg.type) {
+        case "SHELL_READY": {
+          console.log("[renderPages] Shell ready");
+          streamStarted.add(msg.id);
+          break;
         }
-        break;
-      default:
-        break;
-    }
+        case "HTML_READY": {
+          console.log("[renderPages] HTML ready for", msg.id);
+          htmlContent.set(msg.id, msg.html);
+          break;
+        }
+        case "ALL_READY": {
+          console.log("[renderPages] All streams ready");
+          completedRoutes.add(msg.id);
+          
+          if (completedRoutes.size === routes.length) {
+            options.worker.removeListener("message", messageHandler);
+            clearTimeout(timeout);
+            
+            // Write all HTML files
+            for (const [route, html] of htmlContent) {
+              const outputPath = route === '/' 
+                ? resolvePath(htmlRoot, 'index.html')
+                : resolvePath(htmlRoot, route, 'index.html');
+              
+              const writePromise = writeFile(outputPath, html)
+                .catch(error => {
+                  failedRoutes.set(route, error as Error);
+                });
+              writePromises.set(route, writePromise);
+            }
+
+            // Wait for all files to be written
+            Promise.all(writePromises.values())
+              .then(() => resolve())
+              .catch(reject);
+          }
+          break;
+        }
+        case "ERROR": {
+          console.error("[renderPages] Worker error:", msg.error);
+          if (msg.id) {
+            failedRoutes.set(msg.id, new Error(msg.error));
+          }
+          break;
+        }
+      }
+    });
   });
 
   try {
-    const completedRoutes = new Set<string>();
-    // create all directories
     await mkdir(htmlRoot, { recursive: true });
-    for (const route of routes) {
-      await mkdir(join(htmlRoot, route), { recursive: true });
-    }
-
-    // Create completion promise that resolves when all streams end
-    const allStreamsComplete = new Promise<void>((resolve) => {
-      console.log("[renderPages] Setting up message handler");
-      const messageHandler = (msg: any) => {
-        console.log("[renderPages] Raw message:", msg);
-        if (msg.type === "WROTE_FILE") {
-          const routeId = msg.id;
-          console.log("[renderPages] Got completion for:", routeId);
-          completedRoutes.add(routeId);
-          if (completedRoutes.size === routes.length) {
-            console.log("[renderPages] All streams complete!");
-            options.worker.removeListener("message", messageHandler);
-            resolve();
-          }
-        }
-      };
-      options.worker.on("message", messageHandler);
-      console.log("[renderPages] Message handler set up");
-    });
 
     const renderPromises = routes.map(async (route) => {
       console.log("[renderPages] Processing route:", route);
@@ -138,50 +143,51 @@ export async function renderPages(
         }
 
         const htmlOutputPath = route === '/' 
-          ? join(htmlRoot, 'index.html')  // Root route
-          : join(htmlRoot, route, 'index.html');  // Other routes
+          ? resolvePath(htmlRoot, 'index.html')
+          : resolvePath(htmlRoot, route, 'index.html');
 
-        // Create a promise that resolves when the worker completes
-          const transform = new Transform({
-            transform(chunk, _encoding, callback) {
-              options.worker.postMessage({
-                type: "RSC_CHUNK",
-                id: route,
-                chunk: chunk,
-                moduleBasePath: moduleBasePath,
-                moduleBaseURL: moduleBaseURL,
-                htmlOutputPath,
-                outDir: options.outDir,
-                pipableStreamOptions: options.pipableStreamOptions ?? {},
-              } satisfies WorkerRscChunkMessage);
-              callback(null, chunk);
-            },
-            flush(callback) {
-              options.worker.postMessage({
-                type: "RSC_END",
-                id: route,
-              });
-              callback();
-            }
-          });
+        const transform = new Transform({
+          transform(chunk, _encoding, callback) {
+            options.worker.postMessage({
+              type: "RSC_CHUNK",
+              id: route,
+              chunk: chunk,
+              moduleRootPath: moduleRootPath,
+              moduleBaseURL: moduleBaseURL,
+              htmlOutputPath,
+              outDir: options.outDir,
+              pipableStreamOptions: options.pipableStreamOptions ?? {},
+            });
+            callback(null, chunk);
+          },
+          flush(callback) {
+            options.worker.postMessage({
+              type: "RSC_END",
+              id: route,
+            });
+            callback();
+          }
+        });
           
-          result.stream.pipe(transform);
+        result.stream.pipe(transform);
 
       } catch (error) {
         failedRoutes.set(route, error as Error);
       }
     });
 
-    await Promise.all(renderPromises);
-    await allStreamsComplete;
+    // Wait for both the render promises and all routes to complete
+    await Promise.all([
+      Promise.all(renderPromises),
+      allRoutesComplete
+    ]);
 
   } finally {
-    // Clean up worker
     await options.worker.terminate();
   }
 
   return {
     failedRoutes,
-    filesOutputted
+    completedRoutes
   };
 }

@@ -1,5 +1,5 @@
 
-    export const props = ()=>({
-      title: 'Test'
-    })
+  export const props = ()=>({
+    title: 'Test'
+  })
   

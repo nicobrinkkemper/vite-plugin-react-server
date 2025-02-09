@@ -6,7 +6,7 @@ import {
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolvePage } from "../resolvePage.js";
 import { resolveProps } from "../resolveProps.js";
-import type { CreateHandlerOptions, StreamPluginOptions } from "../types.js";
+import type { CreateHandlerOptions, StreamPluginOptions, HtmlProps } from "../types.js";
 import { createRscStream } from "./createRscStream.js";
 import type { PipeableStream } from "react-dom/server";
 
@@ -128,9 +128,6 @@ export async function createHandler<T>(
     streamOptions.cssFiles.forEach((css) => cssModules.add(css));
   }
 
-  // Add debug logging
-  console.log("[createHandler] Creating stream for route:", url);
-
   const stream = createRscStream({
     Html: Html,
     Page: Page,
@@ -145,8 +142,6 @@ export async function createHandler<T>(
       pageProps: props,
       route: url,
       url: url,
-      cssFiles: Array.from(cssModules),
-      manifest: streamOptions.manifest,
     },
   });
 

@@ -20,7 +20,7 @@ export interface HtmlRenderState {
   complete: boolean;
   rendered: boolean;
   outDir: string;
-  moduleBasePath: string;
+  moduleRootPath: string;
   moduleBaseURL: string;
   htmlOutputPath: string;
   id: string;
@@ -31,7 +31,7 @@ export interface RscRenderState {
   id: string;
   pipableStreamOptions: PipeableStreamOptions;
   outDir: string;
-  moduleBasePath: string;
+  moduleRootPath: string;
   moduleBaseURL: string;
   rscOutputPath: string;
   componentImport: string;
@@ -42,7 +42,7 @@ export interface WorkerRscChunkMessage {
   type: "RSC_CHUNK";
   id: string;
   chunk: string;
-  moduleBasePath: string;
+  moduleRootPath: string;
   moduleBaseURL: string;
   outDir: string;
   htmlOutputPath: string;
@@ -51,6 +51,7 @@ export interface WorkerRscChunkMessage {
 
 export interface ShutdownMessage {
   type: "SHUTDOWN";
+  id: string;
 }
 
 export interface RscRenderMessage {
@@ -59,7 +60,7 @@ export interface RscRenderMessage {
   pageImport: string;
   propsImport: string;
   outDir: string;
-  moduleBasePath: string;
+  moduleRootPath: string;
   moduleBaseURL: string;
   pipableStreamOptions: PipeableStreamOptions;
 }

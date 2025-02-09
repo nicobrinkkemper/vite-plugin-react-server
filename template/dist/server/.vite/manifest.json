@@ -44,6 +44,12 @@
     "src": "src/page/bidoof/props.ts",
     "isEntry": true
   },
+  "src/server.tsx": {
+    "file": "src/server.js",
+    "name": "src/server",
+    "src": "src/server.tsx",
+    "isEntry": true
+  },
   "src/utils/callServer.ts": {
     "file": "utils/callServer.js",
     "name": "utils/callServer",

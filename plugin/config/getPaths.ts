@@ -2,7 +2,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const getNodePath = (root: string = process.cwd()): string => {
-  return (process.env['module_root'] ?? join(root, "node_modules"));
+  return process.env['module_root'] ?? join(root, "node_modules");
 }
 
 export const getPluginRoot = (): string => {

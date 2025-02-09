@@ -58,7 +58,7 @@
     "lint": "eslint ./src --fix",
     "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
     "test:client": "vitest run",
-    "test": "npm run build && npm run test:client && npm run test:server",
+    "test": "npm run build && npm run test:client && NODE_ENV=development npm run test:server",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",

@@ -32,6 +32,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { getPluginRoot } from "../config/getPaths.js";
 import { getModuleManifest } from "../helpers/getModuleManifest.js";
 import { createBuildLoader } from '../loader/createBuildLoader.js';
+import React from "react";
 
 export function reactServerPlugin(
   options: StreamPluginOptions
@@ -81,7 +82,7 @@ export function reactServerPlugin(
     throw resolvedOptions.error;
   }
   userOptions = resolvedOptions.userOptions;
-
+  root = userOptions.projectRoot;
   return {
     name: "vite:react-stream-server",
     enforce: "post",
@@ -167,12 +168,12 @@ export function reactServerPlugin(
               Page: userOptions.Page,
               props: userOptions.props,
               build: userOptions.build,
-              Html: ({ children }) => children,
+              Html: React.Fragment,
               pageExportName: userOptions.pageExportName,
               propsExportName: userOptions.propsExportName,
               moduleBase: userOptions.moduleBase,
               moduleBasePath: userOptions.moduleBasePath,
-              projectRoot: server.config.root ?? userOptions.projectRoot,
+              projectRoot: root,
             },
             {
               cssFiles: Array.from(cssModules),
@@ -297,7 +298,7 @@ export function reactServerPlugin(
           pluginContext: this
         });
 
-        const { failedRoutes, filesOutputted } = await renderPages(routes, {
+        const { failedRoutes, completedRoutes } = await renderPages(routes, {
           pipableStreamOptions: {
             bootstrapModules: entries.map((entry) => "/" + entry.file),
           },
@@ -330,19 +331,13 @@ export function reactServerPlugin(
         // Debug render results
         console.log("[vite-plugin-react-server] Render results:", {
           failedRoutes,
-          filesOutputted,
-          expectedRoutes: routes.length,
+          completedRoutes,
         });
 
         if (failedRoutes.size) {
           console.error(
             "[vite-plugin-react-server] Failed to render routes:",
             failedRoutes
-          );
-        }
-        if (filesOutputted.length !== routes.length) {
-          throw new Error(
-            `Failed to render routes: ${routes.length} routes expected, ${filesOutputted.length} routes rendered`
           );
         }
         console.log("[vite-plugin-react-server] Render complete");

@@ -1,96 +1,130 @@
-import { createWriteStream, readFileSync, WriteStream } from "node:fs";
-import { PassThrough, Writable } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
 import { parentPort } from "node:worker_threads";
-import { readSync } from "node:fs";
-import { createHtmlStream } from "./createHtmlStream.js";
 import type { HtmlRenderState, HtmlWorkerMessage } from "../types.js";
 import type { PipeableStream } from "react-dom/server";
+import ReactDOMServer from "react-dom/server";
+import React from "react";
+import {
+  createFromNodeStream,
+  // @ts-ignore
+} from "react-server-dom-esm/client.node";
 
-if (!parentPort) {
-  throw new Error("This module must be run as a worker");
-}
+const debug = (...args: any[]) => console.log("[html-worker]", ...args);
 
-declare global {
-  interface Window {
-    href: string;
-  }
-}
-// Initialize happy-dom window
-(global as any).window = {
-  href: undefined,
-  pathname: undefined,
-};
-
-// Track active renders
+// Track active renders and streams
 const activeRenders = new Map<string, HtmlRenderState>();
 const activeStreams = new Map<string, PipeableStream>();
-const activeWrites = new Map<string, Writable>();
 
+if (!parentPort) throw new Error("This module must be run as a worker");
 
-const createStreamToMemory = (id: string) => {
-  return new Writable({
-    write(chunk, _, callback) {
-      callback();
-    },
-    final(callback) {
-      callback();
-    },
-  });
-};
-// Handle incoming messages
-parentPort.on("message", (message: HtmlWorkerMessage) => {
-  switch (message.type) {
-    case "RSC_CHUNK": {
-      const { chunk, id, ...rest } = message;
-      (global as any).window.pathname = id;
-      // Skip if already rendered
-      let renderState = activeRenders.get(id);
-      if (renderState?.rendered) {
-        return;
+parentPort.on("message", async (message: HtmlWorkerMessage) => {
+  try {
+    switch (message.type) {
+      case "RSC_CHUNK": {
+        const { id, chunk, ...rest } = message;
+        const render = activeRenders.get(id);
+        
+        if (!render) {
+          activeRenders.set(id, {
+            chunks: [chunk],
+            id,
+            complete: false,
+            rendered: false,
+            ...rest
+          });
+        } else {
+          render.chunks = [...render.chunks, chunk];
+        }
+        break;
       }
-      // Initialize render state
-      if (!renderState) {
-        renderState = {
-          chunks: [],
-          complete: false,
-          rendered: false,
-          id: id,
-          ...rest,
-        };
-        activeRenders.set(id, renderState);
-      }
-      // Add chunk
-      if (chunk) renderState.chunks.push(chunk);
-      break;
-    }
 
-    case "RSC_END": {
-      const { id } = message;
-      const render = activeRenders.get(id);
+      case "RSC_END": {
+        const { id } = message;
+        const render = activeRenders.get(id);
+        if (!render) {
+          throw new Error(`No render state found for ${id}`);
+        }
 
-      if (!render || !parentPort || render.rendered) {
-        console.log("[html-worker] Skipping render:", {
-          render: !!render,
-          rendered: render?.rendered,
+        debug("Starting render for", id, "chunks:", render.chunks.length);
+
+        // Create a PassThrough stream to handle the chunks
+        const rscStream = new PassThrough();
+        
+        // Write all chunks to the stream
+        for (const chunk of render.chunks) {
+          rscStream.write(chunk);
+        }
+        rscStream.end();
+
+        // Create React elements from stream
+        const reactElements = createFromNodeStream(
+          rscStream,
+          render.moduleRootPath,
+          render.moduleBaseURL
+        );
+
+        // Create a promise that resolves when HTML is complete
+        const htmlPromise = new Promise<string>((resolve) => {
+          let html = '';
+          const collectStream = new PassThrough();
+          
+          collectStream.on('data', chunk => {
+            html += chunk.toString();
+          });
+          
+          collectStream.on('end', () => {
+            debug("HTML collection complete:", html);
+            resolve(html);
+          });
+
+          // Render to pipeable stream
+          const stream = ReactDOMServer.renderToPipeableStream(
+            reactElements as React.ReactNode,
+            {
+              ...render.pipableStreamOptions,
+              onShellReady() {
+                debug("Shell ready for", id);
+                parentPort?.postMessage({ type: "SHELL_READY", id });
+              },
+              async onAllReady() {
+                debug("All ready for", id);
+                const finalHtml = await htmlPromise;
+                debug("Final HTML content:", finalHtml);
+                parentPort?.postMessage({ 
+                  type: "HTML_READY", 
+                  id,
+                  html: finalHtml,
+                  outputPath: render.htmlOutputPath 
+                });
+                parentPort?.postMessage({ type: "ALL_READY", id });
+              },
+              onError(error) {
+                debug("Error for", id);
+                parentPort?.postMessage({ 
+                  type: "ERROR", 
+                  id, 
+                  error: error instanceof Error ? error.message : String(error)
+                });
+              }
+            }
+          );
+
+          // Pipe to collection stream
+          stream.pipe(collectStream);
         });
-        return;
-      }
-      render.rendered = true;
-      const writeToFile = render.outDir && render.htmlOutputPath;
 
-      const { stream, writeStream } = createHtmlStream(
-        render,
-        writeToFile
-          ? createWriteStream(render.htmlOutputPath)
-          : createStreamToMemory(id),
-        parentPort
-      );
-      activeStreams.set(id, stream);
-      activeWrites.set(id, writeStream);
-      break;
+        break;
+      }
     }
+  } catch (error) {
+    console.error("[html-worker] Fatal error:", error);
+    parentPort?.postMessage({
+      type: "ERROR",
+      id: message.type === "RSC_CHUNK" || message.type === "RSC_END" ? message.id : "",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
-// When ready
-parentPort.postMessage({ type: "READY" });
+// Signal ready with environment
+parentPort.postMessage({ type: "READY", env: process.env["NODE_ENV"] });

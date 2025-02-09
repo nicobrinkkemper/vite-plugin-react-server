@@ -295,3 +295,11 @@ export type WorkerMessage =
 // Add branded types for safety
 export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
+
+
+export type HtmlProps = {
+  pageProps: any;
+  route: string;
+  url: string;
+  cssFiles: string[];
+}

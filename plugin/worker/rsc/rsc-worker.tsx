@@ -50,7 +50,7 @@ parentPort.on("message", async (message: RscWorkerMessage) => {
   try {
     switch (message.type) {
       case "RSC_RENDER": {
-        const { id, pageImport, propsImport, outDir, moduleBasePath, moduleBaseURL, pipableStreamOptions } = message;
+        const { id, pageImport, propsImport, outDir, moduleRootPath, moduleBaseURL, pipableStreamOptions } = message;
         
         // Skip if already rendered
         if (activeRenders.has(id)) return;
@@ -59,7 +59,7 @@ parentPort.on("message", async (message: RscWorkerMessage) => {
         const renderState: RscRenderState = {
           id,
           outDir,
-          moduleBasePath,
+          moduleRootPath,
           moduleBaseURL,
           rscOutputPath: `${outDir}/${id}.rsc`,
           componentImport: pageImport,

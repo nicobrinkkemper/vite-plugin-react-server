@@ -2,6 +2,7 @@ import type { ConfigEnv, UserConfig } from "vite";
 import type { CheckFilesExistReturn, ResolvedUserConfig, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
+import { join } from "node:path";
 
 export type ResolveUserConfigProps = {
   condition: "react-client" | "react-server" | "";
@@ -30,12 +31,15 @@ export function resolveUserConfig({
     const existingInput = config.build?.rollupOptions?.input || {};
     const currentInputs = typeof existingInput === 'string' ? { default: existingInput } : existingInput;
     const normalizer = createInputNormalizer(root);
+
+    const serverEntry = userOptions.serverEntry ? [userOptions.serverEntry, userOptions.serverEntry] : [];
     // Add inputs based on condition
     const inputs = {
       ...currentInputs,
       ...(condition === 'react-server' && files ? {
         'index.html': '/index.html',
         ...Object.fromEntries([
+          ...serverEntry,
           ...Array.from(files.pageMap.entries()),
           ...Array.from(files.propsMap.entries())
         ].map(normalizer))
