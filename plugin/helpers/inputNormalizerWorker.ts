@@ -11,16 +11,10 @@ interface WorkerNormalizerOptions {
 
 export function createInputNormalizerWorker({
   root,
-  moduleBase,
   worker,
-  moduleBaseExceptions = []
 }: WorkerNormalizerOptions): InputNormalizerWorker {
   
-  const baseNormalizer = createInputNormalizer({ 
-    root, 
-    moduleBase,
-    moduleBaseExceptions 
-  });
+  const baseNormalizer = createInputNormalizer(root);
 
   return async (input: NormalizerInput): Promise<[string, string]> => {
     // Handle React components specially with worker

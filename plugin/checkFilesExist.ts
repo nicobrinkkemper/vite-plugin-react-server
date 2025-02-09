@@ -11,43 +11,39 @@ export async function checkFilesExist(
   const errors: string[] = [];
   const pageSet = new Set<string>();
   const pageMap = new Map<string, string>();
+  
+  const toKey = (path: string) => {
+    return relative(root, resolve(root, path))
+      .replace(/\\/g, '/')
+      .replace(DEFAULT_CONFIG.FILE_REGEX, '')
+      .replace(/^\.\//, '');
+  }
   // Check if files exist when string paths are provided
   if (typeof options.Page === "string") {
     const pagePath = options.Page;
     const fullPagePath = resolve(root, pagePath);
-    const key = relative(root, resolve(root, pagePath))
-      .replace(/\\/g, '/')
-      .replace(DEFAULT_CONFIG.FILE_REGEX, '')
-      .replace(/^\.\//, '');
-    pageMap.set(key, pagePath.replace(/^\//, ''));
+    const key = toKey(pagePath);
+    pageMap.set(key, pagePath);
     if (!pageSet.has(key)) {
       if (!existsSync(fullPagePath)) {
-        errors.push(`Page file not found: ${pagePath}`);
+        errors.push(`Page file not found: ${pagePath}, ${fullPagePath}`);
       }
       pageSet.add(pagePath.replace(/^\//, ''));
     }
   } else if (typeof options.Page === "function" && pages) {
     for (const page of pages) {
       const pagePath = options.Page(page);
-      const key = relative(root, resolve(root, pagePath))
-        .replace(/\\/g, '/')
-        .replace(DEFAULT_CONFIG.FILE_REGEX, '')
-        .replace(/^\.\//, '');
-      pageMap.set(key, pagePath.replace(/^\//, ''));
+      const fullPagePath = resolve(root, pagePath);
+      const key = toKey(pagePath);
+      pageMap.set(key, pagePath);
       if (pageSet.has(key)) {
         continue;
       }
-      if (!existsSync(pagePath)) {
-        errors.push(`Page file not found: ${pagePath}`);
+      if (!existsSync(fullPagePath)) {
+        errors.push(`Page file not found: ${pagePath}, ${fullPagePath}`);
       }
-      pageSet.add(pagePath.replace(/^\//, ''));
+      pageSet.add(pagePath);
     }
-  }
-  const toKey = (path: string) => {
-    return relative(root, resolve(root, path))
-      .replace(/\\/g, '/')
-      .replace(DEFAULT_CONFIG.FILE_REGEX, '')
-      .replace(/^\.\//, '');
   }
 
   const propsSet = new Set<string>();
@@ -56,32 +52,31 @@ export async function checkFilesExist(
     const propsPath = options.props;
     const fullPropsPath = resolve(root, propsPath);
     const key = toKey(propsPath);
-    propsMap.set(key, propsPath.replace(/^\//, ''));
+    propsMap.set(key, propsPath);
     if (!propsSet.has(key)) {
       if (!existsSync(fullPropsPath)) {
-        errors.push(`Props file not found: ${propsPath}`);
+        errors.push(`Props file not found: ${propsPath}, ${fullPropsPath}`);
       }
-      propsSet.add(propsPath.replace(/^\//, ''));
+      propsSet.add(propsPath);
     }
   } else if (typeof options.props === "function" && pages) {
     for (const page of pages) {
       const propsPath = options.props(page);
       const fullPropsPath = resolve(root, propsPath);
       const key = toKey(propsPath);
-      propsMap.set(key, propsPath.replace(/^\//, ''));
+      propsMap.set(key, propsPath);
       if (propsSet.has(key)) {
         continue;
       }
       if (!existsSync(fullPropsPath)) {
-        errors.push(`Props file not found: ${propsPath}`);
+        errors.push(`Props file not found: ${propsPath}, ${fullPropsPath}`);
       }
-      propsSet.add(propsPath.replace(/^\//, ''));
+      propsSet.add(propsPath);
     }
   }
 
   if (errors.length) {
-    throw new Error("React Stream Plugin Validation:\n" + errors.join("\n"));
+    console.warn("React Stream Plugin Validation:\n" + errors.join("\n"));
   }
-  console.log({pageMap, pageSet, propsMap, propsSet});
   return { pageMap, pageSet, propsMap, propsSet };
 }

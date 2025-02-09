@@ -23,7 +23,7 @@
     "noFallthroughCasesInSwitch": true,
     // We don't allow property access from index signatures. In this case we prefer to write record['images'] instead of record.images
     "noPropertyAccessFromIndexSignature": true,
-    // You'll get an error if you forget to remove a variable. If you intended not to use it, you can prefix the variable with an underscore or change to a underscore variable to indicate unused variables.
+    // You'll get an error if you forget to remove a variable. Toggle on when you want to clean up code, turn off when you are working on a new feature.
     "noUnusedLocals": false,
     // Same as above, but for function parameters.
     "noUnusedParameters": false,

@@ -1,12 +1,24 @@
 {
-  "index.html": {
-    "file": "index.html.js",
-    "name": "index.html",
-    "src": "index.html",
-    "isEntry": true,
+  "src/client.tsx": {
+    "file": "client.js",
+    "name": "client",
+    "src": "src/client.tsx",
+    "imports": [
+      "src/hooks/useEventListener.ts",
+      "src/utils/createReactFetcher.ts"
+    ],
     "css": [
-      "assets/index-ISxL9s3x.css"
+      "index.css"
     ]
+  },
+  "src/hooks/useEventListener.ts": {
+    "file": "hooks/useEventListener.js",
+    "name": "hooks/useEventListener",
+    "src": "src/hooks/useEventListener.ts"
+  },
+  "src/index.css": {
+    "file": "index.css",
+    "src": "src/index.css"
   },
   "src/page/404/Page.tsx": {
     "file": "src/page/404/Page.js",
@@ -32,10 +44,22 @@
     "src": "src/page/bidoof/props.ts",
     "isEntry": true
   },
-  "src/server.tsx": {
-    "file": "server.js",
-    "name": "server",
-    "src": "src/server.tsx",
-    "isEntry": true
+  "src/utils/callServer.ts": {
+    "file": "utils/callServer.js",
+    "name": "utils/callServer",
+    "src": "src/utils/callServer.ts"
+  },
+  "src/utils/createReactFetcher.ts": {
+    "file": "utils/createReactFetcher.js",
+    "name": "utils/createReactFetcher",
+    "src": "src/utils/createReactFetcher.ts",
+    "imports": [
+      "src/utils/callServer.ts"
+    ]
+  },
+  "vite/modulepreload-polyfill.js": {
+    "file": "_virtual/modulepreload-polyfill.js",
+    "name": "_virtual/modulepreload-polyfill",
+    "src": "vite/modulepreload-polyfill.js"
   }
 }

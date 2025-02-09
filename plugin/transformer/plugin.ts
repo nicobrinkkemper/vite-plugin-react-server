@@ -40,8 +40,8 @@ export function reactTransformPlugin(
     throw new Error('react-server condition not found, set NODE_OPTIONS="--conditions react-server"')
   }
   const projectRoot = options?.projectRoot || process.cwd();
-  const includeClient = options?.autoDiscover?.clientComponents || DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents;
-  const includeServerFunctions = options?.autoDiscover?.serverFunctions || DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions;
+  // const includeClient = options?.autoDiscover?.clientComponents || DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents;
+  // const includeServerFunctions = options?.autoDiscover?.serverFunctions || DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions;
   let transformClientComponent: any;
   let transformServerAction: any;
   // get the file we are imported from (parent)
@@ -89,11 +89,6 @@ export function reactTransformPlugin(
         [path.replace(DEFAULT_CONFIG.FILE_REGEX, '')]: path
       }), {});
 
-      console.log('[TransformerPlugin] Merging inputs:', {
-        existing: currentInputs,
-        clientComponents: entries
-      });
-
       return {
         build: {
           rollupOptions: {
@@ -111,17 +106,21 @@ export function reactTransformPlugin(
       clientComponents.clear();
     },
 
-    async transform(code: string, id: string) {
+    async transform(code: string, id: string, options?: { ssr?: boolean }) {
       // Check for directives
       const hasClientDirective = code.match(/^["']use client["'];?/);
       if (!hasClientDirective) {
-        return null;
+        const hasServerDirective = code.match(/^["']use server["'];?/);
+        if (!hasServerDirective) {
+          return null;
+        }
+        return transformServerAction.bind(this)(code, id, options);
       }
 
       // Track client component and transform
       clientComponents.add(id);
       console.log('[TransformerPlugin] Found client component:', id);
-      return transformClientComponent.bind(this)(code, id);
+      return transformClientComponent.bind(this)(code, id, options);
     },
 
     // Log final client components list

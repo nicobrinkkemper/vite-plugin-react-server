@@ -2,8 +2,7 @@ import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 
 export const resolveOptions = (
-  options: StreamPluginOptions,
-  condition: "react-client" | "react-server" | ""
+  options: StreamPluginOptions
 ): { type: "success"; userOptions: ResolvedUserOptions } | { type: "error"; error: Error } => {
   const projectRoot = options.projectRoot ?? process.cwd();
 

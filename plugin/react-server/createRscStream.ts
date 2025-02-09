@@ -21,14 +21,9 @@ export function createRscStream(
     url,
     moduleBasePath,
     pipableStreamOptions,
+    htmlProps,
   } = streamOptions;
-  console.log("[createRscStream] Creating stream with:", {
-    moduleBasePath,
-    cssFiles,
-    route,
-    url,
-    pipableStreamOptions
-  });
+
   const css = Array.isArray(cssFiles)
     ? cssFiles.map((css, index) =>
         React.createElement(CssCollector, {
@@ -39,9 +34,10 @@ export function createRscStream(
     : [];
   return renderToPipeableStream(
     React.createElement(
-      React.Fragment,
+      Html,
       {
         key: "html",
+        ...htmlProps
       },
       React.createElement(Page, { key: "page", ...props }),
       ...css

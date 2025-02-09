@@ -1,7 +1,5 @@
-import { join, basename } from "node:path";
 import { Worker } from "node:worker_threads";
 import { getMode, getNodePath } from "../config/getPaths.js";
-import { resolveFilePath } from '../helpers/resolveFilePath.js';
 import { getCondition } from "../config/getCondition.js";
 
 type CreateWorkerOptions = {
@@ -32,36 +30,41 @@ export async function createWorker(options: CreateWorkerOptions) {
     workerPath,
   } = options;
 
-  console.log("[Worker] Creating worker...");
-  console.log("[Worker] Worker path:", workerPath);
   if(nodeOptions === '--conditions=') nodeOptions = '';
 
-  try {
-    console.log("[Worker] Resolved path:", workerPath, mode, nodeOptions, nodePath);
-    
-    const worker = new Worker(workerPath, {
-      env: {
-        NODE_OPTIONS: nodeOptions,
-        NODE_ENV: mode,
-        NODE_PATH: nodePath,
-      },
-      ...workerOptions,
-    });
-    worker.setMaxListeners(maxListeners);
-
-    // Wait for worker to be ready
-    await new Promise<void>((resolve, reject) => {
-      worker.once("message", (message) => {
-        if (message.type === "READY") {
-          resolve();
-        }
+  const maxRetries = 3;
+  const timeout = 5000;
+  
+  for (let tries = 0; tries < maxRetries; tries++) {
+    try {
+      
+      const worker = new Worker(workerPath, {
+        env: {
+          NODE_OPTIONS: nodeOptions,
+          NODE_ENV: mode,
+          NODE_PATH: nodePath,
+        },
+        ...workerOptions,
       });
-      worker.once("error", reject);
-    });
-
-    return worker;
-  } catch (error) {
-    console.error("[Worker] Startup error:", error);
-    throw error;
+      worker.setMaxListeners(maxListeners);
+      
+      const ready = await Promise.race([
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Worker startup timeout')), timeout)
+        ),
+        new Promise((resolve, reject) => {
+          worker.once('message', msg => {
+            if (msg.type === 'READY') resolve(true);
+          });
+          worker.once('error', reject);
+        })
+      ]);
+      
+      if (ready) return worker;
+    } catch (error) {
+      console.warn(`Worker startup attempt ${tries + 1} failed:`, error);
+      if (tries === maxRetries - 1) throw error;
+    }
   }
+  throw new Error('Failed to start worker after retries');
 }

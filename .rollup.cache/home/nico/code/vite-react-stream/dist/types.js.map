@@ -1,1 +1,0 @@
-{"version":3,"file":"types.js","sourceRoot":"","sources":["../types.ts"],"names":[],"mappings":"","sourcesContent":["// Import types from vite but export them as our own interfaces\nexport type * from './plugin/types.js';"]}

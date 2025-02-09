@@ -1,1 +1,0 @@
-{"version":3,"file":"createWorker.d.ts","sourceRoot":"","sources":["../../../plugin/worker/createWorker.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,MAAM,EAAE,MAAM,qBAAqB,CAAC;AAE7C,KAAK,mBAAmB,GAAG;IACzB,UAAU,EAAE,MAAM,CAAC;IACnB,QAAQ,EAAE,MAAM,CAAC;IACjB,IAAI,EAAE,YAAY,GAAG,aAAa,CAAC;IACnC,aAAa,CAAC,EAAE,aAAa,CAAC;CAC/B,CAAC;AAEF,wBAAsB,YAAY,CAChC,OAAO,EAAE,mBAAmB,mBAgC7B"}

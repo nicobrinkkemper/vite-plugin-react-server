@@ -2877,10 +2877,10 @@ index 0000000..67b508f
 +      return hook.checkDCE ? !0 : !1;
 +    })({
 +      bundleType: 1,
-+      version: "19.1.0-canary-0a82580b-20250203",
++      version: "19.1.0-experimental-b3a95caf-20250113",
 +      rendererPackageName: "react-server-dom-esm",
 +      currentDispatcherRef: ReactSharedInternals,
-+      reconcilerVersion: "19.1.0-canary-0a82580b-20250203",
++      reconcilerVersion: "19.1.0-experimental-b3a95caf-20250113",
 +      getCurrentComponentInfo: function () {
 +        return currentOwnerInDEV;
 +      }
@@ -16327,7 +16327,7 @@ index 0000000..aa968f4
 +  return obj;
 +}
 +
-+var ReactVersion = '19.1.0-canary-0a82580b-20250203';
++var ReactVersion = '19.1.0-experimental-b3a95caf-20250113';
 +
 +function createStringDecoder() {
 +  return new TextDecoder();
@@ -24643,7 +24643,7 @@ index aa37e77..c1b80e9 100644
    "name": "react-server-dom-esm",
    "description": "React Server Components bindings for DOM using ESM. This is intended to be integrated into meta-frameworks. It is not intended to be imported directly.",
 -  "version": "0.0.1",
-+  "version": "19.1.0-canary-0a82580b-20250203",
++  "version": "19.1.0-canary-8759c5c8-20250207",
    "keywords": [
      "react"
    ],
@@ -24699,8 +24699,8 @@ index aa37e77..c1b80e9 100644
 +    "node": ">=0.10.0"
 +  },
 +  "peerDependencies": {
-+    "react": "19.1.0-canary-0a82580b-20250203",
-+    "react-dom": "19.1.0-canary-0a82580b-20250203"
++    "react": "19.1.0-canary-8759c5c8-20250207",
++    "react-dom": "19.1.0-canary-8759c5c8-20250207"
 +  },
 +  "dependencies": {
 +    "acorn-loose": "^8.3.0",

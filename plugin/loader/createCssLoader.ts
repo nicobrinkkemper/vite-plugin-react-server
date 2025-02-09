@@ -1,10 +1,8 @@
-import { createLogger, ModuleGraph, type Manifest } from "vite";
+import { ModuleGraph, type Manifest } from "vite";
 import {
   collectManifestCss,
   collectModuleGraphCss,
 } from "../collect-css-manifest.js";
-import { resolvePage } from "../resolvePage.js";
-import { resolveProps } from "../resolveProps.js";
 
 type BaseCssLoaderOptions = {
   /** callback to add css files to the stream */
@@ -36,7 +34,7 @@ type CreateCssLoaderOptions =
  * @param options
  * @returns
  */
-export async function createCssLoader<T>(options: CreateCssLoaderOptions) {
+export async function createCssLoader(options: CreateCssLoaderOptions) {
   const root = process.cwd();
 
   const cssModules = new Set<string>();

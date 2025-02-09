@@ -1,4 +1,4 @@
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import type { InputNormalizer } from "../types.js";
 
 interface StaticNormalizerOptions {

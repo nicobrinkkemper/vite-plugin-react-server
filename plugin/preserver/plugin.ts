@@ -1,12 +1,11 @@
 import type { Node } from "estree";
 import type { Plugin } from "vite";
 import MagicString from "magic-string";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
 import type { StreamPluginOptions } from "../types.js";
 
 const REACT_DIRECTIVES = new Set(["use client", "use server"]);
 
-export function reactPreservePlugin(options: StreamPluginOptions): Plugin {
+export function reactPreservePlugin(_options: StreamPluginOptions): Plugin {
   const meta: Record<string, Set<string>> = {};
 
   return {

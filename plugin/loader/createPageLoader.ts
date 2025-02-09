@@ -10,7 +10,6 @@ import {
   registerServerReference,
   // @ts-ignore
 } from "react-server-dom-esm/server.node";
-import { createNormalizedRelativePath } from "../helpers/normalizedRelativePath.js";
 
 type CreatePageLoaderOptions = {
   manifest: Record<string, { file: string; src?: string }>;
@@ -21,6 +20,7 @@ type CreatePageLoaderOptions = {
   registerClient?: string[];
   alwaysRegisterServer?: boolean;
   alwaysRegisterClient?: boolean;
+  loader: (id: string) => Promise<any>;
 };
 
 type CreateDefaultLoaderOptions = {
@@ -75,6 +75,7 @@ export function createPageLoader({
   alwaysRegisterClient,
   registerServer,
   registerClient,
+  loader,
 }: CreatePageLoaderOptions) {
   return async function loader(id: string) {
     console.log("[pageLoader] Loading:", {

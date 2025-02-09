@@ -38,3 +38,6 @@ scripts/data/*
 # react oss
 /oss-experimental
 tsconfig.tsbuildinfo
+
+# rollup cache
+.rollup.cache

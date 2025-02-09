@@ -1,16 +1,13 @@
 import type { Plugin as VitePlugin, UserConfig } from "vite";
 
-import type { ResolvedUserConfig, ResolvedUserOptions, StreamPluginOptions } from "../types.js";
-import { createInputNormalizer } from "../helpers/inputNormalizer.js";
+import type { ResolvedUserOptions, StreamPluginOptions } from "../types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 
-let root: string = '';
-let userConfig: ResolvedUserConfig;
 let userOptions: ResolvedUserOptions;
 
 export function reactClientPlugin(options: StreamPluginOptions): VitePlugin {
-  const resolvedOptions = resolveOptions(options, "react-client");
+  const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
@@ -30,12 +27,7 @@ export function reactClientPlugin(options: StreamPluginOptions): VitePlugin {
         throw resolvedConfig.error;
       }
 
-      root = resolvedConfig.userConfig.root;
-      userConfig = resolvedConfig.userConfig;
-
-
-
-      return userConfig;
+      return resolvedConfig.userConfig;
     }
   };
 }

@@ -1,6 +1,5 @@
 import type { InputOption } from "rollup";
 import type { UserConfig } from "vite";
-import type { InputNormalizer, InputNormalizerWorker } from "../types.js";
 
 export function validateModuleBase(
   input: InputOption,

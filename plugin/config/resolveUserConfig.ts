@@ -1,6 +1,7 @@
 import type { ConfigEnv, UserConfig } from "vite";
 import type { CheckFilesExistReturn, ResolvedUserConfig, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 export type ResolveUserConfigProps = {
   condition: "react-client" | "react-server" | "";
@@ -21,28 +22,23 @@ export function resolveUserConfig({
   userOptions,
   files
 }: ResolveUserConfigProps): ResolveUserConfigReturn {
-  console.log("[resolveUserConfig] Input:", {
-    condition,
-    configEnv,
-    root: config.root,
-    build: config.build
-  });
+
 
   try {
     // Get existing inputs
+    const root = config.root ?? userOptions.projectRoot ?? process.cwd();
     const existingInput = config.build?.rollupOptions?.input || {};
     const currentInputs = typeof existingInput === 'string' ? { default: existingInput } : existingInput;
-
+    const normalizer = createInputNormalizer(root);
     // Add inputs based on condition
     const inputs = {
       ...currentInputs,
       ...(condition === 'react-server' && files ? {
-        server: userOptions.serverEntry,
         'index.html': '/index.html',
         ...Object.fromEntries([
-          ...files.pageMap.entries(),
-          ...files.propsMap.entries()
-        ].map(([key, path]) => [key, path]))
+          ...Array.from(files.pageMap.entries()),
+          ...Array.from(files.propsMap.entries())
+        ].map(normalizer))
       } : {
         client: userOptions.clientEntry
       })
@@ -50,7 +46,7 @@ export function resolveUserConfig({
 
     const userConfig = {
       ...config,
-      root: config.root ?? userOptions.projectRoot ?? process.cwd(),
+      root: root,
       mode: configEnv.command === 'build' ? 'production' : 'development',
       build: {
         ...config.build,
@@ -84,12 +80,6 @@ export function resolveUserConfig({
         }
       }
     };
-
-    console.log("[resolveUserConfig] Output:", {
-      condition,
-      root: userConfig.root,
-      build: userConfig.build
-    });
 
     return {
       type: "success",

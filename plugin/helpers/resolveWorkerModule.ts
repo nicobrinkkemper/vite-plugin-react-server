@@ -1,5 +1,4 @@
 import { tryManifest } from "./tryManifest.js";
-import type { ResolvedUserOptions } from "../types.js";
 
 export async function resolveWorkerModule(
   moduleGraph: Set<string> | string[],

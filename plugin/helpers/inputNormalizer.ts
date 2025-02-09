@@ -1,18 +1,9 @@
 import type { InputNormalizer, NormalizerInput } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { normalizePath } from "vite";
+import { join, relative } from "path";
 
-interface NormalizerOptions {
-  root: string;
-  moduleBase: string;
-  moduleBaseExceptions?: string[];
-}
-
-export function createInputNormalizer({ 
-  root,
-  moduleBase,
-  moduleBaseExceptions = []
-}: NormalizerOptions): InputNormalizer {
+export function createInputNormalizer(root: string): InputNormalizer {
 
   // Normalize a key by removing file extensions and leading slashes
   const normalizeKey = (key: string): string => {
@@ -23,24 +14,23 @@ export function createInputNormalizer({
 
   // Main normalize function
   return (input: NormalizerInput): [string, string] => {
-    console.log("[inputNormalizer] Normalizing input:", input);
     
     // Handle tuple input [key, path]
     if (Array.isArray(input)) {
       const [key, path] = input;
       const normalized: [string, string] = [
         normalizeKey(key),
-        normalizePath(path)
+        normalizePath(join(root, path))
       ] 
-      console.log("[inputNormalizer] Normalized input:", normalized);
+      console.log("[inputNormalizer] Normalized input:", normalized, input);
       return normalized;
     }
 
     // Handle string input
     if (typeof input === "string") {
       const key = normalizeKey(input);
-      const path = normalizePath(input);
-      console.log("[inputNormalizer] Normalized input:", [key, path]);
+      const path = normalizePath( join(root, input));
+      console.log("[inputNormalizer] Normalized input:", [key, path], input);
       return [key, path];
     }
 

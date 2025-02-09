@@ -1,18 +1,15 @@
-import { join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { Worker } from "node:worker_threads";
-import type { Plugin as RollupPlugin, TransformPluginContext } from "rollup";
-import type { PluginOption, Plugin as VitePlugin } from "vite";
+import type { Plugin as RollupPlugin } from "rollup";
+import type { Plugin as VitePlugin } from "vite";
 import {
-  build,
   createLogger,
-  resolveConfig,
   type ResolvedConfig,
   type UserConfig,
   type ViteDevServer,
 } from "vite";
 import { checkFilesExist } from "../checkFilesExist.js";
-import { getEnv } from "../getEnv.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { createPageLoader } from "../loader/createPageLoader.js";
 import { resolveOptions } from "../config/resolveOptions.js";
@@ -27,14 +24,14 @@ import type {
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { createWorker } from "../worker/createWorker.js";
-import { renderPages } from "../worker/renderPages.js";
+import { renderPages } from "../worker/html/renderPages.js";
 import { createHandler } from "./createHandler.js";
 import { readdirSync } from "fs";
 import type { ServerResponse } from "node:http";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { getPluginRoot } from "../config/getPaths.js";
-import { createInputNormalizer } from "../helpers/inputNormalizer.js";
-import { createClientComponentTransformer } from "../transformer/transformer-client-components.js";
-import { createServerActionTransformer } from "../transformer/transformer-server-actions.js";
+import { getModuleManifest } from "../helpers/getModuleManifest.js";
+import { createBuildLoader } from '../loader/createBuildLoader.js';
 
 export function reactServerPlugin(
   options: StreamPluginOptions
@@ -44,25 +41,27 @@ export function reactServerPlugin(
   };
 
   let files: CheckFilesExistReturn;
-  let env: Awaited<ReturnType<typeof getEnv>>;
+  // let env: Awaited<ReturnType<typeof getEnv>>;
   let worker: Worker;
-  let config: ResolvedConfig;
+  let finalConfig: ResolvedConfig;
   let cssModules = new Set<string>();
   let clientComponents = new Map<string, string>();
-  let define: Record<string, string>;
+  // let define: Record<string, string>;
   let buildCssFiles = new Set<string>();
   let root: string = process.cwd();
   let userConfig: ResolvedUserConfig;
-  let userClientConfig: ResolvedUserConfig;
   let userOptions: ResolvedUserOptions;
-  let moduleGraph: Record<string, {
-    file: string;
-    src: string;
-    name: string;
-    isEntry: boolean;
-    imports: string[];
-    dynamicImports: string[];
-  }> = {};
+  let moduleGraph: Record<
+    string,
+    {
+      file: string;
+      src: string;
+      name: string;
+      isEntry: boolean;
+      imports: string[];
+      dynamicImports: string[];
+    }
+  > = {};
 
   interface BuildStats {
     htmlFiles: number;
@@ -77,7 +76,7 @@ export function reactServerPlugin(
     };
   }
 
-  const resolvedOptions = resolveOptions(options, "react-server");
+  const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
@@ -93,21 +92,17 @@ export function reactServerPlugin(
       },
     },
     configResolved(resolvedConfig) {
-      config = resolvedConfig;
+      finalConfig = resolvedConfig;
       timing.configResolved = performance.now();
-      if (config.command === "build") {
-        config = {
-          ...config,
+      if (finalConfig.command === "build") {
+        finalConfig = {
+          ...finalConfig,
           mode: "production",
-        }
+        };
       }
-      console.log(
-        "[ServerPlugin] Plugin order:",
-        config.plugins.map((p) => p.name)
-      );
 
       // Verify transformer runs first, preserver runs last
-      const plugins = config.plugins;
+      const plugins = finalConfig.plugins;
       const transformerIndex = plugins.findIndex(
         (p) => p.name === "vite:react-stream-transformer"
       );
@@ -116,24 +111,22 @@ export function reactServerPlugin(
       );
 
       if (transformerIndex === -1) {
-        throw new Error("Transformer plugin must be installed");
+        console.warn("Transformer plugin not installed");
       }
       if (preserverIndex < transformerIndex) {
-        throw new Error("Transformer plugin must run before preserver");
+        console.warn(
+          "Transformer plugin isn't installed or isn't running before preserver"
+        );
       }
-
-      console.log("[ServerPlugin] Final config:", {
-        plugins: config.plugins.map(p => p.name),
-        build: config.build,
-      });
     },
     async configureServer(server: ViteDevServer) {
-      if (server.config.root) {
+      if (server.config.root !== root) {
         console.log(
           "[vite-plugin-react-server] Root dir changed",
           server.config.root,
-          server.config.root
+          root
         );
+        root = server.config.root;
       }
 
       const activeStreams = new Set<ServerResponse>();
@@ -156,7 +149,7 @@ export function reactServerPlugin(
         activeStreams.clear();
       });
 
-      server.ws.on("connection", (socket, req) => {
+      server.ws.on("connection", (_socket, _req) => {
         console.log("[vite-plugin-react-server] hooking up ws connection");
       });
 
@@ -204,6 +197,10 @@ export function reactServerPlugin(
       });
     },
     async config(config, configEnv): Promise<UserConfig> {
+      if(typeof config.root === 'string' && config.root !== root) {
+        console.log("[vite-plugin-react-server] Root dir changed", config.root, root);
+        root = config.root
+      }
       const resolvedPages = await resolvePages(userOptions.build.pages);
       if (resolvedPages.type === "error") {
         throw resolvedPages.error;
@@ -212,7 +209,7 @@ export function reactServerPlugin(
       files = await checkFilesExist(
         resolvedPages.pages,
         userOptions,
-        config.root ?? userOptions.projectRoot
+        root
       );
 
       const resolvedConfig = resolveUserConfig({
@@ -222,60 +219,14 @@ export function reactServerPlugin(
         userOptions,
         files,
       });
-      const resolvedClientConfig = resolveUserConfig({
-        condition: "react-client",
-        config,
-        configEnv,
-        userOptions,
-        files,
-      });
 
       if (resolvedConfig.type === "error") {
         throw resolvedConfig.error;
       }
-      if (resolvedClientConfig.type === "error") {
-        throw resolvedClientConfig.error;
-      }
 
-      root = resolvedConfig.userConfig.root;
       userConfig = resolvedConfig.userConfig;
-      userClientConfig = resolvedClientConfig.userConfig;
 
-      // Get existing inputs
-      const existingInput = config.build?.rollupOptions?.input || {};
-      const currentInputs = typeof existingInput === 'string' ? { default: existingInput } : existingInput;
-
-      // Add server inputs
-      const serverInputs = {
-        server: userOptions.serverEntry,
-        'index.html': '/index.html',
-        // Add page and props files
-        ...Object.fromEntries([
-          ...files.pageMap.entries(),
-          ...files.propsMap.entries()
-        ].map(([key, path]) => [key, path]))
-      };
-
-      console.log('[ServerPlugin] Merging inputs:', {
-        existing: currentInputs,
-        server: serverInputs
-      });
-
-      return {
-        build: {
-          outDir: userOptions.build.server,
-          manifest: true,
-          ssr: true,
-          target: 'node18',
-          minify: false,
-          rollupOptions: {
-            input: {
-              ...currentInputs,
-              ...serverInputs
-            }
-          }
-        }
-      };
+      return resolvedConfig.userConfig;
     },
     async buildStart() {
       if (!timing.buildStart) {
@@ -285,64 +236,49 @@ export function reactServerPlugin(
       }
     },
     async closeBundle() {
-      if (!config || config.command !== "build") return;
+      if (!userConfig || finalConfig.command !== "build") return;
       try {
         timing.renderStart = performance.now();
-        const moduleGraph = this.getModuleIds();
-        
+
         const resolvedServerManifest = tryManifest({
           root,
           outDir: userOptions.build.server,
           ssrManifest: false,
         });
-        if (resolvedServerManifest.type === "error") {
-          console.error(
-            "[vite-plugin-react-server] Server Build failed, can not build without a server manifest.",
-            resolvedServerManifest.error
-          );
-          return;
-        }
-        const { manifest: serverManifest } = resolvedServerManifest;
 
-        // Get worker path from static manifest
-        let htmlWorkerPath =
-          userOptions.htmlWorkerPath === "vite-plugin-react-server/html-worker"
-            ? join(getPluginRoot(), "worker/html-worker.js")
-            : serverManifest[userOptions.htmlWorkerPath]?.file ?? Object.entries(serverManifest).find(([key, value]) => value.name === userOptions.htmlWorkerPath)?.[1]?.file;
-        if (!htmlWorkerPath) {
-          throw new Error(
-            `Could not find workerPath: \"${
-              userOptions.htmlWorkerPath
-            }\" in static manifest. It only exports: ${Object.keys(
-              serverManifest
-            ).join(", ")}`,
-            {
-              cause: serverManifest,
-            }
+        const serverManifest =
+          resolvedServerManifest.type === "error"
+            ? getModuleManifest.bind(this)()
+            : resolvedServerManifest.manifest;
+        // Get worker path from manifest
+        // Look for the html-worker entry directly
+        let htmlWorkerPath = serverManifest["html-worker"]?.file;
+
+        if (options.htmlWorkerPath) {
+          htmlWorkerPath = join(root, options.htmlWorkerPath);
+        } else {
+          htmlWorkerPath = join(
+            getPluginRoot(),
+            DEFAULT_CONFIG.HTML_WORKER_PATH
           );
         }
 
-        // Initialize worker with path from static directory
+        // Initialize worker with path from server directory
         const workerPath = resolve(
           root,
-          userOptions.build.static,
+          userOptions.build.server,
           htmlWorkerPath
         );
-        console.log("config.mode:", config.mode);
+
         worker = await createWorker({
           projectRoot: userOptions.projectRoot,
           workerPath,
           condition: "react-server",
           reverseCondition: true,
-          mode: config.mode as "production" | "development",
+          mode: finalConfig.mode as "production" | "development",
           nodeOptions: "--conditions=react-client",
         });
 
-        // Debug the pages structure
-        console.log("[plugin] Build pages structure:", {
-          pages: userOptions.build.pages,
-          type: typeof userOptions.build.pages,
-        });
 
         // Get routes directly from pages
         const resolvedPages = await resolvePages(userOptions.build.pages);
@@ -352,15 +288,22 @@ export function reactServerPlugin(
         const routes = resolvedPages.pages;
         console.log("[plugin] Routes to render:", routes);
 
-        const entries = Object.values(serverManifest).filter(entry => entry.isEntry);
-        const css = entries.flatMap(entry => entry.css);
+        const entries = Object.values(serverManifest).filter(
+          (entry) => entry.isEntry
+        );
+        const css = entries.flatMap((entry) => entry.css);
+        const loader = createBuildLoader({ 
+          root,
+          pluginContext: this
+        });
+
         const { failedRoutes, filesOutputted } = await renderPages(routes, {
           pipableStreamOptions: {
-            bootstrapModules: entries.map(entry => "/" + entry.file),
+            bootstrapModules: entries.map((entry) => "/" + entry.file),
           },
           moduleBasePath: userOptions.moduleBasePath,
           moduleBaseURL: userOptions.moduleBaseURL,
-          outDir: config.build.outDir,
+          outDir: finalConfig.build.outDir,
           clientCss: css?.map((css) => "/" + css) ?? [],
           pluginOptions: {
             Page: userOptions.Page,
@@ -376,16 +319,7 @@ export function reactServerPlugin(
           },
           worker: worker,
           manifest: serverManifest,
-          loader: createPageLoader({
-            manifest: serverManifest,
-            root: config.root,
-            outDir: config.build.outDir,
-            moduleBase: userOptions.moduleBase,
-            alwaysRegisterServer: false,
-            alwaysRegisterClient: false,
-            registerServer: [],
-            registerClient: [],
-          }),
+          loader,
           onCssFile: (path: string) => {
             if (buildCssFiles && path.endsWith(".css")) {
               buildCssFiles.add(path);
@@ -428,7 +362,8 @@ export function reactServerPlugin(
             config: ((timing.configResolved ?? 0) - timing.start) / 1000,
             build:
               ((timing.buildStart ?? 0) - (timing.configResolved ?? 0)) / 1000,
-            render: ((timing.renderEnd ?? 0) - (timing.renderStart ?? 0)) / 1000,
+            render:
+              ((timing.renderEnd ?? 0) - (timing.renderStart ?? 0)) / 1000,
             total: (timing.renderEnd ?? 0 - timing.start) / 1000,
           },
         };
@@ -483,24 +418,38 @@ export function reactServerPlugin(
         cssModules.add(file);
       }
     },
-    async renderChunk(code, chunk, options) {
+    async renderChunk(_code: string, chunk: any, _options: any) {
       const moduleIds = this.getModuleIds();
-      const fallbackManifestEntries = Object.fromEntries(Array.from(moduleIds).map((module) => {
-        const moduleInfo = this.getModuleInfo(module);
-        if(!moduleInfo) return [module, null];
-        const { code, id, isEntry, importedIds,dynamicallyImportedIds,...rest } = moduleInfo;
-        return [chunk.name ?? id, {
-          file: chunk.fileName,
-          src: module,
-          name: chunk.name ?? id,
-          isEntry: chunk.isEntry ?? isEntry,
-          imports: chunk.imports ?? importedIds,
-          dynamicImports: chunk.dynamicImports ?? dynamicallyImportedIds,
-          directive: rest.meta['directive'],
-          css: chunk.viteMetadata?.importedCss ?? [],
-          assets: chunk.viteMetadata?.importedAssets ?? [],
-        }];
-      }).filter(Boolean));
+      const fallbackManifestEntries = Object.fromEntries(
+        Array.from(moduleIds)
+          .map((module) => {
+            const moduleInfo = this.getModuleInfo(module);
+            if (!moduleInfo) return [module, null];
+            const {
+              code,
+              id,
+              isEntry,
+              importedIds,
+              dynamicallyImportedIds,
+              ...rest
+            } = moduleInfo;
+            return [
+              chunk.name ?? id,
+              {
+                file: chunk.fileName,
+                src: module,
+                name: chunk.name ?? id,
+                isEntry: chunk.isEntry ?? isEntry,
+                imports: chunk.imports ?? importedIds,
+                dynamicImports: chunk.dynamicImports ?? dynamicallyImportedIds,
+                directive: rest.meta["directive"],
+                css: chunk.viteMetadata?.importedCss ?? [],
+                assets: chunk.viteMetadata?.importedAssets ?? [],
+              },
+            ];
+          })
+          .filter(Boolean)
+      );
 
       moduleGraph = {
         ...moduleGraph,
@@ -519,7 +468,7 @@ export function reactServerPlugin(
         });
 
         // Don't initialize worker during build phase
-        if (config.command === "build") {
+        if (finalConfig.command === "build") {
           return null;
         }
 

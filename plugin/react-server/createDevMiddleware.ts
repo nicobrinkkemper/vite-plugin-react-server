@@ -18,6 +18,14 @@ export function createDevMiddleware(
   server: ViteDevServer,
   options: DevMiddlewareOptions
 ): RequestHandler {
+  // Add HMR support
+  const hmr = server.hot;
+  
+  hmr?.on('vite:beforeUpdate', () => {
+    // Clear module cache before updates
+    server.moduleGraph.invalidateAll();
+  });
+
   return async (req: IncomingMessage, res: ServerResponse, next: any) => {
     // Skip non-page requests
     if (

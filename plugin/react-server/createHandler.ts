@@ -141,20 +141,19 @@ export async function createHandler<T>(
     route: url,
     url,
     pipableStreamOptions: streamOptions.pipableStreamOptions,
+    htmlProps: {
+      pageProps: props,
+      route: url,
+      url: url,
+      cssFiles: Array.from(cssModules),
+      manifest: streamOptions.manifest,
+    },
   });
-
-  console.log("[createHandler] Stream created:", !!stream);
 
   if (!stream) {
     console.log("[createHandler] No stream created for route:", url);
     return { type: "skip" as const };
   }
-
-  // Add debug for assets
-  console.log("[createHandler] Assets for route:", url, {
-    css: Array.from(cssModules),
-    clientPath: pagePath ?? ''
-  }, 'nodeEnv:' + process.env['NODE_ENV']);
 
   const assets: HandlerAssets = {
     css: new Set(cssFiles ?? []),

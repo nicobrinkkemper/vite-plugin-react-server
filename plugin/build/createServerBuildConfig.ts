@@ -11,11 +11,9 @@ interface CreateServerBuildConfigProps {
 }
 
 export async function createServerBuildConfig({
-  condition,
   userConfig,
   userOptions,
   mode,
-  inputNormalizer
 }: CreateServerBuildConfigProps): Promise<UserConfig> {
   const { build, appType, mode: configMode, ...restUserConfig } = userConfig;
   const { outDir, ssr, target, assetsDir, manifest, ssrManifest, ssrEmitAssets, rollupOptions, ...restBuildOptions } = build ?? {}; 

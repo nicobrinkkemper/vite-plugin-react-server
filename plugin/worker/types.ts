@@ -15,7 +15,7 @@ interface PipeableStreamOptions {
   };
 }
 
-export interface RenderState {
+export interface HtmlRenderState {
   chunks: string[];
   complete: boolean;
   rendered: boolean;
@@ -25,6 +25,17 @@ export interface RenderState {
   htmlOutputPath: string;
   id: string;
   pipableStreamOptions: PipeableStreamOptions;
+}
+
+export interface RscRenderState {
+  id: string;
+  pipableStreamOptions: PipeableStreamOptions;
+  outDir: string;
+  moduleBasePath: string;
+  moduleBaseURL: string;
+  rscOutputPath: string;
+  componentImport: string;
+  propsImport: string;
 }
 
 export interface WorkerRscChunkMessage {
@@ -42,12 +53,33 @@ export interface ShutdownMessage {
   type: "SHUTDOWN";
 }
 
-export interface RscChunkMessage {
+export interface RscRenderMessage {
   type: "RSC_RENDER";
   id: string;
-  component: string;
-  props: Record<string, unknown>;
+  pageImport: string;
+  propsImport: string;
   outDir: string;
+  moduleBasePath: string;
+  moduleBaseURL: string;
+  pipableStreamOptions: PipeableStreamOptions;
+}
+
+export interface RscCompleteMessage {
+  type: "RSC_COMPLETE";
+  id: string;
+  outputPath: string;
+}
+
+export interface RscErrorMessage {
+  type: "ERROR";
+  id: string;
+  error: string;
+}
+
+export interface RscWroteFileMessage {
+  type: "WROTE_FILE";
+  id: string;
+  outputPath: string;
 }
 
 export interface RscEndMessage {
@@ -55,25 +87,21 @@ export interface RscEndMessage {
   id: string;
 }
 
-export interface ShutdownMessage {
-  type: "SHUTDOWN";
-}
-
 export interface ClientReferenceMessage {
   type: "CLIENT_REFERENCE";
   id: string;
   location: string;
   key: string;
+  ref: unknown;
 }
+
 export interface ServerReferenceMessage {
   type: "SERVER_REFERENCE";
   id: string;
   location: string;
   key: string;
+  ref: unknown;
 }
-
-
-
 
 export type HtmlWorkerMessage =
   | WorkerRscChunkMessage
@@ -81,8 +109,15 @@ export type HtmlWorkerMessage =
   | ShutdownMessage;
 
 export type RscWorkerMessage =
-  | RscChunkMessage
+  | RscRenderMessage
   | RscEndMessage
   | ShutdownMessage
+  | ClientReferenceMessage
+  | ServerReferenceMessage;
+
+export type RscWorkerResponse = 
+  | RscCompleteMessage
+  | RscErrorMessage
+  | RscWroteFileMessage
   | ClientReferenceMessage
   | ServerReferenceMessage;

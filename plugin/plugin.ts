@@ -1,7 +1,6 @@
 import "./assertServerCondition.js";
 export { reactServerPlugin } from "./react-server/plugin.js";
 export { reactClientPlugin } from "./react-client/plugin.js";
-export { reactWorkerPlugin } from "./worker/plugin.js";
 export { reactTransformPlugin } from "./transformer/plugin.js";
 export { reactPreservePlugin } from "./preserver/plugin.js";
 export { vitePluginReactServer } from "./react-server/index.js";

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url';
 
-const PATCH_RECONCILER_VERSION = '19.1.0-experimental-b3a95caf-20250113'
+const PATCH_RECONCILER_VERSION = '19.1.0-canary-8759c5c8-20250207'
 const STUB_VERSION = '0.0.1'
 const __dirname = dirname(fileURLToPath(import.meta.url));  
 
@@ -18,28 +18,46 @@ async function patchReactExperimental() {
     )
     const installedVersion = reactPkg.version
 
-    // Get our patch file
-    const ourPatchPath = path.resolve(__dirname, '../scripts/react-server-dom-esm+0.0.0-experimental-b3a95caf-20250113.patch')
-    let patchContent = await fs.readFile(ourPatchPath, 'utf-8')
-
-    // Replace version strings to match installed React
-    patchContent = patchContent.replace(
-      new RegExp(PATCH_RECONCILER_VERSION, 'g'),
-      installedVersion
-    )
+    // Define patches to process
+    const patches = [
+      {
+        template: '../scripts/react-server-dom-esm+0.0.0-canary-8759c5c8-20250207.patch',
+        output: `react-server-dom-esm+${STUB_VERSION}.patch`
+      },
+      {
+        template: '../scripts/react+0.0.0-canary-8759c5c8-20250207.patch',
+        output: `react+${installedVersion}.patch`
+      },
+      {
+        template: '../scripts/react-dom+0.0.0-canary-8759c5c8-20250207.patch',
+        output: `react-dom+${installedVersion}.patch`
+      }
+    ]
 
     // Create patches dir in user's project
     const userPatchesDir = path.resolve(process.cwd(), 'patches')
     await fs.mkdir(userPatchesDir, { recursive: true })
 
-    // Write the patch file
-    const newFileName = `react-server-dom-esm+${STUB_VERSION}.patch`
-    const newPatchPath = path.resolve(userPatchesDir, newFileName)
-    await fs.writeFile(newPatchPath, patchContent)
+    // Process each patch
+    for (const {template, output} of patches) {
+      const patchPath = path.resolve(__dirname, template)
+      let patchContent = await fs.readFile(patchPath, 'utf-8')
+
+      // Replace version strings
+      patchContent = patchContent.replace(
+        new RegExp(PATCH_RECONCILER_VERSION, 'g'),
+        installedVersion
+      )
+
+      // Write the patch file
+      const newPatchPath = path.resolve(userPatchesDir, output)
+      await fs.writeFile(newPatchPath, patchContent)
+      console.log(`Created patch file: patches/${output}`)
+    }
 
     console.log(`
-✅ Created patch file for React Server DOM ESM
-   Location: patches/${newFileName}
+✅ Created patch files for React packages
+   Location: patches/
 
 Next steps:
 1. Install patch-package:
@@ -51,11 +69,11 @@ Next steps:
 3. Run:
    npm install
 
-The patch will be applied automatically on install.
+The patches will be applied automatically on install.
 `)
     return true
   } catch (e) {
-    console.error('Failed to create patch:', e)
+    console.error('Failed to create patches:', e)
     process.exit(1)
   }
 }

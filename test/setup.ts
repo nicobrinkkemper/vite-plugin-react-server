@@ -11,7 +11,7 @@ export async function setupTestProject(testDir: string) {
     "use client"
     import React from 'react'
     export default function Client() {
-      return <div>Client</div>
+      return React.createElement('div', null, 'Client')
     }
   `);
 
@@ -19,14 +19,14 @@ export async function setupTestProject(testDir: string) {
     "use server"
     import React from 'react'
     export function TestServerAction() {
-      return <div>Server</div>
+      return React.createElement('div', null, 'Server')
     }
   `);
 
   writeFileSync(resolve(testDir, 'src/page/page.tsx'), `
     import React from 'react'
     export function Page() {
-      return <div>Page</div>
+      return React.createElement('div', null, 'Page')
     }
   `);
 

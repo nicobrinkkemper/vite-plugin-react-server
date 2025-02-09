@@ -107,7 +107,7 @@ export async function resolveProps({
             : exportKeys.length
             ? exportKeys.join(", ")
             : "no keys"
-        }, this will not work. Make sure to set esModule: true in rollupOptions.output`
+        }, this will not work. Make sure to set esModule: true in rollupOptions.output. ${JSON.stringify(propsModule)}`
       ),
     };
   }

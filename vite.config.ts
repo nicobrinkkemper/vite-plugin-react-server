@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 export default defineConfig({
   build: {
     minify: false,
-    target: "es2020",
+    target: "esnext",
     // already taken care of by rm -rf dist before tsc, and we don't want to remove the .d.ts files
     // this avoids the @rollup/plugin-typescript for re-adding them (You can technically leave out this entire vite build step, it 
     // should work with tsc (I might remove this step in the future, as vite is more browser oriented than node library oriented
@@ -17,8 +17,8 @@ export default defineConfig({
         "index": resolve(__dirname, 'index.ts'),
         'plugin/react-client/plugin': resolve(__dirname, 'plugin/react-client/plugin.ts'),
         'plugin/react-server/plugin': resolve(__dirname, 'plugin/react-server/plugin.ts'),
-        'plugin/worker/html-worker': resolve(__dirname, 'plugin/worker/html-worker.tsx'),
-        'plugin/worker/rsc-worker': resolve(__dirname, 'plugin/worker/rsc-worker.tsx'),
+        'plugin/worker/html/index': resolve(__dirname, 'plugin/worker/html/index.ts'),
+        'plugin/worker/rsc/index': resolve(__dirname, 'plugin/worker/rsc/index.ts'),
         'plugin/worker/loader': resolve(__dirname, 'plugin/worker/loader.ts'),
         'plugin/preserver/plugin': resolve(__dirname, 'plugin/preserver/plugin.ts'),
         'plugin/transformer/plugin': resolve(__dirname, 'plugin/transformer/plugin.ts'),
@@ -61,4 +61,4 @@ export default defineConfig({
     sourcemap: true,
     // Preserve module structure for proper tree-shaking
     modulePreload: false,  },
-}); 
+});

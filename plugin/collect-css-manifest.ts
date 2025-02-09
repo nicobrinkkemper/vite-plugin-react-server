@@ -18,6 +18,7 @@ export async function collectModuleGraphCss(
     seen.add(mod.id);
     if (mod?.id?.endsWith(".css")) {
       cssFiles.set(mod?.url, mod?.id);
+      onCss?.(mod?.url);
     }
     mod?.importedModules?.forEach((imp: any) => walkModule(imp));
   };

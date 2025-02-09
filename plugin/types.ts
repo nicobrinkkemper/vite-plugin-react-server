@@ -169,6 +169,7 @@ export interface RscStreamOptions {
   Html: any;
   logger?: Console | import("vite").Logger;
   cssFiles?: string[];
+  htmlProps: any;
   route: string;
   url: string;
   pipableStreamOptions?: any;
@@ -282,3 +283,15 @@ export type CheckFilesExistReturn = {
   pageMap: Map<string,string>,
   pageSet: Set<string>
 }
+
+// Add strict type checking for worker messages
+export type WorkerMessage = 
+  | { type: 'READY' }
+  | { type: 'ERROR'; error: string | Error }
+  | { type: 'RSC_CHUNK'; id: string; chunk: Buffer }
+  | { type: 'RSC_END'; id: string }
+  | { type: 'SHUTDOWN' };
+
+// Add branded types for safety
+export type ModuleId = string & { readonly __brand: unique symbol };
+export type PagePath = string & { readonly __brand: unique symbol };

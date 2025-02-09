@@ -22,7 +22,7 @@ export function createSsrHandler(
       >
     >,
   server: ViteDevServer,
-  clientComponents: Map<string, string>
+  _clientComponents: Map<string, string>
 ): RequestHandler {
   const worker = new Worker(
     options?.htmlWorkerPath
@@ -71,12 +71,12 @@ export function createSsrHandler(
         server.config.cacheDir,
         options.moduleBasePath
       );
-      const htmlOutputPath = join(
-        server.config.cacheDir,
-        server.config.build.outDir,
-        req.url,
-        "index.html"
-      );
+      // const htmlOutputPath = join(
+      //   server.config.cacheDir,
+      //   server.config.build.outDir,
+      //   req.url,
+      //   "index.html"
+      // );
       if (result.type !== "success") {
         throw new Error(
           result.type === "error" ? String(result.error) : "Skipped"

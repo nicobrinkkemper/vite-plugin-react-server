@@ -1,5 +1,3 @@
-import { SourceMapGenerator } from "source-map";
-import type { Plugin } from "vite";
 import type { Plugin as RollupPlugin } from "rollup";
 import type { TransformerOptions } from "./types.js";
 

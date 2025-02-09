@@ -1,37 +1,26 @@
 import { join, relative } from "path";
 import { ResolvedUserOptions } from "../../plugin/types.js";
-
+import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
 export const testDir = join(process.cwd(), 'test/fixtures/test-project')
 export const testConfig = {
-  moduleBase: 'src',
-  moduleBasePath: '/src',
-  moduleBaseURL: '/src',
+  moduleBase: DEFAULT_CONFIG.MODULE_BASE,
+  moduleBasePath: DEFAULT_CONFIG.MODULE_BASE_PATH,
+  moduleBaseURL: DEFAULT_CONFIG.MODULE_BASE_URL,
   projectRoot: testDir,
-  moduleBaseExceptions: [],
-  htmlWorkerPath: '../../../plugin/worker/html-worker.tsx',
-  rscWorkerPath: '../../../plugin/worker/rsc-worker.tsx',
-  loaderPath: '../../../plugin/worker/loader.ts',
-  build: {
-    pages: ['/'],
-    client: 'dist/client',
-    server: 'dist/server',
-    static: 'dist/static'
-  },
-  Page: 'src/page/page.tsx',
-  props: 'src/page/props.ts',
-  Html: ({ children }: { children: any }) => children,
-  pageExportName: 'Page',
-  propsExportName: 'props',
-  collectCss: true,
-  collectAssets: true,
-  assetsDir: 'assets',
-  clientEntry: 'src/client.tsx',
-  serverEntry: 'src/server.tsx',
-  autoDiscover: {
-    pagePattern: /\.page\.tsx$/,
-    propsPattern: /\.props\.ts$/,
-    clientComponents: /\.client\.tsx$/,
-    serverFunctions: /\.server\.tsx$/
-  }
+  moduleBaseExceptions: DEFAULT_CONFIG.MODULE_BASE_EXCEPTIONS,
+  htmlWorkerPath: "../../../dist/plugin/worker/html/html-worker.js" ,
+  rscWorkerPath: "../../../dist/plugin/worker/rsc/rsc-worker.js",
+  loaderPath: "../../../dist/plugin/worker/loader.js",
+  build: DEFAULT_CONFIG.BUILD,
+  Page: DEFAULT_CONFIG.PAGE,
+  props: DEFAULT_CONFIG.PROPS,
+  Html: DEFAULT_CONFIG.HTML,
+  pageExportName: DEFAULT_CONFIG.PAGE_EXPORT,
+  propsExportName: DEFAULT_CONFIG.PROPS_EXPORT,
+  collectCss: DEFAULT_CONFIG.COLLECT_CSS,
+  collectAssets: DEFAULT_CONFIG.COLLECT_ASSETS,
+  assetsDir: DEFAULT_CONFIG.CLIENT_ASSETS_DIR,
+  clientEntry: DEFAULT_CONFIG.CLIENT_ENTRY,
+  serverEntry: DEFAULT_CONFIG.SERVER_ENTRY,
+  autoDiscover: DEFAULT_CONFIG.AUTO_DISCOVER
 } satisfies ResolvedUserOptions
-console.log(testConfig.projectRoot)

@@ -1,1 +1,0 @@
-{"version":3,"file":"client.js","sourceRoot":"","sources":["../client.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,iBAAiB,EAAE,MAAM,iCAAiC,CAAC","sourcesContent":["export { reactStreamPlugin } from './plugin/react-client/plugin.js';\n\n// Export types\nexport type * from './plugin/types.js';\n"]}
