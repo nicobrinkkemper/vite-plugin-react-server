@@ -1,9 +1,6 @@
 import { join, resolve as resolvePath } from "node:path";
 import { Transform } from "node:stream";
 import type { Worker } from "node:worker_threads";
-import type {
-  WorkerRscChunkMessage,
-} from "../types.js";
 import { createHandler } from "../../react-server/createHandler.js";
 import type { StreamPluginOptions } from "../../types.js";
 import { mkdir, writeFile } from "node:fs/promises";

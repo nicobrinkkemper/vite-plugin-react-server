@@ -9,6 +9,5 @@ export const worker = await (
 
 // Re-export worker functions
 export const {
-  createHtmlStream,
   createWorker
 } = worker;

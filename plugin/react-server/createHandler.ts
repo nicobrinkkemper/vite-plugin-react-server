@@ -6,7 +6,7 @@ import {
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolvePage } from "../resolvePage.js";
 import { resolveProps } from "../resolveProps.js";
-import type { CreateHandlerOptions, StreamPluginOptions, HtmlProps } from "../types.js";
+import type { CreateHandlerOptions, StreamPluginOptions } from "../types.js";
 import { createRscStream } from "./createRscStream.js";
 import type { PipeableStream } from "react-dom/server";
 

@@ -1,7 +1,7 @@
 import type { InputNormalizer, NormalizerInput } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { normalizePath } from "vite";
-import { join, relative } from "path";
+import { join } from "path";
 
 export function createInputNormalizer(root: string): InputNormalizer {
 

@@ -20,7 +20,6 @@ type CreatePageLoaderOptions = {
   registerClient?: string[];
   alwaysRegisterServer?: boolean;
   alwaysRegisterClient?: boolean;
-  loader: (id: string) => Promise<any>;
 };
 
 type CreateDefaultLoaderOptions = {
@@ -75,7 +74,6 @@ export function createPageLoader({
   alwaysRegisterClient,
   registerServer,
   registerClient,
-  loader,
 }: CreatePageLoaderOptions) {
   return async function loader(id: string) {
     console.log("[pageLoader] Loading:", {

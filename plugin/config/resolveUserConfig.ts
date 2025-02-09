@@ -2,7 +2,6 @@ import type { ConfigEnv, UserConfig } from "vite";
 import type { CheckFilesExistReturn, ResolvedUserConfig, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
-import { join } from "node:path";
 
 export type ResolveUserConfigProps = {
   condition: "react-client" | "react-server" | "";

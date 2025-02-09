@@ -11,7 +11,6 @@ import {
 } from "vite";
 import { checkFilesExist } from "../checkFilesExist.js";
 import { tryManifest } from "../helpers/tryManifest.js";
-import { createPageLoader } from "../loader/createPageLoader.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolvePages } from "../config/resolvePages.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";

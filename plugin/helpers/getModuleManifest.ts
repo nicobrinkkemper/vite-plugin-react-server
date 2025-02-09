@@ -14,7 +14,7 @@ export function getModuleManifest(this: PluginContext): Record<string, ModuleMan
 
   // Build module graph from plugin context
   for (const id of this.getModuleIds()) {
-    const info = this.getModuleInfo(id);
+    const info: ModuleInfo | null = this.getModuleInfo(id);
     if (!info) continue;
     
     manifest[id] = {

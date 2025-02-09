@@ -1,7 +1,6 @@
-import { PassThrough, Readable } from "node:stream";
+import { PassThrough } from "node:stream";
 import { parentPort } from "node:worker_threads";
 import type { HtmlRenderState, HtmlWorkerMessage } from "../types.js";
-import type { PipeableStream } from "react-dom/server";
 import ReactDOMServer from "react-dom/server";
 import React from "react";
 import {
@@ -13,7 +12,6 @@ const debug = (...args: any[]) => console.log("[html-worker]", ...args);
 
 // Track active renders and streams
 const activeRenders = new Map<string, HtmlRenderState>();
-const activeStreams = new Map<string, PipeableStream>();
 
 if (!parentPort) throw new Error("This module must be run as a worker");
 

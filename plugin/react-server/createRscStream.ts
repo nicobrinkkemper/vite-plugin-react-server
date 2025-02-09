@@ -17,8 +17,6 @@ export function createRscStream(
     props,
     logger,
     cssFiles,
-    route,
-    url,
     moduleBasePath,
     pipableStreamOptions,
     htmlProps,
@@ -47,6 +45,7 @@ export function createRscStream(
       onError: logger?.error ?? console.error,
       onPostpone: logger?.info ?? console.info,
       environmentName: "Server",
+      ...pipableStreamOptions
     }
   );
 }

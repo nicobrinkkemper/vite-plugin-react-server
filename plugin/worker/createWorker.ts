@@ -1,4 +1,4 @@
-import { Worker, type ResourceLimits, type WorkerOptions } from "node:worker_threads";
+import { Worker, type ResourceLimits } from "node:worker_threads";
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
 import React from "react";

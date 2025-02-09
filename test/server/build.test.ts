@@ -12,7 +12,7 @@ describe('server build', () => {
 
   afterAll(() => {
     if (existsSync(testDir)) {
-      // rmSync(testDir, { recursive: true, force: true })
+      rmSync(testDir, { recursive: true, force: true })
     }
   })
 
