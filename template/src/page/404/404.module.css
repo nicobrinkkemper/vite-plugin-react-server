@@ -1,6 +1,6 @@
-.Home {
+.NotFound {
     font-size: 50px;
-    background-color: #0FF;
+    background-color: #F00;
     color: white;
     display: flex;
     flex-direction: column;

@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "0.3.4",
+  "version": "0.3.10",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -67,7 +67,8 @@
     "experimental:setup": "rm -rf patches/* && npm install react-server-dom-esm react@canary react-dom@canary && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches && node scripts/check-react-version.mjs",
     "experimental:check": "node scripts/check-react-version.mjs",
     "postinstall": "npm install react-server-dom-esm && node scripts/check-react-version.mjs &&  patch-package",
-    "start": "cd template; NODE_OPTIONS='--conditions react-server' npx vite",
+    "template:preview": "cd template && NODE_OPTIONS='--conditions react-server' npx vite preview",
+    "template:start": "cd template; NODE_OPTIONS='--conditions react-server' npx vite",
     "template:build": "cd template && NODE_OPTIONS='--conditions react-server' npx vite build"
   },
   "keywords": [
@@ -116,7 +117,6 @@
     "react-dom": "^19.1.0-canary-8759c5c8-20250207",
     "react-server-dom-esm": "^0.0.1",
     "rollup": "^4.34.0",
-    "rollup-plugin-dts": "^6.1.1",
     "source-map": "^0.7.4",
     "ts-node": "^10.9.2",
     "tslib": "^2.8.1",
@@ -126,6 +126,6 @@
     "webpack-sources": "^3.2.0"
   },
   "bin": {
-    "vite-plugin-react-server-patch": "./dist/scripts/check-react-version.mjs"
+    "vite-plugin-react-server-patch": "./scripts/check-react-version.mjs"
   }
 }

@@ -3,19 +3,32 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 
 export const resolveOptions = (
   options: StreamPluginOptions
-): { type: "success"; userOptions: ResolvedUserOptions } | { type: "error"; error: Error } => {
+):
+  | { type: "success"; userOptions: ResolvedUserOptions }
+  | { type: "error"; error: Error } => {
   const projectRoot = options.projectRoot ?? process.cwd();
 
   const build = options.build ?? DEFAULT_CONFIG.BUILD;
 
+  const moduleBase = typeof options.moduleBase === "string" ? options.moduleBase : DEFAULT_CONFIG.MODULE_BASE;
+  const moduleBasePath =
+    typeof options.moduleBasePath === "string"
+      ? options.moduleBasePath
+      : options.moduleBase.startsWith("/")
+      ? options.moduleBase
+      : "/" + options.moduleBase;
+  const moduleBaseURL =
+    typeof options.moduleBaseURL === "string"
+      ? options.moduleBaseURL
+      : moduleBasePath ?? DEFAULT_CONFIG.MODULE_BASE_URL;
   try {
     return {
       type: "success",
       userOptions: {
         projectRoot,
-        moduleBase: options.moduleBase ?? DEFAULT_CONFIG.MODULE_BASE,
-        moduleBasePath: options.moduleBasePath ?? DEFAULT_CONFIG.MODULE_BASE_PATH,
-        moduleBaseURL: options.moduleBaseURL ?? DEFAULT_CONFIG.MODULE_BASE_URL,
+        moduleBase,
+        moduleBasePath,
+        moduleBaseURL,
         build: {
           pages: build.pages ?? DEFAULT_CONFIG.BUILD.pages,
           client: build.client ?? DEFAULT_CONFIG.BUILD.client,
@@ -30,24 +43,34 @@ export const resolveOptions = (
         collectCss: options.collectCss ?? DEFAULT_CONFIG.COLLECT_CSS,
         collectAssets: options.collectAssets ?? DEFAULT_CONFIG.COLLECT_ASSETS,
         assetsDir: options.assetsDir ?? DEFAULT_CONFIG.CLIENT_ASSETS_DIR,
-        htmlWorkerPath: options.htmlWorkerPath ?? DEFAULT_CONFIG.HTML_WORKER_PATH,
+        htmlWorkerPath:
+          options.htmlWorkerPath ?? DEFAULT_CONFIG.HTML_WORKER_PATH,
         rscWorkerPath: options.rscWorkerPath ?? DEFAULT_CONFIG.RSC_WORKER_PATH,
         loaderPath: options.loaderPath ?? DEFAULT_CONFIG.LOADER_PATH,
         clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
         serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
         moduleBaseExceptions: options.moduleBaseExceptions ?? [],
         autoDiscover: {
-            pagePattern: options.autoDiscover?.pagePattern ?? DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern,
-            propsPattern: options.autoDiscover?.propsPattern ?? DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern,
-            clientComponents: options.autoDiscover?.clientComponents ?? DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents,
-            serverFunctions: options.autoDiscover?.serverFunctions ?? DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions,
+          pagePattern:
+            options.autoDiscover?.pagePattern ??
+            DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern,
+          propsPattern:
+            options.autoDiscover?.propsPattern ??
+            DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern,
+          clientComponents:
+            options.autoDiscover?.clientComponents ??
+            DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents,
+          serverFunctions:
+            options.autoDiscover?.serverFunctions ??
+            DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions,
         },
-      }
+      },
     };
   } catch (error) {
     return {
       type: "error",
-      error: error instanceof Error ? error : new Error('Failed to resolve options')
+      error:
+        error instanceof Error ? error : new Error("Failed to resolve options"),
     };
   }
-}; 
+};

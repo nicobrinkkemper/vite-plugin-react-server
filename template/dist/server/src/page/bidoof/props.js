@@ -1,3 +1,4 @@
+import { fallbackData } from "./fallbackData.js";
 const props = async () => {
   try {
     const controller = new AbortController();
@@ -9,16 +10,14 @@ const props = async () => {
     if (!res.ok) {
       throw new Error(`Failed to fetch Bidoof: ${res.status}`);
     }
-    return res.json();
-  } catch (error) {
-    console.warn("Failed to fetch Bidoof data:", error);
+    const body = await res.json();
     return {
-      name: "bidoof",
-      form_name: "",
-      sprites: {
-        front_default: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/399.png"
-      }
+      title: "Bidoof",
+      description: "It's bidoof.",
+      ...body
     };
+  } catch (error) {
+    return fallbackData;
   }
 };
 export {

@@ -44,7 +44,6 @@ export async function resolveProps({
   if (found) {
     let value = propsModule[found];
     try {
-      console.log("[resolveProps] Found:", found, value);
       // If it's a function, call it with the URL
       if (isFunction(value)) {
         const props = await value(url);

@@ -1,6 +1,8 @@
-const props = {
-  title: "404",
-  description: "Page not found"
+const props = async (url) => {
+  return {
+    title: `404 - ${url}`,
+    description: `Page not found - ${url}`
+  };
 };
 export {
   props

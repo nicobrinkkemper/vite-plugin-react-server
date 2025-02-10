@@ -1,3 +1,4 @@
+import type { PipeableStream } from "react-dom/server";
 import { createLogger } from "vite";
 import {
   collectManifestCss,
@@ -8,7 +9,6 @@ import { resolvePage } from "../resolvePage.js";
 import { resolveProps } from "../resolveProps.js";
 import type { CreateHandlerOptions, StreamPluginOptions } from "../types.js";
 import { createRscStream } from "./createRscStream.js";
-import type { PipeableStream } from "react-dom/server";
 
 type CreateHandlerResult = 
   | { type: "success"; controller: AbortController; stream: PipeableStream; assets: any; clientPath: string }
@@ -66,7 +66,6 @@ export async function createHandler<T>(
     : (id: string) => collectModuleGraphCss(streamOptions.moduleGraph!, id);
 
   const loadWithCss = async (id: string) => {
-    console.log('[RSC] Loading module:', id);
     try {
       const mod = await streamOptions.loader(id);
       const pageCss = await Promise.resolve(getCss(id));

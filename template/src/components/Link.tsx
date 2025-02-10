@@ -27,7 +27,6 @@ export const Link: React.FC<{
           if(newTo) window.location.href = newTo
         }
       const newState = { to: newTo };
-      console.log(newState)
       window.history.pushState(newState, "", e.currentTarget.href);
       window.dispatchEvent(new PopStateEvent("popstate", { state: newState }));
     }}

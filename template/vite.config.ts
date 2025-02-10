@@ -3,26 +3,37 @@ import { defineConfig } from 'vite';
 import { vitePluginReactServer } from 'vite-plugin-react-server';
 
 const createRouter = (file: 'props.ts' | 'Page.tsx') => (url: string) => {
-  console.log(url)
-  if(url.includes('bidoof')){
-    return `src/page/bidoof/${file}`;
+  switch(url){
+    case '/bidoof':
+    case '/bidoof/index.rsc':
+      return `src/page/bidoof/${file}`;
+    case '/404':
+    case '/404/index.rsc':
+      return `src/page/404/${file}`;
+    case '/':
+    case '/index.rsc':
+      return `src/page/${file}`;
+    default:
+      throw new Error(`Unknown route: ${url}`);
   }
-  if(url === '/index.rsc'){
-    return `src/page/${file}`;
+}
+const tap = (fn: (...args: any[]) => any) => {
+  return (...args: any[]) => {
+    const result = fn(...args)
+    console.log(args,'->', result)
+    return result
   }
-  return `src/page/404/${file}`;
 }
 
 const config = {
   moduleBase: 'src',
-  Page: createRouter('Page.tsx'),
-  props: createRouter('props.ts'),
+  Page: tap(createRouter('Page.tsx')),
+  props: tap(createRouter('props.ts')),
   build: {
     pages: ['/', '/404', '/bidoof']
   },
 }
 
 export default defineConfig({
-  mode: 'development',
   plugins: [vitePluginReactServer(config)],
 });

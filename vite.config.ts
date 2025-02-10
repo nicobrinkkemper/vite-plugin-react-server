@@ -28,6 +28,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         'vite',
+        'vitest',
         'rollup',
         'react',
         'react-dom',
@@ -46,6 +47,8 @@ export default defineConfig({
         'fs',
         'path',
         'worker_threads',
+        'ts-node',
+        '@jridgewell/sourcemap-codec',
         // if we use node: paths in our code, it should always be catched by below rule.
         /^node:.*/,
       ],

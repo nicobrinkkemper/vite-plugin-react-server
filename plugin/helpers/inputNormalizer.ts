@@ -1,7 +1,7 @@
-import type { InputNormalizer, NormalizerInput } from "../types.js";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
-import { normalizePath } from "vite";
 import { join } from "path";
+import { normalizePath } from "vite";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
+import type { InputNormalizer, NormalizerInput } from "../types.js";
 
 export function createInputNormalizer(root: string): InputNormalizer {
 
@@ -22,15 +22,13 @@ export function createInputNormalizer(root: string): InputNormalizer {
         normalizeKey(key),
         normalizePath(join(root, path))
       ] 
-      console.log("[inputNormalizer] Normalized input:", normalized, input);
       return normalized;
     }
 
     // Handle string input
     if (typeof input === "string") {
       const key = normalizeKey(input);
-      const path = normalizePath( join(root, input));
-      console.log("[inputNormalizer] Normalized input:", [key, path], input);
+      const path = normalizePath(join(root, input));  
       return [key, path];
     }
 

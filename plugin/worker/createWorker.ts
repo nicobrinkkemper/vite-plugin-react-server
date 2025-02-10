@@ -1,7 +1,7 @@
 import { Worker, type ResourceLimits } from "node:worker_threads";
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
-
+import { join } from "node:path";
 type CreateWorkerOptions = {
   projectRoot?: string;
   condition?: "react-server" | "react-client";
@@ -45,7 +45,7 @@ export async function createWorker(options: CreateWorkerOptions) {
   const maxRetries = 3;
   for (let tries = 0; tries < maxRetries; tries++) {
     try {
-      const worker = new Worker(workerPath, {
+      const worker = new Worker(workerPath.startsWith('/') ? workerPath : join(projectRoot, workerPath), {
         env,
         // Increase resource limits for stream handling
         resourceLimits: resourceLimits

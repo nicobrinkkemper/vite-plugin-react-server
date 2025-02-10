@@ -72,7 +72,6 @@ export function resolveUserConfig({
             chunkFileNames: '[name].[ext]',
             format: 'esm',
             exports: 'named',
-            preserveModulesRoot: userOptions.moduleBase,
             hoistTransitiveImports: false,
             generatedCode: {
               constBindings: true,

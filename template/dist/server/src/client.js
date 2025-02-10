@@ -18,7 +18,6 @@ const Shell = ({ data: initialServerData }) => {
     });
   }, []);
   useEventListener("popstate", (e) => {
-    console.log(e);
     if (e instanceof PopStateEvent && e.state?.to) {
       return navigate(e.state.to);
     } else {

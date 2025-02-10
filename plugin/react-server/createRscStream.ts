@@ -1,9 +1,9 @@
 import * as React from "react";
+import type { PipeableStream } from "react-dom/server";
 // @ts-ignore
 import { renderToPipeableStream } from "react-server-dom-esm/server.node";
 import { CssCollector } from "../components.js";
 import type { RscStreamOptions } from "../types.js";
-import type { PipeableStream } from "react-dom/server";
 
 export function createRscStream(
   streamOptions: RscStreamOptions
@@ -23,16 +23,18 @@ export function createRscStream(
     ? cssFiles.map((css, index) =>
         React.createElement(CssCollector, {
           key: `css-${index}`,
-          url: css,
+          url: css.startsWith("/") ? css : `/${css}`,
+          moduleBasePath,
         })
       )
     : [];
+  const htmlIsFragment = Html.type === React.Fragment;
   return renderToPipeableStream(
     React.createElement(
       Html,
       {
         key: "html",
-        ...htmlProps
+        ...(htmlIsFragment ? {} : htmlProps)
       },
       React.createElement(Page, { key: "page", ...props }),
       ...css

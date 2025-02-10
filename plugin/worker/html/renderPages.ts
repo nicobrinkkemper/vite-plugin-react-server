@@ -1,9 +1,10 @@
-import { join, resolve as resolvePath } from "node:path";
+import { mkdirSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve as resolvePath } from "node:path";
 import { Transform } from "node:stream";
 import type { Worker } from "node:worker_threads";
 import { createHandler } from "../../react-server/createHandler.js";
 import type { ResolvedUserConfig, StreamPluginOptions } from "../../types.js";
-import { mkdir, writeFile } from "node:fs/promises";
 
 interface PipeableStreamOptions {
   bootstrapModules?: string[];
@@ -48,28 +49,23 @@ export async function renderPages(
   routes: string[],
   options: RenderPagesOptions
 ) {
-  console.log("[renderPages] Starting render for routes:", routes);
-
   const destinationRoot = resolvePath(options.userConfig.root, options.userConfig.build.outDir);
   const failedRoutes = new Map<string, Error>();
   const moduleRootPath = join(destinationRoot, options.moduleBasePath);
   const moduleBaseURL = options.moduleBaseURL;
   const htmlRoot = join(
     options.userConfig.root,
-    options.pluginOptions.build?.client ?? options.userConfig.build.outDir.replace('server', 'client')
+    options.userConfig.build.outDir
   );
-  console.log("[renderPages] HTML root:", htmlRoot);
-
   const streamStarted = new Set<string>();
   const completedRoutes = new Set<string>();
   const htmlContent = new Map<string, string>();
   const writePromises = new Map<string, Promise<void>>();
+  const transforms = new Map<string, Transform>();
 
   // Create a promise that resolves when all routes are complete
   const allRoutesComplete = new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error(`Render timeout - Started: ${streamStarted.size}, Completed: ${completedRoutes.size}`));
-    }, 5000);
+
 
     options.worker.on("message", function messageHandler(msg: any) {
       switch (msg.type) {
@@ -77,23 +73,18 @@ export async function renderPages(
           streamStarted.add(msg.id);
           break;
         }
-        case "HTML_READY": {
-          htmlContent.set(msg.id, msg.html);
-          break;
-        }
         case "ALL_READY": {
           completedRoutes.add(msg.id);
-          
+          htmlContent.set(msg.id, msg.html);
           if (completedRoutes.size === routes.length) {
             options.worker.removeListener("message", messageHandler);
-            clearTimeout(timeout);
             
             // Write all HTML files
             for (const [route, html] of htmlContent) {
               const outputPath = route === '/' 
                 ? join(htmlRoot, 'index.html')
                 : join(htmlRoot, route, 'index.html');
-              
+              mkdirSync(dirname(outputPath), { recursive: true });
               const writePromise = writeFile(outputPath, html)
                 .catch(error => {
                   failedRoutes.set(route, error as Error);
@@ -123,16 +114,24 @@ export async function renderPages(
     await mkdir(htmlRoot, { recursive: true });
 
     const renderPromises = routes.map(async (route) => {
-      console.log("[renderPages] Processing route:", route);
       
       try {
         const result = await createHandler(route, options.pluginOptions, {
           loader: options.loader,
           manifest: options.manifest,
+          pipableStreamOptions: {
+            importMap: {
+              imports: {
+                "react": "https://esm.sh/react@19.1.0-canary-8759c5c8-20250207",
+                "react-dom": "https://esm.sh/react-dom@19.1.0-canary-8759c5c8-20250207",
+              }
+            }
+          }
         });
 
         if (result.type !== "success") {
-          console.log("[renderPages] Handler failed:", result);
+          console.error(`Failed to handle route ${route}:`, result);
+          failedRoutes.set(route, new Error(`Handler failed for ${route}`));
           return;
         }
 
@@ -140,7 +139,7 @@ export async function renderPages(
           ? resolvePath(htmlRoot, 'index.html')
           : resolvePath(htmlRoot, route, 'index.html');
 
-        const transform = new Transform({
+        transforms.set(route, new Transform({
           transform(chunk, _encoding, callback) {
             options.worker.postMessage({
               type: "RSC_CHUNK",
@@ -161,11 +160,15 @@ export async function renderPages(
             });
             callback();
           }
-        });
+        }));
           
-        result.stream.pipe(transform);
+        result.stream.pipe(transforms.get(route) as Transform);
+        await new Promise(resolve => {
+          transforms.get(route)?.on('finish', resolve);
+        });
 
       } catch (error) {
+        console.error(`Error processing route ${route}:`, error);
         failedRoutes.set(route, error as Error);
       }
     });
@@ -177,6 +180,14 @@ export async function renderPages(
     ]);
 
   } finally {
+    // Clean up all transform streams first
+    for (const transform of transforms.values()) {
+      transform.destroy();
+    }
+    transforms.clear();
+
+    // Wait for all writes to complete before terminating worker
+    await Promise.all(writePromises.values());
     await options.worker.terminate();
   }
 

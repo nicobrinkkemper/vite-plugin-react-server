@@ -1,7 +1,6 @@
-import type { Plugin } from "vite";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
-import { createClientComponentTransformer } from "./transformer-client-components.js";
 import type { StreamPluginOptions } from "../types.js";
+import { createClientComponentTransformer } from "./transformer-client-components.js";
 import { createServerActionTransformer } from "./transformer-server-actions.js";
 
 
@@ -32,12 +31,14 @@ import { createServerActionTransformer } from "./transformer-server-actions.js";
 
 export function reactTransformPlugin(
   options?: StreamPluginOptions
-): Plugin {
-  if(process.env['NODE_OPTIONS']?.match(/--conditions[= ]react-server/)) {
-    console.log('react-server')
+): import("vite").Plugin {
+  if (process.env["NODE_OPTIONS"]?.match(/--conditions[= ]react-server/)) {
+    console.log("react-server");
   } else {
-    console.log(process.env['NODE_OPTIONS'])
-    throw new Error('react-server condition not found, set NODE_OPTIONS="--conditions react-server"')
+    console.log(process.env["NODE_OPTIONS"]);
+    throw new Error(
+      'react-server condition not found, set NODE_OPTIONS="--conditions react-server"'
+    );
   }
   const projectRoot = options?.projectRoot || process.cwd();
   // const includeClient = options?.autoDiscover?.clientComponents || DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents;
@@ -51,7 +52,7 @@ export function reactTransformPlugin(
 
   return {
     name: "vite:react-stream-transformer",
-    enforce: 'post',
+    enforce: "post",
 
     configResolved(config) {
       transformClientComponent = createClientComponentTransformer({
@@ -81,23 +82,29 @@ export function reactTransformPlugin(
     config(config) {
       // Get existing inputs
       const existingInput = config.build?.rollupOptions?.input || {};
-      const currentInputs = typeof existingInput === 'string' ? { default: existingInput } : existingInput;
+      const currentInputs =
+        typeof existingInput === "string"
+          ? { default: existingInput }
+          : existingInput;
 
       // Add client components
-      const entries = Array.from(clientComponents).reduce((acc, path) => ({
-        ...acc,
-        [path.replace(DEFAULT_CONFIG.FILE_REGEX, '')]: path
-      }), {});
+      const entries = Array.from(clientComponents).reduce(
+        (acc, path) => ({
+          ...acc,
+          [path.replace(DEFAULT_CONFIG.FILE_REGEX, "")]: path,
+        }),
+        {}
+      );
 
       return {
         build: {
           rollupOptions: {
             input: {
               ...currentInputs,
-              ...entries
-            }
-          }
-        }
+              ...entries,
+            },
+          },
+        },
       };
     },
 
@@ -119,13 +126,16 @@ export function reactTransformPlugin(
 
       // Track client component and transform
       clientComponents.add(id);
-      console.log('[TransformerPlugin] Found client component:', id);
+      console.log("[TransformerPlugin] Found client component:", id);
       return transformClientComponent.bind(this)(code, id, options);
     },
 
     // Log final client components list
     buildEnd() {
-      console.log('[TransformerPlugin] Final client components:', Array.from(clientComponents));
-    }
+      console.log(
+        "[TransformerPlugin] Final client components:",
+        Array.from(clientComponents)
+      );
+    },
   };
 }
