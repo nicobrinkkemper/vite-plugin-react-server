@@ -1,12 +1,18 @@
-import type { Plugin } from "vite";
-import { resolve } from "path";
-import type { ModuleFormat } from 'rollup';
-import type { StreamPluginOptions } from "../../types.js";
+import type { Plugin, UserConfig } from "vite";
+import { join, resolve } from "path";
+import type { ModuleFormat, RollupOptions } from 'rollup';
+import type { ResolvedUserOptions, StreamPluginOptions } from "../../types.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { getPluginRoot } from "../../config/getPaths.js";
+import { resolveOptions } from "../../config/resolveOptions.js";
 
-
+let userOptions: ResolvedUserOptions;
 export function reactHtmlWorkerPlugin(options: StreamPluginOptions): Plugin {
+  const resolvedUserOptions = resolveOptions(options);
+  if(resolvedUserOptions.type === 'error') {
+    throw resolvedUserOptions.error
+  }
+  userOptions = resolvedUserOptions.userOptions;
   return {
     name: "vite:react-html-worker",
     config(config) {
@@ -25,18 +31,16 @@ export function reactHtmlWorkerPlugin(options: StreamPluginOptions): Plugin {
         },
         output: {
           format,
-          dir: options.build?.server ?? 'dist/server', // Output to server directory
+          dir: join(userOptions.build.outDir, userOptions.build.server),
           entryFileNames: '[name].js',
           preserveModules: true,
+          preserveModulesRoot: userOptions.build.preserveModulesRoot === true ? userOptions.moduleBase : undefined,
           // Add manifest entry
           manualChunks: {
             'html-worker': [htmlWorkerPath]
-          },
-          resolve: {
-            conditions: ['react-server'],
           }
         }
-      };
+      } satisfies RollupOptions;
 
       return {
         build: {
@@ -79,7 +83,7 @@ export function reactHtmlWorkerPlugin(options: StreamPluginOptions): Plugin {
           minify: false,
           sourcemap: true,
         }
-      };
+      } satisfies UserConfig;
     },
     // Add this to ensure entry is in manifest
     generateBundle(_, bundle) {

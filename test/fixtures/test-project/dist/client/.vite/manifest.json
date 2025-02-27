@@ -1,0 +1,8 @@
+{
+  "src/client.tsx": {
+    "file": "client.js",
+    "name": "client",
+    "src": "src/client.tsx",
+    "isEntry": true
+  }
+}

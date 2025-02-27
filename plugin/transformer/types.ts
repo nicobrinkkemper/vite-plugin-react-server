@@ -12,4 +12,8 @@ export interface TransformerOptions {
    * Optional validation function for module IDs
    */
   validateModuleId?: (moduleId: string) => boolean;
+  /**
+   * The directory to use for the module IDs
+   */
+  moduleBase: string;
 }

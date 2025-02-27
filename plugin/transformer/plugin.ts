@@ -1,9 +1,11 @@
-import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { resolveOptions } from "../config/resolveOptions.js";
 import type { StreamPluginOptions } from "../types.js";
-import { createClientComponentTransformer } from "./transformer-client-components.js";
-import { createServerActionTransformer } from "./transformer-server-actions.js";
-
-
+import { type Plugin } from "vite";
+import { transformModuleIfNeeded } from "../loader/react-loader.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { createInputNormalizer } from "../helpers/inputNormalizer.js";
+import { tryManifest } from "../helpers/tryManifest.js";
+import { join } from "node:path";
 /**
  * Plugin for transforming React Client Components.
  *
@@ -29,113 +31,67 @@ import { createServerActionTransformer } from "./transformer-server-actions.js";
  * ```
  */
 
-export function reactTransformPlugin(
-  options?: StreamPluginOptions
-): import("vite").Plugin {
-  if (process.env["NODE_OPTIONS"]?.match(/--conditions[= ]react-server/)) {
-    console.log("react-server");
-  } else {
-    console.log(process.env["NODE_OPTIONS"]);
-    throw new Error(
-      'react-server condition not found, set NODE_OPTIONS="--conditions react-server"'
-    );
-  }
-  const projectRoot = options?.projectRoot || process.cwd();
-  // const includeClient = options?.autoDiscover?.clientComponents || DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents;
-  // const includeServerFunctions = options?.autoDiscover?.serverFunctions || DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions;
-  let transformClientComponent: any;
-  let transformServerAction: any;
-  // get the file we are imported from (parent)
+export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
+  const resolvedOptions = resolveOptions(options);
+  if (resolvedOptions.type === "error") throw resolvedOptions.error;
+  const normalizer = createInputNormalizer({
+    root: resolvedOptions.userOptions.projectRoot,
+    preserveModulesRoot: undefined,
+    removeExtension: false,
+  });
 
-  // Track client components
-  const clientComponents = new Set<string>();
+  // Get the client manifest
+  const clientManifestResult = tryManifest({
+    root: resolvedOptions.userOptions.projectRoot,
+    outDir: join(
+      resolvedOptions.userOptions.build.outDir,
+      resolvedOptions.userOptions.build.client
+    ),
+    ssrManifest: false,
+  });
 
   return {
-    name: "vite:react-stream-transformer",
-    enforce: "post",
+    name: "vite:react-transform",
+    enforce: "pre", // Run before Vite's transforms
 
-    configResolved(config) {
-      transformClientComponent = createClientComponentTransformer({
-        moduleId:
-          options?.moduleId ||
-          DEFAULT_CONFIG.MODULE_ID({
-            projectRoot: projectRoot,
-            output: {
-              dir: config.build?.outDir ?? DEFAULT_CONFIG.BUILD.server,
-            },
-            isProduction: config.isProduction,
-          }),
-      }).transform;
-      transformServerAction = createServerActionTransformer({
-        moduleId:
-          options?.moduleId ||
-          DEFAULT_CONFIG.MODULE_ID({
-            projectRoot: projectRoot,
-            output: {
-              dir: config.build?.outDir ?? DEFAULT_CONFIG.BUILD.server,
-            },
-            isProduction: config.isProduction,
-          }),
-      }).transform;
-    },
-
-    config(config) {
-      // Get existing inputs
-      const existingInput = config.build?.rollupOptions?.input || {};
-      const currentInputs =
-        typeof existingInput === "string"
-          ? { default: existingInput }
-          : existingInput;
-
-      // Add client components
-      const entries = Array.from(clientComponents).reduce(
-        (acc, path) => ({
-          ...acc,
-          [path.replace(DEFAULT_CONFIG.FILE_REGEX, "")]: path,
-        }),
-        {}
+    async transform(code, id, options) {
+      const ssr = options?.ssr ?? false;
+      if (!ssr) return null;
+      if (!id.match(DEFAULT_CONFIG.FILE_REGEX)) return null;
+      if (!code.match('"use client"'))
+        return null;
+      const [key, value] = normalizer(id);
+      const transformed = await transformModuleIfNeeded(
+        code,
+        id,
+        // Pass null for nextLoad since we don't need module loading in the plugin
+        null
       );
-
-      return {
-        build: {
-          rollupOptions: {
-            input: {
-              ...currentInputs,
-              ...entries,
-            },
-          },
-        },
-      };
-    },
-
-    buildStart() {
-      // Reset client components at start of each build
-      clientComponents.clear();
-    },
-
-    async transform(code: string, id: string, options?: { ssr?: boolean }) {
-      // Check for directives
-      const hasClientDirective = code.match(/^["']use client["'];?/);
-      if (!hasClientDirective) {
-        const hasServerDirective = code.match(/^["']use server["'];?/);
-        if (!hasServerDirective) {
-          return null;
-        }
-        return transformServerAction.bind(this)(code, id, options);
+      if (!transformed) return null;
+      const moduleIdIndex = transformed.indexOf(value);
+      if (moduleIdIndex === -1) {
+        console.warn(
+          `[vite-plugin-react-server] Could not find module id in transformed code. Ignoring.`,
+          {
+            code,
+            id,
+            transformed,
+          }
+        );
+        return null
       }
-
-      // Track client component and transform
-      clientComponents.add(id);
-      console.log("[TransformerPlugin] Found client component:", id);
-      return transformClientComponent.bind(this)(code, id, options);
-    },
-
-    // Log final client components list
-    buildEnd() {
-      console.log(
-        "[TransformerPlugin] Final client components:",
-        Array.from(clientComponents)
-      );
+      if (clientManifestResult.type === "error") {
+        throw clientManifestResult.error;
+      }
+      const clientPath = clientManifestResult.manifest[key]?.file;
+      if (!clientPath) {
+        console.warn(`[vite-plugin-react-server] Could not find client path for ${value}. Ignoring.`)
+        return null
+      }
+      return {
+        code: transformed.replace(key, join(resolvedOptions.userOptions.build.client, clientPath)),
+        map: null,
+      };
     },
   };
 }

@@ -5,15 +5,17 @@ import type { Manifest } from "vite";
 type TryManifestOptions<SSR extends boolean> = {
   root: string;
   outDir: string;
-  ssrManifest: SSR;
+  ssrManifest?: SSR;
 };
 
 export function tryManifest<SSR extends boolean>(options: TryManifestOptions<SSR>): {
   type: "success";
   manifest: SSR extends true ? Record<string, string[]> : Manifest;
+  error?:never
 } | {
   type: "error";
   error: Error;
+  manifest?:never
 } {
   const manifestPath = resolve(
     options.root,

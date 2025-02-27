@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 export function setupTestProject(testDir: string) {
   console.log('Setting up test project in:', testDir)
   // Clean up any previous test files
-  rmSync(testDir, { recursive: true, force: true })
+  rmSync(testDir, { recursive: true, force: true, maxRetries:2 })
   
   // Ensure directories exist
   mkdirSync(resolve(testDir, 'src/page'), { recursive: true })
@@ -18,7 +18,7 @@ export function setupTestProject(testDir: string) {
       </head>
       <body>
         <div id="root"></div>
-        <script type="module" src="/src/client.tsx"></script>
+        <script type="module" src="src/client.tsx"></script>
       </body>
     </html>
   `)

@@ -1,28 +1,16 @@
 import { join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { Worker } from "node:worker_threads";
-import { type ViteDevServer } from "vite";
+import { type Manifest, type ViteDevServer } from "vite";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
-import type { RequestHandler, StreamPluginOptions } from "../types.js";
+import type { RequestHandler, ResolvedUserOptions } from "../types.js";
 import type { WorkerRscChunkMessage } from "../worker/types.js";
 import { createHandler } from "./createHandler.js";
 
 
 export function createSsrHandler(
-  options: Required<
-    Pick<
-      StreamPluginOptions,
-      "Page" | "props" | "build" | "Html" | "pageExportName" | "propsExportName"
-    >
-  > &
-    Required<
-      Pick<
-        StreamPluginOptions,
-        "moduleBase" | "moduleBasePath" | "moduleBaseURL" | "projectRoot" | "htmlWorkerPath"
-      >
-    >,
+  options: ResolvedUserOptions,
   server: ViteDevServer,
-  _clientComponents: Map<string, string>
 ): RequestHandler {
   const worker = new Worker(
     options?.htmlWorkerPath
@@ -52,14 +40,7 @@ export function createSsrHandler(
       const result = await createHandler(
         req.url ?? "",
         {
-          Page: options.Page,
-          props: options.props,
-          build: options.build,
-          Html: options.Html,
-          pageExportName: options.pageExportName,
-          propsExportName: options.propsExportName,
-          moduleBase: options.moduleBase,
-          moduleBasePath: options.moduleBasePath,
+          ...options,
           projectRoot: server.config.root,
         },
         {
@@ -116,9 +97,9 @@ export function createSsrHandler(
           // Don't need file paths in dev mode
           outDir: "",
           htmlOutputPath: "",
-          pipableStreamOptions: {
-            bootstrapModules: ["/dist/client.js"],
-          },
+          pipableStreamOptions: options.pipableStreamOptions ?? {},
+          clientManifest: {},
+          serverManifest: {},
         } satisfies WorkerRscChunkMessage);
 
         worker.once("message", (msg) => {

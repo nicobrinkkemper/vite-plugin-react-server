@@ -1,14 +1,25 @@
-import { describe, it, expect } from 'vitest'
-import { testConfig } from '../test-config.js'
+import { describe, it, expect, beforeEach, afterAll, afterEach } from 'vitest'
+import { testUserOptions } from '../test-config.js'
 import { resolveUserConfig } from '../../plugin/config/resolveUserConfig.js'
+import { existsSync, rmSync } from 'node:fs'
+import { setupTestProject } from '../setup.js'
+import { rmdirSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 describe('SSR configuration', () => {
+  const testDir = resolve(__dirname, '../fixtures/test-project/')
+
+  afterAll(() => {
+    if (!existsSync(testDir)) {
+      setupTestProject(testDir)
+    }
+  })
+
   it('sets ssr=true for react-server condition', () => {
     const result = resolveUserConfig({
-      condition: 'react-server',
       config: {},
       configEnv: { command: 'serve', mode: 'development', isSsrBuild: true },
-      userOptions: testConfig  
+      userOptions: testUserOptions  
     })
 
     expect(result.type).toBe('success')
@@ -17,28 +28,19 @@ describe('SSR configuration', () => {
     }
   })
 
-  it('sets ssr=false for react-client condition', () => {
+  it('sets ssr=true for react-client condition', () => {
     const result = resolveUserConfig({
-      condition: 'react-client',
+      isClient: true,
       config: {},
       configEnv: { command: 'build', mode: 'production' },
-      userOptions: testConfig
+      userOptions: testUserOptions
     })
 
     expect(result.type).toBe('success')
     if (result.type === 'success') {
-      expect(result.userConfig.build.ssr).toBe(false)
+      expect(result.userConfig.build.ssr).toBe(true)
     }
   })
 
-  it('errors when using server plugin without ssr flag', () => {
-    const result = resolveUserConfig({
-      condition: 'react-server',
-      config: {},
-      configEnv: { command: 'build', mode: 'production' },
-      userOptions: testConfig}
-    )
-
-  })
 
 }) 

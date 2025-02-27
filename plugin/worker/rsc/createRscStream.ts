@@ -1,6 +1,5 @@
-import { renderToPipeableStream 
-  // @ts-ignore
-} from "react-server-dom-esm/server.node";
+// @ts-ignore
+import ReactDOMServer from "react-server-dom-esm/server.node";
 import type { Writable } from "node:stream";
 import type { MessagePort } from "node:worker_threads";
 import type { RscRenderState } from "../types.js";
@@ -12,7 +11,8 @@ export function createRscStream(
 ) {
   console.log("[createRscStream] Creating stream for:", renderState.id);
 
-  const stream = renderToPipeableStream(renderState.componentImport, {
+  const stream = ReactDOMServer.renderToPipeableStream(renderState.componentImport, {
+    moduleRoot: renderState.moduleBaseURL,
     onShellReady() {
       console.log("[createRscStream] onShellReady called for:", renderState.id);
       stream.pipe(writeStream);
@@ -23,7 +23,7 @@ export function createRscStream(
         parentPort?.postMessage({
           type: "WROTE_FILE",
           id: renderState.id,
-          outputPath: renderState.rscOutputPath
+          outputPath: renderState.rscOutputPath,
         });
       });
     },

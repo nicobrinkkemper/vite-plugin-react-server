@@ -1,40 +1,57 @@
-import type { ComponentType } from 'react';
-import type { 
+import type { ComponentType } from "react";
+import type { RenderToPipeableStreamOptions } from "react-dom/server";
+import type { PreRenderedChunk } from "rollup";
+import type { PreRenderedAsset } from "rollup";
+import type {
   UserConfig,
   BuildOptions,
   InlineConfig,
   AliasOptions,
   Connect,
-} from 'vite';
+  ResolveOptions,
+} from "vite";
+import type { PipeableStreamOptions } from "./worker/types.js";
 
 // Input can be a string path, React component, tuple, or array
-export type NormalizerInput = string | ComponentType<any> | [string, string] | string[];
+export type NormalizerInput = unknown;
 
 export type InputNormalizer = (input: NormalizerInput) => [string, string];
 
-export type InputNormalizerWorker = (input: NormalizerInput) => Promise<[string, string]>;
+export type InputNormalizerWorker = (
+  input: NormalizerInput
+) => Promise<[string, string]>;
 
-export type ResolvedUserConfig = Required<Pick<UserConfig, "root" | "mode" | "build">> &
-  Omit<UserConfig, "root" | "mode" | "build"> & {
-    build: NonNullable<Required<Pick<BuildOptions, 
-      "target" | 
-      "outDir" | 
-      "assetsDir" | 
-      "ssr" | 
-      "ssrEmitAssets" | 
-      "ssrManifest" | 
-      "manifest" | 
-      "rollupOptions"
-    >>> &
-    Omit<BuildOptions, 
-      "target" | 
-      "outDir" | 
-      "assetsDir" | 
-      "ssr" | 
-      "ssrEmitAssets" | 
-      "ssrManifest" | 
-      "manifest"
-    > 
+export type ResolvedUserConfig = Required<
+  Pick<UserConfig, "root" | "mode" | "build" | "resolve">
+> &
+  Omit<UserConfig, "root" | "mode" | "build" | "resolve"> & {
+    resolve: {alias:AliasOptions} & ResolveOptions;
+  } & {
+    build: NonNullable<
+      Required<
+        Pick<
+          BuildOptions,
+          | "target"
+          | "outDir"
+          | "assetsDir"
+          | "ssr"
+          | "ssrEmitAssets"
+          | "ssrManifest"
+          | "manifest"
+          | "rollupOptions"
+        >
+      >
+    > &
+      Omit<
+        BuildOptions,
+        | "target"
+        | "outDir"
+        | "assetsDir"
+        | "ssr"
+        | "ssrEmitAssets"
+        | "ssrManifest"
+        | "manifest"
+      >;
   };
 
 // Client plugin options
@@ -65,46 +82,75 @@ export type ResolvedUserOptions = Required<
     | "propsExportName"
     | "collectCss"
     | "collectAssets"
-    | "assetsDir"
     | "htmlWorkerPath"
     | "rscWorkerPath"
     | "loaderPath"
     | "clientEntry"
     | "serverEntry"
     | "moduleBaseExceptions"
+    | "pipableStreamOptions"
+    | "moduleId"
   >
 > & {
   build: NonNullable<Required<StreamPluginOptions["build"]>>;
-  autoDiscover: NonNullable<Required<StreamPluginOptions["autoDiscover"]>>;
+  autoDiscover: {
+    modulePattern: (path: string) => boolean;
+    cssPattern: (path: string) => boolean;
+    jsonPattern: (path: string) => boolean;
+    clientComponents: (path: string) => boolean;
+    propsPattern: (path: string) => boolean;
+    pagePattern: (path: string) => boolean;
+    serverFunctions: (path: string) => boolean;
+    cssModulePattern: (path: string) => boolean;
+    vendorPattern: (path: string) => boolean;
+  };
 };
 
-export type createBuildConfigFn<C extends "react-client" | "react-server"> = (input: {
-  condition: C;
-  userOptions: ResolvedUserOptions;
-  userConfig: ResolvedUserConfig;
-  mode: "production" | "development" | "test";
-  inputNormalizer: C extends "react-server" ? InputNormalizerWorker : InputNormalizerWorker;
-}) => C extends "react-server" ? Promise<InlineConfig> : Promise<InlineConfig>;
+export type createBuildConfigFn<C extends "react-client" | "react-server"> =
+  (input: {
+    condition: C;
+    userOptions: ResolvedUserOptions;
+    userConfig: ResolvedUserConfig;
+    mode: "production" | "development" | "test";
+    inputNormalizer: C extends "react-server"
+      ? InputNormalizerWorker
+      : InputNormalizerWorker;
+  }) => C extends "react-server"
+    ? Promise<InlineConfig>
+    : Promise<InlineConfig>;
 
 export interface StreamPluginOptions {
   projectRoot?: string;
-  assetsDir?: string;
   moduleBase: string;
   moduleBasePath?: string;
   moduleBaseURL?: string;
   clientEntry?: string;
   serverEntry?: string;
   // Auto-discovery (zero-config)
-  autoDiscover?: {
-    // default: [Pp]age.tsx
-    pagePattern?: RegExp;
-    // default: [Pp]rops.ts
-    propsPattern?: RegExp;
-    // default: "use client" and .client./\.(m|c)?(j|t)sx?$/
-    clientComponents?: RegExp;
-    // default: "use server" and .server./\.(m|c)?(j|t)sx?$/
-    serverFunctions?: RegExp;
-  } | undefined;
+  autoDiscover?:
+    | {
+        // default: /\.(m|c)?(j|t)sx?$/
+        modulePattern?: string | RegExp | ((path: string) => boolean);
+        // default: [Pp]age.tsx
+        pagePattern?: string | RegExp | ((path: string) => boolean);
+        // default: [Pp]rops.ts
+        propsPattern?: string | RegExp | ((path: string) => boolean);
+        // default: "use client" and .client./\.(m|c)?(j|t)sx?$/
+        clientComponents?: string | RegExp | ((path: string) => boolean);
+        // default: "use server" and .server./\.(m|c)?(j|t)sx?$/
+        serverFunctions?: string | RegExp | ((path: string) => boolean);
+        // default: /\.css$/
+        cssPattern?: string | RegExp | ((path: string) => boolean);
+        // default: /\.json$/
+        jsonPattern?: string | RegExp | ((path: string) => boolean);
+        // default: /\.html$/
+        htmlPattern?: string | RegExp | ((path: string) => boolean);
+        // default: /\.css\.js/
+        cssModulePattern?: string | RegExp | ((path: string) => boolean);
+        // default: /node_modules|(_virtual)/
+        vendorPattern?: string | RegExp | ((path: string) => boolean);
+      }
+    | undefined;
   // Manual configuration
   Page: string | ((url: string) => string);
   props?: undefined | string | ((url: string) => string);
@@ -125,17 +171,19 @@ export interface StreamPluginOptions {
   collectAssets?: boolean;
   build?: BuildConfig;
   moduleBaseExceptions?: string[];
-  moduleId?: (id: string) => string;
+  pipableStreamOptions?: PipeableStreamOptions;
+  moduleId?: (id: string, ssr: boolean) => string;
 }
 
 export interface CreateHandlerOptions<T = any> {
   loader: (id: string) => Promise<T>;
-  manifest?: import("vite").Manifest;
+  clientManifest?: import("vite").Manifest;
+  serverManifest?: import("vite").Manifest;
   moduleGraph?: import("vite").ModuleGraph;
   cssFiles?: string[];
   onCssFile?: (path: string) => void;
   logger?: import("vite").Logger;
-  pipableStreamOptions?: any;
+  pipableStreamOptions?: PipeableStreamOptions;
 }
 
 export type ModuleLoader = (
@@ -172,7 +220,7 @@ export interface RscStreamOptions {
   htmlProps: any;
   route: string;
   url: string;
-  pipableStreamOptions?: any;
+  pipableStreamOptions?: PipeableStreamOptions;
   moduleBasePath: string;
 }
 
@@ -198,9 +246,17 @@ export interface BuildOutput {
 
 export interface BuildConfig {
   pages: string[] | (() => Promise<string[]> | string[]);
+  assetsDir?: string;
   client?: string; // Output directory for client files
   server?: string; // Output directory for server files
   static?: string; // Output directory for static environment - works in both
+  api?: string; // Output directory for API files
+  outDir?: string;
+  hash?: string;
+  preserveModulesRoot?: boolean;
+  entryFile?: (n: PreRenderedChunk) => string;
+  chunkFile?: (n: PreRenderedChunk) => string;
+  assetFile?: (n: PreRenderedAsset) => string;
 }
 
 export interface RscResolver {
@@ -276,30 +332,30 @@ export interface BuildTiming {
   total?: number;
 }
 
-
 export type CheckFilesExistReturn = {
-  propsMap: Map<string,string>,
-  propsSet: Set<string>
-  pageMap: Map<string,string>,
-  pageSet: Set<string>
-}
+  propsMap: Map<string, string>;
+  propsSet: Set<string>;
+  pageMap: Map<string, string>;
+  pageSet: Set<string>;
+  urlMap: Map<string, {props: string, page: string}>;
+  errors: string[];
+};
 
 // Add strict type checking for worker messages
-export type WorkerMessage = 
-  | { type: 'READY' }
-  | { type: 'ERROR'; error: string | Error }
-  | { type: 'RSC_CHUNK'; id: string; chunk: Buffer }
-  | { type: 'RSC_END'; id: string }
-  | { type: 'SHUTDOWN' };
+export type WorkerMessage =
+  | { type: "READY" }
+  | { type: "ERROR"; error: string | Error }
+  | { type: "RSC_CHUNK"; id: string; chunk: Buffer }
+  | { type: "RSC_END"; id: string }
+  | { type: "SHUTDOWN" };
 
 // Add branded types for safety
 export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
-
 
 export type HtmlProps = {
   pageProps: any;
   route: string;
   url: string;
   cssFiles: string[];
-}
+};

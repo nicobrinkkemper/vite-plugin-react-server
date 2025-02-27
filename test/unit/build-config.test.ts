@@ -1,15 +1,28 @@
-import { describe, it, expect } from 'vitest'
-import { testConfig } from '../test-config.js'
+import { describe, it, expect, beforeEach, afterAll, afterEach } from 'vitest'
+import { testUserOptions } from '../test-config.js'
 import { resolveUserConfig } from '../../plugin/config/resolveUserConfig.js'
+import { existsSync } from 'node:fs'
+import { setupTestProject } from '../setup.js'
+import { rmSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { before } from 'node:test'
 
 describe('Build configuration', () => {
+  const testDir = resolve(__dirname, '../fixtures/test-project/')
+
+  before(() => {
+    if (!existsSync(testDir)) {
+      setupTestProject(testDir)
+    }
+  })
 
   it('uses server outDir for server builds', () => {
     const result = resolveUserConfig({
-      condition: 'react-server',
-      config: {},
+      config: {
+        root: testDir,
+      },
       configEnv: { command: 'build', isSsrBuild: true, mode: 'production' },
-      userOptions: testConfig
+      userOptions: testUserOptions
     })
 
     expect(result.type).toBe('success')
@@ -20,10 +33,12 @@ describe('Build configuration', () => {
 
   it('uses client outDir for client builds', () => {
     const result = resolveUserConfig({
-      condition: 'react-client',
-      config: {},
+      isClient: true,
+      config: {
+        root: testDir,
+      },
       configEnv: { command: 'build', mode: 'production', isSsrBuild: false },
-      userOptions: testConfig
+      userOptions: testUserOptions
     })
     if(process.env['NODE_OPTION']?.match(/--conditions=react-server/)) {
       expect(result.type).toBe('error')

@@ -1,32 +1,38 @@
 import { PassThrough } from "node:stream";
 import { parentPort } from "node:worker_threads";
 import type { HtmlRenderState, HtmlWorkerMessage } from "../types.js";
-import ReactDOMServer from "react-dom/server";
+import * as ReactDOMServer from "react-dom/server";
 import React from "react";
 import {
   createFromNodeStream,
   // @ts-ignore
 } from "react-server-dom-esm/client.node";
+import { join } from "path";
 
 // Track active renders and streams
 const activeRenders = new Map<string, HtmlRenderState>();
 const htmlContent = new Map<string, string>();
 const htmlPromises = new Map<string, Promise<string>>();
 
+
 export const messageHandler = async (message: HtmlWorkerMessage) => {
   try {
     switch (message.type) {
       case "RSC_CHUNK": {
-        const { id, chunk, ...rest } = message;
+        const { id, chunk, moduleRootPath, moduleBaseURL, htmlOutputPath, pipableStreamOptions } = message;
+        
         const render = activeRenders.get(id);
-
         if (!render) {
           activeRenders.set(id, {
             chunks: [chunk],
             id,
             complete: false,
             rendered: false,
-            ...rest,
+            moduleRootPath,
+            moduleBaseURL,
+            outDir: '',
+            htmlOutputPath: htmlOutputPath ?? join(process.cwd(), 'index.html'),
+            pipableStreamOptions: pipableStreamOptions,
           });
         } else {
           render.chunks = [...render.chunks, chunk];
@@ -52,12 +58,12 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
           rscStream.write(chunk);
         }
         rscStream.end();
-
+          
         // Create React elements from stream
         const reactElements = await createFromNodeStream(
           rscStream,
           render.moduleRootPath,
-          render.moduleBaseURL
+          'localhost'
         );
 
         // Create a promise that resolves when HTML is complete
@@ -79,7 +85,6 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
               outputPath: render.htmlOutputPath,
             });
           });
-
           // Render to pipeable stream
           const stream = ReactDOMServer.renderToPipeableStream(
             reactElements as React.ReactNode,
@@ -104,12 +109,15 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
         htmlPromises.delete(id);
         break;
       }
+
+      case "SHUTDOWN": {
+        console.log('Received shutdown signal');
+        parentPort?.close();
+        break;
+      }
     }
   } catch (error) {
-    parentPort?.postMessage({
-      type: "ERROR",
-      id: message.type === "RSC_CHUNK" || message.type === "RSC_END" ? message.id : "",
-      error: error instanceof Error ? error.message : String(error),
-    });
+    console.error('Error in messageHandler:', error);
+    throw error;
   }
 };

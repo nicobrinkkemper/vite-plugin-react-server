@@ -1,82 +1,62 @@
 import { existsSync } from "node:fs";
-import { resolve, relative } from "node:path";
-import type { CheckFilesExistReturn, StreamPluginOptions } from "./types.js";
-import { DEFAULT_CONFIG } from "./config/defaults.js";
+import { join } from "node:path";
+import type { CheckFilesExistReturn, ResolvedUserOptions } from "./types.js";
+import { normalizePath } from "vite";
+import { createInputNormalizer } from "./helpers/inputNormalizer.js";
+
+const resolveFileOption = (pageOrProps: string | ((url: string) => string)) => {
+  if (typeof pageOrProps === "string") {
+    return () => pageOrProps;
+  }
+  return pageOrProps;
+};
 
 export async function checkFilesExist(
   pages: string[],
-  options: Pick<StreamPluginOptions, "Page" | "props">,
+  options: ResolvedUserOptions,
   root: string
 ): Promise<CheckFilesExistReturn> {
+  if (!root || root === "") {
+    throw new Error("Root not found");
+  }
   const errors: string[] = [];
   const pageSet = new Set<string>();
-  const pageMap = new Map<string, string>();
-  
-  const toKey = (path: string) => {
-    return relative(root, resolve(root, path))
-      .replace(/\\/g, '/')
-      .replace(DEFAULT_CONFIG.FILE_REGEX, '')
-      .replace(/^\.\//, '');
-  }
-  // Check if files exist when string paths are provided
-  if (typeof options.Page === "string") {
-    const pagePath = options.Page;
-    const fullPagePath = resolve(root, pagePath);
-    const key = toKey(pagePath);
-    pageMap.set(key, pagePath);
-    if (!pageSet.has(key)) {
-      if (!existsSync(fullPagePath)) {
-        errors.push(`Page file not found: ${pagePath}, ${fullPagePath}`);
-      }
-      pageSet.add(pagePath.replace(/^\//, ''));
-    }
-  } else if (typeof options.Page === "function" && pages) {
-    for (const page of pages) {
-      const pagePath = options.Page(page);
-      const fullPagePath = resolve(root, pagePath);
-      const key = toKey(pagePath);
-      pageMap.set(key, pagePath);
-      if (pageSet.has(key)) {
-        continue;
-      }
-      if (!existsSync(fullPagePath)) {
-        errors.push(`Page file not found: ${pagePath}, ${fullPagePath}`);
-      }
-      pageSet.add(pagePath);
-    }
-  }
-
   const propsSet = new Set<string>();
+  const pageMap = new Map<string, string>();
   const propsMap = new Map<string, string>();
-  if (typeof options.props === "string") {
-    const propsPath = options.props;
-    const fullPropsPath = resolve(root, propsPath);
-    const key = toKey(propsPath);
-    propsMap.set(key, propsPath);
-    if (!propsSet.has(key)) {
-      if (!existsSync(fullPropsPath)) {
-        errors.push(`Props file not found: ${propsPath}, ${fullPropsPath}`);
+  const urlMap = new Map<string, { props: string; page: string }>();
+  const normalizer = createInputNormalizer({
+    root,
+    preserveModulesRoot: options.build.preserveModulesRoot === true ? options.moduleBase : undefined,
+    removeExtension: true,
+  });
+  const pageFn = resolveFileOption(options.Page);
+  const propsFn = resolveFileOption(options.props);
+  for (const page of pages) {
+    const pagePath = pageFn(page);
+    const propsPath = propsFn(page);
+    const [pageKey, pageValue] = normalizer(pagePath);
+    const [propsKey, propsValue] = normalizer(propsPath);
+    try {
+      if (!existsSync(join(root, pageValue))) {
+        errors.push(
+          `Page file not found: ${pagePath}, ${join(root, pagePath)}`
+        );
       }
-      propsSet.add(propsPath);
+      if (!existsSync(join(root, propsValue))) {
+        errors.push(
+          `Props file not found: ${propsPath}, ${join(root, propsPath)}`
+        );
+      }
+    } catch (error) {
+      errors.push(`Error checking files: ${error}`);
     }
-  } else if (typeof options.props === "function" && pages) {
-    for (const page of pages) {
-      const propsPath = options.props(page);
-      const fullPropsPath = resolve(root, propsPath);
-      const key = toKey(propsPath);
-      propsMap.set(key, propsPath);
-      if (propsSet.has(key)) {
-        continue;
-      }
-      if (!existsSync(fullPropsPath)) {
-        errors.push(`Props file not found: ${propsPath}, ${fullPropsPath}`);
-      }
-      propsSet.add(propsPath);
-    }
+    urlMap.set(page, { props: propsPath, page: pagePath });
+    pageSet.add(pagePath);
+    propsSet.add(propsPath);
+    pageMap.set(pageKey, pageValue);
+    propsMap.set(propsKey, propsValue);
   }
 
-  if (errors.length) {
-    console.warn("React Stream Plugin Validation:\n" + errors.join("\n"));
-  }
-  return { pageMap, pageSet, propsMap, propsSet };
+  return { pageMap, pageSet, propsMap, propsSet, urlMap, errors };
 }

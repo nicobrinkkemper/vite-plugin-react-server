@@ -1,4 +1,12 @@
-interface PipeableStreamOptions {
+import type { Manifest } from "vite";
+
+// Base message types
+export interface WorkerMessage {
+  type: string;
+  id: string;
+}
+
+export interface PipeableStreamOptions {
   bootstrapModules?: string[];
   bootstrapScripts?: string[];
   bootstrapScriptContent?: string;
@@ -15,6 +23,7 @@ interface PipeableStreamOptions {
   };
 }
 
+// Worker States
 export interface HtmlRenderState {
   chunks: string[];
   complete: boolean;
@@ -29,96 +38,132 @@ export interface HtmlRenderState {
 
 export interface RscRenderState {
   id: string;
-  pipableStreamOptions: PipeableStreamOptions;
   outDir: string;
   moduleRootPath: string;
   moduleBaseURL: string;
   rscOutputPath: string;
   componentImport: string;
   propsImport: string;
+  pipableStreamOptions: PipeableStreamOptions;
 }
 
-export interface WorkerRscChunkMessage {
+// Common Messages
+export interface ShutdownMessage extends WorkerMessage {
+  type: "SHUTDOWN";
+}
+
+// RSC Messages
+export interface RscRenderMessage extends WorkerMessage {
+  type: "RSC_RENDER";
+  pageImport: string;
+  propsImport: string;
+  pageExportName: string;
+  propsExportName: string;
+  url: string;
+  outDir: string;
+  projectRoot: string;
+  moduleRootPath: string;
+  moduleBaseURL: string;
+  moduleBasePath: string;
+  pipableStreamOptions: PipeableStreamOptions;
+  cssFiles: string[];
+}
+
+export interface RscChunkMessage extends WorkerMessage {
   type: "RSC_CHUNK";
-  id: string;
+  chunk: string;
+  moduleRootPath: string;
+  moduleBaseURL: string;
+  outDir: string;
+  rscOutputPath: string;
+  cssFiles: Array<[string, string]>;
+}
+
+export interface RscShellReadyMessage extends WorkerMessage {
+  type: "SHELL_READY";
+}
+
+export interface RscAllReadyMessage extends WorkerMessage {
+  type: "ALL_READY";
+  outputPath: string;
+  contents: string;
+}
+
+export interface RscEndMessage extends WorkerMessage {
+  type: "RSC_END";
+}
+
+export interface RscErrorMessage extends WorkerMessage {
+  type: "ERROR";
+  error: string;
+}
+
+export interface ClientReferenceMessage extends WorkerMessage {
+  type: "CLIENT_REFERENCE";
+  location: string;
+  key: string;
+  ref: unknown;
+}
+
+export interface ServerReferenceMessage extends WorkerMessage {
+  type: "SERVER_REFERENCE";
+  location: string;
+  key: string;
+  ref: unknown;
+}
+
+// HTML Messages
+export interface WorkerRscChunkMessage extends WorkerMessage {
+  type: "RSC_CHUNK";
   chunk: string;
   moduleRootPath: string;
   moduleBaseURL: string;
   outDir: string;
   htmlOutputPath: string;
   pipableStreamOptions: PipeableStreamOptions;
+  clientManifest: Manifest;
+  serverManifest: Manifest;
 }
 
-export interface ShutdownMessage {
-  type: "SHUTDOWN";
-  id: string;
+export interface ShellReadyMessage extends WorkerMessage {
+  type: "SHELL_READY";
 }
 
-export interface RscRenderMessage {
-  type: "RSC_RENDER";
-  id: string;
-  pageImport: string;
-  propsImport: string;
-  outDir: string;
-  moduleRootPath: string;
-  moduleBaseURL: string;
-  pipableStreamOptions: PipeableStreamOptions;
-}
-
-export interface RscCompleteMessage {
-  type: "RSC_COMPLETE";
-  id: string;
+export interface AllReadyMessage extends WorkerMessage {
+  type: "ALL_READY";
   outputPath: string;
+  html: string;
 }
 
-export interface RscErrorMessage {
-  type: "ERROR";
+export interface CssFileMessage extends WorkerMessage {
+  type: "CSS_FILE";
   id: string;
-  error: string;
+  cssFile: string;
+  moduleClasses?: Record<string, string>;
 }
 
-export interface RscWroteFileMessage {
-  type: "WROTE_FILE";
-  id: string;
-  outputPath: string;
-}
-
-export interface RscEndMessage {
-  type: "RSC_END";
-  id: string;
-}
-
-export interface ClientReferenceMessage {
-  type: "CLIENT_REFERENCE";
-  id: string;
-  location: string;
-  key: string;
-  ref: unknown;
-}
-
-export interface ServerReferenceMessage {
-  type: "SERVER_REFERENCE";
-  id: string;
-  location: string;
-  key: string;
-  ref: unknown;
-}
-
+// Message Unions
 export type HtmlWorkerMessage =
   | WorkerRscChunkMessage
   | RscEndMessage
   | ShutdownMessage;
 
+export type HtmlWorkerResponse =
+  | ShellReadyMessage
+  | AllReadyMessage
+  | RscErrorMessage;
+
 export type RscWorkerMessage =
   | RscRenderMessage
+  | RscChunkMessage
   | RscEndMessage
   | ShutdownMessage
   | ClientReferenceMessage
-  | ServerReferenceMessage;
+  | ServerReferenceMessage
+  | CssFileMessage;
 
 export type RscWorkerResponse = 
-  | RscCompleteMessage
+  | RscShellReadyMessage
+  | RscAllReadyMessage
   | RscErrorMessage
-  | RscWroteFileMessage
-  | ClientReferenceMessage
-  | ServerReferenceMessage;
+  | CssFileMessage;

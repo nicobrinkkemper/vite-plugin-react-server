@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -24,7 +24,8 @@
     "./loader": "./dist/plugin/worker/loader.js",
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
-    "./check-react-version": "./scripts/check-react-version.mjs"
+    "./check-react-version": "./scripts/check-react-version.mjs",
+    "./css-loader": "./dist/plugin/loader/css-loader.js"
   },
   "typesVersions": {
     "*": {
@@ -61,15 +62,12 @@
     "test": "npm run build && npm run test:client && NODE_ENV=development npm run test:server",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
+    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
-    "experimental:patch": "npx patch-package react-server-dom-esm --exclude 'nothing' && npx patch-package react react-dom",
+    "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
     "experimental:move-patches": "mv patches/* ./scripts/",
-    "experimental:setup": "rm -rf patches/* && npm install react-server-dom-esm react@canary react-dom@canary && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches && node scripts/check-react-version.mjs",
-    "experimental:check": "node scripts/check-react-version.mjs",
-    "postinstall": "npm install react-server-dom-esm && node scripts/check-react-version.mjs &&  patch-package",
-    "template:preview": "cd template && NODE_OPTIONS='--conditions react-server' npx vite preview",
-    "template:start": "cd template; NODE_OPTIONS='--conditions react-server' npx vite",
-    "template:build": "cd template && NODE_OPTIONS='--conditions react-server' npx vite build"
+    "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches && node scripts/check-react-version.mjs",
+    "postinstall": "npm install react-server-dom-esm && node scripts/check-react-version.mjs &&  patch-package"
   },
   "keywords": [
     "vite",
@@ -81,7 +79,7 @@
   "author": "Nico Brinkkemper",
   "license": "MIT",
   "engines": {
-    "node": "^23.6.0"
+    "node": "^23.7.0"
   },
   "repository": {
     "type": "git",
@@ -108,13 +106,12 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^20.17.16",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "acorn-loose": "^8.3.0",
     "patch-package": "^8.0.0",
-    "react": "^19.1.0-canary-8759c5c8-20250207",
-    "react-dom": "^19.1.0-canary-8759c5c8-20250207",
+    "react": "^0.0.0-experimental-e670e72f-20250214",
+    "react-dom": "^0.0.0-experimental-e670e72f-20250214",
     "react-server-dom-esm": "^0.0.1",
     "rollup": "^4.34.0",
     "source-map": "^0.7.4",
@@ -123,9 +120,13 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.11",
     "vitest": "^3.0.4",
-    "webpack-sources": "^3.2.0"
+    "webpack-sources": "^3.2.3"
   },
   "bin": {
-    "vite-plugin-react-server-patch": "./scripts/check-react-version.mjs"
+    "check-react-version": "./scripts/check-react-version.mjs",
+    "patch": "./bin/patch.mjs"
+  },
+  "dependencies": {
+    "tsx": "^4.19.2"
   }
 }

@@ -9,7 +9,7 @@ export const viteReactServer = async (options: StreamPluginOptions)=>{
     return ()=>{}
   } else {
     const module = await import('./server.js')
-    return module.reactServerPlugin(options)
+    return module.vitePluginReactServer(options)
   }
 }
 
@@ -18,7 +18,7 @@ export const viteReactClient = async (options: StreamPluginOptions)=>{
       return ()=>{}
   } else {
     const module = await import('./client.js')
-    return module.reactClientPlugin(options)
+    return module.vitePluginReactClient(options)
   }
 }
 

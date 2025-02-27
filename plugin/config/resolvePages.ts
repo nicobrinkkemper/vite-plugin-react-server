@@ -2,7 +2,7 @@ import type { ResolvedUserOptions } from '../types.js';
 
 export async function resolvePages(
   pages: ResolvedUserOptions["build"]["pages"]
-): Promise<{ type: "success"; pages: string[] } | { type: "error"; error: Error }> {
+): Promise<{ type: "success"; error?:never; pages: string[] } | { type: "error"; error: Error; pages?:never }> {
   if (!pages) {
     return { type: "success", pages: [] };
   }

@@ -1,96 +1,221 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type { CheckFilesExistReturn, ResolvedUserConfig, ResolvedUserOptions } from "../types.js";
-import { DEFAULT_CONFIG } from "./defaults.js";
+import type {
+  CheckFilesExistReturn,
+  ResolvedUserConfig,
+  ResolvedUserOptions,
+} from "../types.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
-
+import { join } from "path";
+// @ts-ignore
+import { globSync } from "fs";
+import type { OutputOptions } from "rollup";
 export type ResolveUserConfigProps = {
-  condition: "react-client" | "react-server" | "";
+  isClient?: boolean;
   config: UserConfig;
   configEnv: ConfigEnv;
   userOptions: ResolvedUserOptions;
   files?: CheckFilesExistReturn;
 };
 
-export type ResolveUserConfigReturn = 
+export type ResolveUserConfigReturn =
   | { type: "success"; userConfig: ResolvedUserConfig }
   | { type: "error"; error: Error };
 
 export function resolveUserConfig({
-  condition,
+  isClient = false,
   config,
   configEnv,
   userOptions,
-  files
+  files,
 }: ResolveUserConfigProps): ResolveUserConfigReturn {
-
-
   try {
     // Get existing inputs
     const root = config.root ?? userOptions.projectRoot ?? process.cwd();
-    const existingInput = config.build?.rollupOptions?.input || {};
-    const currentInputs = typeof existingInput === 'string' ? { default: existingInput } : existingInput;
-    const normalizer = createInputNormalizer(root);
 
-    const serverEntry = userOptions.serverEntry ? [userOptions.serverEntry, userOptions.serverEntry] : [];
-    // Add inputs based on condition
-    const inputs = {
-      ...currentInputs,
-      ...(condition === 'react-server' && files ? {
-        'index.html': '/index.html',
-        ...Object.fromEntries([
-          ...serverEntry,
-          ...Array.from(files.pageMap.entries()),
-          ...Array.from(files.propsMap.entries())
-        ].map(normalizer))
-      } : {
-        client: userOptions.clientEntry
-      })
-    };
+    const normalizer = createInputNormalizer({
+      root,
+      preserveModulesRoot: userOptions.build.preserveModulesRoot ? userOptions.moduleBase : undefined,
+      removeExtension: true,
+    });
 
-    const userConfig = {
-      ...config,
-      root: root,
-      mode: configEnv.command === 'build' ? 'production' : 'development',
-      build: {
-        ...config.build,
-        outDir: condition === 'react-server' ? userOptions.build.server : userOptions.build.client,
-        assetsDir: condition === 'react-server' ? "" : DEFAULT_CONFIG.CLIENT_ASSETS_DIR,
-        ssr: condition === 'react-server',
-        target: condition === 'react-server' ? 'node18' : 'es2020',
-        minify: condition === 'react-server' ? false : true,
-        manifest: true,
-        ssrManifest: false,
-        ssrEmitAssets: true,
-        rollupOptions: {
-          ...config.build?.rollupOptions,
-          input: inputs,
-          preserveEntrySignatures: 'strict',
-          output: condition === 'react-server' ? {
-            preserveModules: true,
-            entryFileNames: '[name].js',
-            assetFileNames: '[name].[ext]',
-            chunkFileNames: '[name].[ext]',
-            format: 'esm',
-            exports: 'named',
-            hoistTransitiveImports: false,
-            generatedCode: {
-              constBindings: true,
-              objectShorthand: true
-            },
-            interop: 'auto'
-          } : undefined
+    const serverEntry = userOptions.serverEntry
+      ? Object.fromEntries([
+          normalizer([userOptions.serverEntry, userOptions.serverEntry]),
+        ])
+      : null;
+    const clientEntry = userOptions.clientEntry
+      ? Object.fromEntries(
+          [
+            [userOptions.clientEntry, userOptions.clientEntry],
+            ["index.html", "index.html"],
+          ].map(normalizer)
+        )
+      : { "index.html": "index.html" };
+
+    const autoDiscoveredClientFiles = (inputs: Record<string, string>) => {
+      const allFiles = globSync(`**/*.client.*`, {
+        cwd: join(root, userOptions.moduleBase),
+      });
+      
+      for (const file of allFiles) {
+        const [key, value] = normalizer(join(userOptions.moduleBase, file));
+        if (!inputs[key]) {
+          inputs[key] = value;
+        } else {
+          console.warn(`[RSC] Client file already exists: ${key}`);
         }
       }
+      return inputs;
     };
+    const autoDiscoveredServerFiles = (inputs: Record<string, string>) => {
+      const allFiles = globSync(`${userOptions.moduleBase}/**/*.server.*`, {
+        cwd: join(root, userOptions.moduleBase),
+      });
+      for (const file of allFiles) {
+        const [key, value] = normalizer(join(userOptions.moduleBase, file));
+        if (!inputs[key]) {
+          inputs[key] = value;
+        } else {
+          console.warn(`[RSC] Server file already exists: ${key}`);
+        }
+      }
+      return inputs;
+    };
+    const autoDiscoveredFiles = (inputs: Record<string, string>) => {
+      if(!files) return inputs;
+      
+      // Add page files without extra prefix
+      for (const [key, value] of files.pageMap) {
+        if(!inputs[key]) {
+          inputs[key] = value;
+        } else {
+          console.warn(`[RSC] Page file already exists: ${key}`);
+        }
+      }
+      // Add props files without extra prefix 
+      for (const [key, value] of files.propsMap) {
+        if(!inputs[key]) {
+          inputs[key] = value;
+        } else {
+          console.warn(`[RSC] Props file already exists: ${key}`);
+        }
+      }
+      return inputs;
+    };
+
+    // Add inputs based on condition
+    let inputs = isClient
+      ? autoDiscoveredClientFiles(clientEntry)
+      : autoDiscoveredServerFiles(autoDiscoveredFiles(serverEntry ?? {}));
+
+    const envDir = isClient
+      ? userOptions.build.client
+      : userOptions.build.server;
+    if (isClient) {
+      return {
+        type: "success",
+        userConfig: {
+          ...config,
+          root: root,
+          mode: configEnv.command === "build" ? "production" : "development",
+          resolve: {
+            external: ["react", "react-dom"],
+            alias: {
+            }
+          },
+          ssr: {
+            target: "node",
+            external: ["react", "react-dom", "react-server-dom-esm/client.browser"],
+            resolve: {
+              externalConditions: ["react-server"],
+            },
+          },
+          build: {
+            ...config.build,
+            emptyOutDir: config.build?.emptyOutDir ?? true,
+            outDir: join(userOptions.build.outDir, envDir),
+            assetsDir: userOptions.build.assetsDir,
+            // modern browsers
+            target: ["esnext"],
+            minify: true,
+            ssr: typeof configEnv.isSsrBuild === 'boolean' ? configEnv.isSsrBuild : true,
+            manifest: config.build?.manifest ?? `.vite/manifest.json`,
+            ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+            ssrEmitAssets: true,
+            rollupOptions: {
+              ...config.build?.rollupOptions,
+              input: inputs,
+              preserveEntrySignatures: "strict",
+              output: {
+                ...config.build?.rollupOptions?.output,
+                preserveModules: true,
+                preserveModulesRoot: userOptions.build.preserveModulesRoot
+                  ? userOptions.moduleBase
+                  : undefined,
+              },
+            },
+          },
+        },
+      };
+    }
+    const pluginOutput = {
+      preserveModules: true,
+      preserveModulesRoot: userOptions.build.preserveModulesRoot
+        ? userOptions.moduleBase
+        : undefined,
+      entryFileNames: userOptions.build.entryFile,
+      assetFileNames: userOptions.build.assetFile,
+      chunkFileNames: userOptions.build.chunkFile,
+      format: "esm",
+      exports: "named",
+      hoistTransitiveImports: false,
+      generatedCode: {
+        constBindings: true,
+        objectShorthand: true,
+      },
+      interop: "auto",
+    } satisfies OutputOptions;
+    const newOutput = Array.isArray(config.build?.rollupOptions?.output) ? 
+      [...config.build?.rollupOptions?.output, pluginOutput]
+      : typeof config.build?.rollupOptions?.output === 'object' && config.build?.rollupOptions?.output !== null ?
+        [config.build?.rollupOptions?.output, pluginOutput]
+        : pluginOutput
 
     return {
       type: "success",
-      userConfig: userConfig as ResolvedUserConfig
+      userConfig: {
+        ...config,
+        root: root,
+        mode: configEnv.command === "build" ? "production" : "development",
+        resolve: {
+          alias: {
+          }
+        },
+        build: {
+          ...config.build,
+          emptyOutDir: config.build?.emptyOutDir ?? true,
+          outDir: join(userOptions.build.outDir, envDir),
+          target: "node18",
+          minify: true,
+          ssr: true,
+          manifest: config.build?.manifest ?? `.vite/manifest.json`,
+          ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+          ssrEmitAssets: true,
+          assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
+          rollupOptions:  {
+            ...config.build?.rollupOptions,
+            input: inputs,
+            preserveEntrySignatures: "strict",
+            output: newOutput,
+          },
+        },
+      },
     };
   } catch (error) {
     return {
       type: "error",
-      error: error instanceof Error ? error : new Error("Failed to resolve config")
+      error:
+        error instanceof Error ? error : new Error("Failed to resolve config"),
     };
   }
-} 
+}

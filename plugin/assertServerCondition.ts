@@ -1,4 +1,4 @@
-function assertServerCondition<P extends typeof process>(p: P): asserts p is P & { env: { NODE_OPTIONS: string } } {
+export function assertServerCondition<P extends typeof process>(p: P): asserts p is P & { env: { NODE_OPTIONS: string } } {
     const nodeOptions = p.env['NODE_OPTIONS'];
     if (!nodeOptions?.match(/--conditions[= ]react-server/)) {
         if(!nodeOptions?.match(/--conditions/)) {
@@ -10,4 +10,3 @@ function assertServerCondition<P extends typeof process>(p: P): asserts p is P &
     }
     return undefined;
   };
-assertServerCondition(process);

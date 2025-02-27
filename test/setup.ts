@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "fs";
 import { dirname, resolve } from "path";
 
 export async function setupTestProject(testDir: string) {
+  mkdirSync(testDir, { recursive: true });
   // Ensure directories exist
   mkdirSync(resolve(testDir, 'src'), { recursive: true });
   mkdirSync(resolve(testDir, 'src/page'), { recursive: true });
@@ -42,7 +43,7 @@ export async function setupTestProject(testDir: string) {
     </head>
     <body>
       <div id="root"></div>
-      <script type="module" src="/src/client.tsx"></script>
+      <script type="module" src="src/client.tsx"></script>
     </body>
   </html>
   `);

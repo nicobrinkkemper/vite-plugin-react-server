@@ -76,13 +76,7 @@ export function createPageLoader({
   registerClient,
 }: CreatePageLoaderOptions) {
   return async function loader(id: string) {
-    console.log("[pageLoader] Loading:", {
-      id,
-      manifest: Object.keys(manifest),
-      outDir,
-      moduleBase
-    });
-    console.log("[pageLoader] Manifest:", manifest);
+
     // Try to find the entry directly or by source file
     const manifestEntry = manifest[id] || 
                          Object.values(manifest).find(entry => entry.src === id);

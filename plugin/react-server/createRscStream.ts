@@ -1,49 +1,46 @@
 import * as React from "react";
-import type { PipeableStream } from "react-dom/server";
+import type ReactDOMServer from "react-dom/server";
 // @ts-ignore
 import { renderToPipeableStream } from "react-server-dom-esm/server.node";
-import { CssCollector } from "../components.js";
 import type { RscStreamOptions } from "../types.js";
 
 export function createRscStream(
   streamOptions: RscStreamOptions
-): PipeableStream {
+): ReactDOMServer.PipeableStream {
   const {
     Html,
     Page,
     props,
     logger,
-    cssFiles,
     moduleBasePath,
     pipableStreamOptions,
     htmlProps,
   } = streamOptions;
 
-  const css = Array.isArray(cssFiles)
-    ? cssFiles.map((css, index) =>
-        React.createElement(CssCollector, {
-          key: `css-${index}`,
-          url: css.startsWith("/") ? css : `/${css}`,
-          moduleBasePath,
-        })
-      )
-    : [];
-  const htmlIsFragment = Html.type === React.Fragment;
+  const htmlIsFragment = Html == React.Fragment;
+
+  // Otherwise wrap with Html component
+  const content = htmlIsFragment 
+    ? React.createElement(Page, { ...props })
+    : React.createElement(
+        Html,
+        htmlProps,
+        React.createElement(Page, { ...props })
+      );
+
   return renderToPipeableStream(
-    React.createElement(
-      Html,
-      {
-        key: "html",
-        ...(htmlIsFragment ? {} : htmlProps)
-      },
-      React.createElement(Page, { key: "page", ...props }),
-      ...css
-    ),
+    content,
     moduleBasePath,
     {
       onError: logger?.error ?? console.error,
       onPostpone: logger?.info ?? console.info,
       environmentName: "Server",
+      importMap: {
+        imports: {
+          ...pipableStreamOptions?.importMap?.imports,
+          '/': moduleBasePath
+        }
+      },
       ...pipableStreamOptions
     }
   );

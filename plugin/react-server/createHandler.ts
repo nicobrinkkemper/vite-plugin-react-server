@@ -7,7 +7,7 @@ import {
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolvePage } from "../resolvePage.js";
 import { resolveProps } from "../resolveProps.js";
-import type { CreateHandlerOptions, StreamPluginOptions } from "../types.js";
+import type { CreateHandlerOptions, ResolvedUserOptions } from "../types.js";
 import { createRscStream } from "./createRscStream.js";
 
 type CreateHandlerResult = 
@@ -22,22 +22,16 @@ interface HandlerAssets {
 
 export async function createHandler<T>(
   url: string,
-  pluginOptions: Pick<
-    StreamPluginOptions,
-    "Page" | "props" | "build" | "Html" | "pageExportName" | "propsExportName"
-  > &
-    Required<
-      Pick<StreamPluginOptions, "moduleBase" | "moduleBasePath" | "projectRoot">
-    >,
+  pluginOptions: ResolvedUserOptions,
   streamOptions: CreateHandlerOptions<T>
 ): Promise<CreateHandlerResult> {
   const root = pluginOptions.projectRoot ?? process.cwd();
 
   const Html = pluginOptions.Html ?? DEFAULT_CONFIG.HTML;
   const pageExportName =
-    pluginOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT;
+    pluginOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME;
   const propsExportName =
-    pluginOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT;
+    pluginOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME;
   const controller = new AbortController();
 
   const cssFiles = streamOptions.cssFiles;
@@ -52,13 +46,13 @@ export async function createHandler<T>(
 
   const cssModules = new Set<string>();
 
-  if (!(streamOptions.manifest || streamOptions.moduleGraph))
-    throw new Error("Missing manifest or moduleGraph, pass it to options.");
+  if (!(streamOptions.serverManifest || streamOptions.moduleGraph))
+    throw new Error("Missing server manifest or moduleGraph, pass it to options.");
 
-  const getCss = streamOptions.manifest
+  const getCss = streamOptions.serverManifest
     ? (id: string) =>
         collectManifestCss(
-          streamOptions.manifest!,
+          streamOptions.serverManifest!,
           root,
           id,
           streamOptions.onCssFile
@@ -131,7 +125,7 @@ export async function createHandler<T>(
     Html: Html,
     Page: Page,
     props: props,
-    moduleBasePath: pluginOptions.moduleBasePath,
+    moduleBasePath: '',
     logger: streamOptions.logger ?? createLogger(),
     cssFiles: Array.from(cssModules),
     route: url,
