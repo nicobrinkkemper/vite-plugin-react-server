@@ -1,5 +1,5 @@
 diff --git a/node_modules/react/cjs/react.development.js b/node_modules/react/cjs/react.development.js
-index 3d59333..923b894 100644
+index 9aa7fdf..923b894 100644
 --- a/node_modules/react/cjs/react.development.js
 +++ b/node_modules/react/cjs/react.development.js
 @@ -256,8 +256,7 @@
@@ -94,13 +94,13 @@ index 3d59333..923b894 100644
      exports.useTransition = function () {
        return resolveDispatcher().useTransition();
      };
--    exports.version = "19.1.0-experimental-e670e72f-20250214";
+-    exports.version = "19.1.0-experimental-d55cc79b-20250228";
 +    exports.version = "19.1.0-experimental-b3a95caf-20250113";
      "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ &&
        "function" ===
          typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop &&
 diff --git a/node_modules/react/cjs/react.production.js b/node_modules/react/cjs/react.production.js
-index 12814fc..d5c7830 100644
+index 3678d50..d5c7830 100644
 --- a/node_modules/react/cjs/react.production.js
 +++ b/node_modules/react/cjs/react.production.js
 @@ -76,7 +76,7 @@ pureComponentPrototype.constructor = PureComponent;
@@ -182,10 +182,10 @@ index 12814fc..d5c7830 100644
  exports.useTransition = function () {
    return ReactSharedInternals.H.useTransition();
  };
--exports.version = "19.1.0-experimental-e670e72f-20250214";
+-exports.version = "19.1.0-experimental-d55cc79b-20250228";
 +exports.version = "19.1.0-experimental-b3a95caf-20250113";
 diff --git a/node_modules/react/cjs/react.react-server.development.js b/node_modules/react/cjs/react.react-server.development.js
-index a577412..3246c43 100644
+index 15d4371..3246c43 100644
 --- a/node_modules/react/cjs/react.react-server.development.js
 +++ b/node_modules/react/cjs/react.react-server.development.js
 @@ -218,8 +218,7 @@
@@ -216,11 +216,11 @@ index a577412..3246c43 100644
      exports.useMemo = function (create, deps) {
        return resolveDispatcher().useMemo(create, deps);
      };
--    exports.version = "19.1.0-experimental-e670e72f-20250214";
+-    exports.version = "19.1.0-experimental-d55cc79b-20250228";
 +    exports.version = "19.1.0-experimental-b3a95caf-20250113";
    })();
 diff --git a/node_modules/react/cjs/react.react-server.production.js b/node_modules/react/cjs/react.react-server.production.js
-index 3cdb027..9be2e6d 100644
+index 6c7c438..9be2e6d 100644
 --- a/node_modules/react/cjs/react.react-server.production.js
 +++ b/node_modules/react/cjs/react.react-server.production.js
 @@ -404,6 +404,9 @@ exports.cache = function (fn) {
@@ -247,17 +247,17 @@ index 3cdb027..9be2e6d 100644
  exports.useMemo = function (create, deps) {
    return ReactSharedInternals.H.useMemo(create, deps);
  };
--exports.version = "19.1.0-experimental-e670e72f-20250214";
+-exports.version = "19.1.0-experimental-d55cc79b-20250228";
 +exports.version = "19.1.0-experimental-b3a95caf-20250113";
 diff --git a/node_modules/react/package.json b/node_modules/react/package.json
-index 3956ba0..28130c9 100644
+index f7c9f76..28130c9 100644
 --- a/node_modules/react/package.json
 +++ b/node_modules/react/package.json
 @@ -4,7 +4,7 @@
    "keywords": [
      "react"
    ],
--  "version": "0.0.0-experimental-e670e72f-20250214",
+-  "version": "0.0.0-experimental-d55cc79b-20250228",
 +  "version": "0.0.0-experimental-b3a95caf-20250113",
    "homepage": "https://react.dev/",
    "bugs": "https://github.com/facebook/react/issues",

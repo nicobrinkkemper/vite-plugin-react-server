@@ -8,8 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const TEMPLATE_VERSION = '0.0.0-experimental-b3a95caf-20250113'
 const ACTUAL_TEMPLATE_VERSION = '19.1.0-experimental-b3a95caf-20250113'
-const TARGET_VERSION = '0.0.0-experimental-e670e72f-20250214'
-const ACTUAL_TARGET_VERSION = '19.1.0-experimental-e670e72f-20250214'
+const TARGET_VERSION = '0.0.0-experimental-d55cc79b-20250228'
+const ACTUAL_TARGET_VERSION = '19.1.0-experimental-d55cc79b-20250228'
 const STUB_VERSION = '0.0.1'
 
 async function main() {
