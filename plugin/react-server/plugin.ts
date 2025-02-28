@@ -363,7 +363,6 @@ export function reactServerPlugin(
             serverManifest: serverManifest,
             loader,
             onCssFile: async (path: string) => {
-              console.log("[vite-plugin-react-server] onCssFile", path);
               if (buildCssFiles && path.endsWith(".css")) {
                 buildCssFiles.add(path);
                 // copy the file to the client build dir
