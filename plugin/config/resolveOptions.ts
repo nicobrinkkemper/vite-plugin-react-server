@@ -3,6 +3,7 @@ import type { PreRenderedChunk } from "rollup";
 import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { createModuleIdGenerator } from "./createModuleIdGenerator.js";
+import { normalizePath } from "vite";
 
 const resolveAutoDiscoverMatcher = (
   options: undefined | string | RegExp | ((path: string) => boolean),
@@ -25,6 +26,32 @@ const resolveAutoDiscoverMatcher = (
   }
 };
 
+const addJS = (path: string) => {
+  if (path.endsWith(".js")) return path;
+  if (path.endsWith("/.")) return path.slice(0, -2) + ".js";
+  if (path.endsWith(".")) return path + "js";
+  return path + ".js";
+};
+
+const handleSearchQuery = (path: string) => {
+  // make the query part of the name of the file so it's not ending up like index1, index2, etc.
+  const searchQuery = path.split("?")[1];
+  if (!searchQuery) return path;
+  // add the folder before the filename
+  const folder = path.split("/").slice(0, -1).join("/");
+  const filename = path.split("/").pop();
+  return `${folder}/${filename}?${searchQuery}`;
+};
+
+const applyPattern = (
+  path: string,
+  pattern?: string | RegExp | ((path: string) => boolean) | undefined,
+  fallback?: string | undefined
+) => {
+  // TODO: What to actually do here? I guess we could replace the extension, but it's not needed since we map them from the manifest anyway.
+  return path;
+};
+
 export const resolveOptions = (
   options: StreamPluginOptions,
   isClient: boolean = false
@@ -32,7 +59,10 @@ export const resolveOptions = (
   | { type: "success"; userOptions: ResolvedUserOptions }
   | { type: "error"; error: Error } => {
   const projectRoot = options.projectRoot ?? process.cwd();
-  const { pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME, propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME } = options;
+  const {
+    pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME,
+    propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+  } = options;
   const pages =
     typeof options.build?.pages === "function"
       ? options.build.pages
@@ -46,25 +76,26 @@ export const resolveOptions = (
   const staticBuild = options.build?.static ?? DEFAULT_CONFIG.BUILD.static;
   const outDir = options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir;
   const assetsDir =
-    options.build?.assetsDir ??
-    `${DEFAULT_CONFIG.CLIENT_ASSETS_DIR}`;
+    options.build?.assetsDir ?? `${DEFAULT_CONFIG.CLIENT_ASSETS_DIR}`;
 
   const ensureModuleBase = (n: string | null) => {
-    if(!n) return '';
+    if (!n) return "";
     return n.startsWith(moduleBase + "/") ? n.slice(moduleBase.length + 1) : n;
-  }
-  const hasWrongRoot = !projectRoot.startsWith('/')
-  if(hasWrongRoot) {
-    console.warn('projectRoot is not a full path', projectRoot);
+  };
+  const hasWrongRoot = !projectRoot.startsWith("/");
+  if (hasWrongRoot) {
+    console.warn("projectRoot is not a full path", projectRoot);
   }
   const wrongRoot = !hasWrongRoot ? projectRoot.slice(1) : projectRoot;
   const ensureNoRoot = (n: string | null) => {
-    if(!n) return '';
-    if(n.startsWith(wrongRoot)) {
+    if (!n) return "";
+    if (n.startsWith(wrongRoot)) {
       return n.slice(wrongRoot.length + 1);
     }
-    return n.startsWith(projectRoot + "/") ? n.slice(projectRoot.length + 1) : n;
-  } 
+    return n.startsWith(projectRoot + "/")
+      ? n.slice(projectRoot.length + 1)
+      : n;
+  };
 
   const testModulePattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.modulePattern,
@@ -108,113 +139,105 @@ export const resolveOptions = (
     options.autoDiscover?.vendorPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern
   );
-  const preserveModulesRoot = options.build?.preserveModulesRoot ?? DEFAULT_CONFIG.BUILD.preserveModulesRoot;
-  const hashOption = typeof options.build?.hash === "string" ? options.build.hash : DEFAULT_CONFIG.BUILD.hash
-  const hashString = hashOption === '' ? '' : `-[${hashOption}]`;
+  const preserveModulesRoot =
+    options.build?.preserveModulesRoot ??
+    DEFAULT_CONFIG.BUILD.preserveModulesRoot;
+  const hashOption =
+    typeof options.build?.hash === "string"
+      ? options.build.hash
+      : DEFAULT_CONFIG.BUILD.hash;
+  const hashString = hashOption === "" ? "" : `-[${hashOption}]`;
   const hash = (n: string | null) => {
-    if(!n) return '';
-    if(hashString === '') return n;
-    const extensionIndex = n.lastIndexOf('.') 
-    if(extensionIndex !== -1) {
+    if (!n) return "";
+    if (hashString === "") return n;
+    const extensionIndex = n.lastIndexOf(".");
+    if (extensionIndex !== -1) {
       // put hash between extension and filename
-      const extension = n.slice(extensionIndex)
-      const filename = n.slice(0, extensionIndex)
+      const extension = n.slice(extensionIndex);
+      const filename = n.slice(0, extensionIndex);
       return filename + hashString + extension;
     } else {
       return n + hashString;
     }
-  }
+  };
 
   const getOutputPath = (n: string | null) => {
-    if(!n) return '';
+    if (!n) return "";
+    let path = handleSearchQuery(n);
     // Remove src/ prefix if present
-    const path = n.startsWith(moduleBase + "/")
-      ? n.slice(moduleBase.length + 1)
-      : n;
+    path = path.startsWith(moduleBase + "/")
+      ? path.slice(moduleBase.length + 1)
+      : path;
+
+    if (testVendor(path)) {
+      return path;
+    }
+    
+    if (testCssModule(path)) {
+      // For CSS modules, keep the .css.js extension
+      return applyPattern(path, options.autoDiscover?.cssModulePattern, ".css.js");
+    }
+    
+    if (testCss(path)) {
+      // For regular CSS files, keep the .css extension
+      return applyPattern(path, options.autoDiscover?.cssPattern, ".css");
+    }
 
     if (testClientComponents(path)) {
-      if(options.autoDiscover?.clientComponents && typeof options.autoDiscover.clientComponents !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.clientComponents, '.client.js')}`;
-      } else {
-        return `${path}.js`;
-      }
+      return applyPattern(path, options.autoDiscover?.clientComponents, "client");
     }
-    if (testCss(path)) {
-      if(options.autoDiscover?.cssPattern && typeof options.autoDiscover.cssPattern !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.cssPattern, '.js')}`;
-      } else {
-        return `${path.replace('.css.js', '.js')}`;
-      }
+    if (testHtml(path)) {
+      return applyPattern(path, options.autoDiscover?.htmlPattern, ".html");
     }
-    if(testHtml(path)) {
-      if(options.autoDiscover?.htmlPattern && typeof options.autoDiscover.htmlPattern !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.htmlPattern, '.js')}`;
-      } else {
-        return `${path.replace('.html', '.js')}`; 
-      }
-    }
-    if(testJson(path)) {
-      if(options.autoDiscover?.jsonPattern && typeof options.autoDiscover.jsonPattern !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.jsonPattern, '.js')}`;
-      } else {
-        return `${path}.js`; 
-      }
+    if (testJson(path)) {
+      return applyPattern(path, options.autoDiscover?.jsonPattern, ".json");
     }
     if (testPropsPattern(path)) {
-      if(options.autoDiscover?.propsPattern && typeof options.autoDiscover.propsPattern !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.propsPattern, 'props.js')}`;
-      } else {
-        return `${path}.js`; 
-      }
+      return applyPattern(
+        path,
+        options.autoDiscover?.propsPattern,
+        options.propsExportName?.toLowerCase() ??
+          DEFAULT_CONFIG.PROPS_EXPORT_NAME.toLowerCase()
+      );
     }
     if (testPagePattern(path)) {
-      if(options.autoDiscover?.pagePattern && typeof options.autoDiscover.pagePattern !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.pagePattern, 'page.js')}`;
-      } else {
-        return `${path}.js`;
-      }
+      return applyPattern(
+        path,
+        options.autoDiscover?.pagePattern,
+        options.pageExportName?.toLowerCase() ??
+          DEFAULT_CONFIG.PAGE_EXPORT_NAME.toLowerCase()
+      );
     }
     if (testServerFunctions(path)) {
-      return `${api}/${path}.js`; // 
+      return applyPattern(path, options.autoDiscover?.serverFunctions, "server");
     }
-    if(testCssModule(path)) {
-      if(options.autoDiscover?.cssModulePattern && typeof options.autoDiscover.cssModulePattern !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.cssModulePattern, '.js')}`;
-      } else {
-        return `${path.replace('.css.js', '.js')}`;
-      }
+    if (testModulePattern(path)) {
+      return path;
     }
-    if(testVendor(path)) {
-      if(options.autoDiscover?.vendorPattern && typeof options.autoDiscover.vendorPattern !== "function") {
-        // if it's not a function, use it as an option for replace
-        return `${path.replace(options.autoDiscover.vendorPattern, 'vendor.js')}`;
-      } else {
-        return `vendor`;
-      }
-    }
-    return `${path}.js`;
+    return path;
   };
 
   const entryFile = (n: PreRenderedChunk) => {
-    if(testCss(n.name)) {
-      // this is the css.js chunk for ssr, which (if we keep the .css) would go into client, this prevents that.
-      const result = `${getOutputPath(ensureModuleBase(ensureNoRoot(n.name + '.js')))}`;
-      return result;
+    if (testVendor(n.name)) {
+      const search = n.facadeModuleId?.split("?")[1];
+      if(search) {
+        return `${n.name}.${search}.js`;
+      } else {
+        return n.name + ".js";
+      }
     }
-    const result = `${getOutputPath(ensureModuleBase(ensureNoRoot(n.name)))}`;
-    return result;
-  }
+    return addJS(getOutputPath(ensureModuleBase(ensureNoRoot(n.name))));
+  };
 
-  const chunkFile = (n: PreRenderedChunk) => `${getOutputPath(ensureModuleBase(ensureNoRoot(n.name)))}`;
+  const chunkFile = (n: PreRenderedChunk) => {
+    // For chunks, we always want .js
+    return addJS(getOutputPath(ensureModuleBase(ensureNoRoot('_'+n.name))));
+  };
 
-  const assetFile = (n: PreRenderedAsset) => `${getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0])))}`;
+  const assetFile = (n: PreRenderedAsset) => {
+    // For assets, keep the original extension
+    return getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0])));
+  };
 
   const build =
     typeof options.build === "object" && options.build !== null
@@ -270,7 +293,7 @@ export const resolveOptions = (
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
       : moduleBasePath ?? DEFAULT_CONFIG.MODULE_BASE_URL;
-  
+
   const autoDiscover = {
     modulePattern: testModulePattern,
     cssPattern: testCss,
@@ -283,16 +306,19 @@ export const resolveOptions = (
     vendorPattern: testVendor,
   };
 
-  const moduleId = typeof options.moduleId === "function" ? options.moduleId : createModuleIdGenerator({
-    isProduction: process.env['NODE_ENV'] === "production",
-    inputRoot: projectRoot,
-    client: client,
-    server: server,
-    moduleBase: moduleBase,
-    preserveModulesRoot: preserveModulesRoot,
-    removeExtension: DEFAULT_CONFIG.FILE_REGEX,
-    imports: {},
-  });
+  const moduleId =
+    typeof options.moduleId === "function"
+      ? options.moduleId
+      : createModuleIdGenerator({
+          isProduction: process.env["NODE_ENV"] === "production",
+          inputRoot: projectRoot,
+          client: client,
+          server: server,
+          moduleBase: moduleBase,
+          preserveModulesRoot: preserveModulesRoot,
+          removeExtension: DEFAULT_CONFIG.FILE_REGEX,
+          imports: {},
+        });
 
   try {
     return {
@@ -320,7 +346,9 @@ export const resolveOptions = (
         moduleBaseExceptions: options.moduleBaseExceptions ?? [],
         autoDiscover: autoDiscover,
         pipableStreamOptions: options.pipableStreamOptions ?? {
-          bootstrapModules: [options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY],
+          bootstrapModules: [
+            options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
+          ],
         },
       },
     };

@@ -47,6 +47,11 @@ export function collectManifestCss(
       onCss?.(id);
       return;
     }
+    if (id.endsWith(".css.js")) {
+      cssFiles.set(id.slice(0, -3), id.slice(0, -3));
+      onCss?.(id.slice(0, -3));
+      return;
+    }
     // Get the manifest entry
     const entry = manifest[id];
     if (!entry) return;
@@ -73,6 +78,5 @@ export function collectManifestCss(
   if (manifest[relativePagePath]) {
     walkManifestEntry(relativePagePath);
   }
-
   return cssFiles;
 }

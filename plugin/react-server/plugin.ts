@@ -29,7 +29,7 @@ import { type StreamPluginOptions } from "../types.js";
 import { createWorker } from "../worker/createWorker.js";
 import { renderPages } from "../worker/html/renderPages.js";
 import { createHandler } from "./createHandler.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import type { ServerResponse } from "node:http";
 
@@ -166,6 +166,7 @@ export function reactServerPlugin(
         root = server.config.root;
       }
 
+
       const activeStreams = new Set<ServerResponse>();
 
       // Handle Vite server restarts
@@ -209,7 +210,7 @@ export function reactServerPlugin(
               projectRoot: root,
             },
             {
-              cssFiles: Array.from(cssModules),
+              cssFiles: [],
               logger: createLogger(),
               loader,
               moduleGraph: server.moduleGraph,
@@ -308,7 +309,12 @@ export function reactServerPlugin(
         if (typeof loader !== "function") {
           if (!Object.keys(serverManifest).length) {
             console.warn("[vite-plugin-react-server] No server manifest found, the plugin will try to use the plugin context - it may differ from vite's manifest.");
-            serverManifest = getBundleManifest(this, outpuptBundle, undefined);
+            serverManifest = getBundleManifest({
+              pluginContext: this,
+              bundle: outpuptBundle,
+              moduleBase: userOptions.moduleBase,
+              preserveModulesRoot: userOptions.build.preserveModulesRoot,
+            });
             if (!Object.keys(serverManifest).length) {
               console.warn("[vite-plugin-react-server] That didn't work, retrying to read manifest.");
               const resolvedServerManifest = tryManifest({
@@ -323,8 +329,6 @@ export function reactServerPlugin(
               }
               serverManifest = resolvedServerManifest.manifest;
             }
-          } else {
-            console.info(`[vite-plugin-react-server] Using server manifest: ${serverManifestPath}`);
           }
           loader = createBuildLoader({
             root: root,
@@ -358,10 +362,14 @@ export function reactServerPlugin(
             clientManifest: clientManifest,
             serverManifest: serverManifest,
             loader,
-            onCssFile: (path: string) => {
+            onCssFile: async (path: string) => {
               console.log("[vite-plugin-react-server] onCssFile", path);
               if (buildCssFiles && path.endsWith(".css")) {
                 buildCssFiles.add(path);
+                // copy the file to the client build dir
+                const clientPath = join(userOptions.build.outDir, userOptions.build.client, path);
+                await mkdir(dirname(clientPath), { recursive: true });
+                await writeFile(clientPath, await readFile(join(root, userOptions.build.outDir, userOptions.build.server, path)));
               }
             },
           }
@@ -426,7 +434,6 @@ export function reactServerPlugin(
 
         // Ensure worker is terminated
         if (worker) {
-          console.log("[vite-plugin-react-server] Terminating worker...");
           await worker.terminate();
           worker = null as any;
         }
@@ -456,7 +463,12 @@ export function reactServerPlugin(
       outpuptBundle = bundle;
       outputOptions = options;
       // Create manifest entries for each chunk
-      serverManifest = getBundleManifest(this, bundle, undefined);
+      serverManifest = getBundleManifest({
+        pluginContext: this,
+        bundle,
+        moduleBase: userOptions.moduleBase,
+        preserveModulesRoot: userOptions.build.preserveModulesRoot,
+      });
       if (serverManifestPath) {
         await mkdir(dirname(serverManifestPath), { recursive: true });
         await writeFile(

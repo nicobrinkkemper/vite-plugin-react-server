@@ -69,10 +69,16 @@ const createKeyNormalizer =
     handleExtension: (path: string) => string;
   }) =>
   (key: string) => {
-    let moduleId = normalizePath(key);
-    if(moduleId.startsWith(normalizedRoot)) {
+    // Handle virtual modules first
+    const virtualPrefix = key.match(/^\0+/)?.[0] || '';
+    const actualKey = key.slice(virtualPrefix.length);
+    
+    let moduleId = normalizePath(actualKey);
+    
+    if (moduleId.startsWith(normalizedRoot)) {
       moduleId = moduleId.slice(normalizedRoot.length);
     }
+
     moduleId = handleExtension(moduleId);
     while (moduleId.startsWith("/") || moduleId.startsWith(".")) {
       moduleId = moduleId.slice(1);
@@ -85,7 +91,9 @@ const createKeyNormalizer =
         ? moduleId.slice(preserveModulesRoot.length)
         : moduleId;
     }
-    return moduleId;
+    
+    // Add virtual prefix back
+    return virtualPrefix + moduleId;
   };
 
 const createPathNormalizer =
@@ -139,7 +147,7 @@ export function createInputNormalizer({
     root: root,
     preserveModulesRoot: relativeRoot,
   });
-  return function normalizeInput(id: NormalizerInput): [string, string] {
+  function normalizeInput(id: NormalizerInput): [string, string] {
     // Normalize both paths to use POSIX separators
     if (Array.isArray(id)) {
       const [key, path] = id;
@@ -172,5 +180,19 @@ export function createInputNormalizer({
       return normalized;
     }
     throw new Error(`Invalid input type: ${typeof id}`);
+  };
+
+  return (input: NormalizerInput): [string, string] => {
+    const [key, path] = normalizeInput(input);
+    // Apply the same normalization to both key and path
+    const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+    const virtualPrefix = key.match(/^\0+/)?.[0] || '';
+    
+    // If key has virtual prefix, ensure path has it too
+    const finalPath = virtualPrefix ? 
+      (normalizedPath.startsWith(virtualPrefix) ? normalizedPath : virtualPrefix + normalizedPath) : 
+      normalizedPath;
+    
+    return [key, finalPath];
   };
 }

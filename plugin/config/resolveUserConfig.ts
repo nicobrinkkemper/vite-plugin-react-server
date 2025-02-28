@@ -34,7 +34,9 @@ export function resolveUserConfig({
 
     const normalizer = createInputNormalizer({
       root,
-      preserveModulesRoot: userOptions.build.preserveModulesRoot ? userOptions.moduleBase : undefined,
+      preserveModulesRoot: userOptions.build.preserveModulesRoot
+        ? userOptions.moduleBase
+        : undefined,
       removeExtension: true,
     });
 
@@ -56,7 +58,7 @@ export function resolveUserConfig({
       const allFiles = globSync(`**/*.client.*`, {
         cwd: join(root, userOptions.moduleBase),
       });
-      
+
       for (const file of allFiles) {
         const [key, value] = normalizer(join(userOptions.moduleBase, file));
         if (!inputs[key]) {
@@ -82,19 +84,19 @@ export function resolveUserConfig({
       return inputs;
     };
     const autoDiscoveredFiles = (inputs: Record<string, string>) => {
-      if(!files) return inputs;
-      
+      if (!files) return inputs;
+
       // Add page files without extra prefix
       for (const [key, value] of files.pageMap) {
-        if(!inputs[key]) {
+        if (!inputs[key]) {
           inputs[key] = value;
         } else {
           console.warn(`[RSC] Page file already exists: ${key}`);
         }
       }
-      // Add props files without extra prefix 
+      // Add props files without extra prefix
       for (const [key, value] of files.propsMap) {
-        if(!inputs[key]) {
+        if (!inputs[key]) {
           inputs[key] = value;
         } else {
           console.warn(`[RSC] Props file already exists: ${key}`);
@@ -111,55 +113,9 @@ export function resolveUserConfig({
     const envDir = isClient
       ? userOptions.build.client
       : userOptions.build.server;
-    if (isClient) {
-      return {
-        type: "success",
-        userConfig: {
-          ...config,
-          root: root,
-          mode: configEnv.command === "build" ? "production" : "development",
-          resolve: {
-            external: ["react", "react-dom"],
-            alias: {
-            }
-          },
-          ssr: {
-            target: "node",
-            external: ["react", "react-dom", "react-server-dom-esm/client.browser"],
-            resolve: {
-              externalConditions: ["react-server"],
-            },
-          },
-          build: {
-            ...config.build,
-            emptyOutDir: config.build?.emptyOutDir ?? true,
-            outDir: join(userOptions.build.outDir, envDir),
-            assetsDir: userOptions.build.assetsDir,
-            // modern browsers
-            target: ["esnext"],
-            minify: true,
-            ssr: typeof configEnv.isSsrBuild === 'boolean' ? configEnv.isSsrBuild : true,
-            manifest: config.build?.manifest ?? `.vite/manifest.json`,
-            ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
-            ssrEmitAssets: true,
-            rollupOptions: {
-              ...config.build?.rollupOptions,
-              input: inputs,
-              preserveEntrySignatures: "strict",
-              output: {
-                ...config.build?.rollupOptions?.output,
-                preserveModules: true,
-                preserveModulesRoot: userOptions.build.preserveModulesRoot
-                  ? userOptions.moduleBase
-                  : undefined,
-              },
-            },
-          },
-        },
-      };
-    }
+
     const pluginOutput = {
-      preserveModules: true,
+      preserveModules: !isClient,
       preserveModulesRoot: userOptions.build.preserveModulesRoot
         ? userOptions.moduleBase
         : undefined,
@@ -175,12 +131,64 @@ export function resolveUserConfig({
       },
       interop: "auto",
     } satisfies OutputOptions;
-    const newOutput = Array.isArray(config.build?.rollupOptions?.output) ? 
-      [...config.build?.rollupOptions?.output, pluginOutput]
-      : typeof config.build?.rollupOptions?.output === 'object' && config.build?.rollupOptions?.output !== null ?
-        [config.build?.rollupOptions?.output, pluginOutput]
-        : pluginOutput
+    
+    const newOutput = Array.isArray(config.build?.rollupOptions?.output)
+      ? [...config.build?.rollupOptions?.output, pluginOutput]
+      : typeof config.build?.rollupOptions?.output === "object" &&
+        config.build?.rollupOptions?.output !== null
+      ? [config.build?.rollupOptions?.output, pluginOutput]
+      : pluginOutput;
 
+    if (isClient) {
+      // client build options
+      return {
+        type: "success",
+        userConfig: {
+          ...config,
+          root: root,
+          mode: configEnv.command === "build" ? "production" : "development",
+          resolve: {
+            external: ["react", "react-dom"],
+            alias: {},
+          },
+          ssr: {
+            target: "node",
+            external: [
+              "react",
+              "react-dom",
+              "react-server-dom-esm/client.browser",
+            ],
+            resolve: {
+              externalConditions: ["react-server"],
+            },
+          },
+          // client build options
+          build: {
+            ...config.build,
+            emptyOutDir: config.build?.emptyOutDir ?? true,
+            outDir: join(userOptions.build.outDir, envDir),
+            assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
+            // modern browsers
+            target: ["esnext"],
+            minify: true,
+            ssr:
+              typeof configEnv.isSsrBuild === "boolean"
+                ? configEnv.isSsrBuild
+                : true,
+            manifest: config.build?.manifest ?? `.vite/manifest.json`,
+            ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+            ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
+            rollupOptions: {
+              ...config.build?.rollupOptions,
+              input: inputs,
+              output: newOutput,
+              preserveEntrySignatures: "exports-only",
+            },
+          },
+        },
+      };
+    }
+    // server build options
     return {
       type: "success",
       userConfig: {
@@ -188,24 +196,25 @@ export function resolveUserConfig({
         root: root,
         mode: configEnv.command === "build" ? "production" : "development",
         resolve: {
-          alias: {
-          }
+          alias: {},
+          externalConditions: ["react-server"],
         },
+        // server build options
         build: {
           ...config.build,
           emptyOutDir: config.build?.emptyOutDir ?? true,
           outDir: join(userOptions.build.outDir, envDir),
-          target: "node18",
-          minify: true,
-          ssr: true,
+          target: config.build?.target ?? "node18",
+          minify: config.build?.minify ?? true,
+          ssr: config.build?.ssr ?? configEnv.isSsrBuild ?? true,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
           ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
-          ssrEmitAssets: true,
+          ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
           assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
-          rollupOptions:  {
+          rollupOptions: {
             ...config.build?.rollupOptions,
             input: inputs,
-            preserveEntrySignatures: "strict",
+            preserveEntrySignatures: config.build?.rollupOptions?.preserveEntrySignatures ?? "strict",
             output: newOutput,
           },
         },

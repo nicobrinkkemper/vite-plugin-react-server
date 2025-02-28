@@ -69,16 +69,13 @@ const cssLoaderChannel = new MessageChannel();
 
 // Listen for messages from loaders
 reactLoaderChannel.port2.on('message', (msg) => {
-  console.log('[worker] Message from react-loader:', msg);
   messageHandler(msg);
 });
 
 cssLoaderChannel.port2.on('message', (msg) => {
-  console.log('[worker] Message from css-loader:', msg);
   messageHandler(msg);
 });
 
-console.log('[worker] Setting up react-loader...');
 const loaderPath = 'file://' + join(getPluginRoot(), 'loader/react-loader.js');
 const cssLoaderPath = 'file://' + join(getPluginRoot(), 'loader/css-loader.js');
 console.log('[worker] Full loader path:', loaderPath);
@@ -96,10 +93,7 @@ register(cssLoaderPath, {
 });
 
 // Register loaders
-registerTsx({
-  onImport: (url) => {
-  }
-});
+registerTsx();
 
 // Set up message handling
 parentPort.on("message", (message) => {

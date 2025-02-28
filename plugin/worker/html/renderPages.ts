@@ -108,9 +108,10 @@ export async function renderPages(
         options.onCssFile
       );
 
-      const result = await createHandler(route, {
+      // Create handler for pure RSC output
+      const rscResult = await createHandler(route, {
         ...options.pluginOptions,
-        Html: React.Fragment
+        Html: React.Fragment // Use Fragment for pure RSC output
       }, {
         loader: options.loader,
         clientManifest: options.clientManifest,
@@ -126,39 +127,102 @@ export async function renderPages(
         },
       });
 
-      if (result.type !== "success") {
-        console.error('Handler failed for route:', result);
+      // Create handler for HTML output
+      const htmlResult = await createHandler(route, options.pluginOptions, {
+        loader: options.loader,
+        clientManifest: options.clientManifest,
+        serverManifest: options.serverManifest,
+        pipableStreamOptions: {
+          ...options.pipableStreamOptions,
+          importMap: {
+            imports: {
+              ...options.pipableStreamOptions?.importMap?.imports,
+              ...Object.fromEntries(Array.from(cssFiles.entries()))
+            }
+          }
+        },
+      });
+
+      if (rscResult.type !== "success" || htmlResult.type !== "success") {
+        console.error('Handler failed for route:', route);
         failedRoutes.set(route, new Error(`Handler failed for ${route}`));
         continue;
       }
 
-      // Process stream
-      await new Promise<void>((resolve, reject) => {
-        const transform = new Transform({
-          transform(chunk, _encoding, callback) {
-            options.worker.postMessage({
-              type: "RSC_CHUNK",
-              id: route,
-              chunk: chunk.toString(),
-              moduleRootPath: join(root, options.pluginOptions.build.outDir),
-              moduleBaseURL: options.moduleBaseURL,
-              htmlOutputPath: join(outDir, route, 'index.html'),
-              pipableStreamOptions: options.pipableStreamOptions,
-            });
-            callback(null, chunk);
-          },
-          flush(callback) {
-            options.worker.postMessage({
-              type: "RSC_END",
-              id: route,
-            });
-            callback();
-            resolve();
-          }
-        });
+      // Process both streams
+      await Promise.all([
+        // Save RSC stream to .rsc file in client directory
+        new Promise<void>((resolve, reject) => {
+          const chunks: Buffer[] = [];
+          const rscTransform = new Transform({
+            transform(chunk, _encoding, callback) {
+              try {
+                chunks.push(Buffer.from(chunk));
+                callback(null, chunk);
+              } catch (error) {
+                callback(error as Error);
+              }
+            },
+            flush(callback) {
+              try {
+                const rscPath = join(options.pluginOptions.build.outDir, options.pluginOptions.build.client, route, 'index.rsc');
+                
+                // Ensure directory exists
+                mkdirSync(dirname(rscPath), { recursive: true });
+                
+                // Write complete file
+                writeFile(rscPath, Buffer.concat(chunks))
+                  .then(() => {
+                    callback();
+                    resolve();
+                  })
+                  .catch(error => {
+                    console.error('RSC write error:', error);
+                    callback(error as Error);
+                    reject(error);
+                  });
+              } catch (error) {
+                callback(error as Error);
+                reject(error);
+              }
+            }
+          });
 
-        result.stream.pipe(transform);
-      });
+          rscResult.stream.pipe(rscTransform);
+        }),
+
+        // Send HTML stream to worker
+        new Promise<void>((resolve, reject) => {
+          const htmlTransform = new Transform({
+            transform(chunk, _encoding, callback) {
+              try {
+                options.worker.postMessage({
+                  type: "RSC_CHUNK",
+                  id: route,
+                  chunk: chunk.toString(),
+                  moduleRootPath: join(root, options.pluginOptions.build.outDir),
+                  moduleBaseURL: options.moduleBaseURL,
+                  htmlOutputPath: join(options.pluginOptions.build.outDir, options.pluginOptions.build.client, route, 'index.html'),
+                  pipableStreamOptions: options.pipableStreamOptions,
+                });
+                callback(null, chunk);
+              } catch (error) {
+                callback(error as Error);
+              }
+            },
+            flush(callback) {
+              options.worker.postMessage({
+                type: "RSC_END",
+                id: route,
+              });
+              callback();
+              resolve();
+            }
+          });
+
+          htmlResult.stream.pipe(htmlTransform);
+        })
+      ]);
     }
 
     await allRoutesComplete;

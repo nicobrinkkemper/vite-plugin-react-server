@@ -63,7 +63,13 @@ export async function createHandler<T>(
     try {
       const mod = await streamOptions.loader(id);
       const pageCss = await Promise.resolve(getCss(id));
-      Array.from(pageCss.keys()).forEach((css) => cssModules.add(css));
+      Array.from(pageCss.keys()).forEach((css) => {
+        cssModules.add(css);
+        // Notify about new CSS file if callback exists
+        if (streamOptions.onCssFile) {
+          streamOptions.onCssFile(css);
+        }
+      });
       return mod as Record<string, any>;
     } catch (e: any) {
       if (e.message?.includes("module runner has been closed")) {
@@ -120,7 +126,6 @@ export async function createHandler<T>(
   if (streamOptions.cssFiles) {
     streamOptions.cssFiles.forEach((css) => cssModules.add(css));
   }
-
   const stream = createRscStream({
     Html: Html,
     Page: Page,
@@ -139,7 +144,6 @@ export async function createHandler<T>(
   });
 
   if (!stream) {
-    console.log("[createHandler] No stream created for route:", url);
     return { type: "skip" as const };
   }
 

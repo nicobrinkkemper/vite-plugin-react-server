@@ -33,6 +33,7 @@ import { join } from "node:path";
 
 export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
   const resolvedOptions = resolveOptions(options);
+  let isDev = false;
   if (resolvedOptions.type === "error") throw resolvedOptions.error;
   const normalizer = createInputNormalizer({
     root: resolvedOptions.userOptions.projectRoot,
@@ -53,7 +54,9 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
   return {
     name: "vite:react-transform",
     enforce: "pre", // Run before Vite's transforms
-
+    config(config, configEnv) {
+      isDev = configEnv.mode === "development" && configEnv.command === "serve";
+    },
     async transform(code, id, options) {
       const ssr = options?.ssr ?? false;
       if (!ssr) return null;
@@ -68,6 +71,12 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
         null
       );
       if (!transformed) return null;
+      if (isDev) {
+        return {
+          code: transformed,
+          map: null,
+        };
+      }
       const moduleIdIndex = transformed.indexOf(value);
       if (moduleIdIndex === -1) {
         console.warn(
@@ -84,6 +93,7 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
         throw clientManifestResult.error;
       }
       const clientPath = clientManifestResult.manifest[key]?.file;
+
       if (!clientPath) {
         console.warn(`[vite-plugin-react-server] Could not find client path for ${value}. Ignoring.`)
         return null

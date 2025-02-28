@@ -575,7 +575,6 @@ async function transformClientModule(
 
   for (let i = 0; i < names.length; i++) {
     const name = names[i];
-    console.log("[react-loader] Processing export:", name);
 
     const errorMessage =
       name === "default"

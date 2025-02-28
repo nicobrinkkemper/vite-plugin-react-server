@@ -107,7 +107,12 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
 
     async generateBundle(options, bundle) {
       // Create manifest entries for each chunk
-      clientManifest = getBundleManifest(this, bundle, undefined);
+      clientManifest = getBundleManifest({
+        pluginContext: this,
+        bundle,
+        moduleBase: userOptions.moduleBase,
+        preserveModulesRoot: userOptions.build.preserveModulesRoot,
+      });
 
       // Write manifest immediately after generation
       const manifestPath = join(
@@ -138,7 +143,6 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
           : undefined,
       });
       server.middlewares.use(async (req, res, next) => {
-        console.log("req.url", req.url);
         const [key, value] = normalize(req.url);
         const fileRoot = key.startsWith("node_modules")
           ? root
@@ -246,9 +250,14 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
             let pageImport = DEFAULT_CONFIG.PAGE as string;
             let propsImport = DEFAULT_CONFIG.PROPS as string;
             // PAGE
+            // no trailing slash
+            const pathNoTrailing = path?.replace(/\/$/, '');
             if (files.urlMap.has(req.url)) {
               pageImport = files.urlMap.get(req.url)!.page;
               propsImport = files.urlMap.get(req.url)!.props;
+            } else if (files.urlMap.has(pathNoTrailing)) {
+              pageImport = files.urlMap.get(pathNoTrailing)!.page;
+              propsImport = files.urlMap.get(pathNoTrailing)!.props;
             } else if (files.urlMap.has(path)) {
               pageImport = files.urlMap.get(path)!.page;
               propsImport = files.urlMap.get(path)!.props;
@@ -259,9 +268,8 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
               pageImport = files.urlMap.get(key)!.page;
               propsImport = files.urlMap.get(key)!.props;
             } else {
-              console.warn("Page/props import not found:", req.url, path, value, key, 'available pages:', Array.from(files.urlMap.keys()));
+              console.warn(`Page/props import not found for any of the following (in order of priority): ${[req.url, pathNoTrailing, path, value, key].filter(Boolean).join(', ')} available pages:${Array.from(files.urlMap.keys()).join(', ')}`);
             }
-
             // Set headers early
             res.setHeader("Content-Type", "text/x-component");
             res.setHeader("Transfer-Encoding", "chunked");

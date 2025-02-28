@@ -48,7 +48,6 @@ function CssCollector({
 }
 
 export async function messageHandler(message: RscWorkerMessage) {
-  console.log("[worker] Received message:", message.type);
 
   if (message.type === "RSC_RENDER") {
     const {
@@ -72,16 +71,12 @@ export async function messageHandler(message: RscWorkerMessage) {
         import(join(projectRoot, propsImport)),
       ]);
 
-      // CSS will be collected via messages as they arrive
-      console.log("CSS files for render:", cssFiles);
-
       const propsAtExport = propsModule[propsExportName];
       const props = await Promise.resolve(
         typeof propsAtExport === "function" ? propsAtExport(url) : propsAtExport
       );
 
       const PageComponent = Component[pageExportName];
-
       // Now render with collected CSS
       const stream = renderToPipeableStream(
         <CssCollector cssFiles={cssFiles}>
@@ -90,7 +85,7 @@ export async function messageHandler(message: RscWorkerMessage) {
         moduleBaseURL,
         {
           onError: (error: Error) => {
-            log.error("Stream error:", error);
+            log.error(`Stream error at ${id}:`, error);
             parentPort?.postMessage({
               type: "ERROR",
               id,
@@ -115,7 +110,6 @@ export async function messageHandler(message: RscWorkerMessage) {
       stream.pipe(passThrough);
 
       passThrough.on("data", (chunk) => {
-        console.log('RSC chunk generated for route:', id, 'size:', chunk.length);
         // Send to parent
         parentPort?.postMessage({
           type: "RSC_CHUNK",

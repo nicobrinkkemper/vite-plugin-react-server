@@ -1,11 +1,11 @@
 import type {
-  NormalizedOutputOptions,
   OutputBundle,
   PluginContext,
   OutputChunk,
 } from "rollup";
 import { createInputNormalizer } from "./inputNormalizer.js";
 import { join } from "path";
+import { DEFAULT_CONFIG, resolveOptions } from "../config/index.js";
 
 interface BundleManifestEntry {
   file: string;
@@ -24,54 +24,90 @@ interface BundleManifestEntry {
  * @param preserveModulesRoot - The preserve modules root
  * @returns The bundle manifest
  */
-export function getBundleManifest(
+export function getBundleManifest({
+  pluginContext,
+  bundle,
+  moduleBase,
+  preserveModulesRoot,
+}: {
   pluginContext: PluginContext,
   bundle: OutputBundle,
-  preserveModulesRoot: string | undefined
-): Record<string, BundleManifestEntry> {
+  moduleBase?: string,
+  preserveModulesRoot?: boolean,
+}): Record<string, BundleManifestEntry> {
 
   const normalizer = createInputNormalizer({
     root: pluginContext.environment.config.root,
-    removeExtension: false,
-    preserveModulesRoot:
-      typeof preserveModulesRoot === "string" ? preserveModulesRoot : undefined,
+    removeExtension: DEFAULT_CONFIG.FILE_REGEX,
+    preserveModulesRoot: preserveModulesRoot === true ? moduleBase : undefined,
   });
 
-  if (!bundle) {
-    return {};
-  }
+  if (!bundle) return {};
 
-  return Object.fromEntries(
+  // Track virtual modules to prevent duplicates
+  const virtualModules = new Map<string, string>();
+
+  const bundleManifest = Object.fromEntries(
     Object.entries(bundle)
       .map(([fileName, chunk]) => {
         if (chunk.type !== "chunk") return null as never;
         const chunkWithFacade = chunk as OutputChunk;
+        
+        // Get the module ID, preferring facadeModuleId
+        const moduleId = chunkWithFacade.facadeModuleId || chunkWithFacade.moduleIds[0] || fileName;
+        
+        // Handle commonjs helpers specially - must be done before normalization
+        if (moduleId.includes('commonjsHelpers')) {
+          return [
+            moduleId,
+            {
+              file: 'commonjs-runtime.js',
+              name: 'commonjsHelpers',
+              src: moduleId,
+              isEntry: false
+            }
+          ];
+        }
+        
+        // Normalize both paths, removing the root prefix
+        const [normalizedId, sourcePath] = normalizer(moduleId);
 
-        // Normalize both the module ID and file path
-        const [moduleId, sourcePath] = normalizer(
-          chunkWithFacade.facadeModuleId || chunkWithFacade.moduleIds[0] || fileName
-        );
-        return [
-          moduleId,
+        // For virtual modules, use a consistent naming scheme
+        let finalFileName = fileName;
+        if (moduleId.includes('?')) {
+          const [basePath, query] = moduleId.split('?');
+          const virtualPath = basePath.includes('node_modules') 
+            ? basePath.split('node_modules/')[1] 
+            : basePath;
+          
+          // Create a unique key for this virtual module
+          const virtualKey = `${virtualPath}?${query}`;
+          
+          if (!virtualModules.has(virtualKey)) {
+            // First time seeing this virtual module
+            const virtualFileName = `${virtualPath.replace(/\.js$/, '')}.${query}.js`;
+            virtualModules.set(virtualKey, virtualFileName);
+          }
+          
+          finalFileName = virtualModules.get(virtualKey)!;
+        }
+        const bundleManifestEntry = [
+          sourcePath,
           {
-            file: join( pluginContext.environment.config.build.outDir, fileName),
-            name: moduleId,
-            src: sourcePath.startsWith(pluginContext.environment.config.root) ? sourcePath.slice(pluginContext.environment.config.root.length + 1) : sourcePath,
+            file: finalFileName,
+            name: normalizedId.startsWith('\x00') ? normalizedId.replace('\x00', '') : normalizedId,
+            src: sourcePath.startsWith('/') ? sourcePath.slice(1) : sourcePath,
             isEntry: chunk.isEntry,
-            ...(Object.keys(chunk.imports).length > 0
-              ? { imports: chunk.imports }
-              : {}),
-            ...(Object.keys(chunk.dynamicImports).length > 0
-              ? { dynamicImports: chunk.dynamicImports }
-              : {}),
-            ...(chunk.viteMetadata?.importedCss
-              ? {
-                  css: Array.from(chunk.viteMetadata.importedCss),
-                }
-              : {}),
+            ...(chunk.imports?.length > 0 ? { imports: chunk.imports } : {}),
+            ...(chunk.dynamicImports?.length > 0 ? { dynamicImports: chunk.dynamicImports } : {}),
+            ...(chunk.viteMetadata?.importedCss?.size ? {
+              css: Array.from(chunk.viteMetadata.importedCss),
+            } : {}),
           },
         ];
+        return bundleManifestEntry;
       })
       .filter(Boolean)
   );
+  return bundleManifest;
 }

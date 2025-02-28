@@ -23,6 +23,7 @@ export default defineConfig({
         'plugin/preserver/plugin': resolve(__dirname, 'plugin/preserver/plugin.ts'),
         'plugin/transformer/plugin': resolve(__dirname, 'plugin/transformer/plugin.ts'),
         'plugin/loader/css-loader': resolve(__dirname, 'plugin/loader/css-loader.ts'),
+        'plugin/loader/react-loader': resolve(__dirname, 'plugin/loader/react-loader.ts'),
       },
       formats: ['es'],
     },
