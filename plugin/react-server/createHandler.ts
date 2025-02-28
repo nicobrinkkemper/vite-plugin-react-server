@@ -59,7 +59,7 @@ export async function createHandler<T>(
         )
     : (id: string) => collectModuleGraphCss(streamOptions.moduleGraph!, id);
 
-  const loadWithCss = async (id: string) => {
+  const loadWithCss = async (id: string, parentUrl: string) => {
     try {
       const mod = await streamOptions.loader(id);
       const pageCss = await Promise.resolve(getCss(id));
@@ -67,7 +67,7 @@ export async function createHandler<T>(
         cssModules.add(css);
         // Notify about new CSS file if callback exists
         if (streamOptions.onCssFile) {
-          streamOptions.onCssFile(css);
+          streamOptions.onCssFile(css, parentUrl);
         }
       });
       return mod as Record<string, any>;
@@ -81,7 +81,7 @@ export async function createHandler<T>(
   };
 
   const PropsModule = await resolveProps({
-    propsModule: await loadWithCss(propsPath ?? pagePath),
+    propsModule: await loadWithCss(propsPath ?? pagePath, url),
     path: String(propsPath ?? pagePath),
     exportName: propsExportName,
     url,
@@ -94,7 +94,7 @@ export async function createHandler<T>(
   if (props?.type === "skip") return { type: props.type };
 
   const PageModule = await resolvePage({
-    pageModule: await loadWithCss(pagePath),
+    pageModule: await loadWithCss(pagePath, url),
     path: pagePath,
     exportName: pageExportName,
     url,

@@ -30,7 +30,8 @@ export function collectManifestCss(
   manifest: Manifest,
   root: string,
   pagePath: string,
-  onCss?: (path: string) => void
+  onCss?: (path: string, parentUrl: string) => void,
+  parentUrl?: string
 ) {
   const relativePagePath = pagePath.startsWith(root + "/")
     ? pagePath.slice(root.length + 1)
@@ -44,12 +45,12 @@ export function collectManifestCss(
     seen.add(id);
     if (id.endsWith(".css")) {
       cssFiles.set(id, id);
-      onCss?.(id);
+      onCss?.(id, parentUrl ?? pagePath);
       return;
     }
     if (id.endsWith(".css.js")) {
       cssFiles.set(id.slice(0, -3), id.slice(0, -3));
-      onCss?.(id.slice(0, -3));
+      onCss?.(id.slice(0, -3), parentUrl ?? pagePath);
       return;
     }
     // Get the manifest entry
@@ -60,7 +61,7 @@ export function collectManifestCss(
     if (entry.css) {
       entry.css.forEach((css: string) => {
         cssFiles.set(entry.file, css);
-        onCss?.(css);
+        onCss?.(css, parentUrl ?? pagePath);
       });
     }
 

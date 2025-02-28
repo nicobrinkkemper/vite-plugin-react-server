@@ -41,7 +41,7 @@ type RenderPagesOptions = {
   worker: Worker;
   pipableStreamOptions?: PipeableStreamOptions;
   loader: (id: string) => Promise<Record<string, any>>;
-  onCssFile?: (path: string) => void;
+  onCssFile?: (url: string, parentUrl: string) => void;
   clientCss?: string[];
   moduleBasePath: string;
   moduleBaseURL: string;
@@ -51,14 +51,14 @@ export async function renderPages(
   pluginContext: PluginContext,
   routes: string[],
   files: CheckFilesExistReturn,
-  options: RenderPagesOptions
+  options: RenderPagesOptions,
 ) {
   const root = pluginContext.environment.config.root;
   const outDir = pluginContext.environment.config.build.outDir;
   const failedRoutes = new Map<string, Error>();
   const completedRoutes = new Set<string>();
   const writePromises = new Map<string, Promise<void>>();
-
+  const clientCss = options.clientCss ?? [];
   try {
     // Set up worker message handling
     const allRoutesComplete = new Promise<void>((resolve, reject) => {
@@ -92,6 +92,19 @@ export async function renderPages(
       });
     });
 
+    collectManifestCss(
+      options.clientManifest,
+      options.moduleBasePath,
+      'index.html',
+      (url, parentUrl)=>{
+        options?.onCssFile?.(url, parentUrl);
+        if(!clientCss.includes(url)){
+          clientCss.push(url);
+        }
+      },
+      join(root, options.pluginOptions.build.outDir, options.pluginOptions.build.client)
+    );
+
     // Process routes sequentially
     for (const route of routes) {
       const routeFiles = files.urlMap.get(route);
@@ -101,11 +114,16 @@ export async function renderPages(
         continue;
       }
 
-      const cssFiles = collectManifestCss(
+      collectManifestCss(
         options.serverManifest,
         options.moduleBasePath,
         routeFiles.page,
-        options.onCssFile
+        (url, parentUrl)=>{
+          options.onCssFile?.(url, parentUrl);
+          if(!clientCss.includes(url)){
+            clientCss.push(url);
+          }
+        }
       );
 
       // Create handler for pure RSC output
@@ -116,12 +134,12 @@ export async function renderPages(
         loader: options.loader,
         clientManifest: options.clientManifest,
         serverManifest: options.serverManifest,
+        cssFiles: clientCss,
         pipableStreamOptions: {
           ...options.pipableStreamOptions,
           importMap: {
             imports: {
               ...options.pipableStreamOptions?.importMap?.imports,
-              ...Object.fromEntries(Array.from(cssFiles.entries()))
             }
           }
         },
@@ -132,12 +150,12 @@ export async function renderPages(
         loader: options.loader,
         clientManifest: options.clientManifest,
         serverManifest: options.serverManifest,
+        cssFiles: clientCss,
         pipableStreamOptions: {
           ...options.pipableStreamOptions,
           importMap: {
             imports: {
-              ...options.pipableStreamOptions?.importMap?.imports,
-              ...Object.fromEntries(Array.from(cssFiles.entries()))
+              ...options.pipableStreamOptions?.importMap?.imports
             }
           }
         },

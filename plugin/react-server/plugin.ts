@@ -32,6 +32,7 @@ import { createHandler } from "./createHandler.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import type { ServerResponse } from "node:http";
+import { collectManifestCss } from "../collect-css-manifest.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let serverManifestPath: string | null = null;
@@ -145,9 +146,7 @@ export function reactServerPlugin(
         );
       }
     },
-    async configurePreviewServer(server) {
-      
-    },
+    async configurePreviewServer(server) {},
     async configureServer(server: ViteDevServer) {
       if (typeof loader !== "function") {
         loader = server.ssrLoadModule;
@@ -165,7 +164,6 @@ export function reactServerPlugin(
         );
         root = server.config.root;
       }
-
 
       const activeStreams = new Set<ServerResponse>();
 
@@ -308,7 +306,9 @@ export function reactServerPlugin(
         // Create the loader
         if (typeof loader !== "function") {
           if (!Object.keys(serverManifest).length) {
-            console.warn("[vite-plugin-react-server] No server manifest found, the plugin will try to use the plugin context - it may differ from vite's manifest.");
+            console.warn(
+              "[vite-plugin-react-server] No server manifest found, the plugin will try to use the plugin context - it may differ from vite's manifest."
+            );
             serverManifest = getBundleManifest({
               pluginContext: this,
               bundle: outpuptBundle,
@@ -316,15 +316,22 @@ export function reactServerPlugin(
               preserveModulesRoot: userOptions.build.preserveModulesRoot,
             });
             if (!Object.keys(serverManifest).length) {
-              console.warn("[vite-plugin-react-server] That didn't work, retrying to read manifest.");
+              console.warn(
+                "[vite-plugin-react-server] That didn't work, retrying to read manifest."
+              );
               const resolvedServerManifest = tryManifest({
                 root: root,
-                outDir: join(userOptions.build.outDir, userOptions.build.server),
+                outDir: join(
+                  userOptions.build.outDir,
+                  userOptions.build.server
+                ),
                 ssrManifest: false,
               });
               if (resolvedServerManifest.type === "error") {
                 // dont build the static files without a server manifest
-                console.error("[vite-plugin-react-server] Failed to read manifest, aborting build.");
+                console.error(
+                  "[vite-plugin-react-server] Failed to read manifest, aborting build."
+                );
                 return;
               }
               serverManifest = resolvedServerManifest.manifest;
@@ -343,36 +350,73 @@ export function reactServerPlugin(
         if (resolvedPages.type === "error") {
           throw resolvedPages.error;
         }
+
+        const onCssFile = async (path: string, parentUrl: string) => {
+          if (buildCssFiles && path.endsWith(".css")) {
+            buildCssFiles.add(path);
+            if (parentUrl.endsWith(userOptions.build.client)) {
+              // copy the file to the client build dir
+              const serverPath = join(
+                userOptions.build.outDir,
+                userOptions.build.server,
+                path
+              );
+              await writeFile(
+                serverPath,
+                await readFile(
+                  join(
+                    root,
+                    userOptions.build.outDir,
+                    userOptions.build.client,
+                    path
+                  )
+                )
+              );
+            } else {
+              // copy the file to the client build dir, assume it's in server build dir
+              const clientPath = join(
+                userOptions.build.outDir,
+                userOptions.build.client,
+                path
+              );
+              await mkdir(dirname(clientPath), { recursive: true });
+              await writeFile(
+                clientPath,
+                await readFile(
+                  join(
+                    root,
+                    userOptions.build.outDir,
+                    userOptions.build.server,
+                    path
+                  )
+                )
+              );
+            }
+          }
+        };
+
         const { failedRoutes, completedRoutes } = await renderPages(
           this,
           resolvedPages.pages,
           files,
           {
             pipableStreamOptions: {
-              bootstrapModules: [clientManifest['index.html'].file],
+              bootstrapModules: clientManifest["index.html"]?.file
+                ? [clientManifest["index.html"].file]
+                : [],
             },
             moduleBasePath: "",
             moduleBaseURL: "",
-            clientCss:
-              Object.values(clientManifest)
-                .flatMap((entry) => entry.css)
-                .filter((css) => typeof css === "string")
-                .map((css) => "/" + css) ?? [],
+            clientCss: clientManifest["index.html"]?.css
+              ? clientManifest["index.html"].css
+              : [],
             userConfig,
             pluginOptions: userOptions,
             worker: worker,
             clientManifest: clientManifest,
             serverManifest: serverManifest,
             loader,
-            onCssFile: async (path: string) => {
-              if (buildCssFiles && path.endsWith(".css")) {
-                buildCssFiles.add(path);
-                // copy the file to the client build dir
-                const clientPath = join(userOptions.build.outDir, userOptions.build.client, path);
-                await mkdir(dirname(clientPath), { recursive: true });
-                await writeFile(clientPath, await readFile(join(root, userOptions.build.outDir, userOptions.build.server, path)));
-              }
-            },
+            onCssFile: onCssFile,
           }
         );
 

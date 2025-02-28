@@ -181,7 +181,7 @@ export interface CreateHandlerOptions<T = any> {
   serverManifest?: import("vite").Manifest;
   moduleGraph?: import("vite").ModuleGraph;
   cssFiles?: string[];
-  onCssFile?: (path: string) => void;
+  onCssFile?: (path: string, parentUrl: string) => void;
   logger?: import("vite").Logger;
   pipableStreamOptions?: PipeableStreamOptions;
 }
