@@ -200,7 +200,7 @@ export async function renderPages(
                   type: "RSC_CHUNK",
                   id: route,
                   chunk: chunk.toString(),
-                  moduleRootPath: join(root, options.pluginOptions.build.outDir),
+                  moduleRootPath: join(root, options.pluginOptions.build.outDir, options.pluginOptions.build.client),
                   moduleBaseURL: options.moduleBaseURL,
                   htmlOutputPath: join(options.pluginOptions.build.outDir, options.pluginOptions.build.client, route, 'index.html'),
                   pipableStreamOptions: options.pipableStreamOptions,

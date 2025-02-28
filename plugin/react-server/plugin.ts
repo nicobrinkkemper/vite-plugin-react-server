@@ -348,7 +348,9 @@ export function reactServerPlugin(
           resolvedPages.pages,
           files,
           {
-            pipableStreamOptions: {},
+            pipableStreamOptions: {
+              bootstrapModules: [clientManifest['index.html'].file],
+            },
             moduleBasePath: "",
             moduleBaseURL: "",
             clientCss:

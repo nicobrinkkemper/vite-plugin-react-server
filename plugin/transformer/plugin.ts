@@ -99,7 +99,7 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
         return null
       }
       return {
-        code: transformed.replace(key, join(resolvedOptions.userOptions.build.client, clientPath)),
+        code: transformed.replace(key, clientPath),
         map: null,
       };
     },
