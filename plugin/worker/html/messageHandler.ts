@@ -13,8 +13,6 @@ import { join } from "path";
 const activeRenders = new Map<string, HtmlRenderState>();
 const htmlContent = new Map<string, string>();
 const htmlPromises = new Map<string, Promise<string>>();
-
-
 export const messageHandler = async (message: HtmlWorkerMessage) => {
   try {
     switch (message.type) {

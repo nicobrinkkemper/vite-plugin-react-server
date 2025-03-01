@@ -30,7 +30,7 @@
     // We allow JSON imports. In fact we promote using them. We need to use the `with {type: 'json'}` which is the most recent way to do it.
     "resolveJsonModule": true,
     // If you are having issues with libraries, you can disable this and it won't check the types of the libraries.
-    "skipLibCheck": false,
+    "skipLibCheck": true,
     // The source folder is intended for polymorphic code that can work on the client, server, or during development. By default new code should go here, and should follow the types defined here.
     "rootDir": "./",
     // We collect all of our compiled files into the dist folder so that we do not clutter our source directories with distilled files.

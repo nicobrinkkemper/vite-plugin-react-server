@@ -397,13 +397,13 @@ export function reactServerPlugin(
           {
             pipableStreamOptions: {
               bootstrapModules: clientManifest["index.html"]?.file
-                ? [clientManifest["index.html"].file]
+                ? [clientManifest["index.html"].file.startsWith('/') ? clientManifest["index.html"].file : '/' + clientManifest["index.html"].file]
                 : [],
             },
             moduleBasePath: "",
             moduleBaseURL: "",
             clientCss: clientManifest["index.html"]?.css
-              ? clientManifest["index.html"].css
+              ? clientManifest["index.html"].css.map(css => css.startsWith('/') ? css : '/' + css)
               : [],
             userConfig,
             pluginOptions: userOptions,

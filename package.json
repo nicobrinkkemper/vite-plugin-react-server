@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -110,6 +110,7 @@
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "acorn-loose": "^8.3.0",
+    "happy-dom": "^17.1.8",
     "patch-package": "^8.0.0",
     "react-server-dom-esm": "^0.0.1",
     "rollup": "^4.34.0",

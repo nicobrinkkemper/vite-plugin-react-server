@@ -50,6 +50,7 @@ export default defineConfig({
         // css
         'symbols',
         'postcss',
+        'happy-dom',
         // Add tsx and its dependencies
         'tsx',
         'tsx/esm/api',

@@ -92,7 +92,7 @@ export async function renderPages(
       });
     });
 
-    collectManifestCss(
+    const newCssFiles = collectManifestCss(
       options.clientManifest,
       options.moduleBasePath,
       'index.html',
@@ -125,7 +125,6 @@ export async function renderPages(
           }
         }
       );
-
       // Create handler for pure RSC output
       const rscResult = await createHandler(route, {
         ...options.pluginOptions,
@@ -134,7 +133,7 @@ export async function renderPages(
         loader: options.loader,
         clientManifest: options.clientManifest,
         serverManifest: options.serverManifest,
-        cssFiles: clientCss,
+        cssFiles: Array.from(newCssFiles.values()).concat(clientCss),
         pipableStreamOptions: {
           ...options.pipableStreamOptions,
           importMap: {

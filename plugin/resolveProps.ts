@@ -81,6 +81,7 @@ export async function resolveProps({
         ),
       };
     } catch (error) {
+      console.trace(error);
       console.warn(found, "error in resolveProps", propsModule, url, path);
       return {
         type: "error",

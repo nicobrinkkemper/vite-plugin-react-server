@@ -33,13 +33,12 @@ export function collectManifestCss(
   onCss?: (path: string, parentUrl: string) => void,
   parentUrl?: string
 ) {
-  const relativePagePath = pagePath.startsWith(root + "/")
-    ? pagePath.slice(root.length + 1)
+  const relativePagePath = root !== "" && pagePath.startsWith(root.endsWith('/') ? root : root + '/')
+    ? pagePath.slice(root.length + (root.endsWith('/') ? 0 : 1))
     : pagePath;
-  if (!relativePagePath) return new Map<string, string>();
   const cssFiles = new Map<string, string>();
   const seen = new Set<string>();
-
+  const manifestValues = Object.values(manifest);
   const walkManifestEntry = (id: string) => {
     if (seen.has(id)) return;
     seen.add(id);
@@ -54,13 +53,14 @@ export function collectManifestCss(
       return;
     }
     // Get the manifest entry
-    const entry = manifest[id];
+    const entry = manifest[id] ?? manifestValues.find(e => e.file === id);
     if (!entry) return;
 
     // Add direct CSS
     if (entry.css) {
       entry.css.forEach((css: string) => {
-        cssFiles.set(entry.file, css);
+        console.log('collectManifestCss', css, entry.src ?? entry.file ?? '');
+        cssFiles.set(entry.src ?? entry.file ?? '', css);
         onCss?.(css, parentUrl ?? pagePath);
       });
     }
