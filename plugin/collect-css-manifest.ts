@@ -59,7 +59,6 @@ export function collectManifestCss(
     // Add direct CSS
     if (entry.css) {
       entry.css.forEach((css: string) => {
-        console.log('collectManifestCss', css, entry.src ?? entry.file ?? '');
         cssFiles.set(entry.src ?? entry.file ?? '', css);
         onCss?.(css, parentUrl ?? pagePath);
       });

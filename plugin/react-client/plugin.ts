@@ -24,6 +24,7 @@ import type {
   RscWorkerResponse,
 } from "../worker/types.js";
 import { createLogger } from "../utils/logger.js";
+import { readFileSync } from "node:fs";
 
 const log = createLogger("react-client");
 let userOptions: ResolvedUserOptions;
@@ -188,6 +189,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
             if (foundClient) {
               res.setHeader("Content-Type", "application/javascript");
               res.end(foundClient);
+              return;
             }
             const foundServer =
               serverManifest &&
@@ -207,6 +209,21 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
             next();
           }
         } else {
+          let html = '';
+          try {
+            const last = value.split('/').pop();
+            if(!last?.includes('.')) {
+              const isDir = await stat(join(fileRoot, value));
+              if (isDir.isDirectory()) {
+                html = readFileSync(join(fileRoot, value, 'index.html'), 'utf-8');
+                res.setHeader("Content-Type", "text/html");
+                res.end(html);
+                return;
+              }
+            }
+          } catch (error) {
+            
+          }
           next();
         }
       });

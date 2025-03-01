@@ -33,6 +33,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import type { ServerResponse } from "node:http";
 import { collectManifestCss } from "../collect-css-manifest.js";
+import { cssFiles } from "../worker/rsc/state.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let serverManifestPath: string | null = null;
@@ -428,14 +429,10 @@ export function reactServerPlugin(
 
         // Update stats to include CSS and client components
         const stats: BuildStats = {
-          htmlFiles: userOptions.build.pages.length,
-          clientComponents: Object.keys(clientManifest).filter(
-            userOptions.autoDiscover.clientComponents
-          ).length,
-          cssFiles: Object.keys(clientManifest)
-            .flatMap(userOptions.autoDiscover.cssPattern)
-            .filter(Boolean).length,
-          totalRoutes: userOptions.build.pages.length,
+          htmlFiles: files.urlMap.size,
+          clientComponents: clientComponents.size,
+          cssFiles: cssFiles.size,
+          totalRoutes: files.urlMap.size,
           timing: {
             config: ((timing.configResolved ?? 0) - timing.start) / 1000,
             build:
@@ -459,10 +456,8 @@ export function reactServerPlugin(
 
         console.log("\n[vite-plugin-react-server] Build Summary:");
         console.log("─".repeat(50));
-        console.log(`�� Generated ${stats.htmlFiles} HTML files`);
-        console.log(`🎯 Processed ${stats.clientComponents} client components`);
-        console.log(`🎨 Included ${stats.cssFiles} CSS files`);
-        console.log(`🛣️  Total routes: ${stats.totalRoutes}`);
+        console.log(`🎨 Included ${buildCssFiles.size} CSS files`);
+        console.log(`🛣️  Total routes: ${files.urlMap.size}`);
         console.log("─".repeat(50));
         console.log("⏱️  Timing:");
         console.log(`  Config:  ${formatDuration(stats.timing.config)}`);

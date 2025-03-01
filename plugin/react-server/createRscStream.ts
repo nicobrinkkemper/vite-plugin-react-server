@@ -21,7 +21,8 @@ function CssCollector({
       return React.createElement('link', {
         key: css,
         rel: 'stylesheet',
-        href: url
+        href: url,
+        precedence: 'high'
       })
     }),
     children
@@ -68,6 +69,9 @@ export function createRscStream({
       moduleBasePath,
       {
         onError: (error: Error) => {
+          if(process.env['NODE_ENV'] === 'development') {
+            console.trace(error);
+          }
           logger.error(`Stream error at ${route}.`, {error});
         },
         onPostpone: logger.info ?? console.info,  

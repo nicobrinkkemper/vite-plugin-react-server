@@ -1,27 +1,21 @@
-import { createWriteStream } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { parentPort } from "node:worker_threads";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
+import { parentPort } from "node:worker_threads";
+import React from "react";
 import {
   renderToPipeableStream,
   // @ts-ignore
 } from "react-server-dom-esm/server.node";
+import { createLogger } from "../../utils/logger.js";
 import type {
   RscChunkMessage,
   RscEndMessage,
   RscWorkerMessage,
 } from "../types.js";
-import { createLogger } from "../../utils/logger.js";
 import {
-  cssFiles,
-  clientFiles,
-  serverActionFiles,
   addCssFile,
-  clearCssFiles,
+  cssFiles
 } from "./state.js";
-import type { WriteStream } from "node:fs";
-import React from "react";
 
 const log = createLogger("rsc-worker");
 
@@ -85,6 +79,7 @@ export async function messageHandler(message: RscWorkerMessage) {
         moduleBaseURL,
         {
           onError: (error: Error) => {
+            console.log('onError', error);
             log.error(`Stream error at ${id}:`, error);
             parentPort?.postMessage({
               type: "ERROR",

@@ -146,7 +146,7 @@ export function resolveUserConfig({
         userConfig: {
           ...config,
           root: root,
-          mode: configEnv.command === "build" ? "production" : "development",
+          mode: configEnv.mode ?? configEnv.command === "build" ? "production" : "development",
           resolve: {
             external: ["react", "react-dom"],
             alias: {},
@@ -194,7 +194,7 @@ export function resolveUserConfig({
       userConfig: {
         ...config,
         root: root,
-        mode: configEnv.command === "build" ? "production" : "development",
+        mode: configEnv.mode ?? configEnv.command === "build" ? "production" : "development",
         resolve: {
           alias: {},
           externalConditions: ["react-server"],
