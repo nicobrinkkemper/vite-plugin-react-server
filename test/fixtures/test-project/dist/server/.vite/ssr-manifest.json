@@ -1,0 +1,23 @@
+{
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react/cjs/react.development.js?commonjs-module": [
+    "/_virtual/react.development.commonjs-module.js"
+  ],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react/index.js?commonjs-es-import": [
+    "/_virtual/index.commonjs-es-import.js"
+  ],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react/index.js?commonjs-module": [
+    "/_virtual/index.commonjs-module.js"
+  ],
+  "\u0000commonjsHelpers.js": [
+    "/_virtual/_commonjsHelpers.js"
+  ],
+  "../../../node_modules/react/cjs/react.development.js": [
+    "/node_modules/react/cjs/react.development.js"
+  ],
+  "../../../node_modules/react/index.js": [
+    "/node_modules/react/index.js"
+  ],
+  "src/page/page.tsx": [],
+  "src/page/props.ts": [],
+  "src/server.tsx": []
+}

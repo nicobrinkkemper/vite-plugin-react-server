@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { dirname, resolve } from "path";
 
-export async function setupTestProject(testDir: string) {
+export function setupTestProject(testDir: string) {
   mkdirSync(testDir, { recursive: true });
   // Ensure directories exist
   mkdirSync(resolve(testDir, 'src'), { recursive: true });

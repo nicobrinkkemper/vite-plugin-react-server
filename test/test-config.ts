@@ -20,5 +20,6 @@ const resolvedTestConfig = resolveOptions({
 if(resolvedTestConfig.type === 'error') {
   throw resolvedTestConfig.error;
 }
-
+resolvedTestConfig.userOptions.htmlWorkerPath = '../../../dist/plugin/worker/html/html-worker.development.js'
+resolvedTestConfig.userOptions.rscWorkerPath = '../../../dist/plugin/worker/rsc/rsc-worker.development.js'
 export const testUserOptions = resolvedTestConfig.userOptions;

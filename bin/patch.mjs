@@ -2,36 +2,29 @@
 import fs from 'node:fs/promises'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url';
-
-const PATCH_RECONCILER_VERSION = '0.0.0-experimental-b3a95caf-20250113.patch'
+import React from 'react';
+const reactVersion = React.version;
+const PATCH_RECONCILER_VERSION = reactVersion.replace('19.1.0', '0.0.0')
 const STUB_VERSION = '0.0.1'
 const __dirname = dirname(fileURLToPath(import.meta.url));  
+const TEMPLATE_VERSION = '0.0.0-experimental-eda36a1c-20250228'
 
 async function patchReactExperimental() {
   try {
     // Read installed React version from user's project
-    const reactPkg = JSON.parse(
-      await fs.readFile(
-        path.resolve(process.cwd(), 'node_modules/react/package.json'),
-        'utf-8'
-      )
-    )
-    const installedVersion = reactPkg.version
+    
+    const installedVersion = React.version
+    const PATCH_RECONCILER_VERSION = installedVersion.replace('19.1.0', '0.0.0')
+    if(TEMPLATE_VERSION === PATCH_RECONCILER_VERSION) {
+        console.log('React version is patched')
+    }
 
     // Define patches to process
     const patches = [
       {
-        template: `../scripts/react-server-dom-esm+${PATCH_RECONCILER_VERSION}`,
+        template: `../scripts/react-server-dom-esm+${TEMPLATE_VERSION}.patch`,
         output: `react-server-dom-esm+${STUB_VERSION}.patch`
       },
-      {
-        template: `../scripts/react+${PATCH_RECONCILER_VERSION}`,
-        output: `react+${installedVersion}.patch`
-      },
-      {
-        template: `../scripts/react-dom+${PATCH_RECONCILER_VERSION}`,
-        output: `react-dom+${installedVersion}.patch`
-      }
     ]
 
     // Create patches dir in user's project
@@ -56,7 +49,7 @@ async function patchReactExperimental() {
     }
 
     console.log(`
-✅ Created patch files for React packages
+✅ Created patch files for React packages for version ${installedVersion}
    Location: patches/
 
 Next steps:

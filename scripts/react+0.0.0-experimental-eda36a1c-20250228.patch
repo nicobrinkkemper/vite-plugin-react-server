@@ -1,0 +1,57 @@
+diff --git a/node_modules/react/cjs/react.development.js b/node_modules/react/cjs/react.development.js
+index 9aa7fdf..2bc8270 100644
+--- a/node_modules/react/cjs/react.development.js
++++ b/node_modules/react/cjs/react.development.js
+@@ -1277,7 +1277,7 @@
+     exports.useTransition = function () {
+       return resolveDispatcher().useTransition();
+     };
+-    exports.version = "19.1.0-experimental-d55cc79b-20250228";
++    exports.version = "19.1.0-experimental-eda36a1c-20250228";
+     "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ &&
+       "function" ===
+         typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop &&
+diff --git a/node_modules/react/cjs/react.production.js b/node_modules/react/cjs/react.production.js
+index 3678d50..24d6e95 100644
+--- a/node_modules/react/cjs/react.production.js
++++ b/node_modules/react/cjs/react.production.js
+@@ -576,4 +576,4 @@ exports.useSyncExternalStore = function (
+ exports.useTransition = function () {
+   return ReactSharedInternals.H.useTransition();
+ };
+-exports.version = "19.1.0-experimental-d55cc79b-20250228";
++exports.version = "19.1.0-experimental-eda36a1c-20250228";
+diff --git a/node_modules/react/cjs/react.react-server.development.js b/node_modules/react/cjs/react.react-server.development.js
+index 15d4371..8497113 100644
+--- a/node_modules/react/cjs/react.react-server.development.js
++++ b/node_modules/react/cjs/react.react-server.development.js
+@@ -981,5 +981,5 @@
+     exports.useMemo = function (create, deps) {
+       return resolveDispatcher().useMemo(create, deps);
+     };
+-    exports.version = "19.1.0-experimental-d55cc79b-20250228";
++    exports.version = "19.1.0-experimental-eda36a1c-20250228";
+   })();
+diff --git a/node_modules/react/cjs/react.react-server.production.js b/node_modules/react/cjs/react.react-server.production.js
+index 6c7c438..694169d 100644
+--- a/node_modules/react/cjs/react.react-server.production.js
++++ b/node_modules/react/cjs/react.react-server.production.js
+@@ -561,4 +561,4 @@ exports.useId = function () {
+ exports.useMemo = function (create, deps) {
+   return ReactSharedInternals.H.useMemo(create, deps);
+ };
+-exports.version = "19.1.0-experimental-d55cc79b-20250228";
++exports.version = "19.1.0-experimental-eda36a1c-20250228";
+diff --git a/node_modules/react/package.json b/node_modules/react/package.json
+index f7c9f76..b6e85b0 100644
+--- a/node_modules/react/package.json
++++ b/node_modules/react/package.json
+@@ -4,7 +4,7 @@
+   "keywords": [
+     "react"
+   ],
+-  "version": "0.0.0-experimental-d55cc79b-20250228",
++  "version": "0.0.0-experimental-eda36a1c-20250228",
+   "homepage": "https://react.dev/",
+   "bugs": "https://github.com/facebook/react/issues",
+   "license": "MIT",

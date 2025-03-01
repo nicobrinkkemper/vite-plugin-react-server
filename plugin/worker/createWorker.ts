@@ -53,7 +53,7 @@ export async function createWorker(options: CreateWorkerOptions) {
 
   // Create worker with proper environment
   const worker = new Worker(
-    workerPath.startsWith("/") ? workerPath : join(projectRoot, workerPath),
+    workerPath.startsWith("/") ? workerPath : './' + workerPath,
     {
       env,
       resourceLimits,

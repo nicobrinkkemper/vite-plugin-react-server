@@ -6,28 +6,18 @@ import React from 'react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const TEMPLATE_VERSION = '0.0.0-experimental-b3a95caf-20250113'
-const ACTUAL_TEMPLATE_VERSION = '19.1.0-experimental-b3a95caf-20250113'
-const TARGET_VERSION = '0.0.0-experimental-d55cc79b-20250228'
-const ACTUAL_TARGET_VERSION = '19.1.0-experimental-d55cc79b-20250228'
+const TEMPLATE_VERSION = '0.0.0-experimental-eda36a1c-20250228'
 const STUB_VERSION = '0.0.1'
 
 async function main() {
     // Read installed React version
-    const reactPkgPath = path.resolve(process.cwd(), 'node_modules/react/package.json')
-    const reactPkg = JSON.parse(await fs.readFile(reactPkgPath, 'utf-8'))
-    const userPkg = JSON.parse(await fs.readFile(path.resolve(process.cwd(), 'package.json'), 'utf-8'))
     const patchVersion = React.version
+    const PATCH_RECONCILER_VERSION = patchVersion.replace('19.1.0', '0.0.0')
+    if(TEMPLATE_VERSION === PATCH_RECONCILER_VERSION) {
+        console.log('React version is already patched')
+        return;
+    } 
     
-    let userVersion = userPkg.dependencies?.react ?? userPkg.devDependencies?.react ?? userPkg.peerDependencies?.react
-    if(!userVersion) {
-        throw new Error('React version not found in package.json')
-    } else {
-      userVersion = userVersion.replace('^', '')
-    }
-    if(userVersion !== TARGET_VERSION) {
-      throw new Error(`React patch was made for version ${ACTUAL_TARGET_VERSION}, but you installed version ${userVersion}`)
-    }
     // Define patches to process
     const patches = [
       {
@@ -36,11 +26,11 @@ async function main() {
       },
       {
         template: path.resolve(__dirname, `react+${TEMPLATE_VERSION}.patch`),
-        output: `react+${userVersion}.patch`
+        output: `react+${PATCH_RECONCILER_VERSION}.patch`
       },
       {
         template: path.resolve(__dirname, `react-dom+${TEMPLATE_VERSION}.patch`),
-        output: `react-dom+${userVersion}.patch`
+        output: `react-dom+${PATCH_RECONCILER_VERSION}.patch`
       }
     ]
 
@@ -57,14 +47,6 @@ async function main() {
       console.log(`Wrote patch file to ${outputPath}`)
     }
 
-    console.log(`React version check result: 
-      userVersion: ${userVersion}
-      patchVersion: ${patchVersion}
-      ACTUAL_TARGET_VERSION: ${ACTUAL_TARGET_VERSION}
-      ACTUAL_TEMPLATE_VERSION: ${ACTUAL_TEMPLATE_VERSION}
-      TARGET_VERSION: ${TARGET_VERSION}
-      TEMPLATE_VERSION: ${TEMPLATE_VERSION}
-`)
 }
 
 const PATCH = ``

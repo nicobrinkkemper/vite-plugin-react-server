@@ -286,16 +286,11 @@ export function reactServerPlugin(
 
         const clientManifest = clientManifestResult.manifest;
 
-        // Initialize worker
-        const htmlWorkerPath = join(
-          getPluginRoot(),
-          DEFAULT_CONFIG.HTML_WORKER_PATH
-        );
 
         worker = await createWorker({
           projectRoot: root,
-          workerPath: htmlWorkerPath,
-          condition: "react-server",
+          workerPath: userOptions.htmlWorkerPath,
+          condition: 'react-server',
           reverseCondition: true,
           mode: (resolvedConfig?.mode ?? "production") as
             | "production"

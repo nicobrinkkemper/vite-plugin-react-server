@@ -62,12 +62,13 @@
     "test": "npm run build && npm run test:client && NODE_ENV=development npm run test:server",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental",
+    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental && npm install react-server-dom-esm",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
     "experimental:move-patches": "mv patches/* ./scripts/",
-    "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches && node scripts/check-react-version.mjs",
-    "postinstall": "npm install react-server-dom-esm && node scripts/check-react-version.mjs &&  patch-package"
+    "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches",
+    "experimental:patch-react": "npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs",
+    "postinstall": "patch-package"
   },
   "keywords": [
     "vite",
@@ -90,8 +91,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "*",
-    "react-dom": "*",
+    "react": "^0.0.0-experimental-d55cc79b-20250228",
+    "react-dom": "^0.0.0-experimental-d55cc79b-20250228",
     "vite": "*"
   },
   "peerDependenciesMeta": {
@@ -110,8 +111,6 @@
     "@types/react-dom": "^19.0.3",
     "acorn-loose": "^8.3.0",
     "patch-package": "^8.0.0",
-    "react": "^0.0.0-experimental-d55cc79b-20250228",
-    "react-dom": "^0.0.0-experimental-d55cc79b-20250228",
     "react-server-dom-esm": "^0.0.1",
     "rollup": "^4.34.0",
     "source-map": "^0.7.4",
