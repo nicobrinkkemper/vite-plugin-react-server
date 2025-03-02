@@ -65,7 +65,6 @@ export default defineConfig({
         'util',
         'crypto',
         'async_hooks',
-        'magic-string',
         '@jridgewell/sourcemap-codec',
         // if we use node: paths in our code, it should always be catched by below rule.
         /^node:.*/,
