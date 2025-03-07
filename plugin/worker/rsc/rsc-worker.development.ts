@@ -47,17 +47,13 @@ declare module 'node:module' {
 //
 import { parentPort, MessageChannel } from "node:worker_threads";
 import { messageHandler } from "./messageHandler.js";
-import { createLogger } from "../../utils/logger.js";
 import { 
-  registerHooks,
   register,
-  type ResolveHookContext,
 } from 'node:module';
 import { register as registerTsx } from "tsx/esm/api";
 import { join } from 'node:path';
-import { getPluginRoot } from "../../config/getPaths.js";
+import { pluginRoot } from "../../root.js";
 
-const ports = new MessageChannel();
 // Initialize worker
 if (!parentPort) {
   throw new Error("This module must be run as a worker");
@@ -68,26 +64,20 @@ const reactLoaderChannel = new MessageChannel();
 const cssLoaderChannel = new MessageChannel();
 
 // Listen for messages from loaders
-reactLoaderChannel.port2.on('message', (msg) => {
-  messageHandler(msg);
-});
+reactLoaderChannel.port2.on('message', messageHandler);
+cssLoaderChannel.port2.on('message', messageHandler);
 
-cssLoaderChannel.port2.on('message', (msg) => {
-  messageHandler(msg);
-});
-
-const loaderPath = 'file://' + join(getPluginRoot(), 'loader/react-loader.js');
-const cssLoaderPath = 'file://' + join(getPluginRoot(), 'loader/css-loader.js');
-console.log('[worker] Full loader path:', loaderPath);
+const loaderPath = 'file://' + join(pluginRoot, 'loader/react-loader.js');
+const cssLoaderPath = 'file://' + join(pluginRoot, 'loader/css-loader.js');
 
 // Register react-loader
 register(loaderPath, {
-  parentURL: getPluginRoot(),
+  parentURL: pluginRoot,
   data: { port: reactLoaderChannel.port1 },
   transferList: [reactLoaderChannel.port1]
 });
 register(cssLoaderPath, {
-  parentURL: getPluginRoot(),
+  parentURL: pluginRoot,
   data: { port: cssLoaderChannel.port1 },
   transferList: [cssLoaderChannel.port1]
 });
@@ -96,12 +86,12 @@ register(cssLoaderPath, {
 registerTsx();
 
 // Set up message handling
-parentPort.on("message", (message) => {
-  messageHandler(message);
-});
+parentPort.on("message", messageHandler);
 
 // Signal ready
-parentPort.postMessage({ type: "READY", env: "development" });
+parentPort.postMessage({ type: "READY", env: process.env["NODE_ENV"] });
 
-
+if (process.env["NODE_ENV"] !== "development") {
+  throw new Error("This module must be run in development mode");
+}
 

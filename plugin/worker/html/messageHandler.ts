@@ -88,6 +88,13 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
             reactElements as React.ReactNode,
             {
               ...render.pipableStreamOptions,
+              // Calculate relative paths based on route depth
+              bootstrapModules: render.pipableStreamOptions?.bootstrapModules?.map(path => {
+                if (!path) return path;
+                const depth = id.split('/').filter(Boolean).length;
+                const prefix = depth > 0 ? '../'.repeat(depth) : './';
+                return path.startsWith('/') ? prefix + path.slice(1) : prefix + path;
+              }),
               onShellReady() {
                 parentPort?.postMessage({ type: "SHELL_READY", id });
               }

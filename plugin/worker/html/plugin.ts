@@ -3,12 +3,12 @@ import { join, resolve } from "path";
 import type { ModuleFormat, RollupOptions } from 'rollup';
 import type { ResolvedUserOptions, StreamPluginOptions } from "../../types.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
-import { getPluginRoot } from "../../config/getPaths.js";
+import { pluginRoot } from "../../root.js";
 import { resolveOptions } from "../../config/resolveOptions.js";
 
 let userOptions: ResolvedUserOptions;
 export function reactHtmlWorkerPlugin(options: StreamPluginOptions): Plugin {
-  const resolvedUserOptions = resolveOptions(options);
+  const resolvedUserOptions = resolveOptions(options, false);
   if(resolvedUserOptions.type === 'error') {
     throw resolvedUserOptions.error
   }
@@ -17,7 +17,6 @@ export function reactHtmlWorkerPlugin(options: StreamPluginOptions): Plugin {
     name: "vite:react-html-worker",
     config(config) {
       const root = config.root ?? process.cwd();
-      const pluginRoot = getPluginRoot();
       const htmlWorkerPath = typeof options.htmlWorkerPath === 'string' 
         ? resolve(root, options.htmlWorkerPath) 
         : resolve(pluginRoot, DEFAULT_CONFIG.HTML_WORKER_PATH);

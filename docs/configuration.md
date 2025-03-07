@@ -1,3 +1,8 @@
+# Why you need both the Client and Server plugin
+
+The client and server plugin output to `dist/client` and `dist/server` respectively and should be build in this order. When the last step (server) is done and the bundle generation closes, it will generate static index.rsc and index.html files for all the configured routes.
+
+
 # Module Loading Architecture
 
 Module loading is handled differently depending on which plugin you use.
@@ -86,28 +91,7 @@ export default defineConfig(()=> {
 });
 ```
 
-# Why you need both the Client and Server plugin
-
-The full client+server build is complete after both plugins have build. The clientPlugin will start by building the client-side files. The server plugin will build all the page and props files. When the server plugin is done, it will use a seperate html-worker that will serve as the client-side html renderer. As well as rendering the static html pages for all the routes, it will render a index.rsc file that you can reference for static builds. The index.html will include the output of your `Html` component, in contrast the index.rsc file only contain the actual page component output + css links - just like it'd work during development.
-
-This architecture allows you to load react streams as Typescript files during development and as static files during production. If the props functions (async or not) always return the same data based on the url - it'll work as a static site generator.
-
 ## Client plugin Hook Types
-
-Node.js supports two types of module customization hooks:
-
-1. **Asynchronous Hooks** (`module.register()`)
-
-   - Run in a separate worker thread
-   - Cannot share state with main thread
-   - Inherited by child workers by default
-   - Need `--allow-worker` with permissions model
-
-2. **Synchronous Hooks** (`module.registerHooks()`)
-   - Run in the same thread as the module load
-   - Can share state with main thread
-   - Not inherited by child workers by default
-   - Support both import/require and user-created require
 
 There will be several hooks registered to allow all the server-plugin features to work at runtime.
 Handling of typescript is done by the `tsx` dependency. (same as vite)

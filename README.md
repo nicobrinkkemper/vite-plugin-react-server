@@ -163,6 +163,52 @@ export async function submitForm(data: FormData) {
 - Components are streamed only when visited
 - Supports both sync and async props, and all kinds of combinations I haven't tried or tested yet!
 
+## Architecture and Implementation Details
+
+### Dual Implementation Strategy
+
+The plugin provides two complete implementations of RSC handling:
+
+1. **Direct In-Thread Implementation** (when running under react-server condition)
+   - Simpler architecture
+   - Better error reporting (same errors in console and browser)
+   - Easier to debug
+   - More direct stream handling
+
+2. **Worker-Based Implementation** (when not under react-server condition)
+   - Allows running without react-server condition
+   - Uses message passing for communication
+   - Requires explicit support for features over message channels
+   - More complex but more flexible
+
+This dual implementation approach gives users choice in how they want to structure their build process, recognizing that different projects may have different needs or constraints.
+
+### Node Conditions and Worker Threads
+
+The use of worker threads isn't primarily about parallelization - it's about handling Node conditions:
+
+- The main Node process conditions (`NODE_OPTIONS`) are set at startup and can't be changed
+- When running under `--conditions=react-server`, we need a way to handle client-side bundling
+- Worker threads allow us to run code under different conditions than the main thread
+- This makes worker threads essential for supporting both server and client code in the same build process
+
+### Future Possibilities: Application-Level Workers
+
+While currently focused on build-time RSC handling, the worker pattern could be extended to the end application:
+
+- Users could create their own RSC workers
+- Run in client dev mode to naturally support their worker setup
+- Get worker isolation benefits in their application
+- Have more control over RSC boundaries
+
+This would require:
+- APIs for user-defined workers
+- Documentation for worker patterns
+- Examples of worker-based architectures
+- Support for different worker strategies
+
+While this isn't currently implemented, the architecture is designed to potentially support this kind of extension in the future.
+
 ## License
 
 MIT

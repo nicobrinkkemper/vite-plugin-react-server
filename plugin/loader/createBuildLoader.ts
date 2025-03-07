@@ -1,4 +1,4 @@
-import { join, relative, resolve } from "node:path";
+import { join } from "node:path";
 import type { PluginContext } from "rollup";
 import type { ResolvedUserConfig, ResolvedUserOptions } from "../../server.js";
 import type { Manifest } from "vite";

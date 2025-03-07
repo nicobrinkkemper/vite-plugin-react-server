@@ -16,7 +16,6 @@ import { tryManifest } from "../helpers/tryManifest.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { createWorker } from "../worker/createWorker.js";
 import type { Worker } from "node:worker_threads";
-import { getPluginRoot } from "../config/getPaths.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import type {
   RscRenderMessage,
@@ -44,9 +43,8 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
   }
   userOptions = resolvedOptions.userOptions;
   root = userOptions.projectRoot;
-  const rscWorkerPath = join(getPluginRoot(), DEFAULT_CONFIG.RSC_WORKER_PATH);
 
-  log.info("RSC worker path:" + rscWorkerPath);
+  log.info("RSC worker path:" + userOptions.rscWorkerPath);
 
   return {
     name: "vite:react-client",
@@ -64,7 +62,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       if (configEnv.command === "serve" && !configEnv.isPreview && !worker) {
         worker = await createWorker({
           projectRoot: root,
-          workerPath: rscWorkerPath,
+          workerPath: userOptions.rscWorkerPath,
           reverseCondition: true,
         });
       }
@@ -160,6 +158,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
               next();
             }
           } catch (error) {
+            console.log("Error", error);
             const { manifest: clientManifest } = tryManifest({
               root,
               outDir: join(userOptions.build.outDir, userOptions.build.client),
@@ -237,7 +236,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         log.info("Creating RSC worker...");
         worker = await createWorker({
           projectRoot: root,
-          workerPath: rscWorkerPath,
+          workerPath: userOptions.rscWorkerPath,
           condition: "react-client",
         });
         log.info("RSC worker created");

@@ -25,7 +25,7 @@ export type ResolvedUserConfig = Required<
   Pick<UserConfig, "root" | "mode" | "build" | "resolve">
 > &
   Omit<UserConfig, "root" | "mode" | "build" | "resolve"> & {
-    resolve: {alias:AliasOptions} & ResolveOptions;
+    resolve:  ResolveOptions;
   } & {
     build: NonNullable<
       Required<
@@ -181,6 +181,7 @@ export interface CreateHandlerOptions<T = any> {
   serverManifest?: import("vite").Manifest;
   moduleGraph?: import("vite").ModuleGraph;
   cssFiles?: string[];
+  cssModules?: Set<string>;
   onCssFile?: (path: string, parentUrl: string) => void;
   logger?: import("vite").Logger;
   pipableStreamOptions?: PipeableStreamOptions;
@@ -359,3 +360,23 @@ export type HtmlProps = {
   url: string;
   cssFiles: string[];
 };
+
+export interface PageAsset {
+  type: 'css' | 'js';
+  path: string;
+  parentUrl: string;
+}
+
+export interface PageData {
+  route: string;
+  clientComponents?: string[];
+  html?: {
+    raw: string;
+    transformed?: string;
+    assets: PageAsset[];
+  };
+  rsc?: {
+    content: string;
+    modules: Array<[string, string]>; // [modulePath, exportName]
+  };
+}

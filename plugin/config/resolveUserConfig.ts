@@ -11,6 +11,7 @@ import { globSync } from "fs";
 import type { OutputOptions } from "rollup";
 export type ResolveUserConfigProps = {
   isClient?: boolean;
+  isStatic?: boolean;
   config: UserConfig;
   configEnv: ConfigEnv;
   userOptions: ResolvedUserOptions;
@@ -23,6 +24,7 @@ export type ResolveUserConfigReturn =
 
 export function resolveUserConfig({
   isClient = false,
+  isStatic = false,
   config,
   configEnv,
   userOptions,
@@ -110,7 +112,7 @@ export function resolveUserConfig({
       ? autoDiscoveredClientFiles(clientEntry)
       : autoDiscoveredServerFiles(autoDiscoveredFiles(serverEntry ?? {}));
 
-    const envDir = isClient
+    const envDir = isStatic ? userOptions.build.static : isClient
       ? userOptions.build.client
       : userOptions.build.server;
 
@@ -132,7 +134,7 @@ export function resolveUserConfig({
       interop: "auto",
     } satisfies OutputOptions;
     
-    const newOutput = Array.isArray(config.build?.rollupOptions?.output)
+    let newOutput = Array.isArray(config.build?.rollupOptions?.output)
       ? [...config.build?.rollupOptions?.output, pluginOutput]
       : typeof config.build?.rollupOptions?.output === "object" &&
         config.build?.rollupOptions?.output !== null
@@ -140,7 +142,7 @@ export function resolveUserConfig({
       : pluginOutput;
 
     if (isClient) {
-      // client build options
+      // client plugin build options (client plugin still outputs server files)
       return {
         type: "success",
         userConfig: {
@@ -168,13 +170,11 @@ export function resolveUserConfig({
             emptyOutDir: config.build?.emptyOutDir ?? true,
             outDir: join(userOptions.build.outDir, envDir),
             assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
+            copyPublicDir: config.build?.copyPublicDir ?? true,
             // modern browsers
             target: ["esnext"],
             minify: true,
-            ssr:
-              typeof configEnv.isSsrBuild === "boolean"
-                ? configEnv.isSsrBuild
-                : true,
+            ssr: typeof config.build?.ssr === "boolean" ? config.build?.ssr : configEnv.isSsrBuild ?? false,
             manifest: config.build?.manifest ?? `.vite/manifest.json`,
             ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
             ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
@@ -189,6 +189,9 @@ export function resolveUserConfig({
       };
     }
     // server build options
+    if(configEnv.isSsrBuild === false) {
+      configEnv.isSsrBuild = true
+    }
     return {
       type: "success",
       userConfig: {
@@ -196,7 +199,6 @@ export function resolveUserConfig({
         root: root,
         mode: configEnv.mode ?? configEnv.command === "build" ? "production" : "development",
         resolve: {
-          alias: {},
           externalConditions: ["react-server"],
         },
         // server build options
@@ -206,10 +208,11 @@ export function resolveUserConfig({
           outDir: join(userOptions.build.outDir, envDir),
           target: config.build?.target ?? "node18",
           minify: config.build?.minify ?? true,
-          ssr: config.build?.ssr ?? configEnv.isSsrBuild ?? true,
+          ssr: typeof config.build?.ssr === "boolean" ? config.build?.ssr : configEnv.isSsrBuild ?? true,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
           ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
           ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
+          copyPublicDir: config.build?.copyPublicDir ?? isStatic,
           assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
           rollupOptions: {
             ...config.build?.rollupOptions,

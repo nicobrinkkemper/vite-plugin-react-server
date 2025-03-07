@@ -4,6 +4,8 @@ import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { createModuleIdGenerator } from "./createModuleIdGenerator.js";
 import { normalizePath } from "vite";
+import { join } from "node:path";
+import { pluginRoot } from "../root.js";
 
 const resolveAutoDiscoverMatcher = (
   options: undefined | string | RegExp | ((path: string) => boolean),
@@ -54,7 +56,7 @@ const applyPattern = (
 
 export const resolveOptions = (
   options: StreamPluginOptions,
-  isClient: boolean = false
+  isClient: boolean
 ):
   | { type: "success"; userOptions: ResolvedUserOptions }
   | { type: "error"; error: Error } => {
@@ -149,7 +151,9 @@ export const resolveOptions = (
   const hashString = hashOption === "" ? "" : `-[${hashOption}]`;
   const hash = (n: string | null) => {
     if (!n) return "";
-    if (hashString === "") return n;
+    if (hashString === "" || (  !isClient && !n.endsWith('.css')  && !n.endsWith('.json') ) ) {
+      return n;
+    }
     const extensionIndex = n.lastIndexOf(".");
     if (extensionIndex !== -1) {
       // put hash between extension and filename
@@ -172,19 +176,27 @@ export const resolveOptions = (
     if (testVendor(path)) {
       return path;
     }
-    
+
     if (testCssModule(path)) {
       // For CSS modules, keep the .css.js extension
-      return applyPattern(path, options.autoDiscover?.cssModulePattern, ".css.js");
+      return applyPattern(
+        path,
+        options.autoDiscover?.cssModulePattern,
+        ".css.js"
+      );
     }
-    
+
     if (testCss(path)) {
       // For regular CSS files, keep the .css extension
       return applyPattern(path, options.autoDiscover?.cssPattern, ".css");
     }
 
     if (testClientComponents(path)) {
-      return applyPattern(path, options.autoDiscover?.clientComponents, "client");
+      return applyPattern(
+        path,
+        options.autoDiscover?.clientComponents,
+        "client"
+      );
     }
     if (testHtml(path)) {
       return applyPattern(path, options.autoDiscover?.htmlPattern, ".html");
@@ -209,7 +221,11 @@ export const resolveOptions = (
       );
     }
     if (testServerFunctions(path)) {
-      return applyPattern(path, options.autoDiscover?.serverFunctions, "server");
+      return applyPattern(
+        path,
+        options.autoDiscover?.serverFunctions,
+        "server"
+      );
     }
     if (testModulePattern(path)) {
       return path;
@@ -220,23 +236,23 @@ export const resolveOptions = (
   const entryFile = (n: PreRenderedChunk) => {
     if (testVendor(n.name)) {
       const search = n.facadeModuleId?.split("?")[1];
-      if(search) {
-        return `${n.name}.${search}.js`;
+      if (search) {
+        return hash(`${n.name}.${search}.js`);
       } else {
-        return n.name + ".js";
+        return hash(`${n.name}.js`);
       }
     }
-    return addJS(getOutputPath(ensureModuleBase(ensureNoRoot(n.name))));
+    return hash(addJS(getOutputPath(ensureModuleBase(ensureNoRoot(n.name)))));
   };
 
   const chunkFile = (n: PreRenderedChunk) => {
     // For chunks, we always want .js
-    return addJS(getOutputPath(ensureModuleBase(ensureNoRoot('_'+n.name))));
+    return hash(addJS(getOutputPath(ensureModuleBase(ensureNoRoot("_" + n.name)))));
   };
 
   const assetFile = (n: PreRenderedAsset) => {
     // For assets, keep the original extension
-    return getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0])));
+    return hash(getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0]))));
   };
 
   const build =
@@ -293,6 +309,18 @@ export const resolveOptions = (
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
       : moduleBasePath ?? DEFAULT_CONFIG.MODULE_BASE_URL;
+  const rscWorkerPath =
+    typeof options.rscWorkerPath === "string"
+      ? join(projectRoot, options.rscWorkerPath)
+      : join(pluginRoot, DEFAULT_CONFIG.RSC_WORKER_PATH);
+  const htmlWorkerPath =
+    typeof options.htmlWorkerPath === "string"
+      ? join(projectRoot, options.htmlWorkerPath)
+      : join(pluginRoot, DEFAULT_CONFIG.HTML_WORKER_PATH);
+  const loaderPath =
+    typeof options.loaderPath === "string"
+      ? join(projectRoot, options.loaderPath)
+      : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
 
   const autoDiscover = {
     modulePattern: testModulePattern,
@@ -337,10 +365,9 @@ export const resolveOptions = (
         propsExportName: propsExportName,
         collectCss: options.collectCss ?? DEFAULT_CONFIG.COLLECT_CSS,
         collectAssets: options.collectAssets ?? DEFAULT_CONFIG.COLLECT_ASSETS,
-        htmlWorkerPath:
-          options.htmlWorkerPath ?? DEFAULT_CONFIG.HTML_WORKER_PATH,
-        rscWorkerPath: options.rscWorkerPath ?? DEFAULT_CONFIG.RSC_WORKER_PATH,
-        loaderPath: options.loaderPath ?? DEFAULT_CONFIG.LOADER_PATH,
+        htmlWorkerPath: htmlWorkerPath,
+        rscWorkerPath: rscWorkerPath,
+        loaderPath: loaderPath,
         clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
         serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
         moduleBaseExceptions: options.moduleBaseExceptions ?? [],

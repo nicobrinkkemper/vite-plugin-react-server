@@ -4,17 +4,22 @@ import { dirname, join, resolve as resolvePath } from "node:path";
 import { Transform } from "node:stream";
 import type { Worker } from "node:worker_threads";
 import { createHandler } from "../../react-server/createHandler.js";
-import type { CheckFilesExistReturn, ResolvedUserConfig, ResolvedUserOptions } from "../../types.js";
+import type { CheckFilesExistReturn, PageData, ResolvedUserConfig, ResolvedUserOptions } from "../../types.js";
 import type {
   HtmlWorkerResponse,
   WorkerRscChunkMessage,
 } from "../types.js";
-import type { Manifest } from "vite";
-import type {
-  PluginContext,
-} from "rollup";
+import type { 
+  Manifest, 
+  Plugin, 
+  IndexHtmlTransformHook, 
+  IndexHtmlTransformContext,
+  HtmlTagDescriptor
+} from "vite";
+import type { PluginContext } from "rollup";
 import React from "react";
-import { collectManifestCss } from "../../collect-css-manifest.js";
+import { collectManifestClientFiles } from "../../collect-manifest-client-files.js";
+import { cssFiles } from "../rsc/state.js";
 
 interface PipeableStreamOptions {
   bootstrapModules?: string[];
@@ -33,6 +38,14 @@ interface PipeableStreamOptions {
   };
 }
 
+interface PageAsset extends HtmlTagDescriptor {}
+
+interface PageMetadata {
+  title?: string;
+  description?: string;
+  // Add other meta tags as needed
+}
+
 type RenderPagesOptions = {
   pluginOptions: ResolvedUserOptions;
   userConfig: ResolvedUserConfig;
@@ -42,9 +55,12 @@ type RenderPagesOptions = {
   pipableStreamOptions?: PipeableStreamOptions;
   loader: (id: string) => Promise<Record<string, any>>;
   onCssFile?: (url: string, parentUrl: string) => void;
+  onClientJSFile?: (url: string, parentUrl: string) => void;
+  onPage?: (pageData: PageData) => Promise<void>;
   clientCss?: string[];
   moduleBasePath: string;
   moduleBaseURL: string;
+  transformIndexHtml: IndexHtmlTransformHook;
 };
 
 export async function renderPages(
@@ -54,32 +70,65 @@ export async function renderPages(
   options: RenderPagesOptions,
 ) {
   const root = pluginContext.environment.config.root;
-  const outDir = pluginContext.environment.config.build.outDir;
   const failedRoutes = new Map<string, Error>();
   const completedRoutes = new Set<string>();
-  const writePromises = new Map<string, Promise<void>>();
   const clientCss = options.clientCss ?? [];
+  const partialPageData = new Map<string, Partial<PageData>>();
+
+  const mergeAndSendPageData = async (route: string, resolve: () => void) => {
+    const partial = partialPageData.get(route);
+    if (!partial?.html || !partial.rsc) {
+      return; // Wait for both parts
+    }
+
+    const pageData: PageData = {
+      route,
+      html: partial.html,
+      rsc: partial.rsc
+    };
+
+    // Write RSC file
+    if (options.pluginOptions.build.outDir) {
+      const rscOutputPath = join(options.pluginOptions.build.outDir, options.pluginOptions.build.static, route, 'index.rsc');
+      await mkdir(dirname(rscOutputPath), { recursive: true });
+      await writeFile(rscOutputPath, partial.rsc.content);
+    }
+
+    // Write HTML file
+    if (options.pluginOptions.build.outDir) {
+      const htmlOutputPath = join(options.pluginOptions.build.outDir, options.pluginOptions.build.static, route, 'index.html');
+      await mkdir(dirname(htmlOutputPath), { recursive: true });
+      await writeFile(htmlOutputPath, partial.html.raw);
+    }
+
+    await options.onPage?.(pageData);
+    completedRoutes.add(route);
+    if (completedRoutes.size === routes.length) {
+      resolve();
+    }
+  };
+
   try {
     // Set up worker message handling
     const allRoutesComplete = new Promise<void>((resolve, reject) => {
-      options.worker.on("message", (msg: HtmlWorkerResponse) => {
+      options.worker.on("message", async (msg: HtmlWorkerResponse) => {
         switch (msg.type) {
           case "ALL_READY": {
-            const { id, html, outputPath } = msg;
-            mkdirSync(dirname(outputPath), { recursive: true });
-            
-            writeFile(outputPath, html)
-              .then(() => {
-                completedRoutes.add(id);
-                if (completedRoutes.size === routes.length) {
-                  resolve();
-                }
-              })
-              .catch((error) => {
-                console.error('Write error for route:', id, error);
-                failedRoutes.set(id, error as Error);
-                reject(error);
-              });
+            const { id, html } = msg;
+            try {
+              const partial = partialPageData.get(id) || { route: id };
+
+              partial.html = {
+                raw: html,
+                transformed: '', // Will be set by main thread transform
+                assets: []
+              };
+              partialPageData.set(id, partial);
+              await mergeAndSendPageData(id, resolve);
+            } catch (error) {
+              failedRoutes.set(id, error as Error);
+              reject(error);
+            }
             break;
           }
           case "ERROR": {
@@ -92,18 +141,6 @@ export async function renderPages(
       });
     });
 
-    const newCssFiles = collectManifestCss(
-      options.clientManifest,
-      options.moduleBasePath,
-      'index.html',
-      (url, parentUrl)=>{
-        options?.onCssFile?.(url, parentUrl);
-        if(!clientCss.includes(url)){
-          clientCss.push(url);
-        }
-      },
-      join(root, options.pluginOptions.build.outDir, options.pluginOptions.build.client)
-    );
 
     // Process routes sequentially
     for (const route of routes) {
@@ -114,17 +151,11 @@ export async function renderPages(
         continue;
       }
 
-      collectManifestCss(
-        options.serverManifest,
-        options.moduleBasePath,
-        routeFiles.page,
-        (url, parentUrl)=>{
-          options.onCssFile?.(url, parentUrl);
-          if(!clientCss.includes(url)){
-            clientCss.push(url);
-          }
+      if(options.pipableStreamOptions?.importMap?.imports){
+        for(let [key, value] of Object.entries(options.pipableStreamOptions?.importMap?.imports)){
+          options.onClientJSFile?.(value, route);
         }
-      );
+      }
       // Create handler for pure RSC output
       const rscResult = await createHandler(route, {
         ...options.pluginOptions,
@@ -133,7 +164,7 @@ export async function renderPages(
         loader: options.loader,
         clientManifest: options.clientManifest,
         serverManifest: options.serverManifest,
-        cssFiles: Array.from(newCssFiles.values()).concat(clientCss),
+        cssFiles: clientCss,
         pipableStreamOptions: {
           ...options.pipableStreamOptions,
           importMap: {
@@ -161,43 +192,51 @@ export async function renderPages(
       });
 
       if (rscResult.type !== "success" || htmlResult.type !== "success") {
-        console.error('Handler failed for route:', route);
+        if(rscResult.type !== "success"){ 
+          if(rscResult.type !== "skip"){
+            console.error('Handler failed for route:', route, rscResult.error);
+          }
+        }
+        if(htmlResult.type !== "success"){
+          if(htmlResult.type !== "skip"){
+            console.error('Handler failed for route:', route, htmlResult.error);
+          }
+        }
         failedRoutes.set(route, new Error(`Handler failed for ${route}`));
         continue;
       }
 
       // Process both streams
       await Promise.all([
-        // Save RSC stream to .rsc file in client directory
+        // Handle RSC stream
         new Promise<void>((resolve, reject) => {
           const chunks: Buffer[] = [];
           const rscTransform = new Transform({
             transform(chunk, _encoding, callback) {
               try {
-                chunks.push(Buffer.from(chunk));
-                callback(null, chunk);
+                if(chunk) {
+                  chunks.push(Buffer.from(chunk));
+                  callback(null, chunk);
+                }
               } catch (error) {
                 callback(error as Error);
               }
             },
-            flush(callback) {
+            async flush(callback) {
               try {
-                const rscPath = join(options.pluginOptions.build.outDir, options.pluginOptions.build.client, route, 'index.rsc');
-                
-                // Ensure directory exists
-                mkdirSync(dirname(rscPath), { recursive: true });
-                
-                // Write complete file
-                writeFile(rscPath, Buffer.concat(chunks))
-                  .then(() => {
-                    callback();
-                    resolve();
-                  })
-                  .catch(error => {
-                    console.error('RSC write error:', error);
-                    callback(error as Error);
-                    reject(error);
-                  });
+                const rscContent = Buffer.concat(chunks).toString('utf-8');
+
+                // Update partial page data with raw RSC content
+                const partial = partialPageData.get(route) || { route };
+                partial.rsc = {
+                  modules: [], // Will be parsed by the client
+                  content: rscContent
+                };
+                partialPageData.set(route, partial);
+                await mergeAndSendPageData(route, resolve);
+
+                callback();
+                resolve();
               } catch (error) {
                 callback(error as Error);
                 reject(error);
@@ -219,7 +258,7 @@ export async function renderPages(
                   chunk: chunk.toString(),
                   moduleRootPath: join(root, options.pluginOptions.build.outDir, options.pluginOptions.build.client),
                   moduleBaseURL: options.moduleBaseURL,
-                  htmlOutputPath: join(options.pluginOptions.build.outDir, options.pluginOptions.build.client, route, 'index.html'),
+                  htmlOutputPath: join(options.pluginOptions.build.outDir, options.pluginOptions.build.static, route, 'index.html'),
                   pipableStreamOptions: options.pipableStreamOptions,
                 });
                 callback(null, chunk);

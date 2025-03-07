@@ -5,10 +5,6 @@ export const getNodePath = (root: string = process.cwd()): string => {
   return process.env['module_root'] ?? join(root, "node_modules");
 }
 
-export const getPluginRoot = (): string => {
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  return join(__dirname, '..');
-}
 
 export const getMode = (): "production" | "development" | "test" => {
   return process.env['NODE_ENV'] === "development" 

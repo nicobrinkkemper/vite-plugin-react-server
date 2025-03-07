@@ -24,8 +24,9 @@ export function setupTestProject(testDir: string) {
 
   writeFileSync(resolve(testDir, 'src/page/page.tsx'), `
   import React from 'react'
+  import styles from './test.module.css'
   export function Page() {
-    return React.createElement('div', null, 'Page')
+    return React.createElement('div', {className: styles.Test}, 'Page')
   }
   `);
 
@@ -34,6 +35,8 @@ export function setupTestProject(testDir: string) {
     title: 'Test'
   })
   `);
+
+  writeFileSync(resolve(testDir, 'src/page/test.module.css'), `.Test {color: red}`);
 
   writeFileSync(resolve(testDir, 'index.html'), `<!DOCTYPE html>
   <html>

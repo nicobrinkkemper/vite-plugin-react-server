@@ -1,4 +1,4 @@
-import { join, resolve, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { Worker } from "node:worker_threads";
 import React from "react";
@@ -8,11 +8,12 @@ import {
   type UserConfig,
   type ViteDevServer,
   type Manifest,
+  type IndexHtmlTransformHook,
+  type IndexHtmlTransformContext,
+  type Plugin as VitePlugin,
   build,
 } from "vite";
 import { checkFilesExist } from "../checkFilesExist.js";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
-import { getPluginRoot } from "../config/getPaths.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolvePages } from "../config/resolvePages.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -21,6 +22,7 @@ import { createBuildLoader } from "../loader/createBuildLoader.js";
 import type {
   BuildTiming,
   CheckFilesExistReturn,
+  InputNormalizer,
   ReactStreamPluginMeta,
   ResolvedUserConfig,
   ResolvedUserOptions,
@@ -32,8 +34,8 @@ import { createHandler } from "./createHandler.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import type { ServerResponse } from "node:http";
-import { collectManifestCss } from "../collect-css-manifest.js";
 import { cssFiles } from "../worker/rsc/state.js";
+import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let serverManifestPath: string | null = null;
@@ -42,9 +44,15 @@ let outpuptBundle: any;
 let outputOptions: any;
 let loader: ((id: string) => Promise<Record<string, any>>) | null = null;
 let worker: Worker;
-export function reactServerPlugin(
-  options: StreamPluginOptions
-): import("vite").Plugin<{
+let htmlTransform: IndexHtmlTransformHook | null = null;
+let filesToEmit = new Map<
+  string,
+  { source: string; parentUrl: string; originalFileName: string }
+>();
+let clientAssets = new Set<string>();
+let htmlEntries = new Set<string>();
+
+export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
   meta: ReactStreamPluginMeta;
   addCssFile: (path: string) => void;
 }> {
@@ -55,12 +63,14 @@ export function reactServerPlugin(
   let files: CheckFilesExistReturn;
   // let env: Awaited<ReturnType<typeof getEnv>>;
   let cssModules = new Set<string>();
-  let clientComponents = new Map<string, string>();
+  let clientComponents = new Set<string>();
   // let define: Record<string, string>;
   let buildCssFiles = new Set<string>();
   let root: string = process.cwd();
   let userConfig: ResolvedUserConfig;
   let userOptions: ResolvedUserOptions;
+  let normalizer: InputNormalizer;
+  let resolvedPages: string[];
   let moduleGraph: Record<
     string,
     {
@@ -73,7 +83,7 @@ export function reactServerPlugin(
     }
   > = {};
   let serverManifest: Manifest = {};
-
+  let clientManifest: Manifest = {};
   interface BuildStats {
     htmlFiles: number;
     clientComponents: number;
@@ -87,7 +97,7 @@ export function reactServerPlugin(
     };
   }
 
-  const resolvedOptions = resolveOptions(options);
+  const resolvedOptions = resolveOptions(options, false);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
@@ -105,6 +115,15 @@ export function reactServerPlugin(
       root
     );
   }
+
+  normalizer = createInputNormalizer({
+    root: root,
+    removeExtension: false,
+    preserveModulesRoot:
+      userOptions.build.preserveModulesRoot === true
+        ? userOptions.moduleBase
+        : undefined,
+  });
   return {
     name: "vite:react-stream-server",
     enforce: "post",
@@ -225,6 +244,10 @@ export function reactServerPlugin(
           });
         }
       });
+
+      htmlTransform = async (html: string, ctx: IndexHtmlTransformContext) => {
+        return server.transformIndexHtml(ctx.path, html, ctx.originalUrl);
+      };
     },
     async config(config, configEnv): Promise<UserConfig> {
       if (
@@ -240,12 +263,12 @@ export function reactServerPlugin(
         );
         root = config.root;
       }
-      const resolvedPages = await resolvePages(userOptions.build.pages);
-      if (resolvedPages.type === "error") {
-        throw resolvedPages.error;
+      const resolvedPagesResult = await resolvePages(userOptions.build.pages);
+      if (resolvedPagesResult.type === "error") {
+        throw resolvedPagesResult.error;
       }
-
-      files = await checkFilesExist(resolvedPages.pages, userOptions, root);
+      resolvedPages = resolvedPagesResult.pages;
+      files = await checkFilesExist(resolvedPages, userOptions, root);
 
       const resolvedConfig = resolveUserConfig({
         isClient: false,
@@ -269,223 +292,6 @@ export function reactServerPlugin(
         console.log("Build already started");
       }
     },
-    async closeBundle() {
-      if (!userConfig || resolvedConfig?.command !== "build") return;
-      try {
-        timing.renderStart = performance.now();
-
-        // Get the client manifest
-        const clientManifestResult = tryManifest({
-          root: root,
-          outDir: join(userOptions.build.outDir, userOptions.build.client),
-          ssrManifest: false,
-        });
-
-        if (clientManifestResult.type === "error") {
-          throw clientManifestResult.error;
-        }
-
-        const clientManifest = clientManifestResult.manifest;
-
-
-        worker = await createWorker({
-          projectRoot: root,
-          workerPath: userOptions.htmlWorkerPath,
-          condition: 'react-server',
-          reverseCondition: true,
-          mode: (resolvedConfig?.mode ?? "production") as
-            | "production"
-            | "development",
-          nodeOptions: "--conditions=react-client",
-        });
-
-        // Create the loader
-        if (typeof loader !== "function") {
-          if (!Object.keys(serverManifest).length) {
-            console.warn(
-              "[vite-plugin-react-server] No server manifest found, the plugin will try to use the plugin context - it may differ from vite's manifest."
-            );
-            serverManifest = getBundleManifest({
-              pluginContext: this,
-              bundle: outpuptBundle,
-              moduleBase: userOptions.moduleBase,
-              preserveModulesRoot: userOptions.build.preserveModulesRoot,
-            });
-            if (!Object.keys(serverManifest).length) {
-              console.warn(
-                "[vite-plugin-react-server] That didn't work, retrying to read manifest."
-              );
-              const resolvedServerManifest = tryManifest({
-                root: root,
-                outDir: join(
-                  userOptions.build.outDir,
-                  userOptions.build.server
-                ),
-                ssrManifest: false,
-              });
-              if (resolvedServerManifest.type === "error") {
-                // dont build the static files without a server manifest
-                console.error(
-                  "[vite-plugin-react-server] Failed to read manifest, aborting build."
-                );
-                return;
-              }
-              serverManifest = resolvedServerManifest.manifest;
-            }
-          }
-          loader = createBuildLoader({
-            root: root,
-            userConfig,
-            userOptions,
-            pluginContext: this,
-            serverManifest,
-            clientManifest,
-          });
-        }
-        const resolvedPages = await resolvePages(userOptions.build.pages);
-        if (resolvedPages.type === "error") {
-          throw resolvedPages.error;
-        }
-
-        const onCssFile = async (path: string, parentUrl: string) => {
-          if (buildCssFiles && path.endsWith(".css")) {
-            buildCssFiles.add(path);
-            if (parentUrl.endsWith(userOptions.build.client)) {
-              // copy the file to the client build dir
-              const serverPath = join(
-                userOptions.build.outDir,
-                userOptions.build.server,
-                path
-              );
-              await writeFile(
-                serverPath,
-                await readFile(
-                  join(
-                    root,
-                    userOptions.build.outDir,
-                    userOptions.build.client,
-                    path
-                  )
-                )
-              );
-            } else {
-              // copy the file to the client build dir, assume it's in server build dir
-              const clientPath = join(
-                userOptions.build.outDir,
-                userOptions.build.client,
-                path
-              );
-              await mkdir(dirname(clientPath), { recursive: true });
-              await writeFile(
-                clientPath,
-                await readFile(
-                  join(
-                    root,
-                    userOptions.build.outDir,
-                    userOptions.build.server,
-                    path
-                  )
-                )
-              );
-            }
-          }
-        };
-
-        const { failedRoutes, completedRoutes } = await renderPages(
-          this,
-          resolvedPages.pages,
-          files,
-          {
-            pipableStreamOptions: {
-              bootstrapModules: clientManifest["index.html"]?.file
-                ? [clientManifest["index.html"].file.startsWith('/') ? clientManifest["index.html"].file : '/' + clientManifest["index.html"].file]
-                : [],
-            },
-            moduleBasePath: "",
-            moduleBaseURL: "",
-            clientCss: clientManifest["index.html"]?.css
-              ? clientManifest["index.html"].css.map(css => css.startsWith('/') ? css : '/' + css)
-              : [],
-            userConfig,
-            pluginOptions: userOptions,
-            worker: worker,
-            clientManifest: clientManifest,
-            serverManifest: serverManifest,
-            loader,
-            onCssFile: onCssFile,
-          }
-        );
-
-        if (failedRoutes.size) {
-          console.error(
-            "[vite-plugin-react-server] Failed to render routes:",
-            failedRoutes
-          );
-        }
-        if (worker) await worker.terminate();
-
-        timing.renderEnd = performance.now();
-        timing.total = (timing.renderEnd - timing.start) / 1000;
-
-        // Update stats to include CSS and client components
-        const stats: BuildStats = {
-          htmlFiles: files.urlMap.size,
-          clientComponents: clientComponents.size,
-          cssFiles: cssFiles.size,
-          totalRoutes: files.urlMap.size,
-          timing: {
-            config: ((timing.configResolved ?? 0) - timing.start) / 1000,
-            build:
-              ((timing.buildStart ?? 0) - (timing.configResolved ?? 0)) / 1000,
-            render:
-              ((timing.renderEnd ?? 0) - (timing.renderStart ?? 0)) / 1000,
-            total: (timing.renderEnd ?? 0 - timing.start) / 1000,
-          },
-        };
-
-        // Format duration helper
-        const formatDuration = (seconds: number) => {
-          if (seconds < 0.001) {
-            return `${(seconds * 1000000).toFixed(0)}μs`;
-          }
-          if (seconds < 1) {
-            return `${(seconds * 1000).toFixed(0)}ms`;
-          }
-          return `${seconds.toFixed(2)}s`;
-        };
-
-        console.log("\n[vite-plugin-react-server] Build Summary:");
-        console.log("─".repeat(50));
-        console.log(`🎨 Included ${buildCssFiles.size} CSS files`);
-        console.log(`🛣️  Total routes: ${files.urlMap.size}`);
-        console.log("─".repeat(50));
-        console.log("⏱️  Timing:");
-        console.log(`  Config:  ${formatDuration(stats.timing.config)}`);
-        console.log(`  Build:   ${formatDuration(stats.timing.build)}`);
-        console.log(`  Render:  ${formatDuration(stats.timing.render)}`);
-        console.log("  ".repeat(12));
-        console.log(`  Total:   ${formatDuration(stats.timing.total)}`);
-        console.log("─".repeat(50));
-
-        // Ensure worker is terminated
-        if (worker) {
-          await worker.terminate();
-          worker = null as any;
-        }
-      } catch (error) {
-        console.error("[vite-plugin-react-server] Build failed:", error);
-        // Make sure to terminate worker even on error
-        if (worker) await worker.terminate();
-        worker = null as any;
-        throw error;
-      }
-    },
-    async buildEnd(error) {
-      if (error) {
-        console.error("[vite-plugin-react-server] Build error:", error);
-        return;
-      }
-    },
     handleHotUpdate({ file }) {
       if (file.endsWith(".css")) {
         cssModules.add(file);
@@ -497,6 +303,7 @@ export function reactServerPlugin(
       }
       outpuptBundle = bundle;
       outputOptions = options;
+
       // Create manifest entries for each chunk
       serverManifest = getBundleManifest({
         pluginContext: this,
@@ -511,6 +318,15 @@ export function reactServerPlugin(
           JSON.stringify(serverManifest, null, 2)
         );
       }
+      const clientManifestResult = tryManifest({
+        root: root,
+        outDir: join(userOptions.build.outDir, userOptions.build.client),
+        ssrManifest: false,
+      });
+      if (clientManifestResult.type === "error") {
+        throw clientManifestResult.error;
+      }
+      clientManifest = clientManifestResult.manifest;
     },
   };
 }

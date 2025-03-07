@@ -10,4 +10,8 @@ if (!parentPort) {
 parentPort.on("message", messageHandler);
 
 // Signal ready
-parentPort.postMessage({ type: "READY", env: "production" });
+parentPort.postMessage({ type: "READY", env: process.env["NODE_ENV"] });
+
+if (process.env["NODE_ENV"] !== "production") {
+  throw new Error("This module must be run in production mode");
+}

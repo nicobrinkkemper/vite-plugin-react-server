@@ -1,11 +1,12 @@
 import { resolveOptions } from "../config/resolveOptions.js";
-import type { StreamPluginOptions } from "../types.js";
-import { type Plugin } from "vite";
+import type { InputNormalizer, ResolvedUserOptions, StreamPluginOptions } from "../types.js";
+import { type Manifest, type Plugin } from "vite";
 import { transformModuleIfNeeded } from "../loader/react-loader.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
+import type { ResolveUserConfigReturn } from "../config/resolveUserConfig.js";
 /**
  * Plugin for transforming React Client Components.
  *
@@ -32,37 +33,47 @@ import { join } from "node:path";
  */
 
 export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
-  const resolvedOptions = resolveOptions(options);
-  let isDev = false;
-  if (resolvedOptions.type === "error") throw resolvedOptions.error;
-  const normalizer = createInputNormalizer({
-    root: resolvedOptions.userOptions.projectRoot,
-    preserveModulesRoot: undefined,
-    removeExtension: false,
-  });
-
-  // Get the client manifest
-  const clientManifestResult = tryManifest({
-    root: resolvedOptions.userOptions.projectRoot,
-    outDir: join(
-      resolvedOptions.userOptions.build.outDir,
-      resolvedOptions.userOptions.build.client
-    ),
-    ssrManifest: false,
-  });
-
+  let normalizer: InputNormalizer;
+  let clientManifest: Manifest;
+  let isDev:boolean;
+  let userOptions: ResolvedUserOptions
   return {
     name: "vite:react-transform",
     enforce: "pre", // Run before Vite's transforms
     config(config, configEnv) {
-      isDev = configEnv.mode === "development" && configEnv.command === "serve";
+      const resolvedOptionsResult = resolveOptions(
+        options,
+        config.build?.outDir?.startsWith(
+          join(options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir, options.build?.client ?? DEFAULT_CONFIG.BUILD.client)
+        ) ?? false
+      );
+      isDev = configEnv.mode === "development" && configEnv.command === "serve"
+      if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
+      userOptions = resolvedOptionsResult.userOptions;
+      normalizer = createInputNormalizer({
+        root: resolvedOptionsResult.userOptions.projectRoot,
+        preserveModulesRoot: undefined,
+        removeExtension: false,
+      });
+
     },
     async transform(code, id, options) {
       const ssr = options?.ssr ?? false;
       if (!ssr) return null;
       if (!id.match(DEFAULT_CONFIG.FILE_REGEX)) return null;
-      if (!code.match('"use client"'))
-        return null;
+      if (!code.match('"use client"')) return null;
+      
+      // Get the client manifest
+      const clientManifestResult = tryManifest({
+        root: userOptions.projectRoot,
+        outDir: join(
+          userOptions.build.outDir,
+          userOptions.build.client
+        ),
+        ssrManifest: false,
+      });
+      if (clientManifestResult.type === "error") throw clientManifestResult.error;
+      clientManifest = clientManifestResult.manifest;
       const [key, value] = normalizer(id);
       const transformed = await transformModuleIfNeeded(
         code,
@@ -87,16 +98,15 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
             transformed,
           }
         );
-        return null
+        return null;
       }
-      if (clientManifestResult.type === "error") {
-        throw clientManifestResult.error;
-      }
-      const clientPath = clientManifestResult.manifest[key]?.file;
+      const clientPath = clientManifest[key]?.file;
 
       if (!clientPath) {
-        console.warn(`[vite-plugin-react-server] Could not find client path for ${value}. Ignoring.`)
-        return null
+        console.warn(
+          `[vite-plugin-react-server] Could not find client path for ${value}. Ignoring.`
+        );
+        return null;
       }
       return {
         code: transformed.replace(key, clientPath),

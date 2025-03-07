@@ -16,30 +16,9 @@ import {
   addCssFile,
   cssFiles
 } from "./state.js";
+import { CssCollector } from "../../components.js";
 
 const log = createLogger("rsc-worker");
-
-// CSS collector component
-function CssCollector({
-  children,
-  cssFiles,
-}: {
-  children: React.ReactNode;
-  cssFiles: Map<string, string>;
-}) {
-  return (
-    <>
-      {Array.from(cssFiles.entries()).map(([id, css]) => {
-        return (
-          <style key={id} data-source={id}>
-            {css}
-          </style>
-        );
-      })}
-      {children}
-    </>
-  );
-}
 
 export async function messageHandler(message: RscWorkerMessage) {
 
@@ -73,7 +52,7 @@ export async function messageHandler(message: RscWorkerMessage) {
       const PageComponent = Component[pageExportName];
       // Now render with collected CSS
       const stream = renderToPipeableStream(
-        <CssCollector cssFiles={cssFiles}>
+        <CssCollector cssFiles={Array.from(cssFiles.values())} moduleBasePath={moduleBasePath}>
           <PageComponent {...props} />
         </CssCollector>,
         moduleBaseURL,

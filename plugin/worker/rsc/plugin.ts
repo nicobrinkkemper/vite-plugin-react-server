@@ -3,14 +3,13 @@ import { resolve } from "path";
 import type { ModuleFormat } from "rollup";
 import type { StreamPluginOptions } from "../../types.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
-import { getPluginRoot } from "../../config/getPaths.js";
+import { pluginRoot } from "../../root.js";
 
 export function reactRscWorkerPlugin(options: StreamPluginOptions): Plugin {
   return {
     name: "vite:react-rsc-worker",
     config(config) {
       const root = config.root ?? process.cwd();
-      const pluginRoot = getPluginRoot();
       const rscWorkerPath =
         typeof options.rscWorkerPath === "string"
           ? resolve(root, options.rscWorkerPath)

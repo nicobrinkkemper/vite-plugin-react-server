@@ -1,12 +1,13 @@
 import { join } from "path";
 import { DEFAULT_CONFIG } from "../plugin/config/defaults.js";
-import { resolveOptions } from "../plugin/config/resolveOptions.js";
 
-const resolvedTestConfig = resolveOptions({
+const resolvedTestConfig = {
   moduleBase: "src",
   projectRoot: join(__dirname, '../fixtures/test-project/'),
   Page: DEFAULT_CONFIG.PAGE,
   props: DEFAULT_CONFIG.PROPS,
+  htmlWorkerPath: '../../../dist/plugin/worker/html/html-worker.development.js',
+  rscWorkerPath: '../../../dist/plugin/worker/rsc/rsc-worker.development.js',
   build: {
     pages: ["/"],
     assetsDir: 'assets',
@@ -15,11 +16,6 @@ const resolvedTestConfig = resolveOptions({
     static: "static",
     outDir: "dist",
   }
-})
-
-if(resolvedTestConfig.type === 'error') {
-  throw resolvedTestConfig.error;
 }
-resolvedTestConfig.userOptions.htmlWorkerPath = '../../../dist/plugin/worker/html/html-worker.development.js'
-resolvedTestConfig.userOptions.rscWorkerPath = '../../../dist/plugin/worker/rsc/rsc-worker.development.js'
-export const testUserOptions = resolvedTestConfig.userOptions;
+
+export const testUserOptions = resolvedTestConfig;

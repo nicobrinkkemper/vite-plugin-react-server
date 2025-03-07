@@ -70,7 +70,7 @@ export function getBundleManifest({
         }
         
         // Normalize both paths, removing the root prefix
-        const [normalizedId, sourcePath] = normalizer(moduleId);
+        let [normalizedId, sourcePath] = normalizer(moduleId);
 
         // For virtual modules, use a consistent naming scheme
         let finalFileName = fileName;
@@ -91,12 +91,22 @@ export function getBundleManifest({
           
           finalFileName = virtualModules.get(virtualKey)!;
         }
+        // handle preserveModulesRoot
+        if(normalizedId.startsWith('\x00')){
+          normalizedId = normalizedId.slice(1);
+        }
+        if(sourcePath.startsWith('/')){
+          sourcePath = sourcePath.slice(1);
+        }
+        if(moduleBase && preserveModulesRoot && normalizedId?.startsWith(moduleBase + '/')) {
+          normalizedId = normalizedId.slice(moduleBase.length + 1);
+        }
         const bundleManifestEntry = [
           sourcePath,
           {
             file: finalFileName,
-            name: normalizedId.startsWith('\x00') ? normalizedId.replace('\x00', '') : normalizedId,
-            src: sourcePath.startsWith('/') ? sourcePath.slice(1) : sourcePath,
+            name: normalizedId,
+            src: sourcePath,
             isEntry: chunk.isEntry,
             ...(chunk.imports?.length > 0 ? { imports: chunk.imports } : {}),
             ...(chunk.dynamicImports?.length > 0 ? { dynamicImports: chunk.dynamicImports } : {}),
