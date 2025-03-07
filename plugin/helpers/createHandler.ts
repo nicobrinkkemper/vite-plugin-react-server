@@ -7,7 +7,7 @@ import {
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolvePage } from "../resolvePage.js";
 import { resolveProps } from "../resolveProps.js";
-import type { CreateHandlerOptions, ResolvedUserOptions } from "../types.js";
+import type { CheckFilesExistReturn, CreateHandlerOptions, ResolvedUserOptions } from "../types.js";
 import { createRscStream } from "./createRscStream.js";
 
 type CreateHandlerResult = 
@@ -20,11 +20,17 @@ interface HandlerAssets {
   clientPath: string;
 }
 
-export async function createHandler<T>(
+export async function createHandler<T>({
+  url,
+  urlMap,
+  pluginOptions,
+  streamOptions,
+}: {
   url: string,
+  urlMap: CheckFilesExistReturn['urlMap'],
   pluginOptions: ResolvedUserOptions,
   streamOptions: CreateHandlerOptions<T>
-): Promise<CreateHandlerResult> {
+}): Promise<CreateHandlerResult> {
   const root = pluginOptions.projectRoot ?? process.cwd();
 
   const Html = pluginOptions.Html ?? DEFAULT_CONFIG.HTML;
@@ -35,16 +41,9 @@ export async function createHandler<T>(
   const controller = new AbortController();
 
   const cssFiles = streamOptions.cssFiles;
-  const propsPath =
-    typeof pluginOptions.props === "function"
-      ? pluginOptions.props(url)
-      : pluginOptions.props;
-  const pagePath =
-    typeof pluginOptions.Page === "function"
-      ? pluginOptions.Page(url)
-      : pluginOptions.Page;
 
-  const cssModules = new Set<string>();
+
+  const cssModules = streamOptions.cssModules ?? new Set<string>();
 
   if (!(streamOptions.serverManifest || streamOptions.moduleGraph))
     throw new Error("Missing server manifest or moduleGraph, pass it to options.");
@@ -88,45 +87,22 @@ export async function createHandler<T>(
   };
 
   const PropsModule = await resolveProps({
-    propsModule: await loadWithCss(propsPath ?? pagePath, url),
-    path: String(propsPath ?? pagePath),
+    propsModule: await loadWithCss(urlMap.get(url)?.props ?? url, url),
+    path: String(urlMap.get(url)?.props ?? url),
     exportName: propsExportName,
     url,
   });
-  if (PropsModule.type === "error")
-    return { type: PropsModule.type, error: PropsModule?.error };
-  if (PropsModule.type === "skip") return { type: PropsModule.type };
-  const props = PropsModule[propsExportName as keyof typeof PropsModule] as any;
-  if (props?.type === "error") return { type: props.type, error: props.error };
-  if (props?.type === "skip") return { type: props.type };
-
+  if (PropsModule.type !== "success") {
+    return PropsModule
+  }
   const PageModule = await resolvePage({
-    pageModule: await loadWithCss(pagePath, url),
-    path: pagePath,
+    pageModule: await loadWithCss(urlMap.get(url)?.page ?? url, url),
+    path: String(urlMap.get(url)?.page ?? url),
     exportName: pageExportName,
     url,
   });
-  if (PageModule.type === "error")
-    return { type: PageModule.type, error: PageModule.error };
-  if (PageModule.type === "skip") return { type: PageModule.type };
-  const Page = PageModule[pageExportName as keyof typeof PageModule] as any;
-  if (Page?.type === "error") return { type: Page.type, error: Page.error };
-  if (Page?.type === "skip") return { type: Page.type };
-  if (!(typeof Page === "function")) {
-    return {
-      type: "error",
-      error: new Error("Invalid Page component: " + pagePath, {
-        cause: Page,
-      }),
-    };
-  }
-  if (!(typeof props === "object")) {
-    return {
-      type: "error",
-      error: new Error("Invalid props: " + propsPath, {
-        cause: props,
-      }),
-    } 
+  if (PageModule.type !== "success") {
+    return PageModule
   }
 
   // Add any additional CSS files
@@ -135,8 +111,8 @@ export async function createHandler<T>(
   }
   const stream = createRscStream({
     Html: Html,
-    Page: Page,
-    props: props,
+    Page: PageModule[pageExportName as keyof typeof PageModule],
+    props: PropsModule[propsExportName as keyof typeof PropsModule],
     moduleBasePath: '',
     logger: streamOptions.logger ?? createLogger(),
     cssFiles: Array.from(cssModules),
@@ -144,7 +120,7 @@ export async function createHandler<T>(
     url,
     pipableStreamOptions: streamOptions.pipableStreamOptions,
     htmlProps: {
-      pageProps: props,
+      pageProps: PropsModule[propsExportName as keyof typeof PropsModule],
       route: url,
       url: url,
     },
@@ -156,7 +132,7 @@ export async function createHandler<T>(
 
   const assets: HandlerAssets = {
     css: new Set(cssFiles ?? []),
-    clientPath: pagePath ?? ''
+    clientPath: urlMap.get(url)?.page ?? ''
   };
 
   return {

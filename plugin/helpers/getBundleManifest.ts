@@ -4,8 +4,7 @@ import type {
   OutputChunk,
 } from "rollup";
 import { createInputNormalizer } from "./inputNormalizer.js";
-import { join } from "path";
-import { DEFAULT_CONFIG, resolveOptions } from "../config/index.js";
+import { DEFAULT_CONFIG } from "../config/index.js";
 
 interface BundleManifestEntry {
   file: string;

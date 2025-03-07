@@ -15,26 +15,29 @@ export interface BuildLoaderOptions {
 
 export function createBuildLoader({
   root,
-  userConfig,
+  userConfig: _userConfig,
   userOptions,
-  pluginContext,
+  pluginContext: _pluginContext,
   serverManifest,
   clientManifest,
 }: BuildLoaderOptions) {
   const normalizer = createInputNormalizer({
     root,
-    preserveModulesRoot: undefined,
-    removeExtension: false,
+    preserveModulesRoot: userOptions.build.preserveModulesRoot === true ? userOptions.moduleBase : undefined,
+    removeExtension: true,
   });
   return async function buildLoader(id: string) {
     const [key, value] = normalizer(id);
+    if(value !== id){
+      console.warn(`[vite-plugin-react-server] Mismatch in build loader for ${id} !== ${value} (${key})`);
+    }
     // Remove leading slash if present
     const distDir = userOptions.build.outDir;
     const manifests = [clientManifest, serverManifest];
     // Try to find the module in the manifest
     for (const n of [0, 1]) {
       const manifest = manifests[n];
-      const manifestEntry = manifest[key]
+      const manifestEntry = manifest[value]
       if (!manifestEntry) {
         continue;
       }

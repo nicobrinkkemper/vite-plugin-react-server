@@ -1,6 +1,5 @@
-import { join, dirname, resolve } from "node:path";
+import { join, dirname } from "node:path";
 import { performance } from "node:perf_hooks";
-import { Worker } from "node:worker_threads";
 import React from "react";
 import {
   createLogger,
@@ -8,49 +7,27 @@ import {
   type UserConfig,
   type ViteDevServer,
   type Manifest,
-  type IndexHtmlTransformHook,
-  type IndexHtmlTransformContext,
   type Plugin as VitePlugin,
-  build,
 } from "vite";
 import { checkFilesExist } from "../checkFilesExist.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolvePages } from "../config/resolvePages.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
-import { tryManifest } from "../helpers/tryManifest.js";
-import { createBuildLoader } from "../loader/createBuildLoader.js";
 import type {
   BuildTiming,
   CheckFilesExistReturn,
-  InputNormalizer,
   ReactStreamPluginMeta,
-  ResolvedUserConfig,
   ResolvedUserOptions,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
-import { createWorker } from "../worker/createWorker.js";
-import { renderPages } from "../worker/html/renderPages.js";
-import { createHandler } from "./createHandler.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHandler } from "../helpers/createHandler.js";
+import { mkdir,  writeFile } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import type { ServerResponse } from "node:http";
-import { cssFiles } from "../worker/rsc/state.js";
-import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let serverManifestPath: string | null = null;
-let clientManifestPath: string | null = null;
-let outpuptBundle: any;
-let outputOptions: any;
 let loader: ((id: string) => Promise<Record<string, any>>) | null = null;
-let worker: Worker;
-let htmlTransform: IndexHtmlTransformHook | null = null;
-let filesToEmit = new Map<
-  string,
-  { source: string; parentUrl: string; originalFileName: string }
->();
-let clientAssets = new Set<string>();
-let htmlEntries = new Set<string>();
 
 export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
   meta: ReactStreamPluginMeta;
@@ -63,39 +40,12 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
   let files: CheckFilesExistReturn;
   // let env: Awaited<ReturnType<typeof getEnv>>;
   let cssModules = new Set<string>();
-  let clientComponents = new Set<string>();
   // let define: Record<string, string>;
   let buildCssFiles = new Set<string>();
   let root: string = process.cwd();
-  let userConfig: ResolvedUserConfig;
   let userOptions: ResolvedUserOptions;
-  let normalizer: InputNormalizer;
   let resolvedPages: string[];
-  let moduleGraph: Record<
-    string,
-    {
-      file: string;
-      src: string;
-      name: string;
-      isEntry: boolean;
-      imports: string[];
-      dynamicImports: string[];
-    }
-  > = {};
   let serverManifest: Manifest = {};
-  let clientManifest: Manifest = {};
-  interface BuildStats {
-    htmlFiles: number;
-    clientComponents: number;
-    cssFiles: number;
-    totalRoutes: number;
-    timing: {
-      config: number;
-      build: number;
-      render: number;
-      total: number;
-    };
-  }
 
   const resolvedOptions = resolveOptions(options, false);
   if (resolvedOptions.type === "error") {
@@ -116,14 +66,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
     );
   }
 
-  normalizer = createInputNormalizer({
-    root: root,
-    removeExtension: false,
-    preserveModulesRoot:
-      userOptions.build.preserveModulesRoot === true
-        ? userOptions.moduleBase
-        : undefined,
-  });
   return {
     name: "vite:react-stream-server",
     enforce: "post",
@@ -139,11 +81,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
       serverManifestPath = join(
         userOptions.build.outDir,
         userOptions.build.server,
-        ".vite/manifest.json"
-      );
-      clientManifestPath = join(
-        resolvedConfig.build.outDir,
-        userOptions.build.client,
         ".vite/manifest.json"
       );
       timing.configResolved = performance.now();
@@ -166,7 +103,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         );
       }
     },
-    async configurePreviewServer(server) {},
     async configureServer(server: ViteDevServer) {
       if (typeof loader !== "function") {
         loader = server.ssrLoadModule;
@@ -205,35 +141,28 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         activeStreams.clear();
       });
 
-      // server.ws.on("connection", (_socket, _req) => {
-      //   console.log("[vite-plugin-react-server] hooking up ws connection");
-      // });
-
-      // server.ws.on("listening", () => {
-      //   console.log("[vite-plugin-react-server] hooking up ws listening");
-      // });
-
       server.middlewares.use(async (req, res, next) => {
         if (req.headers.accept !== "text/x-component") return next();
         if (typeof loader !== "function") {
           loader = server.ssrLoadModule;
         }
         try {
-          const handler = await createHandler(
-            req.url ?? "",
-            {
+          const handler = await createHandler({
+            url: req.url ?? "",
+            urlMap: files.urlMap,
+            pluginOptions: {
               ...userOptions,
               // we'll leave the Html generation for later
               Html: React.Fragment,
               projectRoot: root,
             },
-            {
+            streamOptions: {
               cssFiles: [],
               logger: createLogger(),
               loader,
               moduleGraph: server.moduleGraph,
             }
-          );
+          });
           if (handler.type === "success") {
             handler.stream?.pipe(res);
           }
@@ -244,10 +173,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
           });
         }
       });
-
-      htmlTransform = async (html: string, ctx: IndexHtmlTransformContext) => {
-        return server.transformIndexHtml(ctx.path, html, ctx.originalUrl);
-      };
     },
     async config(config, configEnv): Promise<UserConfig> {
       if (
@@ -282,7 +207,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         throw resolvedConfig.error;
       }
 
-      userConfig = resolvedConfig.userConfig;
       return resolvedConfig.userConfig;
     },
     async buildStart() {
@@ -297,12 +221,10 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         cssModules.add(file);
       }
     },
-    async generateBundle(options, bundle) {
+    async generateBundle(_options, bundle) {
       if (!resolvedConfig) {
         throw new Error("Resolved config not found");
       }
-      outpuptBundle = bundle;
-      outputOptions = options;
 
       // Create manifest entries for each chunk
       serverManifest = getBundleManifest({
@@ -318,15 +240,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
           JSON.stringify(serverManifest, null, 2)
         );
       }
-      const clientManifestResult = tryManifest({
-        root: root,
-        outDir: join(userOptions.build.outDir, userOptions.build.client),
-        ssrManifest: false,
-      });
-      if (clientManifestResult.type === "error") {
-        throw clientManifestResult.error;
-      }
-      clientManifest = clientManifestResult.manifest;
     },
   };
 }

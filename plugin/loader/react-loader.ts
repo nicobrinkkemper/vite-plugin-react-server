@@ -117,7 +117,7 @@ function transformServerModule(
   program: any,
   url: string,
   sourceMap: any,
-  loader: any,
+  _loader: any,
   port: MessagePort | undefined
 ) {
   const body = program.body; // This entry list needs to be in source location order.
@@ -934,7 +934,7 @@ export async function transformSource(
     const newSrc = await transformModuleIfNeeded(
       transformedSource,
       context.url,
-      (url: string, ctx: any, defaultLoad: any) =>
+      (url: string) =>
         loadClientImport(url, defaultTransformSource),
       context.data?.port!
     );

@@ -2,8 +2,6 @@ import type { PreRenderedAsset } from "rollup";
 import type { PreRenderedChunk } from "rollup";
 import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import { createModuleIdGenerator } from "./createModuleIdGenerator.js";
-import { normalizePath } from "vite";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 
@@ -47,8 +45,8 @@ const handleSearchQuery = (path: string) => {
 
 const applyPattern = (
   path: string,
-  pattern?: string | RegExp | ((path: string) => boolean) | undefined,
-  fallback?: string | undefined
+  _pattern?: string | RegExp | ((path: string) => boolean) | undefined,
+  _fallback?: string | undefined
 ) => {
   // TODO: What to actually do here? I guess we could replace the extension, but it's not needed since we map them from the manifest anyway.
   return path;

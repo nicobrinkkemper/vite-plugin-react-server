@@ -44,8 +44,6 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
   userOptions = resolvedOptions.userOptions;
   root = userOptions.projectRoot;
 
-  log.info("RSC worker path:" + userOptions.rscWorkerPath);
-
   return {
     name: "vite:react-client",
 
@@ -104,7 +102,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       resolvedConfig = config;
     },
 
-    async generateBundle(options, bundle) {
+    async generateBundle(_options, bundle) {
       // Create manifest entries for each chunk
       clientManifest = getBundleManifest({
         pluginContext: this,

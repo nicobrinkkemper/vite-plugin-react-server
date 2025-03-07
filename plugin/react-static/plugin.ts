@@ -1,15 +1,10 @@
-import { join, dirname, resolve } from "node:path";
-import { performance } from "node:perf_hooks";
+import { join, dirname } from "node:path";
 import { Worker } from "node:worker_threads";
-import React from "react";
 import {
-  createLogger,
   type ResolvedConfig,
   type UserConfig,
-  type ViteDevServer,
   type Manifest,
   type IndexHtmlTransformHook,
-  type IndexHtmlTransformContext,
   type Plugin as VitePlugin,
 } from "vite";
 import { checkFilesExist } from "../checkFilesExist.js";
@@ -21,7 +16,6 @@ import { createBuildLoader } from "../loader/createBuildLoader.js";
 import type {
   BuildTiming,
   CheckFilesExistReturn,
-  InputNormalizer,
   ReactStreamPluginMeta,
   ResolvedUserConfig,
   ResolvedUserOptions,
@@ -30,35 +24,14 @@ import { type StreamPluginOptions } from "../types.js";
 import { createWorker } from "../worker/createWorker.js";
 import { renderPages } from "../worker/html/renderPages.js";
 import { mkdir } from "node:fs/promises";
-import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { collectManifestClientFiles } from "../collect-manifest-client-files.js";
-import { mkdirSync, copyFileSync, Stats } from "node:fs";
+import { mkdirSync, copyFileSync } from "node:fs";
 
 let resolvedConfig: ResolvedConfig | null = null;
-let serverManifestPath: string | null = null;
-let clientManifestPath: string | null = null;
-let outpuptBundle: any;
-let outputOptions: any;
 let loader: ((id: string) => Promise<Record<string, any>>) | null = null;
 let worker: Worker;
 let htmlTransform: IndexHtmlTransformHook | null = null;
-let filesToEmit = new Map<
-  string,
-  { source: string; parentUrl: string; originalFileName: string }
->();
 let clientAssets = new Set<string>();
-let htmlEntries = new Set<string>();
-let htmlContent = new Map<string, string>();
-
-function formatDuration(seconds: number): string {
-  if (seconds < 0.001) {
-    return `${(seconds * 1000000).toFixed(0)}μs`;
-  }
-  if (seconds < 1) {
-    return `${(seconds * 1000).toFixed(0)}ms`;
-  }
-  return `${seconds.toFixed(2)}s`;
-}
 
 export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   meta: ReactStreamPluginMeta;
@@ -68,16 +41,12 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   };
 
   let files: CheckFilesExistReturn;
-  let clientComponents = new Set<string>();
-  let buildCssFiles = new Set<string>();
   let root: string = process.cwd();
   let userConfig: ResolvedUserConfig;
   let userOptions: ResolvedUserOptions;
-  let normalizer: InputNormalizer;
   let resolvedPages: string[];
   let serverManifest: Manifest = {};
   let clientManifest: Manifest = {};
-
 
   const resolvedOptions = resolveOptions(options, false);
   if (resolvedOptions.type === "error") {
@@ -98,14 +67,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     );
   }
 
-  normalizer = createInputNormalizer({
-    root: root,
-    removeExtension: true,
-    preserveModulesRoot:
-      userOptions.build.preserveModulesRoot === true
-        ? userOptions.moduleBase
-        : undefined,
-  });
   return {
     name: "vite:plugin-react-server/static",
     enforce: "post",
@@ -185,14 +146,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         mode: (resolvedConfig?.mode ?? "production") as "production" | "development",
       });
 
-      if (!resolvedPages) {
-        const resolvedPagesResult = await resolvePages(userOptions.build.pages);
-        if (resolvedPagesResult.type === "error") {
-          throw resolvedPagesResult.error;
-        }
-        resolvedPages = resolvedPagesResult.pages;
-      }
-
       if (typeof loader !== "function") {
         loader = createBuildLoader({
           root: root,
@@ -215,7 +168,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         pagePath: 'index.html',
         moduleBase: userOptions.moduleBase,
         preserveModulesRoot: userOptions.build.preserveModulesRoot,
-        onClientModule: (css, parentUrl) => {
+        onClientModule: (css) => {
           // copy the css file to the static directory
           const targetPath = join(root, userOptions.build.outDir, userOptions.build.client, css);
           const destinationPath = join(root, userOptions.build.outDir, userOptions.build.static, css);
@@ -245,7 +198,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             },
             testClient: userOptions.autoDiscover.cssPattern,
             testJson: userOptions.autoDiscover.jsonPattern,
-            testCss: userOptions.autoDiscover.cssPattern,
           });
           routeCssMap.set(route, new Set([...globalCss, ...pageCss.cssFiles.keys()]));
         }
@@ -256,17 +208,14 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           : clientManifest["index.html"].file]
       : [];
       
-      const { failedRoutes, completedRoutes } = await renderPages(
-        this,
+      const { failedRoutes, completedRoutes} = await renderPages(
         resolvedPages,
         files,
         {
+          outDir: userOptions.build.outDir,
+          htmlOutputPath: join(root, userOptions.build.outDir, userOptions.build.static, "index.html"),
           pipableStreamOptions: {
-            bootstrapModules: clientManifest["index.html"]?.file
-              ? [clientManifest["index.html"].file.startsWith("/")
-                  ? clientManifest["index.html"].file.slice(1)
-                  : clientManifest["index.html"].file]
-              : [],
+            bootstrapModules: bootstrapModules,
           },
           moduleBasePath: userOptions.moduleBase,
           moduleBaseURL: userOptions.moduleBaseURL,
@@ -277,7 +226,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           serverManifest,
           loader,
           transformIndexHtml: htmlTransform!,
-          onClientJSFile: (url: string, parentUrl: string) => {
+          onClientJSFile: (url) => {
             if (!clientAssets.has(url)) {
               const clientPath = join(root, userOptions.build.outDir, userOptions.build.client, url);
               const targetPath = join(root, userOptions.build.outDir, userOptions.build.static, url);
@@ -295,7 +244,9 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           failedRoutes
         );
       }
-
+      for(let completed of completedRoutes) {
+        console.log('Completed route', completed);
+      }
       await worker.terminate();
     },
   };

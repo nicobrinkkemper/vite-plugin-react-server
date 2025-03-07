@@ -6,7 +6,6 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
-import type { ResolveUserConfigReturn } from "../config/resolveUserConfig.js";
 /**
  * Plugin for transforming React Client Components.
  *

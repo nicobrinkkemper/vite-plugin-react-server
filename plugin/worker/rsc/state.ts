@@ -1,6 +1,3 @@
-import { createLogger } from "../../utils/logger.js";
-
-
 // Create shared CSS registry
 export const cssFiles = new Map<string, string>();
 export const clientFiles = new Set<string>();

@@ -69,7 +69,7 @@ export function createPageLoader({
   manifest,
   root,
   outDir,
-  moduleBase,
+  moduleBase: _moduleBase,
   alwaysRegisterServer,
   alwaysRegisterClient,
   registerServer,

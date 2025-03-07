@@ -20,10 +20,8 @@ export async function initialize(data: { port: MessagePort }) {
 
 // CSS file tracking per page
 const cssFilesByPage = new Map<string, Set<string>>();
-let currentPage: string | null = null;
 
 export function setCurrentPage(page: string | null) {
-  currentPage = page;
   if (page && !cssFilesByPage.has(page)) {
     cssFilesByPage.set(page, new Set());
   }

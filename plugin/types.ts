@@ -1,5 +1,3 @@
-import type { ComponentType } from "react";
-import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import type { PreRenderedChunk } from "rollup";
 import type { PreRenderedAsset } from "rollup";
 import type {
@@ -244,7 +242,7 @@ export interface BuildOutput {
 }
 
 export interface BuildConfig {
-  pages: string[] | (() => Promise<string[]> | string[]);
+  pages: string[] | (() => Promise<string[]> | string[]) | Promise<string[]>;
   assetsDir?: string;
   client?: string; // Output directory for client files
   server?: string; // Output directory for server files

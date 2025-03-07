@@ -91,8 +91,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^0.0.0-experimental-d55cc79b-20250228",
-    "react-dom": "^0.0.0-experimental-d55cc79b-20250228",
+    "react": "^0.0.0-experimental-f9d78089-20250306",
+    "react-dom": "^0.0.0-experimental-f9d78089-20250306",
     "vite": "*"
   },
   "peerDependenciesMeta": {

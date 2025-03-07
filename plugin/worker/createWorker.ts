@@ -1,7 +1,7 @@
 import { Worker, type ResourceLimits } from "node:worker_threads";
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
-import { join } from "node:path";
+
 type CreateWorkerOptions = {
   projectRoot?: string;
   condition?: "react-server" | "react-client";

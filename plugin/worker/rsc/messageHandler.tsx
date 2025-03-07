@@ -52,7 +52,7 @@ export async function messageHandler(message: RscWorkerMessage) {
       const PageComponent = Component[pageExportName];
       // Now render with collected CSS
       const stream = renderToPipeableStream(
-        <CssCollector cssFiles={Array.from(cssFiles.values())} moduleBasePath={moduleBasePath}>
+        <CssCollector cssFiles={Array.from(cssFiles.values())} moduleBaseUrl={moduleBasePath}>
           <PageComponent {...props} />
         </CssCollector>,
         moduleBaseURL,

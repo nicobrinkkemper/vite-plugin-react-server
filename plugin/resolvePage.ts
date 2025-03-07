@@ -1,3 +1,5 @@
+import { stashedPages } from "./config/resolvePages.js";
+
 type ResolvePageOptions = {
   pageModule: Record<string, any>;
   path: string;
@@ -16,6 +18,13 @@ export async function resolvePage({
   url,
   exportName,
 }: ResolvePageOptions): Promise<ResolvePageResult> {
+  if(stashedPages.length > 0 && stashedPages.includes(path)){
+    return {
+      type: "success",
+      key: path,
+      Page: pageModule,
+    }
+  }
   if (!pageModule) {
     return {
       type: "error",

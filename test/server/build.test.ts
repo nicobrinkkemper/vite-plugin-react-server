@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect,  beforeEach, afterEach } from 'vitest'
 import { build } from 'vite'
 import { resolve } from 'node:path'
 import { vitePluginReactServer } from '../../plugin/react-server/index.js'
@@ -15,7 +15,7 @@ describe('server build', async () => {
     setupTestProject(testDir)
   })
   afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true })
+   rmSync(testDir, { recursive: true, force: true })
   })
 
   it('builds client', async () => {

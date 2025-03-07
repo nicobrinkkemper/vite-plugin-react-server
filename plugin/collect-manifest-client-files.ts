@@ -42,8 +42,6 @@ export function collectManifestClientFiles({
   moduleBase,
   onCss,
   onClientModule,
-  testCss = DEFAULT_CONFIG.AUTO_DISCOVER.cssPattern,
-  testCssModule = DEFAULT_CONFIG.AUTO_DISCOVER.cssModulePattern,
   testClient = DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents,
   testJson = DEFAULT_CONFIG.AUTO_DISCOVER.jsonPattern,
 }: {
@@ -55,8 +53,6 @@ export function collectManifestClientFiles({
   onCss?: (path: string, parentUrl: string) => void;
   onClientModule?: (path: string, parentUrl: string) => void;
   parentUrl?: string;
-  testCss?: (id: string) => boolean;
-  testCssModule?: (id: string) => boolean;
   testClient?: (id: string) => boolean;
   testJson?: (id: string) => boolean;
 }) {
@@ -65,7 +61,7 @@ export function collectManifestClientFiles({
     removeExtension: true,
     preserveModulesRoot: preserveModulesRoot ? moduleBase : undefined,
   });
-  const [key, value] = normalizer(pagePath);
+  const [_, value] = normalizer(pagePath);
 
   const cssFiles = new Map<string, string>();
   const clientFiles = new Map<string, string>();

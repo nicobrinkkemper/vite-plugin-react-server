@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CheckFilesExistReturn, ResolvedUserOptions } from "./types.js";
-import { normalizePath } from "vite";
 import { createInputNormalizer } from "./helpers/inputNormalizer.js";
+
+let stashedFiles: CheckFilesExistReturn | null = null;
 
 const resolveFileOption = (pageOrProps: string | ((url: string) => string)) => {
   if (typeof pageOrProps === "string") {
@@ -16,6 +17,9 @@ export async function checkFilesExist(
   options: ResolvedUserOptions,
   root: string
 ): Promise<CheckFilesExistReturn> {
+  if(stashedFiles){
+    return stashedFiles;
+  }
   if (!root || root === "") {
     throw new Error("Root not found");
   }
@@ -57,6 +61,6 @@ export async function checkFilesExist(
     pageMap.set(pageKey, pageValue);
     propsMap.set(propsKey, propsValue);
   }
-
-  return { pageMap, pageSet, propsMap, propsSet, urlMap, errors };
+  stashedFiles = { pageMap, pageSet, propsMap, propsSet, urlMap, errors };
+  return stashedFiles;
 }
