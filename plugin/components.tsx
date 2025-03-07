@@ -15,9 +15,9 @@ export function CssCollector({
   route?: string;
 }) {
   // Calculate depth and prefix based on route
-  const depth = route.split('/').filter(Boolean).length;
+  const depth = route.split('/').filter(Boolean).length ;
   const prefix = depth > 0 ? '../'.repeat(depth) : './';
-  const base = typeof moduleBaseUrl === 'string' ? moduleBaseUrl : prefix;
+  const base = typeof moduleBaseUrl === 'string' && moduleBaseUrl !== '' ? moduleBaseUrl : prefix;
 
   return React.createElement(
     React.Fragment,

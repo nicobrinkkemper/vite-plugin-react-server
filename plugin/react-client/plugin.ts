@@ -12,7 +12,6 @@ import { dirname, join } from "node:path";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { checkFilesExist } from "../checkFilesExist.js";
 import { resolvePages } from "../config/resolvePages.js";
-import { tryManifest } from "../helpers/tryManifest.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { createWorker } from "../worker/createWorker.js";
 import type { Worker } from "node:worker_threads";
@@ -22,10 +21,9 @@ import type {
   RscWorkerMessage,
   RscWorkerResponse,
 } from "../worker/types.js";
-import { createLogger } from "../utils/logger.js";
-import { readFileSync } from "node:fs";
+import { MIME_TYPES } from "../config/mimeTypes.js";
 
-const log = createLogger("react-client");
+
 let userOptions: ResolvedUserOptions;
 let userConfig: ResolvedUserConfig;
 let clientManifest: Manifest = {};
@@ -143,84 +141,22 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         const [key, value] = normalize(req.url);
         const fileRoot = key.startsWith("node_modules")
           ? root
-          : join(root, userOptions.build.outDir, userOptions.build.client);
-        if (value.endsWith(".js")) {
-          try {
-            const stats = await stat(join(fileRoot, value));
-            if (stats.isFile()) {
-              const content = await readFile(join(fileRoot, value), "utf-8");
-              res.setHeader("Content-Type", "application/javascript");
-              res.end(content);
-              return;
-            } else {
-              next();
-            }
-          } catch (error) {
-            console.log("Error", error);
-            const { manifest: clientManifest } = tryManifest({
-              root,
-              outDir: join(userOptions.build.outDir, userOptions.build.client),
-            });
-            const { manifest: serverManifest } = tryManifest({
-              root,
-              outDir: join(userOptions.build.outDir, userOptions.build.server),
-            });
-            if (clientManifest && value in clientManifest) {
-              res.setHeader("Content-Type", "application/javascript");
-              res.end(clientManifest[value]);
-              return;
-            } else if (serverManifest && value in serverManifest) {
-              res.setHeader("Content-Type", "application/javascript");
-              res.end(serverManifest[value]);
-              return;
-            }
-            const foundClient =
-              clientManifest &&
-              Object.entries(clientManifest).find(
-                ([key, value]) =>
-                  value === key ||
-                  value === value.file ||
-                  value === value.src ||
-                  value === value.name
-              );
-            if (foundClient) {
-              res.setHeader("Content-Type", "application/javascript");
-              res.end(foundClient);
-              return;
-            }
-            const foundServer =
-              serverManifest &&
-              Object.entries(serverManifest).find(
-                ([key, value]) =>
-                  value === key ||
-                  value === value.file ||
-                  value === value.src ||
-                  value === value.name
-              );
-
-            if (foundServer) {
-              res.setHeader("Content-Type", "application/javascript");
-              res.end(foundServer);
-              return;
-            }
-            next();
+          : join(root, userOptions.build.outDir, userOptions.build.static);
+        try {
+          const filePath = join(fileRoot, value);
+          const stats = await stat(filePath);
+          
+          if (stats.isFile()) {
+            const ext = value.slice(value.lastIndexOf('.'));
+            const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+            res.setHeader('Content-Type', contentType);
+            const content = await readFile(filePath);
+            res.end(content);
+            return;
           }
-        } else {
-          let html = '';
-          try {
-            const last = value.split('/').pop();
-            if(!last?.includes('.')) {
-              const isDir = await stat(join(fileRoot, value));
-              if (isDir.isDirectory()) {
-                html = readFileSync(join(fileRoot, value, 'index.html'), 'utf-8');
-                res.setHeader("Content-Type", "text/html");
-                res.end(html);
-                return;
-              }
-            }
-          } catch (error) {
-            
-          }
+          next();
+        } catch (error) {
+          console.log("Error serving static file:", error);
           next();
         }
       });
@@ -231,13 +167,11 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         loader = server.ssrLoadModule;
       }
       if (!worker) {
-        log.info("Creating RSC worker...");
         worker = await createWorker({
           projectRoot: root,
           workerPath: userOptions.rscWorkerPath,
           condition: "react-client",
         });
-        log.info("RSC worker created");
       }
       const normalize = createInputNormalizer({
         root,
@@ -320,7 +254,6 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
 
                   case "ERROR":
                     clearTimeout(timeout);
-                    log.error("Render error", message);
                     if (!hasError) {
                       hasError = true;
                       res.statusCode = 500;
@@ -374,7 +307,6 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
               cssFiles: []
             } satisfies RscRenderMessage);
           } catch (error) {
-            log.error("Middleware error:", error);
             res.statusCode = 500;
             res.end(error instanceof Error ? error.message : String(error));
           }

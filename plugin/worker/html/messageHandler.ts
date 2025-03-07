@@ -7,7 +7,6 @@ import {
   createFromNodeStream,
   // @ts-ignore
 } from "react-server-dom-esm/client.node";
-import { join } from "path";
 
 // Track active renders and streams
 const activeRenders = new Map<string, HtmlRenderState>();
@@ -29,7 +28,7 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
             moduleRootPath,
             moduleBaseURL,
             outDir: '',
-            htmlOutputPath: htmlOutputPath ?? join(process.cwd(), 'index.html'),
+            htmlOutputPath: htmlOutputPath,
             pipableStreamOptions: pipableStreamOptions,
           });
         } else {
@@ -91,8 +90,8 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
               // Calculate relative paths based on route depth
               bootstrapModules: render.pipableStreamOptions?.bootstrapModules?.map(path => {
                 if (!path) return path;
-                const depth = id.split('/').filter(Boolean).length;
-                const prefix = depth > 0 ? '../'.repeat(depth) : './';
+                const depth = id.split('/').filter(Boolean).length ;
+                const prefix = depth > 0 ? '../'.repeat(depth) : '/';
                 return path.startsWith('/') ? prefix + path.slice(1) : prefix + path;
               }),
               onShellReady() {

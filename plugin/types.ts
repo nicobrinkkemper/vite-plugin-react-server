@@ -175,6 +175,8 @@ export interface CreateHandlerOptions<T = any> {
   loader: (id: string) => Promise<T>;
   clientManifest?: import("vite").Manifest;
   serverManifest?: import("vite").Manifest;
+  moduleBasePath: string;
+  moduleBaseURL: string;
   moduleGraph?: import("vite").ModuleGraph;
   cssFiles?: string[];
   cssModules?: Set<string>;

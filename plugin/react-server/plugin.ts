@@ -21,9 +21,11 @@ import type {
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { createHandler } from "../helpers/createHandler.js";
-import { mkdir,  writeFile } from "node:fs/promises";
+import { mkdir,  readFile,  stat,  writeFile } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import type { ServerResponse } from "node:http";
+import { createInputNormalizer } from "../helpers/inputNormalizer.js";
+import { MIME_TYPES } from "../config/mimeTypes.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let serverManifestPath: string | null = null;
@@ -103,6 +105,45 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         );
       }
     },
+    
+    async configurePreviewServer(server) {
+      if (root !== server.config.root) {
+        root = server.config.root;
+      }
+      if (typeof loader !== "function") {
+        loader = (id: string) => import(id);
+      }
+      const normalize = createInputNormalizer({
+        root,
+        removeExtension: false,
+        preserveModulesRoot: userOptions.build.preserveModulesRoot
+          ? userOptions.moduleBase
+          : undefined,
+      });
+      server.middlewares.use(async (req, res, next) => {
+        const [key, value] = normalize(req.url);
+        const fileRoot = key.startsWith("node_modules")
+          ? root
+          : join(root, userOptions.build.outDir, userOptions.build.static);
+        try {
+          const filePath = join(fileRoot, value);
+          const stats = await stat(filePath);
+          
+          if (stats.isFile()) {
+            const ext = value.slice(value.lastIndexOf('.'));
+            const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+            res.setHeader('Content-Type', contentType);
+            const content = await readFile(filePath);
+            res.end(content);
+            return;
+          }
+          next();
+        } catch (error) {
+          console.log("Error serving static file:", error);
+          next();
+        }
+      });
+    },
     async configureServer(server: ViteDevServer) {
       if (typeof loader !== "function") {
         loader = server.ssrLoadModule;
@@ -146,9 +187,10 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         if (typeof loader !== "function") {
           loader = server.ssrLoadModule;
         }
+        const route = req.url?.replace('/index.rsc', '');
         try {
           const handler = await createHandler({
-            url: req.url ?? "",
+            url: !route || route === "" ? "/" : route,
             urlMap: files.urlMap,
             pluginOptions: {
               ...userOptions,
@@ -161,6 +203,8 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
               logger: createLogger(),
               loader,
               moduleGraph: server.moduleGraph,
+              moduleBasePath: '',
+              moduleBaseURL: '',
             }
           });
           if (handler.type === "success") {

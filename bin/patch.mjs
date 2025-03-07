@@ -13,8 +13,6 @@ async function patchReactExperimental() {
   try {
     // Read installed React version from user's project
     
-    const installedVersion = React.version
-    const PATCH_RECONCILER_VERSION = installedVersion.replace('19.1.0', '0.0.0')
     if(TEMPLATE_VERSION === PATCH_RECONCILER_VERSION) {
         console.log('React version is patched')
     }
@@ -24,6 +22,14 @@ async function patchReactExperimental() {
       {
         template: `../scripts/react-server-dom-esm+${TEMPLATE_VERSION}.patch`,
         output: `react-server-dom-esm+${STUB_VERSION}.patch`
+      },
+      {
+        template: `../scripts/react+${TEMPLATE_VERSION}.patch`,
+        output: `react+${PATCH_RECONCILER_VERSION}.patch`
+      },
+      {
+        template: `../scripts/react-dom+${TEMPLATE_VERSION}.patch`,
+        output: `react-dom+${PATCH_RECONCILER_VERSION}.patch`
       },
     ]
 

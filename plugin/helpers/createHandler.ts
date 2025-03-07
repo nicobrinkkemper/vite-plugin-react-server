@@ -16,8 +16,8 @@ type CreateHandlerResult =
   | { type: "skip" };
 
 interface HandlerAssets {
-  css: Set<string>;
-  clientPath: string;
+  css: string[];
+  bootstrapModules: string[];
 }
 
 export async function createHandler<T>({
@@ -113,7 +113,8 @@ export async function createHandler<T>({
     Html: Html,
     Page: PageModule[pageExportName as keyof typeof PageModule],
     props: PropsModule[propsExportName as keyof typeof PropsModule],
-    moduleBasePath: '',
+    moduleBasePath: streamOptions.moduleBasePath,
+    moduleBaseURL: streamOptions.moduleBaseURL,
     logger: streamOptions.logger ?? createLogger(),
     cssFiles: Array.from(cssModules),
     route: url,
@@ -131,15 +132,14 @@ export async function createHandler<T>({
   }
 
   const assets: HandlerAssets = {
-    css: new Set(cssFiles ?? []),
-    clientPath: urlMap.get(url)?.page ?? ''
+    css: Array.from(cssModules).concat(cssFiles ?? []),
+    bootstrapModules: streamOptions.pipableStreamOptions?.bootstrapModules ?? [],
   };
-
   return {
     type: "success",
     controller,
     stream,
     assets,
-    clientPath: assets.clientPath,
+    clientPath: urlMap.get(url)?.page ?? '',
   };
 }

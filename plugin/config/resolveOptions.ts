@@ -300,13 +300,11 @@ export const resolveOptions = (
   const moduleBasePath =
     typeof options.moduleBasePath === "string"
       ? options.moduleBasePath
-      : options.moduleBase.startsWith("/")
-      ? options.moduleBase
-      : "/" + options.moduleBase;
+      : DEFAULT_CONFIG.MODULE_BASE_PATH;
   const moduleBaseURL =
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
-      : moduleBasePath ?? DEFAULT_CONFIG.MODULE_BASE_URL;
+      : DEFAULT_CONFIG.MODULE_BASE_URL;
   const rscWorkerPath =
     typeof options.rscWorkerPath === "string"
       ? join(projectRoot, options.rscWorkerPath)

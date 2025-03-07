@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { Transform } from "node:stream";
 import type { Worker } from "node:worker_threads";
 import { createHandler } from "../../helpers/createHandler.js";
@@ -58,7 +58,7 @@ export async function renderPages(
   const completedRoutes = new Set<string>();
   const clientCss = options.clientCss ?? [];
   const partialPageData = new Map<string, Partial<PageData>>();
-
+  
   const mergeAndSendPageData = async (route: string, resolve: () => void) => {
     const partial = partialPageData.get(route);
     if (!partial?.html || !partial.rsc) {
@@ -72,14 +72,16 @@ export async function renderPages(
     };
 
     // Write RSC file
-    const rscOutputPath = options.htmlOutputPath.replace(".html", ".rsc");
-    await mkdir(dirname(rscOutputPath), { recursive: true });
-    await writeFile(rscOutputPath, partial.rsc.content);
-
+    console.log('route', route)
     // Write HTML file
-    const htmlOutputPath = options.htmlOutputPath;
-    await mkdir(dirname(htmlOutputPath), { recursive: true });
-    await writeFile(htmlOutputPath, partial.html.raw);
+    let routeHtmlPath = route === '/' ? options.htmlOutputPath : options.htmlOutputPath.replace('index.html', join(route, 'index.html'));
+    if(routeHtmlPath.startsWith('/')) {
+      routeHtmlPath = routeHtmlPath.slice(1);
+    }
+    const routeRscPath = routeHtmlPath.slice(0, -5) + '.rsc';
+    await mkdir(dirname(routeHtmlPath), { recursive: true });
+    await writeFile(routeRscPath, partial.rsc.content);    
+    await writeFile(routeHtmlPath, partial.html.raw);
 
     await options.onPage?.(pageData);
     completedRoutes.add(route);
@@ -151,6 +153,8 @@ export async function renderPages(
           clientManifest: options.clientManifest,
           serverManifest: options.serverManifest,
           cssFiles: clientCss,
+          moduleBasePath: '',
+          moduleBaseURL: '',
           pipableStreamOptions: {
             ...options.pipableStreamOptions,
             importMap: {
@@ -172,6 +176,8 @@ export async function renderPages(
           clientManifest: options.clientManifest,
           serverManifest: options.serverManifest,
           cssFiles: clientCss,
+          moduleBasePath: '',
+          moduleBaseURL: '',
           pipableStreamOptions: {
             ...options.pipableStreamOptions,
             importMap: {

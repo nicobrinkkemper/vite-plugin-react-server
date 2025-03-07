@@ -10,6 +10,7 @@ export function createRscStream({
   Page,
   props,
   moduleBasePath,
+  moduleBaseURL,
   logger,
   cssFiles = [],
   route,
@@ -21,6 +22,7 @@ export function createRscStream({
   Page: React.ComponentType<any>;
   props: any;
   moduleBasePath: string;
+  moduleBaseURL: string;
   logger: Logger;
   cssFiles?: string[];
   route: string;
@@ -32,6 +34,12 @@ export function createRscStream({
   if (!htmlIsFragment) {
     if (!htmlProps) {
       htmlProps = {};
+    }
+    if(!("moduleBaseUrl" in htmlProps)) {
+      htmlProps["moduleBaseUrl"] = moduleBaseURL;
+    }
+    if(!("moduleBasePath" in htmlProps)) {
+      htmlProps["moduleBasePath"] = moduleBasePath;
     }
     if (!("url" in htmlProps)) {
       htmlProps["url"] = url;
@@ -45,7 +53,7 @@ export function createRscStream({
   }
   const withCss = React.createElement(
     CssCollector,
-    { cssFiles, route },
+    { cssFiles, route, moduleBaseUrl: moduleBaseURL },
     React.createElement(Page, props)
   );
   // Otherwise wrap with Html component
@@ -53,7 +61,7 @@ export function createRscStream({
     ? withCss
     : React.createElement(Html, htmlProps, withCss);
   try {
-    return renderToPipeableStream(content, moduleBasePath, {
+    return renderToPipeableStream(content, moduleBaseURL, {
       onError: (error: Error) => {
         if (process.env["NODE_ENV"] === "development") {
           console.trace(error);

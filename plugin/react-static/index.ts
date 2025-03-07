@@ -1,0 +1,1 @@
+export { reactStaticPlugin } from "./plugin.js";

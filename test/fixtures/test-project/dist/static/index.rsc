@@ -1,0 +1,11 @@
+:N1741388013699.7546
+1:{"name":"CssCollector","env":"Server","key":null,"owner":null,"stack":[["createRscStream","/home/nico/code/vite-react-stream/plugin/helpers/createRscStream.ts",38,41],["createHandler","/home/nico/code/vite-react-stream/plugin/helpers/createHandler.ts",77,59],["async renderPages","/home/nico/code/vite-react-stream/plugin/worker/html/renderPages.ts",81,25],["async Object.closeBundle","/home/nico/code/vite-react-stream/plugin/react-static/plugin.ts",157,49]],"props":{"cssFiles":["page/test.module-DQe9Sq2h.css"],"route":"/","moduleBaseUrl":"","children":["$","$E(function m(){return __vite_ssr_import_0__.default.createElement(\"div\",{className:__vite_ssr_import_1__.default.Test},\"Page\")})",null,{"title":"Test"},null,[["createRscStream","/home/nico/code/vite-react-stream/plugin/helpers/createRscStream.ts",41,27],["createHandler","/home/nico/code/vite-react-stream/plugin/helpers/createHandler.ts",77,59],["async renderPages","/home/nico/code/vite-react-stream/plugin/worker/html/renderPages.ts",81,25],["async Object.closeBundle","/home/nico/code/vite-react-stream/plugin/react-static/plugin.ts",157,49]],1]}}
+0:D{"time":4.76772399999993}
+0:D"$1"
+0:D{"time":5.052180999999905}
+3:{"name":"m","env":"Server","key":null,"owner":null,"stack":[["createRscStream","/home/nico/code/vite-react-stream/plugin/helpers/createRscStream.ts",41,27],["createHandler","/home/nico/code/vite-react-stream/plugin/helpers/createHandler.ts",77,59],["async renderPages","/home/nico/code/vite-react-stream/plugin/worker/html/renderPages.ts",81,25],["async Object.closeBundle","/home/nico/code/vite-react-stream/plugin/react-static/plugin.ts",157,49]],"props":{"title":"Test"}}
+2:D{"time":5.587146999999959}
+2:D"$3"
+2:D{"time":5.653547000000003}
+2:["$","div",null,{"className":"_Test_1h7mj_1","children":"Page"},null,[["m","/home/nico/code/vite-react-stream/test/fixtures/test-project/dist/server/page/page.js",1,301]],1]
+0:[["$","link","page/test.module-DQe9Sq2h.css",{"rel":"stylesheet","href":"./page/test.module-DQe9Sq2h.css","precedence":"high"},null,[["","/home/nico/code/vite-react-stream/plugin/components.tsx",36,44],["CssCollector","/home/nico/code/vite-react-stream/plugin/components.tsx",14,17]],1],"$2"]

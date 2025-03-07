@@ -26,6 +26,7 @@ import { renderPages } from "../worker/html/renderPages.js";
 import { mkdir } from "node:fs/promises";
 import { collectManifestClientFiles } from "../collect-manifest-client-files.js";
 import { mkdirSync, copyFileSync } from "node:fs";
+import { copyDir } from "../copy-dir.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let loader: ((id: string) => Promise<Record<string, any>>) | null = null;
@@ -160,7 +161,9 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       // Collect CSS files per route
       const routeCssMap = new Map<string, Set<string>>();
       const globalCss = new Set<string>();
-
+      // copy whole client directory to static directory
+      await mkdir(staticDir, { recursive: true });
+      await copyDir(join(root, userOptions.build.outDir, userOptions.build.client), join(root, userOptions.build.outDir, userOptions.build.static));
       // Add global CSS from index.html - use client manifest
       const {cssFiles: indexCss} = collectManifestClientFiles({
         manifest: clientManifest,
@@ -168,13 +171,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         pagePath: 'index.html',
         moduleBase: userOptions.moduleBase,
         preserveModulesRoot: userOptions.build.preserveModulesRoot,
-        onClientModule: (css) => {
-          // copy the css file to the static directory
-          const targetPath = join(root, userOptions.build.outDir, userOptions.build.client, css);
-          const destinationPath = join(root, userOptions.build.outDir, userOptions.build.static, css);
-          mkdirSync(dirname(destinationPath), { recursive: true });
-          copyFileSync(targetPath, destinationPath);
-        },
         testClient: ()=>true,
       });
       indexCss.forEach((css) => globalCss.add(css));
@@ -213,11 +209,11 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         files,
         {
           outDir: userOptions.build.outDir,
-          htmlOutputPath: join(root, userOptions.build.outDir, userOptions.build.static, "index.html"),
+          htmlOutputPath: join( userOptions.build.outDir, userOptions.build.static, "index.html"),
           pipableStreamOptions: {
             bootstrapModules: bootstrapModules,
           },
-          moduleBasePath: userOptions.moduleBase,
+          moduleBasePath: join(root, userOptions.build.outDir, userOptions.build.client),
           moduleBaseURL: userOptions.moduleBaseURL,
           userConfig,
           pluginOptions: userOptions,
@@ -244,9 +240,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           failedRoutes
         );
       }
-      for(let completed of completedRoutes) {
-        console.log('Completed route', completed);
-      }
+      console.log(`Rendered ${completedRoutes.size} unique routes to ${join(userOptions.build.outDir, userOptions.build.static)}`);
       await worker.terminate();
     },
   };
