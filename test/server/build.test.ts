@@ -15,7 +15,7 @@ describe('server build', async () => {
     setupTestProject(testDir)
   })
   afterEach(() => {
-   // rmSync(testDir, { recursive: true, force: true })
+    rmSync(testDir, { recursive: true, force: true })
   })
 
   it('builds client', async () => {
