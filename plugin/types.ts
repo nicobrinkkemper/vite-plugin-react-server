@@ -89,7 +89,6 @@ export type ResolvedUserOptions = Required<
     | "serverEntry"
     | "moduleBaseExceptions"
     | "pipableStreamOptions"
-    | "moduleId"
   >
 > & {
   build: NonNullable<Required<StreamPluginOptions["build"]>>;
@@ -172,7 +171,6 @@ export interface StreamPluginOptions {
   build?: BuildConfig;
   moduleBaseExceptions?: string[];
   pipableStreamOptions?: PipeableStreamOptions;
-  moduleId?: (id: string, ssr: boolean) => string;
 }
 
 export interface CreateHandlerOptions<T = any> {

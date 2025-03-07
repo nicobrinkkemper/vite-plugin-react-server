@@ -334,26 +334,11 @@ export const resolveOptions = (
     vendorPattern: testVendor,
   };
 
-  const moduleId =
-    typeof options.moduleId === "function"
-      ? options.moduleId
-      : createModuleIdGenerator({
-          isProduction: process.env["NODE_ENV"] === "production",
-          inputRoot: projectRoot,
-          client: client,
-          server: server,
-          moduleBase: moduleBase,
-          preserveModulesRoot: preserveModulesRoot,
-          removeExtension: DEFAULT_CONFIG.FILE_REGEX,
-          imports: {},
-        });
-
   try {
     return {
       type: "success",
       userOptions: {
         projectRoot,
-        moduleId: moduleId,
         moduleBase,
         moduleBasePath,
         moduleBaseURL,
