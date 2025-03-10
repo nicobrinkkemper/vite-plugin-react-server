@@ -19,13 +19,15 @@
     ".": "./dist/plugin/index.js",
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",
+    "./static": "./dist/static.js",
     "./html-worker": "./dist/plugin/worker/html-worker.js",
     "./rsc-worker": "./dist/plugin/worker/rsc-worker.js",
     "./loader": "./dist/plugin/worker/loader.js",
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
-    "./css-loader": "./dist/plugin/loader/css-loader.js"
+    "./css-loader": "./dist/plugin/loader/css-loader.js",
+    "./components": "./dist/plugin/components.js"
   },
   "typesVersions": {
     "*": {
@@ -38,11 +40,17 @@
       "server": [
         "./dist/plugin/react-server/plugin.d.ts"
       ],
+      "static": [
+        "./dist/plugin/static/plugin.d.ts"
+      ],
       "worker": [
         "./dist/plugin/worker/worker.d.ts"
       ],
       "loader": [
         "./dist/plugin/worker/loader.d.ts"
+      ],
+      "components": [
+        "./dist/plugin/components.d.ts"
       ]
     }
   },
@@ -120,13 +128,13 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.11",
     "vitest": "^3.0.4",
-    "webpack-sources": "^3.2.3"
+    "webpack-sources": "^3.2.3",
+    "tsx": "^4.19.2"
   },
   "bin": {
     "check-react-version": "./scripts/check-react-version.mjs",
     "patch": "./bin/patch.mjs"
   },
   "dependencies": {
-    "tsx": "^4.19.2"
   }
 }

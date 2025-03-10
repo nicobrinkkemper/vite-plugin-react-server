@@ -301,8 +301,9 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
                 userOptions.build.preserveModulesRoot === true
                   ? userOptions.moduleBase
                   : "",
-              moduleBaseURL: ``,
-              moduleBasePath: '/',
+              moduleBaseURL: userOptions.moduleBaseURL,
+              moduleBasePath: userOptions.moduleBasePath,
+              moduleBase: userOptions.moduleBase,
               pipableStreamOptions: userOptions.pipableStreamOptions,
               cssFiles: []
             } satisfies RscRenderMessage);

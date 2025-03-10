@@ -1,3 +1,44 @@
+# All configurations:
+
+> Note: likely to change in the future, but these are all the allowed options and their intended function
+
+
+### moduleBase
+```ts
+import type { StreamPluginOptions } from "vite-plugin-react-server/server";
+
+const config = {
+  moduleBase: "src",
+```
+`src` is a convention, you can name it however you want.
+
+```ts
+  moduleBasePath: "",
+```
+This is used as the second argument to React's `renderToPipeableStream` for server-side rendering
+
+```ts
+  moduleBaseURL: packJson.homepage,
+```
+- Used in CSS collectors for asset URL resolution
+- Empty string means use relative paths
+- In production can be your CDN or deployment URL
+- Used for constructing URLs that the client browser will request
+- Leave empty or unset for relative paths
+- Example values:
+  - Development: "/" (no relative paths, force root)
+  - Production: "https://cdn.example.com/" or "/app/"
+
+> Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL matches your base path - or leave empty to opt in to relative paths.
+
+```ts
+  Page: (id)=>id
+```
+
+
+
+
+
 # Why you need both the Client and Server plugin
 
 The client and server plugin output to `dist/client` and `dist/server` respectively and should be build in this order. When the last step (server) is done and the bundle generation closes, it will generate static index.rsc and index.html files for all the configured routes.
@@ -118,8 +159,12 @@ Above should now output specific static html for each page in the dist/client di
 work as a static site.
 
 ```sh
-dist/client/index.html
-dist/client/index.rsc
-dist/client/about/index.html
-dist/client/about/index.rsc
+dist/static/index.html
+dist/static/index.rsc
+dist/static/about/index.html
+dist/static/about/index.rsc
 ```
+
+Aside from generating these html and rsc files, it copies the whole client directory to the static directory - which includes the public directory - just drag 'n drop the static folder to your host of choice.
+
+

@@ -18,6 +18,8 @@ export interface PipeableStreamOptions {
   onShellReady?: () => void;
   onAllReady?: () => void;
   onError?: (error: unknown) => void;
+  onPostpone?: (reason: string) => void;
+  environmentName?: string;
   importMap?: {
     imports?: Record<string, string>;
   };
@@ -65,6 +67,7 @@ export interface RscRenderMessage extends WorkerMessage {
   moduleRootPath: string;
   moduleBaseURL: string;
   moduleBasePath: string;
+  moduleBase: string;
   pipableStreamOptions: PipeableStreamOptions;
   cssFiles: string[];
 }
