@@ -16,16 +16,20 @@ import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import type {
   BuildTiming,
   CheckFilesExistReturn,
+  CssContent,
   ReactStreamPluginMeta,
   ResolvedUserOptions,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { createHandler } from "../helpers/createHandler.js";
-import { mkdir,  readFile,  stat,  writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import type { ServerResponse } from "node:http";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { MIME_TYPES } from "../config/mimeTypes.js";
+import { InlineCssCollector } from "../css-collector-inline.js";
+import { CssCollector } from "../css-collector.js";
+import { collectModuleGraphCss } from "../collect-manifest-client-files.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let serverManifestPath: string | null = null;
@@ -105,7 +109,7 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         );
       }
     },
-    
+
     async configurePreviewServer(server) {
       if (root !== server.config.root) {
         root = server.config.root;
@@ -128,11 +132,11 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         try {
           const filePath = join(fileRoot, value);
           const stats = await stat(filePath);
-          
+
           if (stats.isFile()) {
-            const ext = value.slice(value.lastIndexOf('.'));
-            const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-            res.setHeader('Content-Type', contentType);
+            const ext = value.slice(value.lastIndexOf("."));
+            const contentType = MIME_TYPES[ext] || "application/octet-stream";
+            res.setHeader("Content-Type", contentType);
             const content = await readFile(filePath);
             res.end(content);
             return;
@@ -187,25 +191,57 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         if (typeof loader !== "function") {
           loader = server.ssrLoadModule;
         }
-        const route = req.url?.replace('/index.rsc', '');
+        let route = req.url?.replace("/index.rsc", "");
+        if (!route || route === "") {
+          route = "/";
+        }
         try {
           const handler = await createHandler({
-            url: !route || route === "" ? "/" : route,
-            urlMap: files.urlMap,
-            pluginOptions: {
-              ...userOptions,
-              // we'll leave the Html generation for later
-              Html: React.Fragment,
-              projectRoot: root,
+            root: root,
+            url:
+              typeof userOptions.moduleBaseURL === "string" &&
+              userOptions.moduleBaseURL !== ""
+                ? new URL(route, userOptions.moduleBaseURL).href
+                : route,
+            route: route,
+            getCss: async (id) => {
+              const cssFiles = await collectModuleGraphCss({
+                moduleGraph: server.moduleGraph,
+                pagePath: id,
+                onCss: undefined,
+              })
+              if (userOptions.inlineCss) {
+                const InlineMap = new Map<string, CssContent>();
+                await Promise.all(Array.from(cssFiles.entries()).map(async ([file, fileUrl]) => {
+                  const content = await server.ssrLoadModule(fileUrl + "?inline");
+                  if (content) {
+                    InlineMap.set(file,  {
+                      content: content['default'],
+                      path: file,
+                      type: "text/css",
+                    });
+                  }
+                }));
+                return InlineMap;
+              }
+              return cssFiles;
             },
-            streamOptions: {
-              cssFiles: [],
-              logger: createLogger(),
-              loader,
-              moduleGraph: server.moduleGraph,
-              moduleBasePath: '',
-              moduleBaseURL: '',
-            }
+            cssFiles: [],
+            logger: createLogger(),
+            loader,
+            moduleBase: userOptions.moduleBase,
+            moduleBasePath: userOptions.moduleBasePath,
+            moduleBaseURL: userOptions.moduleBaseURL,
+            moduleRootPath: root,
+            pipableStreamOptions: userOptions.pipableStreamOptions,
+            Html: React.Fragment,
+            CssCollector: userOptions.inlineCss ? InlineCssCollector as any : CssCollector as any,
+            onCssFile: undefined,
+            inlineCss: userOptions.inlineCss,
+            propsPath: files.urlMap.get(route)?.props ?? route,
+            pagePath: files.urlMap.get(route)?.page ?? route,
+            pageExportName: userOptions.pageExportName,
+            propsExportName: userOptions.propsExportName,
           });
           if (handler.type === "success") {
             handler.stream?.pipe(res);

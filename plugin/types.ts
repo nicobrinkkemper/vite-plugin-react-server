@@ -65,7 +65,7 @@ export interface StreamPluginOptionsClient {
   cssFiles?: AliasOptions;
 }
 
-export type ResolvedUserOptions = Required<
+export type ResolvedUserOptions<InlineCSS extends boolean = boolean> = Required<
   Pick<
     StreamPluginOptions,
     | "moduleBase"
@@ -76,10 +76,12 @@ export type ResolvedUserOptions = Required<
     | "Page"
     | "props"
     | "Html"
+    | "CssCollector"
     | "pageExportName"
     | "propsExportName"
     | "collectCss"
     | "collectAssets"
+    | "inlineCss"
     | "htmlWorkerPath"
     | "rscWorkerPath"
     | "loaderPath"
@@ -89,7 +91,7 @@ export type ResolvedUserOptions = Required<
     | "pipableStreamOptions"
   >
 > & {
-  build: NonNullable<Required<StreamPluginOptions["build"]>>;
+  build: NonNullable<Required<StreamPluginOptions<InlineCSS>["build"]>>;
   autoDiscover: {
     modulePattern: (path: string) => boolean;
     cssPattern: (path: string) => boolean;
@@ -116,7 +118,7 @@ export type createBuildConfigFn<C extends "react-client" | "react-server"> =
     ? Promise<InlineConfig>
     : Promise<InlineConfig>;
 
-export interface StreamPluginOptions {
+export interface StreamPluginOptions<InlineCSS extends boolean = boolean> {
   projectRoot?: string;
   moduleBase: string;
   moduleBasePath?: string;
@@ -164,25 +166,38 @@ export interface StreamPluginOptions {
     url: string;
     children: React.ReactNode;
   }>;
+  CssCollector?: InlineCSS extends true ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>> : React.FC<React.PropsWithChildren<CssCollectorProps>>;
   collectCss?: boolean;
   collectAssets?: boolean;
+  inlineCss?: InlineCSS;
   build?: BuildConfig;
   moduleBaseExceptions?: string[];
   pipableStreamOptions?: PipeableStreamOptions;
 }
 
-export interface CreateHandlerOptions<T = any> {
+export interface CreateHandlerOptions<T = any, InlineCSS extends boolean = boolean> {
+  root: string;
+  url: string;
+  route: string;
+  getCss: (id: string) => Promise<Map<string, string | CssContent>> | Map<string, string | CssContent>;
   loader: (id: string) => Promise<T>;
-  clientManifest?: import("vite").Manifest;
-  serverManifest?: import("vite").Manifest;
+  Html: NonNullable<StreamPluginOptions['Html']>
+  CssCollector: InlineCSS extends true ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>> : React.FC<React.PropsWithChildren<CssCollectorProps>>;
+  inlineCss: InlineCSS;
+  propsPath?: string;
+  pagePath?: string;
+  pageExportName: string
+  propsExportName: string
+  moduleBase: string
+  preserveModulesRoot?: boolean | undefined
   moduleBasePath: string;
+  moduleRootPath: string;
   moduleBaseURL: string;
-  moduleGraph?: import("vite").ModuleGraph;
-  cssFiles?: string[];
-  cssModules?: Set<string>;
+  cssFiles: (string | CssContent)[];
+  cssModules?: Map<string, string | CssContent> | undefined;
   onCssFile?: (path: string, parentUrl: string) => void;
-  logger?: import("vite").Logger;
-  pipableStreamOptions?: PipeableStreamOptions;
+  logger: import("vite").Logger;
+  pipableStreamOptions: PipeableStreamOptions;
 }
 
 export type ModuleLoader = (
@@ -377,4 +392,31 @@ export interface PageData {
     content: string;
     modules: Array<[string, string]>; // [modulePath, exportName]
   };
+}
+
+export interface CssContent {
+  type?: string;
+  content: string;
+  key?: string;
+  path: string;
+}
+
+export interface InlineCssCollectorProps {
+  cssFiles: CssContent[];
+  root: string;
+  moduleBaseURL: string;
+  moduleBasePath: string;
+  moduleRootPath: string;
+  route: string;
+  children?: React.ReactNode;
+}
+
+export interface CssCollectorProps {
+  cssFiles: CssContent[];
+  root: string;
+  moduleBaseURL: string;
+  moduleBasePath: string;
+  moduleRootPath: string;
+  route: string;
+  children?: React.ReactNode;
 }

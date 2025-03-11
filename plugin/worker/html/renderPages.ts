@@ -5,60 +5,46 @@ import type { Worker } from "node:worker_threads";
 import { createHandler } from "../../helpers/createHandler.js";
 import type {
   CheckFilesExistReturn,
+  CreateHandlerOptions,
   PageData,
-  ResolvedUserConfig,
-  ResolvedUserOptions,
 } from "../../types.js";
 import type { HtmlWorkerResponse } from "../types.js";
-import type { Manifest, IndexHtmlTransformHook } from "vite";
+import { type Manifest, type IndexHtmlTransformHook, createLogger } from "vite";
 import React from "react";
+import { collectManifestClientFiles } from "../../collect-manifest-client-files.js";
 
-interface PipeableStreamOptions {
-  bootstrapModules?: string[];
-  bootstrapScripts?: string[];
-  bootstrapScriptContent?: string;
-  signal?: AbortSignal;
-  identifierPrefix?: string;
-  namespaceURI?: string;
-  nonce?: string;
-  progressiveChunkSize?: number;
-  onShellReady?: () => void;
-  onAllReady?: () => void;
-  onError?: (error: unknown) => void;
-  importMap?: {
-    imports?: Record<string, string>;
-  };
-}
-
-type RenderPagesOptions = {
-  pluginOptions: ResolvedUserOptions;
-  userConfig: ResolvedUserConfig;
+type RenderPagesOptions<T = any> = Omit<CreateHandlerOptions<T>, "url" | "route" | "getCss" | "propsPath" | "pagePath"> & {
   clientManifest: Manifest;
   serverManifest: Manifest;
   worker: Worker;
-  pipableStreamOptions?: PipeableStreamOptions;
   loader: (id: string) => Promise<Record<string, any>>;
   onCssFile?: (url: string, parentUrl: string) => void;
   onClientJSFile?: (url: string, parentUrl: string) => void;
   onPage?: (pageData: PageData) => Promise<void>;
   clientCss?: string[];
-  moduleBasePath: string;
-  moduleBaseURL: string;
   transformIndexHtml: IndexHtmlTransformHook;
   outDir: string;
   htmlOutputPath: string;
+  server?: any;
+  bundle?: any;
+  chunk?: any;
+  originalUrl?: string;
 };
 
-export async function renderPages(
+export async function renderPages<T = any>(
   routes: string[],
   files: CheckFilesExistReturn,
-  options: RenderPagesOptions
+  options: RenderPagesOptions<T>
 ) {
   const failedRoutes = new Map<string, Error>();
   const completedRoutes = new Set<string>();
   const clientCss = options.clientCss ?? [];
   const partialPageData = new Map<string, Partial<PageData>>();
-  
+  const moduleRootPath =
+    options.moduleBasePath !== "" &&
+    !options.moduleRootPath.endsWith(options.moduleBasePath)
+      ? join(options.moduleRootPath, options.moduleBasePath)
+      : options.moduleRootPath;
   const mergeAndSendPageData = async (route: string, resolve: () => void) => {
     const partial = partialPageData.get(route);
     if (!partial?.html || !partial.rsc) {
@@ -71,16 +57,20 @@ export async function renderPages(
       rsc: partial.rsc,
     };
 
-    // Write RSC file
-    console.log('route', route)
     // Write HTML file
-    let routeHtmlPath = route === '/' ? options.htmlOutputPath : options.htmlOutputPath.replace('index.html', join(route, 'index.html'));
-    if(routeHtmlPath.startsWith('/')) {
+    let routeHtmlPath =
+      route === "/"
+        ? options.htmlOutputPath
+        : options.htmlOutputPath.replace(
+            "index.html",
+            join(route, "index.html")
+          );
+    if (routeHtmlPath.startsWith("/")) {
       routeHtmlPath = routeHtmlPath.slice(1);
     }
-    const routeRscPath = routeHtmlPath.slice(0, -5) + '.rsc';
+    const routeRscPath = routeHtmlPath.slice(0, -5) + ".rsc";
     await mkdir(dirname(routeHtmlPath), { recursive: true });
-    await writeFile(routeRscPath, partial.rsc.content);    
+    await writeFile(routeRscPath, partial.rsc.content);
     await writeFile(routeHtmlPath, partial.html.raw);
 
     await options.onPage?.(pageData);
@@ -102,7 +92,13 @@ export async function renderPages(
 
               partial.html = {
                 raw: html,
-                transformed: "", // Will be set by main thread transform
+                transformed:
+                  typeof options.transformIndexHtml === "function"
+                    ? String(await options.transformIndexHtml(id, {
+                        path: id,
+                        filename: join(id, "index.html"),
+                      }) || "")
+                    : "", // Will be set by main thread transform
                 assets: [],
               };
               partialPageData.set(id, partial);
@@ -139,54 +135,62 @@ export async function renderPages(
           options.onClientJSFile?.(value, route);
         }
       }
-
+      const getCss = async (id: string) => {
+        const cssFiles = collectManifestClientFiles({
+          manifest: options.serverManifest,
+          root: options.root,
+          pagePath: id,
+        }).cssFiles;
+        return cssFiles;
+      }
+      const pagePath = files.urlMap.get(route)?.page;
+      const propsPath = files.urlMap.get(route)?.props;
+      if(!pagePath){
+        throw new Error(`No page path found for ${route}`);
+      }
       // Create handler for pure RSC output
       const rscResult = await createHandler({
+        root: options.root,
         url: route,
-        urlMap: files.urlMap,
-        pluginOptions: {
-          ...options.pluginOptions,
-          Html: React.Fragment, // Use Fragment for pure RSC output
-        },
-        streamOptions: {
-          loader: options.loader,
-          clientManifest: options.clientManifest,
-          serverManifest: options.serverManifest,
-          cssFiles: clientCss,
-          moduleBasePath: '',
-          moduleBaseURL: '',
-          pipableStreamOptions: {
-            ...options.pipableStreamOptions,
-            importMap: {
-              imports: {
-                ...options.pipableStreamOptions?.importMap?.imports,
-              },
-            },
-          },
-        },
+        route: route,
+        getCss: getCss,
+        loader: options.loader,
+        cssFiles: clientCss,
+        moduleBase: options.moduleBase,
+        moduleBasePath: options.moduleBasePath,
+        moduleRootPath: moduleRootPath,
+        moduleBaseURL: options.moduleBaseURL,
+        pipableStreamOptions: options.pipableStreamOptions ?? {},
+        inlineCss: options.inlineCss,
+        Html: React.Fragment,
+        CssCollector: options.CssCollector,
+        pagePath: pagePath,
+        propsPath: propsPath,
+        pageExportName: options.pageExportName,
+        propsExportName: options.propsExportName,
+        logger: createLogger(),
       });
-
       // Create handler for HTML output
       const htmlResult = await createHandler({
+        root: options.root,
         url: route,
-        urlMap: files.urlMap,
-        pluginOptions: options.pluginOptions,
-        streamOptions: {
-          loader: options.loader,
-          clientManifest: options.clientManifest,
-          serverManifest: options.serverManifest,
-          cssFiles: clientCss,
-          moduleBasePath: '',
-          moduleBaseURL: '',
-          pipableStreamOptions: {
-            ...options.pipableStreamOptions,
-            importMap: {
-              imports: {
-                ...options.pipableStreamOptions?.importMap?.imports,
-              },
-            },
-          },
-        },
+        route: route,
+        getCss: getCss,
+        loader: options.loader,
+        cssFiles: clientCss,
+        moduleBase: options.moduleBase,
+        moduleBasePath: options.moduleBasePath,
+        moduleRootPath: moduleRootPath,
+        moduleBaseURL: options.moduleBaseURL,
+        pipableStreamOptions: options.pipableStreamOptions,
+        inlineCss: options.inlineCss,
+        Html: options.Html,
+        CssCollector: options.CssCollector,
+        pagePath: pagePath,
+        propsPath: propsPath,
+        pageExportName: options.pageExportName,
+        propsExportName: options.propsExportName,
+        logger: createLogger(),
       });
 
       if (rscResult.type !== "success" || htmlResult.type !== "success") {
@@ -254,7 +258,7 @@ export async function renderPages(
                   type: "RSC_CHUNK",
                   id: route,
                   chunk: chunk.toString(),
-                  moduleRootPath: options.moduleBasePath,
+                  moduleRootPath: moduleRootPath,
                   moduleBaseURL: options.moduleBaseURL,
                   htmlOutputPath: options.htmlOutputPath,
                   pipableStreamOptions: options.pipableStreamOptions,

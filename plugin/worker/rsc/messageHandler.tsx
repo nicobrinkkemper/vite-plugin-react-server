@@ -2,17 +2,15 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { parentPort } from "node:worker_threads";
 import React from "react";
-import {
-  renderToPipeableStream,
-  // @ts-ignore
-} from "react-server-dom-esm/server.node";
 import type {
   RscChunkMessage,
   RscEndMessage,
   RscWorkerMessage,
 } from "../types.js";
 import { addCssFile, cssFiles } from "./state.js";
-import { CssCollector } from "../../components.js";
+import { InlineCssCollector } from "../../css-collector-inline.js";
+import { createRscStream } from "../../helpers/createRscStream.js";
+import { createLogger } from "vite";
 
 export async function messageHandler(message: RscWorkerMessage) {
   switch (message.type) {
@@ -26,8 +24,10 @@ export async function messageHandler(message: RscWorkerMessage) {
         url,
         outDir,
         projectRoot,
+        moduleRootPath,
         moduleBaseURL,
         moduleBasePath,
+        moduleBase,
         pipableStreamOptions,
       } = message;
 
@@ -46,17 +46,34 @@ export async function messageHandler(message: RscWorkerMessage) {
         );
 
         const PageComponent = Component[pageExportName];
-        // Now render with collected CSS
-        const stream = renderToPipeableStream(
-          <CssCollector
-            cssFiles={Array.from(cssFiles.values())}
-            moduleBaseUrl={moduleBaseURL}
-          >
-            <PageComponent {...props} />
-          </CssCollector>,
+
+        // Create stream using the helper
+        const stream = createRscStream({
+          Html: React.Fragment,
+          Page: PageComponent,
+          CssCollector: InlineCssCollector,
+          loader: (id: string) => import(id).then((m) => m.default),
+          props,
+          moduleBase,
+          moduleRootPath,
+          moduleBasePath,
           moduleBaseURL,
-          {
-            onError: (error: Error) => {
+          logger: createLogger(),
+          inlineCss: true,
+          cssFiles: Array.from(cssFiles.values()).map((css) => ({
+            type: "text/css",
+            content: css,
+            path: css,
+          })),
+          route: url,
+          url: typeof moduleBaseURL === "string" && moduleBaseURL !== "" ? new URL(url, moduleBaseURL).toString() : url,
+          root: projectRoot,
+          pipableStreamOptions: {
+            ...pipableStreamOptions,
+            onError: (error: unknown) => {
+              if (typeof pipableStreamOptions.onError === "function") {
+                pipableStreamOptions.onError(error);
+              }
               parentPort?.postMessage({
                 type: "ERROR",
                 id,
@@ -64,26 +81,24 @@ export async function messageHandler(message: RscWorkerMessage) {
               });
             },
             onPostpone: (reason: string) => {
+              if (typeof pipableStreamOptions.onPostpone === "function") {
+                pipableStreamOptions.onPostpone(reason);
+              }
               parentPort?.postMessage({
                 type: "POSTPONE",
                 id,
                 reason,
               });
             },
-            environmentName: "Server",
-            importMap: {
-              imports: {
-                ...pipableStreamOptions?.importMap?.imports,
-                "/": moduleBasePath,
-              },
-            },
-            ...pipableStreamOptions,
-          }
-        );
+          },
+        });
+
+        if (!stream) {
+          throw new Error("Failed to create stream");
+        }
 
         // Listen for data and end events
         const passThrough = new PassThrough();
-
         stream.pipe(passThrough);
 
         passThrough.on("data", (chunk) => {

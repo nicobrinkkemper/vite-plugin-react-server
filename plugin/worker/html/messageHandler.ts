@@ -60,7 +60,7 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
         const reactElements = await createFromNodeStream(
           rscStream,
           render.moduleRootPath,
-          'localhost'
+          render.moduleBaseURL
         );
 
         // Create a promise that resolves when HTML is complete
@@ -90,7 +90,10 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
               // Calculate relative paths based on route depth
               bootstrapModules: render.pipableStreamOptions?.bootstrapModules?.map(path => {
                 if (!path) return path;
-                const depth = id.split('/').filter(Boolean).length ;
+                if(render.moduleBaseURL && render.moduleBaseURL !== '') {
+                  return new URL(path, render.moduleBaseURL).toString();
+                }
+                const depth = id.split('/').filter(Boolean).length;
                 const prefix = depth > 0 ? '../'.repeat(depth) : '/';
                 return path.startsWith('/') ? prefix + path.slice(1) : prefix + path;
               }),

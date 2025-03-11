@@ -1,4 +1,5 @@
-import React from "react";
+import { CssCollector } from "../css-collector.js";
+import { Html } from "../html.js";
 export const DEFAULT_CONFIG = {
   FILE_REGEX: /\.(m|c)?(j|t)sx?$/,
   CLIENT_ASSETS_DIR: "assets",
@@ -20,16 +21,11 @@ export const DEFAULT_CONFIG = {
   }.js`,
   LOADER_PATH: "worker/loader.js",
   RSC_EXTENSION: ".rsc",
-  HTML: ({ children }: { children: any }) => (
-    <html>
-      <head></head>
-      <body>
-        <div id="root">{children}</div>
-      </body>
-    </html>
-  ),
+  CSS_COLLECTOR: CssCollector,
+  HTML: Html,
   COLLECT_CSS: true,
   COLLECT_ASSETS: true,
+  INLINE_CSS: true,
   DEV_PORT: 5173,
   PREVIEW_PORT: 4173,
   DEV_HOST: "localhost",
@@ -45,6 +41,11 @@ export const DEFAULT_CONFIG = {
     assetsDir: "assets",
     hash: "hash",
     preserveModulesRoot: true,
+  },
+  CSS: {
+    inlineThreshold: 4096, // 4KB
+    inlinePatterns: [/\.module\.css$/], // Always inline CSS modules
+    linkPatterns: [/node_modules/], // Always link node_modules CSS
   },
   MODULE_BASE_EXCEPTIONS: [] as string[],
   AUTO_DISCOVER: {

@@ -6,6 +6,7 @@ import {
   type Manifest,
   type IndexHtmlTransformHook,
   type Plugin as VitePlugin,
+  createLogger,
 } from "vite";
 import { checkFilesExist } from "../checkFilesExist.js";
 import { resolveOptions } from "../config/resolveOptions.js";
@@ -45,7 +46,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   let root: string = process.cwd();
   let userConfig: ResolvedUserConfig;
   let userOptions: ResolvedUserOptions;
-  let resolvedPages: string[];
+  let pages: string[];
   let serverManifest: Manifest = {};
   let clientManifest: Manifest = {};
 
@@ -83,12 +84,12 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       ) {
         root = config.root;
       }
-      const resolvedPagesResult = await resolvePages(userOptions.build.pages);
-      if (resolvedPagesResult.type === "error") {
-        throw resolvedPagesResult.error;
+      const resolvePagesResult = await resolvePages(userOptions.build.pages);
+      if (resolvePagesResult.type === "error") {
+        throw resolvePagesResult.error;
       }
-      resolvedPages = resolvedPagesResult.pages;
-      files = await checkFilesExist(resolvedPages, userOptions, root);
+      pages = resolvePagesResult.pages;
+      files = await checkFilesExist(pages, userOptions, root);
 
       const resolvedConfig = resolveUserConfig({
         isStatic: true,
@@ -176,7 +177,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       indexCss.forEach((css) => globalCss.add(css));
 
       // Add CSS for each route's page component - use server manifest
-      for (const route of resolvedPages) {
+      for (const route of pages) {
         const routeFiles = files.urlMap.get(route);
         if (routeFiles) {
           const pageCss = collectManifestClientFiles({
@@ -205,18 +206,26 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       : [];
       
       const { failedRoutes, completedRoutes} = await renderPages(
-        resolvedPages,
+        pages,
         files,
         {
+          root: root,
           outDir: userOptions.build.outDir,
           htmlOutputPath: join( userOptions.build.outDir, userOptions.build.static, "index.html"),
           pipableStreamOptions: {
             bootstrapModules: bootstrapModules,
           },
-          moduleBasePath: join(root, userOptions.build.outDir, userOptions.build.client),
+          moduleRootPath: join(root, userOptions.build.outDir, userOptions.build.static, userOptions.moduleBasePath),
+          moduleBasePath: userOptions.moduleBasePath,
           moduleBaseURL: userOptions.moduleBaseURL,
-          userConfig,
-          pluginOptions: userOptions,
+          inlineCss: userOptions.inlineCss,
+          pageExportName: userOptions.pageExportName,
+          propsExportName: userOptions.propsExportName,
+          Html: userOptions.Html,
+          CssCollector: userOptions.CssCollector,
+          cssFiles: [],
+          logger: createLogger(),
+          moduleBase: userOptions.moduleBase,
           worker,
           clientManifest,
           serverManifest,

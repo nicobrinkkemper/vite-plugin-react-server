@@ -1,9 +1,11 @@
 import type { PreRenderedAsset } from "rollup";
 import type { PreRenderedChunk } from "rollup";
-import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
+import type { StreamPluginOptions, ResolvedUserOptions, InlineCssCollectorProps, CssCollectorProps } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
+import { InlineCssCollector } from "../css-collector-inline.js";
+import { CssCollector } from "../css-collector.js";
 
 const resolveAutoDiscoverMatcher = (
   options: undefined | string | RegExp | ((path: string) => boolean),
@@ -52,11 +54,11 @@ const applyPattern = (
   return path;
 };
 
-export const resolveOptions = (
-  options: StreamPluginOptions,
+export const resolveOptions = <InlineCSS extends boolean = boolean>(
+  options: StreamPluginOptions<InlineCSS>,
   isClient: boolean
 ):
-  | { type: "success"; userOptions: ResolvedUserOptions }
+  | { type: "success"; userOptions: ResolvedUserOptions<InlineCSS> }
   | { type: "error"; error: Error } => {
   const projectRoot = options.projectRoot ?? process.cwd();
   const {
@@ -329,7 +331,8 @@ export const resolveOptions = (
     cssModulePattern: testCssModule,
     vendorPattern: testVendor,
   };
-
+  const inlineCss = options.inlineCss;
+  const InlineOrLinkCssCollector = options.CssCollector ?? inlineCss ? InlineCssCollector : CssCollector;
   try {
     return {
       type: "success",
@@ -342,10 +345,12 @@ export const resolveOptions = (
         Page: options.Page ?? DEFAULT_CONFIG.PAGE,
         props: options.props ?? DEFAULT_CONFIG.PROPS,
         Html: options.Html ?? DEFAULT_CONFIG.HTML,
+        CssCollector: InlineOrLinkCssCollector as InlineCSS extends true ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>> : React.FC<React.PropsWithChildren<CssCollectorProps>>,
         pageExportName: pageExportName,
         propsExportName: propsExportName,
         collectCss: options.collectCss ?? DEFAULT_CONFIG.COLLECT_CSS,
         collectAssets: options.collectAssets ?? DEFAULT_CONFIG.COLLECT_ASSETS,
+        inlineCss: options.inlineCss ?? DEFAULT_CONFIG.INLINE_CSS,
         htmlWorkerPath: htmlWorkerPath,
         rscWorkerPath: rscWorkerPath,
         loaderPath: loaderPath,

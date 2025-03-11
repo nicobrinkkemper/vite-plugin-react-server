@@ -80,11 +80,19 @@ export function collectManifestClientFiles({
     // Get the manifest entry
     const entry = manifest[id] ?? manifestValues.find((e) => id === e.file);
     if (!entry) {
-      console.log(
-        `No manifest entry found for ${id}, possible keys: ${Object.keys(
-          manifest
-        ).join(", ")}`
-      );
+      const hasKey = Object.keys(manifest).find((key) => id === key);
+      if (hasKey) {
+        console.log(
+          `Manifest entry found for ${id}, but it is ${typeof entry}`
+        );
+        return;
+      } else {
+        console.log(
+          `No manifest entry found for ${id}, possible keys: ${Object.keys(
+            manifest
+          ).join(", ")}`
+        );
+      }
       return;
     }
     if (
@@ -140,11 +148,18 @@ export function collectManifestClientFiles({
     if (entry) {
       walkManifestEntry(value, pagePath);
     } else {
-      console.warn(
-        `No manifest entry found for ${value} (tried all possible keys: ${possibleKeys.join(
-          ", "
-        )})`
-      );
+      const hasKey = Object.keys(manifest).find((key) => value === key);
+      if (hasKey) {
+        console.warn(
+          `Manifest entry found for ${value}, but it is ${typeof manifest[hasKey]}`
+        );
+      } else {
+        console.warn(
+          `No manifest entry found for ${value} (tried all possible keys: ${possibleKeys.join(
+            ", "
+          )} for manifest keys: ${Object.keys(manifest).join(", ")})`
+        );
+      }
     }
   }
 
