@@ -290,3 +290,6 @@ This builds the `dist/server` directory. It sets ssr to true by default, so you 
 
 This plugin provides a workflow for React Server Components within Vite, balancing **performance, modularity, and ease of use**.
 
+## Contributions
+
+If you want to help develop or maintain the plugin feel free to open a PR or issue on GitHub.
