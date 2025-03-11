@@ -1,7 +1,7 @@
 import type { PipeableStream } from "react-dom/server";
 import { resolvePage } from "../resolvePage.js";
 import { resolveProps } from "../resolveProps.js";
-import type { CreateHandlerOptions } from "../types.js";
+import type { CreateHandlerOptions, CssContent } from "../types.js";
 import { createRscStream } from "./createRscStream.js";
 type CreateHandlerResult =
   | {
@@ -15,7 +15,7 @@ type CreateHandlerResult =
   | { type: "skip" };
 
 interface HandlerAssets {
-  css: string[];
+  css: (string | CssContent)[];
   bootstrapModules: string[];
 }
 
@@ -23,7 +23,7 @@ export async function createHandler<T>({
   getCss,
   root,
   cssFiles = [],
-  cssModules = new Set<string>(),
+  cssModules = new Map<string, string | CssContent>(),
   onCssFile,
   logger,
   loader,
@@ -48,8 +48,8 @@ export async function createHandler<T>({
     try {
       const mod = await loader(id);
       const pageCss = await Promise.resolve(getCss(id));
-      Array.from(pageCss.keys()).forEach((css) => {
-        cssModules.add(css);
+      Array.from(pageCss.entries()).forEach(([css, linkOrContent]) => {
+        cssModules.set(css, linkOrContent);
         // Notify about new CSS file if callback exists
         if (typeof onCssFile === "function") {
           onCssFile(css, id);
@@ -68,7 +68,7 @@ export async function createHandler<T>({
   const PropsModule = await resolveProps({
     propsModule: propsPath
       ? await loadWithCss(propsPath)
-      : { [propsExportName]: {} },
+      : { [propsExportName]: (url: string) => ({url}) },
     path: String(propsPath),
     exportName: propsExportName,
     url: route,
@@ -90,7 +90,8 @@ export async function createHandler<T>({
 
   // Add any additional CSS files
   if (cssFiles) {
-    cssFiles.forEach((css) => cssModules.add(css));
+    cssFiles.forEach((css) => cssModules.set(typeof css === "string" ? css : css.path, css));
+    cssFiles = Array.from(cssModules.values());
   }
   const url =
     typeof moduleBaseURL === "string" && moduleBaseURL !== ""
@@ -106,7 +107,7 @@ export async function createHandler<T>({
     moduleBasePath: moduleBasePath,
     moduleBaseURL: moduleBaseURL,
     logger: logger,
-    cssFiles: Array.from(cssModules),
+    cssFiles: Array.from(cssModules.values()),
     route,
     url,
     pipableStreamOptions: pipableStreamOptions,
@@ -121,7 +122,7 @@ export async function createHandler<T>({
   }
 
   const assets: HandlerAssets = {
-    css: Array.from(cssModules).concat(cssFiles ?? []),
+    css: cssFiles,
     bootstrapModules: pipableStreamOptions?.bootstrapModules ?? [],
   };
   return {

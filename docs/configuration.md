@@ -2,47 +2,97 @@
 
 > Note: likely to change in the future, but these are all the allowed options and their intended function
 
-
 ### moduleBase
+
 ```ts
-import type { StreamPluginOptions } from "vite-plugin-react-server/server";
+import type { StreamPluginOptions } from "vite-plugin-react-server";
 
 const config = {
-  moduleBase: "src",
+  moduleBase: "src", // required
 ```
+
 `src` is a convention, you can name it however you want.
 
-```ts
-  moduleBasePath: "",
-```
-This is used as the second argument to React's `renderToPipeableStream` for server-side rendering
+### moduleBasePath
 
 ```ts
-  moduleBaseURL: packJson.homepage,
+  moduleBasePath: "", // default
 ```
-- Used in CSS collectors for asset URL resolution
-- Empty string means use relative paths
-- In production can be your CDN or deployment URL
-- Used for constructing URLs that the client browser will request
-- Leave empty or unset for relative paths
-- Example values:
-  - Development: "/" (no relative paths, force root)
-  - Production: "https://cdn.example.com/" or "/app/"
+
+`moduleBasePath` is used as the second argument to React's `renderToPipeableStream` for server-side rendering.
+
+### moduleBaseURL
+
+```ts
+  moduleBaseURL: "", // default
+```
+
+`moduleBaseURL` is used to prefix imports. Defining this option opts out of relative imports in the browser. ie `../` becomes `https://my-url/`.
 
 > Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL matches your base path - or leave empty to opt in to relative paths.
 
+### Page & props
+
 ```ts
-  Page: (id)=>id
+const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
+  switch (url) {
+    case "/bidoof":
+    case "/bidoof/index.rsc":
+      return `src/page/bidoof/${file}`;
+    case "/404":
+    case "/404/index.rsc":
+      return `src/page/404/${file}`;
+    case "/":
+      // production
+    case "/index.rsc":
+      // development
+      return `src/page/${file}`;
+    default:
+      throw new Error(`Unknown route: ${url}`);
+  }
+};
+... later
+  Page: createRouter('page.tsx')
+  props: createRouter('props.ts'),
+  pageExportName: "Page",
+  propsExportName: "props",
 ```
 
+Basically a router for mapping urls to source code. It can be any implementation you want. The props is optional to use, but it's very powerful since anything it returns will be the props for the page component as well as be accessible in the Html component. If you didn't define a props router, you can still define the `props` in the Page file.
+
+### Html
+
+```tsx
+  Html: ({children,pageProps: {title}})=>(
+    <html>
+      <head>
+        <title>{title}</title>
+      </head>
+      <body>
+        <div id="root">
+          {children}
+        </div>
+      </body>
+    </html>
+  )
+```
+
+This defines the final wrapper around your Page in production. 
 
 
+### build
 
-
-# Why you need both the Client and Server plugin
-
-The client and server plugin output to `dist/client` and `dist/server` respectively and should be build in this order. When the last step (server) is done and the bundle generation closes, it will generate static index.rsc and index.html files for all the configured routes.
-
+```ts
+  build: {
+     pages: ["/","/about"]
+     dir:    "dist",    // dist/**
+     client: "client",  // **/client
+     server: "server",  // **/server
+     static: "static"   // **/static
+     hash: "hash",      //  -[hash].js for client files
+     preserveModulesRoot: true // remove moduleBase from build
+  }
+```
 
 # Module Loading Architecture
 
@@ -50,7 +100,7 @@ Module loading is handled differently depending on which plugin you use.
 
 When using `import { vitePluginReactClient } from 'vite-plugin-react-server/client'`, you can run it like
 a normal vite project. It will use modern esmodule syntax and preserve modules by default.
-For the actual server plugin `import { vitePluginReactServer } from 'vite-plugin-react-server'`, I recommend a seperate build step
+For the actual server plugin `import { vitePluginReactServer } from 'vite-plugin-react-server'`, I recommend a separate build step
 `NODE_OPTIONS="--conditions react-server" vite --config vite.config.server.ts`. Create a shared config file specifically
 for React specific configurations - like this plugin - and use the same config for both the client and server. This way, you keep a centralized
 config and easy escape hatches when you need customization.
@@ -112,10 +162,10 @@ export const config = {
 import { vitePluginReactClient } from "vite-plugin-react-server/client";
 import { config } from "./my-react-config.js";
 import { defineConfig } from "vite";
-export default defineConfig(()=> {
+export default defineConfig(() => {
   return {
     plugins: vitePluginReactClient(),
-  }
+  };
 });
 ```
 
@@ -125,10 +175,10 @@ export default defineConfig(()=> {
 import { vitePluginReactServer } from "vite-plugin-react-server";
 import { config } from "./my-react-config.js";
 import { defineConfig } from "vite";
-export default defineConfig(()=> {
+export default defineConfig(() => {
   return {
     plugins: vitePluginReactServer(config),
-  }
+  };
 });
 ```
 
@@ -142,17 +192,16 @@ includes those files like you would expect css files to work in vite.
 
 It requires nodejs version 23.7.0 or higher.
 
-
 ## Server plugin dev mode
 
 When running the server plugin in dev mode, it will pipe the react stream directly to the response. This will use
-vite's devserver.ssrLoadModule to load modules and therefor support anything that vite supports. Hot-reloading
+vite's `ssrLoadModule` to load modules and therefor support anything that vite supports. Hot-reloading
 is only supported for client components, since those run in the browser. However, nothing stops the user from making their
 own stream-update protocol - using vite's import.meta.hot.accept for example.
 
-
 ```sh
-NODE_OPTIONS='--conditions react-server' npx vite --config vite.server.config.ts --build
+vite build
+NODE_OPTIONS='--conditions react-server' npx vite build --config vite.server.config.ts
 ```
 
 Above should now output specific static html for each page in the dist/client directory. This client can, given the right entrypoint,
@@ -165,6 +214,4 @@ dist/static/about/index.html
 dist/static/about/index.rsc
 ```
 
-Aside from generating these html and rsc files, it copies the whole client directory to the static directory - which includes the public directory - just drag 'n drop the static folder to your host of choice.
-
-
+Aside from generating these html and rsc files, it copies all client files to the static directory - which includes the public directory - just drag 'n drop the static folder to your host of choice.

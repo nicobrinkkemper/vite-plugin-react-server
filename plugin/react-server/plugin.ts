@@ -16,6 +16,7 @@ import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import type {
   BuildTiming,
   CheckFilesExistReturn,
+  CssContent,
   ReactStreamPluginMeta,
   ResolvedUserOptions,
 } from "../types.js";
@@ -203,12 +204,28 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
                 ? new URL(route, userOptions.moduleBaseURL).href
                 : route,
             route: route,
-            getCss: (id) =>
-              collectModuleGraphCss({
+            getCss: async (id) => {
+              const cssFiles = await collectModuleGraphCss({
                 moduleGraph: server.moduleGraph,
                 pagePath: id,
                 onCss: undefined,
-              }),
+              })
+              if (userOptions.inlineCss) {
+                const InlineMap = new Map<string, CssContent>();
+                await Promise.all(Array.from(cssFiles.entries()).map(async ([file, fileUrl]) => {
+                  const content = await server.ssrLoadModule(fileUrl + "?inline");
+                  if (content) {
+                    InlineMap.set(file,  {
+                      content: content['default'],
+                      path: file,
+                      type: "text/css",
+                    });
+                  }
+                }));
+                return InlineMap;
+              }
+              return cssFiles;
+            },
             cssFiles: [],
             logger: createLogger(),
             loader,

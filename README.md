@@ -56,14 +56,29 @@ The separation is accomplished through two complementary plugins:
 
 This ensures that client-side and server-side concerns remain isolated from the beginning, reducing potential inconsistencies.
 
+### Custom composition
+
+You can pick and choose only the plugins you like to get the desired behavior as well. For example, we can choose only to use the preserver, the transformer, static plugin, etc.
+
+### Worker support
+
+The client plugin uses the `rsc-worker` to create server side streams. The server plugin uses the `html-worker` to create client side html. If you don't want to use the rsc-worker, simply don't serve the client plugin. If you don't want to use the `html-worker` simply don't configure the `build.pages` option.
+
+### Custom Worker
+
+Both workers can be customized using the `htmlWorkerPath` and `rscWorkerPath` respectively. The paths will be used to create the workers instead of the prebuilt worker included with this plugin. If these paths are defined, they will be made part of your application build as well.
+
+Keep in mind that, using your custom worker means interacting with the message system of this plugin during development/static generation process.
+
+
 ## Plugin Usage
 
 ### vite-plugin-react-server/client
 
-Used in `vite.config.ts` for standard Vite client-side behavior:
+Used in `vite.config.ts` for standard Vite client-side behavior
 
 ```ts
-import { defineConfig, Plugin } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { vitePluginReactClient } from "vite-plugin-react-server/client";
 import { config } from "./vite.react.config";
 
@@ -87,13 +102,13 @@ Outputs files for server-side execution to `dist/server`.
 ```sh
 vite preview
 ```
-Serves the static directory. Requires pre-built static files.
+Serves the static directory.
 
 ---
 
 ### vite-plugin-react-server
 
-Used in `vite.server.config.ts`, this plugin strictly separates client and server execution and automatically handles SSR output.
+Used in `vite.server.config.ts`, this plugin strictly separates client and server execution. The client components will be emitted as references. 
 
 ```ts
 import { defineConfig, Plugin } from "vite";
@@ -114,22 +129,25 @@ NODE_OPTIONS="--conditions=react-server" vite --config vite.server.config.ts
 #### Build Steps
 
 ```sh
-vite build
+NODE_OPTIONS="--conditions=react-server" vite build --config vite.server.config.ts
 ```
-Generates client-side and server-side output. The plugin ensures proper SSR handling without requiring `--ssr` manually.
+Generates server and static folder. The plugin ensures proper SSR handling without requiring `--ssr` manually.
+Note: ssr can still be disabled via config `{ssr:false}`, which will enable vite's browser virtualization
 
 ---
 
 ## Static Site Generation
 
-When the client and server build step are completed, the latter generates `index.rsc` and `index.html` for each configured route in `dist/static`. It also copies the contents of the client directory as well as any css file that might be used by the client but is otherwise only references by the server-side code. When running the server build, the plugin is smart enough the hash the css files it knows will be copied to the static directory later. A user is free to disable the hash using the build option
+Single-out the static generation step by only inluding the static plugin. Expects client and server folders to be there.
 ```ts
-{ 
-  moduleBase: "src"
-  build: {
-     hash: "hash", // change to "" to disable hashing 
-  }
-}
+import { defineConfig, Plugin } from "vite";
+import { reactStaticPlugin } from "vite-plugin-react-server/static";
+import { config } from "./vite.react.config";
+
+export default defineConfig({
+  plugins: [reactStaticPlugin(config)],
+});
+```
 
 Example output structure:
 
@@ -140,7 +158,7 @@ dist/static/about/index.html
 dist/static/about/index.rsc
 ```
 
-The entire `dist/client` directory is copied into `dist/static`, allowing easy deployment by moving the static folder to a hosting service.
+The entire `dist/client` directory is copied into `dist/static`, as well as any assets used server-side. Allowing easy deployment by moving the static folder to a hosting service.
 
 ---
 
@@ -165,9 +183,9 @@ Passed as the second argument to `renderToPipeableStream` for server-side render
 ### moduleBaseURL
 
 ```ts
-moduleBaseURL: packJson.homepage,
+moduleBaseURL: "https://github.com/my-gh-pages",
 ```
-Defines asset URL resolution for CSS collectors. Supports relative paths (`""`) or absolute paths (e.g., CDN URLs).
+Defines asset URL resolution for CSS collectors and bootstrapModule.
 
 ### Page and props Mapping
 

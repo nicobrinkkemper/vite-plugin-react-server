@@ -25,6 +25,13 @@ export function InlineCssCollector({
     cssFiles.map((file, index) => {
       if (typeof file === "string") {
         let filePath = file as string;
+        if(process.env["NODE_ENV"] === "development") {
+          return React.createElement("link", {
+            key: file,
+            rel: "stylesheet",
+            href: filePath,
+          });
+        }
         return React.createElement(
           "style",
           {

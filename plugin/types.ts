@@ -179,7 +179,7 @@ export interface CreateHandlerOptions<T = any, InlineCSS extends boolean = boole
   root: string;
   url: string;
   route: string;
-  getCss: (id: string) => Promise<Map<string, string>> | Map<string, string>;
+  getCss: (id: string) => Promise<Map<string, string | CssContent>> | Map<string, string | CssContent>;
   loader: (id: string) => Promise<T>;
   Html: NonNullable<StreamPluginOptions['Html']>
   CssCollector: InlineCSS extends true ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>> : React.FC<React.PropsWithChildren<CssCollectorProps>>;
@@ -193,8 +193,8 @@ export interface CreateHandlerOptions<T = any, InlineCSS extends boolean = boole
   moduleBasePath: string;
   moduleRootPath: string;
   moduleBaseURL: string;
-  cssFiles: string[];
-  cssModules?: Set<string> | undefined;
+  cssFiles: (string | CssContent)[];
+  cssModules?: Map<string, string | CssContent> | undefined;
   onCssFile?: (path: string, parentUrl: string) => void;
   logger: import("vite").Logger;
   pipableStreamOptions: PipeableStreamOptions;

@@ -60,7 +60,7 @@ export const messageHandler = async (message: HtmlWorkerMessage) => {
         const reactElements = await createFromNodeStream(
           rscStream,
           render.moduleRootPath,
-          'localhost'
+          render.moduleBaseURL
         );
 
         // Create a promise that resolves when HTML is complete

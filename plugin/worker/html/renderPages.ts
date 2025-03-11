@@ -57,8 +57,6 @@ export async function renderPages<T = any>(
       rsc: partial.rsc,
     };
 
-    // Write RSC file
-    console.log("route", route);
     // Write HTML file
     let routeHtmlPath =
       route === "/"
@@ -137,7 +135,7 @@ export async function renderPages<T = any>(
           options.onClientJSFile?.(value, route);
         }
       }
-      const getCss = (id: string) => {
+      const getCss = async (id: string) => {
         const cssFiles = collectManifestClientFiles({
           manifest: options.serverManifest,
           root: options.root,

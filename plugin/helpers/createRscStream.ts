@@ -43,13 +43,12 @@ export function createRscStream<InlineCSS extends boolean = true>({
   htmlProps?: any;
   root: string;
   inlineCss?: InlineCSS;
+  cssFiles?: (string | CssContent)[];
 } & (InlineCSS extends true
   ? {
-      cssFiles?: CssContent[];
       CssCollector: React.FC<InlineCssCollectorProps>;
     }
   : {
-      cssFiles?: string[];
       CssCollector: React.FC<CssCollectorProps>;
     })) {
   const htmlIsFragment = Html == React.Fragment;
