@@ -73,6 +73,37 @@ Keep in mind that, using your custom worker means interacting with the message s
 
 ## Plugin Usage
 
+### Configuration
+```ts
+import type { StreamPluginOptions } from "vite-plugin-react-server/server";
+
+const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
+  switch (url) {
+    case "/bidoof":
+    case "/bidoof/index.rsc":
+      return `src/page/bidoof/${file}`;
+    case "/404":
+    case "/404/index.rsc":
+      return `src/page/404/${file}`;
+    case "/":
+    case "/index.rsc":
+      return `src/page/${file}`;
+    default:
+      throw new Error(`Unknown route: ${url}`);
+  }
+};
+
+export const config = {
+  moduleBase: "src",
+  Page: createRouter("page.tsx"),
+  props: createRouter("props.ts"),
+  Html: Html,
+  build: {
+    pages: ["/", "/bidoof", "/404"	],
+  },
+} satisfies StreamPluginOptions;
+```
+
 ### vite-plugin-react-server/client
 
 Used in `vite.config.ts` for standard Vite client-side behavior
@@ -83,7 +114,7 @@ import { vitePluginReactClient } from "vite-plugin-react-server/client";
 import { config } from "./vite.react.config";
 
 export default defineConfig({
-  plugins: vitePluginReactClient(config) as Plugin[],
+  plugins: vitePluginReactClient(config),
 });
 ```
 
@@ -200,11 +231,11 @@ Defines how to load the initial props of the page file.
 
 If you do not want prop files, just don't define it.
 ```ts
-pageExport: 'Page',
+pageExportName: 'Page',
 ```
 Changes the default name "Page"
 ```ts
-propsExport: 'props',
+propsExportName: 'props',
 ```
 Changes the default name "props"
 
@@ -278,17 +309,6 @@ In development mode, the server plugin pipes the React stream directly to the re
 NODE_OPTIONS='--conditions react-server' npx vite build --config vite.server.config.ts
 ```
 This builds the `dist/server` directory. It sets ssr to true by default, so you can't forget to. Additionally, when the build is done it generates the `dist/static` directory using the /static plugin.
-
----
-
-## Summary
-
-- **Strict Client-Server Separation** → Ensures modularity and maintainability
-- **Static Site Generation** → Produces deployable HTML and RSC files
-- **Dual RSC Implementation** → Supports direct streaming and worker-based approaches
-- **Customizable Module Loading** → Allows flexible project configurations
-
-This plugin provides a workflow for React Server Components within Vite, balancing **performance, modularity, and ease of use**.
 
 ## Contributions
 
