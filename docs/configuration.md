@@ -164,7 +164,7 @@ import { config } from "./my-react-config.js";
 import { defineConfig } from "vite";
 export default defineConfig(() => {
   return {
-    plugins: vitePluginReactClient(),
+    plugins: vitePluginReactClient(config),
   };
 });
 ```
