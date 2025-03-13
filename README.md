@@ -24,7 +24,7 @@ npm install -D patch-package react@experimental react-dom@experimental react-ser
 Add the following command to your `package.json` scripts:
 
 ```json
-"patch": "check-react-version && patch"
+"patch": "patch"
 ```
 
 Run the patch command:

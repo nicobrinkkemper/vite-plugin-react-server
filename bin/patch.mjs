@@ -23,14 +23,6 @@ async function patchReactExperimental() {
         template: `../scripts/react-server-dom-esm+${TEMPLATE_VERSION}.patch`,
         output: `react-server-dom-esm+${STUB_VERSION}.patch`
       },
-      {
-        template: `../scripts/react+${TEMPLATE_VERSION}.patch`,
-        output: `react+${PATCH_RECONCILER_VERSION}.patch`
-      },
-      {
-        template: `../scripts/react-dom+${TEMPLATE_VERSION}.patch`,
-        output: `react-dom+${PATCH_RECONCILER_VERSION}.patch`
-      },
     ]
 
     // Create patches dir in user's project
@@ -45,7 +37,7 @@ async function patchReactExperimental() {
       // Replace version strings
       patchContent = patchContent.replace(
         new RegExp(PATCH_RECONCILER_VERSION, 'g'),
-        installedVersion
+        reactVersion
       )
 
       // Write the patch file
@@ -55,7 +47,7 @@ async function patchReactExperimental() {
     }
 
     console.log(`
-✅ Created patch files for React packages for version ${installedVersion}
+✅ Created patch files for React packages for version ${reactVersion}
    Location: patches/
 
 Next steps:

@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -99,8 +99,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^0.0.0-experimental-f9d78089-20250306",
-    "react-dom": "^0.0.0-experimental-f9d78089-20250306",
+    "react": "^0.0.0-experimental-6aa8254b-20250312",
+    "react-dom": "^0.0.0-experimental-6aa8254b-20250312",
     "vite": "*"
   },
   "peerDependenciesMeta": {
@@ -125,16 +125,14 @@
     "source-map": "^0.7.4",
     "ts-node": "^10.9.2",
     "tslib": "^2.8.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.11",
     "vitest": "^3.0.4",
-    "webpack-sources": "^3.2.3",
-    "tsx": "^4.19.2"
+    "webpack-sources": "^3.2.3"
   },
   "bin": {
     "check-react-version": "./scripts/check-react-version.mjs",
     "patch": "./bin/patch.mjs"
-  },
-  "dependencies": {
   }
 }

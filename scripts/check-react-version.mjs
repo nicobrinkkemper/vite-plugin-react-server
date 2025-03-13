@@ -24,14 +24,6 @@ async function main() {
         template: path.resolve(__dirname, `react-server-dom-esm+${TEMPLATE_VERSION}.patch`),
         output: `react-server-dom-esm+${STUB_VERSION}.patch`
       },
-      {
-        template: path.resolve(__dirname, `react+${TEMPLATE_VERSION}.patch`),
-        output: `react+${PATCH_RECONCILER_VERSION}.patch`
-      },
-      {
-        template: path.resolve(__dirname, `react-dom+${TEMPLATE_VERSION}.patch`),
-        output: `react-dom+${PATCH_RECONCILER_VERSION}.patch`
-      }
     ]
 
     // Create patches dir
@@ -46,13 +38,10 @@ async function main() {
       await fs.writeFile(outputPath, patchContent)
       console.log(`Wrote patch file to ${outputPath}`)
     }
-
 }
 
-const PATCH = ``
-
 try {
-main()   
+  main()   
 } catch (error) {
   console.error('error applying patch', error)
 }
