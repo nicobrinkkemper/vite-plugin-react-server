@@ -10,7 +10,7 @@ A Vite plugin that enables React Server Components (RSC) streaming and static HT
 ## Installation
 
 ```sh
-npm install -D vite-plugin-react-stream
+npm install -D vite-plugin-react-server
 ```
 
 ## Open Source and Work in Progress
