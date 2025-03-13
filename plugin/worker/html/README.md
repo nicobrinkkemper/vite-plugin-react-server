@@ -33,10 +33,6 @@ if (typeof WorkerGlobalScope !== 'undefined') {
 ## Messages
 You have two options, either directly write the files from the worker or pass them back to the main thread through messages.
 
-```ts
-
-```
-
 ## Client Dev Mode Integration
 
 When running in client dev mode, you can use your custom HTML worker as part of your application:
@@ -60,4 +56,3 @@ The HTML worker architecture supports various potential enhancements:
 - The worker must handle streaming HTML content
 - Asset paths need to be properly resolved
 - Consider memory usage when processing large HTML files
-- Ensure proper coordination with the RSC worker 
