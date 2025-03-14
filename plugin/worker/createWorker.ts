@@ -25,8 +25,8 @@ export async function createWorker(options: CreateWorkerOptions) {
     mode = getMode(),
     workerPath,
     resourceLimits = {
-      maxOldGenerationSizeMb: 512,
-      maxYoungGenerationSizeMb: 128,
+      maxOldGenerationSizeMb: 1024,
+      maxYoungGenerationSizeMb: 512,
     },
   } = options;
 

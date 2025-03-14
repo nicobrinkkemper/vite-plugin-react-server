@@ -75,6 +75,7 @@ export function createRscStream<InlineCSS extends boolean = true>({
       htmlProps["pageProps"] = props;
     }
   }
+  console.log(`CssFiles: ${cssFiles}`);
   const withCss = React.createElement(
     CssCollector as any,
     (inlineCss === true

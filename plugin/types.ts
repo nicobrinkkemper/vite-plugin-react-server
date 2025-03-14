@@ -361,7 +361,9 @@ export type WorkerMessage =
   | { type: "ERROR"; error: string | Error }
   | { type: "RSC_CHUNK"; id: string; chunk: Buffer }
   | { type: "RSC_END"; id: string }
-  | { type: "SHUTDOWN" };
+  | { type: "SHUTDOWN" }
+  | { type: "CHUNK_PROCESSED"; id: string; success: boolean }
+  | { type: "CHUNK_ERROR"; id: string; error: string };
 
 // Add branded types for safety
 export type ModuleId = string & { readonly __brand: unique symbol };

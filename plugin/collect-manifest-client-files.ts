@@ -108,7 +108,7 @@ export function collectManifestClientFiles({
     // Add direct CSS from the css array
     if (entry.css) {
       entry.css.forEach((css: string) => {
-        cssFiles.set(css, css);
+        cssFiles.set(css, id);
         onCss?.(css, id);
         onClientModule?.(css, id);
       });

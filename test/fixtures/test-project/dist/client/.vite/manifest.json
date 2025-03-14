@@ -1,0 +1,17 @@
+{
+  "index.html": {
+    "file": "index-BlYFxW11.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "imports": [
+      "src/client.tsx"
+    ]
+  },
+  "src/client.tsx": {
+    "file": "client-Djx8Psbc.js",
+    "name": "src/client",
+    "src": "src/client.tsx",
+    "isEntry": true
+  }
+}

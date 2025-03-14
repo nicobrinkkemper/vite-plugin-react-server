@@ -36,6 +36,8 @@ export interface HtmlRenderState {
   htmlOutputPath: string;
   id: string;
   pipableStreamOptions: PipeableStreamOptions;
+  clientManifest: Manifest;
+  serverManifest: Manifest;
 }
 
 export interface RscRenderState {
@@ -74,7 +76,7 @@ export interface RscRenderMessage extends WorkerMessage {
 
 export interface RscChunkMessage extends WorkerMessage {
   type: "RSC_CHUNK";
-  chunk: string;
+  chunk: Buffer;
   moduleRootPath: string;
   moduleBaseURL: string;
   outDir: string;
@@ -118,7 +120,7 @@ export interface ServerReferenceMessage extends WorkerMessage {
 // HTML Messages
 export interface WorkerRscChunkMessage extends WorkerMessage {
   type: "RSC_CHUNK";
-  chunk: string;
+  chunk: Blob;
   moduleRootPath: string;
   moduleBaseURL: string;
   outDir: string;
@@ -152,8 +154,11 @@ export type HtmlWorkerMessage =
   | ShutdownMessage;
 
 export type HtmlWorkerResponse =
-  | ShellReadyMessage
-  | AllReadyMessage
+  | { type: "SHELL_READY"; id: string }
+  | { type: "ALL_READY"; id: string; html: string; outputPath: string }
+  | { type: "ERROR"; id: string; error: string }
+  | { type: "CHUNK_PROCESSED"; id: string; success: boolean }
+  | { type: "CHUNK_ERROR"; id: string; error: string }
   | RscErrorMessage;
 
 export type RscWorkerMessage =

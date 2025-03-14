@@ -118,6 +118,17 @@ export default defineConfig({
 });
 ```
 
+### Built-in React Server Components
+
+This plugin has three built-in React Component, each can be configured through the options to be your own component. Just like the custom workers, defining your custom React server components will affect the final production output and development experience.
+- Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files)
+- CssCollector - used to emit `<link>` tags when `inlineCss:false` during development and static generation
+- InlineCssCollector - used to emit `<style>` tags when `inlineCss:true` during development and static generation
+
+When using the `vite-plugin-react-server` plugin, you are required to run it with the `NODE_OPTIONS="conditions=react-server"`. You can do achieve this however you want. The key take-away is that this support React components anywhere in your project, even in the configuration of your application you can use React components.
+
+Here
+
 #### Build Steps
 
 ```sh

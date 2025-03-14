@@ -250,7 +250,14 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         );
       }
       console.log(`Rendered ${completedRoutes.size} unique routes to ${join(userOptions.build.outDir, userOptions.build.static)}`);
-      await worker.terminate();
+      worker.postMessage({ type: 'SHUTDOWN' });
+      if(process.env['NODE_ENV'] === 'development') {
+        worker.removeAllListeners();
+        await worker.terminate();
+        console.log('Worker terminated');
+      } else {
+        process.exit(0);
+      }
     },
   };
 }

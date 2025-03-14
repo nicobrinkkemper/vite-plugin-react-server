@@ -1,0 +1,86 @@
+{
+  "../../../dist/plugin/css-collector-inline.js": {
+    "file": "dist/plugin/css-collector-inline.js",
+    "name": "dist/plugin/css-collector-inline",
+    "src": "../../../dist/plugin/css-collector-inline.js"
+  },
+  "../../../dist/plugin/helpers/createRscStream.js": {
+    "file": "dist/plugin/helpers/createRscStream.js",
+    "name": "dist/plugin/helpers/createRscStream",
+    "src": "../../../dist/plugin/helpers/createRscStream.js"
+  },
+  "../../../dist/plugin/root.js": {
+    "file": "dist/plugin/root.js",
+    "name": "dist/plugin/root",
+    "src": "../../../dist/plugin/root.js"
+  },
+  "../../../dist/plugin/worker/html/html-worker.development.js": {
+    "file": "html-worker.js",
+    "name": "html-worker",
+    "src": "../../../dist/plugin/worker/html/html-worker.development.js",
+    "isEntry": true,
+    "imports": [
+      "../../../dist/plugin/root.js",
+      "../../../dist/plugin/worker/html/messageHandler.js"
+    ]
+  },
+  "../../../dist/plugin/worker/html/messageHandler.js": {
+    "file": "dist/plugin/worker/html/messageHandler.js",
+    "name": "dist/plugin/worker/html/messageHandler",
+    "src": "../../../dist/plugin/worker/html/messageHandler.js"
+  },
+  "../../../dist/plugin/worker/rsc/messageHandler.js": {
+    "file": "dist/plugin/worker/rsc/messageHandler.js",
+    "name": "dist/plugin/worker/rsc/messageHandler",
+    "src": "../../../dist/plugin/worker/rsc/messageHandler.js",
+    "imports": [
+      "../../../dist/plugin/worker/rsc/state.js",
+      "../../../dist/plugin/css-collector-inline.js",
+      "../../../dist/plugin/helpers/createRscStream.js"
+    ]
+  },
+  "../../../dist/plugin/worker/rsc/rsc-worker.development.js": {
+    "file": "rsc-worker.js",
+    "name": "rsc-worker",
+    "src": "../../../dist/plugin/worker/rsc/rsc-worker.development.js",
+    "isEntry": true,
+    "imports": [
+      "../../../dist/plugin/worker/rsc/messageHandler.js",
+      "../../../dist/plugin/root.js"
+    ]
+  },
+  "../../../dist/plugin/worker/rsc/state.js": {
+    "file": "dist/plugin/worker/rsc/state.js",
+    "name": "dist/plugin/worker/rsc/state",
+    "src": "../../../dist/plugin/worker/rsc/state.js"
+  },
+  "src/page/page.tsx": {
+    "file": "page/page.js",
+    "name": "src/page/page",
+    "src": "src/page/page.tsx",
+    "isEntry": true,
+    "imports": [
+      "src/page/test.module.css"
+    ]
+  },
+  "src/page/props.ts": {
+    "file": "page/props.js",
+    "name": "src/page/props",
+    "src": "src/page/props.ts",
+    "isEntry": true
+  },
+  "src/page/test.module.css": {
+    "file": "page/test.module.css.js",
+    "name": "page/test.module.css",
+    "src": "src/page/test.module.css",
+    "css": [
+      "page/test.module-DQe9Sq2h.css"
+    ]
+  },
+  "src/server.tsx": {
+    "file": "server.js",
+    "name": "src/server",
+    "src": "src/server.tsx",
+    "isEntry": true
+  }
+}

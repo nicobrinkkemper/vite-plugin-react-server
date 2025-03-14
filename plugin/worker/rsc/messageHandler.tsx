@@ -102,17 +102,18 @@ export async function messageHandler(message: RscWorkerMessage) {
         stream.pipe(passThrough);
 
         passThrough.on("data", (chunk) => {
-          // Send to parent
+          // Convert chunk to Buffer and send as transferable object
+          const buffer = Buffer.from(chunk);
           parentPort?.postMessage({
             type: "RSC_CHUNK",
             id,
-            chunk: chunk.toString(),
+            chunk: buffer,
             moduleRootPath: moduleBasePath,
             moduleBaseURL,
             outDir,
             rscOutputPath: `${outDir}/${id}.rsc`,
             cssFiles: Array.from(cssFiles.entries()),
-          } satisfies RscChunkMessage);
+          } satisfies RscChunkMessage, [buffer.buffer]);
         });
 
         passThrough.on("end", () => {
