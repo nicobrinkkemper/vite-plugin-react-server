@@ -1,31 +1,29 @@
 import { CssCollector } from "../css-collector.js";
 import { Html } from "../html.js";
 export const DEFAULT_CONFIG = {
-  FILE_REGEX: /\.(m|c)?(j|t)sx?$/,
+  MODULE_EXTENSION: /\.(m|c)?(j|t)sx?$/,
   CLIENT_ASSETS_DIR: "assets",
   RSC_DIR: "rsc",
   MODULE_BASE: "src",
   MODULE_BASE_PATH: "",
   MODULE_BASE_URL: "",
-  PAGE: "src/page/page.tsx",
-  PROPS: "src/page/props.ts",
-  CLIENT_ENTRY: "src/client.tsx",
-  SERVER_ENTRY: "src/server.tsx",
+  PAGE: "page.tsx",
+  PROPS: "props.ts",
+  CLIENT_ENTRY: undefined,
+  SERVER_ENTRY: undefined,
   PAGE_EXPORT_NAME: "Page",
   PROPS_EXPORT_NAME: "props",
   HTML_WORKER_PATH: `worker/html/html-worker.${
-    process.env["NODE_ENV"] === "development" ? "development" : "production"
+    process.env["NODE_ENV"] === "production" ? "production" : "development"
   }.js`,
   RSC_WORKER_PATH: `worker/rsc/rsc-worker.${
-    process.env["NODE_ENV"] === "development" ? "development" : "production"
+    process.env["NODE_ENV"] === "production" ? "production" : "development"
   }.js`,
   LOADER_PATH: "worker/loader.js",
   RSC_EXTENSION: ".rsc",
   CSS_COLLECTOR: CssCollector,
   HTML: Html,
-  COLLECT_CSS: true,
-  COLLECT_ASSETS: true,
-  INLINE_CSS: true,
+  ON_METRICS: ()=>{},
   DEV_PORT: 5173,
   PREVIEW_PORT: 4173,
   DEV_HOST: "localhost",
@@ -43,28 +41,37 @@ export const DEFAULT_CONFIG = {
     preserveModulesRoot: true,
   },
   CSS: {
+    inlineCss: false,
+    purgeCss: false,
     inlineThreshold: 4096, // 4KB
-    inlinePatterns: [/\.module\.css$/], // Always inline CSS modules
-    linkPatterns: [/node_modules/], // Always link node_modules CSS
+    inlinePatterns: [/\.css$/] as RegExp[], // 
+    linkPatterns: [/node_modules/] as RegExp[], // Always link node_modules CSS
   },
   MODULE_BASE_EXCEPTIONS: [] as string[],
   AUTO_DISCOVER: {
-    modulePattern: (n: string) => DEFAULT_CONFIG.FILE_REGEX.test(n),
-    pagePattern: (n: string) =>
-      n.toLowerCase().endsWith("/page") || n.toLowerCase() === "page",
-    propsPattern: (n: string) =>
-      n.toLowerCase().endsWith("/props") || n.toLowerCase() === "props",
-    clientComponents: (n: string) =>
-      n.toLowerCase().endsWith(".client") || n.toLowerCase() === "client",
-    serverFunctions: (n: string) =>
-      n.toLowerCase().endsWith(".server") || n.toLowerCase() === "server",
-    cssPattern: (n: string) => n.toLowerCase().endsWith(".css"),
-    cssModulePattern: (n: string) => n.toLowerCase().endsWith(".css.js"),
+    // All REGEX tricks used here are based on the following:
+    // $ = endsWith
+    // ^ = startsWith
+    // . = includes
+    // \ = escape
+    // ? = optional
+    // () = group
+    // | = or
+    modulePattern: (n: string) => /\.(m|c)?(j|t)sx?$/.test(n),
+    pagePattern: (n: string) => /\.?page(\.js)?$/.test(n),
+    propsPattern: (n: string) => /\.?props(\.js)?$/.test(n),
+    clientComponents: (n: string) => /(\.|\/)?client(\.js)?$/.test(n),
+    serverFunctions: (n: string) => /(\.|\/)?server(\.js)?$/.test(n),
+    cssPattern: (n: string) => /\.css$/.test(n),
+    cssModulePattern: (n: string) => /\.css\.js$/.test(n),
+    virtualPattern: (n: string) => /^\/_virtual\//.test(n),
     vendorPattern: (n: string) =>
-      n.toLowerCase().startsWith("node_modules") ||
-      n.toLowerCase().startsWith("_virtual"),
-    htmlPattern: (n: string) => n.toLowerCase().endsWith(".html"),
-    jsonPattern: (n: string) => n.toLowerCase().endsWith(".json"),
+      /^\/node_modules\//.test(n),
+    htmlPattern: (n: string) => /\.html$/.test(n),
+    jsonPattern: (n: string) => /\.json$/.test(n),
+    nodeOnly: (n: string) => /\.node(\.js)?$/.test(n),
+    dotFiles: (n: string) => /^\./.test(n),
+    rscPattern: (n: string) => /\.rsc$/.test(n),  
   },
   MODULE_ID: (id: string) => id,
 } as const;

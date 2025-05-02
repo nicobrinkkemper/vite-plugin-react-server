@@ -1,7 +1,9 @@
 import { normalizePath } from "vite";
 import type { InputNormalizer, NormalizerInput } from "../types.js";
-import { join } from "path";
+import path, { join } from "path";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+
+let stashedNormalizer: InputNormalizer | null = null;
 
 type CreateInputNormalizerProps = {
   root: string;
@@ -49,7 +51,7 @@ const resolveRootOption = (
 ) => {
   if (typeof preserveModulesRoot === "string" && typeof root === "string") {
     const normalizedPreserveModulesRoot = normalizePath(preserveModulesRoot);
-    if (normalizedPreserveModulesRoot.startsWith(root)) {
+    if (root !== "" && normalizedPreserveModulesRoot.startsWith(root)) {
       return normalizedPreserveModulesRoot.slice(root.length + 1);
     }
     return "";
@@ -75,8 +77,10 @@ const createKeyNormalizer =
     
     let moduleId = normalizePath(actualKey);
     
-    if (moduleId.startsWith(normalizedRoot)) {
-      moduleId = moduleId.slice(normalizedRoot.length);
+    // Normalize root path to handle both absolute and relative paths
+    const normalizedRootPath = normalizePath(normalizedRoot);
+    if (moduleId.startsWith(normalizedRootPath)) {
+      moduleId = moduleId.slice(normalizedRootPath.length);
     }
 
     moduleId = handleExtension(moduleId);
@@ -88,7 +92,7 @@ const createKeyNormalizer =
     }
     if (typeof preserveModulesRoot === "string" && preserveModulesRoot !== "") {
       moduleId = moduleId.startsWith(preserveModulesRoot)
-        ? moduleId.slice(preserveModulesRoot.length)
+        ? moduleId.slice(preserveModulesRoot.length + path.sep.length)
         : moduleId;
     }
     
@@ -132,17 +136,18 @@ const createPathNormalizer =
 export function createInputNormalizer({
   root,
   preserveModulesRoot = undefined,
-  removeExtension = DEFAULT_CONFIG.FILE_REGEX,
+  removeExtension = DEFAULT_CONFIG.MODULE_EXTENSION,
 }: CreateInputNormalizerProps): InputNormalizer {
+  if(stashedNormalizer) {
+    return stashedNormalizer;
+  }
   const relativeRoot = resolveRootOption(root, preserveModulesRoot);
   const handleExtension = resolveExtensionOptions(removeExtension);
-
   const normalizeEntryKey = createKeyNormalizer({
     root: root,
-    preserveModulesRoot: relativeRoot,
+    preserveModulesRoot: preserveModulesRoot,
     handleExtension,
   });
-
   const normalizeEntryPath = createPathNormalizer({
     root: root,
     preserveModulesRoot: relativeRoot,
@@ -182,7 +187,7 @@ export function createInputNormalizer({
     throw new Error(`Invalid input type: ${typeof id}`);
   };
 
-  return (input: NormalizerInput): [string, string] => {
+  stashedNormalizer = (input: NormalizerInput): [string, string] => {
     const [key, path] = normalizeInput(input);
     // Apply the same normalization to both key and path
     const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
@@ -195,4 +200,5 @@ export function createInputNormalizer({
     
     return [key, finalPath];
   };
+  return stashedNormalizer;
 }

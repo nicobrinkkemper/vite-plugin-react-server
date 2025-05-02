@@ -7,20 +7,29 @@ import { rmdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { ResolvedUserOptions } from '../../plugin/types.js'
 import { resolveOptions } from '../../plugin/config/resolveOptions.js'
-describe('SSR configuration', () => {
-  const testDir = resolve(__dirname, '../fixtures/test-project/')
 
-  afterAll(() => {
-    if (!existsSync(testDir)) {
-      setupTestProject(testDir)
+describe('SSR configuration', () => {
+  const testDir = resolve(__dirname, '../fixtures/ssr-test/')
+
+  beforeEach(async () => {
+    await setupTestProject(testDir)
+  })
+
+  afterEach(() => {
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true })
     }
   })
 
   it('sets ssr=true for react-server condition', () => {
     const result = resolveUserConfig({
       config: {},
+      condition: 'react-server',
       configEnv: { command: 'serve', mode: 'development', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions, false)?.['userOptions']
+      userOptions: resolveOptions(testUserOptions, 'react-server')?.['userOptions'],
+      autoDiscoveredFiles: {
+        inputs: {},
+      }
     })
 
     expect(result.type).toBe('success')
@@ -31,10 +40,13 @@ describe('SSR configuration', () => {
 
   it('sets ssr=true for react-client condition', () => {
     const result = resolveUserConfig({
-      isClient: true,
+      condition: 'react-client',
       config: {},
-      configEnv: { command: 'build', mode: 'production', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions, true)?.['userOptions']
+      configEnv: { command: 'build', mode: 'development', isSsrBuild: true },
+      userOptions: resolveOptions(testUserOptions, 'react-client')?.['userOptions'],
+      autoDiscoveredFiles: {
+        inputs: {},
+      }
     })
 
     expect(result.type).toBe('success')
@@ -43,12 +55,37 @@ describe('SSR configuration', () => {
     }
   })
 
-  it('sets ssr=false for react-client condition non ssr mode', () => {
+  it('sets ssr=true for react-client condition (since it\'s a node & browser target)', () => {
     const result = resolveUserConfig({
-      isClient: true,
+      condition: 'react-client',
       config: {},
-      configEnv: { command: 'build', mode: 'production', isSsrBuild: false },
-      userOptions: resolveOptions(testUserOptions, true)?.['userOptions']
+      configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
+      userOptions: resolveOptions(testUserOptions, 'react-client')?.['userOptions'],
+      autoDiscoveredFiles: {
+        inputs: {},
+      }
+    })
+
+    expect(result.type).toBe('success')
+    if (result.type === 'success') {
+      expect(result.userConfig.build.ssr).toBe(true)
+    }
+  })
+
+  
+  it('sets ssr=false when explicitly set to false', () => {
+    const result = resolveUserConfig({
+      condition: 'react-client',
+      config: {
+        build: {
+          ssr: false
+        }
+      },
+      configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
+      userOptions: resolveOptions(testUserOptions, 'react-client')?.['userOptions'],
+      autoDiscoveredFiles: {
+        inputs: {},
+      }
     })
 
     expect(result.type).toBe('success')
@@ -56,6 +93,4 @@ describe('SSR configuration', () => {
       expect(result.userConfig.build.ssr).toBe(false)
     }
   })
-
-
 }) 

@@ -47,7 +47,7 @@ export function reactPreservePlugin(_options: StreamPluginOptions): import("vite
       order: "post", // Ensure this runs last in transform phase
       handler(code: string, id: string) {
         // Skip node_modules and vite files
-        if (id.includes("node_modules") || id.includes("vite/dist") || !id.match(DEFAULT_CONFIG.FILE_REGEX)) {
+        if (id.includes("node_modules") || id.includes("vite/dist") || !id.match(DEFAULT_CONFIG.MODULE_EXTENSION)) {
           return null;
         }
 

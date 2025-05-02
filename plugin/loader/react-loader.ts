@@ -9,6 +9,7 @@ import {
   type ResolveHookContext,
 } from "node:module";
 import type { MessagePort } from "node:worker_threads";
+import type { LoaderContext } from "../types.js";
 
 let stashedGetSource: any = null;
 let stashedResolve: any = null;
@@ -19,14 +20,10 @@ setSourceMapsSupport(true, {
   generatedCode: true, // Enable for generated code
 });
 
-// Add type for our context with port
-interface LoaderContext {
-  data?: { port: MessagePort };
-}
-
 // Store port globally for use in load hook
-let loaderPort: MessagePort | undefined;
-
+export let loaderPort: MessagePort | undefined;
+// during development, we actually just want to be explicit about the .node extension
+let isDev = process.env['DEV']
 export async function getSource(
   url: string,
   context: any,
@@ -352,10 +349,13 @@ function transformServerModule(
         entry.originalColumn = 0; // entry.loc.start.column;
       }
     }
-
+    
     newSrc += "\n\n;";
     newSrc +=
-      'import {registerServerReference} from "react-server-dom-esm/server";\n';
+      `import ReactDOMServerESM from "react-server-dom-esm/server${isDev ? '.node' : ''}";\n`;
+      // include stack trace where module is imported from
+    newSrc += `if(ReactDOMServerESM instanceof Error){ throw ReactDOMServerESM; }`;
+    newSrc += `export const registerServerReference = ReactDOMServerESM.registerServerReference;\n`;
 
     if (mappings) {
       mappings += ";;";
@@ -567,11 +567,14 @@ async function transformClientModule(
 
   if (names.length === 0) {
     console.log("[react-loader] No exports found in:", url);
-    return "";
+    return null;
   }
-
+  
   let newSrc =
-    'import {registerClientReference} from "react-server-dom-esm/server";\n';
+    `import ReactDOMServerESM from "react-server-dom-esm/server${isDev ? '.node' : ''}";\n`;
+  // check if the module is poisoned
+  newSrc += `if(ReactDOMServerESM instanceof Error){ throw new Error(ReactDOMServerESM); }`;
+  newSrc += `export const registerClientReference = ReactDOMServerESM.registerClientReference;\n`;
 
   for (let i = 0; i < names.length; i++) {
     const name = names[i];
@@ -685,13 +688,7 @@ export async function transformModuleIfNeeded(
 
     if (node.directive === "use client") {
       useClient = true;
-      if (port) {
-        port.postMessage({
-          type: "CLIENT_COMPONENT",
-          url,
-          source,
-        });
-      }
+
       break;
     }
     if (node.directive === "use server") {
@@ -699,14 +696,17 @@ export async function transformModuleIfNeeded(
       break;
     }
   }
+  if(useClient && useServer) {
+    throw new Error('Cannot use both use client and use server directives in the same module');
+  }
+  if(!useClient && !useServer) {
+    return source;
+  }
 
   if (useClient) {
     return transformClientModule(program, url, undefined, loader);
-  } else if (useServer) {
-    return transformServerModule(source, program, url, undefined, loader, port);
-  }
-
-  return source;
+  } 
+  return transformServerModule(source, program, url, undefined, loader, port);
 }
 
 function readMappings(
@@ -881,7 +881,7 @@ function decodeVLQ(str: string): number[] {
 // Initialize hook
 export async function initialize(data: { port: MessagePort }) {
   loaderPort = data.port; // Store port
-  data.port.postMessage({ type: "INITIALIZED" });
+  data.port.postMessage({ type: "INITIALIZED_REACT_LOADER" });
   data.port.unref();
 }
 
@@ -901,16 +901,51 @@ export async function load(
   nextLoad: any
 ) {
   const result = await nextLoad(url, context);
-  if (result.format === "module") {
-    const newSrc = await transformModuleIfNeeded(
-      result.source,
-      url,
-      nextLoad,
-      loaderPort ?? undefined
-    );
-    return { ...result, source: newSrc };
+  
+  // If not a module, return as is
+  if (result.format !== "module") {
+    return result;
   }
-  return result;
+  
+  // Convert source to string if it's a Buffer or Uint8Array
+  let sourceStr: string;
+  if (typeof result.source === 'string') {
+    sourceStr = result.source;
+  } else if (result.source instanceof Uint8Array || Buffer.isBuffer(result.source)) {
+    sourceStr = result.source.toString('utf-8');
+  } else {
+    console.warn(`[react-loader] Unexpected source type: ${typeof result.source}`);
+    return result;
+  }
+
+  // Transform the module if needed
+  const transformResult = await transformModuleIfNeeded(
+    sourceStr,
+    url,
+    nextLoad,
+    loaderPort ?? undefined
+  );
+  
+  // Handle different return types from transformModuleIfNeeded
+  if (transformResult === null) {
+    return result;
+  } else if (typeof transformResult === 'string') {
+    return { ...result, source: transformResult };
+  } else if (typeof transformResult === 'object') {
+    // Type assertion for object with code and map properties
+    const typedResult = transformResult as { code: string; map?: any };
+    if(!('code' in typedResult)) {
+      throw new Error('Failed to transform module');
+    }
+    return { 
+      ...result, 
+      source: typedResult.code,
+      map: typedResult.map || result.map
+    };
+  } else {
+    console.warn(`[react-loader] Unexpected transform result type: ${typeof transformResult}`);
+    return result;
+  }
 }
 
 // Transform hook
@@ -924,15 +959,21 @@ export async function transformSource(
     context,
     defaultTransformSource
   );
-
+  console.log('[react-loader] transformSource', transformed);
   if (context.format === "module") {
-    const transformedSource = transformed.source;
-    if (typeof transformedSource !== "string") {
-      throw new Error("Expected source to have been transformed to a string.");
+    // Convert transformedSource to string if it's a Buffer or Uint8Array
+    let transformedSourceStr: string;
+    if (typeof transformed.source === 'string') {
+      transformedSourceStr = transformed.source;
+    } else if (transformed.source instanceof Uint8Array || Buffer.isBuffer(transformed.source)) {
+      transformedSourceStr = transformed.source.toString('utf-8');
+    } else {
+      console.warn(`[react-loader] Unexpected transformed source type: ${typeof transformed.source}`);
+      return transformed;
     }
 
     const newSrc = await transformModuleIfNeeded(
-      transformedSource,
+      transformedSourceStr,
       context.url,
       (url: string) =>
         loadClientImport(url, defaultTransformSource),

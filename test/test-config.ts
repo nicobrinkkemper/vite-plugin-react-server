@@ -1,13 +1,23 @@
 import { join } from "path";
-import { DEFAULT_CONFIG } from "../plugin/config/defaults.js";
+import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "../plugin/types.js";
+import React from "react";
+
+const Html = ({ children }: { children: React.ReactNode }) => {
+  return React.createElement('html', null, 
+    React.createElement('head', null),
+    React.createElement('body', null, 
+      React.createElement('div', { id: 'root' }, children)
+    )
+  );
+};
 
 const resolvedTestConfig = {
   moduleBase: "src",
   projectRoot: join(__dirname, '../fixtures/test-project/'),
-  Page: DEFAULT_CONFIG.PAGE,
-  props: DEFAULT_CONFIG.PROPS,
-  htmlWorkerPath: '../../../dist/plugin/worker/html/html-worker.development.js',
-  rscWorkerPath: '../../../dist/plugin/worker/rsc/rsc-worker.development.js',
+  Page: "src/page/page.tsx",
+  props: "src/page/props.ts",
+  pageExportName: "Page",
+  Html,
   build: {
     pages: ["/"],
     assetsDir: 'assets',
@@ -15,7 +25,15 @@ const resolvedTestConfig = {
     server: "server",
     static: "static",
     outDir: "dist",
-  }
-}
+  },
+  onMetrics: (() => {}) as ((metrics: RenderMetrics) => void) | undefined,
+  onEvent: undefined as ((event: PluginEvent) => void) | undefined,
+  css: {
+    inlineCss: false as boolean,
+    purgeCss: false as boolean,
+  },
+} satisfies StreamPluginOptions;
 
 export const testUserOptions = resolvedTestConfig;
+
+

@@ -1,4 +1,8 @@
-import type { PreRenderedChunk } from "rollup";
+import type {
+  NormalizedOutputOptions,
+  OutputBundle,
+  PreRenderedChunk,
+} from "rollup";
 import type { PreRenderedAsset } from "rollup";
 import type {
   UserConfig,
@@ -7,13 +11,77 @@ import type {
   AliasOptions,
   Connect,
   ResolveOptions,
+  Manifest,
+  IndexHtmlTransformHook,
+  ViteDevServer,
+  Logger,
+  ManifestChunk,
 } from "vite";
-import type { PipeableStreamOptions } from "./worker/types.js";
+import type {  ReactServerDomEsmOptions } from "./worker/types.js";
+import type React from "react";
+import type { Worker } from "node:worker_threads";
+import type { PassThrough, Transform } from "stream";
+import type { MessagePort } from "node:worker_threads";
+import type { PipeableStream } from "react-server-dom-esm/server.node";
+import type { RenderToPipeableStreamOptions } from "react-dom/server";
+type OnEvent = (event: PluginEvent) => void;
+
+
+export type RenderPageResult =
+| {
+    type: "skip";
+  }
+| {
+    type: "error";
+    error: Error;
+  }
+| {
+    type: "success";
+    html: string;
+    rsc: string;
+    metrics: {
+      rscFull: StreamMetrics;
+      rscHeadless: StreamMetrics;
+    };
+  };
+
+export type AutoDiscoveredFiles = CheckFilesExistReturn & {
+  workerPaths: Record<string, string>;
+  serverEntry: Record<string, string> | null;
+  clientEntry: Record<string, string>;
+  inputs: Record<string, string>;
+};
+export interface FileWriterOptions {
+  outDir: string;
+  fileType: "html" | "rsc";
+  htmlOutputRoot: string;
+  htmlOutputPath: string;
+  onEvent?: OnEvent;
+}
 
 // Input can be a string path, React component, tuple, or array
 export type NormalizerInput = unknown;
 
 export type InputNormalizer = (input: NormalizerInput) => [string, string];
+
+export interface HtmlContent {
+  raw: string;
+  transformed?: string;
+  assets?: string[];
+}
+
+export interface PartialPageData {
+  route: string;
+  html?: {
+    raw: string;
+    transformed?: string;
+    assets?: string[];
+  };
+  rsc?: {
+    modules: any[];
+    content: string;
+  };
+}
 
 export type InputNormalizerWorker = (
   input: NormalizerInput
@@ -23,7 +91,7 @@ export type ResolvedUserConfig = Required<
   Pick<UserConfig, "root" | "mode" | "build" | "resolve">
 > &
   Omit<UserConfig, "root" | "mode" | "build" | "resolve"> & {
-    resolve:  ResolveOptions;
+    resolve: ResolveOptions;
   } & {
     build: NonNullable<
       Required<
@@ -65,33 +133,38 @@ export interface StreamPluginOptionsClient {
   cssFiles?: AliasOptions;
 }
 
-export type ResolvedUserOptions<InlineCSS extends boolean = boolean> = Required<
+export type ResolvedUserOptions<
+  InlineCSS extends boolean | undefined = boolean | undefined
+> = Required<
   Pick<
     StreamPluginOptions,
     | "moduleBase"
     | "moduleBasePath"
     | "moduleBaseURL"
+    | "moduleRootPath"
     | "projectRoot"
     | "build"
     | "Page"
-    | "props"
     | "Html"
     | "CssCollector"
     | "pageExportName"
     | "propsExportName"
-    | "collectCss"
-    | "collectAssets"
-    | "inlineCss"
     | "htmlWorkerPath"
     | "rscWorkerPath"
     | "loaderPath"
     | "clientEntry"
     | "serverEntry"
     | "moduleBaseExceptions"
-    | "pipableStreamOptions"
+    | "pipeableStreamOptions"
+    | "onMetrics"
+    | "onEvent"
+    | "css"
+    | "normalizer"
   >
 > & {
+  props: undefined | string | ((url: string) => string) | ((url: string) => Promise<string>);
   build: NonNullable<Required<StreamPluginOptions<InlineCSS>["build"]>>;
+  css: NonNullable<Required<StreamPluginOptions<InlineCSS>["css"]>>;
   autoDiscover: {
     modulePattern: (path: string) => boolean;
     cssPattern: (path: string) => boolean;
@@ -99,9 +172,14 @@ export type ResolvedUserOptions<InlineCSS extends boolean = boolean> = Required<
     clientComponents: (path: string) => boolean;
     propsPattern: (path: string) => boolean;
     pagePattern: (path: string) => boolean;
+    htmlPattern: (path: string) => boolean;
+    rscPattern: (path: string) => boolean;
     serverFunctions: (path: string) => boolean;
     cssModulePattern: (path: string) => boolean;
     vendorPattern: (path: string) => boolean;
+    nodeOnly: (path: string) => boolean;
+    dotFiles: (path: string) => boolean;
+    virtualPattern: (path: string) => boolean;
   };
 };
 
@@ -118,16 +196,105 @@ export type createBuildConfigFn<C extends "react-client" | "react-server"> =
     ? Promise<InlineConfig>
     : Promise<InlineConfig>;
 
-export interface StreamPluginOptions<InlineCSS extends boolean = boolean> {
+export interface StreamMetrics {
+  chunks: number;
+  bytes: number;
+  backpressureCount: number;
+  drainCount: number;
+  errorCount: number;
+  duration: number;
+  startTime: number;
+}
+
+export interface RenderMetrics {
+  route: string;
+  htmlSize: number;
+  rscSize: number;
+  processingTime: number;
+  chunks: number;
+  chunkRate: number;
+  memoryUsage: NodeJS.MemoryUsage;
+  streamMetrics: StreamMetrics;
+  htmlSizes: Map<string, number>;
+  rscSizes: Map<string, number>;
+  totalChunks: number;
+}
+
+export interface CssCollectorOptions {
+  inlineCss?: boolean;
+  purgeCss?: boolean;
+  inlineThreshold?: number;
+  inlinePatterns?: RegExp[];
+  linkPatterns?: RegExp[];
+}
+
+export type PluginEvent =
+  | FileWriteEvent
+  | {
+      // This is emitted when a route process is setup
+      type: "route.process";
+      data: {
+        route: string;
+        pagePath: string;
+        propsPath?: string | undefined;
+      };
+    } | {
+      type: "route.error";
+      data: {
+        route: string;
+        error: any;
+      };
+    }
+  | {
+      type: "route.postpone";
+      data: {
+        route: string;
+        reason: string;
+      };
+    }
+  | {
+      type: "props.load";
+      data: {
+        route: string;
+        propsPath: string;
+        props: any;
+      };
+    }
+  | {
+      type: "css.process";
+      data: CssContent;
+    }
+  | {
+      type: "build.start";
+      data: {
+        pages: string[];
+        files: AutoDiscoveredFiles;
+      };
+    }
+  | {
+      type: "build.writeBundle";
+      data: {
+        pages: string[];
+        options: NormalizedOutputOptions;
+        bundle: OutputBundle;
+        manifest: Manifest | undefined;
+      };
+    }
+
+export interface StreamPluginOptions<
+  InlineCSS extends boolean | undefined = boolean | undefined
+> {
   projectRoot?: string;
   moduleBase: string;
   moduleBasePath?: string;
   moduleBaseURL?: string;
+  moduleRootPath?: string;
   clientEntry?: string;
   serverEntry?: string;
   // Auto-discovery (zero-config)
   autoDiscover?:
     | {
+        moduleExtension?: RegExp;
         // default: /\.(m|c)?(j|t)sx?$/
         modulePattern?: string | RegExp | ((path: string) => boolean);
         // default: [Pp]age.tsx
@@ -148,11 +315,19 @@ export interface StreamPluginOptions<InlineCSS extends boolean = boolean> {
         cssModulePattern?: string | RegExp | ((path: string) => boolean);
         // default: /node_modules|(_virtual)/
         vendorPattern?: string | RegExp | ((path: string) => boolean);
+        // default: /\.node\.js$/
+        nodeOnly?: string | RegExp | ((path: string) => boolean); 
+        // default: /\.node\.js$/
+        dotFiles?: string | RegExp | ((path: string) => boolean);
+        // default: /^\/_virtual\//
+        virtualPattern?: string | RegExp | ((path: string) => boolean);
+        // default: /\.rsc$/
+        rscPattern?: string | RegExp | ((path: string) => boolean);
       }
     | undefined;
   // Manual configuration
-  Page: string | ((url: string) => string);
-  props?: undefined | string | ((url: string) => string);
+  Page: string | ((url: string) => string) | ((url: string) => Promise<string>);
+  props?: undefined | string | ((url: string) => string) | ((url: string) => Promise<string>);
   // Escape hatches
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
@@ -166,38 +341,67 @@ export interface StreamPluginOptions<InlineCSS extends boolean = boolean> {
     url: string;
     children: React.ReactNode;
   }>;
-  CssCollector?: InlineCSS extends true ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>> : React.FC<React.PropsWithChildren<CssCollectorProps>>;
-  collectCss?: boolean;
-  collectAssets?: boolean;
-  inlineCss?: InlineCSS;
+  CssCollector?: InlineCSS extends true
+    ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>>
+    : React.FC<React.PropsWithChildren<CssCollectorProps>>;
   build?: BuildConfig;
+  css?: CssCollectorOptions;
   moduleBaseExceptions?: string[];
-  pipableStreamOptions?: PipeableStreamOptions;
+  pipeableStreamOptions?: ReactServerDomEsmOptions;
+  onMetrics?: (metrics: RenderMetrics) => void;
+  onEvent?: (event: PluginEvent) => void;
+  normalizer?: InputNormalizer;
 }
 
-export interface CreateHandlerOptions<T = any, InlineCSS extends boolean = boolean> {
-  root: string;
-  url: string;
-  route: string;
-  getCss: (id: string) => Promise<Map<string, string | CssContent>> | Map<string, string | CssContent>;
-  loader: (id: string) => Promise<T>;
-  Html: NonNullable<StreamPluginOptions['Html']>
-  CssCollector: InlineCSS extends true ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>> : React.FC<React.PropsWithChildren<CssCollectorProps>>;
-  inlineCss: InlineCSS;
+export type CreateHandlerOptions<
+  T = unknown,
+  C extends React.ComponentType<T> = React.ComponentType<T>,
+  InlineCSS extends boolean | undefined = undefined
+> = Pick<
+  ResolvedUserOptions<InlineCSS>,
+  | "autoDiscover"
+  | "css"
+  | "pageExportName"
+  | "propsExportName"
+  | "Html"
+  | "CssCollector"
+  | "moduleBase"
+  | "moduleRootPath"
+  | "moduleBasePath"
+  | "moduleBaseURL"
+  | "pipeableStreamOptions"
+  | "onEvent"
+  | "onMetrics"
+  | "projectRoot"
+> & {
+  logger: Logger;
+  loader: Loader;
+  pagePath: string;
   propsPath?: string;
-  pagePath?: string;
-  pageExportName: string
-  propsExportName: string
-  moduleBase: string
-  preserveModulesRoot?: boolean | undefined
-  moduleBasePath: string;
-  moduleRootPath: string;
-  moduleBaseURL: string;
-  cssFiles: (string | CssContent)[];
-  cssModules?: Map<string, string | CssContent> | undefined;
-  onCssFile?: (path: string, parentUrl: string) => void;
-  logger: import("vite").Logger;
-  pipableStreamOptions: PipeableStreamOptions;
+  pageProps?: T;
+  PageComponent?: C;
+  route: string;
+  manifest: Manifest;
+  worker?: any;
+  htmlOutputPath: string;
+  htmlOutputRoot?: string;
+  rscOutputPath: string;
+  rscOutputRoot?: string;
+  importedCss?: Set<string>;
+  cssFiles: Map<string, CssContent>;
+  build: Pick<ResolvedUserOptions["build"], "outDir" | "pages" | "server" | "static" | "client">;
+};
+
+export interface ResolvePageOptions {
+  pagePath: string;
+  pageExportName: string;
+  url: string;
+}
+
+export interface ResolvePropsOptions {
+  propsPath: string;
+  propsExportName: string;
+  url: string;
 }
 
 export type ModuleLoader = (
@@ -225,18 +429,6 @@ export type StreamResult =
   | { type: "error"; error: unknown }
   | { type: "skip" };
 
-export interface RscStreamOptions {
-  Page: React.ComponentType;
-  props: any;
-  Html: any;
-  logger?: Console | import("vite").Logger;
-  cssFiles?: string[];
-  htmlProps: any;
-  route: string;
-  url: string;
-  pipableStreamOptions?: PipeableStreamOptions;
-  moduleBasePath: string;
-}
 
 export interface RouteConfig {
   path: string;
@@ -343,6 +535,8 @@ export interface BuildTiming {
   buildEnd?: number;
   renderStart?: number;
   renderEnd?: number;
+  closeBundle?: number;
+  render?: number;
   total?: number;
 }
 
@@ -351,8 +545,8 @@ export type CheckFilesExistReturn = {
   propsSet: Set<string>;
   pageMap: Map<string, string>;
   pageSet: Set<string>;
-  urlMap: Map<string, {props: string, page: string}>;
-  errors: string[];
+  urlMap: Map<string, { props?: string; page: string }>;
+  errors: Error[];
 };
 
 // Add strict type checking for worker messages
@@ -361,9 +555,11 @@ export type WorkerMessage =
   | { type: "ERROR"; error: string | Error }
   | { type: "RSC_CHUNK"; id: string; chunk: Buffer }
   | { type: "RSC_END"; id: string }
-  | { type: "SHUTDOWN" }
+  | { type: "SHUTDOWN"; id: string }
+  | { type: "SHUTDOWN_COMPLETE" }
   | { type: "CHUNK_PROCESSED"; id: string; success: boolean }
-  | { type: "CHUNK_ERROR"; id: string; error: string };
+  | { type: "CHUNK_ERROR"; id: string; error: string }
+  | { type: "METRICS"; metrics: StreamMetrics };
 
 // Add branded types for safety
 export type ModuleId = string & { readonly __brand: unique symbol };
@@ -377,7 +573,7 @@ export type HtmlProps = {
 };
 
 export interface PageAsset {
-  type: 'css' | 'js';
+  type: "css" | "js";
   path: string;
   parentUrl: string;
 }
@@ -385,40 +581,286 @@ export interface PageAsset {
 export interface PageData {
   route: string;
   clientComponents?: string[];
-  html?: {
+  html: {
     raw: string;
-    transformed?: string;
-    assets: PageAsset[];
+    transformed: string;
+    assets: string[];
   };
-  rsc?: {
+  rsc: {
+    modules: string[];
     content: string;
-    modules: Array<[string, string]>; // [modulePath, exportName]
   };
+  htmlComplete: boolean;
+  rscComplete: boolean;
+  cssFiles: Map<string, CssContent>;
+  usedClasses: Set<string>;
+  projectRoot: string;
+  moduleBase: string;
+  moduleBaseURL: string;
+  moduleBasePath: string;
+  moduleRootPath: string;
+  rscOutputPath: string;
+  htmlOutputPath: string;
+  Page: React.ComponentType;
+  props: unknown;
 }
 
-export interface CssContent {
+type BaseCssProps = {
+  type: string;
+  as: string;
+  id: string;
+}
+
+type CssProps = BaseCssProps & {
+  as: "link";
+  children?: InlineCssProps extends false ? never : React.ReactNode;
+  id: string;
+  href: string;
+  rel: "stylesheet";
+  precedence?: string;
+}
+type InlineCssProps = BaseCssProps & {
+  as: "style";
+  children?: React.ReactNode;
+  precedence?: never;
+  rel?: never;
+  href?: never;
+}
+
+export type CssContent<
+  InlineCSS extends boolean | undefined = boolean | undefined
+> =
+  InlineCSS extends true ? InlineCssProps : InlineCSS extends false ? CssProps : CssProps | InlineCssProps;
+
+export interface JsContent {
   type?: string;
   content: string;
   key?: string;
   path: string;
+  id?: string;
 }
+
+export type CssCollectorProps = {
+  moduleBaseURL: string;
+  moduleBasePath: string;
+  moduleRootPath: string;
+  route?: string;
+  inlineCss?: boolean;
+  purgeCss?: boolean;
+  children?: React.ReactNode;
+  /** A map containing all the css files imported by the route and their proxy values
+   * - when inlineCss is true, will contain the `content` property
+   * - when prugeCss is true, will contain the module proxy which includes a `userClasses`
+   * @example ```tsx
+   * import styles from './styles.module.css';
+   * export const Page = () => {
+   *  return <div className={styles.userClass}>Hello World</div>
+   * }
+   * ```
+   * then the module will basically contain whatever `styles` exported here. But how does it track css class usages
+   * during streaming?
+   *
+   * const tags = Array.from(importedCss?.values() ?? []).map(cssFile => {
+   *  return <link rel="stylesheet" href={cssFile.path} />
+   * })
+   * ```
+   *
+   *
+   * */
+
+  cssFiles?: Map<string, CssContent>;
+};
 
 export interface InlineCssCollectorProps {
-  cssFiles: CssContent[];
-  root: string;
+  cssFiles: Map<string, CssContent>;
   moduleBaseURL: string;
-  moduleBasePath: string;
   moduleRootPath: string;
-  route: string;
+  moduleBasePath: string;
+  route?: string;
+  purgeCss?: boolean;
   children?: React.ReactNode;
 }
 
-export interface CssCollectorProps {
-  cssFiles: CssContent[];
-  root: string;
-  moduleBaseURL: string;
-  moduleBasePath: string;
-  moduleRootPath: string;
-  route: string;
-  children?: React.ReactNode;
+export interface HtmlRenderState {
+  id: string;
+  rscStream: PassThrough;
+  htmlStream: PassThrough;
+  progressStream: PassThrough;
+  errorTransform: Transform;
+  htmlChunks: string[];
+  pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
+  streamState: {
+    totalChunksProcessed: number;
+    totalBytesProcessed: number;
+    backpressureCount: number;
+    drainCount: number;
+    errorChunks: number;
+    duration: number;
+    totalChunksReceived: number;
+    startTime: number;
+    lastChunkTime: number;
+    lastProgressTime: number;
+    averageChunkSize: number;
+    chunkRate: number;
+    bytesPerSecond: number;
+    percentComplete: number;
+    timeRemaining: number;
+    status: string;
+    isStreamSetup: boolean;
+    rscStreamEnded: boolean;
+    htmlStreamEnded: boolean;
+    rscStreamEndTime: number;
+    htmlStreamEndTime: number;
+    shellReady: boolean;
+    complete: boolean;
+    rendered: boolean;
+  };
+}
+
+export type RenderPagesResult =
+  | {
+      type: "error";
+      error: Error;
+      failedRoutes: Set<string>;
+      completedRoutes: Set<string>;
+      htmlSizes: Map<string, number>;
+      rscSizes: Map<string, number>;
+      totalChunks: number;
+      streamMetrics: StreamMetrics;
+      results: Map<
+        string,
+        {
+          html: string;
+          rsc: string;
+          metrics: {
+            rscFull: StreamMetrics;
+            rscHeadless: StreamMetrics;
+          };
+        }
+      >;
+    }
+  | {
+      type: "success";
+      completedRoutes: Set<string>;
+      failedRoutes?: never;
+      htmlSizes: Map<string, number>;
+      rscSizes: Map<string, number>;
+      totalChunks: number;
+      streamMetrics: StreamMetrics;
+      results: Map<
+        string,
+        {
+          html: string;
+          rsc: string;
+          metrics: {
+            rscFull: StreamMetrics;
+            rscHeadless: StreamMetrics;
+          };
+        }
+      >;
+    };
+
+export type HandlerAssets = {
+  css: CssContent[];
+  js: string[];
+  bootstrapModules: string[];
+};
+
+export type CreateHandlerResult =
+  | {
+      type: "success";
+      controller: AbortController;
+      stream: PipeableStream;
+      assets: {
+        css: CssContent[];
+        js: string[];
+        bootstrapModules: string[];
+      };
+      route: string;
+      metrics: StreamMetrics;
+    }
+  | { type: "error"; error: Error }
+  | { type: "skip" };
+
+export type FileWriteEvent = {
+  type: "file.write";
+  data: {
+    route: string;
+    fileType: "html" | "rsc";
+    content: string;
+    onComplete: () => Promise<void>;
+  };
+};
+
+export type ReactStaticEvent =
+  | FileWriteEvent
+  | {
+      type: "build.start";
+      data: {
+        pages: string[];
+        files: Array<[string, { page: string; props?: string }]>;
+      };
+    };
+
+export type HtmlWorkerInputMessage =
+  | {
+      type: "RSC_CHUNK";
+      id: string;
+      chunk: ArrayBuffer | Buffer | { buffer: ArrayBuffer } | Blob;
+      moduleRootPath?: string;
+      moduleBaseURL?: string;
+      outDir?: string;
+      htmlOutputPath?: string;
+      rscOutputPath?: string;
+      cssFiles?: Array<[string, string]>;
+      pipeableStreamOptions?: any;
+      clientManifest?: any;
+      serverManifest?: any;
+    }
+  | {
+      type: "RSC_END";
+      id: string;
+    }
+  | {
+      type: "SHUTDOWN";
+    }
+  | {
+      type: "INITIALIZED_REACT_LOADER";
+    }
+  | {
+      type: "INITIALIZED_CSS_LOADER";
+    }
+  | {
+      type: "ACKNOWLEDGE";
+      error?: string;
+    };
+
+export type HtmlWorkerOutputMessage =
+  | {
+      type: "HTML_COMPLETE";
+      id: string;
+      success: boolean;
+      html?: string;
+      chunks?: string[];
+      metrics?: StreamMetrics;
+    }
+  | { type: "ERROR"; id: string; error: string }
+  | { type: "SHELL_READY"; id: string }
+  | { type: "CHUNK_PROCESSED"; id: string; success: boolean }
+  | { type: "CHUNK_ERROR"; id: string; error: string }
+  | { type: "HTML_CHUNK"; id: string; chunk: string }
+  | { type: "STREAM_STATE"; id: string; state: { status: string } }
+  | { type: "CLEANUP_COMPLETE"; id: string };
+
+export type Loader = (path: string) => Promise<any>;
+
+// Define LoaderContext interface locally
+export interface LoaderContext {
+  data?: { port?: MessagePort };
+}
+// Add type declaration for import.meta.cssModules
+declare global {
+  interface ImportMeta {
+    cssModules?: Record<string, Record<string, string>>;
+  }
 }

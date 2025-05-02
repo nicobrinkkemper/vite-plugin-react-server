@@ -1,51 +1,4 @@
-// no offical types for node:module available yet (23.7.0)
-declare module 'node:module' {
-  export interface ImportAttributes {
-    [key: string]: string | undefined;
-  }
-
-  export interface ResolveHookContext {
-    conditions: string[];
-    parentURL: string | undefined;
-    importAttributes: ImportAttributes;
-  }
-
-  export interface LoadHookContext {
-    conditions: string[];
-    format: ModuleFormat | null | undefined;
-    importAttributes: ImportAttributes;
-    shortCircuit?: boolean;
-  }
-
-  export interface ResolveResult {
-    url: string;
-    shortCircuit: boolean;
-  }
-
-  export interface LoadResult {
-    format: string;
-    source: string | SharedArrayBuffer | Uint8Array;
-    shortCircuit: boolean;
-  }
-
-  export interface HooksAPI {
-    resolve?: (
-      specifier: string,
-      context: ResolveHookContext,
-      nextResolve: (specifier: string, context: ResolveHookContext) => ResolveResult
-    ) => ResolveResult;
-
-    load?: (
-      url: string,
-      context: LoadHookContext,
-      nextLoad: (url: string, context: LoadHookContext) => LoadResult
-    ) => LoadResult;
-  }
-
-  export function registerHooks(hooks: HooksAPI): void;
-}
-//
-import { parentPort, MessageChannel } from "node:worker_threads";
+import { parentPort, MessageChannel, workerData } from "node:worker_threads";
 import { messageHandler } from "./messageHandler.js";
 import { 
   register,
@@ -86,10 +39,46 @@ register(cssLoaderPath, {
 registerTsx();
 
 // Set up message handling
-parentPort.on("message", messageHandler);
+parentPort!.on("message", messageHandler);
 
-// Signal ready
-parentPort.postMessage({ type: "READY", env: process.env["NODE_ENV"] });
+const { hmrPort } = workerData;
+if (hmrPort) {
+  console.log('[RSC Worker] Setting up HMR listeners in server mode');
+  
+  // Start the message port
+  hmrPort.start();
+  
+  // Listen for file changes
+  hmrPort.on('message', (message: any) => {
+    console.log('[RSC Worker] HMR message received:', message);
+    if (message.type === 'HMR_UPDATE') {
+      console.log('[RSC Worker] File changed:', message.path);
+      // Invalidate the module in the worker
+      parentPort!.postMessage({
+        type: 'HMR_UPDATE',
+        path: message.path
+      });
+    }
+  });
+
+  // Listen for HMR updates
+  hmrPort.on('message', (message: any) => {
+    console.log('[RSC Worker] HMR update received:', message);
+    // Handle the update
+    parentPort!.postMessage({
+      type: 'HMR_ACCEPT',
+      path: message.path
+    });
+  });
+} else {
+  console.log('[RSC Worker] HMR not enabled - running in client mode or no HMR emitter', {workerData});
+}
+
+// Notify parent that we're ready
+parentPort!.postMessage({
+  type: "READY",
+  env: process.env["NODE_ENV"]
+});
 
 if (process.env["NODE_ENV"] !== "development") {
   throw new Error("This module must be run in development mode");

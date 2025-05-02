@@ -1,131 +1,177 @@
-type ResolvePropsOptions = {
-  propsModule: Record<string, any>;
-  path: string;
-  exportName: string;
+import { stashReturnValue } from "./helpers/stashReturnValue.js";
+import type { Loader } from "./types.js";
+
+type ResolvePropsOptions<N extends string> = {
+  id: string;
   url: string;
+  exportName: N;
+  loader: Loader;
 };
 
-type ResolvePropsResult =
-  | { type: "success"; key: string; props: any }
+type ResolvePropsResult<T, N extends string> =
+  | { type: "success"; key: string; props: T; module?:  { [key in N]: T } }
   | { type: "error"; error: Error }
   | { type: "skip" };
 
-function isFunction(value: any) {
-  return typeof value === "function";
-}
-
-export async function resolveProps({
-  propsModule,
-  path,
-  exportName,
+/**
+ * Resolves props from a module, handling both real and virtual modules.
+ *
+ * During development (ssrLoadModule):
+ * - Real modules have exports available directly on the module object
+ * - Virtual modules have exports stored in temporaryReferences
+ *
+ * During build (createBuildLoader):
+ * - Transformed modules (with ast/code) have exports as direct properties
+ * - The exports array contains just the names of those exports
+ * - We store the module in temporaryReferences for later use
+ * - We access exports directly from the module object
+ *
+ * Props can be:
+ * 1. A function that takes a URL and returns props
+ * 2. A direct object of props
+ * 3. A renamed export (where the actual export name differs from the expected name)
+ *
+ * @param options.propsModule - The module object from ssrLoadModule or createBuildLoader
+ * @param options.path - The normalized path to the module
+ * @param options.url - The URL route this page handles
+ * @param options.exportName - The name of the export to resolve (e.g. 'props')
+ * @param options.temporaryReferences - WeakMap used to store and retrieve virtual module references
+ *
+ * @returns A result object containing:
+ *   - type: "success" | "error" | "skip"
+ *   - key: The export name if successful
+ *   - props: The resolved props if successful
+ *   - error: Error message if failed
+ */
+export const resolveProps = stashReturnValue(async function _resolveProps<T, N extends string>({
+  id,
   url,
-}: ResolvePropsOptions): Promise<ResolvePropsResult> {
-  if (!propsModule) {
-    return {
-      type: "error",
-      error: new Error(`propsModule is ${typeof propsModule}`),
-    };
-  }
-
-  if (typeof propsModule !== "object") {
-    return {
-      type: "error",
-      error: new Error(
-        `propsModule must be an object, got ${typeof propsModule}`
-      ),
-    };
-  }
-
-  const keys = Object.keys(propsModule);
-  let found = keys.find((v) => v === exportName || v === url || v === path);
-  if(exportName in propsModule) {
-    found = exportName;
-  }
-  if (found) {
-    let value = propsModule[found];
+  exportName,
+  loader,
+}: ResolvePropsOptions<N>): Promise<ResolvePropsResult<T, N>> {
+  // Check if this is a stashed page that needs special handling
+  const propsLoadResult = await (async (): Promise<
+    | { type: "success"; key: string; module: { [key in N]: T } }
+    | { type: "error"; error: Error; module?: never }
+  > => {
     try {
-      // If it's a function, call it with the URL
-      if (isFunction(value)) {
-        const props = await value(url);
-        return {
-          type: "success",
-          key: found,
-          props,
-        };
-      }
-
-      // If it's a promise, await it
-      if (value && typeof value.then === "function") {
-        const props = await value;
-        return {
-          type: "success",
-          key: found,
-          props,
-        };
-      }
-
-      // If it's a plain object, use it directly
-      if (typeof value === "object" && value !== null) {
-        return {
-          type: "success",
-          key: found,
-          props: value,
-        };
-      }
-
-      
       return {
-        type: "error",
-        error: new Error(
-          `Expected props export "${exportName}" in "${path}" to be a function, promise, or object that resolves to props, instead got typeof ${typeof value}.`
-        ),
+        type: "success",
+        key: id,
+        module: await loader(id),
       };
     } catch (error) {
-      console.trace(error);
-      console.warn(found, "error in resolveProps", propsModule, url, path);
       return {
         type: "error",
-        error: error as Error,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  })();
+
+  if (propsLoadResult.type !== "success") {
+    return propsLoadResult;
+  }
+  const { module } = propsLoadResult;
+  const props = module[exportName as N];
+  // handle different props use-cases
+  if (module instanceof Error) {
+    return {
+      type: "error",
+      error: module,
+    };
+  } else if (!(exportName in module)) {
+    return {
+      type: "success",
+      key: exportName,
+      props: { url, ...module } as T,
+      module,
+    };
+  } else if (!props) {
+    return {
+      type: "success",
+      key: exportName,
+      props: { url } as T,
+      module: module as { [key in N]: T },
+    };
+  } else if (props instanceof Error) {
+    return {
+      type: "error",
+      error: props,
+    };
+  } else if (typeof props === "function") {
+    // Handle both class constructors and regular functions
+    try {
+      let propsResult;
+      if (props.prototype && props.prototype.constructor) {
+        // Class constructor case
+        propsResult = new (props as new (url: string) => T)(url);
+      } else {
+        // Regular function case
+        propsResult = props(url);
+      }
+      
+      return {
+        type: "success",
+        key: exportName,
+        props: propsResult instanceof Promise ? await propsResult : propsResult,
+        module: module as { [key in N]: T },
+      };
+    } catch (error) {
+      return {
+        type: "error",
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  } else if (props instanceof Promise) {
+    // object case
+    try {
+      return {
+        type: "success",
+        key: exportName,
+        props: await props,
+        module: propsLoadResult.module,
+      };
+    } catch (error) {
+      return {
+        type: "error",
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  } else if (Array.isArray(props)) {
+    // array case
+    try {
+      return {
+        type: "success",
+        key: exportName,
+        props: Object.fromEntries(
+          props.map((prop) => (typeof prop === "string" ? [prop, prop] : prop))
+        ) as T,
+        module: propsLoadResult.module,
+      };
+    } catch (error) {
+      return {
+        type: "error",
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  } else if (typeof props === "string") {
+    try {
+      return {
+        type: "success",
+        key: exportName,
+        props: JSON.parse(props),
+      };
+    } catch (error) {
+      return {
+        type: "error",
+        error: error instanceof Error ? error : new Error(String(error)),
       };
     }
   }
-  const commonjs = keys.find((v) => v === "exports");
-
-  if (!!commonjs) {
-    const exportKeys = (commonjs as unknown as { exports: any })["exports"]
-      ? Object.keys((commonjs as unknown as { exports: any })["exports"])
-      : [];
-    const foundCommonJS = exportKeys.find(
-      (v) => v === exportName || v === url || v === path
-    );
-    return {
-      type: "error",
-      error: new Error(
-        `Expected props export "${exportName}" in "${path}", but instead got "exports" with ${
-          !!foundCommonJS
-            ? foundCommonJS.toString()
-            : exportKeys.length
-            ? exportKeys.join(", ")
-            : "no keys"
-        }, this will not work. Make sure to set esModule: true in rollupOptions.output. ${JSON.stringify(propsModule)}`
-      ),
-    };
-  }
-  if (Object.keys(propsModule).includes("error")) {
-    return {
-      type: "error",
-      error: propsModule["error"],
-    };
-  }
-
   return {
-    type: "error",
-    error: new Error(
-      `Could not find props export "${exportName}" in "${path}". ${
-        keys.length
-          ? "Available exports: " + keys.join(", ")
-          : "The object was defined but has no properties. \"" + JSON.stringify(propsModule) + "\""
-      }`
-    ),
+    type: "success",
+    key: exportName,
+    props: props,
+    module: module as { [key in N]: T },
   };
-}
+});

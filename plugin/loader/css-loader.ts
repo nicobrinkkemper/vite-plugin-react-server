@@ -1,94 +1,166 @@
-import { readFile } from 'fs/promises';
-import { basename } from 'path';
-import postcss from 'postcss';
-import type { MessagePort } from 'node:worker_threads';
-import type { CssFileMessage } from '../worker/types.js';
-import type { LoadHookContext } from 'node:module';
+import type { MessagePort } from "node:worker_threads";
+import type { CssFileMessage, RscWorkerOutputMessage } from "../worker/types.js";
+import type { LoadHookContext } from "node:module";
+import type { LoaderContext } from "../types.js";
+import { fileURLToPath } from "node:url";
+import { preprocessCSS } from "vite";
+import type { InlineConfig, ResolvedConfig, ViteDevServer } from "vite";
+import { readFile } from "node:fs/promises";
+import { parentPort } from "node:worker_threads";
+import { resolveConfig} from "vite"
+import { config } from "node:process";
+import { join } from "node:path";
 
-type LoaderContext = {
-  data?: { port: MessagePort };
-};
-// Store port globally for CSS loader
-let cssLoaderPort: MessagePort | undefined;
+/**
+ * Global port for communication between the main thread and the CSS loader.
+ * This port is used to send CSS file requests and receive responses.
+ */
+export let loaderPort: MessagePort | undefined;
 
-// Initialize hook
-export async function initialize(data: { port: MessagePort }) {
-  cssLoaderPort = data.port;  // Store port
-  data.port.postMessage({ type: 'INITIALIZED' });
-  data.port.unref();
-}
+/**
+ * CSS configuration from worker data
+ */
+let cssConfig: any;
 
-// CSS file tracking per page
+/**
+ * Tracks CSS files used by each page.
+ * Maps page URLs to sets of CSS file paths that are used by that page.
+ */
 const cssFilesByPage = new Map<string, Set<string>>();
 
-export function setCurrentPage(page: string | null) {
-  if (page && !cssFilesByPage.has(page)) {
-    cssFilesByPage.set(page, new Set());
+let inlineConfig: InlineConfig | undefined;
+
+let currentPage: string | null = null;
+
+/**
+ * Initializes the CSS loader with the necessary communication channels.
+ * Sets up message handlers for CSS file requests and responses.
+ * 
+ * @param data - Configuration data for the CSS loader
+ * @param data.port - The message port for communication
+ * @param data.server - The Vite dev server instance
+ */
+export async function initialize(data: { port: MessagePort; }) {
+  loaderPort = data.port;
+  if (parentPort) {
+    const workerData = (parentPort as any).workerData;
+    if (workerData?.cssConfig) {
+      cssConfig = workerData.cssConfig;
+    }
+    if (workerData?.inlineConfig) {
+      inlineConfig = workerData.inlineConfig;
+    }
   }
+  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER" });
 }
 
+/**
+ * Sets the current page being processed.
+ * Used to track which CSS files are associated with which pages.
+ * 
+ * @param page - The URL of the current page, or null if no page is active
+ */
+export function setCurrentPage(page: string | null) {
+  currentPage = page;
+}
+
+/**
+ * Retrieves all CSS files associated with a specific page.
+ * 
+ * @param page - The URL of the page
+ * @returns An array of CSS file paths used by the page
+ */
 export function getCssFilesForPage(page: string): string[] {
   return Array.from(cssFilesByPage.get(page) || []);
 }
 
-// Modify the CSS handling in the load function
-export async function load(url: string, context: LoadHookContext & LoaderContext, defaultLoad: any) {
-  // Handle CSS files
-  if(url.endsWith(".css")) {
-    const source = await readFile(new URL(url), 'utf-8');
+/**
+ * Processes a CSS file request.
+ * Sends a request to the main thread and waits for the processed CSS.
+ * 
+ * @param filePath - The file system path of the CSS file
+ * @param config - The Vite config
+ * @returns A promise that resolves to the processed CSS content
+ */
+async function processCssFile(
+  filePath: string,
+  config: ResolvedConfig,
+  inline: boolean
+): Promise<{ format: string; source: string; shortCircuit: boolean }> {
+  
+  try {
+    // Convert file URL to path if needed
+    const path = filePath.startsWith('file://') ? fileURLToPath(filePath) : filePath;
     
-    // Process CSS with PostCSS
-    const result = await postcss().process(source, {
-      from: url,
-      to: url,
-      map: {
-        inline: false,
-        annotation: false
-      }
-    });
+    // Process CSS using Vite's preprocessCSS
+    const source = await readFile(path, "utf-8");
+    const processed = await preprocessCSS(source, path, config);
 
-    // Generate both transformed CSS and class mappings
-    const moduleName = basename(url, '.css').replace('.', '_');
-    const classes: Record<string, string> = {};
-
-    // Transform selectors
-    result.root.walkRules(rule => {
-      const selector = rule.selector.replace('.', '');
-      const className = `${moduleName}_${selector}`;
-      classes[selector] = className;
-      rule.selector = `.${className}`;
-    });
-
-    // Get transformed CSS using root.toString()
-    const transformedCss = result.root.toString();
-
-    // Send processed CSS to worker
-    if (cssLoaderPort) {
-      cssLoaderPort.postMessage({
-        type: 'CSS_FILE',
-        id: url,
-        cssFile: transformedCss
-      } satisfies CssFileMessage);
+    // If we're processing CSS for a specific page, notify the message handler
+    if (loaderPort) {
+      loaderPort.postMessage({  
+        type: "CSS_FILE",
+        id: currentPage ? join(path, '?page=' + currentPage) : path,
+        path: path,
+        content: processed.code,
+        modules: processed.modules || {},
+        inline
+      });
     }
-    
-    // Return CSS module
-    const moduleSource = `
-      const styles = ${JSON.stringify(classes)};
-      export default styles;
-      export const css = ${JSON.stringify(transformedCss)};
-    `;
 
+    // Return a module that can be used by React components
+    if (inline) {
+      return {
+        format: "module",
+        source: processed.code,
+        shortCircuit: true,
+      };
+    }
     return {
-      format: 'module',
-      source: moduleSource,
-      shortCircuit: true
+      format: "module",
+      source: `export default ${JSON.stringify({...processed.modules})};`,
+      shortCircuit: true,
     };
+  } catch (error) {
+    console.error(`[css-loader] Error processing CSS file: ${error}`);
+    throw error;
   }
+}
+
+/**
+ * Vite's load hook implementation for CSS files.
+ * Handles CSS file loading requests and returns a placeholder module.
+ * The actual CSS content is processed in the main thread.
+ * 
+ * @param url - The URL of the module to load
+ * @param context - The load hook context
+ * @param defaultLoad - The default load function
+ * @returns A promise that resolves to the module content
+ */
+export async function load(
+  url: string,
+  context: LoadHookContext & LoaderContext & { resolvedConfig: ResolvedConfig },
+  defaultLoad: any
+) {
+  // Handle CSS files
+  const [name, query] = url.split("?");
+  if (name.endsWith(".css")) {
+    const resolvedConfig = await resolveConfig(inlineConfig || config as unknown as InlineConfig, 'serve');
+    return processCssFile(url, resolvedConfig, query === 'inline');
+  }
+
   return defaultLoad(url, context, defaultLoad);
 }
 
+/**
+ * Vite's resolve hook implementation.
+ * Handles module resolution during development.
+ * 
+ * @param specifier - The module specifier to resolve
+ * @param context - The resolve hook context
+ * @param defaultResolve - The default resolve function
+ * @returns A promise that resolves to the resolved module
+ */
 export function resolve(specifier: string, context: any, defaultResolve: any) {
   return defaultResolve(specifier, context, defaultResolve);
 }
-
-

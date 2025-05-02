@@ -1,31 +1,13 @@
 "use strict";
 
-import type { StreamPluginOptions } from './plugin/types.js';
+const condition = process.env['NODE_OPTIONS']?.match(/--conditions[= ]react-server/) ? 'server' : 'client'
 
-const isServer = process.env['NODE_OPTIONS']?.match(/--conditions[= ]react-server/)
-
-export const viteReactServer = async (options: StreamPluginOptions)=>{
-  if(!isServer){
-    return ()=>{}
-  } else {
-    const module = await import('./server.js')
-    return module.vitePluginReactServer(options)
+export const vitePluginReactServer = await import(`./plugin/react-server/plugin.${condition}.js`).then(m => {
+  if(!('vitePluginReactServer' in m)){
+    throw new Error(`Could not find vitePluginReactServer in ./plugin/react-server/plugin.${condition}.js`);
   }
-}
+  return m['vitePluginReactServer']
+})
 
-export const viteReactClient = async (options: StreamPluginOptions)=>{
-  if(isServer){
-      return ()=>{}
-  } else {
-    const module = await import('./client.js')
-    return module.vitePluginReactClient(options)
-  }
-}
-
-export const viteReactStream = (options: StreamPluginOptions)=>{
-  if(isServer){
-    return viteReactClient(options)
-  } else {
-    return viteReactServer(options)
-  }
-}
+// types
+export type * from './plugin/types.js'

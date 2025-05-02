@@ -1,45 +1,28 @@
 import type {
   OutputBundle,
-  PluginContext,
   OutputChunk,
 } from "rollup";
-import { createInputNormalizer } from "./inputNormalizer.js";
-import { DEFAULT_CONFIG } from "../config/index.js";
+import type { Manifest } from "vite";
+import type { InputNormalizer } from "../types.js";
 
-interface BundleManifestEntry {
-  file: string;
-  name: string;
-  src?: string;
-  isEntry?: boolean;
-  imports?: string[];
-  dynamicImports?: string[];
-  css?: string[];
-}
 
 /**
  * Get the bundle manifest from the plugin context. Will only work during production build
  * @param pluginContext - The plugin context
  * @param bundle - The bundle
  * @param preserveModulesRoot - The preserve modules root
+ * @param serverDir - The server directory name from build config
  * @returns The bundle manifest
  */
-export function getBundleManifest({
-  pluginContext,
+export function getBundleManifest<SSR extends boolean>({
   bundle,
-  moduleBase,
-  preserveModulesRoot,
+  normalizer,
+  serverDir,
 }: {
-  pluginContext: PluginContext,
   bundle: OutputBundle,
-  moduleBase?: string,
-  preserveModulesRoot?: boolean,
-}): Record<string, BundleManifestEntry> {
-
-  const normalizer = createInputNormalizer({
-    root: pluginContext.environment.config.root,
-    removeExtension: DEFAULT_CONFIG.FILE_REGEX,
-    preserveModulesRoot: preserveModulesRoot === true ? moduleBase : undefined,
-  });
+  normalizer: InputNormalizer,
+  serverDir?: string,
+}): SSR extends true ? Record<string, string[]> : Manifest {
 
   if (!bundle) return {};
 
@@ -48,12 +31,32 @@ export function getBundleManifest({
 
   const bundleManifest = Object.fromEntries(
     Object.entries(bundle)
-      .map(([fileName, chunk]) => {
-        if (chunk.type !== "chunk") return null as never;
+      .map(([originalFileName, chunk]) => {
+        if(!originalFileName && 'file' in chunk) {
+          return [
+            chunk.file,
+            {
+              file: chunk.file,
+              source: 'source' in chunk ? chunk.source : undefined,
+            }
+          ]
+        }
+        if (chunk.type === "asset") {
+          return [
+            originalFileName,
+            {
+              file: chunk.fileName,
+              name: chunk.names[0],
+              src: originalFileName,
+              source: chunk.source,
+              isEntry: chunk.needsCodeReference,
+            }
+          ]
+        }
         const chunkWithFacade = chunk as OutputChunk;
         
         // Get the module ID, preferring facadeModuleId
-        const moduleId = chunkWithFacade.facadeModuleId || chunkWithFacade.moduleIds[0] || fileName;
+        const moduleId = chunkWithFacade.facadeModuleId || chunkWithFacade.moduleIds[0] || originalFileName;
         
         // Handle commonjs helpers specially - must be done before normalization
         if (moduleId.includes('commonjsHelpers')) {
@@ -72,7 +75,7 @@ export function getBundleManifest({
         let [normalizedId, sourcePath] = normalizer(moduleId);
 
         // For virtual modules, use a consistent naming scheme
-        let finalFileName = fileName;
+        let finalFileName = originalFileName;
         if (moduleId.includes('?')) {
           const [basePath, query] = moduleId.split('?');
           const virtualPath = basePath.includes('node_modules') 
@@ -84,12 +87,13 @@ export function getBundleManifest({
           
           if (!virtualModules.has(virtualKey)) {
             // First time seeing this virtual module
-            const virtualFileName = `${virtualPath.replace(/\.js$/, '')}.${query}.js`;
+            const virtualFileName = query === 'inline' ? virtualPath : `${virtualPath}.${query}.js`;
             virtualModules.set(virtualKey, virtualFileName);
           }
           
           finalFileName = virtualModules.get(virtualKey)!;
         }
+
         // handle preserveModulesRoot
         if(normalizedId.startsWith('\x00')){
           normalizedId = normalizedId.slice(1);
@@ -97,9 +101,11 @@ export function getBundleManifest({
         if(sourcePath.startsWith('/')){
           sourcePath = sourcePath.slice(1);
         }
-        if(moduleBase && preserveModulesRoot && normalizedId?.startsWith(moduleBase + '/')) {
-          normalizedId = normalizedId.slice(moduleBase.length + 1);
-        }
+
+        
+        const withCss = chunk.viteMetadata?.importedCss?.size ? {
+          css: Array.from(chunk.viteMetadata.importedCss),
+        } : {};
         const bundleManifestEntry = [
           sourcePath,
           {
@@ -109,9 +115,7 @@ export function getBundleManifest({
             isEntry: chunk.isEntry,
             ...(chunk.imports?.length > 0 ? { imports: chunk.imports } : {}),
             ...(chunk.dynamicImports?.length > 0 ? { dynamicImports: chunk.dynamicImports } : {}),
-            ...(chunk.viteMetadata?.importedCss?.size ? {
-              css: Array.from(chunk.viteMetadata.importedCss),
-            } : {}),
+            ...withCss,
           },
         ];
         return bundleManifestEntry;

@@ -45,16 +45,31 @@ This ensures the patch is applied after every `npm install`. If errors arise rel
 
 ## Plugin Structure and Purpose
 
-### Strict Client-Server Separation
+### Environment-Based Execution
 
-This plugin enforces a **strict architectural separation** between client and server execution. It achieves this by requiring **distinct entry files** for both environments, preventing unintended dependencies or cross-thread interactions. While this approach improves maintainability and clarity, it requires additional boilerplate.
+This plugin uses environment detection to determine the execution context. It achieves this by checking the `NODE_OPTIONS` environment variable:
 
-The separation is accomplished through two complementary plugins:
+```typescript
+import { getCondition } from "vite-plugin-react-server"
 
-- **vite-plugin-react-server/client** → Handles client-side rendering and ESM bundling
-- **vite-plugin-react-server** → Manages server-side streaming and RSC processing
+if(getCondition() !== 'react-server'){
+  throw new Error('-10 poision damage')
+}
+```
+Alternatively, you can pass the argument for the `react-` prefix to just get client or server back.
 
-This ensures that client-side and server-side concerns remain isolated from the beginning, reducing potential inconsistencies.
+```typescript
+import { getCondition } from "vite-plugin-react-server"
+
+import(`plugin.${getCondition('')}.js`)
+```
+
+The separation is accomplished through a single entry point that adapts based on the environment:
+
+- **Client Mode** (default) → Handles client-side rendering and ESM bundling
+- **Server Mode** (`NODE_OPTIONS="--conditions react-server"`) → Manages server-side streaming and RSC processing
+
+This ensures that client-side and server-side concerns remain isolated while using a single configuration, reducing potential inconsistencies.
 
 ### Custom composition
 
@@ -62,13 +77,15 @@ You can pick and choose only the plugins you like to get the desired behavior as
 
 ### Worker support
 
-The client plugin uses the `rsc-worker` to create server side streams. The server plugin uses the `html-worker` to create client side html. If you don't want to use the rsc-worker, simply don't serve the client plugin. If you don't want to use the `html-worker` simply don't configure the `build.pages` option.
+The client plugin uses the `rsc-worker` to create server side streams. The server plugin uses the `html-worker` to create client side html. If you don't want to use the rsc-worker, simply don't serve the plugin without the `react-server` condition. If you don't want to use the `html-worker` simply don't configure the `build.pages` option.
 
 ### Custom Worker
 
 Both workers can be customized using the `htmlWorkerPath` and `rscWorkerPath` respectively. The paths will be used to create the workers instead of the prebuilt worker included with this plugin. If these paths are defined, they will be made part of your application build as well.
 
 Keep in mind that, using your custom worker means interacting with the message system of this plugin during development/static generation process.
+
+For more information on creating your custom workers, see [docs](/docs)
 
 
 ## Plugin Usage
@@ -110,7 +127,7 @@ Used in `vite.config.ts` for standard Vite client-side behavior
 
 ```ts
 import { defineConfig, type Plugin } from "vite";
-import { vitePluginReactClient } from "vite-plugin-react-server/client";
+import { vitePluginReactClient } from "vite-plugin-react-server";
 import { config } from "./vite.react.config";
 
 export default defineConfig({

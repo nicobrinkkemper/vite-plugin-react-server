@@ -1,73 +1,83 @@
-import { join, dirname } from "node:path";
+/**
+ * plugin.ts
+ *
+ * PURPOSE: Main Vite plugin for React Server Components (RSC) static site generation
+ *
+ * This module:
+ * 1. Orchestrates the entire static site generation process
+ * 2. Manages the lifecycle of the RSC rendering process
+ * 3. Handles file writing for both initial page loads and client-side navigation
+ *    - Writes .html files for initial page loads (complete HTML document)
+ *    - Writes .rsc files for client-side navigation (RSC content only)
+ * 4. Provides hooks for Vite to integrate with the build process
+ * 5. Manages worker threads for parallel rendering
+ * 6. Handles error reporting and metrics collection
+ */
+
+import { join } from "node:path";
 import { Worker } from "node:worker_threads";
-import {
-  type ResolvedConfig,
-  type UserConfig,
-  type Manifest,
-  type IndexHtmlTransformHook,
-  type Plugin as VitePlugin,
-  createLogger,
-} from "vite";
-import { checkFilesExist } from "../checkFilesExist.js";
+import { type Manifest, type ResolvedConfig, type Plugin as VitePlugin, createLogger } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
-import { resolvePages } from "../config/resolvePages.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { createBuildLoader } from "../loader/createBuildLoader.js";
 import type {
   BuildTiming,
-  CheckFilesExistReturn,
   ReactStreamPluginMeta,
   ResolvedUserConfig,
   ResolvedUserOptions,
+  PluginEvent,
+  RenderMetrics,
+  RenderPagesResult,
+  AutoDiscoveredFiles,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
+import { renderPages } from "./renderPages.js";
+import { mkdir, readFile, readdir, stat, copyFile } from "node:fs/promises";
+import { copy } from "../copy.js";
+import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
-import { renderPages } from "../worker/html/renderPages.js";
-import { mkdir } from "node:fs/promises";
-import { collectManifestClientFiles } from "../collect-manifest-client-files.js";
-import { mkdirSync, copyFileSync } from "node:fs";
-import { copyDir } from "../copy-dir.js";
+import { defaultFileWriter } from "../helpers/defaultFileWriter.js";
+import { createRenderMetrics } from "../helpers/metrics.js";
+import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
+import { getCondition } from "../config/getCondition.js";
+import { serializeResolvedConfig } from "../helpers/serializeUserOptions.js";
+import { serializeUserOptions } from "../helpers/serializeUserOptions.js";
 
-let resolvedConfig: ResolvedConfig | null = null;
-let loader: ((id: string) => Promise<Record<string, any>>) | null = null;
+if (getCondition() !== "react-server") {
+  throw new Error(
+    "Condition mismatch, should be react-server but got " +
+      process.env["NODE_OPTIONS"]
+  );
+}
+
 let worker: Worker;
-let htmlTransform: IndexHtmlTransformHook | null = null;
-let clientAssets = new Set<string>();
+let cwd: string;
+let userConfig: ResolvedUserConfig;
+let resolvedConfig: ResolvedConfig;
+let userOptions: ResolvedUserOptions;
+let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
+let serverManifest: Manifest | undefined = undefined;
+let clientManifest: Manifest | undefined = undefined;
+let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
 
 export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
   const timing: BuildTiming = {
     start: Date.now(),
+    configResolved: 0,
+    buildStart: 0,
+    renderStart: 0,
   };
+  const metrics: RenderMetrics[] = [];
 
-  let files: CheckFilesExistReturn;
-  let root: string = process.cwd();
-  let userConfig: ResolvedUserConfig;
-  let userOptions: ResolvedUserOptions;
-  let pages: string[];
-  let serverManifest: Manifest = {};
-  let clientManifest: Manifest = {};
-
-  const resolvedOptions = resolveOptions(options, false);
+  const resolvedOptions = resolveOptions(options, "react-server");
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
   userOptions = resolvedOptions.userOptions;
-  if (
-    userOptions.projectRoot != root &&
-    typeof userOptions.projectRoot === "string" &&
-    userOptions.projectRoot !== process.cwd() &&
-    userOptions.projectRoot !== ""
-  ) {
-    root = userOptions.projectRoot;
-    console.log(
-      "[vite:plugin-react-server] Root dir changed in plugin",
-      userOptions.projectRoot,
-      root
-    );
-  }
+  cwd = process.cwd();
 
   return {
     name: "vite:plugin-react-server/static",
@@ -75,189 +85,274 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     api: {
       meta: { timing },
     },
-    async config(config, configEnv): Promise<UserConfig> {
-      if (
-        typeof config.root === "string" &&
-        config.root !== root &&
-        config.root !== process.cwd() &&
-        config.root !== ""
-      ) {
-        root = config.root;
-      }
-      const resolvePagesResult = await resolvePages(userOptions.build.pages);
-      if (resolvePagesResult.type === "error") {
-        throw resolvePagesResult.error;
-      }
-      pages = resolvePagesResult.pages;
-      files = await checkFilesExist(pages, userOptions, root);
 
-      const resolvedConfig = resolveUserConfig({
-        isStatic: true,
+    resolveId(id) {
+      if (id.startsWith("virtual:react-page:")) {
+        return id;
+      }
+      return null;
+    },
+
+    async load(id) {
+      if (id.startsWith("virtual:react-page:")) {
+        const realPath = id.slice("virtual:react-page:".length);
+        const code = await readFile(realPath, "utf-8");
+        return code;
+      }
+      return null;
+    },
+
+    async transform(code, id) {
+      if (id.startsWith("virtual:react-page:")) {
+        return {
+          code,
+          map: null,
+        };
+      }
+      return null;
+    },
+
+    async config(config, configEnv) {
+      if (config.root && config.root !== cwd) {
+        throw new Error(
+          "[RSC] Project root must match current working directory"
+        );
+      }
+
+      const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,
         userOptions,
-        files,
+        condition: "react-server",
+        root: cwd,
+        normalizer: userOptions.normalizer,
       });
+      if (autoDiscoverResult.type === "error") {
+        throw autoDiscoverResult.error;
+      }
+      autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
 
+      const resolvedConfig = resolveUserConfig({
+        condition: "react-server",
+        config,
+        configEnv,
+        userOptions,
+        autoDiscoveredFiles,
+      });
       if (resolvedConfig.type === "error") {
         throw resolvedConfig.error;
       }
 
       userConfig = resolvedConfig.userConfig;
       timing.configResolved = Date.now();
-      return {};
     },
+    configResolved(config) {
+      resolvedConfig = config;
+    },
+
     async buildStart() {
       timing.buildStart = Date.now();
-    },
-    async closeBundle() {
-      timing.renderStart = Date.now();
-
-      // Create the loader
-      const serverManifestResult = tryManifest({
-        root: root,
-        outDir: join(userOptions.build.outDir, userOptions.build.server),
-        ssrManifest: false,
-      });
-      if (serverManifestResult.type === "error") {
-        throw serverManifestResult.error;
-      }
-      serverManifest = serverManifestResult.manifest;
-
-      // Get the client manifest
-      const clientManifestResult = tryManifest({
-        root: root,
-        outDir: join(userOptions.build.outDir, userOptions.build.client),
-        ssrManifest: false,
-      });
-
-      if (clientManifestResult.type === "error") {
-        throw clientManifestResult.error;
-      }
-      clientManifest = clientManifestResult.manifest;
-
-      // Ensure static directory exists
-      const staticDir = join(root, userOptions.build.outDir, userOptions.build.static);
-      await mkdir(staticDir, { recursive: true });
-
-      worker = await createWorker({
-        projectRoot: root,
-        workerPath: userOptions.htmlWorkerPath,
-        condition: "react-server",
-        reverseCondition: true,
-        mode: (resolvedConfig?.mode ?? "production") as "production" | "development",
-      });
-
-      if (typeof loader !== "function") {
-        loader = createBuildLoader({
-          root: root,
-          userConfig,
-          userOptions,
-          pluginContext: this,
-          serverManifest,
-          clientManifest,
+      if (userOptions.onEvent && autoDiscoveredFiles) {
+        userOptions.onEvent({
+          type: "build.start",
+          data: {
+            pages: Array.from(autoDiscoveredFiles.urlMap.keys()),
+            files: autoDiscoveredFiles,
+          },
         });
       }
+    },
 
-      // Collect CSS files per route
-      const routeCssMap = new Map<string, Set<string>>();
-      const globalCss = new Set<string>();
-      // copy whole client directory to static directory
-      await mkdir(staticDir, { recursive: true });
-      await copyDir(join(root, userOptions.build.outDir, userOptions.build.client), join(root, userOptions.build.outDir, userOptions.build.static));
-      // Add global CSS from index.html - use client manifest
-      const {cssFiles: indexCss} = collectManifestClientFiles({
-        manifest: clientManifest,
-        root: root,
-        pagePath: 'index.html',
-        moduleBase: userOptions.moduleBase,
-        preserveModulesRoot: userOptions.build.preserveModulesRoot,
-        testClient: ()=>true,
-      });
-      indexCss.forEach((css) => globalCss.add(css));
+    async renderStart() {
+      timing.renderStart = Date.now();
 
-      // Add CSS for each route's page component - use server manifest
-      for (const route of pages) {
-        const routeFiles = files.urlMap.get(route);
-        if (routeFiles) {
-          const pageCss = collectManifestClientFiles({
-            manifest: serverManifest,
-            root: root,
-            pagePath: routeFiles.page,
-            moduleBase: userOptions.moduleBase,
-            preserveModulesRoot: userOptions.build.preserveModulesRoot,
-            onClientModule(path) {
-              // copy the css file to the static directory
-              const targetPath = join(root, userOptions.build.outDir, userOptions.build.server, path);
-              const destinationPath = join(root, userOptions.build.outDir, userOptions.build.static, path);
-              mkdirSync(dirname(destinationPath), { recursive: true });
-              copyFileSync(targetPath, destinationPath);
-            },
-            testClient: userOptions.autoDiscover.cssPattern,
-            testJson: userOptions.autoDiscover.jsonPattern,
-          });
-          routeCssMap.set(route, new Set([...globalCss, ...pageCss.cssFiles.keys()]));
+      // Initialize build loader after renderStart
+      if (!clientManifest) {
+        const clientManifestResult = await tryManifest<false>({
+          root: cwd,
+          outDir: join(userOptions.build.outDir, userOptions.build.client),
+          manifestPath:
+            typeof this.environment.config.build.manifest === "string"
+              ? this.environment.config.build.manifest
+              : undefined,
+        });
+        if (clientManifestResult.type === "error") {
+          throw clientManifestResult.error;
         }
-      }
-      const bootstrapModules = clientManifest["index.html"]?.file
-      ? [clientManifest["index.html"].file.startsWith("/")
-          ? clientManifest["index.html"].file.slice(1)
-          : clientManifest["index.html"].file]
-      : [];
-      
-      const { failedRoutes, completedRoutes} = await renderPages(
-        pages,
-        files,
-        {
-          root: root,
-          outDir: userOptions.build.outDir,
-          htmlOutputPath: join( userOptions.build.outDir, userOptions.build.static, "index.html"),
-          pipableStreamOptions: {
-            bootstrapModules: bootstrapModules,
-          },
-          moduleRootPath: join(root, userOptions.build.outDir, userOptions.build.static, userOptions.moduleBasePath),
-          moduleBasePath: userOptions.moduleBasePath,
-          moduleBaseURL: userOptions.moduleBaseURL,
-          inlineCss: userOptions.inlineCss,
-          pageExportName: userOptions.pageExportName,
-          propsExportName: userOptions.propsExportName,
-          Html: userOptions.Html,
-          CssCollector: userOptions.CssCollector,
-          cssFiles: [],
-          logger: createLogger(),
-          moduleBase: userOptions.moduleBase,
-          worker,
-          clientManifest,
-          serverManifest,
-          loader,
-          transformIndexHtml: htmlTransform!,
-          onClientJSFile: (url) => {
-            if (!clientAssets.has(url)) {
-              const clientPath = join(root, userOptions.build.outDir, userOptions.build.client, url);
-              const targetPath = join(root, userOptions.build.outDir, userOptions.build.static, url);
-              mkdirSync(dirname(targetPath), { recursive: true });
-              copyFileSync(clientPath, targetPath);
-              clientAssets.add(url);
-            }
-          }
-        }
-      );
-
-      if (failedRoutes.size > 0) {
-        console.error(
-          "[vite-plugin-react-server] Failed to render routes:",
-          failedRoutes
-        );
-      }
-      console.log(`Rendered ${completedRoutes.size} unique routes to ${join(userOptions.build.outDir, userOptions.build.static)}`);
-      worker.postMessage({ type: 'SHUTDOWN' });
-      if(process.env['NODE_ENV'] === 'development') {
-        worker.removeAllListeners();
-        await worker.terminate();
-        console.log('Worker terminated');
-      } else {
-        process.exit(0);
+        clientManifest = clientManifestResult.manifest;
       }
     },
-  };
+
+    async writeBundle(options, bundle) {
+      const bundleManifest = getBundleManifest<false>({
+        bundle,
+        normalizer: userOptions.normalizer,
+        serverDir: userOptions.build.server,
+      });
+
+      if (!("source" in bundleManifest[".vite/manifest.json"])) {
+        throw new Error("Server manifest not found");
+      }
+
+      serverManifest = JSON.parse(
+        bundleManifest[".vite/manifest.json"].source as string
+      );
+
+      buildLoader = await createBuildLoader({
+        userConfig,
+        userOptions,
+        serverManifest: serverManifest ?? {},
+        clientManifest: clientManifest ?? {},
+      });
+      if (userOptions.onEvent) {
+        userOptions.onEvent({
+          type: "build.writeBundle",
+          data: {
+            pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
+            options,
+            bundle,
+            manifest: serverManifest,
+          },
+        });
+      }
+      // Setup directories
+      const serverDir = join(
+        cwd,
+        userOptions.build.outDir,
+        userOptions.build.server
+      );
+      const clientDir = join(
+        cwd,
+        userOptions.build.outDir,
+        userOptions.build.client
+      );
+      const serverStaticDir = join(serverDir, userOptions.build.static);
+      const finalStaticDir = join(
+        cwd,
+        userOptions.build.outDir,
+        userOptions.build.static
+      );
+
+      await Promise.all([
+        mkdir(serverDir, { recursive: true }),
+        mkdir(clientDir, { recursive: true }),
+        mkdir(serverStaticDir, { recursive: true }),
+        mkdir(finalStaticDir, { recursive: true }),
+      ]);
+
+      // Create worker
+      if (!worker) {
+        const workerResult = await createWorker({
+          projectRoot: userOptions.projectRoot,
+          workerPath: userOptions.htmlWorkerPath,
+          currentCondition: "react-server",
+          reverseCondition: "react-client",
+          workerData: {
+            resolvedConfig: serializeResolvedConfig(resolvedConfig),
+            userOptions: serializeUserOptions(userOptions, autoDiscoveredFiles)
+          }
+        });
+        if (workerResult.type === "error") {
+          throw workerResult.error;
+        } else if (workerResult.type === "skip") {
+          console.info('[RSC] Worker not created, skipping static build');
+          return;
+        } else {
+          worker = workerResult.worker;
+        }
+      }
+      // Render pages
+      const { onEvent, ...rest } = userOptions;
+      const renderPagesGenerator = renderPages(autoDiscoveredFiles!.urlMap, {
+        ...rest,
+        loader: buildLoader,
+        worker: worker,
+        logger: createLogger(),
+        onEvent: (event: PluginEvent) => {
+          if (userOptions.onEvent) {
+            userOptions.onEvent(event);
+          }
+          if (event.type === "file.write") {
+            return defaultFileWriter({
+              event,
+              outputDir: serverStaticDir,
+              pluginContext: this,
+              root: cwd,
+            });
+          }
+        },
+        pipeableStreamOptions: userOptions.pipeableStreamOptions,
+        manifest: serverManifest ?? {},
+        htmlOutputPath: "index.html",
+        htmlOutputRoot: userOptions.build.static,
+        rscOutputPath: "index.rsc",
+        rscOutputRoot: userOptions.build.static,
+      });
+
+      // Process render results
+      let finalResult: RenderPagesResult | undefined;
+      for await (const result of renderPagesGenerator) {
+        if (result.type === "error") {
+          throw result.error;
+        }
+        finalResult = result;
+      }
+
+      if (!finalResult) {
+        throw new Error("No render result produced");
+      }
+
+      // Update timing
+      timing.render = Date.now() - (timing.renderStart ?? timing.start);
+      // todo: also add server's css files to the static dir
+      await Promise.all([
+        copy({
+          src: serverStaticDir,
+          dest: finalStaticDir,
+          filters: [
+            userOptions.autoDiscover.nodeOnly,
+            userOptions.autoDiscover.dotFiles,
+          ],
+        }),
+        copy({
+          src: clientDir,
+          dest: finalStaticDir,
+          filters: [
+            userOptions.autoDiscover.nodeOnly,
+            userOptions.autoDiscover.dotFiles,
+            // we dont want the vite's dev index.html output
+            userOptions.autoDiscover.htmlPattern,
+          ],
+        }),
+        copy({
+          src: serverDir,
+          dest: finalStaticDir,
+          filters: [
+            userOptions.autoDiscover.modulePattern,
+            userOptions.autoDiscover.htmlPattern,
+            userOptions.autoDiscover.rscPattern,
+          ],
+        }),
+      ]);
+
+      // Cleanup
+      worker.postMessage({ type: "SHUTDOWN", id: "*" });
+      await new Promise<void>((resolve, reject) => {
+        const shutdownHandler = (msg: any) => {
+          if (msg.type === "SHUTDOWN_COMPLETE") {
+            worker.removeListener("message", shutdownHandler);
+            worker
+              .terminate()
+              .then((code) =>
+                code === 1
+                  ? resolve()
+                  : reject(new Error(`Worker terminated with code ${code}`))
+              )
+              .catch(reject);
+          }
+        };
+        worker.on("message", shutdownHandler);
+      });
+    },
+  } as const;
 }

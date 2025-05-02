@@ -1,0 +1,26 @@
+{
+  "src/components/Link.client.tsx": {
+    "file": "components/Link.client.js",
+    "name": "components/Link.client",
+    "src": "src/components/Link.client.tsx",
+    "isEntry": true
+  },
+  "src/page/page.tsx": {
+    "file": "page/page.js",
+    "name": "page/page",
+    "src": "src/page/page.tsx",
+    "isEntry": true,
+    "imports": [
+      "src/components/Link.client.tsx"
+    ],
+    "css": [
+      "page-CcEzue0F.css"
+    ]
+  },
+  "src/page/props.ts": {
+    "file": "page/props.js",
+    "name": "page/props",
+    "src": "src/page/props.ts",
+    "isEntry": true
+  }
+}

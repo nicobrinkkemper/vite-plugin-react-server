@@ -1,67 +1,118 @@
 import { join } from "node:path";
-import type { PluginContext } from "rollup";
-import type { ResolvedUserConfig, ResolvedUserOptions } from "../../server.js";
+import type {
+  InputNormalizer,
+  ResolvedUserConfig,
+  ResolvedUserOptions,
+} from "../../server.js";
 import type { Manifest } from "vite";
-import { createInputNormalizer } from "../helpers/inputNormalizer.js";
+import { getModuleRef } from "../moduleRefs.js";
+import { createTemporaryReferenceSet } from "react-server-dom-esm/server.node";
+import { readFile } from "node:fs/promises";
 
 export interface BuildLoaderOptions {
-  root: string;
-  pluginContext: PluginContext;
   userConfig: ResolvedUserConfig;
   userOptions: ResolvedUserOptions;
   serverManifest: Manifest;
   clientManifest: Manifest;
 }
 
-export function createBuildLoader({
-  root,
-  userConfig: _userConfig,
+let temporaryReferences: WeakMap<any, any> | undefined;
+
+/**
+ * Creates a loader function for handling module resolution during build.
+ *
+ * The loader handles the following strategy:
+ *  - When we load a page or props, we eagerly load the css modules before we load the props & page
+ *  - Any loaded module will be added to temporaryReferences
+ *  - If we have already loaded a module, we return the cached module from temporaryReferences
+ *
+ * During build:
+ * - We use the manifest information to get module exports
+ * - The manifest contains the transformed modules with their exports
+ * - We store the module in temporaryReferences for later use
+ *
+ * @param options.root - The project root directory
+ * @param options.pluginContext - The Rollup plugin context
+ * @param options.userConfig - Resolved user configuration
+ * @param options.userOptions - Resolved user options
+ * @param options.serverManifest - Vite server manifest
+ * @param options.clientManifest - Vite client manifest
+ * @param options.options - Additional options including temporaryReferences
+ *
+ * @returns A loader function that resolves module paths to their exports
+ */
+export async function createBuildLoader({
   userOptions,
-  pluginContext: _pluginContext,
   serverManifest,
-  clientManifest,
 }: BuildLoaderOptions) {
-  const normalizer = createInputNormalizer({
-    root,
-    preserveModulesRoot: userOptions.build.preserveModulesRoot === true ? userOptions.moduleBase : undefined,
-    removeExtension: true,
-  });
+  temporaryReferences = temporaryReferences ?? createTemporaryReferenceSet();
+  const manifestKeys = Object.keys(serverManifest);
+  if(!manifestKeys.length) {
+    throw new Error("Server manifest is empty");
+  }
   return async function buildLoader(id: string) {
-    const [key, value] = normalizer(id);
-    if(value !== id){
-      console.warn(`[vite-plugin-react-server] Mismatch in build loader for ${id} !== ${value} (${key})`);
+
+    const [withoutQuery, query] = id.split("?", 2);
+    const [, normalizedValue] = userOptions.normalizer(withoutQuery);
+    const moduleRef = getModuleRef(id);
+    // Check if we have a temporary reference (cached module)
+    if (temporaryReferences?.has(moduleRef)) {
+      const mod = temporaryReferences.get(moduleRef);
+      if (typeof mod === "function") {
+        return mod;
+      } else if (typeof mod === "object" && mod !== null && "error" in mod) {
+        // ignore it
+      } else {
+        throw new Error(`Module is not a function. ${JSON.stringify(mod)}`);
+      }
     }
-    // Remove leading slash if present
-    const distDir = userOptions.build.outDir;
-    const manifests = [clientManifest, serverManifest];
-    // Try to find the module in the manifest
-    for (const n of [0, 1]) {
-      const manifest = manifests[n];
-      const manifestEntry = manifest[value]
-      if (!manifestEntry) {
-        continue;
+
+    try {
+      // For inline modules, handle them directly
+      if (query === "inline") {
+        if (normalizedValue.endsWith(".css")) {
+          const cssPath = join(
+            userOptions.projectRoot,
+            userOptions.build.outDir,
+            userOptions.build.server,
+            normalizedValue
+          );
+          const content = await readFile(cssPath, "utf-8");
+          return { default: content };
+        } else {
+          const content = await readFile(
+            join(userOptions.projectRoot, normalizedValue),
+            "utf-8"
+          );
+          return { default: content };
+        }
       }
-      const isClient = userOptions.autoDiscover.clientComponents(id);
-      const isServer = userOptions.autoDiscover.serverFunctions(id);
-      const outDir = isClient
-        ? userOptions.build.client
-        : isServer
-        ? userOptions.build.server
-        : n === 0
-        ? userOptions.build.client
-        : userOptions.build.server;
-      if (manifestEntry.file.startsWith(`${root}/${distDir}/${outDir}/`)) {
-        return import(manifestEntry.file);
+
+      // Try to resolve the module using Vite's resolution
+      const resolvedId = serverManifest[normalizedValue]; 
+      if (!resolvedId) {
+        throw new Error(`Module ${normalizedValue} not found`);
       }
-      if (manifestEntry.file.startsWith(`${distDir}/`)) {
-        return import(join(root, manifestEntry.file));
-      }
-      if (manifestEntry.file.startsWith(`${outDir}/`)) {
-        return import(join(root, distDir, outDir, manifestEntry.file));
-      }
+
       // Load the module
-      return import(join(root, distDir, outDir, manifestEntry.file));
+      const module = await import(join(
+        userOptions.projectRoot,
+        userOptions.build.outDir,
+        userOptions.build.server,
+        resolvedId.file
+      ));
+      temporaryReferences?.set(moduleRef, module);
+      return module;
+    } catch (error) {
+      if (process.env["NODE_ENV"] !== "production") {
+        console.error(`Error @ ${normalizedValue}`, error);
+      }
+      const emptyExports = {
+        error: error instanceof Error ? error : new Error(String(error)),
+        id: id,
+      };
+      temporaryReferences?.set(moduleRef, emptyExports);
+      return emptyExports;
     }
-    throw new Error(`Module not found: ${id}`);
   };
 }
