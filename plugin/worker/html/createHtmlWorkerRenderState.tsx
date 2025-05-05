@@ -16,10 +16,6 @@ const nodeRequire = createRequire(join(projectRoot, 'package.json'));
 // Import React and ReactDOM from the project's node_modules
 const ReactDOMServer = nodeRequire('react-dom/server');
 
-// Log React versions for debugging
-console.log("HTML Worker React version:", React.version);
-console.log("HTML Worker React DOM version:", ReactDOMServer.version);
-console.log("Project root:", projectRoot);
 
 const createMetrics = () => {
   return {
