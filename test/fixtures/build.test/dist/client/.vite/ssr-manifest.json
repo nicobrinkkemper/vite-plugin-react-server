@@ -1,5 +1,36 @@
 {
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react-dom/cjs/react-dom-client.development.js?commonjs-exports": [],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react-dom/cjs/react-dom.development.js?commonjs-exports": [],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react-dom/client.js?commonjs-es-import": [],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react-dom/client.js?commonjs-module": [],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react-dom/index.js?commonjs-module": [],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react/cjs/react.development.js?commonjs-module": [
+    "/_index-BCLJnNk1.js"
+  ],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react/index.js?commonjs-es-import": [
+    "/_index-BCLJnNk1.js"
+  ],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/react/index.js?commonjs-module": [
+    "/_index-BCLJnNk1.js"
+  ],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/scheduler/cjs/scheduler.development.js?commonjs-exports": [],
+  "\u0000/home/nico/code/vite-react-stream/node_modules/scheduler/index.js?commonjs-module": [],
+  "\u0000commonjsHelpers.js": [
+    "/_index-BCLJnNk1.js"
+  ],
   "\u0000vite/modulepreload-polyfill.js": [],
+  "../../../node_modules/react-dom/cjs/react-dom-client.development.js": [],
+  "../../../node_modules/react-dom/cjs/react-dom.development.js": [],
+  "../../../node_modules/react-dom/client.js": [],
+  "../../../node_modules/react-dom/index.js": [],
+  "../../../node_modules/react/cjs/react.development.js": [
+    "/_index-BCLJnNk1.js"
+  ],
+  "../../../node_modules/react/index.js": [
+    "/_index-BCLJnNk1.js"
+  ],
+  "../../../node_modules/scheduler/cjs/scheduler.development.js": [],
+  "../../../node_modules/scheduler/index.js": [],
   "index.html": [],
   "src/client.tsx": [],
   "src/components/Link.client.tsx": []

@@ -34,11 +34,11 @@ describe('SSR configuration', () => {
 
     expect(result.type).toBe('success')
     if (result.type === 'success') {
-     // expect(result.userConfig.build.ssr).toBe(true)
+      expect(result.userConfig.build.ssr).toBe(true)
     }
   })
 
-  it('sets ssr=true for react-client condition', () => {
+  it('sets ssr=true for react-client condition when explicitly set to true using isSsrBuild', () => {
     const result = resolveUserConfig({
       condition: 'react-client',
       config: {},
@@ -55,10 +55,14 @@ describe('SSR configuration', () => {
     }
   })
 
-  it('sets ssr=true for react-client condition (since it\'s a node & browser target)', () => {
+  it('sets ssr=true for react-client when {ssr:true} is set in user config', () => {
     const result = resolveUserConfig({
       condition: 'react-client',
-      config: {},
+      config: {
+        build: {
+          ssr: true
+        }
+      },
       configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
       userOptions: resolveOptions(testUserOptions, 'react-client')?.['userOptions'],
       autoDiscoveredFiles: {

@@ -10,6 +10,7 @@ import { pluginRoot } from "../root.js";
 import type { Loader } from "esbuild";
 import type { ResolvedConfig, ViteDevServer } from "vite";
 import { serializeResolvedConfig } from "../helpers/serializeUserOptions.js";
+import * as React from "react";
 
 export type CreateWorkerOptions = {
   projectRoot?: string;
@@ -77,6 +78,14 @@ export async function createWorker(
   if (!workerPathWithDefault.startsWith("/")) {
     workerPathWithDefault = join("./", workerPathWithDefault);
   }
+  // Ensure worker uses the same React version
+  const workerData = {
+    ...options.workerData,
+    reactVersion: React.version,
+    // Pass the project root to the worker
+    projectRoot: projectRoot,
+  };
+
 
   try {
 
@@ -88,7 +97,7 @@ export async function createWorker(
     const env = {
       ...process.env,
       NODE_ENV: nodeEnv,
-      NODE_PATH: nodePath,
+      NODE_PATH: join(pluginRoot, "node_modules"),
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
         ? process.env["NODE_OPTIONS"]
         : process.env["NODE_OPTIONS"]?.includes(currentCondition)
@@ -106,7 +115,7 @@ export async function createWorker(
     const worker = new Worker(workerPathWithDefault, {
       env,
       resourceLimits,
-      workerData:options.workerData,
+      workerData,
       transferList
     });
 

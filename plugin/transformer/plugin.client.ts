@@ -1,7 +1,11 @@
 import { resolveOptions } from "../config/resolveOptions.js";
 import type { ResolvedUserOptions, StreamPluginOptions } from "../types.js";
-import { type Plugin } from "vite";
+import { type Manifest, type Plugin } from "vite";
 import { transformModuleIfNeeded } from "../loader/react-loader.js";
+import { join } from "node:path";
+import { tryManifest } from "../helpers/tryManifest.js";
+import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 
 /**
  * Plugin for transforming server actions for the client build.
@@ -29,55 +33,85 @@ import { transformModuleIfNeeded } from "../loader/react-loader.js";
  */
 let isBuild = true;
 
-export function reactTransformPlugin(
-  options: StreamPluginOptions
-): Plugin {
+export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
   let userOptions: ResolvedUserOptions;
   const resolvedOptionsResult = resolveOptions(options);
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
   userOptions = resolvedOptionsResult.userOptions;
+  let staticManifest: Manifest;
   return {
     name: "vite:react-server-action-transform",
     enforce: "pre",
-    config(_, configEnv) {
+    async config(_, configEnv) {
       isBuild = configEnv.command !== "serve";
+      if (!configEnv.isSsrBuild) {
+        staticManifest = {};
+      } else {
+        const staticManifestResult = await tryManifest({
+          root: userOptions.projectRoot,
+          ssrManifest: false,
+          outDir: join(userOptions.build.outDir, userOptions.build.static),
+        });
+        if (staticManifestResult.type === "error") {
+          staticManifest = {};
+        } else {
+          staticManifest = staticManifestResult.manifest;
+        }
+      }
     },
     async transform(code, id, options) {
       const ssr = options?.ssr;
+      const isServer = code.match('"use server"') !== null;
+      const isClient = code.match('"use client"') !== null;
       if (!ssr) return null;
-      if (!userOptions.autoDiscover.modulePattern(id)) return null;
-      if(code.match('"use client"') && !userOptions.autoDiscover.clientComponents(id)) {
-        const [key, value] = userOptions.normalizer(id);
-        // if it's not already, emit it
-        const hasId = this.getModuleInfo(id);
-        if(!hasId) {
-          this.emitFile({
-            id,
-            type: "chunk",
-          });
+      if (!isServer && !isClient) return null;
+      if (isServer && isClient) {
+        throw new Error(
+          "Server and client components cannot be used in the same file"
+        );
+      }
+      if (isClient) {
+        return null;
+      }
+      if (isServer) {
+        if (isBuild) {
+          const [key] = userOptions.normalizer(id);
+          id = "/" + key + ".js";
         }
-        return;
       }
-      if (!code.match('"use server"')) return null;
-
-      if(isBuild) {
+      if (isBuild) {
         const [key] = userOptions.normalizer(id);
-        // unlike the client references, we can asume the root of the server to be the server folder already, we do not have to use a relative path here
-        // the .node.js is already enforced, but can't hurt to include it already here
-        id = '/' + key + '.node.js';
+        id = "/" + key + ".js";
       }
-      const transformed = await transformModuleIfNeeded(
-        code,
-        id,
-        // Pass null for nextLoad since we don't need module loading in the plugin
-        null
-      );
+      const transformed = await transformModuleIfNeeded(code, id, null);
       if (!transformed) return null;
       return {
         code: transformed,
         id: id,
         map: null,
       };
+    },
+    renderChunk(code, chunk, options) {
+      // Only process client components
+      if (!chunk.fileName.includes(".client")) return null;
+
+      // Get the original file name without extension
+      const originalName = chunk.fileName.replace(".js", "");
+
+      // Find matching entry in static manifest
+      const manifestEntry = Object.entries(staticManifest).find(([_, info]) =>
+        info.file.startsWith(originalName)
+      );
+
+      if (manifestEntry) {
+        // Use the static manifest's file name
+        return {
+          code,
+          fileName: manifestEntry[1].file,
+        };
+      }
+
+      return null;
     },
   };
 }

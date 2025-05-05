@@ -77,12 +77,10 @@ export const resolveOptions = <
   InlineCSS extends boolean | undefined = boolean | undefined
 >(
   options: StreamPluginOptions<InlineCSS>,
-  condition: "react-client" | "react-server" | undefined = getCondition()
 ):
   | { type: "success"; userOptions: ResolvedUserOptions<InlineCSS> }
   | { type: "error"; error: Error } => {
   // Basic configuration
-  const isClient = condition === "react-client";
   const projectRoot = options.projectRoot ?? process.cwd();
   const {
     pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME,
@@ -224,21 +222,17 @@ export const resolveOptions = <
     if (isAsset) {
       return path;
     }
-    return addExtension(
-      path,
-      isClient && autoDiscover.serverFunctions(path) ? "node.js" : "js"
-    );
+    return addExtension(path);
   };
 
   // File naming and hashing
 
-  const hash = (n: string | null) => {
+  const hash = (n: string | null, ssr: boolean) => {
     if (!n) return "";
     if (
       hashString === "" ||
       autoDiscover.nodeOnly(n) ||
-      (!isClient &&
-        !(autoDiscover.cssPattern(n) || autoDiscover.jsonPattern(n)))
+      (ssr && !(autoDiscover.cssPattern(n) || autoDiscover.jsonPattern(n)))
     ) {
       return n;
     }
@@ -305,30 +299,34 @@ export const resolveOptions = <
   };
 
   // File naming functions
-  const entryFile = (n: PreRenderedChunk) => {
+  const entryFile = (n: PreRenderedChunk, ssr: boolean) => {
     if (testVendor(n.name)) {
       const search = n.facadeModuleId?.split("?")[1];
       if (search) {
-        return hash(`${n.name}.${search}.js`);
+        return hash(`${n.name}.${search}.js`, false);
       } else {
-        return hash(`${n.name}.js`);
+        return hash(`${n.name}.js`, false);
       }
     }
     return hash(
-      addModuleExtension(getOutputPath(ensureModuleBase(ensureNoRoot(n.name))))
+      addModuleExtension(getOutputPath(ensureModuleBase(ensureNoRoot(n.name)))),
+      ssr
     );
   };
 
-  const chunkFile = (n: PreRenderedChunk) => {
+  const chunkFile = (n: PreRenderedChunk, ssr: boolean) => {
     return hash(
       addModuleExtension(
-        getOutputPath(ensureModuleBase(ensureNoRoot("_" + n.name)))
-      )
+        getOutputPath(ensureModuleBase(ensureNoRoot("_" + n.name)))),
+      ssr
     );
   };
 
-  const assetFile = (n: PreRenderedAsset) => {
-    return hash(getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0]))));
+  const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
+    return hash(
+      getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0]))),
+      ssr
+    );
   };
 
   // Build configuration object
@@ -377,8 +375,6 @@ export const resolveOptions = <
       ? options.moduleRootPath.startsWith(projectRoot)
         ? options.moduleRootPath
         : join(projectRoot, options.moduleRootPath)
-      : process.env["DEV"]
-      ? join(projectRoot, moduleBase)
       : join(projectRoot, outDir, client)
 
   // Worker and loader paths
@@ -431,19 +427,9 @@ export const resolveOptions = <
       removeExtension: true,
     });
   const pipeableStreamOptions =
-    options.pipeableStreamOptions && options.clientEntry
-      ? {
-          ...options.pipeableStreamOptions,
-          bootstrapModules: [
-            ...(options.pipeableStreamOptions.bootstrapModules ?? []),
-            options.clientEntry,
-          ],
-        }
-      : !options.pipeableStreamOptions && options.clientEntry
-      ? {
-          bootstrapModules: [options.clientEntry],
-        }
-      : options.pipeableStreamOptions;
+    options.pipeableStreamOptions
+      ? options.pipeableStreamOptions
+      : {}
 
   // Return resolved options
   try {

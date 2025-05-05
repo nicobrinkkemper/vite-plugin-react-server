@@ -3,25 +3,40 @@ import fs from 'node:fs/promises'
 import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url';
 import React from 'react';
-const reactVersion = React.version;
-const PATCH_RECONCILER_VERSION = reactVersion.replace('19.1.0', '0.0.0')
-const STUB_VERSION = '0.0.1'
+import packageJSON from '../package.json' with { type: "json" };
+
 const __dirname = dirname(fileURLToPath(import.meta.url));  
-const TEMPLATE_VERSION = '0.0.0-experimental-eda36a1c-20250228'
+
+// Hardcoded template version from our last successful patch
+const TEMPLATE_VERSION = "0.0.0-experimental-0ca8420f-20250504";
+const templateVersionSuffix = TEMPLATE_VERSION.split("-experimental-")[1];
+
+// Get installed version
+const installedVersion = React.version;
+const installedVersionSuffix = installedVersion.split("-experimental-")[1]
+
+// Get peer dependency versions
+const peerReactVersion = packageJSON.peerDependencies.react.replace("^", "");
+const peerReactESMVersion = packageJSON.peerDependencies["react-server-dom-esm"].replace("^", "");
+console.log('Template version:', TEMPLATE_VERSION);
+console.log('Installed version:', installedVersion);
+console.log('Peer version:', peerReactVersion);
+console.log('ESM version (for final patch):', peerReactESMVersion);
 
 async function patchReactExperimental() {
   try {
-    // Read installed React version from user's project
-    
-    if(TEMPLATE_VERSION === PATCH_RECONCILER_VERSION) {
-        console.log('React version is patched')
+    if (templateVersionSuffix === installedVersionSuffix) {
+      console.log("React version is already patched", TEMPLATE_VERSION, installedVersion);
+      return;
     }
 
     // Define patches to process
     const patches = [
       {
+        // The template patch file uses our experimental version
         template: `../scripts/react-server-dom-esm+${TEMPLATE_VERSION}.patch`,
-        output: `react-server-dom-esm+${STUB_VERSION}.patch`
+        // But the final patch file uses the ESM version
+        output: `react-server-dom-esm+${peerReactESMVersion}.patch`
       },
     ]
 
@@ -36,8 +51,8 @@ async function patchReactExperimental() {
 
       // Replace version strings
       patchContent = patchContent.replace(
-        new RegExp(PATCH_RECONCILER_VERSION, 'g'),
-        reactVersion
+        new RegExp(templateVersionSuffix, 'g'),
+        installedVersionSuffix
       )
 
       // Write the patch file
@@ -47,7 +62,7 @@ async function patchReactExperimental() {
     }
 
     console.log(`
-✅ Created patch files for React packages for version ${reactVersion}
+✅ Created patch files for React packages for version ${installedVersion}
    Location: patches/
 
 Next steps:

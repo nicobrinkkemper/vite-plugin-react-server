@@ -1,5 +1,4 @@
 import React from "react";
-// @ts-ignore
 import { renderToPipeableStream } from "react-server-dom-esm/server.node";
 import type {
   CssContent,
@@ -68,7 +67,6 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
   }
 
   // Create the page element with the resolved props
-  
   const pageElement = <PageComponent {...pageProps as any} />;
 
   const withCss = React.createElement(
@@ -84,13 +82,17 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
   const startTime = Date.now();
   let errorCount = 0;
   try {
-
-
     const stream = renderToPipeableStream(
       content,
       moduleBasePath,
       {
         ...pipeableStreamOptions,
+        importMap: {
+          imports: {
+            "react": "react/index.js",
+            "react-dom": "react-dom/index.js",
+          },
+        },
         onError(error: Error, errorInfo: any) {
           const err = error instanceof Error ? error : new Error(String(error));
           onEvent?.("error", { route, error: err, errorInfo });

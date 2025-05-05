@@ -1,4 +1,10 @@
 {
+  "index.html": {
+    "file": "index.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true
+  },
   "src/components/Link.client.tsx": {
     "file": "components/Link.client.js",
     "name": "components/Link.client",

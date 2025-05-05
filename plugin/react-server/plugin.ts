@@ -49,7 +49,7 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
   let userOptions: ResolvedUserOptions;
   let serverManifest: Manifest = {};
 
-  const resolvedOptions = resolveOptions(options, "react-server");
+  const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }

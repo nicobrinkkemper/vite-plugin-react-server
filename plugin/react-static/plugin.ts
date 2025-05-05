@@ -58,7 +58,6 @@ let resolvedConfig: ResolvedConfig;
 let userOptions: ResolvedUserOptions;
 let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
 let serverManifest: Manifest | undefined = undefined;
-let clientManifest: Manifest | undefined = undefined;
 let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
 
 export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
@@ -72,7 +71,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   };
   const metrics: RenderMetrics[] = [];
 
-  const resolvedOptions = resolveOptions(options, "react-server");
+  const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
@@ -84,32 +83,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     enforce: "post",
     api: {
       meta: { timing },
-    },
-
-    resolveId(id) {
-      if (id.startsWith("virtual:react-page:")) {
-        return id;
-      }
-      return null;
-    },
-
-    async load(id) {
-      if (id.startsWith("virtual:react-page:")) {
-        const realPath = id.slice("virtual:react-page:".length);
-        const code = await readFile(realPath, "utf-8");
-        return code;
-      }
-      return null;
-    },
-
-    async transform(code, id) {
-      if (id.startsWith("virtual:react-page:")) {
-        return {
-          code,
-          map: null,
-        };
-      }
-      return null;
     },
 
     async config(config, configEnv) {
@@ -165,22 +138,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
     async renderStart() {
       timing.renderStart = Date.now();
-
-      // Initialize build loader after renderStart
-      if (!clientManifest) {
-        const clientManifestResult = await tryManifest<false>({
-          root: cwd,
-          outDir: join(userOptions.build.outDir, userOptions.build.client),
-          manifestPath:
-            typeof this.environment.config.build.manifest === "string"
-              ? this.environment.config.build.manifest
-              : undefined,
-        });
-        if (clientManifestResult.type === "error") {
-          throw clientManifestResult.error;
-        }
-        clientManifest = clientManifestResult.manifest;
-      }
+      
     },
 
     async writeBundle(options, bundle) {
@@ -202,7 +160,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         userConfig,
         userOptions,
         serverManifest: serverManifest ?? {},
-        clientManifest: clientManifest ?? {},
+        clientManifest: autoDiscoveredFiles?.staticManifest ?? {},
       });
       if (userOptions.onEvent) {
         userOptions.onEvent({
@@ -239,7 +197,16 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         mkdir(serverStaticDir, { recursive: true }),
         mkdir(finalStaticDir, { recursive: true }),
       ]);
-
+      const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
+      const indexHtml = staticManifest?.['index.html']?.file;
+      const pipeableStreamOptions = {
+        ...userOptions.pipeableStreamOptions,
+        bootstrapModules: [
+          ...(indexHtml ? [indexHtml] : []),
+          ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
+        ],
+      }
+      userOptions.pipeableStreamOptions = pipeableStreamOptions;
       // Create worker
       if (!worker) {
         const workerResult = await createWorker({
@@ -281,7 +248,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             });
           }
         },
-        pipeableStreamOptions: userOptions.pipeableStreamOptions,
+        pipeableStreamOptions: pipeableStreamOptions,
         manifest: serverManifest ?? {},
         htmlOutputPath: "index.html",
         htmlOutputRoot: userOptions.build.static,
@@ -304,30 +271,32 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
       // Update timing
       timing.render = Date.now() - (timing.renderStart ?? timing.start);
-      // todo: also add server's css files to the static dir
       await Promise.all([
         copy({
           src: serverStaticDir,
           dest: finalStaticDir,
-          filters: [
+          exclude: [
             userOptions.autoDiscover.nodeOnly,
             userOptions.autoDiscover.dotFiles,
           ],
         }),
-        copy({
-          src: clientDir,
-          dest: finalStaticDir,
-          filters: [
-            userOptions.autoDiscover.nodeOnly,
-            userOptions.autoDiscover.dotFiles,
-            // we dont want the vite's dev index.html output
-            userOptions.autoDiscover.htmlPattern,
-          ],
-        }),
+        // copy({
+        //   src: clientDir,
+        //   dest: finalStaticDir,
+        //   exclude: [
+        //     userOptions.autoDiscover.nodeOnly,
+        //     userOptions.autoDiscover.dotFiles,
+        //     // we don't need the ssr modules
+        //     userOptions.autoDiscover.modulePattern,
+        //     // we dont want the vite's dev index.html output
+        //     userOptions.autoDiscover.htmlPattern,
+        //   ],
+        // }),
         copy({
           src: serverDir,
           dest: finalStaticDir,
-          filters: [
+          exclude: [
+            userOptions.autoDiscover.dotFiles,
             userOptions.autoDiscover.modulePattern,
             userOptions.autoDiscover.htmlPattern,
             userOptions.autoDiscover.rscPattern,

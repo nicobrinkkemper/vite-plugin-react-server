@@ -1,187 +1,98 @@
 import { PassThrough, Transform } from "node:stream";
 import { parentPort } from "node:worker_threads";
-import type { HtmlWorkerInputMessage } from "../types.js";
-import * as ReactDOMServer from "react-dom/server";
-import { createFromNodeStream } from "react-server-dom-esm/client.node";
-import { join } from "node:path";
+import type { HtmlWorkerInputMessage, HtmlWorkerOutputMessage } from "../types.js";
+// @ts-ignore
+import * as ReactDOMServer from "react-dom/server.node";
 import type { HtmlWorkerRenderState } from "./types.js";
-
+import React, { type ErrorInfo } from "react";
+import { createHtmlWorkerRenderState } from "./createHtmlWorkerRenderState.js";
+import { createFromNodeStream } from "react-server-dom-esm/client.node";
 
 // Track active renders
 const activeRenders = new Map<string, HtmlWorkerRenderState>();
 
-function sendMessage(msg: any) {
-  
+function sendMessage(msg: HtmlWorkerOutputMessage) {
   // Send the original message
-  parentPort?.postMessage(msg);
+  if('error' in msg && msg.error instanceof Error) {
+    parentPort?.postMessage({
+      ...msg,
+      error: {
+        message: msg.error.message,
+        stack: msg.error.stack,
+        name: msg.error.name,
+        cause: msg.error.cause,
+      },
+    });
+  } else {
+    parentPort?.postMessage(msg);
+  }
 }
 
 function cleanup(id: string) {
   const renderState = activeRenders.get(id);
   if (renderState) {
     renderState.rscStream.destroy();
-    renderState.htmlStream?.destroy();
     renderState.htmlTransform?.destroy();
     activeRenders.delete(id);
-    
+
     sendMessage({
       type: "CLEANUP_COMPLETE",
-      id
+      id,
     });
   }
 }
 
-
-
-const createMetrics = () => {
-  return {
-    totalChunksReceived: 0,
-    totalBytesReceived: 0,
-    totalChunksProcessed: 0,
-    totalBytesProcessed: 0
-  }
-}
-
-const createHtmlWorkerRenderState = (msg: HtmlWorkerInputMessage, isReady: boolean = false): HtmlWorkerRenderState => {
-  return {
-    rscStream: new PassThrough(),
-    metrics: createMetrics(),
-    isReady: isReady,
-    pendingChunks: [],
-    projectRoot: 'projectRoot' in msg ? String(msg.projectRoot) : '',
-    moduleRootPath: 'moduleRootPath' in msg ? String(msg.moduleRootPath) : '',
-    moduleBaseURL: 'moduleBaseURL' in msg ? String(msg.moduleBaseURL) : ''
-  }
-}
-
-export function messageHandler(msg: HtmlWorkerInputMessage) {
+export async function messageHandler(msg: HtmlWorkerInputMessage) {
   const { type, id } = msg;
-
   switch (type) {
     case "ROUTE_READY": {
       let renderState = activeRenders.get(id);
       if (!renderState) {
-        renderState = createHtmlWorkerRenderState(msg, true);
+        renderState = createHtmlWorkerRenderState(msg, sendMessage);
+        renderState.stream.pipe(renderState.htmlTransform);
         activeRenders.set(id, renderState);
       } else {
-        renderState.isReady = true;
-        // Send any pending chunks
-        for (const chunk of renderState.pendingChunks) {
-          sendMessage({
-            type: "HTML_CHUNK",
-            id,
-            chunk
-          });
-        }
-        renderState.pendingChunks = [];
+        throw new Error("Render state already exists");
       }
       break;
     }
     case "RSC_CHUNK": {
       let renderState = activeRenders.get(id);
       if (!renderState) {
-        // Create new render state if none exists
-        renderState = createHtmlWorkerRenderState(msg, false);
-        activeRenders.set(id, renderState);
+        throw new Error("No render state found");
       }
 
-      const { chunk, moduleRootPath = renderState.moduleRootPath, moduleBaseURL = renderState.moduleBaseURL, projectRoot = renderState.projectRoot } = msg;
-
-      renderState.metrics.totalChunksReceived++;
-      renderState.metrics.totalBytesReceived += chunk.length;
-      renderState.moduleRootPath = moduleRootPath;
-      renderState.moduleBaseURL = moduleBaseURL;
-      renderState.projectRoot = projectRoot;
-      
       try {
-        // Write chunk to stream regardless of ready state
-        renderState.rscStream.write(chunk);
+        // Write RSC chunk to the RSC stream
+        renderState.rscStream.write(msg.chunk);
         sendMessage({
           type: "CHUNK_PROCESSED",
           id,
-          success: true
+          success: true,
         });
       } catch (error: any) {
         sendMessage({
           type: "ERROR",
           id,
-          error: `Error writing chunk: ${error.message}`
+          error: `Error writing chunk: ${error.message}`,
         });
         cleanup(id);
       }
       break;
     }
     case "RSC_END": {
+      console.log("RSC_END", id);
       const renderState = activeRenders.get(id);
       if (!renderState) {
         sendMessage({
           type: "ERROR",
           id,
-          error: "No render state found"
+          error: "No render state found",
         });
         return;
       }
 
-      try {
-        renderState.rscStream.end();
-        
-        // Create React component from RSC stream
-        const Component = createFromNodeStream(renderState.rscStream, renderState.moduleRootPath, renderState.moduleBaseURL, {
-          encodeFormAction: false,
-          nonce: '',
-          replayConsoleLogs: process.env['NODE_ENV'] !== 'production',
-          environmentName: 'Server',
-        });
-        
-        // Create HTML transform
-        const htmlTransform = new Transform({
-          transform(chunk, encoding, callback) {
-            const chunkStr = chunk.toString();
-            renderState.metrics.totalChunksProcessed++;
-            renderState.metrics.totalBytesProcessed += chunkStr.length;
-            
-            if (renderState.isReady) {
-              sendMessage({
-                type: "HTML_CHUNK",
-                id,
-                chunk: chunkStr
-              });
-            } else {
-              renderState.pendingChunks.push(chunkStr);
-            }
-            callback();
-          },
-          flush(callback) {
-            if (renderState.isReady) {
-              sendMessage({
-                type: "HTML_COMPLETE",
-                id,
-                success: true,
-                metrics: renderState.metrics
-              });
-            }
-            callback();
-          }
-        });
-
-        // Create HTML stream
-        const htmlStream = new PassThrough();
-        htmlStream.pipe(htmlTransform);
-        renderState.htmlStream = htmlStream;
-        renderState.htmlTransform = htmlTransform;
-
-        // Render the component to the HTML stream
-        ReactDOMServer.renderToPipeableStream(Component).pipe(htmlStream);
-
-      } catch (error: any) {
-        renderState?.abort?.();
-        sendMessage({
-          type: "ERROR",
-          id,
-          error: `Error in RSC_END: ${error.message}`
-        });
-        cleanup(id);
-      }
+      // Pipe the rendered content to the HTML stream
       break;
     }
     case "CLEANUP": {
@@ -200,7 +111,7 @@ export function messageHandler(msg: HtmlWorkerInputMessage) {
       // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
       sendMessage({
         type: "SHUTDOWN_COMPLETE",
-        id
+        id,
       });
       break;
     }

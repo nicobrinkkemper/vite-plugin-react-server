@@ -23,7 +23,7 @@ setSourceMapsSupport(true, {
 // Store port globally for use in load hook
 export let loaderPort: MessagePort | undefined;
 // during development, we actually just want to be explicit about the .node extension
-let isDev = process.env['DEV']
+let isDev = true
 export async function getSource(
   url: string,
   context: any,
@@ -350,7 +350,7 @@ function transformServerModule(
       }
     }
     
-    newSrc += "\n\n;";
+    newSrc = "";
     newSrc +=
       `import ReactDOMServerESM from "react-server-dom-esm/server${isDev ? '.node' : ''}";\n`;
       // include stack trace where module is imported from
@@ -566,7 +566,6 @@ async function transformClientModule(
 
 
   if (names.length === 0) {
-    console.log("[react-loader] No exports found in:", url);
     return null;
   }
   
@@ -959,7 +958,6 @@ export async function transformSource(
     context,
     defaultTransformSource
   );
-  console.log('[react-loader] transformSource', transformed);
   if (context.format === "module") {
     // Convert transformedSource to string if it's a Buffer or Uint8Array
     let transformedSourceStr: string;

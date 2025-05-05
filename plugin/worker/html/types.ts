@@ -1,4 +1,5 @@
 import type { PassThrough, Transform } from "stream";
+import type { SerializeableRenderToPipeableStreamOptions } from "../types.js";
 
 export type HtmlWorkerStreamMetrics = {
   totalChunksReceived: number;
@@ -7,15 +8,21 @@ export type HtmlWorkerStreamMetrics = {
   totalBytesProcessed: number;
 };
 
-export type HtmlWorkerRenderState = {
+export interface HtmlWorkerRenderState {
   rscStream: PassThrough;
   moduleRootPath: string;
   moduleBaseURL: string;
   projectRoot: string;
-  metrics: HtmlWorkerStreamMetrics;
-  abort?: () => void;
+  metrics: {
+    totalChunksProcessed: number;
+    totalBytesProcessed: number;
+  };
   isReady: boolean;
-  pendingChunks: string[];
-  htmlStream?: PassThrough;
-  htmlTransform?: Transform;
-};
+  pendingChunks: Buffer[];
+  htmlTransform: Transform;
+  stream: ReactDOMServer.PipeableStream;
+  elements?: React.ReactElement;
+  pipeableStreamOptions: SerializeableRenderToPipeableStreamOptions;
+  abort?: () => void;
+  shellReady?: boolean;
+}

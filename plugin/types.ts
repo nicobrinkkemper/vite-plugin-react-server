@@ -17,7 +17,7 @@ import type {
   Logger,
   ManifestChunk,
 } from "vite";
-import type {  ReactServerDomEsmOptions } from "./worker/types.js";
+import type {  InitializedCssLoaderMessage, InitializedReactLoaderMessage, ReactServerDomEsmOptions, RscChunkInputMessage, ShutdownMessage } from "./worker/types.js";
 import type React from "react";
 import type { Worker } from "node:worker_threads";
 import type { PassThrough, Transform } from "stream";
@@ -50,6 +50,7 @@ export type AutoDiscoveredFiles = CheckFilesExistReturn & {
   serverEntry: Record<string, string> | null;
   clientEntry: Record<string, string>;
   inputs: Record<string, string>;
+  staticManifest: Manifest;
 };
 export interface FileWriterOptions {
   outDir: string;
@@ -460,9 +461,9 @@ export interface BuildConfig {
   outDir?: string;
   hash?: string;
   preserveModulesRoot?: boolean;
-  entryFile?: (n: PreRenderedChunk) => string;
-  chunkFile?: (n: PreRenderedChunk) => string;
-  assetFile?: (n: PreRenderedAsset) => string;
+  entryFile?: (n: PreRenderedChunk, ssr: boolean) => string;
+  chunkFile?: (n: PreRenderedChunk, ssr: boolean) => string;
+  assetFile?: (n: PreRenderedAsset, ssr: boolean) => string;
 }
 
 export interface RscResolver {
@@ -802,55 +803,7 @@ export type ReactStaticEvent =
       };
     };
 
-export type HtmlWorkerInputMessage =
-  | {
-      type: "RSC_CHUNK";
-      id: string;
-      chunk: ArrayBuffer | Buffer | { buffer: ArrayBuffer } | Blob;
-      moduleRootPath?: string;
-      moduleBaseURL?: string;
-      outDir?: string;
-      htmlOutputPath?: string;
-      rscOutputPath?: string;
-      cssFiles?: Array<[string, string]>;
-      pipeableStreamOptions?: any;
-      clientManifest?: any;
-      serverManifest?: any;
-    }
-  | {
-      type: "RSC_END";
-      id: string;
-    }
-  | {
-      type: "SHUTDOWN";
-    }
-  | {
-      type: "INITIALIZED_REACT_LOADER";
-    }
-  | {
-      type: "INITIALIZED_CSS_LOADER";
-    }
-  | {
-      type: "ACKNOWLEDGE";
-      error?: string;
-    };
 
-export type HtmlWorkerOutputMessage =
-  | {
-      type: "HTML_COMPLETE";
-      id: string;
-      success: boolean;
-      html?: string;
-      chunks?: string[];
-      metrics?: StreamMetrics;
-    }
-  | { type: "ERROR"; id: string; error: string }
-  | { type: "SHELL_READY"; id: string }
-  | { type: "CHUNK_PROCESSED"; id: string; success: boolean }
-  | { type: "CHUNK_ERROR"; id: string; error: string }
-  | { type: "HTML_CHUNK"; id: string; chunk: string }
-  | { type: "STREAM_STATE"; id: string; state: { status: string } }
-  | { type: "CLEANUP_COMPLETE"; id: string };
 
 export type Loader = (path: string) => Promise<any>;
 

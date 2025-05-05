@@ -1,7 +1,11 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type { ResolvedUserConfig, ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
-import { join } from "path";
-import type { OutputOptions } from "rollup";
+import type {
+  ResolvedUserConfig,
+  ResolvedUserOptions,
+  AutoDiscoveredFiles,
+} from "../types.js";
+import { format, join } from "path";
+import type { OutputOptions, PreRenderedAsset } from "rollup";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
@@ -10,7 +14,7 @@ export type ResolveUserConfigProps = {
   config: UserConfig;
   configEnv: ConfigEnv;
   userOptions: ResolvedUserOptions;
-  autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "inputs">;
+  autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "inputs" | "staticManifest">;
 };
 
 export type ResolveUserConfigReturn =
@@ -24,14 +28,16 @@ export function resolveUserConfig({
   userOptions,
   autoDiscoveredFiles,
 }: ResolveUserConfigProps): ResolveUserConfigReturn {
-  const envDir =
-    condition === "react-client"
-      ? userOptions.build.client
-      : userOptions.build.server;
   const ssr =
     typeof config.build?.ssr === "boolean"
       ? config.build?.ssr
-      : condition !== "react-client";
+      : Boolean(configEnv.isSsrBuild);
+  const envDir =
+    condition === "react-client" && ssr
+      ? userOptions.build.client
+      : condition === "react-client"
+      ? userOptions.build.static
+      : userOptions.build.server;
   const envId = `${envDir}${ssr ? "-ssr" : ""}`;
 
   if (stashedUserConfig[envId]) {
@@ -43,14 +49,26 @@ export function resolveUserConfig({
 
   // Get existing inputs
   const root = config.root ?? userOptions.projectRoot ?? process.cwd();
-
+  const staticEntries = Object.entries(autoDiscoveredFiles.staticManifest);
   const pluginOutput = {
     preserveModulesRoot: userOptions.build.preserveModulesRoot
       ? userOptions.moduleBase
       : undefined,
-    entryFileNames: userOptions.build.entryFile,
-    assetFileNames: userOptions.build.assetFile,
-    chunkFileNames: userOptions.build.chunkFile,
+    entryFileNames: (info) => {
+      if(ssr) {
+        const entry = staticEntries.find(([key, {file}]) => file.startsWith(info.name));
+        if (entry) {
+          return entry[1].file;
+        }
+      }
+      return userOptions.build.entryFile(info, ssr);
+    },
+    assetFileNames: (i) => {
+      return userOptions.build.assetFile(i, false);
+    },
+    chunkFileNames: (i) => {
+      return userOptions.build.chunkFile(i, ssr);
+    },
     format: "esm",
     exports: "named",
     hoistTransitiveImports: false,
@@ -59,6 +77,8 @@ export function resolveUserConfig({
       objectShorthand: true,
     },
     interop: "auto",
+    name: "React",
+    extend: true,
   } satisfies OutputOptions;
 
   let newOutput = Array.isArray(config.build?.rollupOptions?.output)
@@ -67,32 +87,27 @@ export function resolveUserConfig({
       config.build?.rollupOptions?.output !== null
     ? [config.build?.rollupOptions?.output, pluginOutput]
     : pluginOutput;
-  const mode = process.env["NODE_ENV"] === "development"
-  ? "development"
-  : config.mode
-  ? config.mode
-  : configEnv.mode
-  ? configEnv.mode
-  : configEnv.command === "build"
-  ? "production"
-  : "development"
+  const mode =
+    process.env["NODE_ENV"] === "development"
+      ? "development"
+      : config.mode
+      ? config.mode
+      : configEnv.mode
+      ? configEnv.mode
+      : configEnv.command === "build"
+      ? "production"
+      : "development";
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)
     stashedUserConfig[envId] = {
       ...config,
       root: root,
-      mode:mode,
+      mode: mode,
       resolve: {
         external: ["react", "react-dom"],
-        externalConditions: ["react-server"],
-        alias: {},
       },
       ssr: {
         target: "node",
-        external: [],
-        optimizeDeps: {
-          include: ["react", "react-dom", "react-server-dom-esm/client.browser"],
-        },
         resolve: {
           externalConditions: ["react-server"],
         },
@@ -106,38 +121,33 @@ export function resolveUserConfig({
         copyPublicDir: config.build?.copyPublicDir ?? true,
         // modern browsers
         target: ["esnext"],
-        minify: true,
-        ssr: ssr,
-        manifest: config.build?.manifest ?? `.vite/manifest.json`,
-        ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
-        ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
-        cssCodeSplit: true,
+        minify: false,
         rollupOptions: {
           ...config.build?.rollupOptions,
           input: autoDiscoveredFiles.inputs,
           output: newOutput,
           preserveEntrySignatures: "exports-only",
         },
+        ssr: ssr,
+        manifest: config.build?.manifest ?? `.vite/manifest.json`,
+        ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+        ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
+        cssCodeSplit: true,
       },
     };
   } else {
-    // server build options
-    if (configEnv.isSsrBuild === false) {
-      configEnv.isSsrBuild = true;
-    }
     stashedUserConfig[envId] = {
       ...config,
       root: root,
       mode: mode,
       resolve: {
         externalConditions: ["react-server"],
-        external: [
-          "react",
-          "react-dom",
-          "react-server-dom-esm/server",
-          "clsx",
-          "lodash-es",
-        ],
+      },
+      ssr: {
+        target: "node",
+        resolve: {
+          externalConditions: ["react-server"],
+        },
       },
       // server build options
       build: {

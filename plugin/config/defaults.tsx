@@ -70,7 +70,7 @@ export const DEFAULT_CONFIG = {
     htmlPattern: (n: string) => /\.html$/.test(n),
     jsonPattern: (n: string) => /\.json$/.test(n),
     nodeOnly: (n: string) => /\.node(\.js)?$/.test(n),
-    dotFiles: (n: string) => /^\./.test(n),
+    dotFiles: (n: string) => n.split('/').some(p => p.startsWith('.')),
     rscPattern: (n: string) => /\.rsc$/.test(n),  
   },
   MODULE_ID: (id: string) => id,

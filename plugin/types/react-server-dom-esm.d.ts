@@ -1,5 +1,5 @@
 declare module 'react-server-dom-esm/server.node' {
-  import { ReactElement } from 'react';
+  import { ReactElement, type Usable } from 'react';
   import { Writable } from 'stream';
 
   export function createTemporaryReferenceSet(): WeakMap<any, any>;
@@ -19,6 +19,9 @@ declare module 'react-server-dom-esm/server.node' {
     temporaryReferences?: WeakMap<any, any>;
     environmentName?: string;
     filterStackFrame?: (stackFrame: string) => string;
+    importMap?: {
+      imports?: Record<string, string>;
+    };
   }
   export function renderToPipeableStream(
     element: ReactElement,
@@ -44,11 +47,8 @@ declare module 'react-server-dom-esm/client.node' {
   import { Writable } from 'stream';
   
   export interface CreateFromNodeStreamOptions {
-    encodeFormAction?: boolean;
     nonce?: string;
-    replayConsoleLogs?: boolean;
-    environmentName?: string;
-    findSourceMapURL?: (url: string) => string | null;
+    encodeFormAction?: (id: string, boundPromise: Promise<unknown>) => string;
   }
-  export function createFromNodeStream(stream: NodeJS.ReadableStream, moduleRootPath: string, moduleBaseURL: string, options?: CreateFromNodeStreamOptions): ReactElement;
+  export function createFromNodeStream(stream: NodeJS.ReadableStream, moduleRootPath: string, moduleBaseURL: string, options?: CreateFromNodeStreamOptions): Usable;
 }

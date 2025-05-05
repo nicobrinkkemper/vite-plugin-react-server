@@ -1,7 +1,5 @@
-import type { Manifest } from "vite";
-import type { PassThrough, Transform } from "stream";
-import type { HtmlWorkerRenderState } from "./html/types.js";
-import type { RenderToPipeableStreamOptions as ReactDomRenderToPipeableStreamOptions } from "react-dom/server";
+
+import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import type {
   CreateHandlerOptions,
   CssContent,
@@ -33,9 +31,7 @@ export interface ReactServerDomEsmOptions {
 }
 
 // Combined options type that includes both React DOM and React Server DOM ESM options
-export interface RenderToPipeableStreamOptions
-  extends ReactServerDomEsmOptions {}
-
+export type SerializeableRenderToPipeableStreamOptions = Omit<RenderToPipeableStreamOptions, "onShellReady" | "onShellError" | "onAllReady" | "onError" | "onPostpone">;
 
 export interface RscRenderState {
   id: string;
@@ -100,14 +96,7 @@ export type RscRenderMessage = WorkerMessage & {
 export type RscChunkInputMessage = WorkerMessage &{
     type: "RSC_CHUNK";
     chunk: Buffer;
-    sequence?: number;
-    moduleRootPath: string;
-    moduleBaseURL: string;
-    rscOutputPath: string;
-    projectRoot: string;
-    htmlOutputPath: string;
-    cssFiles: Map<string, CssContent>;
-    pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
+    sequence: number;
   };
 
 export type RscChunkOutputMessage = WorkerMessage & {
@@ -182,7 +171,28 @@ export type HtmlWorkerInputMessage =
   | {
       type: "ROUTE_READY";
       id: string;
+      moduleRootPath: string;
+      moduleBaseURL: string;
+      projectRoot: string;
     };
+
+
+export type HtmlWorkerOutputMessage =
+  | {
+      type: "HTML_COMPLETE";
+      id: string;
+      success: boolean;
+      html?: string;
+      chunks?: string[];
+      metrics?: StreamMetrics;
+    }
+  | ErrorMessage
+  | ShellReadyMessage
+  | ChunkProcessedMessage
+  | ChunkErrorMessage
+  | { type: "HTML_CHUNK"; id: string; chunk: string }
+  | { type: "CLEANUP_COMPLETE"; id: string }
+  | { type: "SHUTDOWN_COMPLETE"; id: string }
 
 export type InitializedReactLoaderMessage = {
   type: "INITIALIZED_REACT_LOADER";

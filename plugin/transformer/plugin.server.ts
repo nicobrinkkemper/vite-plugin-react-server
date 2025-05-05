@@ -37,24 +37,23 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
   userOptions = resolvedOptionsResult.userOptions;
 
-  let clientManifest: Manifest;
-  const clientID = (file: string) => "/" + file;
+  let staticManifest: Manifest;
 
   return {
     name: "vite:react-server-transform",
     enforce: "pre", // Run before Vite's transforms
     async config(_, configEnv) {
       isBuild = configEnv.command !== "serve";
-      const clientManifestResult = await tryManifest({
+      const staticManifestResult = await tryManifest({
         root: userOptions.projectRoot,
         ssrManifest: false,
-        outDir: join(userOptions.build.outDir, userOptions.build.client),
+        outDir: join(userOptions.build.outDir, userOptions.build.static),
       });
-      if (clientManifestResult.type === "error") {
-        console.error(clientManifestResult.error);
-        throw clientManifestResult.error;
+      if (staticManifestResult.type === "error") {
+        console.error(staticManifestResult.error);
+        throw staticManifestResult.error;
       }
-      clientManifest = clientManifestResult.manifest;
+      staticManifest = staticManifestResult.manifest;
     },
     async transform(code, id, options) {
       const ssr = options?.ssr;
@@ -64,22 +63,23 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
 
       if (isBuild) {
         const [key, value] = userOptions.normalizer(id);
-
-        if (clientManifest) {
-          if (value in clientManifest) {5
-            id = clientID(clientManifest[value].file);
+        if (staticManifest) {
+          if (value in staticManifest) {
+            id = '/' + staticManifest[value].file;
           } else {
-            // a client file without the auto-discoverable .client.js suffix
-            // emit it anyway
+            // a client file that's not in the manifest
+            // it may not exist or it wasn't auto-discovered
+            console.warn(`Please rename file ${value} to ${key}.client.${value.split('.').pop()} and run the client build again.`);
             const hash = this.emitFile({
               id,
               type: "chunk",
-              fileName: key + '.js',
+              fileName: key + ".js",
               name: value,
             });
             // get fileName from hash
+
             const fileName = this.getFileName(hash);
-            id = clientID(fileName);
+            id = '/' + fileName;
           }
         } else {
           throw new Error(`Client manifest not found.`);

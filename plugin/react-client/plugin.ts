@@ -23,7 +23,7 @@ let root: string;
 let autoDiscoveredFiles: AutoDiscoveredFiles;
 
 export function reactClientPlugin(options: StreamPluginOptions): Plugin {
-  const resolvedOptions = resolveOptions(options, "react-client");
+  const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }

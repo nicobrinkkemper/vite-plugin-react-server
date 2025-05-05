@@ -22,11 +22,9 @@
     "./static": "./dist/static.js",
     "./html-worker": "./dist/plugin/worker/html-worker.js",
     "./rsc-worker": "./dist/plugin/worker/rsc-worker.js",
-    "./loader": "./dist/plugin/worker/loader.js",
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
-    "./css-loader": "./dist/plugin/loader/css-loader.js",
     "./components": "./dist/plugin/components.js"
   },
   "typesVersions": {
@@ -80,7 +78,7 @@
     "test": "npm run build && npm run setup:test-fixtures && npm run test:client && NODE_ENV=development npm run test:server",
     "test:coverage": "npm run setup:test-fixtures && vitest run --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
-    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental && npm install react-server-dom-esm",
+    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
     "experimental:move-patches": "mv patches/* ./scripts/",
@@ -109,8 +107,9 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^0.0.0-experimental-6aa8254b-20250312",
-    "react-dom": "^0.0.0-experimental-6aa8254b-20250312",
+    "react": "^0.0.0-experimental-c129c242-20250505",
+    "react-dom": "^0.0.0-experimental-c129c242-20250505",
+    "react-server-dom-esm": "^0.0.1",
     "vite": "*"
   },
   "peerDependenciesMeta": {

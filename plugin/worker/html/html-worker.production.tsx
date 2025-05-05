@@ -1,24 +1,25 @@
+import { join } from "node:path";
 import { messageHandler } from "./messageHandler.js";
-import { parentPort, workerData, MessagePort } from "node:worker_threads";
-// Mark shared resources as untransferable
-if (workerData && typeof workerData === 'object') {
-  Object.values(workerData).forEach(value => {
-    if (value && typeof value === 'object') {
-      try {
-        if (typeof (value as any).markAsUntransferable === 'function') {
-          (value as any).markAsUntransferable();
-        }
-      } catch (e) {
-        // Ignore errors if markAsUntransferable is not available
-      }
-    }
-  });
-}
+import { MessageChannel, parentPort } from "node:worker_threads";
+import { pluginRoot } from "../../root.js";
+import { register } from "node:module";
 
-// Set up message handler
-parentPort?.on("message", messageHandler);
+// Create channels for each loader
+const cssLoaderChannel = new MessageChannel();
+
+cssLoaderChannel.port2.on("message", messageHandler);
+
+const cssLoaderPath = "file://" + join(pluginRoot, "loader/css-loader.production.js");
+
+register(cssLoaderPath, {
+  parentURL: pluginRoot,
+  data: { port: cssLoaderChannel.port1 },
+  transferList: [cssLoaderChannel.port1],
+});
+
 
 // Signal ready with environment
+parentPort?.on("message", messageHandler);
 parentPort?.postMessage({
   type: "READY",
   env: process.env["NODE_ENV"],

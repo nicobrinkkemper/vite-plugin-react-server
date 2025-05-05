@@ -81,8 +81,8 @@ export function collectHtmlContent(
         msg.chunk
       ) {
         metrics.chunks++;
-        metrics.bytes += Buffer.from(msg.chunk).length;
-        htmlChunks.push(Buffer.from(msg.chunk));
+        metrics.bytes += msg.chunk.length;
+        htmlChunks.push(msg.chunk);
       } else if (
         msg.type === "HTML_COMPLETE" &&
         msg.id === handlerOptions.route

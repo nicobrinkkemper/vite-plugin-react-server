@@ -10,6 +10,8 @@ import { glob } from "fs/promises";
 import { pluginRoot } from "../root.js";
 import { checkFilesExist } from "../checkFilesExist.js";
 import { resolvePages } from "./resolvePages.js";
+import { tryManifest } from "../helpers/tryManifest.js";
+import type { Manifest } from "vite";
 
 let stashedAutoDiscover: Record<string, AutoDiscoveredFiles | null> = {};
 
@@ -18,11 +20,13 @@ const autoDiscoveredClientFiles = async ({
   userOptions,
   root,
   normalizer,
+  staticManifest,
 }: {
   inputs: Record<string, string>;
   userOptions: Pick<ResolvedUserOptions, "moduleBase">;
   root: string;
   normalizer: (path: string) => [string, string];
+  staticManifest?: Manifest;
 }) => {
   const allFiles = glob(`**/*.client.*`, {
     cwd: join(root, userOptions.moduleBase),
@@ -30,7 +34,12 @@ const autoDiscoveredClientFiles = async ({
   for await (const file of allFiles) {
     const [key, value] = normalizer(join(userOptions.moduleBase, file));
     if (!inputs[key]) {
-      inputs[key] = value;
+      // If we have a static manifest, use its file name
+      if (staticManifest && staticManifest[key]?.file) {
+        inputs[staticManifest[key].file] = value;
+      } else {
+        inputs[key] = value;
+      }
     } else {
       console.warn(`[RSC] Client file already exists: ${key}`);
     }
@@ -162,7 +171,14 @@ export async function resolveAutoDiscover({
       : configEnv.isSsrBuild;
   const envDir = !ssr ? userOptions.build.client : userOptions.build.server;
   const envId = `${envDir}${ssr ? "-ssr" : ""}`;
-
+  const configInputRecord = {} as Record<string, string>;
+  if(typeof config.build?.rollupOptions?.input === 'string') {
+    configInputRecord[normalizer(config.build?.rollupOptions?.input)[0]] = config.build?.rollupOptions?.input;
+  } else if(typeof config.build?.rollupOptions?.input === 'object') {
+    for(const [, value] of Object.entries(config.build?.rollupOptions?.input)) {
+      configInputRecord[normalizer(value)[0]] = value;
+    }
+  }
   if (stashedAutoDiscover[envId]) {
     return {
       type: "success",
@@ -203,6 +219,19 @@ export async function resolveAutoDiscover({
     },
   });
 
+  // Load static manifest for client build
+  let staticManifest: Manifest = {};
+  if (ssr) {
+    const staticManifestResult = await tryManifest({
+      root: userOptions.projectRoot,
+      ssrManifest: false,
+      outDir: join(userOptions.build.outDir, userOptions.build.static),
+    });
+    if (staticManifestResult.type === "success") {
+      staticManifest = staticManifestResult.manifest;
+    }
+  }
+
   const workerPaths = customWorkerFiles({
     inputs: {},
     userOptions: {
@@ -215,6 +244,7 @@ export async function resolveAutoDiscover({
     userOptions,
     root,
     normalizer,
+    staticManifest,
   });
   const serverFiles = await autoDiscoveredServerFiles({
     inputs: {},
@@ -231,21 +261,22 @@ export async function resolveAutoDiscover({
   // Add inputs based on condition
   const inputs =
     condition === "react-client"
-      ? { ...clientFiles, ...clientEntry, ...serverFiles, ...indexHtml, ...serverEntry }
+      ? { ...configInputRecord, ...clientFiles, ...clientEntry, ...serverFiles, ...indexHtml, ...serverEntry }
       : {
+          ...configInputRecord,
           ...clientFiles,
+          ...clientEntry,
           ...serverFiles,
           ...serverEntry,
           ...workerPaths,
-          ...indexHtml,
           ...pageAndPropFiles,
         };
-
   stashedAutoDiscover[envId] = {
     ...files,
     workerPaths,
     serverEntry,
     clientEntry,
+    staticManifest,
     inputs,
   };
   return {

@@ -1,14 +1,24 @@
 {
+  "__index-BCLJnNk1.js": {
+    "file": "_index-BCLJnNk1.js",
+    "name": "index"
+  },
   "index.html": {
-    "file": "index-CJmzO8ay.js",
+    "file": "index-DMM_hGj4.js",
     "name": "index",
     "src": "index.html",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "__index-BCLJnNk1.js"
+    ]
   },
   "src/components/Link.client.tsx": {
-    "file": "components/Link.client-CfUGiJO3.js",
+    "file": "components/Link.client-Dwr0i00L.js",
     "name": "components/Link.client",
     "src": "src/components/Link.client.tsx",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "__index-BCLJnNk1.js"
+    ]
   }
 }

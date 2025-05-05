@@ -1,10 +1,9 @@
 import type { MessagePort } from "node:worker_threads";
-import type { CssFileMessage, RscWorkerOutputMessage } from "../worker/types.js";
 import type { LoadHookContext } from "node:module";
 import type { LoaderContext } from "../types.js";
 import { fileURLToPath } from "node:url";
 import { preprocessCSS } from "vite";
-import type { InlineConfig, ResolvedConfig, ViteDevServer } from "vite";
+import type { InlineConfig, ResolvedConfig } from "vite";
 import { readFile } from "node:fs/promises";
 import { parentPort } from "node:worker_threads";
 import { resolveConfig} from "vite"

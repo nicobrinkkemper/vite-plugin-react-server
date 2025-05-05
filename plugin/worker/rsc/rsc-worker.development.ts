@@ -21,7 +21,7 @@ reactLoaderChannel.port2.on('message', messageHandler);
 cssLoaderChannel.port2.on('message', messageHandler);
 
 const loaderPath = 'file://' + join(pluginRoot, 'loader/react-loader.js');
-const cssLoaderPath = 'file://' + join(pluginRoot, 'loader/css-loader.js');
+const cssLoaderPath = 'file://' + join(pluginRoot, 'loader/css-loader.development.js');
 
 // Register react-loader
 register(loaderPath, {

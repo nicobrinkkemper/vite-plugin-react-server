@@ -94,10 +94,6 @@ export async function *renderPage(
         PageComponent: PageComponent,
         pageProps: pageProps,
         cssFiles: cssFiles,
-        pipeableStreamOptions: {
-          ...handlerOptions.pipeableStreamOptions,
-          identifierPrefix: '/../client/',
-        },
       } satisfies CreateHandlerOptions;
       // Create streams with CSS files
       const [rscFull, rscHeadless] = await renderStreams(newHandlerOptions);

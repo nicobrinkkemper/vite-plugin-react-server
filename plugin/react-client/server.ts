@@ -52,12 +52,11 @@ async function* createWorkerStream(
             reject(new Error(message.error));
           } else if (typeof message.error === "object") {
             const err = new Error(message.error.message);
-            err.stack = message.error.stack;
-            err.name = message.error.name;
-            err.cause = message.error.cause;
-            reject(err);
+            reject({
+              error: err,
+              errorInfo: message.errorInfo,
+            });
           } else {
-            console.log("Unknown error type", message);
             reject(message.error);
           }
         }

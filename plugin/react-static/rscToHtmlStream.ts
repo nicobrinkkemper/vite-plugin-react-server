@@ -11,8 +11,7 @@
  */
 
 import { Transform } from "node:stream";
-import type { WorkerMessage } from "./workerMessageHandler.js";
-import type { RscChunkInputMessage } from "../worker/types.js";
+import type { HtmlWorkerOutputMessage, RscChunkInputMessage } from "../worker/types.js";
 import type { CreateHandlerOptions } from "../types.js";
 
 export type RscToHtmlOptions = Pick<
@@ -38,13 +37,14 @@ export type RscToHtmlOptions = Pick<
  */
 export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
   const { worker } = options;
+  let sequence = 0;
   const stream = new Transform({
     transform(chunk, _encoding, callback) {
       try {
         // Check if this is a worker message or RSC chunk
         if (typeof chunk === "object" && "type" in chunk) {
           // Handle worker message
-          const msg = chunk as WorkerMessage;
+          const msg = chunk as HtmlWorkerOutputMessage;
 
           // Only log errors
           if (msg.type === "ERROR") {
@@ -55,30 +55,30 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
           switch (msg.type) {
             case "HTML_CHUNK":
               if (msg.chunk) {
-                this.push(Buffer.from(msg.chunk));
+                this.push(msg.chunk);
               }
               break;
             case "HTML_COMPLETE":
-              // Ensure we push any remaining data before ending
-              if (msg.html) {
-                this.push(Buffer.from(msg.html));
-              }
               this.end();
               worker.postMessage({
                 type: "CLEANUP",
                 id: msg.id,
               });
               break;
+            case "SHELL_READY":
+              break;
+            case "CHUNK_PROCESSED":
+              break;
+            case "ERROR":
+              const error = typeof msg.error === "string" ? new Error(msg.error) : msg.error; 
+              this.emit("error", error);
+              callback(error);
+              return;
             case "CLEANUP_COMPLETE":
               if (!this.writableEnded) {
                 this.end();
               }
               break;
-            case "ERROR":
-              const error = new Error(msg.error);
-              this.emit("error", error);
-              callback(error);
-              return;
             default:
               // Other message types are not logged
               break;
@@ -90,14 +90,7 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
             type: "RSC_CHUNK",
             id: options.route,
             chunk,
-            // replace server with client
-            moduleRootPath: options.moduleRootPath,
-            moduleBaseURL: options.moduleBaseURL,
-            rscOutputPath: options.rscOutputPath,
-            htmlOutputPath: options.htmlOutputPath,
-            cssFiles: options.cssFiles,
-            pipeableStreamOptions: options.pipeableStreamOptions,
-            projectRoot: options.projectRoot,
+            sequence: sequence++
           } satisfies RscChunkInputMessage);
           callback();
         }
@@ -122,6 +115,14 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
   worker.postMessage({
     type: "ROUTE_READY",
     id: options.route,
+    // replace server with client
+    moduleRootPath: options.moduleRootPath,
+    moduleBaseURL: options.moduleBaseURL,
+    rscOutputPath: options.rscOutputPath,
+    htmlOutputPath: options.htmlOutputPath,
+    cssFiles: options.cssFiles,
+    pipeableStreamOptions: options.pipeableStreamOptions,
+    projectRoot: options.projectRoot,
   });
 
   return stream;

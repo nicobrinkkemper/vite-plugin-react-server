@@ -53,7 +53,6 @@ export function trackCssClass(className: string) {
  * Get all tracked CSS classes from the current render
  */
 export function getUsedCssClasses(): string[] {
-  console.log("usedClasses", usedClasses);
   return Array.from(usedClasses);
 }
 
