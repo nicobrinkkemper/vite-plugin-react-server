@@ -1,8 +1,8 @@
 import type { HtmlWorkerRenderState } from "./types.js";
 import { PassThrough } from "stream";
-import { parentPort, workerData } from "node:worker_threads";
+import { workerData } from "node:worker_threads";
 import type { SerializeableRenderToPipeableStreamOptions } from "../types.js";
-import React, { type ErrorInfo } from "react";
+import { type ErrorInfo } from "react";
 import { createFromNodeStream } from "react-server-dom-esm/client.node";
 import { Transform } from "node:stream";
 import type { HtmlWorkerOutputMessage } from "../types.js";
@@ -13,7 +13,7 @@ import { join } from "node:path";
 const projectRoot = workerData.projectRoot || process.cwd();
 const nodeRequire = createRequire(join(projectRoot, 'package.json'));
 
-// Import React and ReactDOM from the project's node_modules
+// Import ReactDOM from the project's node_modules
 const ReactDOMServer = nodeRequire('react-dom/server');
 
 
@@ -42,7 +42,7 @@ export function createHtmlWorkerRenderState (
   sendMessage: (msg: any) => void,
   rscStream = new PassThrough(),
   ): HtmlWorkerRenderState {
-    const elements =  createFromNodeStream(
+    const elements = createFromNodeStream(
       rscStream,
       moduleRootPath,
       moduleBaseURL,
@@ -53,11 +53,6 @@ export function createHtmlWorkerRenderState (
       metrics,
       isReady: false,
       pendingChunks: [],
-      projectRoot: projectRoot,
-      moduleRootPath: moduleRootPath,
-      moduleBaseURL: moduleBaseURL,
-      pipeableStreamOptions: pipeableStreamOptions,
-      elements: elements,
       htmlTransform: new Transform({
         transform(chunk, encoding, callback) {
           metrics.totalChunksProcessed++;

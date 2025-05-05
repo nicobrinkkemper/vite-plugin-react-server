@@ -10,9 +10,6 @@ export type HtmlWorkerStreamMetrics = {
 
 export interface HtmlWorkerRenderState {
   rscStream: PassThrough;
-  moduleRootPath: string;
-  moduleBaseURL: string;
-  projectRoot: string;
   metrics: {
     totalChunksProcessed: number;
     totalBytesProcessed: number;
@@ -21,8 +18,6 @@ export interface HtmlWorkerRenderState {
   pendingChunks: Buffer[];
   htmlTransform: Transform;
   stream: ReactDOMServer.PipeableStream;
-  elements?: React.ReactElement;
-  pipeableStreamOptions: SerializeableRenderToPipeableStreamOptions;
   abort?: () => void;
   shellReady?: boolean;
 }
