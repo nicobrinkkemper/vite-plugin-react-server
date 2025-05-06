@@ -4,8 +4,8 @@ import type {
   ResolvedUserOptions,
   AutoDiscoveredFiles,
 } from "../types.js";
-import { format, join } from "path";
-import type { OutputOptions, PreRenderedAsset } from "rollup";
+import { join } from "node:path";
+import type { OutputOptions } from "rollup";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
@@ -31,7 +31,7 @@ export function resolveUserConfig({
   const ssr =
     typeof config.build?.ssr === "boolean"
       ? config.build?.ssr
-      : Boolean(configEnv.isSsrBuild);
+      : Boolean(configEnv.isSsrBuild) || condition === "react-server";
   const envDir =
     condition === "react-client" && ssr
       ? userOptions.build.client
@@ -49,14 +49,14 @@ export function resolveUserConfig({
 
   // Get existing inputs
   const root = config.root ?? userOptions.projectRoot ?? process.cwd();
-  const staticEntries = Object.entries(autoDiscoveredFiles.staticManifest);
+  const staticEntries = ssr && autoDiscoveredFiles.staticManifest ? Object.entries(autoDiscoveredFiles.staticManifest) : [];
   const pluginOutput = {
     preserveModulesRoot: userOptions.build.preserveModulesRoot
       ? userOptions.moduleBase
       : undefined,
     entryFileNames: (info) => {
       if(ssr) {
-        const entry = staticEntries.find(([key, {file}]) => file.startsWith(info.name));
+        const entry = staticEntries.find(([, {file}]) => file.startsWith(info.name));
         if (entry) {
           return entry[1].file;
         }
@@ -64,7 +64,7 @@ export function resolveUserConfig({
       return userOptions.build.entryFile(info, ssr);
     },
     assetFileNames: (i) => {
-      return userOptions.build.assetFile(i, false);
+      return userOptions.build.assetFile(i, ssr);
     },
     chunkFileNames: (i) => {
       return userOptions.build.chunkFile(i, ssr);
@@ -104,29 +104,32 @@ export function resolveUserConfig({
       root: root,
       mode: mode,
       resolve: {
-        external: ["react", "react-dom"],
+        ...config.resolve,
+        external: config.resolve?.external ?? ["react", "react-dom", "react-server-dom-esm/client"],
       },
       ssr: {
-        target: "node",
+        ...config.ssr,
+        target: config.ssr?.target ?? "node",
         resolve: {
-          externalConditions: ["react-server"],
+          ...config.ssr?.resolve,
+          externalConditions: config.ssr?.resolve?.externalConditions ?? ["react-server"],
         },
       },
       // client build options
       build: {
         ...config.build,
         emptyOutDir: config.build?.emptyOutDir ?? true,
-        outDir: join(userOptions.build.outDir, envDir),
+        outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
         copyPublicDir: config.build?.copyPublicDir ?? true,
         // modern browsers
-        target: ["esnext"],
-        minify: false,
+        target: config.build?.target ?? ["esnext"],
+        minify: config.build?.minify ?? mode === "production",
         rollupOptions: {
           ...config.build?.rollupOptions,
           input: autoDiscoveredFiles.inputs,
           output: newOutput,
-          preserveEntrySignatures: "exports-only",
+          preserveEntrySignatures: config.build?.rollupOptions?.preserveEntrySignatures ?? "exports-only",
         },
         ssr: ssr,
         manifest: config.build?.manifest ?? `.vite/manifest.json`,
@@ -141,21 +144,24 @@ export function resolveUserConfig({
       root: root,
       mode: mode,
       resolve: {
-        externalConditions: ["react-server"],
+        ...config.resolve,
+        externalConditions: config.resolve?.externalConditions ?? ["react-server"],
       },
       ssr: {
-        target: "node",
+        ...config.ssr,
+        target: config.ssr?.target ?? "node",
         resolve: {
-          externalConditions: ["react-server"],
+          ...config.ssr?.resolve,
+          externalConditions: config.ssr?.resolve?.externalConditions ?? ["react-server"],
         },
       },
       // server build options
       build: {
         ...config.build,
         emptyOutDir: config.build?.emptyOutDir ?? true,
-        outDir: join(userOptions.build.outDir, envDir),
+        outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         target: config.build?.target ?? "node18",
-        minify: config.build?.minify ?? true,
+        minify: config.build?.minify ?? mode === "production",
         ssr: ssr,
         manifest: config.build?.manifest ?? `.vite/manifest.json`,
         ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,

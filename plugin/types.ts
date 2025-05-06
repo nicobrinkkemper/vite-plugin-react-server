@@ -12,19 +12,20 @@ import type {
   Connect,
   ResolveOptions,
   Manifest,
-  IndexHtmlTransformHook,
-  ViteDevServer,
   Logger,
-  ManifestChunk,
 } from "vite";
-import type {  InitializedCssLoaderMessage, InitializedReactLoaderMessage, ReactServerDomEsmOptions, RscChunkInputMessage, ShutdownMessage } from "./worker/types.js";
+import type {  ReactServerDomEsmOptions } from "./worker/types.js";
 import type React from "react";
-import type { Worker } from "node:worker_threads";
 import type { PassThrough, Transform } from "stream";
 import type { MessagePort } from "node:worker_threads";
 import type { PipeableStream } from "react-server-dom-esm/server.node";
-import type { RenderToPipeableStreamOptions } from "react-dom/server";
 type OnEvent = (event: PluginEvent) => void;
+
+
+export type Serializable = string | number | boolean | null | undefined | Serializable[] | SerializableRecord;
+export type SerializableRecord = {
+  [key: string]: Serializable | SerializableRecord;
+}
 
 
 export type RenderPageResult =
@@ -570,7 +571,15 @@ export type HtmlProps = {
   pageProps: any;
   route: string;
   url: string;
-  cssFiles: string[];
+  rscOutputPath: string;
+  htmlOutputPath: string;
+  projectRoot: string;
+  moduleBase: string;
+  moduleBaseURL: string;
+  moduleBasePath: string;
+  moduleRootPath: string;
+  cssFiles: Map<string, CssContent>;
+  manifest: Manifest;
 };
 
 export interface PageAsset {

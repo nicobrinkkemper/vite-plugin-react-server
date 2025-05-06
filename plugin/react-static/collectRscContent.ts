@@ -20,7 +20,7 @@ import { createStreamMetrics } from "../helpers/metrics.js";
  * @param rscHeadless The stream containing the RSC content
  * @returns A promise that resolves with the complete RSC content and metrics
  */
-export function collectRscContent(rscHeadless: PipeableStream, route: string, maxTime: number = 1000): Promise<{ content: string; metrics: StreamMetrics }> {
+export function collectRscContent(rscHeadless: PipeableStream, route: string, maxTime: number = 10000): Promise<{ content: string; metrics: StreamMetrics }> {
   const metrics = createStreamMetrics();
   const startTime = Date.now();
 

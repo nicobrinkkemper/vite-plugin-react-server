@@ -11,7 +11,7 @@ export type LoaderRegistration = {
 };
 
 export function registerLoaders(loaders: LoaderRegistration[]) {
-  for (const { key, path, port, importMap } of loaders) {
+  for (const {  path, port, importMap } of loaders) {
     const loaderURL = pathToFileURL(path);
     
     // If import map is provided, register it first

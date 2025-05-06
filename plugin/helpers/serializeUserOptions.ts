@@ -1,12 +1,7 @@
-import type { ResolvedConfig, ResolvedDevEnvironmentOptions, ViteDevServer } from "vite";
-import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
-import { isMainThread } from "node:worker_threads";
+import type { ResolvedConfig, ViteDevServer } from "vite";
+import type { AutoDiscoveredFiles, ResolvedUserOptions, SerializableRecord } from "../types.js";
 
-type Primitive = string | number | boolean | null | undefined;
-
-interface StringRecord {
-  [key: string]: string | StringRecord;
-}
+type StringRecord = Record<string, any>;
 
 // Common non-serializable functions in Vite's resolved config
 const VITE_NON_SERIALIZABLE_FUNCTIONS = new Set([
@@ -93,11 +88,11 @@ const PLUGIN_NON_SERIALIZABLE_FUNCTIONS = new Set([
   'autoDiscover'
 ]);
 
-function cleanObject(obj: any, knownNonSerializableFunctions: Set<string>, currentPath: string = ''): any {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj !== 'object') return obj;
+function cleanObject<T>(obj: T, knownNonSerializableFunctions: Set<string>, currentPath: string = ''):  SerializableRecord & T {
+  if (obj === null || obj === undefined) return obj as Extract<SerializableRecord, T>;
+  if (typeof obj !== 'object') return obj as Extract<SerializableRecord, T>;  
   if (Array.isArray(obj)) {
-    return obj.map((x, i) => cleanObject(x, knownNonSerializableFunctions, `${currentPath}[${i}]`)).filter(x => x !== undefined);
+    return obj.map((x, i) => cleanObject(x, knownNonSerializableFunctions, `${currentPath}[${i}]`)).filter(x => x !== undefined) as Extract<StringRecord, T>;
   }
   
   const result: Record<string, any> = {};
@@ -116,14 +111,14 @@ function cleanObject(obj: any, knownNonSerializableFunctions: Set<string>, curre
       result[key] = value;
     }
   }
-  return Object.keys(result).length > 0 ? result : undefined;
+  return (Object.keys(result).length > 0 ? result : {}) as Extract<SerializableRecord, T>;
 }
 
-export function serializeUserOptions(
-  userOptions: ResolvedUserOptions, 
+export function serializeUserOptions<T extends ResolvedUserOptions>(
+  userOptions: T, 
   autoDiscoveredFiles?: AutoDiscoveredFiles | null | undefined,
   knownNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS
-) {
+): SerializableRecord & T {
   const {
     Page,
     props,
@@ -146,13 +141,13 @@ export function serializeUserOptions(
   };
   
   // Clean the object to remove non-serializable properties
-  return cleanObject(result, knownNonSerializableFunctions);
+  return cleanObject(result, knownNonSerializableFunctions) as SerializableRecord & T;
 }
 
-export function serializeResolvedConfig(
-  config: ResolvedConfig,
+export function serializeResolvedConfig<T extends ResolvedConfig>(
+  config: T,
   knownNonSerializableFunctions: Set<string> = VITE_NON_SERIALIZABLE_FUNCTIONS
-): StringRecord {
+){
   const {
     getSortedPluginHooks,
     getSortedPlugins,
@@ -162,22 +157,22 @@ export function serializeResolvedConfig(
   } = config;
   
   // Clean the object to remove non-serializable properties
-  return cleanObject(handlerOptions, knownNonSerializableFunctions);
+  return cleanObject(handlerOptions, knownNonSerializableFunctions)
 }
 
 
 // For Vite's config
-export const serializedConfig = (config: ResolvedConfig | ViteDevServer['config'], customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS) => {
+export const serializedDevServerConfig = <T extends ViteDevServer['config']>(config: T, customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS) => {
   const {
     getSortedPluginHooks,
     getSortedPlugins,
     ...handlerOptions
   } = config;
-  return cleanObject(handlerOptions, customNonSerializableFunctions)
+  return cleanObject(handlerOptions, customNonSerializableFunctions) as SerializableRecord & T;
 }
 
 // For your own options (if you need custom non-serializable functions)
-export const serializedOptions = (options: ResolvedUserOptions, autoDiscoveredFiles: AutoDiscoveredFiles, customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS) => {
+export const serializedOptions = <T extends ResolvedUserOptions>(options: T, autoDiscoveredFiles: AutoDiscoveredFiles, customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS) => {
   const {
     Page,
     props,

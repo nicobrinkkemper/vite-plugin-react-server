@@ -24,8 +24,8 @@ export async function *renderPage(
       const cssFiles = await collectBundleManifestCss({
         bundleManifest: handlerOptions.manifest,
         pagePath: handlerOptions.pagePath,
+        propsPath: handlerOptions.propsPath,
         css: handlerOptions.css,
-        autoDiscover: handlerOptions.autoDiscover,
         moduleBaseURL: handlerOptions.moduleBaseURL,
         moduleBasePath: handlerOptions.moduleBasePath,
         moduleRootPath: handlerOptions.moduleRootPath,
@@ -145,10 +145,9 @@ export async function *renderPage(
       const [htmlContent, rscContent] = await Promise.all([
         collectHtmlContent(
           rscFull.stream,
-          newHandlerOptions,
-          2000
+          newHandlerOptions
         ),
-        collectRscContent(rscHeadless.stream, handlerOptions.route, 2000),
+        collectRscContent(rscHeadless.stream, handlerOptions.route),
       ]);
       
       // Update metrics

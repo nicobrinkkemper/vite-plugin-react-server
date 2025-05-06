@@ -13,7 +13,7 @@ export function upgradeCssModuleCode(code: string): string {
     // Add tracking code to the CSS module exports
     return code.replace(
       /export default ({[\s\S]*?})/,
-      (match: string, exports: string) => {
+      (_match: string, exports: string) => {
         return `
           const originalExports = ${exports};
           const trackedExports = {};

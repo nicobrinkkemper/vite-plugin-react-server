@@ -7,6 +7,7 @@ import type {
 } from "../types.js";
 import type { PipeableStream } from "react-dom/server";
 import type { Logger } from "vite";
+import { createHtmlProps } from "./createHtmlProps.js";
 
 export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS extends boolean = true>({
   Html = React.Fragment,
@@ -16,6 +17,8 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
   moduleRootPath,
   moduleBasePath,
   moduleBaseURL,
+  rscOutputPath,
+  htmlOutputPath,
   cssFiles = new Map(),
   route,
   url,
@@ -29,55 +32,39 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
   pageProps: T;
   logger?: Logger;
   route: string;
+  rscOutputPath?: string;
+  htmlOutputPath?: string;
   url: string;
   htmlProps?: any;
   cssFiles: Map<string, CssContent>;
   onEvent?: (event: 'error' | 'postpone', data: any) => void;
 }): { type: 'success', stream: PipeableStream; metrics: StreamMetrics } | { type: 'error', error: Error, metrics: StreamMetrics } {
   const htmlIsFragment = Html == React.Fragment;
-  if (!htmlProps) {
-    htmlProps = {};
-  }
-  if (!("moduleBase" in htmlProps && typeof moduleBase === "string")) {
-    htmlProps["moduleBase"] = moduleBase;
-  }
-  if (!("moduleBaseURL" in htmlProps && typeof moduleBaseURL === "string")) {
-    htmlProps["moduleBaseURL"] = moduleBaseURL;
-  }
-  if (!("moduleBasePath" in htmlProps && typeof moduleBasePath === "string")) {
-    htmlProps["moduleBasePath"] = moduleBasePath;
-  }
-  if (!("moduleRootPath" in htmlProps && typeof moduleRootPath === "string")) {
-    htmlProps["moduleRootPath"] = moduleRootPath;
-  }
-  if (!("projectRoot" in htmlProps && typeof projectRoot === "string")) {
-    htmlProps["projectRoot"] = projectRoot;
-  }
-  if (!("url" in htmlProps && typeof url === "string")) {
-    htmlProps["url"] = url;
-  }
-  if (!("route" in htmlProps && typeof route === "string")) {
-    htmlProps["route"] = route;
-  }
-  if (!("pageProps" in htmlProps && typeof pageProps === "object")) {
-    htmlProps["pageProps"] = pageProps;
-  }
-  if (!("cssFiles" in htmlProps && cssFiles instanceof Map)) {
-    htmlProps["cssFiles"] = cssFiles
-  }
 
   // Create the page element with the resolved props
   const pageElement = <PageComponent {...pageProps as any} />;
-
+  const allProps = createHtmlProps(htmlProps, {
+    moduleBase,
+    moduleBaseURL,
+    moduleBasePath,
+    moduleRootPath,
+    rscOutputPath,
+    htmlOutputPath,
+    projectRoot,
+    url,
+    route,
+    pageProps,
+    cssFiles,
+  });
   const withCss = React.createElement(
     CssCollector as any,
-    htmlProps,
+    allProps,
     pageElement
   );
   // Otherwise wrap with Html component
   const content = htmlIsFragment
     ? withCss
-    : React.createElement(Html, htmlProps, withCss);
+    : <Html {...allProps}>{withCss}</Html>;
 
   const startTime = Date.now();
   let errorCount = 0;

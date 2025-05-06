@@ -4,8 +4,6 @@ import { type Manifest, type Plugin } from "vite";
 import { transformModuleIfNeeded } from "../loader/react-loader.js";
 import { join } from "node:path";
 import { tryManifest } from "../helpers/tryManifest.js";
-import { readFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
 
 /**
  * Plugin for transforming server actions for the client build.
@@ -73,13 +71,7 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
       if (isClient) {
         return null;
       }
-      if (isServer) {
-        if (isBuild) {
-          const [key] = userOptions.normalizer(id);
-          id = "/" + key + ".js";
-        }
-      }
-      if (isBuild) {
+      if (isServer && isBuild) {
         const [key] = userOptions.normalizer(id);
         id = "/" + key + ".js";
       }
@@ -91,7 +83,7 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
         map: null,
       };
     },
-    renderChunk(code, chunk, options) {
+    renderChunk(code, chunk, _options) {
       // Only process client components
       if (!chunk.fileName.includes(".client")) return null;
 

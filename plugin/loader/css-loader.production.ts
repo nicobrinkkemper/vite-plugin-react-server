@@ -77,7 +77,7 @@ export async function load(
   defaultLoad: any
 ) {
   // Handle CSS files
-  const [name, query] = url.split("?");
+  const [name] = url.split("?");
   if (name.endsWith(".css")) {
     return processCssFile(url);
   }

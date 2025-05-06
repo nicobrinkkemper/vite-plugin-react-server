@@ -7,9 +7,6 @@ import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
-import type { Loader } from "esbuild";
-import type { ResolvedConfig, ViteDevServer } from "vite";
-import { serializeResolvedConfig } from "../helpers/serializeUserOptions.js";
 import * as React from "react";
 
 export type CreateWorkerOptions = {
@@ -97,7 +94,7 @@ export async function createWorker(
     const env = {
       ...process.env,
       NODE_ENV: nodeEnv,
-      NODE_PATH: join(pluginRoot, "node_modules"),
+      NODE_PATH: nodePath,
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
         ? process.env["NODE_OPTIONS"]
         : process.env["NODE_OPTIONS"]?.includes(currentCondition)

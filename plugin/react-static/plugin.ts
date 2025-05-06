@@ -19,7 +19,6 @@ import { Worker } from "node:worker_threads";
 import { type Manifest, type ResolvedConfig, type Plugin as VitePlugin, createLogger } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
-import { tryManifest } from "../helpers/tryManifest.js";
 import { createBuildLoader } from "../loader/createBuildLoader.js";
 import type {
   BuildTiming,
@@ -27,18 +26,16 @@ import type {
   ResolvedUserConfig,
   ResolvedUserOptions,
   PluginEvent,
-  RenderMetrics,
   RenderPagesResult,
   AutoDiscoveredFiles,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
-import { mkdir, readFile, readdir, stat, copyFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { copy } from "../copy.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
 import { defaultFileWriter } from "../helpers/defaultFileWriter.js";
-import { createRenderMetrics } from "../helpers/metrics.js";
 import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
 import { serializeResolvedConfig } from "../helpers/serializeUserOptions.js";
@@ -69,7 +66,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     buildStart: 0,
     renderStart: 0,
   };
-  const metrics: RenderMetrics[] = [];
 
   const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
@@ -145,8 +141,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       const bundleManifest = getBundleManifest<false>({
         bundle,
         normalizer: userOptions.normalizer,
-        serverDir: userOptions.build.server,
-      });
+        });
 
       if (!("source" in bundleManifest[".vite/manifest.json"])) {
         throw new Error("Server manifest not found");
@@ -243,8 +238,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             return defaultFileWriter({
               event,
               outputDir: serverStaticDir,
-              pluginContext: this,
-              root: cwd,
             });
           }
         },
@@ -280,18 +273,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             userOptions.autoDiscover.dotFiles,
           ],
         }),
-        // copy({
-        //   src: clientDir,
-        //   dest: finalStaticDir,
-        //   exclude: [
-        //     userOptions.autoDiscover.nodeOnly,
-        //     userOptions.autoDiscover.dotFiles,
-        //     // we don't need the ssr modules
-        //     userOptions.autoDiscover.modulePattern,
-        //     // we dont want the vite's dev index.html output
-        //     userOptions.autoDiscover.htmlPattern,
-        //   ],
-        // }),
         copy({
           src: serverDir,
           dest: finalStaticDir,
@@ -300,6 +281,9 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             userOptions.autoDiscover.modulePattern,
             userOptions.autoDiscover.htmlPattern,
             userOptions.autoDiscover.rscPattern,
+          ],
+          include: [
+            userOptions.autoDiscover.cssPattern,
           ],
         }),
       ]);

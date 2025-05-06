@@ -1,7 +1,5 @@
 import { join, resolve } from "node:path";
-import type {
-  PluginContext,
-} from "rollup";
+
 import type { Manifest } from "vite";
 import { readFile } from "node:fs/promises";
 

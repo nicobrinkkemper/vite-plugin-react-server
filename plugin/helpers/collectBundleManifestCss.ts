@@ -10,11 +10,15 @@ import { readFile } from "node:fs/promises";
 
 type Options = Pick<
   ResolvedUserOptions,
-  "css" | "autoDiscover" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot"
+  "css" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot"
 > & {
   bundleManifest: Manifest;
+  build: Pick<
+    NonNullable<Required<StreamPluginOptions["build"]>>,
+    "outDir" | "server"
+  >;
   pagePath: string;
-  build: Pick<NonNullable<Required<StreamPluginOptions["build"]>>, "outDir" | "server">;
+  propsPath?: string;
 };
 
 /**
@@ -23,8 +27,8 @@ type Options = Pick<
 export async function collectBundleManifestCss({
   bundleManifest,
   pagePath,
+  propsPath,
   css,
-  autoDiscover,
   moduleBaseURL,
   moduleBasePath,
   moduleRootPath,
@@ -32,24 +36,30 @@ export async function collectBundleManifestCss({
   projectRoot,
 }: Options): Promise<Map<string, CssContent>> {
   const cssMap = new Map<string, CssContent>();
-  
+
+
   // Find all CSS files in the manifest
   for (const [key, mod] of Object.entries(bundleManifest)) {
+    if (key !== pagePath && typeof propsPath === "string" && key !== propsPath)
+      continue;
     if (mod.css) {
       for (const cssFile of mod.css) {
         if (cssMap.has(cssFile)) continue;
         try {
           const file = join(projectRoot, build.outDir, build.server, cssFile);
           const code = await readFile(file, "utf-8");
-          cssMap.set(cssFile, createCssProps({ 
-            id: cssFile, 
-            css, 
-            code, 
-            moduleBaseURL, 
-            moduleBasePath, 
-            moduleRootPath, 
-            projectRoot 
-          }));
+          cssMap.set(
+            cssFile,
+            createCssProps({
+              id: cssFile,
+              css,
+              code,
+              moduleBaseURL,
+              moduleBasePath,
+              moduleRootPath,
+              projectRoot,
+            })
+          );
         } catch {
           continue;
         }

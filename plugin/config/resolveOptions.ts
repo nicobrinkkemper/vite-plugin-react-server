@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 import { CssCollectorInline } from "../css-collector-inline.js";
 import { CssCollector } from "../css-collector.js";
-import { getCondition } from "./getCondition.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 // ============================================================================
@@ -229,10 +228,10 @@ export const resolveOptions = <
 
   const hash = (n: string | null, ssr: boolean) => {
     if (!n) return "";
+    if(ssr) return n;
     if (
       hashString === "" ||
-      autoDiscover.nodeOnly(n) ||
-      (ssr && !(autoDiscover.cssPattern(n) || autoDiscover.jsonPattern(n)))
+      autoDiscover.nodeOnly(n)
     ) {
       return n;
     }
@@ -303,9 +302,9 @@ export const resolveOptions = <
     if (testVendor(n.name)) {
       const search = n.facadeModuleId?.split("?")[1];
       if (search) {
-        return hash(`${n.name}.${search}.js`, false);
+        return hash(`${n.name}.${search}.js`, ssr);
       } else {
-        return hash(`${n.name}.js`, false);
+        return hash(`${n.name}.js`, ssr);
       }
     }
     return hash(

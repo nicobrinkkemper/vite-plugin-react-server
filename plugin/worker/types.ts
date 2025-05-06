@@ -111,6 +111,12 @@ export interface RscEndMessage extends WorkerMessage {
   content: Buffer[];
 }
 
+export interface RscMetricsMessage extends WorkerMessage {
+  type: "RSC_METRICS";
+  id: string;
+  metrics: StreamMetrics;
+}
+
 export interface ShellReadyMessage extends WorkerMessage {
   type: "SHELL_READY";
 }
@@ -190,7 +196,7 @@ export type HtmlWorkerOutputMessage =
   | ShellReadyMessage
   | ChunkProcessedMessage
   | ChunkErrorMessage
-  | { type: "HTML_CHUNK"; id: string; chunk: string }
+  | { type: "HTML_CHUNK"; id: string; chunk: string; encoding: string }
   | { type: "CLEANUP_COMPLETE"; id: string }
   | { type: "SHUTDOWN_COMPLETE"; id: string }
 
@@ -277,7 +283,8 @@ export type RscWorkerOutputMessage =
   | ClientComponentMessage
   | ModuleRequestMessage
   | ModuleResponseMessage
-  | CssProcessedMessage;
+  | CssProcessedMessage
+  | RscMetricsMessage;
 
 export interface ClientReferenceMessage extends WorkerMessage {
   type: "CLIENT_REFERENCE";

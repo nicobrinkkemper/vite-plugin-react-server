@@ -1,8 +1,5 @@
-import { join, dirname, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
-import React from "react";
 import {
-  createLogger,
   type ResolvedConfig,
   type UserConfig,
   type ViteDevServer,
@@ -18,8 +15,6 @@ import type {
   ResolvedUserOptions,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
-import { readFile, stat } from "node:fs/promises";
-import { MIME_TYPES } from "../config/mimeTypes.js";
 import {
   resolveAutoDiscover
 } from "../config/resolveAutoDiscover.js";
@@ -28,8 +23,6 @@ import { configureReactServer } from "./server.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
-let serverManifestPath: string | null = null;
-let loader: ((id: string) => Promise<Record<string, any>>) | null = null;
 let cwd: string;
 
 if (getCondition() !== "react-server") {
@@ -73,12 +66,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
     },
     configResolved(_resolvedConfig) {
       resolvedConfig = _resolvedConfig;
-
-      serverManifestPath = join(
-        userOptions.build.outDir,
-        userOptions.build.server,
-        ".vite/manifest.json"
-      );
       timing.configResolved = performance.now();
 
       // Verify transformer runs first, preserver runs last

@@ -1,5 +1,4 @@
 import React from "react";
-import { join } from "node:path";
 import type { CssCollectorProps, CssContent } from "./types.js";
 
 // Create link elements for each CSS file

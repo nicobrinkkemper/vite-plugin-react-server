@@ -163,19 +163,22 @@ export async function resolveAutoDiscover({
   root,
   normalizer,
 }: ResolveAutoDiscoverProps): Promise<ResolveAutoDiscoverReturn> {
-  const ssr =
+  const ssr = configEnv.isSsrBuild;
+  const envDir =
     condition === "react-server"
-      ? true
-      : typeof config.build?.ssr === "boolean"
-      ? config.build?.ssr
-      : configEnv.isSsrBuild;
-  const envDir = !ssr ? userOptions.build.client : userOptions.build.server;
+      ? userOptions.build.server
+      : ssr
+      ? userOptions.build.client
+      : userOptions.build.static;
   const envId = `${envDir}${ssr ? "-ssr" : ""}`;
   const configInputRecord = {} as Record<string, string>;
-  if(typeof config.build?.rollupOptions?.input === 'string') {
-    configInputRecord[normalizer(config.build?.rollupOptions?.input)[0]] = config.build?.rollupOptions?.input;
-  } else if(typeof config.build?.rollupOptions?.input === 'object') {
-    for(const [, value] of Object.entries(config.build?.rollupOptions?.input)) {
+  if (typeof config.build?.rollupOptions?.input === "string") {
+    configInputRecord[normalizer(config.build?.rollupOptions?.input)[0]] =
+      config.build?.rollupOptions?.input;
+  } else if (typeof config.build?.rollupOptions?.input === "object") {
+    for (const [, value] of Object.entries(
+      config.build?.rollupOptions?.input
+    )) {
       configInputRecord[normalizer(value)[0]] = value;
     }
   }
@@ -257,11 +260,18 @@ export async function resolveAutoDiscover({
     files,
     inputs: {},
     normalizer,
-  })
+  });
   // Add inputs based on condition
   const inputs =
     condition === "react-client"
-      ? { ...configInputRecord, ...clientFiles, ...clientEntry, ...serverFiles, ...indexHtml, ...serverEntry }
+      ? {
+          ...configInputRecord,
+          ...clientFiles,
+          ...clientEntry,
+          ...serverFiles,
+          ...indexHtml,
+          ...serverEntry,
+        }
       : {
           ...configInputRecord,
           ...clientFiles,

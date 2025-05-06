@@ -42,7 +42,7 @@ describe("Plugin build test", () => {
   });
 
   afterAll(async () => {
-    // await rm(testDir, { recursive: true, force: true });
+    await rm(testDir, { recursive: true, force: true });
   });
 
   it("emits build events", async () => {

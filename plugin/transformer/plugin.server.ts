@@ -2,9 +2,8 @@ import { resolveOptions } from "../config/resolveOptions.js";
 import type { ResolvedUserOptions, StreamPluginOptions } from "../types.js";
 import type { Manifest, Plugin } from "vite";
 import { transformModuleIfNeeded } from "../loader/react-loader.js";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { tryManifest } from "../helpers/tryManifest.js";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 /**
  * Plugin for transforming React Client Components.
  *

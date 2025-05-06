@@ -1,6 +1,7 @@
 import type {
   RscChunkOutputMessage,
   RscEndMessage,
+  RscMetricsMessage,
   RscWorkerOutputMessage,
 } from "../types.js";
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
@@ -17,8 +18,8 @@ import { parentPort, workerData, type MessagePort } from "node:worker_threads";
 export async function handleRender(
   msg: RscRenderMessage,
   port = parentPort,
-  reactLoaderPort: MessagePort,
-  cssLoaderPort: MessagePort
+  _reactLoaderPort: MessagePort,
+  _cssLoaderPort: MessagePort
 ) {
   const postError = process.env["DEV"]
     ? (error: any, errorInfo?: any) => {
@@ -60,15 +61,8 @@ export async function handleRender(
     pipeableStreamOptions = workerData.pipeableStreamOptions,
     rscOutputPath = workerData.rscOutputPath,
     htmlOutputPath = workerData.htmlOutputPath,
-    css = workerData.css,
     cssFiles: messageCssFiles = cssFiles,
   } = msg;
-
-  if ("css" in msg) {
-    workerData.css = msg.css;
-  } else {
-    css = workerData.css;
-  }
   try {
     // Load modules
     const pageAndPropsResult = await resolvePageAndProps({
@@ -137,6 +131,8 @@ export async function handleRender(
       moduleRootPath,
       moduleBasePath,
       moduleBaseURL,
+      rscOutputPath,
+      htmlOutputPath,
       logger: createLogger(),
       route,
       url:
@@ -155,7 +151,7 @@ export async function handleRender(
     }
 
     const { stream, metrics } = streamResult;
-
+    
     // Create pass-through stream
     const passThrough = new PassThrough();
     activeStreams.set(id, passThrough);
@@ -179,7 +175,14 @@ export async function handleRender(
         id,
         content: [],
       } satisfies RscEndMessage);
-      activeStreams.delete(id);
+      if (activeStreams.has(id)) {
+        port?.postMessage({
+          type: "RSC_METRICS",
+          id,
+          metrics,
+        } satisfies RscMetricsMessage);
+        activeStreams.delete(id);
+      }
     });
 
     // Handle errors

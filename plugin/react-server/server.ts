@@ -1,4 +1,4 @@
-import type { Logger, Manifest, ViteDevServer } from "vite";
+import type {  Manifest, ViteDevServer } from "vite";
 import type { ServerResponse } from "http";
 import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
 import { createEventHandler } from "../helpers/createEventHandler.js";

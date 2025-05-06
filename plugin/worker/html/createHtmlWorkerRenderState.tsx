@@ -42,6 +42,11 @@ export function createHtmlWorkerRenderState (
   sendMessage: (msg: any) => void,
   rscStream = new PassThrough(),
   ): HtmlWorkerRenderState {
+    if(typeof moduleRootPath !== "string") {
+      throw new Error("moduleRootPath is required");
+    } else if(!moduleRootPath.startsWith(projectRoot)) {
+      moduleRootPath = join(projectRoot, moduleRootPath);
+    }
     const elements = createFromNodeStream(
       rscStream,
       moduleRootPath,
@@ -63,6 +68,7 @@ export function createHtmlWorkerRenderState (
             type: "HTML_CHUNK",
             id: id,
             chunk: chunk,
+            encoding,
           } satisfies HtmlWorkerOutputMessage);
           callback();
         },

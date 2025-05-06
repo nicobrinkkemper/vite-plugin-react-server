@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
-import type { CheckFilesExistReturn, InputNormalizer, ResolvedUserOptions } from "./types.js";
+import type { CheckFilesExistReturn, ResolvedUserOptions } from "./types.js";
 import { resolveUrlOption } from "./config/resolveUrlOption.js";
 
 let stashedFiles: CheckFilesExistReturn | null = null;
@@ -20,7 +20,6 @@ export async function checkFilesExist({
     !stashedPages.every((page, i) => page === pages[i]);
 
   if (stashedFiles && !pagesChanged) {
-    console.log("[checkFilesExist] Returning cached files");
     return stashedFiles; // Return directly without Promise.resolve
   }
   const errors: Error[] = [];

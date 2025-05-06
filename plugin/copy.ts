@@ -1,5 +1,5 @@
 import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 
 export async function copy({
   src,

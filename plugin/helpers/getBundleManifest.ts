@@ -11,17 +11,14 @@ import type { InputNormalizer } from "../types.js";
  * @param pluginContext - The plugin context
  * @param bundle - The bundle
  * @param preserveModulesRoot - The preserve modules root
- * @param serverDir - The server directory name from build config
  * @returns The bundle manifest
  */
 export function getBundleManifest<SSR extends boolean>({
   bundle,
   normalizer,
-  serverDir,
 }: {
   bundle: OutputBundle,
   normalizer: InputNormalizer,
-  serverDir?: string,
 }): SSR extends true ? Record<string, string[]> : Manifest {
 
   if (!bundle) return {};

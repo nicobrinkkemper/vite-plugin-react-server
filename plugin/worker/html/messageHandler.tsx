@@ -1,12 +1,9 @@
-import { PassThrough, Transform } from "node:stream";
 import { parentPort } from "node:worker_threads";
 import type { HtmlWorkerInputMessage, HtmlWorkerOutputMessage } from "../types.js";
 // @ts-ignore
 import * as ReactDOMServer from "react-dom/server.node";
 import type { HtmlWorkerRenderState } from "./types.js";
-import React, { type ErrorInfo } from "react";
 import { createHtmlWorkerRenderState } from "./createHtmlWorkerRenderState.js";
-import { createFromNodeStream } from "react-server-dom-esm/client.node";
 
 // Track active renders
 const activeRenders = new Map<string, HtmlWorkerRenderState>();
@@ -81,7 +78,6 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       break;
     }
     case "RSC_END": {
-      console.log("RSC_END", id);
       const renderState = activeRenders.get(id);
       if (!renderState) {
         sendMessage({

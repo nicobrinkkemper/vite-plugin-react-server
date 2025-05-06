@@ -3,7 +3,6 @@ import { vitePluginReactClient } from "../../dist/client";
 import { vitePluginReactServer } from "../../dist/plugin/plugin.server";
 import { PluginEvent, StreamPluginOptions } from "../../plugin/types";
 import { testUserOptions } from "../test-config";
-import { mkdir } from "fs/promises";
 
 /**
  * Builds the project with the test config and given options and returns the events
@@ -34,6 +33,16 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     // Do the builds
     await build({
       plugins: [vitePluginReactClient(options)],
+      build: {
+        ssr: false,
+      },
+    });
+
+    await build({
+      plugins: [vitePluginReactClient(options)],
+      build: {
+        ssr: true,
+      },
     });
 
     await build({

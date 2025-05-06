@@ -14,7 +14,6 @@
  * 3. Sets up stream handlers with proper wrappers and options
  * 4. Returns streams for renderPages to process
  */
-import { join } from "node:path";
 import { createHandler } from "../helpers/createHandler.js";
 import type {
   CreateHandlerOptions,

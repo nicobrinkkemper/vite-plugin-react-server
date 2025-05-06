@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import type {
-  InputNormalizer,
   ResolvedUserConfig,
   ResolvedUserOptions,
 } from "../../server.js";

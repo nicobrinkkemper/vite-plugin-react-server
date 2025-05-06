@@ -11,7 +11,7 @@ import type {
 import { join } from "node:path";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import { MessageChannel } from "node:worker_threads";
-import { serializeResolvedConfig, serializeUserOptions } from "../helpers/serializeUserOptions.js";
+import { serializedOptions, serializeResolvedConfig, serializeUserOptions } from "../helpers/serializeUserOptions.js";
 import { createWorker } from "../worker/createWorker.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 
@@ -88,6 +88,13 @@ async function* createWorkerStream(
           if (message.type === "RSC_CHUNK") {
             resolve(message.chunk);
           }
+          if(message.type === "ERROR") {
+            if(typeof message.error === "string") {
+              reject(new Error(message.error));
+            } else if (typeof message.error === "object") {
+              reject(message.error);
+            }
+          }
         };
         worker.once("message", messageHandler);
       });
@@ -107,14 +114,11 @@ async function* createWorkerStream(
  * Creates a ReadableStream that pipes RSC chunks to the response.
  *
  * @param worker - The worker thread
- * @param server - The Vite dev server
  * @param message - The RSC render message
- * @param rscWorkerLoaderPort - Optional loader port for module loading
  * @returns A ReadableStream that yields RSC chunks
  */
 export function handleWorkerRscStream(
   worker: NodeWorker,
-  server: ViteDevServer,
   message: Omit<RscRenderMessage, "type" | "id">,
 ): ReadableStream<Uint8Array> {
   // Create a ReadableStream from the async generator
@@ -223,9 +227,8 @@ export async function configureWorkerRequestHandler({
 
     const stream = handleWorkerRscStream(
       workerResult.worker,
-      server,
       {
-        ...serializeUserOptions(userOptions, autoDiscoveredFiles),
+        ...serializedOptions(userOptions, autoDiscoveredFiles),
         // we make the worker stream aware of the route, pagePath, propsPath
         route,
         pagePath: page,
@@ -235,6 +238,14 @@ export async function configureWorkerRequestHandler({
         moduleRootPath: join(server.config.root, userOptions.moduleBase),
         moduleBaseURL: "",
         moduleBasePath: "",
+        build: {
+          ...userOptions.build,
+          pages: Array.from(autoDiscoveredFiles.urlMap.keys())
+        },
+        manifest: autoDiscoveredFiles.staticManifest,
+        htmlOutputPath: join(server.config.root, userOptions.build.outDir, userOptions.build.static),
+        rscOutputPath: join(server.config.root, userOptions.build.outDir, userOptions.build.server),
+        cssFiles: new Map(),
       },
     );
 

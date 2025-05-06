@@ -9,11 +9,8 @@
  * 3. Handles file path construction
  * 4. Provides a clean interface for file operations
  */
-
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import type { PageData, FileWriterOptions } from "../types.js";
-
+import { join } from "node:path";
 
 /**
  * Writes HTML and RSC files for a route

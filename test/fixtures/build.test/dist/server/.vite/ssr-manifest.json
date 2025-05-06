@@ -1,9 +1,0 @@
-{
-  "\u0000vite/modulepreload-polyfill.js": [],
-  "index.html": [],
-  "src/client.tsx": [],
-  "src/components/Link.client.tsx": [],
-  "src/page/page.tsx": [],
-  "src/page/props.ts": [],
-  "src/page/test.module.css": []
-}

@@ -1,1 +1,0 @@
-import t from"react";import{Link as a}from"../components/Link.client.js";const r="_test_x2k9h_1",o="_shared_x2k9h_2",e={test:r,shared:o};function m(s){return console.log("Test Page rendering",s,e.test,e.shared),t.createElement("div",{className:e.test},t.createElement("span",{className:e.shared},"Page"),t.createElement(a,{to:"/page2"},"Go to Page 2"))}export{m as Page};

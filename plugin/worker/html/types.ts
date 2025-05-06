@@ -1,5 +1,4 @@
 import type { PassThrough, Transform } from "stream";
-import type { SerializeableRenderToPipeableStreamOptions } from "../types.js";
 
 export type HtmlWorkerStreamMetrics = {
   totalChunksReceived: number;

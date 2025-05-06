@@ -1,18 +1,13 @@
-import { join, dirname, resolve } from "node:path";
+import { join, dirname } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import type { PluginContext } from "rollup";
 import type { PluginEvent } from "../types.js";
 
 export async function defaultFileWriter({
   event,
   outputDir,
-  pluginContext,
-  root = process.cwd()
 }: {
   event: PluginEvent;
   outputDir: string;
-  pluginContext?: PluginContext;
-  root?: string;
 }) {
   if (event.type !== 'file.write') return;
 

@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import { join, resolve } from 'path';
-import { mkdir, writeFile, readFile, rm } from 'fs/promises';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { join } from 'path';
+import { mkdir, writeFile, rm } from 'fs/promises';
 import { type PluginEvent } from 'vite-plugin-react-server/client';
 import { testUserOptions } from '../test-config.js';
 import { doBuild } from './doBuild.js';
@@ -87,6 +87,11 @@ describe('large html handling', () => {
     // build
     events = await doBuild({
       projectRoot: testDir,
+      Page: ()=>"src/page/page.tsx",
+      props: ()=>"src/page/props.ts",
+      build: {
+        pages: ["/"],
+      },
     });
     htmlContent = events.find(e => e.type === 'file.write' && e.data.fileType === 'html')?.data['content'];
   });
