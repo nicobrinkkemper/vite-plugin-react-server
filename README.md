@@ -64,12 +64,10 @@ import { getCondition } from "vite-plugin-react-server"
 import(`plugin.${getCondition('')}.js`)
 ```
 
-The separation is accomplished through a single entry point that adapts based on the environment:
+The main entry point adapts based on the environment:
 
-- **Client Mode** (default) → Handles client-side rendering and ESM bundling
-- **Server Mode** (`NODE_OPTIONS="--conditions react-server"`) → Manages server-side streaming and RSC processing
-
-This ensures that client-side and server-side concerns remain isolated while using a single configuration, reducing potential inconsistencies.
+- **Client Mode** (default) → Does not require the react-server condition, uses a worker thread for RSC requests
+- **Server Mode** (`NODE_OPTIONS="--conditions react-server"`) → Does not need worker thread for RSC requests
 
 ### Custom composition
 
@@ -137,30 +135,26 @@ export default defineConfig({
 
 ### Built-in React Server Components
 
-This plugin has two built-in React Component, each can be configured through the options to be your own component. Just like the custom workers, defining your custom React server components will affect the final production output and development experience.
+This plugin has two built-in React Component, each can be configured through the options to be your own component. Defining your custom React server components will affect the final production output, they won't be used during development.
 - Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files)
 - CssCollector - used to emit `<link>` and `<style>` tags based on `css` config
-
-When using the `vite-plugin-react-server` plugin, you are required to run it with the `NODE_OPTIONS="conditions=react-server"`. You can do achieve this however you want. The key take-away is that this support React components anywhere in your project, even in the configuration of your application you can use React components.
-
-Here
 
 #### Build Steps
 
 ```sh
 vite build
 ```
-Outputs React client-side ESM files to `dist/client`.
+Targets browsers, outputs to `dist/static`.
 
 ```sh
 vite build --ssr
 ```
-Outputs files for server-side execution to `dist/server`.
+Targets non-`react-server` node environment, used for server-side-rendering, outputs to `dist/client`.
 
 ```sh
-vite preview
+NODE_OPTIONS="--conditions=react-server" vite build
 ```
-Serves the static directory.
+Targets `react-server`-only environment, outputs to `dist/server`. In this case, `ssr` is implied and defaults to true.
 
 ---
 
@@ -181,18 +175,15 @@ export default defineConfig({
 #### Running in Development
 
 ```sh
-NODE_OPTIONS="--conditions=react-server" vite --config vite.server.config.ts
+NODE_OPTIONS="--conditions=react-server" vite
 ```
+Is the recommended way for a more direct server pipeline that doesn't require a `rsc-worker`.
 
-#### Build Steps
-
+To develop the app using the `rsc-worker`, simply run
 ```sh
-NODE_OPTIONS="--conditions=react-server" vite build --config vite.server.config.ts
+vite
 ```
-Generates server and static folder. The plugin ensures proper SSR handling without requiring `--ssr` manually.
-Note: ssr can still be disabled via config `{ssr:false}`, which will enable vite's browser virtualization
-
----
+without the `react-server` condition.
 
 ## Static Site Generation
 
@@ -216,7 +207,7 @@ dist/static/about/index.html
 dist/static/about/index.rsc
 ```
 
-The entire `dist/client` directory is copied into `dist/static`, as well as any assets used server-side. Allowing easy deployment by moving the static folder to a hosting service.
+This plugin is included by default when the `react-server` condition is set.
 
 ---
 
@@ -274,11 +265,12 @@ Changes the default name "props"
 
 ```json
 "scripts": {
-  "build": "build:client && build:server",
-  "dev": "NODE_OPTIONS='--conditions react-server' vite --config vite.server.config.ts",
-  "dev:client": "vite",
-  "build:server": "NODE_OPTIONS='--conditions react-server' vite build --config vite.server.config.ts",
-  "build:client": "vite build"
+  "build": "build:static && build:client && build:server",
+  "dev": "NODE_OPTIONS='--conditions react-server' vite",
+  "start": "vite",
+  "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
+  "build:client": "vite build --ssr",
+  "build:static": "vite build"
 }
 ```
 
@@ -299,43 +291,6 @@ export const props = {
   name: "John Doe",
 };
 ```
-
-### Vite Configuration Files
-
-#### Client Configuration (`vite.config.ts`)
-
-```ts
-import { vitePluginReactClient } from "vite-plugin-react-server/client";
-import { defineConfig } from "vite";
-
-export default defineConfig({
-  plugins: vitePluginReactClient(),
-});
-```
-
-#### Server Configuration (`vite.server.config.ts`)
-
-```ts
-import { vitePluginReactServer } from "vite-plugin-react-server";
-import { defineConfig } from "vite";
-
-export default defineConfig({
-  plugins: vitePluginReactServer(),
-});
-```
-
----
-
-```sh
-NODE_OPTIONS='--conditions react-server' npx vite --config vite.server.config.ts
-```
-
-In development mode, the server plugin pipes the React stream directly to the response.
-
-```sh
-NODE_OPTIONS='--conditions react-server' npx vite build --config vite.server.config.ts
-```
-This builds the `dist/server` directory. It sets ssr to true by default, so you can't forget to. Additionally, when the build is done it generates the `dist/static` directory using the /static plugin.
 
 ## Contributions
 

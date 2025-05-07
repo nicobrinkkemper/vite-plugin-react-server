@@ -128,11 +128,12 @@ export const props = ({url})=>({
 
 ```json
 "scripts": {
-  "build": "build:client && build:server",
-  "dev": "NODE_OPTIONS='--conditions react-server' vite --config vite.server.config.ts",
-  "dev:client": "vite",
-  "build:server": "NODE_OPTIONS='--conditions react-server' vite build --config vite.server.config.ts",
-  "build:client": "vite build"
+  "build": "build:static && build:client && build:server",
+  "dev": "NODE_OPTIONS='--conditions react-server' vite",
+  "start": "vite",
+  "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
+  "build:client": "vite build --ssr",
+  "build:static": "vite build"
 }
 ```
 

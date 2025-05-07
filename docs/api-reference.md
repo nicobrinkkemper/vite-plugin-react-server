@@ -87,8 +87,9 @@ interface CssCollectorProps {
 
 ```ts
 interface CssContent {
-  path: string;
-  content?: string;  // Present when inlineCss is true
+  as: 'link' | 'style'
+  id: string;
+  children?: string;  // Present when inlineCss is true and size is below the inlineThreshold
 }
 ```
 
@@ -255,22 +256,23 @@ export default defineConfig({
 vite build
 ```
 
-Outputs React client-side ESM files to `dist/client`.
+Outputs files to `dist/static`.
 
-### Server Build
-
-```sh
-NODE_OPTIONS="--conditions react-server" vite build --config vite.server.config.ts
-```
-
-Outputs files for server-side execution to `dist/server`.
-
-### Static Build
+### Server-size client Build
 
 ```sh
-NODE_OPTIONS="--conditions react-server" vite build --config vite.static.config.ts
+vite build --ssr
 ```
 
+Outputs files for server-side execution to `dist/client`.
+
+### Server & Static Build
+
+```sh
+NODE_OPTIONS="--conditions react-server" vite build
+```
+
+Bundles server-only modules like page's and props to `dist/server`
 Generates static HTML and RSC files to `dist/static`.
 
 ## Development Commands
@@ -282,11 +284,3 @@ vite
 ```
 
 Starts the Vite dev server for client-side development.
-
-### Server Development
-
-```sh
-NODE_OPTIONS="--conditions react-server" vite --config vite.server.config.ts
-```
-
-Starts the Vite dev server for server-side development with RSC streaming. 

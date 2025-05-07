@@ -28,7 +28,7 @@ The build process executes in the following sequence:
    - Processes CSS modules
    - Outputs browser-optimized code
 
-2. **Server Build** (`NODE_OPTIONS="--conditions=react-server" vite build --config vite.server.config.ts`)
+2. **Server Build** (`NODE_OPTIONS="--conditions=react-server" vite build`)
    - Resolves assets using client manifest
    - Generates RSC content
    - Creates static output directory
