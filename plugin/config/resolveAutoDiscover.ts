@@ -1,145 +1,26 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type {
-  CheckFilesExistReturn,
-  InputNormalizer,
-  ResolvedUserOptions,
-  AutoDiscoveredFiles,
-} from "../types.js";
+import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
 import { join } from "path";
-import { glob } from "fs/promises";
-import { pluginRoot } from "../root.js";
-import { checkFilesExist } from "../checkFilesExist.js";
+import { resolveBuildPages } from "./autoDiscover/resolveBuildPages.js";
 import { resolvePages } from "./resolvePages.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import type { Manifest } from "vite";
+import { createGlobAutoDiscover } from "./autoDiscover/createGlobAutoDiscover.js";
+import { collectBundleManifestCss } from "../helpers/collectBundleManifestCss.js";
+import { customWorkerFiles } from "./autoDiscover/customWorkerFiles.js";
+import { pageAndPropFiles } from "./autoDiscover/pageAndPropFiles.js";
 
 let stashedAutoDiscover: Record<string, AutoDiscoveredFiles | null> = {};
 
-const autoDiscoveredClientFiles = async ({
-  inputs,
-  userOptions,
-  root,
-  normalizer,
-  staticManifest,
-}: {
-  inputs: Record<string, string>;
-  userOptions: Pick<ResolvedUserOptions, "moduleBase">;
-  root: string;
-  normalizer: (path: string) => [string, string];
-  staticManifest?: Manifest;
-}) => {
-  const allFiles = glob(`**/*.client.*`, {
-    cwd: join(root, userOptions.moduleBase),
-  });
-  for await (const file of allFiles) {
-    const [key, value] = normalizer(join(userOptions.moduleBase, file));
-    if (!inputs[key]) {
-      // If we have a static manifest, use its file name
-      if (staticManifest && staticManifest[key]?.file) {
-        inputs[staticManifest[key].file] = value;
-      } else {
-        inputs[key] = value;
-      }
-    } else {
-      console.warn(`[RSC] Client file already exists: ${key}`);
-    }
-  }
-  return inputs;
-};
-
-const autoDiscoveredServerFiles = async ({
-  inputs,
-  userOptions,
-  root,
-  normalizer,
-}: {
-  inputs: Record<string, string>;
-  userOptions: Pick<ResolvedUserOptions, "moduleBase">;
-  root: string;
-  normalizer: (path: string) => [string, string];
-}) => {
-  const allFiles = glob(join(userOptions.moduleBase, "**/*.server.*"), {
-    cwd: join(root, userOptions.moduleBase),
-  });
-  for await (const file of allFiles) {
-    const [key, value] = normalizer(join(userOptions.moduleBase, file));
-    if (!inputs[key]) {
-      inputs[key] = value;
-    } else {
-      console.warn(`[RSC] Server file already exists: ${key}`);
-    }
-  }
-  return inputs;
-};
-
-const customWorkerFiles = ({
-  inputs,
-  userOptions,
-}: {
-  inputs: Record<string, string>;
-  userOptions: Pick<ResolvedUserOptions, "rscWorkerPath" | "htmlWorkerPath">;
-}) => {
-  const customRscWorker = !userOptions.rscWorkerPath.startsWith(pluginRoot);
-  const customHtmlWorker = !userOptions.htmlWorkerPath.startsWith(pluginRoot);
-  if (customRscWorker && !inputs["rsc-worker"]) {
-    inputs["rsc-worker"] = userOptions.rscWorkerPath;
-  }
-  if (customHtmlWorker && !inputs["html-worker"]) {
-    inputs["html-worker"] = userOptions.htmlWorkerPath;
-  }
-  return inputs;
-};
-
-const autoDiscoveredPagePropFiles = ({
-  files,
-  inputs,
-  normalizer: _normalizer,
-}: {
-  files: CheckFilesExistReturn | undefined;
-  inputs: Record<string, string>;
-  normalizer: (path: string) => [string, string];
-}) => {
-  if (!files) return inputs;
-
-  // Add page files without extra prefix
-  for (const [key, value] of files.pageMap) {
-    if (!inputs[key]) {
-      inputs[key] = value;
-    } else {
-      console.warn(`[RSC] Page file already exists: ${key}`);
-    }
-  }
-
-  // Add props files without extra prefix
-  for (const [key, value] of files.propsMap) {
-    if (!inputs[key]) {
-      inputs[key] = value;
-    } else {
-      console.warn(`[RSC] Props file already exists: ${key}`);
-    }
-  }
-
-  return inputs;
-};
+const clientFiles = createGlobAutoDiscover("**/*.client.*");
+const serverFiles = createGlobAutoDiscover("**/*.server.*");
+const cssFiles = createGlobAutoDiscover("**/*.css");
+const jsonFiles = createGlobAutoDiscover("**/*.json");
 
 type ResolveAutoDiscoverProps = {
   config: UserConfig;
   configEnv: ConfigEnv;
-  userOptions: Pick<
-    ResolvedUserOptions,
-    | "build"
-    | "moduleBase"
-    | "serverEntry"
-    | "clientEntry"
-    | "projectRoot"
-    | "Page"
-    | "props"
-    | "rscWorkerPath"
-    | "htmlWorkerPath"
-    | "normalizer"
-  >;
-  root: string;
-  normalizer: InputNormalizer;
+  userOptions: ResolvedUserOptions;
   condition: "react-server" | "react-client";
 };
 
@@ -160,8 +41,6 @@ export async function resolveAutoDiscover({
   configEnv,
   userOptions,
   condition,
-  root,
-  normalizer,
 }: ResolveAutoDiscoverProps): Promise<ResolveAutoDiscoverReturn> {
   const ssr = configEnv.isSsrBuild;
   const envDir =
@@ -173,13 +52,14 @@ export async function resolveAutoDiscover({
   const envId = `${envDir}${ssr ? "-ssr" : ""}`;
   const configInputRecord = {} as Record<string, string>;
   if (typeof config.build?.rollupOptions?.input === "string") {
-    configInputRecord[normalizer(config.build?.rollupOptions?.input)[0]] =
-      config.build?.rollupOptions?.input;
+    configInputRecord[
+      userOptions.normalizer(config.build?.rollupOptions?.input)[0]
+    ] = config.build?.rollupOptions?.input;
   } else if (typeof config.build?.rollupOptions?.input === "object") {
     for (const [, value] of Object.entries(
       config.build?.rollupOptions?.input
     )) {
-      configInputRecord[normalizer(value)[0]] = value;
+      configInputRecord[userOptions.normalizer(value)[0]] = value;
     }
   }
   if (stashedAutoDiscover[envId]) {
@@ -191,14 +71,14 @@ export async function resolveAutoDiscover({
 
   const serverEntry =
     typeof userOptions.serverEntry === "string"
-      ? Object.fromEntries([normalizer(userOptions.serverEntry)])
+      ? Object.fromEntries([userOptions.normalizer(userOptions.serverEntry)])
       : null;
 
-  const indexHtml = { index: "index.html" };
+  const indexHtmlInputs = { index: "index.html" };
 
   const clientEntry =
     typeof userOptions.clientEntry === "string"
-      ? Object.fromEntries([userOptions.clientEntry].map(normalizer))
+      ? Object.fromEntries([userOptions.normalizer(userOptions.clientEntry)])
       : {};
 
   const { type, error, pages } = await resolvePages(userOptions.build.pages);
@@ -210,16 +90,9 @@ export async function resolveAutoDiscover({
     };
   }
 
-  const files = await checkFilesExist({
+  const files = await resolveBuildPages({
     pages,
-    options: {
-      build: userOptions.build,
-      moduleBase: userOptions.moduleBase,
-      Page: userOptions.Page,
-      props: userOptions.props,
-      projectRoot: userOptions.projectRoot,
-      normalizer: userOptions.normalizer,
-    },
+    userOptions,
   });
 
   // Load static manifest for client build
@@ -235,55 +108,80 @@ export async function resolveAutoDiscover({
     }
   }
 
-  const workerPaths = customWorkerFiles({
-    inputs: {},
-    userOptions: {
-      rscWorkerPath: userOptions.rscWorkerPath,
-      htmlWorkerPath: userOptions.htmlWorkerPath,
-    },
-  });
-  const clientFiles = await autoDiscoveredClientFiles({
+  const customWorkerInputs = customWorkerFiles({
     inputs: {},
     userOptions,
-    root,
-    normalizer,
-    staticManifest,
   });
-  const serverFiles = await autoDiscoveredServerFiles({
+  const clientInputs = await clientFiles({
     inputs: {},
-    userOptions: userOptions,
-    root: root,
-    normalizer: normalizer,
+    userOptions,
+  });
+  const serverInputs = await serverFiles({
+    inputs: {},
+    userOptions,
   });
 
-  const pageAndPropFiles = autoDiscoveredPagePropFiles({
+  const pageAndPropInputs = pageAndPropFiles({
     files,
     inputs: {},
-    normalizer,
   });
+
+  const cssInputs = await cssFiles({
+    inputs: {},
+    userOptions,
+  });
+
+  const jsonInputs = await jsonFiles({
+    inputs: {},
+    userOptions,
+  });
+  // lastly, make sure we handle the index.html dependencies
+  let indexHtmlDepInputs: Record<string, string> = {};
+  if (ssr && staticManifest["index.html"]) {
+    const indexHtmlCSS = await collectBundleManifestCss({
+      id: "index.html",
+      manifest: staticManifest,
+      projectRoot: userOptions.projectRoot,
+      moduleBasePath: userOptions.moduleBasePath,
+      moduleBaseURL: userOptions.moduleBaseURL,
+      moduleRootPath: userOptions.moduleRootPath,
+      css: userOptions.css,
+      build: userOptions.build,
+    });
+    console.log("indexHtmlCSS", indexHtmlCSS);
+    for (const [key] of indexHtmlCSS.entries()) {
+      const [keyNormalized, valueNormalized] = userOptions.normalizer(key);
+      indexHtmlDepInputs[keyNormalized] = valueNormalized;
+    }
+  }
+  const agnosticInputs = {
+    ...configInputRecord,
+    ...clientInputs,
+    ...clientEntry,
+    ...serverInputs,
+    ...serverEntry,
+    ...indexHtmlDepInputs,
+  };
   // Add inputs based on condition
-  const inputs =
-    condition === "react-client"
-      ? {
-          ...configInputRecord,
-          ...clientFiles,
-          ...clientEntry,
-          ...serverFiles,
-          ...indexHtml,
-          ...serverEntry,
-        }
-      : {
-          ...configInputRecord,
-          ...clientFiles,
-          ...clientEntry,
-          ...serverFiles,
-          ...serverEntry,
-          ...workerPaths,
-          ...pageAndPropFiles,
-        };
+  const inputs = condition === "react-client"
+    ? {
+        ...indexHtmlInputs,
+        ...agnosticInputs,
+        ...cssInputs,
+        ...jsonInputs,
+      }
+    : {
+        ...configInputRecord,
+        ...customWorkerInputs,
+        ...pageAndPropInputs,
+        ...agnosticInputs,
+        ...cssInputs,
+        ...jsonInputs,
+      };
+
   stashedAutoDiscover[envId] = {
     ...files,
-    workerPaths,
+    workerPaths: customWorkerInputs,
     serverEntry,
     clientEntry,
     staticManifest,

@@ -5,7 +5,6 @@ import type {
   ResolvedUserOptions,
   StreamMetrics,
 } from "../types.js";
-import type { PipeableStream } from "react-dom/server";
 import type { Logger } from "vite";
 import { createHtmlProps } from "./createHtmlProps.js";
 
@@ -38,7 +37,7 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
   htmlProps?: any;
   cssFiles: Map<string, CssContent>;
   onEvent?: (event: 'error' | 'postpone', data: any) => void;
-}): { type: 'success', stream: PipeableStream; metrics: StreamMetrics } | { type: 'error', error: Error, metrics: StreamMetrics } {
+}): { type: 'success', stream: any; metrics: StreamMetrics } | { type: 'error', error: Error, metrics: StreamMetrics } {
   const htmlIsFragment = Html == React.Fragment;
 
   // Create the page element with the resolved props
@@ -68,9 +67,11 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
 
   const startTime = Date.now();
   let errorCount = 0;
+  let streamError: Error | null = null;
+  const Shell: React.FC = ()=>React.use(Promise.resolve(content as any))
   try {
     const stream = renderToPipeableStream(
-      content,
+      <Shell />,
       moduleBasePath,
       {
         ...pipeableStreamOptions,
@@ -82,6 +83,7 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
         },
         onError(error: Error, errorInfo: any) {
           const err = error instanceof Error ? error : new Error(String(error));
+          streamError = err;
           onEvent?.("error", { route, error: err, errorInfo });
           errorCount++;
         },
@@ -90,6 +92,23 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
         },
       }
     );
+
+    // If we have a stream error, return it immediately
+    if (streamError) {
+      return {
+        type: 'error',
+        error: streamError,
+        metrics: {
+          chunks: 0,
+          bytes: 0,
+          backpressureCount: 0,
+          drainCount: 0,
+          errorCount,
+          duration: Date.now() - startTime,
+          startTime: startTime
+        }
+      };
+    }
 
     return {
       type: 'success',
@@ -105,15 +124,17 @@ export function createRscStream<T, C extends React.ComponentType<T>, InlineCSS e
       }
     };
   } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    onEvent?.("error", { route, error: err });
     return {
       type: 'error',
-      error: error instanceof Error ? error : new Error(String(error)),
+      error: err,
       metrics: {
         chunks: 0,
         bytes: 0,
         backpressureCount: 0,
         drainCount: 0,
-        errorCount,
+        errorCount: errorCount + 1,
         duration: Date.now() - startTime,
         startTime: startTime
       }

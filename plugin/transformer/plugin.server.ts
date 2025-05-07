@@ -66,9 +66,6 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
           if (value in staticManifest) {
             id = '/' + staticManifest[value].file;
           } else {
-            // a client file that's not in the manifest
-            // it may not exist or it wasn't auto-discovered
-            console.warn(`Please rename file ${value} to ${key}.client.${value.split('.').pop()} and run the client build again.`);
             const hash = this.emitFile({
               id,
               type: "chunk",

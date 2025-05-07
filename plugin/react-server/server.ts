@@ -65,7 +65,7 @@ export async function configureReactServer({
       const cssFilesResult = await collectViteModuleGraphCss({
         moduleGraph: server.moduleGraph,
         pagePath,
-        loader: server.ssrLoadModule,
+        loader: (i)=>server.ssrLoadModule(i, {fixStacktrace: true}),
         // explicitly set to empty string, because we let vite handle the resolving during development
         moduleBaseURL: "",
         moduleBasePath: userOptions.moduleBasePath,

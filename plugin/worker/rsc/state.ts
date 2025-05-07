@@ -1,18 +1,28 @@
 import { workerData } from "node:worker_threads";
 import { createCssProps } from "../../helpers/createCssProps.js";
-import type { CssContent, ResolvedUserOptions } from "../../types.js";
+import type { CssContent, ResolvedUserOptions, HmrState } from "../../types.js";
 import type { PassThrough } from "node:stream";
 
 
-// Track HMR state
-export const hmrState = new Map<string, { timestamp: number; invalidated: boolean }>();
+// Track active RSC streams
+export const activeStreams = new Map<string, PassThrough>();
+
+// Track CSS files
+export const cssFiles = new Map<string, CssContent>();
+
+
+export const hmrState = new Map<string, HmrState>();
 
 if(workerData) {
   if(workerData.hmrPort) {
     workerData.hmrPort.on('message', (msg: { type: string; path: string }) => {
       console.log('[RSC Worker] HMR message received:', msg);
       if(msg.type === 'HMR_UPDATE') {
-        hmrState.set(msg.path, { timestamp: Date.now(), invalidated: true });
+        hmrState.set(msg.path, { 
+          timestamp: Date.now(), 
+          invalidated: true,
+          routes: workerData.userOptions.build.pages
+        });
       } else if(msg.type === 'HMR_ACCEPT') {
         hmrState.delete(msg.path);
       }
@@ -24,12 +34,10 @@ if(workerData) {
   throw new Error("This module must be run with workerData");
 }
 
-
 // Create shared CSS registry
-export const cssFiles = new Map<string, CssContent>();
 export const clientFiles = new Set<string>();
 export const serverActionFiles = new Set<string>();
-export const activeStreams = new Map<string, PassThrough>();
+
 // Helper functions
 export function clearCssFiles() {
   cssFiles.clear();
@@ -80,4 +88,22 @@ export function clearAllFiles() {
   clearCssFiles();
   clearClientFiles();
   clearServerActionFiles();
+}
+
+// Helper to check if a module is invalidated
+export function isModuleInvalidated(path: string): boolean {
+  const state = hmrState.get(path);
+  return state?.invalidated || false;
+}
+
+// Helper to clear HMR state for a module
+export function clearHmrState(path: string): void {
+  hmrState.delete(path);
+}
+
+// Helper to get all invalidated modules
+export function getInvalidatedModules(): string[] {
+  return Array.from(hmrState.entries())
+    .filter(([_, state]) => state.invalidated)
+    .map(([path]) => path);
 } 

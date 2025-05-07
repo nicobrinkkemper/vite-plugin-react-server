@@ -107,8 +107,6 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         configEnv,
         userOptions,
         condition: "react-server",
-        root: cwd,
-        normalizer: userOptions.normalizer,
       });
       if (autoDiscoverResult.type === "error") {
         throw autoDiscoverResult.error;
@@ -140,8 +138,29 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
         console.log("Build already started");
       }
     },
-    async handleHotUpdate({ file, ...ctx }) {
-      console.log("Handle hot update", file, ctx);
+    async handleHotUpdate({ file, server, read, timestamp, ...ctx }) {
+      // Check if the file is a page or props file
+      const isPageFile = userOptions.autoDiscover.modulePattern(file);
+      if (!isPageFile) return;
+
+      // Get the route for this file
+      const [, value] = userOptions.normalizer(file);
+      
+      // Find all routes affected by this file change
+      const affectedRoutes = autoDiscoveredFiles.routeMap.get(value) || [];
+      
+      // Notify the worker about the update
+      if (server.hot) {
+        server.hot.send('custom', {
+          type: 'HMR_UPDATE',
+          path: file,
+          timestamp,
+          routes: affectedRoutes
+        });
+      }
+
+      // Return the affected modules for Vite to handle
+      return ctx.modules;
     },
   };
 }

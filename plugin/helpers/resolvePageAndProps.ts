@@ -1,6 +1,5 @@
 import { resolvePage } from "../resolvePage.js";
 import { resolveProps } from "../resolveProps.js";
-import type { Loader } from "../types.js";
 
 type ResolvePageAndPropsOptions<N1 extends string, N2 extends string> = {
   pagePath: string;
@@ -8,8 +7,9 @@ type ResolvePageAndPropsOptions<N1 extends string, N2 extends string> = {
   propsPath?: string;
   propsExportName?: N2;
   route: string;
-  loader: Loader;
+  loader: (id: string) => Promise<any>;
 };
+
 type ResolvePageAndPropsResult<T> =
   | {
       type: "success";
@@ -29,6 +29,7 @@ type ResolvePageAndPropsResult<T> =
       PageComponent?: never;
       pageProps?: never;
     };
+
 export async function resolvePageAndProps<
   T,
   N1 extends string,
@@ -38,22 +39,24 @@ export async function resolvePageAndProps<
 ): Promise<ResolvePageAndPropsResult<T>> {
   try {
     // Load the page component
-    const resolvePagePromise =  resolvePage({
+    const resolvePagePromise = resolvePage({
       id: handlerOptions.pagePath,
       exportName: handlerOptions.pageExportName,
       loader: handlerOptions.loader,
     });
-    const resolvePropsPromise =  resolveProps({
+    const resolvePropsPromise = resolveProps({
       url: handlerOptions.route,
       id: handlerOptions.propsPath ?? handlerOptions.pagePath,
       exportName: handlerOptions.propsExportName ?? "default",
-      loader: handlerOptions.propsPath ? handlerOptions.loader : async () => {
-        const resolvePageResult = await resolvePagePromise;
-        if (resolvePageResult.type != "success") {
-          return resolvePageResult;
-        }
-        return resolvePageResult.module;
-      },
+      loader: handlerOptions.propsPath 
+        ? handlerOptions.loader
+        : async () => {
+            const resolvePageResult = await resolvePagePromise;
+            if (resolvePageResult.type != "success") {
+              return resolvePageResult;
+            }
+            return resolvePageResult.module;
+          },
     });
     const [resolvePageResult, resolvePropsResult] = await Promise.all([resolvePagePromise, resolvePropsPromise]);
     if (resolvePageResult.type != "success") {

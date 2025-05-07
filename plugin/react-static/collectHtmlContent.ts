@@ -97,7 +97,13 @@ export function collectHtmlContent(
         isComplete = true;
         clearTimeout(timeout);
         handlerOptions.worker.removeListener("message", messageHandler);
-        reject(new Error(msg.error));
+        if(msg.errorInfo && msg.errorInfo){ 
+          reject(msg.errorInfo);
+        } else if (typeof msg.error === "string") {
+          reject(new Error(msg.error));
+        } else {
+          reject(msg.error);
+        }
       }
     };
 

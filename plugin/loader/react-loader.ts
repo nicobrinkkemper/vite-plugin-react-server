@@ -8,6 +8,7 @@ import {
   type LoadHookContext,
   type ResolveHookContext,
 } from "node:module";
+import { workerData } from "node:worker_threads";
 import type { MessagePort } from "node:worker_threads";
 import type { LoaderContext } from "../types.js";
 
@@ -20,10 +21,20 @@ setSourceMapsSupport(true, {
   generatedCode: true, // Enable for generated code
 });
 
+// Get environment variables from workerData or import.meta
+const env = workerData?.importMeta?.env || import.meta?.env || {
+  BASE_URL: '/',
+  DEV: false,
+  MODE: 'production',
+  PROD: true,
+  SSR: true
+};
+
 // Store port globally for use in load hook
 export let loaderPort: MessagePort | undefined;
 // during development, we actually just want to be explicit about the .node extension
-let isDev = true
+let isDev = Boolean(env.DEV);
+
 export async function getSource(
   url: string,
   context: any,
@@ -899,7 +910,10 @@ export async function load(
   context: LoadHookContext & LoaderContext,
   nextLoad: any
 ) {
-  const result = await nextLoad(url, context);
+  const result = await nextLoad(url, {
+    ...context,
+    env: env
+  });
   
   // If not a module, return as is
   if (result.format !== "module") {

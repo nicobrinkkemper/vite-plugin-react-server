@@ -33,9 +33,6 @@ export const createCssProps = ({
   id: string;
   code: string;
 } & Pick<ResolvedUserOptions, "css" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot">): CssContent => {
-  if(typeof code !== "string") {
-    throw new Error(`Expected css to be loaded as a string, but got ${typeof code}`);
-  }
   // If we don't have a bundle entry, create a linked CSS file
   const inline = typeof code === "string" && code.length < css.inlineThreshold;
 
@@ -48,7 +45,7 @@ export const createCssProps = ({
       id: normalizedId,
       as: "style",
       children: code.trim(),
-      ...(process.env["DEV"] ? {
+      ...(process.env["NODE_ENV"] === "development" ? {
         "data-vite-dev-id": join(projectRoot,moduleRootPath,normalizedId),
       } : {}),
     };

@@ -1,10 +1,15 @@
 import { parentPort, workerData, type MessagePort } from "node:worker_threads";
 import { addCssFileContent, hmrState } from "./state.js";
-import { handleRender } from './handleRender.js';
+import { handleRender } from "./handleRender.js";
 
-export function messageHandler(msg: any, port = parentPort, reactLoaderPort: MessagePort, cssLoaderPort: MessagePort) {
-  if(!port) {
-    throw new Error('No port found');
+export function messageHandler(
+  msg: any,
+  port = parentPort,
+  reactLoaderPort: MessagePort,
+  cssLoaderPort: MessagePort
+) {
+  if (!port) {
+    throw new Error("No port found");
   }
   switch (msg.type) {
     case "RSC_RENDER":
@@ -15,29 +20,36 @@ export function messageHandler(msg: any, port = parentPort, reactLoaderPort: Mes
       return;
     case "HMR_UPDATE":
       // Mark the module as invalidated
-      console.log('[RSC Worker] Processing HMR_UPDATE for path:', msg.path);
+      console.log("[RSC Worker] Processing HMR_UPDATE for path:", msg.path);
+      console.log("[RSC Worker] Affected routes:", msg.routes);
       hmrState.set(msg.path, {
-        timestamp: Date.now(),
-        invalidated: true
+        timestamp: msg.timestamp || Date.now(),
+        invalidated: true,
+        routes: msg.routes || [],
+      });
+      // Notify the main thread that we've processed the update
+      port.postMessage({
+        type: "HMR_ACCEPT",
+        path: msg.path,
+        routes: msg.routes,
       });
       return;
     case "HMR_ACCEPT":
       // Clear the invalidation state
-      console.log('[RSC Worker] Processing HMR_ACCEPT for path:', msg.path);
+      console.log("[RSC Worker] Processing HMR_ACCEPT for path:", msg.path);
       hmrState.delete(msg.path);
       return;
     case "CSS_FILE":
       if (msg.id) {
         addCssFileContent(msg.id, msg.content, {
           projectRoot: workerData.projectRoot || process.cwd(),
-          moduleBaseURL: workerData.moduleBaseURL || '',
-          moduleBasePath: workerData.moduleBasePath || '',
-          moduleRootPath: workerData.moduleRootPath || '',
+          moduleBaseURL: workerData.moduleBaseURL || "",
+          moduleBasePath: workerData.moduleBasePath || "",
+          moduleRootPath: workerData.moduleRootPath || "",
           css: workerData.css || {
             inlineThreshold: 1000,
           },
         });
-
       }
       return;
     default: {

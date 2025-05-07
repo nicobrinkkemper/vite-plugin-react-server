@@ -64,21 +64,13 @@ export function resolveUserConfig({
       return userOptions.build.entryFile(info, ssr);
     },
     assetFileNames: (i) => {
-      return userOptions.build.assetFile(i, ssr);
+      return userOptions.build.assetFile(i, false);
     },
     chunkFileNames: (i) => {
       return userOptions.build.chunkFile(i, ssr);
     },
     format: "esm",
     exports: "named",
-    hoistTransitiveImports: false,
-    generatedCode: {
-      constBindings: true,
-      objectShorthand: true,
-    },
-    interop: "auto",
-    name: "React",
-    extend: true,
   } satisfies OutputOptions;
 
   let newOutput = Array.isArray(config.build?.rollupOptions?.output)
@@ -110,6 +102,10 @@ export function resolveUserConfig({
       ssr: {
         ...config.ssr,
         target: config.ssr?.target ?? "node",
+        optimizeDeps: {
+          ...config.ssr?.optimizeDeps,
+          include: config.ssr?.optimizeDeps?.include ?? ["react", "react-dom", "react-server-dom-esm/client"],
+        },  
         resolve: {
           ...config.ssr?.resolve,
           externalConditions: config.ssr?.resolve?.externalConditions ?? ["react-server"],
@@ -135,7 +131,10 @@ export function resolveUserConfig({
         manifest: config.build?.manifest ?? `.vite/manifest.json`,
         ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
         ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
-        cssCodeSplit: true,
+        cssCodeSplit:
+          typeof config.build?.cssCodeSplit === "boolean"
+            ? config.build?.cssCodeSplit
+            : true,
       },
     };
   } else {

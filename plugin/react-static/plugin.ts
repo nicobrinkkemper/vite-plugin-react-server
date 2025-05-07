@@ -32,14 +32,12 @@ import type {
 import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
 import { mkdir } from "node:fs/promises";
-import { copy } from "../copy.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
 import { defaultFileWriter } from "../helpers/defaultFileWriter.js";
 import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
-import { serializeResolvedConfig } from "../helpers/serializeUserOptions.js";
-import { serializeUserOptions } from "../helpers/serializeUserOptions.js";
+import { serializedOptions, serializeResolvedConfig } from "../helpers/serializeUserOptions.js";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -93,8 +91,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         configEnv,
         userOptions,
         condition: "react-server",
-        root: cwd,
-        normalizer: userOptions.normalizer,
       });
       if (autoDiscoverResult.type === "error") {
         throw autoDiscoverResult.error;
@@ -170,18 +166,17 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       }
       // Setup directories
       const serverDir = join(
-        cwd,
+        userOptions.projectRoot,
         userOptions.build.outDir,
         userOptions.build.server
       );
       const clientDir = join(
-        cwd,
+        userOptions.projectRoot,
         userOptions.build.outDir,
         userOptions.build.client
       );
-      const serverStaticDir = join(serverDir, userOptions.build.static);
-      const finalStaticDir = join(
-        cwd,
+      const staticDir = join(
+        userOptions.projectRoot,
         userOptions.build.outDir,
         userOptions.build.static
       );
@@ -189,8 +184,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       await Promise.all([
         mkdir(serverDir, { recursive: true }),
         mkdir(clientDir, { recursive: true }),
-        mkdir(serverStaticDir, { recursive: true }),
-        mkdir(finalStaticDir, { recursive: true }),
+        mkdir(staticDir, { recursive: true }),
       ]);
       const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
       const indexHtml = staticManifest?.['index.html']?.file;
@@ -202,6 +196,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         ],
       }
       userOptions.pipeableStreamOptions = pipeableStreamOptions;
+      const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles!);
       // Create worker
       if (!worker) {
         const workerResult = await createWorker({
@@ -211,7 +206,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           reverseCondition: "react-client",
           workerData: {
             resolvedConfig: serializeResolvedConfig(resolvedConfig),
-            userOptions: serializeUserOptions(userOptions, autoDiscoveredFiles)
+            userOptions: serializedUserOptions
           }
         });
         if (workerResult.type === "error") {
@@ -237,7 +232,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           if (event.type === "file.write") {
             return defaultFileWriter({
               event,
-              outputDir: serverStaticDir,
+              outputDir: staticDir,
             });
           }
         },
@@ -264,29 +259,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
       // Update timing
       timing.render = Date.now() - (timing.renderStart ?? timing.start);
-      await Promise.all([
-        copy({
-          src: serverStaticDir,
-          dest: finalStaticDir,
-          exclude: [
-            userOptions.autoDiscover.nodeOnly,
-            userOptions.autoDiscover.dotFiles,
-          ],
-        }),
-        copy({
-          src: serverDir,
-          dest: finalStaticDir,
-          exclude: [
-            userOptions.autoDiscover.dotFiles,
-            userOptions.autoDiscover.modulePattern,
-            userOptions.autoDiscover.htmlPattern,
-            userOptions.autoDiscover.rscPattern,
-          ],
-          include: [
-            userOptions.autoDiscover.cssPattern,
-          ],
-        }),
-      ]);
+      
 
       // Cleanup
       worker.postMessage({ type: "SHUTDOWN", id: "*" });

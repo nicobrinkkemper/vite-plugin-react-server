@@ -1,6 +1,6 @@
 import type { MessagePort } from "node:worker_threads";
 import type { LoadHookContext } from "node:module";
-import type { LoaderContext } from "../types.js";
+import type { LoaderContext, ResolvedUserConfig } from "../types.js";
 import type { SerializableRecord } from "../types.js";
 import { fileURLToPath } from "node:url";
 import { preprocessCSS } from "vite";
@@ -23,9 +23,19 @@ export let loaderPort: MessagePort | undefined;
  */
 const cssFilesByPage = new Map<string, Set<string>>();
 
-let userOptions: SerializableRecord | undefined;
+// let userOptions: Extract<ResolvedUserOptions, SerializableRecord> | undefined;
+let userConfig: Extract<ResolvedUserConfig, SerializableRecord> | undefined;
 
 let currentPage: string | null = null;
+
+// Get environment variables from workerData
+const env = workerData?.importMeta?.env || import.meta?.env || {
+  BASE_URL: '/',
+  DEV: true,
+  MODE: 'development',
+  PROD: false,
+  SSR: true
+};
 
 /**
  * Initializes the CSS loader with the necessary communication channels.
@@ -37,10 +47,9 @@ let currentPage: string | null = null;
  */
 export async function initialize(data: { port: MessagePort }) {
   loaderPort = data.port;
-  if (parentPort) {
-    if ("userOptions" in workerData) {
-      userOptions = workerData.userOptions;
-    }
+  if (parentPort && "userOptions" in workerData) {
+    // userOptions = workerData.userOptions;
+    userConfig = workerData.userConfig;
   }
   data.port.postMessage({ type: "INITIALIZED_CSS_LOADER" });
 }
@@ -86,7 +95,11 @@ async function processCssFile(
 
     // Process CSS using Vite's preprocessCSS
     const source = await readFile(path, "utf-8");
-    const processed = await preprocessCSS(source, path, config);
+    const processed = await preprocessCSS(source, path, {
+      ...config,
+      ...(userConfig ?? {}),
+      env: env
+    });
 
     // If we're processing CSS for a specific page, notify the message handler
     if (loaderPort) {
@@ -134,13 +147,10 @@ export async function load(
   context: LoadHookContext & LoaderContext & { resolvedConfig: ResolvedConfig },
   defaultLoad: any
 ) {
-  // Handle CSS files
   const [name, query] = url.split("?");
   if (name.endsWith(".css")) {
-    const resolvedConfig = await resolveConfig(
-      userOptions || (config as unknown as InlineConfig),
-      "serve"
-    );
+    const resolvedConfig = await resolveConfig(config as InlineConfig, "serve");
+    // Pass env through the context
     return processCssFile(url, resolvedConfig, query === "inline");
   }
 

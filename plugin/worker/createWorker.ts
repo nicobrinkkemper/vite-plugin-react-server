@@ -78,6 +78,15 @@ export async function createWorker(
   // Ensure worker uses the same React version
   const workerData = {
     ...options.workerData,
+    importMeta: {
+      env: {
+        DEV: mode === 'development' ? 'true' : 'false',
+        MODE: mode,
+        PROD: mode === 'production' ? 'true' : 'false',
+        SSR: true,
+        BASE_URL: '/',
+      },
+    },
     reactVersion: React.version,
     // Pass the project root to the worker
     projectRoot: projectRoot,
@@ -93,6 +102,11 @@ export async function createWorker(
 
     const env = {
       ...process.env,
+      VITE_DEV: mode === 'development' ? '1' : '0',
+      VITE_MODE: mode,
+      VITE_PROD: mode === 'production' ? '1' : '0',
+      VITE_SSR: 'true',
+      VITE_BASE_URL: '/',
       NODE_ENV: nodeEnv,
       NODE_PATH: nodePath,
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
@@ -141,15 +155,6 @@ export async function createWorker(
               workerPath: workerPathWithDefault,
             } satisfies CreateWorkerSuccess);
           }
-        });
-
-        worker.once("error", (error) => {
-          clearTimeout(timeout);
-          reject({
-            type: "error",
-            error,
-            workerPath: workerPathWithDefault,
-          } satisfies CreateWorkerError);
         });
 
         worker.once("exit", (code) => {

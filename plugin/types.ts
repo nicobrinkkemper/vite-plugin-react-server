@@ -18,7 +18,6 @@ import type {  ReactServerDomEsmOptions } from "./worker/types.js";
 import type React from "react";
 import type { PassThrough, Transform } from "stream";
 import type { MessagePort } from "node:worker_threads";
-import type { PipeableStream } from "react-server-dom-esm/server.node";
 type OnEvent = (event: PluginEvent) => void;
 
 
@@ -27,6 +26,12 @@ export type SerializableRecord = {
   [key: string]: Serializable | SerializableRecord;
 }
 
+// Track HMR state
+export type HmrState = {
+  timestamp: number;
+  invalidated: boolean;
+  routes: string[];
+};
 
 export type RenderPageResult =
 | {
@@ -46,7 +51,7 @@ export type RenderPageResult =
     };
   };
 
-export type AutoDiscoveredFiles = CheckFilesExistReturn & {
+export type AutoDiscoveredFiles = ResolvedBuildPages & {
   workerPaths: Record<string, string>;
   serverEntry: Record<string, string> | null;
   clientEntry: Record<string, string>;
@@ -377,7 +382,7 @@ export type CreateHandlerOptions<
   | "projectRoot"
 > & {
   logger: Logger;
-  loader: Loader;
+  loader: ModuleLoader;
   pagePath: string;
   propsPath?: string;
   pageProps?: T;
@@ -542,11 +547,10 @@ export interface BuildTiming {
   total?: number;
 }
 
-export type CheckFilesExistReturn = {
+export type ResolvedBuildPages = {
   propsMap: Map<string, string>;
-  propsSet: Set<string>;
   pageMap: Map<string, string>;
-  pageSet: Set<string>;
+  routeMap: Map<string, string[]>;
   urlMap: Map<string, { props?: string; page: string }>;
   errors: Error[];
 };
@@ -699,32 +703,7 @@ export interface HtmlRenderState {
   errorTransform: Transform;
   htmlChunks: string[];
   pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
-  streamState: {
-    totalChunksProcessed: number;
-    totalBytesProcessed: number;
-    backpressureCount: number;
-    drainCount: number;
-    errorChunks: number;
-    duration: number;
-    totalChunksReceived: number;
-    startTime: number;
-    lastChunkTime: number;
-    lastProgressTime: number;
-    averageChunkSize: number;
-    chunkRate: number;
-    bytesPerSecond: number;
-    percentComplete: number;
-    timeRemaining: number;
-    status: string;
-    isStreamSetup: boolean;
-    rscStreamEnded: boolean;
-    htmlStreamEnded: boolean;
-    rscStreamEndTime: number;
-    htmlStreamEndTime: number;
-    shellReady: boolean;
-    complete: boolean;
-    rendered: boolean;
-  };
+  streamState: StreamMetrics;
 }
 
 export type RenderPagesResult =
@@ -780,7 +759,7 @@ export type CreateHandlerResult =
   | {
       type: "success";
       controller: AbortController;
-      stream: PipeableStream;
+      stream: any;
       assets: {
         css: CssContent[];
         js: string[];
@@ -814,7 +793,6 @@ export type ReactStaticEvent =
 
 
 
-export type Loader = (path: string) => Promise<any>;
 
 // Define LoaderContext interface locally
 export interface LoaderContext {

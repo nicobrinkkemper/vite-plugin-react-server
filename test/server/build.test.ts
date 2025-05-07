@@ -69,8 +69,6 @@ describe("Plugin build test", () => {
     expect(buildStartEvent?.data).toMatchObject({
       pages: expect.arrayContaining(["/"]),
       files: expect.objectContaining({
-        pageSet: expect.any(Set),
-        propsSet: expect.any(Set),
         pageMap: expect.any(Map),
         propsMap: expect.any(Map),
         urlMap: expect.any(Map),

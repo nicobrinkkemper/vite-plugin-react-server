@@ -1,4 +1,5 @@
 import type { PassThrough, Transform } from "stream";
+import type { StreamMetrics } from "../../types.js";
 
 export type HtmlWorkerStreamMetrics = {
   totalChunksReceived: number;
@@ -9,10 +10,7 @@ export type HtmlWorkerStreamMetrics = {
 
 export interface HtmlWorkerRenderState {
   rscStream: PassThrough;
-  metrics: {
-    totalChunksProcessed: number;
-    totalBytesProcessed: number;
-  };
+  metrics: StreamMetrics;
   isReady: boolean;
   pendingChunks: Buffer[];
   htmlTransform: Transform;

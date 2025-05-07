@@ -48,8 +48,6 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         configEnv,
         userOptions,
         condition: "react-client",
-        root,
-        normalizer: userOptions.normalizer,
       });
       if (autoDiscoverResult.type === "error") {
         throw autoDiscoverResult.error;

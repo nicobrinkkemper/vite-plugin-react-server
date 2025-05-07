@@ -4,7 +4,6 @@ import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
-import { CssCollectorInline } from "../css-collector-inline.js";
 import { CssCollector } from "../css-collector.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
@@ -412,11 +411,6 @@ export const resolveOptions = <
     rscPattern: testRsc,
   };
 
-  // CSS collector configuration
-  const InlineOrLinkCssCollector =
-    options.CssCollector ?? options.css?.inlineCss
-      ? CssCollectorInline
-      : CssCollector;
   const normalizer =
     options.normalizer ??
     createInputNormalizer({
@@ -446,7 +440,7 @@ export const resolveOptions = <
         Page: options.Page ?? undefined,
         props: options.props ?? undefined,
         Html: options.Html ?? DEFAULT_CONFIG.HTML,
-        CssCollector: InlineOrLinkCssCollector,
+        CssCollector: options.CssCollector ?? CssCollector,
         normalizer: normalizer,
         pageExportName: pageExportName,
         propsExportName: propsExportName,

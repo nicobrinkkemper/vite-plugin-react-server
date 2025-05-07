@@ -8,12 +8,19 @@ import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
 import type { RscRenderMessage } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
 import { createRscStream } from "../../helpers/createRscStream.js";
-import { CssCollectorInline } from "../../css-collector-inline.js";
+import { CssCollector } from "../../css-collector.js";
 import { createLogger } from "vite";
 import { PassThrough } from "node:stream";
-import React from "react";
 import { join } from "node:path";
 import { parentPort, workerData, type MessagePort } from "node:worker_threads";
+import { createRequire } from "node:module";
+
+// Create require function with project root
+const projectRoot = workerData.projectRoot || process.cwd();
+const nodeRequire = createRequire(join(projectRoot, "package.json"));
+
+// Import ReactDOM from the project's node_modules
+const React = nodeRequire("react");
 
 export async function handleRender(
   msg: RscRenderMessage,
@@ -23,12 +30,12 @@ export async function handleRender(
 ) {
   const postError = process.env["DEV"]
     ? (error: any, errorInfo?: any) => {
-        if(!(error instanceof Error)) {
+        if (!(error instanceof Error)) {
           error = new Error(String(error));
         }
         port?.postMessage({
           type: "ERROR",
-          id,
+          id: msg.id,
           errorInfo,
           error: {
             message: error.message,
@@ -41,11 +48,12 @@ export async function handleRender(
     : (error: Error, errorInfo?: any) => {
         port?.postMessage({
           type: "ERROR",
-          id,
+          id: msg.id,
           errorInfo,
           error: error.message,
         } satisfies RscWorkerOutputMessage);
       };
+
   let {
     id = workerData.id,
     route = workerData.route,
@@ -63,6 +71,7 @@ export async function handleRender(
     htmlOutputPath = workerData.htmlOutputPath,
     cssFiles: messageCssFiles = cssFiles,
   } = msg;
+
   try {
     // Load modules
     const pageAndPropsResult = await resolvePageAndProps({
@@ -71,46 +80,21 @@ export async function handleRender(
       pageExportName,
       propsExportName,
       route,
-      loader: async (id: string) => {
-        try {
-          const result = await import(join(projectRoot, id));
-          return result;
-        } catch (error) {
-          throw error;
-        }
-      },
+      loader: (id: string) => import(join(projectRoot, id)),
     });
+
     if (pageAndPropsResult.type !== "success") {
       if (pageAndPropsResult.type === "error") {
-        if (process.env["DEV"]) {
-          port?.postMessage(
-            {
-              type: "ERROR",
-              id,
-              error: {
-                message: pageAndPropsResult.error.message,
-                stack: pageAndPropsResult.error.stack || "",
-                name: pageAndPropsResult.error.name || "",
-                cause: pageAndPropsResult.error.cause || "",
-              },
-            } satisfies RscWorkerOutputMessage,
-            []
-          );
-        } else {
-          port?.postMessage({
-            type: "ERROR",
-            id,
-            error: pageAndPropsResult.error.message,
-          } satisfies RscWorkerOutputMessage);
-        }
+        postError(pageAndPropsResult.error);
       }
       return;
     }
+
     const { PageComponent, pageProps } = pageAndPropsResult;
 
     const adaptedOnEvent = (event: "error" | "postpone", data: any) => {
       if (event === "error") {
-        postError(data.error, data);
+        postError(data.error, data.errorInfo);
       }
     };
 
@@ -120,12 +104,13 @@ export async function handleRender(
         cssFiles.set(id, cssContent);
       }
     }
+
     // Create stream
     const streamResult = createRscStream({
       projectRoot: projectRoot,
       Html: React.Fragment,
       PageComponent: PageComponent,
-      CssCollector: CssCollectorInline,
+      CssCollector: CssCollector,
       pageProps,
       moduleBase,
       moduleRootPath,
@@ -151,7 +136,7 @@ export async function handleRender(
     }
 
     const { stream, metrics } = streamResult;
-    
+
     // Create pass-through stream
     const passThrough = new PassThrough();
     activeStreams.set(id, passThrough);
@@ -164,7 +149,7 @@ export async function handleRender(
       port?.postMessage({
         type: "RSC_CHUNK",
         id,
-        chunk
+        chunk,
       } satisfies RscChunkOutputMessage);
     });
 

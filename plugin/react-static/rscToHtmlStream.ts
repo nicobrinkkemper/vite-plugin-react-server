@@ -11,8 +11,13 @@
  */
 
 import { Transform } from "node:stream";
-import type { HtmlWorkerOutputMessage, RscChunkInputMessage } from "../worker/types.js";
+import type {
+  HtmlWorkerOutputMessage,
+  RscChunkInputMessage,
+} from "../worker/types.js";
 import type { CreateHandlerOptions } from "../types.js";
+import type { Worker } from "node:worker_threads";
+import type { ViteDevServer } from "vite";
 
 export type RscToHtmlOptions = Pick<
   CreateHandlerOptions,
@@ -36,7 +41,10 @@ export type RscToHtmlOptions = Pick<
  * @returns A transform stream that outputs HTML content
  */
 export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
-  const { worker } = options;
+  const worker = options.worker as Worker | ViteDevServer;
+  if(!('postMessage' in worker)) {
+    throw new Error("Worker is not a valid worker");
+  }
   let sequence = 0;
   const stream = new Transform({
     transform(chunk, _encoding, callback) {
@@ -45,13 +53,8 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
         if (typeof chunk === "object" && "type" in chunk) {
           // Handle worker message
           const msg = chunk as HtmlWorkerOutputMessage;
-
           // Only log errors
-          if (msg.type === "ERROR") {
-            console.error(
-              `[html-worker-output] Error for ${msg.id}: ${msg.error}`
-            );
-          }
+       
           switch (msg.type) {
             case "HTML_CHUNK":
               if (msg.chunk) {
@@ -67,10 +70,23 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
               break;
             case "SHELL_READY":
               break;
+            case "SHELL_ERROR":
+              if(process.env["NODE_ENV"] === "development") {
+                console.error(msg.error);
+              }
+              this.emit("error", msg.error);
+              callback(msg.error);
+              return;
             case "CHUNK_PROCESSED":
               break;
             case "ERROR":
-              const error = typeof msg.error === "string" ? new Error(msg.error) : msg.error; 
+              const error =
+                typeof msg.error === "string"
+                  ? new Error(msg.error)
+                  : msg.error;
+              if(process.env["NODE_ENV"] === "development") {
+                console.error(error);
+              }
               this.emit("error", error);
               callback(error);
               return;
@@ -90,7 +106,7 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
             type: "RSC_CHUNK",
             id: options.route,
             chunk,
-            sequence: sequence++
+            sequence: sequence++,
           } satisfies RscChunkInputMessage);
           callback();
         }

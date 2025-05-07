@@ -54,9 +54,9 @@ export interface ErrorMessage extends WorkerMessage {
   errorInfo?: any;
   error: string | {
     message: string;
-    stack: string |  undefined;
+    stack?: string |  undefined;
     name: string;
-    cause: any;
+    cause?: any;
   };
   id: string;
 }
@@ -123,8 +123,18 @@ export interface ShellReadyMessage extends WorkerMessage {
 
 export interface AllReadyMessage extends WorkerMessage {
   type: "ALL_READY";
-  outputPath: string;
-  html: string;
+  id: string;
+}
+
+export interface ShellErrorMessage extends WorkerMessage {
+  type: "SHELL_ERROR";
+  id: string;
+  error: {
+    message: string;
+    stack?: string | undefined;
+    name: string;
+    cause?: any;
+  };
 }
 
 export interface CssFileMessage {
@@ -196,6 +206,8 @@ export type HtmlWorkerOutputMessage =
   | ShellReadyMessage
   | ChunkProcessedMessage
   | ChunkErrorMessage
+  | AllReadyMessage
+  | ShellErrorMessage
   | { type: "HTML_CHUNK"; id: string; chunk: string; encoding: string }
   | { type: "CLEANUP_COMPLETE"; id: string }
   | { type: "SHUTDOWN_COMPLETE"; id: string }

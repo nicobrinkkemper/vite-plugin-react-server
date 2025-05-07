@@ -1,11 +1,10 @@
 import { stashReturnValue } from "./helpers/stashReturnValue.js";
-import type { Loader } from "./types.js";
 
 type ResolvePropsOptions<N extends string> = {
   id: string;
   url: string;
   exportName: N;
-  loader: Loader;
+  loader: (id: string) => Promise<any>;
 };
 
 type ResolvePropsResult<T, N extends string> =
@@ -43,12 +42,12 @@ type ResolvePropsResult<T, N extends string> =
  *   - props: The resolved props if successful
  *   - error: Error message if failed
  */
-export const resolveProps = stashReturnValue(async function _resolveProps<T, N extends string>({
+export const resolveProps = stashReturnValue(async <T, N extends string>({
   id,
   url,
   exportName,
   loader,
-}: ResolvePropsOptions<N>): Promise<ResolvePropsResult<T, N>> {
+}: ResolvePropsOptions<N>): Promise<ResolvePropsResult<T, N>> => {
   // Check if this is a stashed page that needs special handling
   const propsLoadResult = await (async (): Promise<
     | { type: "success"; key: string; module: { [key in N]: T } }

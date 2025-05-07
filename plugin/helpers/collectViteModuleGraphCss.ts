@@ -86,7 +86,7 @@ export async function collectViteModuleGraphCss<
     // Processing module
     if (mod.id.endsWith(".css")) {
       const string = await loader(mod.id + "?inline").then(
-        (m: { default: string }) => m?.default ?? ""
+        (m) => m?.['default'] ?? ""
       );
       if (typeof string !== "string") {
         throw new Error(`CSS module ${mod.id}?inline did not return a string`);
