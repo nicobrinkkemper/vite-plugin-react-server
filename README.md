@@ -88,8 +88,10 @@ For more information on creating your custom workers, see [docs](/docs)
 
 ## Plugin Usage
 
-### Configuration
 ```ts
+import { defineConfig, type Plugin } from "vite";
+import { vitePluginReactClient } from "vite-plugin-react-server";
+import { config } from "./vite.react.config";
 import type { StreamPluginOptions } from "vite-plugin-react-server/server";
 
 const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
@@ -117,16 +119,6 @@ export const config = {
     pages: ["/", "/bidoof", "/404"	],
   },
 } satisfies StreamPluginOptions;
-```
-
-### vite-plugin-react-server/client
-
-Used in `vite.config.ts` for standard Vite client-side behavior
-
-```ts
-import { defineConfig, type Plugin } from "vite";
-import { vitePluginReactClient } from "vite-plugin-react-server";
-import { config } from "./vite.react.config";
 
 export default defineConfig({
   plugins: vitePluginReactClient(config),
@@ -160,7 +152,6 @@ Targets `react-server`-only environment, outputs to `dist/server`. In this case,
 
 ### vite-plugin-react-server
 
-Used in `vite.server.config.ts`, this plugin strictly separates client and server execution. The client components will be emitted as references. 
 
 ```ts
 import { defineConfig, Plugin } from "vite";
@@ -168,7 +159,7 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 import { config } from "./vite.react.config";
 
 export default defineConfig({
-  plugins: vitePluginReactServer(config) as Plugin[],
+  plugins: vitePluginReactServer(config),
 });
 ```
 

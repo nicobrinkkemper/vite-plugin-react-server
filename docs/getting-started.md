@@ -91,19 +91,6 @@ export default defineConfig({
 });
 ```
 
-### 3. Create Server Configuration
-
-Create `vite.server.config.ts` for server-side rendering:
-
-```ts
-import { defineConfig, Plugin } from "vite";
-import { vitePluginReactServer } from "vite-plugin-react-server";
-import { config } from "./vite.react.config";
-
-export default defineConfig({
-  plugins: vitePluginReactServer(config) as Plugin[],
-});
-```
 
 ### 4. Create Page Components
 
@@ -124,7 +111,7 @@ export const props = ({url})=>({
 });
 ```
 
-### 5. Add Scripts to package.json
+### 4. Add Scripts to package.json
 
 ```json
 "scripts": {

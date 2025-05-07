@@ -158,18 +158,6 @@ export default defineConfig(() => {
 });
 ```
 
-### ./vite.server.config.ts
-
-```ts
-import { vitePluginReactServer } from "vite-plugin-react-server";
-import { config } from "./my-react-config.js";
-import { defineConfig } from "vite";
-export default defineConfig(() => {
-  return {
-    plugins: vitePluginReactServer(config),
-  };
-});
-```
 
 ## Client plugin Hook Types
 

@@ -8,42 +8,11 @@ Static site generation with this plugin:
 
 1. Pre-renders your React Server Components into static HTML files
 2. Generates corresponding "headless" RSC files for client-side hydration
-3. Copies all client assets to the static directory
-4. Enables easy deployment to any static hosting service
-5. Fully customize production html using the react `Html` component
-6. Fully customize production css using the react `CssCollector` component
+3. Enables easy deployment to any static hosting service
+4. Fully customize production html using the react `Html` component
+5. Fully customize production css using the react `CssCollector` component
 
-Direct references to React components (like `Html` and `CssCollector`) are only used in react-server mode.
-
-## Using the Static Plugin
-
-We need both the client and server directory for this to run. The idea is that we first run the client build using the client plugin like normal `vite build`. Now we need to make the server build, the recommended way is to now use the server plugin for the ssr build like so `NODE_OPTIONS="--conditions react-server" vite build --config vite.server.config.ts`. This will run both the server build and once that's done the static plugin will start.
-
-### Custom Configuration
-
-As said before, we need the client and server directories for this static build process. If you only want to make these two directories, it's also possible to use the `--ssr` flag on the client plugin which will just make the server directory without the static build. If we choose that path, we could single out the static build process like so: 
-
-```ts
-// vite.static.config.ts
-import { defineConfig, Plugin } from "vite";
-import { reactStaticPlugin } from "vite-plugin-react-server/static";
-import { config } from "./vite.react.config";
-
-export default defineConfig({
-  plugins: [reactStaticPlugin(config)],
-});
-```
-
-### Build Process
-
-1. **Build Client**: `vite build` (outputs to `dist/client`)
-2. **Build Server**: `vite build --ssr` (outputs to `dist/server`)
-3. **Build Static**: `vite build --config vite.static.config.ts` Run the static plugin (outputs to `dist/static`)
-
-OR 
-
-1. **Build Client**: `vite build` (outputs to `dist/client`)
-2. **Build Server & static**: `NODE_OPTIONS="--conditions react-server" vite build --config vite.server.config.ts` (outputs to both `dist/server` and `dist/static`)
+Direct references to React components (like `Html` and `CssCollector`) are only used in react-server build mode.
 
 ### Output Structure
 
@@ -112,7 +81,7 @@ Configure file hashing for cache busting:
 export const config = {
   // ... other config
   build: {
-    hash: "hash", // Adds hash to client files
+    hash: "hash", // becomes -[hash]
   },
 };
 ```
@@ -148,8 +117,6 @@ Configure how CSS is handled in static generation:
 export const config = {
   // ... other config
   CSS: {
-    inlineCss: true, // Inline CSS in HTML
-    purgeCss: true,  // Remove unused CSS
     inlineThreshold: 4096, // Size threshold for inlining
   },
 };
