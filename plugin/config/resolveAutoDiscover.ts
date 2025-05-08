@@ -136,7 +136,7 @@ export async function resolveAutoDiscover({
     userOptions,
   });
   // lastly, make sure we handle the index.html dependencies
-  let indexHtmlDepInputs: Record<string, string> = {};
+  let indexHtmlCssInputs: Record<string, string> = {};
   if (ssr && staticManifest["index.html"]) {
     const indexHtmlCSS = await collectBundleManifestCss({
       id: "index.html",
@@ -148,10 +148,9 @@ export async function resolveAutoDiscover({
       css: userOptions.css,
       build: userOptions.build,
     });
-    console.log("indexHtmlCSS", indexHtmlCSS);
     for (const [key] of indexHtmlCSS.entries()) {
       const [keyNormalized, valueNormalized] = userOptions.normalizer(key);
-      indexHtmlDepInputs[keyNormalized] = valueNormalized;
+      indexHtmlCssInputs[keyNormalized] = valueNormalized;
     }
   }
   const agnosticInputs = {
@@ -160,7 +159,7 @@ export async function resolveAutoDiscover({
     ...clientEntry,
     ...serverInputs,
     ...serverEntry,
-    ...indexHtmlDepInputs,
+    ...indexHtmlCssInputs,
   };
   // Add inputs based on condition
   const inputs = condition === "react-client"
@@ -186,6 +185,7 @@ export async function resolveAutoDiscover({
     clientEntry,
     staticManifest,
     inputs,
+    cssFiles: indexHtmlCssInputs,
   };
   return {
     type: "success",

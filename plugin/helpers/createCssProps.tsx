@@ -34,11 +34,16 @@ export const createCssProps = ({
   code: string;
 } & Pick<ResolvedUserOptions, "css" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot">): CssContent => {
   // If we don't have a bundle entry, create a linked CSS file
-  const inline = typeof code === "string" && code.length < css.inlineThreshold;
+  let inline = typeof code === "string" && code.length < css.inlineThreshold;
 
   // Normalize the ID to be relative to src/
   const normalizedId = id.startsWith(projectRoot) ? relative(projectRoot, id) : id;
-
+  if(css.inlinePatterns.some(pattern => pattern.test(normalizedId))) {
+    inline = true;
+  }
+  if(css.linkPatterns.some(pattern => pattern.test(normalizedId))) {
+    inline = false;
+  }
   if (!inline) {
     return {
       type: "text/css",

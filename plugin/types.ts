@@ -56,6 +56,7 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
   serverEntry: Record<string, string> | null;
   clientEntry: Record<string, string>;
   inputs: Record<string, string>;
+  cssFiles: Record<string, string>;
   staticManifest: Manifest;
 };
 export interface FileWriterOptions {

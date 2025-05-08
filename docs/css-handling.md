@@ -12,6 +12,8 @@ The CSS handling system provides three main features that can be used independen
    - **css.inlineCss**: Feature flag to inline CSS content based on a size threshold
    - **css.purgeCss**: Feature flag to omit unused css modules for a given page
    - **css.inlineThreshold**: Size in bytes (number)
+   
+
    - **inlinePatterns**: optional regex to force a `<style>` tag
    - **linkPatterns**: optional regex to force a `<link>` tag
 
@@ -23,15 +25,13 @@ The CSS handling system provides three main features that can be used independen
   CSS_COLLECTOR: CssCollector,
   CSS: {
     inlineCss: false,
-    purgeCss: false,
+    purgeCss: false, // not supported yet, for future reference
     inlineThreshold: 4096, // 4KB
     inlinePatterns: [/\.module\.css$/], // Always inline CSS modules
     linkPatterns: [/node_modules/], // Always link node_modules CSS
   }
 }
 ```
-
-By default, all CSS files are included without inlining. This approach is simplest for development and production, as it lets the browser handle CSS loading and caching.
 
 ## When to Change the Defaults
 

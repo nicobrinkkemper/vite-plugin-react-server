@@ -3,16 +3,15 @@ import { createCssProps } from "./createCssProps.js";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 
-
 type CssCollectionOptions = Pick<
-
-CreateHandlerOptions<unknown, React.ComponentType<unknown>>,
+  CreateHandlerOptions<unknown, React.ComponentType<unknown>>,
   | "projectRoot"
   | "build"
   | "moduleBaseURL"
   | "moduleBasePath"
   | "moduleRootPath"
   | "css"
+  | "cssFiles"
 > & {
   manifest: Record<string, any>;
   id: string | string[];
@@ -33,7 +32,7 @@ async function collectCssFromModule(
   // Handle CSS imports
   if (mod.imports) {
     for (const importPath of mod.imports) {
-      if(importPath === moduleKey) continue;
+      if (importPath === moduleKey) continue;
       if (importPath) {
         const cssEntry = manifest[importPath];
         // Handle CSS array
@@ -82,7 +81,8 @@ async function collectCssFromModule(
           cssFile
         );
         const code =
-          "code" in manifest[cssFile] && typeof manifest[cssFile].code === "string"
+          "code" in manifest[cssFile] &&
+          typeof manifest[cssFile].code === "string"
             ? manifest[cssFile].code
             : await readFile(file, "utf-8");
         cssMap.set(
@@ -107,34 +107,46 @@ async function collectCssFromModule(
 /**
  * Collects CSS files from a bundle manifest using async generators
  */
-export async function collectBundleManifestCss({
-  id,
-  manifest,
-  projectRoot,
-  build,
-  moduleBaseURL,
-  moduleBasePath,
-  moduleRootPath,
-  css,
-}: CssCollectionOptions): Promise<Map<string, CssContent>> {
+export async function collectBundleManifestCss(
+  options: CssCollectionOptions
+): Promise<Map<string, CssContent>> {
   const cssMap = new Map<string, CssContent>();
-  const collectionOptions: CssCollectionOptions = {
-    manifest,
-    projectRoot,
-    build,
-    moduleBaseURL,
-    moduleBasePath,
-    moduleRootPath,
-    css,
-    id,
-  };
+  if (options.cssFiles) {
+    for (const [, value] of Object.entries(options.cssFiles)) {
+      const file = join(
+        options.projectRoot,
+        options.build.outDir,
+        options.build.server,
+        value
+      );
+      const code =
+        options.manifest != null &&
+        value in options.manifest &&
+        "code" in options.manifest[value] &&
+        typeof options.manifest[value].code === "string"
+          ? options.manifest[value].code
+          : await readFile(file, "utf-8");
+      cssMap.set(
+        file,
+        createCssProps({
+          id: file,
+          code: code,
+          css: options.css,
+          moduleBaseURL: options.moduleBaseURL,
+          moduleBasePath: options.moduleBasePath,
+          moduleRootPath: options.moduleRootPath,
+          projectRoot: options.projectRoot,
+        })
+      );
+    }
+  }
 
   // Process page and props modules
-  if (typeof id === "string") {
-    await collectCssFromModule(id, manifest, cssMap, collectionOptions);
-  } else if (Array.isArray(id)) {
-    for (const _id of id) {
-      await collectCssFromModule(_id, manifest, cssMap, collectionOptions);
+  if (typeof options.id === "string") {
+    await collectCssFromModule(options.id, options.manifest, cssMap, options);
+  } else if (Array.isArray(options.id)) {
+    for (const _id of options.id) {
+      await collectCssFromModule(_id, options.manifest, cssMap, options);
     }
   }
 

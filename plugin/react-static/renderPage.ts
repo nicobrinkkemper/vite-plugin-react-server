@@ -8,10 +8,8 @@ import { collectHtmlContent } from "./collectHtmlContent.js";
 import { collectRscContent } from "./collectRscContent.js";
 
 export async function* renderPage(
-  handlerOptions: Omit<
-    CreateHandlerOptions<unknown, React.ComponentType<unknown>>,
-    "cssFiles"
-  >
+  handlerOptions: 
+    CreateHandlerOptions<unknown, React.ComponentType<unknown>>
 ): AsyncGenerator<RenderPageResult, void, unknown> {
   if (!handlerOptions.pagePath) {
     yield {
