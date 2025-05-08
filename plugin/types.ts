@@ -14,17 +14,23 @@ import type {
   Manifest,
   Logger,
 } from "vite";
-import type {  ReactServerDomEsmOptions } from "./worker/types.js";
+import type { ReactServerDomEsmOptions } from "./worker/types.js";
 import type React from "react";
 import type { PassThrough, Transform } from "stream";
 import type { MessagePort } from "node:worker_threads";
 type OnEvent = (event: PluginEvent) => void;
 
-
-export type Serializable = string | number | boolean | null | undefined | Serializable[] | SerializableRecord;
+export type Serializable =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Serializable[]
+  | SerializableRecord;
 export type SerializableRecord = {
   [key: string]: Serializable | SerializableRecord;
-}
+};
 
 // Track HMR state
 export type HmrState = {
@@ -34,29 +40,29 @@ export type HmrState = {
 };
 
 export type RenderPageResult =
-| {
-    type: "skip";
-  }
-| {
-    type: "error";
-    error: Error;
-  }
-| {
-    type: "success";
-    html: string;
-    rsc: string;
-    metrics: {
-      rscFull: StreamMetrics;
-      rscHeadless: StreamMetrics;
+  | {
+      type: "skip";
+    }
+  | {
+      type: "error";
+      error: Error;
+    }
+  | {
+      type: "success";
+      html: string;
+      rsc: string;
+      metrics: {
+        rscFull: StreamMetrics;
+        rscHeadless: StreamMetrics;
+      };
     };
-  };
 
 export type AutoDiscoveredFiles = ResolvedBuildPages & {
   workerPaths: Record<string, string>;
   serverEntry: Record<string, string> | null;
   clientEntry: Record<string, string>;
   inputs: Record<string, string>;
-  cssFiles: Record<string, string>;
+  cssFiles: Map<string, CssContent>;
   staticManifest: Manifest;
 };
 export interface FileWriterOptions {
@@ -170,7 +176,11 @@ export type ResolvedUserOptions<
     | "normalizer"
   >
 > & {
-  props: undefined | string | ((url: string) => string) | ((url: string) => Promise<string>);
+  props:
+    | undefined
+    | string
+    | ((url: string) => string)
+    | ((url: string) => Promise<string>);
   build: NonNullable<Required<StreamPluginOptions<InlineCSS>["build"]>>;
   css: NonNullable<Required<StreamPluginOptions<InlineCSS>["css"]>>;
   autoDiscover: {
@@ -246,7 +256,8 @@ export type PluginEvent =
         pagePath: string;
         propsPath?: string | undefined;
       };
-    } | {
+    }
+  | {
       type: "route.error";
       data: {
         route: string;
@@ -287,7 +298,7 @@ export type PluginEvent =
         bundle: OutputBundle;
         manifest: Manifest | undefined;
       };
-    }
+    };
 
 export interface StreamPluginOptions<
   InlineCSS extends boolean | undefined = boolean | undefined
@@ -324,7 +335,7 @@ export interface StreamPluginOptions<
         // default: /node_modules|(_virtual)/
         vendorPattern?: string | RegExp | ((path: string) => boolean);
         // default: /\.node\.js$/
-        nodeOnly?: string | RegExp | ((path: string) => boolean); 
+        nodeOnly?: string | RegExp | ((path: string) => boolean);
         // default: /\.node\.js$/
         dotFiles?: string | RegExp | ((path: string) => boolean);
         // default: /^\/_virtual\//
@@ -335,7 +346,11 @@ export interface StreamPluginOptions<
     | undefined;
   // Manual configuration
   Page: string | ((url: string) => string) | ((url: string) => Promise<string>);
-  props?: undefined | string | ((url: string) => string) | ((url: string) => Promise<string>);
+  props?:
+    | undefined
+    | string
+    | ((url: string) => string)
+    | ((url: string) => Promise<string>);
   // Escape hatches
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
@@ -397,7 +412,10 @@ export type CreateHandlerOptions<
   rscOutputRoot?: string;
   importedCss?: Set<string>;
   cssFiles: Map<string, CssContent>;
-  build: Pick<ResolvedUserOptions["build"], "outDir" | "pages" | "server" | "static" | "client">;
+  build: Pick<
+    ResolvedUserOptions["build"],
+    "outDir" | "pages" | "server" | "static" | "client"
+  >;
 };
 
 export interface ResolvePageOptions {
@@ -436,7 +454,6 @@ export type StreamResult =
     }
   | { type: "error"; error: unknown }
   | { type: "skip" };
-
 
 export interface RouteConfig {
   path: string;
@@ -624,7 +641,7 @@ type BaseCssProps = {
   type: string;
   as: string;
   id: string;
-}
+};
 
 type CssProps = BaseCssProps & {
   as: "link";
@@ -633,19 +650,22 @@ type CssProps = BaseCssProps & {
   href: string;
   rel: "stylesheet";
   precedence?: string;
-}
+};
 type InlineCssProps = BaseCssProps & {
   as: "style";
   children?: React.ReactNode;
   precedence?: never;
   rel?: never;
   href?: never;
-}
+};
 
 export type CssContent<
   InlineCSS extends boolean | undefined = boolean | undefined
-> =
-  InlineCSS extends true ? InlineCssProps : InlineCSS extends false ? CssProps : CssProps | InlineCssProps;
+> = InlineCSS extends true
+  ? InlineCssProps
+  : InlineCSS extends false
+  ? CssProps
+  : CssProps | InlineCssProps;
 
 export interface JsContent {
   type?: string;
@@ -703,7 +723,10 @@ export interface HtmlRenderState {
   progressStream: PassThrough;
   errorTransform: Transform;
   htmlChunks: string[];
-  pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
+  pipeableStreamOptions: Omit<
+    ReactServerDomEsmOptions,
+    "onError" | "onPostpone"
+  >;
   streamState: StreamMetrics;
 }
 
@@ -791,9 +814,6 @@ export type ReactStaticEvent =
         files: Array<[string, { page: string; props?: string }]>;
       };
     };
-
-
-
 
 // Define LoaderContext interface locally
 export interface LoaderContext {

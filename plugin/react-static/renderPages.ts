@@ -17,12 +17,11 @@ import type {
 import { createRenderMetrics } from "../helpers/metrics.js";
 import { renderPage } from "./renderPage.js";
 
-
-export async function *renderPages(
-  urlMap: AutoDiscoveredFiles["urlMap"],
+export async function* renderPages(
+  { urlMap, cssFiles }: AutoDiscoveredFiles,
   handlerOptions: Omit<
     CreateHandlerOptions,
-    "route" | "pagePath" | "propsPath" | "cssFiles" | "Page" | "props"
+    "route" | "pagePath" | "propsPath" | "Page" | "props" | "cssFiles"
   >
 ): AsyncGenerator<RenderPagesResult, void, unknown> {
   if (!urlMap) {
@@ -45,11 +44,12 @@ export async function *renderPages(
         route,
         pagePath: page,
         propsPath: props,
+        cssFiles,
       });
 
       for await (const result of pageRenderer) {
         if (result.type === "skip") continue;
-        
+
         if (result.type === "error") {
           failedRoutes.add(route);
           yield {
@@ -69,13 +69,12 @@ export async function *renderPages(
         if (result.type === "success") {
           completedRoutes.add(route);
           results.set(route, result);
-          
+
           // Update metrics
           baseMetrics.htmlSizes.set(route, result.html.length);
           baseMetrics.rscSizes.set(route, result.rsc.length);
-          baseMetrics.totalChunks += 
-            result.metrics.rscFull.chunks + 
-            result.metrics.rscHeadless.chunks;
+          baseMetrics.totalChunks +=
+            result.metrics.rscFull.chunks + result.metrics.rscHeadless.chunks;
         }
       }
     } catch (err) {

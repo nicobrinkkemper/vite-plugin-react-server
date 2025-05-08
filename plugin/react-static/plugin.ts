@@ -16,7 +16,12 @@
 
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
-import { type Manifest, type ResolvedConfig, type Plugin as VitePlugin, createLogger } from "vite";
+import {
+  type Manifest,
+  type ResolvedConfig,
+  type Plugin as VitePlugin,
+  createLogger,
+} from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { createBuildLoader } from "../loader/createBuildLoader.js";
@@ -37,7 +42,10 @@ import { createWorker } from "../worker/createWorker.js";
 import { defaultFileWriter } from "../helpers/defaultFileWriter.js";
 import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
-import { serializedOptions, serializeResolvedConfig } from "../helpers/serializeUserOptions.js";
+import {
+  serializedOptions,
+  serializeResolvedConfig,
+} from "../helpers/serializeUserOptions.js";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -130,14 +138,13 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
     async renderStart() {
       timing.renderStart = Date.now();
-      
     },
 
     async writeBundle(options, bundle) {
       const bundleManifest = getBundleManifest<false>({
         bundle,
         normalizer: userOptions.normalizer,
-        });
+      });
 
       if (!("source" in bundleManifest[".vite/manifest.json"])) {
         throw new Error("Server manifest not found");
@@ -187,16 +194,19 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         mkdir(staticDir, { recursive: true }),
       ]);
       const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
-      const indexHtml = staticManifest?.['index.html']?.file;
+      const indexHtml = staticManifest?.["index.html"]?.file;
       const pipeableStreamOptions = {
         ...userOptions.pipeableStreamOptions,
         bootstrapModules: [
           ...(indexHtml ? [indexHtml] : []),
           ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
         ],
-      }
+      };
       userOptions.pipeableStreamOptions = pipeableStreamOptions;
-      const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles!);
+      const serializedUserOptions = serializedOptions(
+        userOptions,
+        autoDiscoveredFiles!
+      );
       // Create worker
       if (!worker) {
         const workerResult = await createWorker({
@@ -206,13 +216,13 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           reverseCondition: "react-client",
           workerData: {
             resolvedConfig: serializeResolvedConfig(resolvedConfig),
-            userOptions: serializedUserOptions
-          }
+            userOptions: serializedUserOptions,
+          },
         });
         if (workerResult.type === "error") {
           throw workerResult.error;
         } else if (workerResult.type === "skip") {
-          console.info('[RSC] Worker not created, skipping static build');
+          console.info("[RSC] Worker not created, skipping static build");
           return;
         } else {
           worker = workerResult.worker;
@@ -220,7 +230,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       }
       // Render pages
       const { onEvent, ...rest } = userOptions;
-      const renderPagesGenerator = renderPages(autoDiscoveredFiles!.urlMap, {
+      const renderPagesGenerator = renderPages(autoDiscoveredFiles!, {
         ...rest,
         loader: buildLoader,
         worker: worker,
@@ -259,7 +269,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
       // Update timing
       timing.render = Date.now() - (timing.renderStart ?? timing.start);
-      
 
       // Cleanup
       worker.postMessage({ type: "SHUTDOWN", id: "*" });

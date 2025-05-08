@@ -1,5 +1,9 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
+import type {
+  ResolvedUserOptions,
+  AutoDiscoveredFiles,
+  CssContent,
+} from "../types.js";
 import { join } from "path";
 import { resolveBuildPages } from "./autoDiscover/resolveBuildPages.js";
 import { resolvePages } from "./resolvePages.js";
@@ -137,8 +141,9 @@ export async function resolveAutoDiscover({
   });
   // lastly, make sure we handle the index.html dependencies
   let indexHtmlCssInputs: Record<string, string> = {};
+  let indexHtmlCSS = new Map<string, CssContent>();
   if (ssr && staticManifest["index.html"]) {
-    const indexHtmlCSS = await collectBundleManifestCss({
+    indexHtmlCSS = await collectBundleManifestCss({
       id: "index.html",
       manifest: staticManifest,
       projectRoot: userOptions.projectRoot,
@@ -147,6 +152,7 @@ export async function resolveAutoDiscover({
       moduleRootPath: userOptions.moduleRootPath,
       css: userOptions.css,
       build: userOptions.build,
+      cssFiles: new Map(),
     });
     for (const [key] of indexHtmlCSS.entries()) {
       const [keyNormalized, valueNormalized] = userOptions.normalizer(key);
@@ -162,21 +168,22 @@ export async function resolveAutoDiscover({
     ...indexHtmlCssInputs,
   };
   // Add inputs based on condition
-  const inputs = condition === "react-client"
-    ? {
-        ...indexHtmlInputs,
-        ...agnosticInputs,
-        ...cssInputs,
-        ...jsonInputs,
-      }
-    : {
-        ...configInputRecord,
-        ...customWorkerInputs,
-        ...pageAndPropInputs,
-        ...agnosticInputs,
-        ...cssInputs,
-        ...jsonInputs,
-      };
+  const inputs =
+    condition === "react-client"
+      ? {
+          ...indexHtmlInputs,
+          ...agnosticInputs,
+          ...cssInputs,
+          ...jsonInputs,
+        }
+      : {
+          ...configInputRecord,
+          ...customWorkerInputs,
+          ...pageAndPropInputs,
+          ...agnosticInputs,
+          ...cssInputs,
+          ...jsonInputs,
+        };
 
   stashedAutoDiscover[envId] = {
     ...files,
@@ -185,7 +192,7 @@ export async function resolveAutoDiscover({
     clientEntry,
     staticManifest,
     inputs,
-    cssFiles: indexHtmlCssInputs,
+    cssFiles: indexHtmlCSS,
   };
   return {
     type: "success",

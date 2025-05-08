@@ -49,14 +49,19 @@ export function resolveUserConfig({
 
   // Get existing inputs
   const root = config.root ?? userOptions.projectRoot ?? process.cwd();
-  const staticEntries = ssr && autoDiscoveredFiles.staticManifest ? Object.entries(autoDiscoveredFiles.staticManifest) : [];
+  const staticEntries =
+    ssr && autoDiscoveredFiles.staticManifest
+      ? Object.entries(autoDiscoveredFiles.staticManifest)
+      : [];
   const pluginOutput = {
     preserveModulesRoot: userOptions.build.preserveModulesRoot
       ? userOptions.moduleBase
       : undefined,
     entryFileNames: (info) => {
-      if(ssr) {
-        const entry = staticEntries.find(([, {file}]) => file.startsWith(info.name));
+      if (ssr) {
+        const entry = staticEntries.find(([, { file }]) =>
+          file.startsWith(info.name)
+        );
         if (entry) {
           return entry[1].file;
         }
@@ -89,6 +94,7 @@ export function resolveUserConfig({
       : configEnv.command === "build"
       ? "production"
       : "development";
+  const minify = false;
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)
     stashedUserConfig[envId] = {
@@ -97,18 +103,28 @@ export function resolveUserConfig({
       mode: mode,
       resolve: {
         ...config.resolve,
-        external: config.resolve?.external ?? ["react", "react-dom", "react-server-dom-esm/client"],
+        external: config.resolve?.external ?? [
+          "react",
+          "react-dom",
+          "react-server-dom-esm/client",
+        ],
       },
       ssr: {
         ...config.ssr,
         target: config.ssr?.target ?? "node",
         optimizeDeps: {
           ...config.ssr?.optimizeDeps,
-          include: config.ssr?.optimizeDeps?.include ?? ["react", "react-dom", "react-server-dom-esm/client"],
-        },  
+          include: config.ssr?.optimizeDeps?.include ?? [
+            "react",
+            "react-dom",
+            "react-server-dom-esm/client",
+          ],
+        },
         resolve: {
           ...config.ssr?.resolve,
-          externalConditions: config.ssr?.resolve?.externalConditions ?? ["react-server"],
+          externalConditions: config.ssr?.resolve?.externalConditions ?? [
+            "react-server",
+          ],
         },
       },
       // client build options
@@ -120,12 +136,14 @@ export function resolveUserConfig({
         copyPublicDir: config.build?.copyPublicDir ?? true,
         // modern browsers
         target: config.build?.target ?? ["esnext"],
-        minify: config.build?.minify ?? mode === "production",
+        minify: minify,
         rollupOptions: {
           ...config.build?.rollupOptions,
           input: autoDiscoveredFiles.inputs,
           output: newOutput,
-          preserveEntrySignatures: config.build?.rollupOptions?.preserveEntrySignatures ?? "exports-only",
+          preserveEntrySignatures:
+            config.build?.rollupOptions?.preserveEntrySignatures ??
+            "exports-only",
         },
         ssr: ssr,
         manifest: config.build?.manifest ?? `.vite/manifest.json`,
@@ -144,14 +162,18 @@ export function resolveUserConfig({
       mode: mode,
       resolve: {
         ...config.resolve,
-        externalConditions: config.resolve?.externalConditions ?? ["react-server"],
+        externalConditions: config.resolve?.externalConditions ?? [
+          "react-server",
+        ],
       },
       ssr: {
         ...config.ssr,
         target: config.ssr?.target ?? "node",
         resolve: {
           ...config.ssr?.resolve,
-          externalConditions: config.ssr?.resolve?.externalConditions ?? ["react-server"],
+          externalConditions: config.ssr?.resolve?.externalConditions ?? [
+            "react-server",
+          ],
         },
       },
       // server build options
@@ -160,7 +182,7 @@ export function resolveUserConfig({
         emptyOutDir: config.build?.emptyOutDir ?? true,
         outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         target: config.build?.target ?? "node18",
-        minify: config.build?.minify ?? mode === "production",
+        minify: minify,
         ssr: ssr,
         manifest: config.build?.manifest ?? `.vite/manifest.json`,
         ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,

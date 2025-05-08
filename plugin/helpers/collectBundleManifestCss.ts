@@ -42,7 +42,7 @@ async function collectCssFromModule(
             const file = join(
               options.projectRoot,
               options.build.outDir,
-              options.build.static,
+              options.build.server,
               cssFile
             );
             const code =
@@ -112,7 +112,11 @@ export async function collectBundleManifestCss(
 ): Promise<Map<string, CssContent>> {
   const cssMap = new Map<string, CssContent>();
   if (options.cssFiles) {
-    for (const [, value] of Object.entries(options.cssFiles)) {
+    for (const [key, value] of options.cssFiles.entries()) {
+      if (typeof value !== "string") {
+        cssMap.set(key, value);
+        continue;
+      }
       const file = join(
         options.projectRoot,
         options.build.outDir,
