@@ -2,7 +2,6 @@ import type { ConfigEnv, UserConfig } from "vite";
 import type {
   ResolvedUserOptions,
   AutoDiscoveredFiles,
-  CssContent,
 } from "../types.js";
 import { join } from "path";
 import { resolveBuildPages } from "./autoDiscover/resolveBuildPages.js";
@@ -10,7 +9,6 @@ import { resolvePages } from "./resolvePages.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import type { Manifest } from "vite";
 import { createGlobAutoDiscover } from "./autoDiscover/createGlobAutoDiscover.js";
-import { collectBundleManifestCss } from "../helpers/collectBundleManifestCss.js";
 import { customWorkerFiles } from "./autoDiscover/customWorkerFiles.js";
 import { pageAndPropFiles } from "./autoDiscover/pageAndPropFiles.js";
 
@@ -139,33 +137,12 @@ export async function resolveAutoDiscover({
     inputs: {},
     userOptions,
   });
-  // lastly, make sure we handle the index.html dependencies
-  let indexHtmlCssInputs: Record<string, string> = {};
-  let indexHtmlCSS = new Map<string, CssContent>();
-  if (ssr && staticManifest["index.html"]) {
-    indexHtmlCSS = await collectBundleManifestCss({
-      id: "index.html",
-      manifest: staticManifest,
-      projectRoot: userOptions.projectRoot,
-      moduleBasePath: userOptions.moduleBasePath,
-      moduleBaseURL: userOptions.moduleBaseURL,
-      moduleRootPath: userOptions.moduleRootPath,
-      css: userOptions.css,
-      build: userOptions.build,
-      cssFiles: new Map(),
-    });
-    for (const [key] of indexHtmlCSS.entries()) {
-      const [keyNormalized, valueNormalized] = userOptions.normalizer(key);
-      indexHtmlCssInputs[keyNormalized] = valueNormalized;
-    }
-  }
   const agnosticInputs = {
     ...configInputRecord,
     ...clientInputs,
     ...clientEntry,
     ...serverInputs,
     ...serverEntry,
-    ...indexHtmlCssInputs,
   };
   // Add inputs based on condition
   const inputs =
@@ -192,7 +169,6 @@ export async function resolveAutoDiscover({
     clientEntry,
     staticManifest,
     inputs,
-    cssFiles: indexHtmlCSS,
   };
   return {
     type: "success",

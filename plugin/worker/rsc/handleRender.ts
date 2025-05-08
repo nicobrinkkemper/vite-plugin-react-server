@@ -9,7 +9,6 @@ import type { RscRenderMessage } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
 import { createRscStream } from "../../helpers/createRscStream.js";
 import { CssCollector } from "../../css-collector.js";
-import { createLogger } from "vite";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { parentPort, workerData, type MessagePort } from "node:worker_threads";
@@ -118,12 +117,8 @@ export async function handleRender(
       moduleBaseURL,
       rscOutputPath,
       htmlOutputPath,
-      logger: createLogger(),
+      manifest: {},
       route,
-      url:
-        typeof moduleBaseURL === "string" && moduleBaseURL !== ""
-          ? new URL(id, moduleBaseURL).toString()
-          : id,
       // this is a stateful object, which at this point we assume contains all the css files
       cssFiles,
       onEvent: adaptedOnEvent,

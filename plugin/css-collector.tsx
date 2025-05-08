@@ -7,13 +7,14 @@ import { CssCollectorElements } from "./css-collector-elements.js";
  * The high precedence ensures they bubble up to the document head.
  */
 export function CssCollector({
-  children,
-  cssFiles,
-}: Pick<CssCollectorProps, "children" | "cssFiles">) {
+  children = null,
+  cssFiles = new Map(),
+  as: As = React.Fragment,
+}: Pick<CssCollectorProps, "children" | "cssFiles" | "as">) {
   return (
-    <>
+    <As>
       {children}
       <CssCollectorElements cssFiles={cssFiles} />
-    </>
+    </As>
   );
 }

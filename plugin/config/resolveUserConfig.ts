@@ -94,7 +94,7 @@ export function resolveUserConfig({
       : configEnv.command === "build"
       ? "production"
       : "development";
-  const minify = false;
+  const minify = config.build?.minify;
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)
     stashedUserConfig[envId] = {

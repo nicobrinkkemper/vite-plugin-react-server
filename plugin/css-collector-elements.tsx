@@ -10,10 +10,11 @@ export const CssCollectorElements = ({
 >) =>
   Array.from(cssFiles?.values() ?? []).map((cssFile: CssContent) => {
     // Emit style tag for inline CSS
-    const { as: As, id, children, precedence, ...rest } = cssFile;
+    const { as: As, id, children, precedence, type, ...rest } = cssFile;
     if(As !== "link" && (typeof children === "string" || React.isValidElement(children))) {
       // style tag
-      return <As {...rest} key={cssFile.id} >{children}</As>;
+      // since we can't bubble up the style tags, we need to be creative
+      return <As {...rest} type={type ?? "text/css"} key={cssFile.id}>{children}</As>;
     }
     // link tag
     return <As {...rest} key={cssFile.id} precedence={precedence} />;

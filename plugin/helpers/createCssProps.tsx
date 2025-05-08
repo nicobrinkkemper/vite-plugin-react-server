@@ -38,10 +38,10 @@ export const createCssProps = ({
 
   // Normalize the ID to be relative to src/
   const normalizedId = id.startsWith(projectRoot) ? relative(projectRoot, id) : id;
-  if(css.inlinePatterns.some(pattern => pattern.test(normalizedId))) {
+  if(css.inlinePatterns && css.inlinePatterns.some(pattern => pattern.test(normalizedId))) {
     inline = true;
   }
-  if(css.linkPatterns.some(pattern => pattern.test(normalizedId))) {
+  if(css.linkPatterns && css.linkPatterns.some(pattern => pattern.test(normalizedId))) {
     inline = false;
   }
   if (inline) {
@@ -51,18 +51,17 @@ export const createCssProps = ({
       as: "style",
       children: code.trim(),
       ...(process.env["NODE_ENV"] !== "production" ? {
-        "data-vite-dev-id": join(projectRoot,moduleRootPath,normalizedId),
+        "data-vite-dev-id": join(moduleRootPath, normalizedId),
       } : {}),
-    };
+    } as CssContent<true>;
   }
 
   // Default case
   return {
-    type: "text/css",
     id: normalizedId,
     as: "link",
     rel: "stylesheet",
     href: join(moduleBaseURL, moduleBasePath, normalizedId),
     precedence: "high",
-  };
+  } as CssContent<false>;
 };

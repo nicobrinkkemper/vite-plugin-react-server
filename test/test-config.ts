@@ -1,15 +1,6 @@
 import { join } from "path";
 import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "../plugin/types.js";
-import React from "react";
-
-const Html = ({ children }: { children: React.ReactNode }) => {
-  return React.createElement('html', null, 
-    React.createElement('head', null),
-    React.createElement('body', null, 
-      React.createElement('div', { id: 'root' }, children)
-    )
-  );
-};
+import { Html } from "../plugin/html.js";
 
 const resolvedTestConfig = {
   moduleBase: "src",
@@ -17,7 +8,7 @@ const resolvedTestConfig = {
   Page: "src/page/page.tsx",
   props: "src/page/props.ts",
   pageExportName: "Page",
-  Html,
+  Html: Html,
   build: {
     pages: ["/"],
     assetsDir: 'assets',

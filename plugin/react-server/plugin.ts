@@ -21,6 +21,7 @@ import {
 import { getCondition } from "../config/getCondition.js";
 import { configureReactServer } from "./server.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
+import { getBundleManifest } from "../helpers/getBundleManifest.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 let cwd: string;
@@ -137,6 +138,13 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
       } else {
         console.log("Build already started");
       }
+    },
+    async generateBundle(_options, bundle) {
+      // Create manifest entries for each chunk
+      serverManifest = getBundleManifest<false>({
+        bundle,
+        normalizer: userOptions.normalizer,
+      });
     },
     async handleHotUpdate({ file, server, read, timestamp, ...ctx }) {
       // Check if the file is a page or props file

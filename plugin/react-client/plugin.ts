@@ -1,4 +1,4 @@
-import { type Manifest, type Plugin, type ResolvedConfig } from "vite";
+import {  type Plugin } from "vite";
 import type {
   AutoDiscoveredFiles,
   ResolvedUserConfig,
@@ -7,18 +7,12 @@ import type {
 } from "../types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { getBundleManifest } from "../helpers/getBundleManifest.js";
-
 import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
 import { configureWorkerRequestHandler } from "./server.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 
 let userOptions: ResolvedUserOptions;
 let userConfig: ResolvedUserConfig;
-let clientManifest: Manifest = {};
-let resolvedConfig: ResolvedConfig;
 let root: string;
 let autoDiscoveredFiles: AutoDiscoveredFiles;
 
@@ -68,31 +62,6 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
 
       userConfig = resolvedConfig.userConfig;
       return userConfig;
-    },
-
-    configResolved(config) {
-      resolvedConfig = config;
-    },
-
-    async generateBundle(_options, bundle) {
-      // Create manifest entries for each chunk
-      clientManifest = getBundleManifest<false>({
-        bundle,
-        normalizer: userOptions.normalizer,
-      });
-
-      // Write manifest immediately after generation
-      const manifestPath = join(
-        root,
-        resolvedConfig.environments["client"].build.outDir as string,
-        resolvedConfig.environments["client"].build.manifest as string
-      );
-      await mkdir(dirname(manifestPath), { recursive: true });
-
-      return await writeFile(
-        manifestPath,
-        JSON.stringify(clientManifest, null, 2)
-      );
     },
 
     async configurePreviewServer(server) {

@@ -1,4 +1,3 @@
-import { collectBundleManifestCss } from "../helpers/collectBundleManifestCss.js";
 import { createRenderMetrics } from "../helpers/metrics.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import type { CreateHandlerOptions, RenderPageResult } from "../types.js";
@@ -8,8 +7,7 @@ import { collectHtmlContent } from "./collectHtmlContent.js";
 import { collectRscContent } from "./collectRscContent.js";
 
 export async function* renderPage(
-  handlerOptions: 
-    CreateHandlerOptions<unknown, React.ComponentType<unknown>>
+  handlerOptions: CreateHandlerOptions<unknown, React.ComponentType<unknown>>
 ): AsyncGenerator<RenderPageResult, void, unknown> {
   if (!handlerOptions.pagePath) {
     yield {
@@ -21,22 +19,8 @@ export async function* renderPage(
   try {
     const metrics = createRenderMetrics(handlerOptions.route);
 
-    // Collect CSS files using bundle manifest
-    const cssFiles = await collectBundleManifestCss({
-      ...handlerOptions,
-      id: handlerOptions.propsPath
-        ? [handlerOptions.pagePath, handlerOptions.propsPath]
-        : handlerOptions.pagePath,
-    });
 
-    const pageAndPropsResult = await resolvePageAndProps({
-      pagePath: handlerOptions.pagePath,
-      propsPath: handlerOptions.propsPath,
-      pageExportName: handlerOptions.pageExportName,
-      propsExportName: handlerOptions.propsExportName,
-      route: handlerOptions.route,
-      loader: handlerOptions.loader,
-    });
+    const pageAndPropsResult = await resolvePageAndProps(handlerOptions);
 
     if (pageAndPropsResult.type === "error") {
       yield {
@@ -89,7 +73,6 @@ export async function* renderPage(
       htmlOutputPath: routeHtmlPath,
       PageComponent: PageComponent,
       pageProps: pageProps,
-      cssFiles: cssFiles,
     } satisfies CreateHandlerOptions;
     // Create streams with CSS files
     const [rscFull, rscHeadless] = await renderStreams(newHandlerOptions);

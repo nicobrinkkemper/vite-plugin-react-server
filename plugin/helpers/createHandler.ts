@@ -26,15 +26,9 @@ export async function createHandler(handlerOptions: CreateHandlerOptions) {
         });
       }
     };
-    const url =
-      typeof handlerOptions.moduleBaseURL === "string" && handlerOptions.moduleBaseURL !== ""
-        ? new URL(handlerOptions.route, handlerOptions.moduleBaseURL).toString()
-        : handlerOptions.route;
 
     const streamResult = createRscStream({
       ...handlerOptions,
-      url,
-      htmlProps: {},
       onEvent: adaptedOnEvent,
       cssFiles: handlerOptions.cssFiles,
       PageComponent: handlerOptions.PageComponent as any,

@@ -1,21 +1,17 @@
 import { join } from "node:path";
-import type {
-  ResolvedUserConfig,
-  ResolvedUserOptions,
-} from "../../server.js";
+import type { ResolvedUserConfig, ResolvedUserOptions } from "../../server.js";
 import type { Manifest } from "vite";
 import { getModuleRef } from "../moduleRefs.js";
-import { createTemporaryReferenceSet } from "react-server-dom-esm/server.node";
 import { readFile } from "node:fs/promises";
+import type { OutputBundle } from "rollup";
+import { temporaryReferences } from "./temporaryReferences.js";
 
 export interface BuildLoaderOptions {
   userConfig: ResolvedUserConfig;
   userOptions: ResolvedUserOptions;
   serverManifest: Manifest;
-  clientManifest: Manifest;
+  staticManifest: Manifest;
 }
-
-let temporaryReferences: WeakMap<any, any> | undefined;
 
 /**
  * Creates a loader function for handling module resolution during build.
@@ -40,66 +36,95 @@ let temporaryReferences: WeakMap<any, any> | undefined;
  *
  * @returns A loader function that resolves module paths to their exports
  */
-export async function createBuildLoader({
-  userOptions,
-  serverManifest,
-}: BuildLoaderOptions) {
-  temporaryReferences = temporaryReferences ?? createTemporaryReferenceSet();
+export async function createBuildLoader(
+  { userOptions, serverManifest, staticManifest }: BuildLoaderOptions,
+  bundle: OutputBundle
+) {
   const manifestKeys = Object.keys(serverManifest);
-  if(!manifestKeys.length) {
+  if (!manifestKeys.length) {
     throw new Error("Server manifest is empty");
   }
   return async function buildLoader(id: string) {
-
     const [withoutQuery, query] = id.split("?", 2);
     const [, normalizedValue] = userOptions.normalizer(withoutQuery);
     const moduleRef = getModuleRef(id);
     // Check if we have a temporary reference (cached module)
     if (temporaryReferences?.has(moduleRef)) {
       const mod = temporaryReferences.get(moduleRef);
-      if (typeof mod === "function") {
-        return mod;
-      } else if (typeof mod === "object" && mod !== null && "error" in mod) {
+      if (typeof mod === "object" && mod !== null && "error" in mod) {
         // ignore it
       } else {
-        throw new Error(`Module is not a function. ${JSON.stringify(mod)}`);
+        return mod;
       }
     }
 
     try {
       // For inline modules, handle them directly
       if (query === "inline") {
-        if (normalizedValue.endsWith(".css")) {
-          const cssPath = join(
+        // First check static manifest
+        const staticChunk = bundle[staticManifest[normalizedValue]?.file];
+        if (staticChunk) {
+          if (staticChunk.type === "asset") {
+            return { default: staticChunk.source };
+          } else if ("code" in staticChunk) {
+            return { default: staticChunk.code };
+          }
+        }
+
+        // Then check server manifest
+        const serverChunk =
+          bundle[serverManifest[normalizedValue]?.file] ?? bundle[withoutQuery];
+        if (serverChunk) {
+          if (serverChunk.type === "asset") {
+            return { default: serverChunk.source };
+          } else if ("code" in serverChunk) {
+            return { default: serverChunk.code };
+          }
+        }
+
+        // If not found in either manifest, try reading the file directly
+        const content = await readFile(
+          join(
             userOptions.projectRoot,
             userOptions.build.outDir,
-            userOptions.build.server,
+            userOptions.build.static,
             normalizedValue
-          );
-          const content = await readFile(cssPath, "utf-8");
-          return { default: content };
-        } else {
-          const content = await readFile(
-            join(userOptions.projectRoot, normalizedValue),
-            "utf-8"
-          );
-          return { default: content };
-        }
+          ),
+          "utf-8"
+        );
+        return { default: content };
       }
 
       // Try to resolve the module using Vite's resolution
-      const resolvedId = serverManifest[normalizedValue]; 
-      if (!resolvedId) {
-        throw new Error(`Module ${normalizedValue} not found`);
+      const resolvedEntry =
+        serverManifest[normalizedValue] ?? bundle[withoutQuery];
+      if (!resolvedEntry) {
+        // try static manifest
+        const staticEntry = staticManifest[normalizedValue];
+        if (!staticEntry) {
+          throw new Error(`Module ${normalizedValue} not found`);
+        }
+        const module = await import(
+          join(
+            userOptions.projectRoot,
+            userOptions.build.outDir,
+            userOptions.build.static,
+            staticEntry.file
+          )
+        );
+        temporaryReferences?.set(moduleRef, module);
+        return module;
       }
 
       // Load the module
-      const module = await import(join(
-        userOptions.projectRoot,
-        userOptions.build.outDir,
-        userOptions.build.server,
-        resolvedId.file
-      ));
+      const module = await import(
+        join(
+          userOptions.projectRoot,
+          userOptions.build.outDir,
+          userOptions.build.server,
+          resolvedEntry.file
+        )
+      );
       temporaryReferences?.set(moduleRef, module);
       return module;
     } catch (error) {

@@ -12,10 +12,8 @@ type CssCollectionOptions = Pick<
   | "moduleRootPath"
   | "css"
   | "cssFiles"
-> & {
-  manifest: Record<string, any>;
-  id: string | string[];
-};
+  | "manifest"
+>
 
 /**
  * Recursively collects CSS files from a bundle manifest
@@ -42,12 +40,12 @@ async function collectCssFromModule(
             const file = join(
               options.projectRoot,
               options.build.outDir,
-              options.build.server,
+              options.build.static,
               cssFile
             );
             const code =
-              "code" in cssEntry && typeof cssEntry.code === "string"
-                ? cssEntry.code
+              "source" in cssEntry && typeof cssEntry.source === "string"
+                ? cssEntry.source
                 : await readFile(file, "utf-8");
             cssMap.set(
               importPath,
@@ -72,7 +70,9 @@ async function collectCssFromModule(
   // Handle direct CSS files
   if (mod.css) {
     for (const cssFile of mod.css) {
-      if (cssMap.has(cssFile)) continue;
+      if (cssMap.has(cssFile)) {
+        continue
+      }
       try {
         const file = join(
           options.projectRoot,
@@ -108,7 +108,9 @@ async function collectCssFromModule(
  * Collects CSS files from a bundle manifest using async generators
  */
 export async function collectBundleManifestCss(
-  options: CssCollectionOptions
+  pages: string[] | string,  
+  options: CssCollectionOptions,
+  _bundleManifest: Record<string, any>
 ): Promise<Map<string, CssContent>> {
   const cssMap = new Map<string, CssContent>();
   if (options.cssFiles) {
@@ -146,10 +148,10 @@ export async function collectBundleManifestCss(
   }
 
   // Process page and props modules
-  if (typeof options.id === "string") {
-    await collectCssFromModule(options.id, options.manifest, cssMap, options);
-  } else if (Array.isArray(options.id)) {
-    for (const _id of options.id) {
+  if (typeof pages === "string") {
+    await collectCssFromModule(pages, options.manifest, cssMap, options);
+  } else if (Array.isArray(pages)) {
+    for (const _id of pages) {
       await collectCssFromModule(_id, options.manifest, cssMap, options);
     }
   }

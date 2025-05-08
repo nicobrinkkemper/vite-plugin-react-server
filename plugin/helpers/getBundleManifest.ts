@@ -2,7 +2,7 @@ import type {
   OutputBundle,
   OutputChunk,
 } from "rollup";
-import type { Manifest } from "vite";
+import type {  ManifestChunk } from "vite";
 import type { InputNormalizer } from "../types.js";
 
 
@@ -19,7 +19,11 @@ export function getBundleManifest<SSR extends boolean>({
 }: {
   bundle: OutputBundle,
   normalizer: InputNormalizer,
-}): SSR extends true ? Record<string, string[]> : Manifest {
+}): SSR extends true ? Record<string, string[]> : {
+  [key: string]: ManifestChunk & {
+    source: string,
+  }
+} {
 
   if (!bundle) return {};
 

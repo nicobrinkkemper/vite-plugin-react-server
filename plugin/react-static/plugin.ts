@@ -36,7 +36,6 @@ import type {
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
-import { mkdir } from "node:fs/promises";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
 import { defaultFileWriter } from "../helpers/defaultFileWriter.js";
@@ -46,6 +45,8 @@ import {
   serializedOptions,
   serializeResolvedConfig,
 } from "../helpers/serializeUserOptions.js";
+import { collectManifestCss } from "../helpers/collectManifestCss.js";
+import { createCssProps } from "../helpers/createCssProps.js";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -145,7 +146,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         bundle,
         normalizer: userOptions.normalizer,
       });
-
       if (!("source" in bundleManifest[".vite/manifest.json"])) {
         throw new Error("Server manifest not found");
       }
@@ -154,12 +154,84 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         bundleManifest[".vite/manifest.json"].source as string
       );
 
-      buildLoader = await createBuildLoader({
-        userConfig,
-        userOptions,
-        serverManifest: serverManifest ?? {},
-        clientManifest: autoDiscoveredFiles?.staticManifest ?? {},
-      });
+      if (!serverManifest) {
+        throw new Error("Failed to parse server manifest");
+      }
+
+      buildLoader = await createBuildLoader(
+        {
+          userConfig,
+          userOptions,
+          serverManifest: serverManifest ?? {},
+          staticManifest: autoDiscoveredFiles?.staticManifest ?? {},
+        },
+        bundle
+      );
+
+      // Create CSS props for each CSS file
+      const cssFilesByPage = new Map();
+
+      // First collect global styles from index.html
+      const globalCssInputs = collectManifestCss(
+        autoDiscoveredFiles?.staticManifest ?? {},
+        'index.html',
+        userOptions
+      );
+
+      // Collect CSS files for each page and its props
+      for (const [url, { page, props }] of autoDiscoveredFiles?.urlMap ?? []) {
+        const cssInputs = collectManifestCss(
+          serverManifest,
+          props ? [page, props] : page,
+          userOptions
+        );
+        
+        // Create a map for this page's CSS files
+        const pageCssMap = new Map();
+        
+        // Add global styles if they exist
+        if (Object.keys(globalCssInputs).length > 0) {
+          for (const [, value] of Object.entries(globalCssInputs)) {
+            const cssContent = await buildLoader(value + "?inline").then((r) => String(r.default));
+            if(cssContent === 'undefined') {
+              throw new Error(`CSS content is undefined for ${value}`);
+            }
+            if (cssContent) {
+              pageCssMap.set(value, createCssProps({
+                id: value,
+                code: cssContent,
+                css: userOptions.css,
+                moduleBaseURL: userOptions.moduleBaseURL,
+                moduleBasePath: userOptions.moduleBasePath,
+                moduleRootPath: userOptions.moduleRootPath,
+                projectRoot: userOptions.projectRoot,
+              }));
+            }
+          }
+        }
+
+        // Add page-specific styles
+        for (const [, value] of Object.entries(cssInputs)) {
+          const {default: cssContent} = await buildLoader(value + "?inline");
+          if(typeof cssContent !== 'string') {
+            continue;
+          }
+          if (cssContent) {
+            pageCssMap.set(value, createCssProps({
+              id: value,
+              code: cssContent,
+              css: userOptions.css,
+              moduleBaseURL: userOptions.moduleBaseURL,
+              moduleBasePath: userOptions.moduleBasePath,
+              moduleRootPath: userOptions.moduleRootPath,
+              projectRoot: userOptions.projectRoot,
+            }));
+          }
+        }
+        cssFilesByPage.set(url, pageCssMap);
+      }
+
+
       if (userOptions.onEvent) {
         userOptions.onEvent({
           type: "build.writeBundle",
@@ -171,28 +243,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           },
         });
       }
-      // Setup directories
-      const serverDir = join(
-        userOptions.projectRoot,
-        userOptions.build.outDir,
-        userOptions.build.server
-      );
-      const clientDir = join(
-        userOptions.projectRoot,
-        userOptions.build.outDir,
-        userOptions.build.client
-      );
-      const staticDir = join(
-        userOptions.projectRoot,
-        userOptions.build.outDir,
-        userOptions.build.static
-      );
-
-      await Promise.all([
-        mkdir(serverDir, { recursive: true }),
-        mkdir(clientDir, { recursive: true }),
-        mkdir(staticDir, { recursive: true }),
-      ]);
       const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
       const indexHtml = staticManifest?.["index.html"]?.file;
       const pipeableStreamOptions = {
@@ -230,29 +280,37 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       }
       // Render pages
       const { onEvent, ...rest } = userOptions;
-      const renderPagesGenerator = renderPages(autoDiscoveredFiles!, {
-        ...rest,
-        loader: buildLoader,
-        worker: worker,
-        logger: createLogger(),
-        onEvent: (event: PluginEvent) => {
-          if (userOptions.onEvent) {
-            userOptions.onEvent(event);
-          }
-          if (event.type === "file.write") {
-            return defaultFileWriter({
-              event,
-              outputDir: staticDir,
-            });
-          }
+      const renderPagesGenerator = renderPages(
+        autoDiscoveredFiles!,
+        {
+          ...rest,
+          loader: buildLoader,
+          worker: worker,
+          logger: createLogger(),
+          onEvent: (event: PluginEvent) => {
+            if (userOptions.onEvent) {
+              userOptions.onEvent(event);
+            }
+            if (event.type === "file.write") {
+              return defaultFileWriter({
+                event,
+                outputDir: join(
+                  userOptions.projectRoot,
+                  userOptions.build.outDir,
+                  userOptions.build.static
+                ),
+              });
+            }
+          },
+          pipeableStreamOptions: pipeableStreamOptions,
+          manifest: serverManifest ?? {},
+          htmlOutputPath: "index.html",
+          htmlOutputRoot: userOptions.build.static,
+          rscOutputPath: "index.rsc",
+          rscOutputRoot: userOptions.build.static,
         },
-        pipeableStreamOptions: pipeableStreamOptions,
-        manifest: serverManifest ?? {},
-        htmlOutputPath: "index.html",
-        htmlOutputRoot: userOptions.build.static,
-        rscOutputPath: "index.rsc",
-        rscOutputRoot: userOptions.build.static,
-      });
+        cssFilesByPage
+      );
 
       // Process render results
       let finalResult: RenderPagesResult | undefined;

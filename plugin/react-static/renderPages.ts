@@ -13,21 +13,22 @@ import type {
   RenderPagesResult,
   CreateHandlerOptions,
   AutoDiscoveredFiles,
+  CssContent,
 } from "../types.js";
 import { createRenderMetrics } from "../helpers/metrics.js";
 import { renderPage } from "./renderPage.js";
 
 export async function* renderPages(
-  { urlMap, cssFiles }: AutoDiscoveredFiles,
+  { urlMap }: AutoDiscoveredFiles,
   handlerOptions: Omit<
     CreateHandlerOptions,
     "route" | "pagePath" | "propsPath" | "Page" | "props" | "cssFiles"
-  >
+  >,
+  cssFilesByPage: Map<string, Map<string, CssContent>>,
 ): AsyncGenerator<RenderPagesResult, void, unknown> {
   if (!urlMap) {
     throw new Error("No urlMap provided to renderPages");
   }
-
   const routes = Array.from(urlMap.keys());
   const completedRoutes = new Set<string>();
   const failedRoutes = new Set<string>();
@@ -44,7 +45,7 @@ export async function* renderPages(
         route,
         pagePath: page,
         propsPath: props,
-        cssFiles,
+        cssFiles: cssFilesByPage.get(route) ?? new Map(),
       });
 
       for await (const result of pageRenderer) {

@@ -18,6 +18,7 @@ import type { ReactServerDomEsmOptions } from "./worker/types.js";
 import type React from "react";
 import type { PassThrough, Transform } from "stream";
 import type { MessagePort } from "node:worker_threads";
+import type { PropsWithChildren } from "react";
 type OnEvent = (event: PluginEvent) => void;
 
 export type Serializable =
@@ -62,7 +63,6 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
   serverEntry: Record<string, string> | null;
   clientEntry: Record<string, string>;
   inputs: Record<string, string>;
-  cssFiles: Map<string, CssContent>;
   staticManifest: Manifest;
 };
 export interface FileWriterOptions {
@@ -357,16 +357,8 @@ export interface StreamPluginOptions<
   loaderPath?: string;
   pageExportName?: string;
   propsExportName?: string;
-  Html?: React.FC<{
-    manifest: import("vite").Manifest;
-    pageProps: any;
-    route: string;
-    url: string;
-    children: React.ReactNode;
-  }>;
-  CssCollector?: InlineCSS extends true
-    ? React.FC<React.PropsWithChildren<InlineCssCollectorProps>>
-    : React.FC<React.PropsWithChildren<CssCollectorProps>>;
+  Html?: React.FC<PropsWithChildren<HtmlProps>>;
+  CssCollector?: React.FC<React.PropsWithChildren<CssCollectorProps<InlineCSS>>>;
   build?: BuildConfig;
   css?: CssCollectorOptions;
   moduleBaseExceptions?: string[];
@@ -593,8 +585,6 @@ export type HtmlProps = {
   pageProps: any;
   route: string;
   url: string;
-  rscOutputPath: string;
-  htmlOutputPath: string;
   projectRoot: string;
   moduleBase: string;
   moduleBaseURL: string;
@@ -602,6 +592,7 @@ export type HtmlProps = {
   moduleRootPath: string;
   cssFiles: Map<string, CssContent>;
   manifest: Manifest;
+  CssCollector: React.FC<React.PropsWithChildren<CssCollectorProps>>;
 };
 
 export interface PageAsset {
@@ -638,13 +629,13 @@ export interface PageData {
 }
 
 type BaseCssProps = {
-  type: string;
   as: string;
   id: string;
 };
 
 type CssProps = BaseCssProps & {
   as: "link";
+  type?: never; 
   children?: InlineCssProps extends false ? never : React.ReactNode;
   id: string;
   href: string;
@@ -653,6 +644,7 @@ type CssProps = BaseCssProps & {
 };
 type InlineCssProps = BaseCssProps & {
   as: "style";
+  type: "text/css";
   children?: React.ReactNode;
   precedence?: never;
   rel?: never;
@@ -660,7 +652,7 @@ type InlineCssProps = BaseCssProps & {
 };
 
 export type CssContent<
-  InlineCSS extends boolean | undefined = boolean | undefined
+  InlineCSS extends boolean | undefined =  undefined
 > = InlineCSS extends true
   ? InlineCssProps
   : InlineCSS extends false
@@ -675,12 +667,20 @@ export interface JsContent {
   id?: string;
 }
 
-export type CssCollectorProps = {
+export type CssCollectorProps<InlineCSS extends boolean | undefined = undefined> = {
+  // to render the head tag or not
+  as?: React.ElementType;
+  // the base url of the module
   moduleBaseURL: string;
+  // the base path of the module
   moduleBasePath: string;
+  // the root path of the module
   moduleRootPath: string;
+  // the route of the page
   route?: string;
-  inlineCss?: boolean;
+  // whether to inline the css
+  inlineCss?: InlineCSS;
+  // whether to purge the css
   purgeCss?: boolean;
   children?: React.ReactNode;
   /** A map containing all the css files imported by the route and their proxy values

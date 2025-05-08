@@ -25,7 +25,8 @@
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
-    "./components": "./dist/plugin/components.js"
+    "./components": "./dist/plugin/components.js",
+    "./types": "./dist/plugin/types.js"
   },
   "typesVersions": {
     "*": {
