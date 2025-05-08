@@ -44,13 +44,13 @@ export const createCssProps = ({
   if(css.linkPatterns.some(pattern => pattern.test(normalizedId))) {
     inline = false;
   }
-  if (!inline) {
+  if (inline) {
     return {
       type: "text/css",
       id: normalizedId,
       as: "style",
       children: code.trim(),
-      ...(process.env["NODE_ENV"] === "development" ? {
+      ...(process.env["NODE_ENV"] !== "production" ? {
         "data-vite-dev-id": join(projectRoot,moduleRootPath,normalizedId),
       } : {}),
     };
