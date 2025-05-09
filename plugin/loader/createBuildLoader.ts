@@ -10,6 +10,7 @@ export interface BuildLoaderOptions {
   userConfig: ResolvedUserConfig;
   userOptions: ResolvedUserOptions;
   serverManifest: Manifest;
+  clientManifest: Manifest;
   staticManifest: Manifest;
 }
 
@@ -17,9 +18,9 @@ export interface BuildLoaderOptions {
  * Creates a loader function for handling module resolution during build.
  *
  * The loader handles the following strategy:
- *  - When we load a page or props, we eagerly load the css modules before we load the props & page
- *  - Any loaded module will be added to temporaryReferences
- *  - If we have already loaded a module, we return the cached module from temporaryReferences
+ *  - Just load any file from any manifest we can find in the order of client, server, static
+ *  - Ideally the buildLoader is only used form loading pages, props and inline css modules
+ *  -
  *
  * During build:
  * - We use the manifest information to get module exports
@@ -37,7 +38,12 @@ export interface BuildLoaderOptions {
  * @returns A loader function that resolves module paths to their exports
  */
 export async function createBuildLoader(
-  { userOptions, serverManifest, staticManifest }: BuildLoaderOptions,
+  {
+    userOptions,
+    serverManifest,
+    clientManifest,
+    staticManifest,
+  }: BuildLoaderOptions,
   bundle: OutputBundle
 ) {
   const manifestKeys = Object.keys(serverManifest);
@@ -61,19 +67,12 @@ export async function createBuildLoader(
     try {
       // For inline modules, handle them directly
       if (query === "inline") {
-        // First check static manifest
-        const staticChunk = bundle[staticManifest[normalizedValue]?.file];
-        if (staticChunk) {
-          if (staticChunk.type === "asset") {
-            return { default: staticChunk.source };
-          } else if ("code" in staticChunk) {
-            return { default: staticChunk.code };
-          }
-        }
-
         // Then check server manifest
         const serverChunk =
-          bundle[serverManifest[normalizedValue]?.file] ?? bundle[withoutQuery];
+          bundle[serverManifest[normalizedValue]?.file] ??
+          bundle[staticManifest[normalizedValue]?.file] ??
+          bundle[clientManifest[normalizedValue]?.file] ??
+          bundle[withoutQuery];
         if (serverChunk) {
           if (serverChunk.type === "asset") {
             return { default: serverChunk.source };
@@ -83,27 +82,68 @@ export async function createBuildLoader(
         }
 
         // If not found in either manifest, try reading the file directly
-        const content = await readFile(
+        const module = {
+          default: await readFile(
+            join(
+              userOptions.projectRoot,
+              userOptions.build.outDir,
+              userOptions.build.static,
+              normalizedValue
+            ),
+            "utf-8"
+          ),
+        };
+        temporaryReferences?.set(moduleRef, module);
+        return module;
+      }
+      const clientEntry = clientManifest[normalizedValue];
+      if (clientEntry) {
+        const module = await import(
           join(
             userOptions.projectRoot,
             userOptions.build.outDir,
-            userOptions.build.static,
-            normalizedValue
-          ),
-          "utf-8"
+            userOptions.build.client,
+            clientEntry.file
+          )
         );
-        return { default: content };
+        console.warn(
+          "client module used in buildLoader, consider making this available in the server manifest",
+          module
+        );
+        temporaryReferences?.set(moduleRef, module);
+        return module;
       }
-
+      const bundleEntry = bundle[withoutQuery];
+      if (bundleEntry) {
+        // Load the module
+        const module = await import(
+          join(
+            userOptions.projectRoot,
+            userOptions.build.outDir,
+            userOptions.build.server,
+            bundleEntry.fileName
+          )
+        );
+        temporaryReferences?.set(moduleRef, module);
+      }
       // Try to resolve the module using Vite's resolution
-      const resolvedEntry =
-        serverManifest[normalizedValue] ?? bundle[withoutQuery];
-      if (!resolvedEntry) {
-        // try static manifest
-        const staticEntry = staticManifest[normalizedValue];
-        if (!staticEntry) {
-          throw new Error(`Module ${normalizedValue} not found`);
-        }
+      const serverEntry = serverManifest[normalizedValue];
+      if (serverEntry) {
+        // Load the module
+        const module = await import(
+          join(
+            userOptions.projectRoot,
+            userOptions.build.outDir,
+            userOptions.build.server,
+            serverEntry.file
+          )
+        );
+        temporaryReferences?.set(moduleRef, module);
+        return module;
+      }
+      // try static manifest
+      const staticEntry = staticManifest[normalizedValue];
+      if (staticEntry) {
         const module = await import(
           join(
             userOptions.projectRoot,
@@ -112,25 +152,15 @@ export async function createBuildLoader(
             staticEntry.file
           )
         );
+        console.warn(
+          "static module used in buildLoader, consider making this available in the server manifest",
+          module
+        );
         temporaryReferences?.set(moduleRef, module);
         return module;
       }
-
-      // Load the module
-      const module = await import(
-        join(
-          userOptions.projectRoot,
-          userOptions.build.outDir,
-          userOptions.build.server,
-          resolvedEntry.file
-        )
-      );
-      temporaryReferences?.set(moduleRef, module);
-      return module;
+      throw new Error(`Module ${normalizedValue} not found`);
     } catch (error) {
-      if (process.env["NODE_ENV"] !== "production") {
-        console.error(`Error @ ${normalizedValue}`, error);
-      }
       const emptyExports = {
         error: error instanceof Error ? error : new Error(String(error)),
         id: id,

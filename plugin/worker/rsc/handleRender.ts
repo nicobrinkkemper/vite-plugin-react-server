@@ -12,14 +12,8 @@ import { CssCollector } from "../../css-collector.js";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { parentPort, workerData, type MessagePort } from "node:worker_threads";
-import { createRequire } from "node:module";
+import { React } from "../../vendor.server.js";
 
-// Create require function with project root
-const projectRoot = workerData.projectRoot || process.cwd();
-const nodeRequire = createRequire(join(projectRoot, "package.json"));
-
-// Import ReactDOM from the project's node_modules
-const React = nodeRequire("react");
 
 export async function handleRender(
   msg: RscRenderMessage,
@@ -153,7 +147,6 @@ export async function handleRender(
       port?.postMessage({
         type: "RSC_END",
         id,
-        content: [],
       } satisfies RscEndMessage);
       if (activeStreams.has(id)) {
         port?.postMessage({

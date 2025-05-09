@@ -12,8 +12,7 @@
 
 import { Transform } from "node:stream";
 import type {
-  HtmlWorkerOutputMessage,
-  RscChunkInputMessage,
+  HtmlWorkerInputMessage,
 } from "../worker/types.js";
 import type { CreateHandlerOptions } from "../types.js";
 import type { Worker } from "node:worker_threads";
@@ -42,74 +41,20 @@ export type RscToHtmlOptions = Pick<
  */
 export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
   const worker = options.worker as Worker | ViteDevServer;
-  if(!('postMessage' in worker)) {
+  if (!("postMessage" in worker)) {
     throw new Error("Worker is not a valid worker");
   }
   let sequence = 0;
   const stream = new Transform({
     transform(chunk, _encoding, callback) {
       try {
-        // Check if this is a worker message or RSC chunk
-        if (typeof chunk === "object" && "type" in chunk) {
-          // Handle worker message
-          const msg = chunk as HtmlWorkerOutputMessage;
-          // Only log errors
-       
-          switch (msg.type) {
-            case "HTML_CHUNK":
-              if (msg.chunk) {
-                this.push(msg.chunk);
-              }
-              break;
-            case "HTML_COMPLETE":
-              this.end();
-              worker.postMessage({
-                type: "CLEANUP",
-                id: msg.id,
-              });
-              break;
-            case "SHELL_READY":
-              break;
-            case "SHELL_ERROR":
-              if(process.env["NODE_ENV"] === "development") {
-                console.error(msg.error);
-              }
-              this.emit("error", msg.error);
-              callback(msg.error);
-              return;
-            case "CHUNK_PROCESSED":
-              break;
-            case "ERROR":
-              const error =
-                typeof msg.error === "string"
-                  ? new Error(msg.error)
-                  : msg.error;
-              if(process.env["NODE_ENV"] === "development") {
-                console.error(error);
-              }
-              this.emit("error", error);
-              callback(error);
-              return;
-            case "CLEANUP_COMPLETE":
-              if (!this.writableEnded) {
-                this.end();
-              }
-              break;
-            default:
-              // Other message types are not logged
-              break;
-          }
-          callback();
-        } else {
-          // Handle RSC chunk
-          worker.postMessage({
-            type: "RSC_CHUNK",
-            id: options.route,
-            chunk,
-            sequence: sequence++,
-          } satisfies RscChunkInputMessage);
-          callback();
-        }
+        worker.postMessage({
+          type: "RSC_CHUNK",
+          id: options.route,
+          chunk,
+          sequence: sequence++,
+        } satisfies HtmlWorkerInputMessage);
+        callback();
       } catch (error) {
         callback(error as Error);
       }
@@ -119,7 +64,7 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
         worker.postMessage({
           type: "RSC_END",
           id: options.route,
-        });
+        } satisfies HtmlWorkerInputMessage);
         callback();
       } catch (error) {
         callback(error as Error);
@@ -139,7 +84,7 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
     cssFiles: options.cssFiles,
     pipeableStreamOptions: options.pipeableStreamOptions,
     projectRoot: options.projectRoot,
-  });
+  } satisfies HtmlWorkerInputMessage);
 
   return stream;
 }

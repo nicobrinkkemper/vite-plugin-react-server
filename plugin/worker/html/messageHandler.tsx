@@ -50,7 +50,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         let renderState = activeRenders.get(id);
         if (!renderState) {
           renderState = createHtmlWorkerRenderState(msg, sendMessage);
-          renderState.stream.pipe(renderState.htmlTransform);
+          
           activeRenders.set(id, renderState);
         } else {
           throw new Error("Render state already exists");

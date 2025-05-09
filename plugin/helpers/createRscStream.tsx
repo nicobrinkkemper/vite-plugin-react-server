@@ -1,5 +1,4 @@
-import React from "react";
-import { renderToPipeableStream } from "react-server-dom-esm/server.node";
+import { React, ReactDOMServer } from "../vendor.server.js";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
 
 export function createRscStream<
@@ -43,7 +42,13 @@ export function createRscStream<
 }):
   | { type: "success"; stream: any; metrics: StreamMetrics }
   | { type: "error"; error: Error; metrics: StreamMetrics } {
+  const startTime = Date.now();
   const htmlIsFragment = Html == React.Fragment;
+  const url =
+    moduleBaseURL !== "" ? new URL(route, moduleBaseURL).toString() : route;
+  let errorCount = 0;
+  let streamError: Error | null = null;
+
   if (!PageComponent) {
     return {
       type: "error",
@@ -59,22 +64,15 @@ export function createRscStream<
       },
     };
   }
-  const url =
-    moduleBaseURL !== "" ? new URL(route, moduleBaseURL).toString() : route;
-  // Create the page element with the resolved props
-
-  // Otherwise wrap with Html component
-  const content = htmlIsFragment ? (
-    <>
+  const elements = htmlIsFragment ? (
+    <CssCollector
+      cssFiles={cssFiles}
+      moduleBaseURL={moduleBaseURL}
+      moduleBasePath={moduleBasePath}
+      moduleRootPath={moduleRootPath}
+    >
       <PageComponent {...(pageProps as any)} />
-      <CssCollector
-        as={"head"}
-        cssFiles={cssFiles}
-        moduleBaseURL={moduleBaseURL}
-        moduleBasePath={moduleBasePath}
-        moduleRootPath={moduleRootPath}
-      />
-    </>
+    </CssCollector>
   ) : (
     <Html
       moduleBase={moduleBase}
@@ -92,33 +90,27 @@ export function createRscStream<
       <PageComponent {...(pageProps as any)} />
     </Html>
   );
-
-  const startTime = Date.now();
-  let errorCount = 0;
-  let streamError: Error | null = null;
-  const Shell: React.FC = () => content as any;
   try {
-    const stream = renderToPipeableStream(<Shell />, moduleBasePath, {
-      ...pipeableStreamOptions,
-      importMap: {
-        imports: {
-          react: "react/index.js",
-          "react-dom": "react-dom/index.js",
+    const stream = ReactDOMServer.renderToPipeableStream(
+      elements,
+      moduleBasePath,
+      {
+        ...pipeableStreamOptions,
+        onError(error: Error, errorInfo: any) {
+          const err = error instanceof Error ? error : new Error(String(error));
+          streamError = err;
+          onEvent?.("error", { route, error: err, errorInfo });
+          errorCount++;
         },
-      },
-      onError(error: Error, errorInfo: any) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        streamError = err;
-        onEvent?.("error", { route, error: err, errorInfo });
-        errorCount++;
-      },
-      onPostpone(reason: string) {
-        onEvent?.("postpone", { route, reason });
-      },
-    });
+        onPostpone(reason: string) {
+          onEvent?.("postpone", { route, reason });
+        },
+      }
+    );
 
     // If we have a stream error, return it immediately
     if (streamError) {
+      console.error("streamError", streamError);
       return {
         type: "error",
         error: streamError,

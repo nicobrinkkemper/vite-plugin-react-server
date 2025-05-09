@@ -127,30 +127,22 @@ export async function* renderPage(
     }
 
     // Collect HTML and RSC content
-    const [htmlContent, rscContent] = await Promise.all([
-      collectHtmlContent(rscFull.stream, newHandlerOptions),
-      collectRscContent(rscHeadless.stream, handlerOptions.route),
-    ]);
+    const { stream: rscStream, metrics: rscMetrics } = await collectRscContent(rscHeadless.stream, handlerOptions);
+    const { stream: htmlStream, metrics: htmlMetrics } = await collectHtmlContent(rscFull.stream, handlerOptions);
 
     // Update metrics
-    metrics.htmlSizes.set(handlerOptions.route, htmlContent.content.length);
-    metrics.rscSizes.set(handlerOptions.route, rscContent.content.length);
-    metrics.htmlSize = htmlContent.content.length;
-    metrics.rscSize = rscContent.content.length;
+    metrics.htmlSizes.set(handlerOptions.route, htmlMetrics.bytes);
+    metrics.rscSizes.set(handlerOptions.route, rscMetrics.bytes);
+    metrics.htmlSize = htmlMetrics.bytes;
+    metrics.rscSize = rscMetrics.bytes;
 
     // Combine metrics from both streams
     metrics.streamMetrics = {
-      ...htmlContent.metrics,
-      chunks: Math.max(htmlContent.metrics.chunks, rscContent.metrics.chunks),
-      bytes: Math.max(htmlContent.metrics.bytes, rscContent.metrics.bytes),
-      duration: Math.max(
-        htmlContent.metrics.duration,
-        rscContent.metrics.duration
-      ),
-      startTime: Math.min(
-        htmlContent.metrics.startTime,
-        rscContent.metrics.startTime
-      ),
+      ...htmlMetrics,
+      chunks: Math.max(htmlMetrics.chunks, rscMetrics.chunks),
+      bytes: Math.max(htmlMetrics.bytes, rscMetrics.bytes),
+      duration: Math.max(htmlMetrics.duration, rscMetrics.duration),
+      startTime: Math.min(htmlMetrics.startTime, rscMetrics.startTime),
     };
 
     metrics.totalChunks = metrics.streamMetrics.chunks;
@@ -163,38 +155,16 @@ export async function* renderPage(
     if (handlerOptions.onMetrics) {
       handlerOptions.onMetrics(metrics);
     }
-    // Emit file write events if handler exists
-    if (handlerOptions.onEvent) {
-      handlerOptions.onEvent({
-        type: "file.write",
-        data: {
-          route: handlerOptions.route,
-          fileType: "html",
-          content: htmlContent.content,
-          onComplete: async () => {},
-        },
-      });
-
-      handlerOptions.onEvent({
-        type: "file.write",
-        data: {
-          route: handlerOptions.route,
-          fileType: "rsc",
-          content: rscContent.content,
-          onComplete: async () => {},
-        },
-      });
-    }
 
     yield {
       type: "success",
-      html: htmlContent.content,
-      rsc: rscContent.content,
+      html: htmlStream,
+      rsc: rscStream,
       metrics: {
-        rscFull: htmlContent.metrics,
-        rscHeadless: rscContent.metrics,
+        rscFull: htmlMetrics,
+        rscHeadless: rscMetrics,
       },
-    };
+    } as const;
   } catch (err) {
     yield {
       type: "error",

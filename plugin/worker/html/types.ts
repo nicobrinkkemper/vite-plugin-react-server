@@ -12,7 +12,6 @@ export interface HtmlWorkerRenderState {
   rscStream: PassThrough;
   metrics: StreamMetrics;
   isReady: boolean;
-  pendingChunks: Buffer[];
   htmlTransform: Transform;
   stream: ReactDOMServer.PipeableStream;
   abort?: () => void;

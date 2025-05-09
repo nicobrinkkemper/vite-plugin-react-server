@@ -19,7 +19,9 @@ import type React from "react";
 import type { PassThrough, Transform } from "stream";
 import type { MessagePort } from "node:worker_threads";
 import type { PropsWithChildren } from "react";
-type OnEvent = (event: PluginEvent) => void;
+import { Readable } from "node:stream";
+
+export type OnEvent = (event: PluginEvent) => void;
 
 export type Serializable =
   | string
@@ -50,8 +52,8 @@ export type RenderPageResult =
     }
   | {
       type: "success";
-      html: string;
-      rsc: string;
+      html: PassThrough;
+      rsc: PassThrough;
       metrics: {
         rscFull: StreamMetrics;
         rscHeadless: StreamMetrics;
@@ -65,13 +67,10 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
   inputs: Record<string, string>;
   staticManifest: Manifest;
 };
-export interface FileWriterOptions {
-  outDir: string;
-  fileType: "html" | "rsc";
-  htmlOutputRoot: string;
-  htmlOutputPath: string;
-  onEvent?: OnEvent;
-}
+export type FileWriterOptions = Pick<
+  CreateHandlerOptions,
+  "onEvent" | "route" | "build" | "htmlOutputPath" | "rscOutputPath"
+>;
 
 // Input can be a string path, React component, tuple, or array
 export type NormalizerInput = unknown;
@@ -368,6 +367,14 @@ export interface StreamPluginOptions<
   normalizer?: InputNormalizer;
 }
 
+export type MultiPageHandlerOptions = Omit<
+  CreateHandlerOptions,
+  "pagePath" | "route" | "cssFiles" | "propsPath" | "pageProps" | "PageComponent"
+> & {
+  htmlOutputPath: string;
+  rscOutputPath: string;
+};
+
 export type CreateHandlerOptions<
   T = unknown,
   C extends React.ComponentType<T> = React.ComponentType<T>,
@@ -601,32 +608,6 @@ export interface PageAsset {
   parentUrl: string;
 }
 
-export interface PageData {
-  route: string;
-  clientComponents?: string[];
-  html: {
-    raw: string;
-    transformed: string;
-    assets: string[];
-  };
-  rsc: {
-    modules: string[];
-    content: string;
-  };
-  htmlComplete: boolean;
-  rscComplete: boolean;
-  cssFiles: Map<string, CssContent>;
-  usedClasses: Set<string>;
-  projectRoot: string;
-  moduleBase: string;
-  moduleBaseURL: string;
-  moduleBasePath: string;
-  moduleRootPath: string;
-  rscOutputPath: string;
-  htmlOutputPath: string;
-  Page: React.ComponentType;
-  props: unknown;
-}
 
 type BaseCssProps = {
   as: string;
@@ -743,8 +724,8 @@ export type RenderPagesResult =
       results: Map<
         string,
         {
-          html: string;
-          rsc: string;
+          html: PassThrough;
+          rsc: PassThrough;
           metrics: {
             rscFull: StreamMetrics;
             rscHeadless: StreamMetrics;
@@ -763,8 +744,8 @@ export type RenderPagesResult =
       results: Map<
         string,
         {
-          html: string;
-          rsc: string;
+          html: PassThrough;
+          rsc: PassThrough;
           metrics: {
             rscFull: StreamMetrics;
             rscHeadless: StreamMetrics;
@@ -798,9 +779,9 @@ export type CreateHandlerResult =
 export type FileWriteEvent = {
   type: "file.write";
   data: {
-    route: string;
-    fileType: "html" | "rsc";
-    content: string;
+    path: string;
+    content?: string;
+    stream?: Readable;
     onComplete: () => Promise<void>;
   };
 };

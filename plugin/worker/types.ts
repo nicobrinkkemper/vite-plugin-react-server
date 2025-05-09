@@ -108,7 +108,6 @@ export type RscChunkOutputMessage = WorkerMessage & {
 export interface RscEndMessage extends WorkerMessage {
   type: "RSC_END";
   id: string;
-  content: Buffer[];
 }
 
 export interface RscMetricsMessage extends WorkerMessage {
@@ -190,6 +189,10 @@ export type HtmlWorkerInputMessage =
       moduleRootPath: string;
       moduleBaseURL: string;
       projectRoot: string;
+      rscOutputPath: string;
+      htmlOutputPath: string;
+      cssFiles:  Map<string, CssContent>;
+      pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
     };
 
 

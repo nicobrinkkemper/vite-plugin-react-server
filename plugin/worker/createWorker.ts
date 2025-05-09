@@ -102,6 +102,7 @@ export async function createWorker(
 
     const env = {
       ...process.env,
+      BASE_URL: '/',
       VITE_DEV: mode === 'development' ? '1' : '0',
       VITE_MODE: mode,
       VITE_PROD: mode === 'production' ? '1' : '0',
@@ -127,7 +128,7 @@ export async function createWorker(
       env,
       resourceLimits,
       workerData,
-      transferList
+      transferList,
     });
 
     worker.setMaxListeners(maxListeners);

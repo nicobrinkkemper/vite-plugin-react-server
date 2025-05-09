@@ -11,10 +11,18 @@ export function CssCollector({
   cssFiles = new Map(),
   as: As = React.Fragment,
 }: Pick<CssCollectorProps, "children" | "cssFiles" | "as">) {
+  if (As === React.Fragment) {
+    return (
+      <>
+        {children}
+        <CssCollectorElements cssFiles={cssFiles} />
+      </>
+    );
+  }
   return (
-    <As>
-      {children}
+    <>
+      <As>{children}</As>
       <CssCollectorElements cssFiles={cssFiles} />
-    </As>
+    </>
   );
 }
