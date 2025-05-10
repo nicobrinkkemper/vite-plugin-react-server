@@ -3,6 +3,7 @@ import { vitePluginReactClient } from "../../dist/client";
 import { vitePluginReactServer } from "../../dist/plugin/plugin.server";
 import { PluginEvent, StreamPluginOptions } from "../../plugin/types";
 import { testUserOptions } from "../test-config";
+import { inspect } from "node:util";
 
 /**
  * Builds the project with the test config and given options and returns the events
@@ -17,7 +18,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
       ...testUserOptions,
       ...optionOverrides,
       onEvent: (event: PluginEvent) => {
-        console.log('Test Event received:', event.type);
+        console.log('Test Event:', inspect(event.type, { colors: true, depth: 0 }));
         events.push(event);
         if (optionOverrides?.onEvent) {
           optionOverrides.onEvent(event);

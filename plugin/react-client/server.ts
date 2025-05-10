@@ -267,6 +267,7 @@ export async function configureWorkerRequestHandler({
         build: serializedUserOptions.build,
         manifest: autoDiscoveredFiles.staticManifest,
         cssFiles: new Map(),
+        globalCss: new Map(),
       });
 
       // Pipe the stream to the response

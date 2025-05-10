@@ -71,9 +71,7 @@ export async function fileWriter(
         route: options.route,
         stream: stream,
         path: outputPath,
-        onComplete: async () => {
-          console.log(`[RSC] Wrote ${fileType.toUpperCase()} file to ${options.route}`);
-        },
+        onComplete: async () => {},
       },
     });
   }

@@ -439,6 +439,7 @@ export type CreateHandlerOptions<
   worker?: any;
   importedCss?: Set<string>;
   cssFiles: Map<string, CssContent>;
+  globalCss: Map<string, CssContent>;
   build: Pick<
     ResolvedUserOptions["build"],
     "outDir" | "pages" | "server" | "static" | "client" | "rscOutputPath" | "htmlOutputPath"
@@ -628,6 +629,7 @@ export type HtmlProps = {
   moduleBasePath: string;
   moduleRootPath: string;
   cssFiles: Map<string, CssContent>;
+  globalCss: Map<string, CssContent>;
   manifest: Manifest;
   CssCollector: React.FC<React.PropsWithChildren<CssCollectorProps>>;
 };

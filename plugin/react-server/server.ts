@@ -112,6 +112,7 @@ export async function configureReactServer({
         cssFiles: cssFilesResult.cssFiles ?? new Map(),
         // explicitly set to empty string, because we let vite handle the resolving during development
         moduleBaseURL: "",
+        globalCss: new Map(),
       });
       if (rscResult.type === "success") {
         rscResult.stream!.pipe(res);

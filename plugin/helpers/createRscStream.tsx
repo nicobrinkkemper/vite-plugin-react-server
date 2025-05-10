@@ -14,6 +14,7 @@ export function createRscStream<
   moduleBasePath,
   moduleBaseURL,
   cssFiles = new Map(),
+  globalCss = new Map(),
   route,
   pipeableStreamOptions,
   CssCollector,
@@ -33,6 +34,7 @@ export function createRscStream<
   | "route"
   | "pipeableStreamOptions"
   | "CssCollector"
+  | "globalCss"
   | "manifest"
   | "projectRoot"
 > & {
@@ -79,6 +81,7 @@ export function createRscStream<
       route={route}
       pageProps={pageProps}
       cssFiles={cssFiles}
+      globalCss={globalCss}
       CssCollector={CssCollector}
       manifest={manifest}
     >

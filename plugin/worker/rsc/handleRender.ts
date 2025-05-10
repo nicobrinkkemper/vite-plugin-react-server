@@ -60,7 +60,8 @@ export async function handleRender(
     moduleBasePath = workerData.moduleBasePath,
     moduleBase = workerData.moduleBase,
     pipeableStreamOptions = workerData.pipeableStreamOptions,
-    cssFiles: messageCssFiles = cssFiles,
+    cssFiles: messageCssFiles,
+    globalCss = workerData.globalCss,
   } = msg;
 
   try {
@@ -111,6 +112,7 @@ export async function handleRender(
       route,
       // this is a stateful object, which at this point we assume contains all the css files
       cssFiles,
+      globalCss,
       onEvent: adaptedOnEvent,
       pipeableStreamOptions: pipeableStreamOptions,
     });

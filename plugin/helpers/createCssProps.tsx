@@ -51,7 +51,7 @@ export const createCssProps = ({
       as: "style",
       children: code.trim(),
       ...(process.env["NODE_ENV"] !== "production" ? {
-        "data-vite-dev-id": join(moduleRootPath, normalizedId),
+        "data-vite-dev-id": join(projectRoot, moduleRootPath, normalizedId),
       } : {}),
     } as CssContent<true>;
   }

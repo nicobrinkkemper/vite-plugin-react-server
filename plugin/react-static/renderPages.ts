@@ -17,7 +17,7 @@ import type { StreamMetrics, RenderPagesResult, AutoDiscoveredFiles, CssContent,
 export async function* renderPages(
   autoDiscoveredFiles: AutoDiscoveredFiles,
   handlerOptions: MultiPageHandlerOptions,
-  cssFilesByPage: Map<string, Map<string, CssContent>>
+  cssFilesByPage: Map<string, Map<string, CssContent>>,
 ): AsyncGenerator<RenderPagesResult, RenderPagesResult, unknown> {
   const routes = Array.from(autoDiscoveredFiles.urlMap.keys());
   const completedRoutes = new Set<string>();

@@ -33,6 +33,7 @@ import type {
   PluginEvent,
   RenderPagesResult,
   AutoDiscoveredFiles,
+  CssContent,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
@@ -56,7 +57,6 @@ if (getCondition() !== "react-server") {
 }
 
 let worker: Worker;
-let cwd: string;
 let userConfig: ResolvedUserConfig;
 let resolvedConfig: ResolvedConfig;
 let userOptions: ResolvedUserOptions;
@@ -79,7 +79,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     throw resolvedOptions.error;
   }
   userOptions = resolvedOptions.userOptions;
-  cwd = process.cwd();
 
   return {
     name: "vite:plugin-react-server/static",
@@ -89,10 +88,8 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async config(config, configEnv) {
-      if (config.root && config.root !== cwd) {
-        throw new Error(
-          "[RSC] Project root must match current working directory"
-        );
+      if (config.root && config.root !== userOptions.projectRoot) {
+        userOptions.projectRoot = config.root;
       }
 
       const autoDiscoverResult = await resolveAutoDiscover({
@@ -190,6 +187,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           userOptions
         );
 
+        const globalCss: Map<string, CssContent> = new Map();
         // Collect CSS files for each page and its props
         for (const [url, { page, props }] of autoDiscoveredFiles?.urlMap ??
           []) {
@@ -200,7 +198,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           );
 
           // Create a map for this page's CSS files
-          const pageCssMap = new Map();
+          const pageCssMap: Map<string, CssContent> = new Map();
 
           // Add global styles if they exist
           if (Object.keys(globalCssInputs).length > 0) {
@@ -212,7 +210,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
                 throw new Error(`CSS content is undefined for ${value}`);
               }
               if (cssContent) {
-                pageCssMap.set(
+                globalCss.set(
                   value,
                   createCssProps({
                     id: value,
@@ -294,7 +292,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           if (workerResult.type === "error") {
             throw workerResult.error;
           } else if (workerResult.type === "skip") {
-            console.info("[RSC] Worker not created, skipping static build");
+            this.environment.logger.info("Worker not created, skipping static build");
             return;
           } else {
             worker = workerResult.worker;
@@ -329,8 +327,9 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
               static: userOptions.build.static,
               client: userOptions.build.client,
             },
+            globalCss: globalCss,
           },
-          cssFilesByPage
+          cssFilesByPage,
         );
 
         // Process render results
@@ -346,11 +345,10 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           throw new Error("No render result produced");
         }
         finalResult.streamMetrics.duration = Math.round(performance.now() - finalResult.streamMetrics.startTime);
-        console.log(
-          `Rendered ${finalResult.completedRoutes.size} unique routes in ${
-            finalResult.streamMetrics.duration
-          }ms`
-        );
+        
+      this.environment.logger.info(`Rendered ${finalResult.completedRoutes.size} unique routes in ${
+        finalResult.streamMetrics.duration
+      }ms`);
 
         // Update timing
         timing.render = Date.now() - (timing.renderStart ?? timing.start);
