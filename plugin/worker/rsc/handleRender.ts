@@ -60,8 +60,6 @@ export async function handleRender(
     moduleBasePath = workerData.moduleBasePath,
     moduleBase = workerData.moduleBase,
     pipeableStreamOptions = workerData.pipeableStreamOptions,
-    rscOutputPath = workerData.rscOutputPath,
-    htmlOutputPath = workerData.htmlOutputPath,
     cssFiles: messageCssFiles = cssFiles,
   } = msg;
 
@@ -109,8 +107,6 @@ export async function handleRender(
       moduleRootPath,
       moduleBasePath,
       moduleBaseURL,
-      rscOutputPath,
-      htmlOutputPath,
       manifest: {},
       route,
       // this is a stateful object, which at this point we assume contains all the css files

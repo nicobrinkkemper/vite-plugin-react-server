@@ -29,8 +29,6 @@ export function createRscStream<
   | "moduleRootPath"
   | "moduleBasePath"
   | "moduleBaseURL"
-  | "rscOutputPath"
-  | "htmlOutputPath"
   | "cssFiles"
   | "route"
   | "pipeableStreamOptions"
@@ -42,7 +40,7 @@ export function createRscStream<
 }):
   | { type: "success"; stream: any; metrics: StreamMetrics }
   | { type: "error"; error: Error; metrics: StreamMetrics } {
-  const startTime = Date.now();
+  const startTime = performance.now()
   const htmlIsFragment = Html == React.Fragment;
   const url =
     moduleBaseURL !== "" ? new URL(route, moduleBaseURL).toString() : route;
@@ -110,7 +108,6 @@ export function createRscStream<
 
     // If we have a stream error, return it immediately
     if (streamError) {
-      console.error("streamError", streamError);
       return {
         type: "error",
         error: streamError,

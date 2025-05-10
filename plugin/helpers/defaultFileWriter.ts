@@ -19,10 +19,10 @@ export async function defaultFileWriter({
   
   // Create directory if it doesn't exist
   const dir = dirname(filePath);
-  await mkdir(dir, { recursive: true });
   
   if (stream) {
-    // Handle streaming write
+    await mkdir(dir, { recursive: true });
+
     const writeStream = createWriteStream(join(projectRoot, filePath));
     await new Promise<void>((resolve, reject) => {
       stream
@@ -31,8 +31,10 @@ export async function defaultFileWriter({
         .on("error", reject);
     });
   } else if (content) {
+    let str = typeof content === 'string' ? content : Buffer.from(content).toString('utf-8');
     // Handle string content write
-    await writeFile(join(projectRoot, filePath), content, 'utf-8');
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(projectRoot, filePath), str, 'utf-8');
   } else {
     throw new Error('Neither content nor stream provided for file write');
   }

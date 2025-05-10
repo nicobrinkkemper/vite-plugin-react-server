@@ -325,7 +325,9 @@ export const resolveOptions = <
       getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0]))),
       ssr
     );
-  };
+  }; 
+  const rscOutputPath = options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath;
+  const htmlOutputPath = options.build?.htmlOutputPath ?? DEFAULT_CONFIG.BUILD.htmlOutputPath;
 
   // Build configuration object
   const build = {
@@ -338,6 +340,8 @@ export const resolveOptions = <
     api,
     hash: hashOption,
     preserveModulesRoot,
+    rscOutputPath,
+    htmlOutputPath,
     entryFile:
       typeof options.build?.entryFile === "function"
         ? options.build.entryFile

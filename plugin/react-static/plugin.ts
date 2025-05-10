@@ -314,25 +314,31 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
               if (userOptions.onEvent) {
                 userOptions.onEvent(event);
               }
-              console.log("event", event);
-              if (event.type === "file.write") {
-                return defaultFileWriter({
-                  event,
-                  projectRoot: userOptions.projectRoot,
-                });
+              switch (event.type) {
+                case "file.write":
+                  return defaultFileWriter({
+                    event,
+                    projectRoot: userOptions.projectRoot,
+                  });
+                case "route.process":
+                  break;
+                case "route.error":
+                  break;
+                case "route.postpone":
+                  break;
               }
             },
             pipeableStreamOptions: pipeableStreamOptions,
             manifest: serverManifest ?? {},
             build: {
+              htmlOutputPath: userOptions.build.htmlOutputPath,
+              rscOutputPath: userOptions.build.rscOutputPath,
               outDir: userOptions.build.outDir,
               pages: userOptions.build.pages,
               server: userOptions.build.server,
               static: userOptions.build.static,
               client: userOptions.build.client,
             },
-            htmlOutputPath: "index.html",
-            rscOutputPath: "index.rsc",
           },
           cssFilesByPage
         );
@@ -349,11 +355,21 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         if (!finalResult) {
           throw new Error("No render result produced");
         }
+        finalResult.streamMetrics.duration = Math.round(performance.now() - finalResult.streamMetrics.startTime);
+        console.log(
+          `Rendered ${finalResult.completedRoutes.size} unique routes in ${
+            finalResult.streamMetrics.duration
+          }ms`
+        );
 
         // Update timing
         timing.render = Date.now() - (timing.renderStart ?? timing.start);
+      } catch (error) {
+        throw error;
+      }
 
-        // Cleanup
+      // Cleanup
+      try {
         worker.postMessage({ type: "SHUTDOWN", id: "*" });
         await new Promise<void>((resolve, reject) => {
           const shutdownHandler = (msg: any) => {
@@ -372,7 +388,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           worker.on("message", shutdownHandler);
         });
       } catch (error) {
-        console.trace(error);
+        throw error;
       }
     },
   } as const;

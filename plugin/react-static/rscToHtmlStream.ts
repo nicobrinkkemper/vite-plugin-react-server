@@ -24,12 +24,9 @@ export type RscToHtmlOptions = Pick<
   | "route"
   | "moduleRootPath"
   | "moduleBaseURL"
-  | "htmlOutputPath"
   | "pipeableStreamOptions"
   | "build"
-  | "rscOutputPath"
   | "cssFiles"
-  | "rscOutputPath"
   | "projectRoot"
 >;
 
@@ -79,8 +76,6 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
     // replace server with client
     moduleRootPath: options.moduleRootPath,
     moduleBaseURL: options.moduleBaseURL,
-    rscOutputPath: options.rscOutputPath,
-    htmlOutputPath: options.htmlOutputPath,
     cssFiles: options.cssFiles,
     pipeableStreamOptions: options.pipeableStreamOptions,
     projectRoot: options.projectRoot,

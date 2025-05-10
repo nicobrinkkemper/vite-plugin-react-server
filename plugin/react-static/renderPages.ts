@@ -51,8 +51,6 @@ export async function* renderPages(
         pagePath: page,
         propsPath: props,
         cssFiles: cssFilesByPage.get(route) ?? new Map(),
-        htmlOutputPath: `${route}/index.html`,
-        rscOutputPath: `${route}/index.rsc`,
       });
 
       for await (const result of pageRenderer) {
@@ -68,7 +66,6 @@ export async function* renderPages(
             completedRoutes,
             htmlSizes: baseMetrics.htmlSizes,
             rscSizes: baseMetrics.rscSizes,
-            totalChunks: baseMetrics.totalChunks,
             streamMetrics: baseMetrics.streamMetrics,
             results,
           } as const;
@@ -86,7 +83,6 @@ export async function* renderPages(
           // Update metrics
           baseMetrics.htmlSizes.set(route, result.metrics.rscFull.bytes);
           baseMetrics.rscSizes.set(route, result.metrics.rscHeadless.bytes);
-          baseMetrics.totalChunks += result.metrics.rscFull.chunks;
           baseMetrics.streamMetrics = {
             ...baseMetrics.streamMetrics,
             chunks: Math.max(
@@ -112,7 +108,6 @@ export async function* renderPages(
             completedRoutes,
             htmlSizes: baseMetrics.htmlSizes,
             rscSizes: baseMetrics.rscSizes,
-            totalChunks: baseMetrics.totalChunks,
             streamMetrics: baseMetrics.streamMetrics,
             results,
           } as const;
@@ -128,7 +123,6 @@ export async function* renderPages(
         completedRoutes,
         htmlSizes: baseMetrics.htmlSizes,
         rscSizes: baseMetrics.rscSizes,
-        totalChunks: baseMetrics.totalChunks,
         streamMetrics: baseMetrics.streamMetrics,
         results,
       } as const;
@@ -143,24 +137,10 @@ export async function* renderPages(
       completedRoutes,
       htmlSizes: baseMetrics.htmlSizes,
       rscSizes: baseMetrics.rscSizes,
-      totalChunks: baseMetrics.totalChunks,
       streamMetrics: baseMetrics.streamMetrics,
       results,
     } as const;
   }
-
-  // Update final metrics
-  baseMetrics.processingTime = Date.now() - baseMetrics.streamMetrics.startTime;
-  baseMetrics.htmlSize = Array.from(baseMetrics.htmlSizes.values()).reduce(
-    (sum, size) => sum + size,
-    0
-  );
-  baseMetrics.rscSize = Array.from(baseMetrics.rscSizes.values()).reduce(
-    (sum, size) => sum + size,
-    0
-  );
-  baseMetrics.chunkRate =
-    baseMetrics.totalChunks / (baseMetrics.processingTime / 1000);
 
   return {
     type: "success",
@@ -168,7 +148,6 @@ export async function* renderPages(
     failedRoutes: undefined,
     htmlSizes: baseMetrics.htmlSizes,
     rscSizes: baseMetrics.rscSizes,
-    totalChunks: baseMetrics.totalChunks,
     streamMetrics: baseMetrics.streamMetrics,
     results,
   } as const;

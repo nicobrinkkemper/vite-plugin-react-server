@@ -39,7 +39,7 @@ export async function fileWriter(
     options.build.outDir,
     options.build.static,
     options.route,
-    fileType === "html" ? options.htmlOutputPath : options.rscOutputPath
+    fileType === "html" ? options.build.htmlOutputPath : options.build.rscOutputPath
   );
 
   // Ensure directory exists

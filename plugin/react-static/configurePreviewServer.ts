@@ -22,7 +22,7 @@ export async function configurePreviewServer({
     // handle index.html
     const isHtml = userOptions.autoDiscover.htmlPattern(value)
     if (isHtml || req.headers.accept?.includes("text/html")) {
-      const indexHtml = isHtml ? join(staticHostDir, value) : join(staticHostDir, value, "index.html");
+      const indexHtml = isHtml ? join(staticHostDir, value) : join(staticHostDir, value, userOptions.build.htmlOutputPath);
       try {
         const stats = await stat(indexHtml);
         if (stats.isFile()) {
@@ -36,7 +36,7 @@ export async function configurePreviewServer({
     } 
     const isRsc = userOptions.autoDiscover.rscPattern(value)
     if (isRsc || req.headers.accept?.includes("text/x-component")) {
-      const rsc = isRsc ? join(staticHostDir, value) : join(staticHostDir, value, "index.rsc");
+      const rsc = isRsc ? join(staticHostDir, value) : join(staticHostDir, value, userOptions.build.rscOutputPath);
       try {
         const stats = await stat(rsc);
         if (stats.isFile()) {

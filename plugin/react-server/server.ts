@@ -41,7 +41,7 @@ export async function configureReactServer({
   server.middlewares.use(async (req, res, next) => {
     try {
       if (req.headers.accept !== "text/x-component") return next();
-      let route = req.url?.replace("/index.rsc", "");
+      let route = req.url?.replace('/'+userOptions.build.rscOutputPath, "");
       if (!route || route === "") {
         route = "/";
       }
@@ -106,10 +106,6 @@ export async function configureReactServer({
         onEvent: eventHandler,
         manifest: serverManifest,
         worker: server as any,
-        htmlOutputPath: "index.html",
-        htmlOutputRoot: userOptions.build.static,
-        rscOutputPath: "index.rsc",
-        rscOutputRoot: userOptions.build.static,
         route,
         pagePath,
         propsPath,

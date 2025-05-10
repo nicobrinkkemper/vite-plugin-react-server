@@ -189,8 +189,6 @@ export type HtmlWorkerInputMessage =
       moduleRootPath: string;
       moduleBaseURL: string;
       projectRoot: string;
-      rscOutputPath: string;
-      htmlOutputPath: string;
       cssFiles:  Map<string, CssContent>;
       pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
     };
@@ -321,8 +319,6 @@ export interface WorkerRscChunkMessage extends WorkerMessage {
   chunk: ArrayBufferLike;
   moduleRootPath: string;
   moduleBaseURL: string;
-  outDir: string;
-  htmlOutputPath: string;
   pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
 }
 

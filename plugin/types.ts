@@ -69,7 +69,7 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
 };
 export type FileWriterOptions = Pick<
   CreateHandlerOptions,
-  "onEvent" | "route" | "build" | "htmlOutputPath" | "rscOutputPath"
+  "onEvent" | "route" | "build"
 >;
 
 // Input can be a string path, React component, tuple, or array
@@ -234,7 +234,6 @@ export interface RenderMetrics {
   streamMetrics: StreamMetrics;
   htmlSizes: Map<string, number>;
   rscSizes: Map<string, number>;
-  totalChunks: number;
 }
 
 export interface CssCollectorOptions {
@@ -370,10 +369,7 @@ export interface StreamPluginOptions<
 export type MultiPageHandlerOptions = Omit<
   CreateHandlerOptions,
   "pagePath" | "route" | "cssFiles" | "propsPath" | "pageProps" | "PageComponent"
-> & {
-  htmlOutputPath: string;
-  rscOutputPath: string;
-};
+>
 
 export type CreateHandlerOptions<
   T = unknown,
@@ -405,15 +401,11 @@ export type CreateHandlerOptions<
   route: string;
   manifest: Manifest;
   worker?: any;
-  htmlOutputPath: string;
-  htmlOutputRoot?: string;
-  rscOutputPath: string;
-  rscOutputRoot?: string;
   importedCss?: Set<string>;
   cssFiles: Map<string, CssContent>;
   build: Pick<
     ResolvedUserOptions["build"],
-    "outDir" | "pages" | "server" | "static" | "client"
+    "outDir" | "pages" | "server" | "static" | "client" | "rscOutputPath" | "htmlOutputPath"
   >;
 };
 
@@ -484,6 +476,8 @@ export interface BuildConfig {
   outDir?: string;
   hash?: string;
   preserveModulesRoot?: boolean;
+  rscOutputPath?: string; // defaults: `index.rsc`
+  htmlOutputPath?: string; // defaults: `index.html`
   entryFile?: (n: PreRenderedChunk, ssr: boolean) => string;
   chunkFile?: (n: PreRenderedChunk, ssr: boolean) => string;
   assetFile?: (n: PreRenderedAsset, ssr: boolean) => string;
@@ -719,7 +713,6 @@ export type RenderPagesResult =
       completedRoutes: Set<string>;
       htmlSizes: Map<string, number>;
       rscSizes: Map<string, number>;
-      totalChunks: number;
       streamMetrics: StreamMetrics;
       results: Map<
         string,
@@ -739,7 +732,6 @@ export type RenderPagesResult =
       failedRoutes?: never;
       htmlSizes: Map<string, number>;
       rscSizes: Map<string, number>;
-      totalChunks: number;
       streamMetrics: StreamMetrics;
       results: Map<
         string,

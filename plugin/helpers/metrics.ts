@@ -10,7 +10,7 @@ export function createStreamMetrics(): StreamMetrics {
     drainCount: 0,
     errorCount: 0,
     duration: 0,
-    startTime: Date.now()
+    startTime: performance.now()
   };
 }
 
@@ -26,7 +26,6 @@ export function createRenderMetrics(route: string): RenderMetrics {
     streamMetrics: createStreamMetrics(),
     htmlSizes: new Map(),
     rscSizes: new Map(),
-    totalChunks: 0
   };
 }
 
@@ -37,7 +36,7 @@ export function createRenderMetrics(route: string): RenderMetrics {
  */
 export function collectStreamMetrics(stream: PipeableStream | NodeJS.ReadableStream): Promise<StreamMetrics> {
   const metrics = createStreamMetrics();
-  const startTime = Date.now();
+  const startTime = performance.now()
 
   return new Promise<StreamMetrics>((resolve, reject) => {
     const transform = new Transform({

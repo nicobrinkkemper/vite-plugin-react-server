@@ -10,7 +10,6 @@
  */
 
 import { PassThrough, Transform } from "node:stream";
-import { createWriteStream } from "node:fs";
 import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
@@ -28,20 +27,18 @@ export async function collectRscContent(
   handlerOptions: CreateHandlerOptions
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   const metrics = createStreamMetrics();
-  const startTime = Date.now();
+  const startTime = performance.now()
 
   const outputPath = join(
     handlerOptions.build.outDir,
     handlerOptions.build.static,
-    handlerOptions.rscOutputPath
+    handlerOptions.route,
+    handlerOptions.build.rscOutputPath
   );
 
   const dir = dirname(outputPath);
   // Ensure directory exists
   await mkdir(join(handlerOptions.projectRoot, dir), { recursive: true });
-
-  // Create write stream
-  const writeStream = createWriteStream(outputPath);
 
   // Create transform to track metrics
   const metricsTransform = new Transform({
@@ -56,8 +53,36 @@ export async function collectRscContent(
     }
   });
 
-  // Pipe RSC stream to file with metrics tracking
-  rscStream.pipe(metricsTransform).pipe(writeStream);
+  // Create a promise that resolves when the stream is complete
+  const streamComplete = new Promise<void>((resolve, reject) => {
+    if (handlerOptions.onEvent) {
+      handlerOptions.onEvent({
+        type: "file.write",
+        data: {
+          path: outputPath,
+          stream: metricsTransform,
+          onComplete: async () => {
+            resolve();
+          }
+        }
+      });
+    } else {
+      resolve();
+    }
 
-  return { stream: rscStream, metrics };
+    metricsTransform.on('error', reject);
+  });
+
+  try {
+    // Pipe RSC stream through metrics tracking
+    rscStream.pipe(metricsTransform);
+
+    // Wait for stream to complete
+    await streamComplete;
+
+    return { stream: rscStream, metrics };
+  } catch (error) {
+    metricsTransform.destroy();
+    throw error;
+  }
 } 

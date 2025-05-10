@@ -30,7 +30,7 @@ export const DEFAULT_CONFIG = {
   PREVIEW_HOST: "localhost",
   ENV_PREFIX: "VITE_",
   BUILD: {
-    pages: () => ["/"],
+    pages: ["/"],
     client: "client",
     server: "server",
     static: "static",
@@ -38,6 +38,8 @@ export const DEFAULT_CONFIG = {
     outDir: "dist",
     assetsDir: "assets",
     hash: "hash",
+    rscOutputPath: "index.rsc",
+    htmlOutputPath: "index.html",
     preserveModulesRoot: true,
   },
   CSS: {

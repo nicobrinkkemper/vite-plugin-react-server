@@ -224,7 +224,7 @@ export async function configureWorkerRequestHandler({
         }
       }
 
-      let route = req.url?.replace("/index.rsc", "");
+      let route = req.url?.replace('/'+userOptions.build.rscOutputPath, "");
       if (!route || route === "") route = "/";
       // in the case of the no build.pages and a async Page and or props userOption, we need to await those
       // if they are already autoDiscovered then the promise will resolve immediately
@@ -266,16 +266,6 @@ export async function configureWorkerRequestHandler({
         moduleBasePath: "",
         build: serializedUserOptions.build,
         manifest: autoDiscoveredFiles.staticManifest,
-        htmlOutputPath: join(
-          server.config.root,
-          userOptions.build.outDir,
-          userOptions.build.static
-        ),
-        rscOutputPath: join(
-          server.config.root,
-          userOptions.build.outDir,
-          userOptions.build.server
-        ),
         cssFiles: new Map(),
       });
 
