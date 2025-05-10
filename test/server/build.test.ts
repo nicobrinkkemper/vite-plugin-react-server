@@ -1,60 +1,124 @@
-import { describe, it, expect,  beforeEach, afterEach } from 'vitest'
-import { build } from 'vite'
-import { resolve } from 'node:path'
-import { vitePluginReactServer } from '../../plugin/react-server/index.js'
-import { testUserOptions } from '../test-config.js'
-import { setupTestProject } from '../setup.js'
-import { vitePluginReactClient } from '../../plugin/react-client/index.js'
-import { readFile } from 'node:fs/promises'
-import { rmSync } from 'node:fs'
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { resolve } from "path";
+import { mkdir,  rm } from "fs/promises";
+import { setupTestProject } from "../setup.js";
+import type {
+  PluginEvent,
+  FileWriteDoneEvent,
+  RenderMetrics,
+} from "../../plugin/types.js";
+import { doBuild } from "./doBuild.js";
 
-describe('server build', async () => {
-  const testDir = resolve(__dirname, '../fixtures/test-project/') 
-
-  beforeEach(() => {
-    setupTestProject(testDir)
-  })
-  afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true })
-  })
-
-  it('builds client', async () => {
-    testUserOptions.projectRoot = testDir
+describe("Plugin build test", () => {
+  const testDir = resolve(__dirname, "../fixtures/build.test");
+  let events: PluginEvent[];
+  const metrics: RenderMetrics[] = [];
+  let htmlContent: string;
+  let rscContent: string;
+  beforeAll(async () => {
+    await mkdir(testDir, { recursive: true });
+    await setupTestProject(testDir);
+    events = await doBuild({
+      projectRoot: testDir,
+      onMetrics: (m) => {
+        metrics.push(m);
+      },
+      css: {
+        inlineThreshold: 10,
+      }
+    });
     
-    // Change to test directory before building
-    const originalCwd = process.cwd()
-    process.chdir(testDir)
+    // Get HTML content from file.write.done event
+    const htmlDoneEvent = events.find(
+      (e) =>
+        e.type === "file.write.done" &&
+        e.data.fileType === "html" &&
+        e.data.route === '/'
+    ) as FileWriteDoneEvent;
     
-    await build({
-      plugins: [
-        vitePluginReactClient(testUserOptions)
-      ]
-    }) as any
+    if (htmlDoneEvent) {
+      htmlContent = htmlDoneEvent.data.content;
+    }
 
-    await build({
-      plugins: [
-        vitePluginReactServer(testUserOptions)
-      ]
-    }) as any
-
-    // Verify static build output
-    const staticDir = resolve(testDir, 'dist/static')
-    const htmlContent = await readFile(resolve(staticDir, 'index.html'), 'utf-8')
-    const rscContent = await readFile(resolve(staticDir, 'index.rsc'), 'utf-8')
-
-    // Check that HTML includes the client entry script
-    expect(htmlContent).toContain('index')
+    // Get RSC content from file.write.done event
+    const rscDoneEvent = events.find(
+      (e) =>
+        e.type === "file.write.done" &&
+        e.data.fileType === "rsc" &&
+        e.data.route === '/'
+    ) as FileWriteDoneEvent;
     
-    // Check that HTML includes the CSS module
-    expect(htmlContent).toContain('test.module')
-    
-    // Check that the page content is rendered
-    expect(htmlContent).toContain('Page')
+    if (rscDoneEvent) {
+      rscContent = rscDoneEvent.data.content;
+    }
+  });
 
-    // Since we are in test mode we will see the stack containing the CssCollector, in production such details are not included
-    expect(rscContent).toContain('CssCollector')
+  afterAll(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
 
-    // Restore original working directory
-    process.chdir(originalCwd)
-  }, 20000)
-}) 
+  it("emits build events", async () => {
+    // Verify build.start comes first
+    expect(events[0].type).toBe("build.start");
+  });
+
+  it("emits build events in order", async () => {
+    // Verify event order
+    const eventOrder = events.map((e) => e.type);
+    expect(eventOrder).toEqual(
+      expect.arrayContaining([
+        "build.start",
+        "build.writeBundle",
+        "file.write",
+        "file.write.done",
+        "file.write",
+        "file.write.done",
+      ])
+    );
+  });
+
+  it("emits build.start event with auto discovered files", async () => {
+    const buildStartEvent = events.find((e) => e.type === "build.start");
+    expect(buildStartEvent).toBeDefined();
+    expect(buildStartEvent?.data).toMatchObject({
+      pages: expect.arrayContaining(["/"]),
+      files: expect.objectContaining({
+        pageMap: expect.any(Map),
+        propsMap: expect.any(Map),
+        urlMap: expect.any(Map),
+      }),
+    });
+  });
+
+  it("emits file.write events for html and rsc files", async () => {
+    expect(htmlContent).toBeDefined();
+    expect(rscContent).toBeDefined();
+    // Verify HTML content
+    expect(htmlContent).toContain("<html");
+    expect(htmlContent).toContain("<div");
+    expect(htmlContent).toContain("Page");
+
+    // Verify RSC content
+    expect(rscContent).toBeTruthy();
+  });
+
+  it("should collect basic metrics", async () => {
+    expect(metrics.length).toBe(1);
+
+    // Check metrics for each route
+    for (const metric of metrics) {
+      expect(metric.route).toBeDefined();
+      expect(metric.htmlSize).toBeGreaterThan(0);
+      expect(metric.rscSize).toBeGreaterThan(0);
+      expect(metric.processingTime).toBeGreaterThan(0);
+      expect(metric.chunks).toBeGreaterThan(0);
+      expect(metric.chunkRate).toBeGreaterThan(0);
+
+      // Compare content lengths with metrics
+      const htmlLength = htmlContent?.length ?? 0;
+      const rscLength = rscContent?.length ?? 0;
+      expect(htmlLength).toBe(metric.htmlSize);
+      expect(rscLength).toBe(metric.rscSize);
+    }
+  });
+});

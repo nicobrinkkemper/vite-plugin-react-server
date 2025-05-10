@@ -1,7 +1,22 @@
+import { join } from "node:path";
 import { messageHandler } from "./messageHandler.js";
-import { parentPort } from "node:worker_threads";
+import { MessageChannel, parentPort } from "node:worker_threads";
+import { pluginRoot } from "../../root.js";
+import { register } from "node:module";
 
-if (!parentPort) throw new Error("This module must be run as a worker");
+// Create channels for each loader
+const cssLoaderChannel = new MessageChannel();
+
+cssLoaderChannel.port2.on("message", messageHandler);
+
+const cssLoaderPath = "file://" + join(pluginRoot, "loader/css-loader.production.js");
+
+register(cssLoaderPath, {
+  parentURL: pluginRoot,
+  data: { port: cssLoaderChannel.port1 },
+  transferList: [cssLoaderChannel.port1],
+});
+
 
 // Signal ready with environment
 parentPort?.on("message", messageHandler);
@@ -10,7 +25,3 @@ parentPort?.postMessage({
   env: process.env["NODE_ENV"],
   pid: process.pid,
 });
-
-if (process.env["NODE_ENV"] !== "production") {
-  throw new Error("This module must be run in development mode");
-}

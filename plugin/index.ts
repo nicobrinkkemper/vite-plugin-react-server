@@ -1,2 +1,5 @@
-export * from './plugin.js';
-export type * from './types.js';
+import { getCondition } from './config/getCondition.js';
+
+const condition = getCondition('');
+
+export const { vitePluginReactServer } = await import(`./plugin.${condition}.js`);

@@ -11,9 +11,3 @@ export const getMode = (): "production" | "development" | "test" => {
       ? "test" 
       : "production";
 }
-
-export const getDistDir = (mode: "production" | "development" | "test"): string => {
-  return mode === 'production' 
-    ? join(process.cwd(), 'dist') 
-    : join(process.cwd(), 'test/fixtures/dist');
-} 

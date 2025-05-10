@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -22,12 +22,11 @@
     "./static": "./dist/static.js",
     "./html-worker": "./dist/plugin/worker/html-worker.js",
     "./rsc-worker": "./dist/plugin/worker/rsc-worker.js",
-    "./loader": "./dist/plugin/worker/loader.js",
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
-    "./css-loader": "./dist/plugin/loader/css-loader.js",
-    "./components": "./dist/plugin/components.js"
+    "./components": "./dist/plugin/components.js",
+    "./types": "./dist/plugin/types.js"
   },
   "typesVersions": {
     "*": {
@@ -65,12 +64,22 @@
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build",
     "lint": "eslint ./src --fix",
-    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
-    "test:client": "vitest run",
-    "test": "npm run build && npm run test:client && NODE_ENV=development npm run test:server",
-    "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui",
-    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental && npm install react-server-dom-esm",
+    "setup:test-fixtures": "npx tsx test/setup.ts",
+    "test:server": "npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run",
+    "test:client": "npm run setup:test-fixtures && vitest run",
+    "test:build": "npm run setup:test-fixtures && npm test test/server/build.test.ts",
+    "test:llm": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
+    "test:streams": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/renderStreams.test.ts -no-watch",
+    "test:renders": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/renderPages.test.ts -no-watch",
+    "test:html-worker": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/rscToHtmlStream.test.ts -no-watch",
+    "test:large-html": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/large-html.test.ts --reporter=verbose -no-watch",
+    "test:metrics": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/metrics.test.ts --reporter=verbose -no-watch",
+    "test:hooks": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/hooks.test.ts --reporter=verbose -no-watch",
+    "test:inline-css": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/inline-css.test.ts --reporter=verbose -no-watch",
+    "test": "npm run build && npm run setup:test-fixtures && npm run test:client && NODE_ENV=development npm run test:server",
+    "test:coverage": "npm run setup:test-fixtures && vitest run --coverage",
+    "test:ui": "npm run setup:test-fixtures && vitest --ui",
+    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
     "experimental:move-patches": "mv patches/* ./scripts/",
@@ -99,8 +108,9 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^0.0.0-experimental-6aa8254b-20250312",
-    "react-dom": "^0.0.0-experimental-6aa8254b-20250312",
+    "react": "^0.0.0-experimental-0ff1d13b-20250507",
+    "react-dom": "^0.0.0-experimental-0ff1d13b-20250507",
+    "react-server-dom-esm": "^0.0.1",
     "vite": "*"
   },
   "peerDependenciesMeta": {
@@ -120,7 +130,6 @@
     "acorn-loose": "^8.3.0",
     "happy-dom": "^17.1.8",
     "patch-package": "^8.0.0",
-    "react-server-dom-esm": "^0.0.1",
     "rollup": "^4.34.0",
     "source-map": "^0.7.4",
     "ts-node": "^10.9.2",
@@ -134,5 +143,6 @@
   "bin": {
     "check-react-version": "./scripts/check-react-version.mjs",
     "patch": "./bin/patch.mjs"
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

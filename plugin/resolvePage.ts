@@ -1,74 +1,84 @@
-import { stashedPages } from "./config/resolvePages.js";
 
-type ResolvePageOptions = {
-  pageModule: Record<string, any>;
-  path: string;
-  url: string;
-  exportName: string;
+type ResolvePageOptions<N extends string> = {
+  id: string;
+  exportName: N;
+  loader: (id: string) => Promise<any>;
 };
 
-type ResolvePageResult =
-  | { type: "success"; key: string; Page: any }
+type ResolvePageResult<T, N extends string> =
+  | { type: "success"; Page: T; module: { [key in N]: T } }
   | { type: "error"; error: Error }
   | { type: "skip" };
 
-export async function resolvePage({
-  pageModule,
-  path,
-  url,
+/**
+ * Resolves a page component from a module.
+ *
+ * During development (ssrLoadModule):
+ * - Real modules have exports available directly on the module object
+ * - Virtual modules have exports stored in temporaryReferences
+ * 
+ * @param options.id - The module ID to resolve
+ * @param options.exportName - The name of the export to resolve (e.g. 'Page')
+ * @param options.loader - The loader function to use for loading the module
+ *
+ * @returns A result object containing:
+ *   - type: "success" | "error" | "skip"
+ *   - Page: The resolved page component if successful
+ *   - error: Error message if failed
+ */
+export const resolvePage = async <T, N extends string>({
+  id,
   exportName,
-}: ResolvePageOptions): Promise<ResolvePageResult> {
-  if(stashedPages.length > 0 && stashedPages.includes(path)){
-    return {
-      type: "success",
-      key: path,
-      Page: pageModule,
-    }
-  }
-  if (!pageModule) {
-    return {
-      type: "error",
-      error: new Error(`pageModule is ${typeof pageModule}`),
-    };
-  }
-  const keys =
-    typeof pageModule === "object" && pageModule != null
-      ? Object.keys(pageModule)
-      : [];
-  const found = keys.find((v) => v === exportName || v === url || v === path);
-  if (found) {
-    if (typeof pageModule[found] === "function") {
+  loader,
+}: ResolvePageOptions<N>): Promise<ResolvePageResult<T, N>> => {
+  // Check if this is a stashed page that needs special handling
+  const pageLoadResult = await (async (): Promise<
+    | { type: "success"; key: string; module: { [key in N]: T } }
+    | { type: "error"; error: Error; module?: never }
+  > => {
+    try {
       return {
         type: "success",
-        key: found,
-        Page: pageModule[found],
+        key: id,
+        module: await loader(id),
       };
-    } else {
-      if (
-        typeof pageModule === "object" &&
-        pageModule != null &&
-        Object.keys(pageModule).includes("type")
-      )
-        return pageModule as ResolvePageResult;
+    } catch (error) {
       return {
         type: "error",
-        [exportName]: () => found,
-        error: pageModule[found]["error"],
+        error: error instanceof Error ? error : new Error(String(error)),
       };
     }
+  })();
+
+  if (pageLoadResult.type !== "success") {
+    return pageLoadResult;
   }
-  if (keys.includes("type")) return pageModule as ResolvePageResult;
+  const { module } = pageLoadResult;
+  const Page = module[exportName as N];
+  if (module instanceof Error) {
+    return {
+      type: "error",
+      error: module,
+    };
+  } else if (!(exportName in module)) {
+    return {
+      type: "error",
+      error: new Error(`Export ${exportName} not found in module ${id}`),
+    };
+  } else if (!Page) {
+    return {
+      type: "error",
+      error: new Error(`Export ${exportName} is null or undefined in module ${id}`),
+    };
+  } else if (Page instanceof Error) {
+    return {
+      type: "error",
+      error: Page,
+    };
+  }
   return {
-    type: "error",
-    error: new Error(
-      `Could not find Page export "${exportName}" in "${path}". ${
-        typeof pageModule === "object" && pageModule != null
-          ? keys.length
-            ? "Available exports: " + keys.join(", ")
-            : "The object was defined but has no properties. \"" + JSON.stringify(pageModule) + "\""
-          : "typeof pageModule =" + typeof pageModule
-      }`,
-      { cause: pageModule }
-    ),
+    type: "success",
+    Page,
+    module: module as { [key in N]: T },
   };
-}
+};

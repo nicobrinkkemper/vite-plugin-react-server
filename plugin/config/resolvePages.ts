@@ -1,12 +1,8 @@
 import type { ResolvedUserOptions } from '../types.js';
 
-export let stashedPages: string[] = [];
 export async function resolvePages(
   pages: ResolvedUserOptions["build"]["pages"]
 ): Promise<{ type: "success"; error?:never; pages: string[] } | { type: "error"; error: Error; pages?:never }> {
-  if(stashedPages.length > 0){
-    return { type: "success", pages: stashedPages };
-  }
   if (!pages) {
     return { type: "success", pages: [] };
   }
@@ -14,7 +10,11 @@ export async function resolvePages(
   try {
     // Handle function
     if (typeof pages === "function") {
-      return resolvePages(pages());
+      const result = pages();
+      if(result instanceof Promise) {
+        return resolvePages(await result);
+      }
+      return resolvePages(result);
     }
 
     // Handle Promise
@@ -24,14 +24,12 @@ export async function resolvePages(
 
     // Handle string
     if (typeof pages === "string") {
-      stashedPages = [pages];
       return { type: "success", pages: [pages] };
     }
 
     // Handle array
     if (Array.isArray(pages)) {
       if (pages.every(page => typeof page === "string")) {
-        stashedPages = pages;
         return { type: "success", pages };
       }
       throw new Error('All pages must be strings');

@@ -1,10 +1,13 @@
 {
   // when we extend a tsconfig.json file, it will merge and override the compilerOptions but not the arrays like lib, rootDirs, etc.
   "compilerOptions": {
+    // this file can work as a composite project
     "composite": true,
+    // this file can emit declarations
     "declaration": true,
+    // this file can emit declaration maps
     "declarationMap": true,
-    // idk whatever this does but strict sounds like a good idea. (https://www.typescriptlang.org/tsconfig/#strict)
+    // strict mode family checks https://www.typescriptlang.org/tsconfig/#strict
     "strict": true,
     // Should you want to just import a js file anyway. You can use type comments in a .js file like: /* @type {string} */
     "allowJs": true,
@@ -18,7 +21,6 @@
     "jsxFragmentFactory": "React.Fragment",
     // We force module detection to be sure that the module system is detected correctly.
     "moduleDetection": "force",
-    // To indicate that we are NOT going to be emitting files
     // This just means that when you write a switch statement, you will get an error once you forget to add a break statement.
     "noFallthroughCasesInSwitch": true,
     // We don't allow property access from index signatures. In this case we prefer to write record['images'] instead of record.images
@@ -42,11 +44,14 @@
       "react/canary",
       "react-dom/canary"
     ],
+    // we can use our own package imports internally e.g. import { vitePluginReactServer } from `vite-plugin-react-server`
     "resolvePackageJsonImports": true,
     "resolvePackageJsonExports": true,
+    // we want to use the verbatim module syntax
     "verbatimModuleSyntax": true,
     // The very latest ES features
     "target": "es2022",
+    // we want to use the latest node module resolution
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": [

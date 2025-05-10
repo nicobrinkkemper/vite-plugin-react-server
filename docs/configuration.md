@@ -94,17 +94,6 @@ This defines the final wrapper around your Page in production.
   }
 ```
 
-# Module Loading Architecture
-
-Module loading is handled differently depending on which plugin you use.
-
-When using `import { vitePluginReactClient } from 'vite-plugin-react-server/client'`, you can run it like
-a normal vite project. It will use modern esmodule syntax and preserve modules by default.
-For the actual server plugin `import { vitePluginReactServer } from 'vite-plugin-react-server'`, I recommend a separate build step
-`NODE_OPTIONS="--conditions react-server" vite --config vite.config.server.ts`. Create a shared config file specifically
-for React specific configurations - like this plugin - and use the same config for both the client and server. This way, you keep a centralized
-config and easy escape hatches when you need customization.
-
 ## EXAMPLE SETUP
 
 Example `package.json` setup:
@@ -112,9 +101,9 @@ Example `package.json` setup:
 ```json
 "scripts": {
   "build": "build:client && build:server",
-  "dev": "NODE_OPTIONS='--conditions react-server' vite --config vite.server.config.ts",
+  "dev": "NODE_OPTIONS='--conditions react-server' vite",
   "dev:client": "vite",
-  "build:server": "NODE_OPTIONS='--conditions react-server' vite --config vite.server.config.ts",
+  "build:server": "NODE_OPTIONS='--conditions react-server' vite",
   "build:client": "vite"
 }
 ```
@@ -169,18 +158,6 @@ export default defineConfig(() => {
 });
 ```
 
-### ./vite.server.config.ts
-
-```ts
-import { vitePluginReactServer } from "vite-plugin-react-server";
-import { config } from "./my-react-config.js";
-import { defineConfig } from "vite";
-export default defineConfig(() => {
-  return {
-    plugins: vitePluginReactServer(config),
-  };
-});
-```
 
 ## Client plugin Hook Types
 
@@ -201,7 +178,7 @@ own stream-update protocol - using vite's import.meta.hot.accept for example.
 
 ```sh
 vite build
-NODE_OPTIONS='--conditions react-server' npx vite build --config vite.server.config.ts
+NODE_OPTIONS='--conditions react-server' npx vite build
 ```
 
 Above should now output specific static html for each page in the dist/client directory. This client can, given the right entrypoint,

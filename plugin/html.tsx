@@ -1,9 +1,20 @@
 import React from "react";
-export const Html = ({ children }: { children: any }) => (
+import type { HtmlProps } from "./types.js";
+import { CssCollectorElements } from "./css-collector-elements.js";
+export const Html = ({
+  children,
+  CssCollector,
+  cssFiles,
+  globalCss,
+}: React.PropsWithChildren<HtmlProps>) => (
   <html>
-    <head></head>
+    <head>
+      <CssCollectorElements cssFiles={globalCss} />
+    </head>
     <body>
-      <div id="root">{children}</div>
+      <CssCollector as={"div"} id="root" cssFiles={cssFiles}>
+        {children}
+      </CssCollector>
     </body>
   </html>
 );
