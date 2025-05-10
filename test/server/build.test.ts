@@ -21,7 +21,6 @@ describe("Plugin build test", () => {
     events = await doBuild({
       projectRoot: testDir,
       onMetrics: (m) => {
-        console.log("Test Metric", m.route, m.htmlSize, m.rscSize);
         metrics.push(m);
       },
       css: {
