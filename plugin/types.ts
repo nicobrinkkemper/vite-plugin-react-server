@@ -244,59 +244,95 @@ export interface CssCollectorOptions {
   linkPatterns?: RegExp[];
 }
 
+export type FileWriteEvent = {
+  type: "file.write";
+  data: {
+    path: string;
+    fileType: "html" | "rsc";
+    route: string;
+    stream: Readable;
+    onComplete: () => Promise<void>;
+  };
+};
+
+export type FileWriteDoneEvent = {
+  type: "file.write.done";
+  data: {
+    route: string;
+    fileType: "html" | "rsc";
+    content: string;
+  };
+};
+
+export type RouteProcessEvent = {
+  type: "route.process";
+  data: {
+    route: string;
+    pagePath: string;
+    propsPath?: string | undefined;
+  };
+};
+
+export type RouteErrorEvent = {
+  type: "route.error";
+  data: {
+    route: string;
+    error: any;
+  };
+};
+
+export type RoutePostponeEvent = {
+  type: "route.postpone";
+  data: {
+    route: string;
+    reason: string;
+  };
+};
+
+export type PropsLoadEvent = {
+  type: "props.load";
+  data: {
+    route: string;
+    propsPath: string;
+    props: any;
+  };
+};
+
+export type CssProcessEvent = {
+  type: "css.process";
+  data: CssContent;
+};
+
+export type BuildStartEvent = {
+  type: "build.start";
+  data: {
+    pages: string[];
+    files: AutoDiscoveredFiles;
+  };
+};
+
+export type BuildWriteBundleEvent = {
+  type: "build.writeBundle";
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions;
+    bundle: OutputBundle;
+    manifest: Manifest | undefined;
+  };
+};
+
 export type PluginEvent =
   | FileWriteEvent
-  | {
-      // This is emitted when a route process is setup
-      type: "route.process";
-      data: {
-        route: string;
-        pagePath: string;
-        propsPath?: string | undefined;
-      };
-    }
-  | {
-      type: "route.error";
-      data: {
-        route: string;
-        error: any;
-      };
-    }
-  | {
-      type: "route.postpone";
-      data: {
-        route: string;
-        reason: string;
-      };
-    }
-  | {
-      type: "props.load";
-      data: {
-        route: string;
-        propsPath: string;
-        props: any;
-      };
-    }
-  | {
-      type: "css.process";
-      data: CssContent;
-    }
-  | {
-      type: "build.start";
-      data: {
-        pages: string[];
-        files: AutoDiscoveredFiles;
-      };
-    }
-  | {
-      type: "build.writeBundle";
-      data: {
-        pages: string[];
-        options: NormalizedOutputOptions;
-        bundle: OutputBundle;
-        manifest: Manifest | undefined;
-      };
-    };
+  | FileWriteDoneEvent
+  | RouteProcessEvent
+  | RouteErrorEvent
+  | RoutePostponeEvent
+  | PropsLoadEvent
+  | CssProcessEvent
+  | BuildStartEvent
+  | BuildWriteBundleEvent;
+
+export type PluginEventType = PluginEvent["type"];
 
 export interface StreamPluginOptions<
   InlineCSS extends boolean | undefined = boolean | undefined
@@ -645,18 +681,6 @@ export interface JsContent {
 export type CssCollectorProps<InlineCSS extends boolean | undefined = undefined> = {
   // to render the head tag or not
   as?: React.ElementType;
-  // the base url of the module
-  moduleBaseURL: string;
-  // the base path of the module
-  moduleBasePath: string;
-  // the root path of the module
-  moduleRootPath: string;
-  // the route of the page
-  route?: string;
-  // whether to inline the css
-  inlineCss?: InlineCSS;
-  // whether to purge the css
-  purgeCss?: boolean;
   children?: React.ReactNode;
   /** A map containing all the css files imported by the route and their proxy values
    * - when inlineCss is true, will contain the `content` property
@@ -678,8 +702,8 @@ export type CssCollectorProps<InlineCSS extends boolean | undefined = undefined>
    *
    * */
 
-  cssFiles?: Map<string, CssContent>;
-};
+  cssFiles?: Map<string, CssContent<InlineCSS>>;
+}  & React.HTMLAttributes<HTMLElement>
 
 export interface InlineCssCollectorProps {
   cssFiles: Map<string, CssContent>;
@@ -767,16 +791,6 @@ export type CreateHandlerResult =
     }
   | { type: "error"; error: Error }
   | { type: "skip" };
-
-export type FileWriteEvent = {
-  type: "file.write";
-  data: {
-    path: string;
-    content?: string;
-    stream?: Readable;
-    onComplete: () => Promise<void>;
-  };
-};
 
 export type ReactStaticEvent =
   | FileWriteEvent

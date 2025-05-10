@@ -38,7 +38,6 @@ import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
-import { defaultFileWriter } from "../helpers/defaultFileWriter.js";
 import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
 import {
@@ -310,22 +309,13 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             loader: buildLoader,
             worker: worker,
             logger: createLogger(),
-            onEvent: (event: PluginEvent) => {
+            onEvent: async (event: PluginEvent) => {
               if (userOptions.onEvent) {
                 userOptions.onEvent(event);
               }
-              switch (event.type) {
-                case "file.write":
-                  return defaultFileWriter({
-                    event,
-                    projectRoot: userOptions.projectRoot,
-                  });
-                case "route.process":
-                  break;
-                case "route.error":
-                  break;
-                case "route.postpone":
-                  break;
+              // Add file write completion event
+              if (event.type === "file.write") {
+                await event.data.onComplete();
               }
             },
             pipeableStreamOptions: pipeableStreamOptions,

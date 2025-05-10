@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { join, resolve } from "path";
-import { mkdir, readFile, rm } from "fs/promises";
+import { resolve } from "path";
+import { mkdir,  rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type {
   PluginEvent,
-  FileWriteEvent,
+  FileWriteDoneEvent,
   RenderMetrics,
 } from "../../plugin/types.js";
 import { doBuild } from "./doBuild.js";
@@ -24,21 +24,34 @@ describe("Plugin build test", () => {
         console.log("Test Metric", m.route, m.htmlSize, m.rscSize);
         metrics.push(m);
       },
+      css: {
+        inlineThreshold: 10,
+      }
     });
     
-    htmlContent = events.find(
+    // Get HTML content from file.write.done event
+    const htmlDoneEvent = events.find(
       (e) =>
-        e.type === "file.write" &&
+        e.type === "file.write.done" &&
         e.data.fileType === "html" &&
         e.data.route === '/'
-    )?.data["content"];
+    ) as FileWriteDoneEvent;
+    
+    if (htmlDoneEvent) {
+      htmlContent = htmlDoneEvent.data.content;
+    }
 
-    rscContent = events.find(
+    // Get RSC content from file.write.done event
+    const rscDoneEvent = events.find(
       (e) =>
-        e.type === "file.write" &&
+        e.type === "file.write.done" &&
         e.data.fileType === "rsc" &&
         e.data.route === '/'
-    )?.data["content"];
+    ) as FileWriteDoneEvent;
+    
+    if (rscDoneEvent) {
+      rscContent = rscDoneEvent.data.content;
+    }
   });
 
   afterAll(async () => {
@@ -58,7 +71,9 @@ describe("Plugin build test", () => {
         "build.start",
         "build.writeBundle",
         "file.write",
+        "file.write.done",
         "file.write",
+        "file.write.done",
       ])
     );
   });
@@ -79,15 +94,13 @@ describe("Plugin build test", () => {
   it("emits file.write events for html and rsc files", async () => {
     expect(htmlContent).toBeDefined();
     expect(rscContent).toBeDefined();
-    if (htmlContent && rscContent) {
-      // Verify HTML content
-      expect(htmlContent).toContain("<html");
-      expect(htmlContent).toContain("<div");
-      expect(htmlContent).toContain("Page");
+    // Verify HTML content
+    expect(htmlContent).toContain("<html");
+    expect(htmlContent).toContain("<div");
+    expect(htmlContent).toContain("Page");
 
-      // Verify RSC content
-      expect(rscContent).toBeTruthy();
-    }
+    // Verify RSC content
+    expect(rscContent).toBeTruthy();
   });
 
   it("should collect basic metrics", async () => {
@@ -102,8 +115,11 @@ describe("Plugin build test", () => {
       expect(metric.chunks).toBeGreaterThan(0);
       expect(metric.chunkRate).toBeGreaterThan(0);
 
-      expect(htmlContent?.length).toBe(metric.htmlSize);
-      expect(rscContent?.length).toBe(metric.rscSize);
+      // Compare content lengths with metrics
+      const htmlLength = htmlContent?.length ?? 0;
+      const rscLength = rscContent?.length ?? 0;
+      expect(htmlLength).toBe(metric.htmlSize);
+      expect(rscLength).toBe(metric.rscSize);
     }
   });
 });

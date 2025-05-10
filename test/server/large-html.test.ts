@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'path';
 import { mkdir, writeFile, rm } from 'fs/promises';
-import { type PluginEvent } from 'vite-plugin-react-server/client';
+import { type PluginEvent, type FileWriteDoneEvent } from 'vite-plugin-react-server/client';
 import { testUserOptions } from '../test-config.js';
 import { doBuild } from './doBuild.js';
 
@@ -93,7 +93,18 @@ describe('large html handling', () => {
         pages: ["/"],
       },
     });
-    htmlContent = events.find(e => e.type === 'file.write' && e.data.fileType === 'html')?.data['content'];
+
+    // Get HTML content from file.write.done event
+    const htmlDoneEvent = events.find(
+      (e) =>
+        e.type === "file.write.done" &&
+        e.data.fileType === "html" &&
+        e.data.route === '/'
+    ) as FileWriteDoneEvent;
+    
+    if (htmlDoneEvent) {
+      htmlContent = htmlDoneEvent.data.content;
+    }
   });
 
   afterAll(async () => {
@@ -104,6 +115,7 @@ describe('large html handling', () => {
     testUserOptions.projectRoot = testDir;
     
     // Verify the HTML was generated correctly
+    expect(htmlContent).toBeDefined();
     expect(htmlContent).toContain('<!DOCTYPE html>');
     expect(htmlContent).toContain('<div class="depth-3"');
     expect(htmlContent).toContain('<div class="leaf">Content</div>');
@@ -118,6 +130,5 @@ describe('large html handling', () => {
     
     // Verify no malformed tags
     expect(htmlContent.match(/<div/g)?.length).toBe(htmlContent.match(/<\/div>/g)?.length);
-
   });
 });

@@ -10,11 +10,10 @@
  */
 
 import { PassThrough, Transform } from "node:stream";
-import { dirname, join } from "node:path";
-import { mkdir } from "node:fs/promises";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { createRscToHtmlStream } from "./rscToHtmlStream.js";
+import { fileWriter } from "./fileWriter.js";
 
 /**
  * Collects RSC content from the rscFull stream
@@ -28,20 +27,6 @@ export async function collectHtmlWorkerContent(
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   const metrics = createStreamMetrics();
   const startTime = performance.now();
-
-  const htmlOutputPath = join(
-    handlerOptions.build.outDir,
-    handlerOptions.build.static,
-    handlerOptions.route,
-    handlerOptions.build.htmlOutputPath
-  );
-
-  const dir = dirname(htmlOutputPath);
-
-  // Ensure directory exists
-  await mkdir(join(handlerOptions.projectRoot, dir), {
-    recursive: true,
-  });
 
   // Create RSC to HTML transform stream
   const rscToHtmlStream = createRscToHtmlStream({
@@ -59,13 +44,12 @@ export async function collectHtmlWorkerContent(
   const htmlTransform = new Transform({
     transform(chunk, _encoding, callback) {
       metrics.chunks++;
-      metrics.bytes += chunk.length;
       callback(null, chunk);
     },
     flush(callback) {
       metrics.duration = Date.now() - startTime;
       callback();
-    }
+    },
   });
 
   let isComplete = false;
@@ -102,25 +86,28 @@ export async function collectHtmlWorkerContent(
   });
 
   try {
-    // Set up file writing immediately
+    // Set up event handler to capture content length
     if (handlerOptions.onEvent) {
-      handlerOptions.onEvent({
-        type: "file.write",
-        data: {
-          path: htmlOutputPath,
-          stream: htmlTransform,
-          onComplete: async () => {
-            // File writing is complete
-          }
+      const originalOnEvent = handlerOptions.onEvent;
+      handlerOptions.onEvent = (event) => {
+        if (event.type === "file.write.done" && event.data.fileType === "html") {
+          metrics.bytes = event.data.content.length;
         }
-      });
+        originalOnEvent(event);
+      };
     }
 
     // Pipe RSC through transform to HTML
     rscStream.pipe(rscToHtmlStream);
 
+    // Set up file writing using fileWriter
+    const writePromise = fileWriter(htmlTransform, "html", handlerOptions);
+
     // Wait for route to complete
     await routeComplete;
+
+    // Wait for file writing to complete
+    await writePromise;
 
     rscToHtmlStream.destroy();
 

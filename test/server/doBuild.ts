@@ -16,10 +16,13 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     const options = {
       ...testUserOptions,
       ...optionOverrides,
-      onEvent: optionOverrides?.onEvent || ((event: PluginEvent) => {
+      onEvent: (event: PluginEvent) => {
         console.log('Test Event received:', event.type);
         events.push(event);
-      }),
+        if (optionOverrides?.onEvent) {
+          optionOverrides.onEvent(event);
+        }
+      },
       build: {
         ...testUserOptions.build,
         ...optionOverrides?.build

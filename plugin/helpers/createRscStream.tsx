@@ -65,9 +65,6 @@ export function createRscStream<
   const elements = htmlIsFragment ? (
     <CssCollector
       cssFiles={cssFiles}
-      moduleBaseURL={moduleBaseURL}
-      moduleBasePath={moduleBasePath}
-      moduleRootPath={moduleRootPath}
     >
       <PageComponent {...(pageProps as any)} />
     </CssCollector>

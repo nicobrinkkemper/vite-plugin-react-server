@@ -10,6 +10,7 @@ export function CssCollector({
   children = null,
   cssFiles = new Map(),
   as: As = React.Fragment,
+  ...props
 }: Pick<CssCollectorProps, "children" | "cssFiles" | "as">) {
   if (As === React.Fragment) {
     return (
@@ -20,9 +21,9 @@ export function CssCollector({
     );
   }
   return (
-    <>
-      <As>{children}</As>
+    <As {...props}>
+      {children}
       <CssCollectorElements cssFiles={cssFiles} />
-    </>
+    </As>
   );
 }

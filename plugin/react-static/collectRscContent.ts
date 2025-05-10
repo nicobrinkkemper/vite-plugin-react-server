@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
+import { fileWriter } from "./fileWriter.js";
 
 /**
  * Collects RSC content from the rscHeadless stream
@@ -53,32 +54,20 @@ export async function collectRscContent(
     }
   });
 
-  // Create a promise that resolves when the stream is complete
-  const streamComplete = new Promise<void>((resolve, reject) => {
-    if (handlerOptions.onEvent) {
-      handlerOptions.onEvent({
-        type: "file.write",
-        data: {
-          path: outputPath,
-          stream: metricsTransform,
-          onComplete: async () => {
-            resolve();
-          }
-        }
-      });
-    } else {
-      resolve();
-    }
-
-    metricsTransform.on('error', reject);
-  });
-
   try {
     // Pipe RSC stream through metrics tracking
     rscStream.pipe(metricsTransform);
 
+    // Set up file writing using fileWriter
+    const writePromise = fileWriter(metricsTransform, "rsc", handlerOptions);
+
     // Wait for stream to complete
-    await streamComplete;
+    await new Promise<void>((resolve) => {
+      metricsTransform.on('end', resolve);
+    });
+
+    // Wait for file writing to complete
+    await writePromise;
 
     return { stream: rscStream, metrics };
   } catch (error) {

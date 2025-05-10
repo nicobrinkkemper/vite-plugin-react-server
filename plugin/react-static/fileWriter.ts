@@ -13,7 +13,7 @@ import type { FileWriterOptions } from "../types.js";
 import { join } from "node:path";
 import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 
 /**
  * Writes HTML and RSC files for a route using streams
@@ -48,11 +48,27 @@ export async function fileWriter(
   // Create write stream
   const writeStream = createWriteStream(outputPath);
 
+  // Create transform stream to capture content
+  const contentCapture = new Transform({
+    transform(chunk, _encoding, callback) {
+      // Pass through the chunk
+      callback(null, chunk);
+    }
+  });
+
+  // Collect chunks for content
+  const chunks: Buffer[] = [];
+  contentCapture.on('data', (chunk) => {
+    chunks.push(Buffer.from(chunk));
+  });
+
   // Emit file.write events if onEvent is provided
   if (onEvent) {
     onEvent({
       type: "file.write",
       data: {
+        fileType: fileType,
+        route: options.route,
         stream: stream,
         path: outputPath,
         onComplete: async () => {
@@ -62,11 +78,28 @@ export async function fileWriter(
     });
   }
 
-  // Pipe the stream to the file
+  // Pipe the stream through content capture to file
   return new Promise((resolve, reject) => {
     stream
+      .pipe(contentCapture)
       .pipe(writeStream)
-      .on("finish", resolve)
+      .on("finish", () => {
+        // Combine chunks into content
+        const content = Buffer.concat(chunks).toString('utf-8');
+        
+        // Emit file.write.done event with content
+        if (onEvent) {
+          onEvent({
+            type: "file.write.done",
+            data: {
+              fileType: fileType,
+              route: options.route,
+              content: content
+            },
+          });
+        }
+        resolve();
+      })
       .on("error", reject);
   });
 }

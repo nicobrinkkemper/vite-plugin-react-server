@@ -1,24 +1,19 @@
-import React, { type PropsWithChildren } from "react";
+import React from "react";
 import type { HtmlProps } from "./types.js";
 export const Html = ({
   children,
   CssCollector,
   cssFiles,
-  moduleBaseURL,
-  moduleBasePath,
-  moduleRootPath,
-}: PropsWithChildren<HtmlProps>) => (
+}: React.PropsWithChildren<HtmlProps>) => (
   <html>
-    <head>
-      <CssCollector
-        cssFiles={cssFiles}
-        moduleBaseURL={moduleBaseURL}
-        moduleBasePath={moduleBasePath}
-        moduleRootPath={moduleRootPath}
-      />
-    </head>
     <body>
-      <div id="root">{children}</div>
+      <CssCollector
+        as={"div"}
+        id="root"
+        cssFiles={cssFiles}
+      >
+        {children}
+      </CssCollector>
     </body>
   </html>
 );
