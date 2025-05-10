@@ -1,4 +1,3 @@
-import { stashReturnValue } from "./helpers/stashReturnValue.js";
 
 type ResolvePropsOptions<N extends string> = {
   id: string;
@@ -42,7 +41,7 @@ type ResolvePropsResult<T, N extends string> =
  *   - props: The resolved props if successful
  *   - error: Error message if failed
  */
-export const resolveProps = stashReturnValue(async <T, N extends string>({
+export const resolveProps = async <T, N extends string>({
   id,
   url,
   exportName,
@@ -173,4 +172,4 @@ export const resolveProps = stashReturnValue(async <T, N extends string>({
     props: props,
     module: module as { [key in N]: T },
   };
-});
+};

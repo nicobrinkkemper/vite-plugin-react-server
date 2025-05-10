@@ -2,7 +2,6 @@ import type { ResolvedUserOptions, CssContent } from "../types.js";
 import { join, relative } from "node:path";
 import { deserializeRegExp } from "./serializeUserOptions.js";
 
-
 /**
  * Creates a CssContent object for a given path and css options
  *
@@ -33,26 +32,33 @@ export const createCssProps = ({
 }: {
   id: string;
   code: string;
-} & Pick<ResolvedUserOptions, "css" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot">): CssContent => {
+} & Pick<
+  ResolvedUserOptions,
+  "css" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot"
+>): CssContent => {
   // If we don't have a bundle entry, create a linked CSS file
-  let inline = typeof code === "string" && code.length < css.inlineThreshold;
-
+  let inline = typeof code === "string" && code.length > css.inlineThreshold;
   // Normalize the ID to be relative to src/
-  const normalizedId = id.startsWith(projectRoot) ? relative(projectRoot, id) : id;
+  const normalizedId = id.startsWith(projectRoot)
+    ? relative(projectRoot, id)
+    : id;
 
-  // Deserialize RegExp patterns if they exist
-  const inlinePatterns = css.inlinePatterns?.map(pattern => 
-    typeof pattern === 'string' ? deserializeRegExp(pattern) : pattern
-  );
-  const linkPatterns = css.linkPatterns?.map(pattern => 
-    typeof pattern === 'string' ? deserializeRegExp(pattern) : pattern
-  );
-
-  if(inlinePatterns?.length && inlinePatterns.some(pattern => pattern.test?.(normalizedId))) {
-    inline = true;
+  if (css.inlinePatterns?.length) {
+    // Deserialize RegExp patterns if they exist
+    const inlinePatterns = css.inlinePatterns?.map((pattern) =>
+      typeof pattern === "string" ? deserializeRegExp(pattern) : pattern
+    );
+    if (inlinePatterns.some((pattern) => pattern.test?.(normalizedId))) {
+      inline = true;
+    }
   }
-  if(linkPatterns?.length && linkPatterns.some(pattern => pattern.test?.(normalizedId))) {
-    inline = false;
+  if (css.linkPatterns?.length) {
+    const linkPatterns = css.linkPatterns?.map((pattern) =>
+      typeof pattern === "string" ? deserializeRegExp(pattern) : pattern
+    );
+    if (linkPatterns.some((pattern) => pattern.test?.(normalizedId))) {
+      inline = false;
+    }
   }
   if (inline) {
     return {
@@ -60,9 +66,11 @@ export const createCssProps = ({
       id: normalizedId,
       as: "style",
       children: code.trim(),
-      ...(process.env["NODE_ENV"] !== "production" ? {
-        "data-vite-dev-id": join(projectRoot, moduleRootPath, normalizedId),
-      } : {}),
+      ...(process.env["NODE_ENV"] !== "production"
+        ? {
+            "data-vite-dev-id": join(projectRoot, moduleRootPath, normalizedId),
+          }
+        : {}),
     } as CssContent<true>;
   }
 

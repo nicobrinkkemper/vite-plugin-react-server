@@ -13,6 +13,7 @@ import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { parentPort, workerData, type MessagePort } from "node:worker_threads";
 import { React } from "../../vendor.server.js";
+import { hmrState } from "./state.js";
 
 
 export async function handleRender(
@@ -72,7 +73,16 @@ export async function handleRender(
       pageExportName,
       propsExportName,
       route,
-      loader: (id: string) => import(join(projectRoot, id)),
+      loader: async (id: string) => {
+        // Check if module is invalidated
+        if (hmrState.get(id)?.invalidated) {
+          // Clear the HMR state for this module
+          hmrState.delete(id);
+          // Force a reload by using a unique query parameter
+          return import(join(projectRoot, id) + `?t=${Date.now()}`);
+        }
+        return import(join(projectRoot, id));
+      },
     });
 
     if (pageAndPropsResult.type !== "success") {

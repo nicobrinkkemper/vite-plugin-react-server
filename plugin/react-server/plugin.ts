@@ -147,28 +147,28 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
       });
     },
     async handleHotUpdate({ file, server, read, timestamp, ...ctx }) {
-      // Check if the file is a page or props file
-      const isPageFile = userOptions.autoDiscover.modulePattern(file);
-      if (!isPageFile) return;
-
-      // Get the route for this file
-      const [, value] = userOptions.normalizer(file);
-      
-      // Find all routes affected by this file change
-      const affectedRoutes = autoDiscoveredFiles.routeMap.get(value) || [];
-      
-      // Notify the worker about the update
-      if (server.hot) {
-        server.hot.send('custom', {
-          type: 'HMR_UPDATE',
-          path: file,
-          timestamp,
-          routes: affectedRoutes
-        });
+      try {
+        // Invalidate the module in Vite's cache for both client and SSR
+        if (server.moduleGraph) {
+          const mod = server.moduleGraph.getModuleById(file);
+          if (mod) {
+            // Invalidate the parent module which will handle both client and SSR
+            server.moduleGraph.invalidateModule(mod);
+            
+            // Force a reload of the module
+            const newMod = await server.moduleGraph.ensureEntryFromUrl(file, false);
+            if (newMod) {
+              server.moduleGraph.invalidateModule(newMod);
+            }
+          }
+        }
+        
+        // Let Vite handle the HMR update
+        return ctx.modules;
+      } catch (error) {
+        console.error("[react-server] HMR Error:", error);
+        return ctx.modules;
       }
-
-      // Return the affected modules for Vite to handle
-      return ctx.modules;
     },
   };
 }

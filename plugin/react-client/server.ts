@@ -170,63 +170,34 @@ export async function configureWorkerRequestHandler({
   server,
   autoDiscoveredFiles,
   userOptions,
+  hmrChannel,
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
+  hmrChannel: MessageChannel;
 }) {
   if(server.config.root !== userOptions.projectRoot) {
-    throw new Error("Project root mismatch");
+    server.config.logger.error("[react-client] Project root mismatch", {
+      error: new Error(`Server root ${server.config.root} does not match user options root ${userOptions.projectRoot}`)
+    });
+    return;
   }
-  // Create HMR message channel
-  const hmrChannel = new MessageChannel();
 
-  // Set up HMR listeners on the main thread
-  server.hot.on("change", async (file: string) => {
-    // Restart worker on file change
-    await restartWorker(server, autoDiscoveredFiles, userOptions, hmrChannel);
-
-    hmrChannel.port1.postMessage({
-      type: "HMR_UPDATE",
-      path: file,
-    });
-  });
-
-  server.hot.on("update", (data: any) => {
-    hmrChannel.port1.postMessage({
-      type: "HMR_ACCEPT",
-      path: data.path,
-    });
-  });
-
-  // Initial worker creation
+  // Start the worker
   await restartWorker(server, autoDiscoveredFiles, userOptions, hmrChannel);
 
-  // first add all the files to the watcher
-  for (const pageProps of autoDiscoveredFiles.urlMap.values()) {
-    server.watcher.add(pageProps.page);
-    if (pageProps.props) {
-      server.watcher.add(pageProps.props);
-    }
-  }
-
-  const handler: RequestHandler = async (req, res, next: any) => {
+  // Create the request handler
+  const handler: RequestHandler = async (req, res, next) => {
+    if (!req.url || req.headers.accept !== "text/x-component") return next();
     try {
-      if (!req.url || req.headers.accept !== "text/x-component") return next();
       if (!currentWorker) {
-        // If worker is not available, try to restart it
-        await restartWorker(
-          server,
-          autoDiscoveredFiles,
-          userOptions,
-          hmrChannel
-        );
-        if (!currentWorker) {
-          return next();
-        }
+        server.config.logger.error("[react-client] No worker available");
+        return next();
       }
 
-      let route = req.url?.replace('/'+userOptions.build.rscOutputPath, "");
+      // Get the route from the request
+      let route = req.url;
       if (!route || route === "") route = "/";
       // in the case of the no build.pages and a async Page and or props userOption, we need to await those
       // if they are already autoDiscovered then the promise will resolve immediately

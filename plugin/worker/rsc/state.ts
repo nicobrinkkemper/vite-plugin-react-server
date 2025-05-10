@@ -2,6 +2,7 @@ import { workerData } from "node:worker_threads";
 import { createCssProps } from "../../helpers/createCssProps.js";
 import type { CssContent, ResolvedUserOptions, HmrState } from "../../types.js";
 import type { PassThrough } from "node:stream";
+import { relative } from "node:path";
 
 
 // Track active RSC streams
@@ -15,20 +16,21 @@ export const hmrState = new Map<string, HmrState>();
 
 if(workerData) {
   if(workerData.hmrPort) {
-    workerData.hmrPort.on('message', (msg: { type: string; path: string }) => {
-      console.log('[RSC Worker] HMR message received:', msg);
+    workerData.hmrPort.on('message', (msg: { type: string; path: string; routes?: string[] }) => {
       if(msg.type === 'HMR_UPDATE') {
-        hmrState.set(msg.path, { 
+        // Normalize the path relative to project root
+        const normalizedPath = relative(workerData.userOptions.projectRoot, msg.path);
+        hmrState.set(normalizedPath, { 
           timestamp: Date.now(), 
           invalidated: true,
-          routes: workerData.userOptions.build.pages
+          routes: msg.routes || []
         });
       } else if(msg.type === 'HMR_ACCEPT') {
-        hmrState.delete(msg.path);
+        // Normalize the path relative to project root
+        const normalizedPath = relative(workerData.userOptions.projectRoot, msg.path);
+        hmrState.delete(normalizedPath);
       }
     });
-  } else {
-    console.warn('[RSC Worker] No HMR port found, HMR is disabled');
   }
 } else {
   throw new Error("This module must be run with workerData");

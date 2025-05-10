@@ -1,4 +1,3 @@
-import { stashReturnValue } from "./helpers/stashReturnValue.js";
 
 type ResolvePageOptions<N extends string> = {
   id: string;
@@ -27,7 +26,7 @@ type ResolvePageResult<T, N extends string> =
  *   - Page: The resolved page component if successful
  *   - error: Error message if failed
  */
-export const resolvePage = stashReturnValue(async <T, N extends string>({
+export const resolvePage = async <T, N extends string>({
   id,
   exportName,
   loader,
@@ -82,4 +81,4 @@ export const resolvePage = stashReturnValue(async <T, N extends string>({
     Page,
     module: module as { [key in N]: T },
   };
-});
+};

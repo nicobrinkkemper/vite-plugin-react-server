@@ -48,16 +48,12 @@ parentPort!.on("message", messageHandler);
 
 const { hmrPort } = workerData;
 if (hmrPort) {
-  console.log("[RSC Worker] Setting up HMR listeners in server mode");
-
   // Start the message port
   hmrPort.start();
 
   // Listen for file changes
   hmrPort.on("message", (message: any) => {
-    console.log("[RSC Worker] HMR message received:", message);
     if (message.type === "HMR_UPDATE") {
-      console.log("[RSC Worker] File changed:", message.path);
       // Invalidate the module in the worker
       parentPort!.postMessage({
         type: "HMR_UPDATE",
@@ -68,18 +64,12 @@ if (hmrPort) {
 
   // Listen for HMR updates
   hmrPort.on("message", (message: any) => {
-    console.log("[RSC Worker] HMR update received:", message);
     // Handle the update
     parentPort!.postMessage({
       type: "HMR_ACCEPT",
       path: message.path,
     });
   });
-} else {
-  console.log(
-    "[RSC Worker] HMR not enabled - running in client mode or no HMR emitter",
-    { workerData }
-  );
 }
 
 // Notify parent that we're ready

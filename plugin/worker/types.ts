@@ -1,4 +1,3 @@
-
 import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import type {
   CreateHandlerOptions,
@@ -191,8 +190,7 @@ export type HtmlWorkerInputMessage =
       projectRoot: string;
       cssFiles:  Map<string, CssContent>;
       pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
-    };
-
+    }
 
 export type HtmlWorkerOutputMessage =
   | {
@@ -212,6 +210,7 @@ export type HtmlWorkerOutputMessage =
   | { type: "HTML_CHUNK"; id: string; chunk: string; encoding: string }
   | { type: "CLEANUP_COMPLETE"; id: string }
   | { type: "SHUTDOWN_COMPLETE"; id: string }
+  | HmrAcceptMessage;
 
 export type InitializedReactLoaderMessage = {
   type: "INITIALIZED_REACT_LOADER";
@@ -236,10 +235,16 @@ export type HmrMessage = {
 
 export type HmrUpdateMessage = HmrMessage & {
   type: "HMR_UPDATE";
+  routes?: string[];
+}
+
+export type HmrCleanupMessage = HmrMessage & {
+  type: "HMR_CLEANUP";
 }
 
 export type HmrAcceptMessage = HmrMessage & {
   type: "HMR_ACCEPT";
+  routes?: string[];
 }
 
 // RSC Worker Messages

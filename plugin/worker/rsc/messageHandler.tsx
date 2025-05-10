@@ -20,8 +20,6 @@ export function messageHandler(
       return;
     case "HMR_UPDATE":
       // Mark the module as invalidated
-      console.log("[RSC Worker] Processing HMR_UPDATE for path:", msg.path);
-      console.log("[RSC Worker] Affected routes:", msg.routes);
       hmrState.set(msg.path, {
         timestamp: msg.timestamp || Date.now(),
         invalidated: true,
@@ -34,10 +32,14 @@ export function messageHandler(
         routes: msg.routes,
       });
       return;
-    case "HMR_ACCEPT":
+    case "HMR_CLEANUP":
       // Clear the invalidation state
-      console.log("[RSC Worker] Processing HMR_ACCEPT for path:", msg.path);
       hmrState.delete(msg.path);
+      // Notify the main thread that we've processed the cleanup
+      port.postMessage({
+        type: "HMR_ACCEPT",
+        path: msg.path,
+      });
       return;
     case "CSS_FILE":
       if (msg.id) {
