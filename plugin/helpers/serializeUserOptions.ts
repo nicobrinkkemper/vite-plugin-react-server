@@ -93,6 +93,51 @@ const PLUGIN_NON_SERIALIZABLE_FUNCTIONS = new Set([
   "autoDiscover",
 ]);
 
+// Helper function to serialize RegExp objects
+function serializeRegExp(regex: RegExp) {
+  return {
+    source: regex.source,
+    flags: regex.flags,
+    __isRegExp: true
+  };
+}
+
+// Helper function to deserialize RegExp objects
+export function deserializeRegExp(obj: any): any {
+  if (obj && obj.__isRegExp) {
+    return new RegExp(obj.source, obj.flags);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(deserializeRegExp);
+  }
+  if (obj && typeof obj === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = deserializeRegExp(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+// Helper function to recursively process objects for serialization
+export function processForSerialization(obj: any): any {
+  if (obj instanceof RegExp) {
+    return serializeRegExp(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(processForSerialization);
+  }
+  if (obj && typeof obj === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = processForSerialization(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
 export function serializeResolvedConfig<T extends ResolvedConfig>(
   config: T,
   knownNonSerializableFunctions: Set<string> = VITE_NON_SERIALIZABLE_FUNCTIONS
@@ -105,8 +150,8 @@ export function serializeResolvedConfig<T extends ResolvedConfig>(
     ...handlerOptions
   } = config;
 
-  // Clean the object to remove non-serializable properties
-  return cleanObject(handlerOptions, knownNonSerializableFunctions);
+  // Clean the object to remove non-serializable properties and process RegExp objects
+  return processForSerialization(cleanObject(handlerOptions, knownNonSerializableFunctions));
 }
 
 // For Vite's config
@@ -121,10 +166,10 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
     build,
     ...handlerOptions
   } = config;
-  return cleanObject(
+  return processForSerialization(cleanObject(
     handlerOptions,
     customNonSerializableFunctions
-  )
+  ));
 };
 
 // For your own options (if you need custom non-serializable functions)
@@ -156,9 +201,9 @@ export const serializedOptions = <T extends ResolvedUserOptions>(
     },
   };
 
-  // Clean the object to remove non-serializable properties
-  return cleanObject(
+  // Clean the object to remove non-serializable properties and process RegExp objects
+  return processForSerialization(cleanObject(
     result,
     customNonSerializableFunctions
-  );
+  ));
 };

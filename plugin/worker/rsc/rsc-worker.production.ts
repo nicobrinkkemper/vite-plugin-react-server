@@ -10,7 +10,6 @@ if (!parentPort) {
   throw new Error("This module must be run as a worker");
 }
 
-
 // Handle incoming messages
 parentPort.on("message", messageHandler);
 

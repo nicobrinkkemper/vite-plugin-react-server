@@ -88,10 +88,7 @@ export async function createWorker(
       },
     },
     reactVersion: React.version,
-    // Pass the project root to the worker
-    projectRoot: projectRoot,
   };
-
 
   try {
 

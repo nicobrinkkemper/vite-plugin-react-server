@@ -24,10 +24,10 @@ const createMetrics = (): StreamMetrics => {
 };
 export function createHtmlWorkerRenderState(
   {
-    projectRoot = workerData.projectRoot,
-    moduleRootPath = workerData.moduleRootPath,
-    moduleBaseURL = workerData.moduleBaseURL,
-    pipeableStreamOptions = workerData.pipeableStreamOptions,
+    projectRoot = workerData.userOptions.projectRoot,
+    moduleRootPath = workerData.userOptions.moduleRootPath,
+    moduleBaseURL = workerData.userOptions.moduleBaseURL,
+    pipeableStreamOptions = workerData.userOptions.pipeableStreamOptions,
     id = workerData.id,
   }: {
     projectRoot?: string;

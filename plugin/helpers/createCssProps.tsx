@@ -1,5 +1,6 @@
 import type { ResolvedUserOptions, CssContent } from "../types.js";
 import { join, relative } from "node:path";
+import { deserializeRegExp } from "./serializeUserOptions.js";
 
 
 /**
@@ -38,10 +39,19 @@ export const createCssProps = ({
 
   // Normalize the ID to be relative to src/
   const normalizedId = id.startsWith(projectRoot) ? relative(projectRoot, id) : id;
-  if(css.inlinePatterns && css.inlinePatterns.some(pattern => pattern.test(normalizedId))) {
+
+  // Deserialize RegExp patterns if they exist
+  const inlinePatterns = css.inlinePatterns?.map(pattern => 
+    typeof pattern === 'string' ? deserializeRegExp(pattern) : pattern
+  );
+  const linkPatterns = css.linkPatterns?.map(pattern => 
+    typeof pattern === 'string' ? deserializeRegExp(pattern) : pattern
+  );
+
+  if(inlinePatterns?.length && inlinePatterns.some(pattern => pattern.test?.(normalizedId))) {
     inline = true;
   }
-  if(css.linkPatterns && css.linkPatterns.some(pattern => pattern.test(normalizedId))) {
+  if(linkPatterns?.length && linkPatterns.some(pattern => pattern.test?.(normalizedId))) {
     inline = false;
   }
   if (inline) {

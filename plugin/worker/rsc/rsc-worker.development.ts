@@ -4,11 +4,17 @@ import { register } from "node:module";
 import { register as registerTsx } from "tsx/esm/api";
 import { join } from "node:path";
 import { pluginRoot } from "../../root.js";
+import { deserializeRegExp } from "../../helpers/serializeUserOptions.js";
+
 // Initialize worker
 if (!parentPort) {
   throw new Error("This module must be run as a worker");
 }
 
+// Deserialize workerData to restore RegExp objects
+if (workerData) {
+  workerData.userOptions = deserializeRegExp(workerData.userOptions);
+}
 
 // Create channels for each loader
 const reactLoaderChannel = new MessageChannel();
@@ -30,7 +36,7 @@ register(loaderPath, {
 });
 register(cssLoaderPath, {
   parentURL: pluginRoot,
-  data: { port: cssLoaderChannel.port1 },
+  data: { port: cssLoaderChannel.port1, resolvedConfig: workerData.resolvedConfig },
   transferList: [cssLoaderChannel.port1],
 });
 

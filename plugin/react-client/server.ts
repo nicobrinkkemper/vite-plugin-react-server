@@ -52,9 +52,8 @@ async function restartWorker(
 
     if (workerResult.type === "success") {
       currentWorker = workerResult.worker;
-      server.config.logger.info("[react-client] Worker restarted successfully");
     } else if (workerResult.type === "error") {
-      server.config.logger.error("[react-client] Failed to start worker", {
+      server.config.logger.error("Failed to start rsc-worker", {
         error: workerResult.error,
       });
     }
@@ -176,6 +175,9 @@ export async function configureWorkerRequestHandler({
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
 }) {
+  if(server.config.root !== userOptions.projectRoot) {
+    throw new Error("Project root mismatch");
+  }
   // Create HMR message channel
   const hmrChannel = new MessageChannel();
 

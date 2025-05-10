@@ -1,14 +1,10 @@
-import type { MessagePort } from "node:worker_threads";
+import { type MessagePort } from "node:worker_threads";
 import type { LoadHookContext } from "node:module";
-import type { LoaderContext, ResolvedUserConfig } from "../types.js";
-import type { SerializableRecord } from "../types.js";
+import type { LoaderContext, SerializedUserConfig } from "../types.js";
 import { fileURLToPath } from "node:url";
 import { preprocessCSS } from "vite";
-import type { InlineConfig, ResolvedConfig } from "vite";
+import type { ResolvedConfig } from "vite";
 import { readFile } from "node:fs/promises";
-import { parentPort, workerData } from "node:worker_threads";
-import { resolveConfig } from "vite";
-import { config } from "node:process";
 import { join } from "node:path";
 
 /**
@@ -23,13 +19,10 @@ export let loaderPort: MessagePort | undefined;
  */
 const cssFilesByPage = new Map<string, Set<string>>();
 
-// let userOptions: Extract<ResolvedUserOptions, SerializableRecord> | undefined;
-let userConfig: Extract<ResolvedUserConfig, SerializableRecord> | undefined;
-
 let currentPage: string | null = null;
-
-// Get environment variables from workerData
-const env = workerData?.importMeta?.env || import.meta?.env || {
+let resolvedConfig: ResolvedConfig | undefined;
+// Get environment variables
+const env = import.meta?.env || {
   BASE_URL: '/',
   DEV: true,
   MODE: 'development',
@@ -43,14 +36,10 @@ const env = workerData?.importMeta?.env || import.meta?.env || {
  *
  * @param data - Configuration data for the CSS loader
  * @param data.port - The message port for communication
- * @param data.server - The Vite dev server instance
  */
-export async function initialize(data: { port: MessagePort }) {
+export async function initialize(data: { port: MessagePort, resolvedConfig: SerializedUserConfig }) {
   loaderPort = data.port;
-  if (parentPort && "userOptions" in workerData) {
-    // userOptions = workerData.userOptions;
-    userConfig = workerData.userConfig;
-  }
+  resolvedConfig = data.resolvedConfig;
   data.port.postMessage({ type: "INITIALIZED_CSS_LOADER" });
 }
 
@@ -97,7 +86,6 @@ async function processCssFile(
     const source = await readFile(path, "utf-8");
     const processed = await preprocessCSS(source, path, {
       ...config,
-      ...(userConfig ?? {}),
       env: env
     });
 
@@ -123,7 +111,7 @@ async function processCssFile(
     }
     return {
       format: "module",
-      source: `export default ${JSON.stringify({ ...processed.modules })};`,
+      source: `export default ${JSON.stringify(processed.modules || {})};`,
       shortCircuit: true,
     };
   } catch (error) {
@@ -144,14 +132,12 @@ async function processCssFile(
  */
 export async function load(
   url: string,
-  context: LoadHookContext & LoaderContext & { resolvedConfig: ResolvedConfig },
+  context: LoadHookContext & LoaderContext & { resolvedConfig: SerializedUserConfig },
   defaultLoad: any
 ) {
   const [name, query] = url.split("?");
   if (name.endsWith(".css")) {
-    const resolvedConfig = await resolveConfig(config as InlineConfig, "serve");
-    // Pass env through the context
-    return processCssFile(url, resolvedConfig, query === "inline");
+    return processCssFile(url, resolvedConfig as ResolvedConfig, query === "inline");
   }
 
   return defaultLoad(url, context, defaultLoad);

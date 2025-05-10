@@ -41,14 +41,16 @@ export function messageHandler(
       return;
     case "CSS_FILE":
       if (msg.id) {
+        const cssOptions = workerData.userOptions.css || {
+          inlineThreshold: 1000,
+        };
+        
         addCssFileContent(msg.id, msg.content, {
-          projectRoot: workerData.projectRoot || process.cwd(),
-          moduleBaseURL: workerData.moduleBaseURL || "",
-          moduleBasePath: workerData.moduleBasePath || "",
-          moduleRootPath: workerData.moduleRootPath || "",
-          css: workerData.css || {
-            inlineThreshold: 1000,
-          },
+          projectRoot: workerData.userOptions.projectRoot || process.cwd(),
+          moduleBaseURL: workerData.userOptions.moduleBaseURL || "",
+          moduleBasePath: workerData.userOptions.moduleBasePath || "",
+          moduleRootPath: workerData.userOptions.moduleRootPath || "",
+          css: cssOptions,
         });
       }
       return;

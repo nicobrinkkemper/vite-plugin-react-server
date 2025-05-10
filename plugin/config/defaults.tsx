@@ -46,7 +46,7 @@ export const DEFAULT_CONFIG = {
     inlineCss: false,
     purgeCss: false,
     inlineThreshold: 4096, // 4KB
-    inlinePatterns: [/\.css$/] as RegExp[], // 
+    inlinePatterns: [/\.module\.css$/] as RegExp[], // Always inline CSS modules
     linkPatterns: [/node_modules/] as RegExp[], // Always link node_modules CSS
   },
   MODULE_BASE_EXCEPTIONS: [] as string[],

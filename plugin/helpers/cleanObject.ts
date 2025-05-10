@@ -1,8 +1,18 @@
 import type { SerializableRecord } from "../types.js";
 
+// Helper function to serialize RegExp objects
+function serializeRegExp(regex: RegExp): { source: string; flags: string; __isRegExp: boolean } {
+  return {
+    source: regex.source,
+    flags: regex.flags,
+    __isRegExp: true
+  };
+}
+
 export function cleanObject<T>(obj: T, knownNonSerializableFunctions: Set<string> = new Set(), currentPath: string = ''): SerializableRecord & T {
   if (obj === null || obj === undefined) return obj as Extract<SerializableRecord, T>;
-  if (typeof obj !== 'object') return obj as Extract<SerializableRecord, T>;  
+  if (typeof obj !== 'object') return obj as Extract<SerializableRecord, T>;
+  if (obj instanceof RegExp) return serializeRegExp(obj) as unknown as Extract<SerializableRecord, T>;
   if (Array.isArray(obj)) {
     return obj.map((x, i) => cleanObject(x, knownNonSerializableFunctions, `${currentPath}[${i}]`)).filter(x => x !== undefined) as Extract<SerializableRecord, T>;
   }

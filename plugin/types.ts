@@ -133,6 +133,10 @@ export type ResolvedUserConfig = Required<
       >;
   };
 
+export type SerializedUserConfig = Extract<
+  ResolvedUserConfig,
+  SerializableRecord
+>;
 // Client plugin options
 export interface StreamPluginOptionsClient {
   outDir?: string;
@@ -392,7 +396,9 @@ export interface StreamPluginOptions<
   pageExportName?: string;
   propsExportName?: string;
   Html?: React.FC<PropsWithChildren<HtmlProps>>;
-  CssCollector?: React.FC<React.PropsWithChildren<CssCollectorProps<InlineCSS>>>;
+  CssCollector?: React.FC<
+    React.PropsWithChildren<CssCollectorProps<InlineCSS>>
+  >;
   build?: BuildConfig;
   css?: CssCollectorOptions;
   moduleBaseExceptions?: string[];
@@ -404,8 +410,13 @@ export interface StreamPluginOptions<
 
 export type MultiPageHandlerOptions = Omit<
   CreateHandlerOptions,
-  "pagePath" | "route" | "cssFiles" | "propsPath" | "pageProps" | "PageComponent"
->
+  | "pagePath"
+  | "route"
+  | "cssFiles"
+  | "propsPath"
+  | "pageProps"
+  | "PageComponent"
+>;
 
 export type CreateHandlerOptions<
   T = unknown,
@@ -442,7 +453,13 @@ export type CreateHandlerOptions<
   globalCss: Map<string, CssContent>;
   build: Pick<
     ResolvedUserOptions["build"],
-    "outDir" | "pages" | "server" | "static" | "client" | "rscOutputPath" | "htmlOutputPath"
+    | "outDir"
+    | "pages"
+    | "server"
+    | "static"
+    | "client"
+    | "rscOutputPath"
+    | "htmlOutputPath"
   >;
 };
 
@@ -629,9 +646,9 @@ export type HtmlProps = {
   moduleBasePath: string;
   moduleRootPath: string;
   cssFiles: Map<string, CssContent>;
-  globalCss: Map<string, CssContent>;
   manifest: Manifest;
   CssCollector: React.FC<React.PropsWithChildren<CssCollectorProps>>;
+  globalCss: Map<string, CssContent>;
 };
 
 export interface PageAsset {
@@ -640,7 +657,6 @@ export interface PageAsset {
   parentUrl: string;
 }
 
-
 type BaseCssProps = {
   as: string;
   id: string;
@@ -648,7 +664,7 @@ type BaseCssProps = {
 
 type CssProps = BaseCssProps & {
   as: "link";
-  type?: never; 
+  type?: never;
   children?: InlineCssProps extends false ? never : React.ReactNode;
   id: string;
   href: string;
@@ -664,13 +680,12 @@ type InlineCssProps = BaseCssProps & {
   href?: never;
 };
 
-export type CssContent<
-  InlineCSS extends boolean | undefined =  undefined
-> = InlineCSS extends true
-  ? InlineCssProps
-  : InlineCSS extends false
-  ? CssProps
-  : CssProps | InlineCssProps;
+export type CssContent<InlineCSS extends boolean | undefined = undefined> =
+  InlineCSS extends true
+    ? InlineCssProps
+    : InlineCSS extends false
+    ? CssProps
+    : CssProps | InlineCssProps;
 
 export interface JsContent {
   type?: string;
@@ -680,7 +695,9 @@ export interface JsContent {
   id?: string;
 }
 
-export type CssCollectorProps<InlineCSS extends boolean | undefined = undefined> = {
+export type CssCollectorProps<
+  InlineCSS extends boolean | undefined = undefined
+> = {
   // to render the head tag or not
   as?: React.ElementType;
   children?: React.ReactNode;
@@ -705,7 +722,7 @@ export type CssCollectorProps<InlineCSS extends boolean | undefined = undefined>
    * */
 
   cssFiles?: Map<string, CssContent<InlineCSS>>;
-}  & React.HTMLAttributes<HTMLElement>
+} & React.HTMLAttributes<HTMLElement>;
 
 export interface InlineCssCollectorProps {
   cssFiles: Map<string, CssContent>;
