@@ -34,7 +34,7 @@ export function resolveUserConfig({
       : Boolean(configEnv.isSsrBuild) || condition === "react-server";
   const envDir =
     condition === "react-client" && ssr
-      ? join(userOptions.build.client, userOptions.moduleBasePath)
+      ? userOptions.build.client
       : condition === "react-client"
       ? userOptions.build.static
       : userOptions.build.server;

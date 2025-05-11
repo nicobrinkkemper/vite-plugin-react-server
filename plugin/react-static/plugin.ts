@@ -161,8 +161,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           root: userOptions.projectRoot,
           outDir: join(
             userOptions.build.outDir,
-            userOptions.build.client,
-            userOptions.moduleBasePath
+            userOptions.build.client
           ),
           ssrManifest: false,
         });
