@@ -11,7 +11,7 @@ export async function resolveBuildPages({
   userOptions,
 }: {
   pages: string[];
-  userOptions: Pick<ResolvedUserOptions, "Page" | "props" | "build" | "moduleBase" | "projectRoot" | "normalizer">;
+  userOptions: Pick<ResolvedUserOptions, "Page" | "props" | "build" | "moduleBase" | "projectRoot" | "normalizer" | "moduleBasePath">;
 }): Promise<ResolvedBuildPages> {
   // Check if pages array has changed
   const pagesChanged =

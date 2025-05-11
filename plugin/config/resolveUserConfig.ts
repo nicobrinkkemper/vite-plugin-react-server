@@ -34,7 +34,7 @@ export function resolveUserConfig({
       : Boolean(configEnv.isSsrBuild) || condition === "react-server";
   const envDir =
     condition === "react-client" && ssr
-      ? userOptions.build.client
+      ? join(userOptions.build.client, userOptions.moduleBasePath)
       : condition === "react-client"
       ? userOptions.build.static
       : userOptions.build.server;
@@ -101,6 +101,7 @@ export function resolveUserConfig({
       ...config,
       root: root,
       mode: mode,
+      base: userOptions.moduleBasePath,
       resolve: {
         ...config.resolve,
         external: config.resolve?.external ?? [
@@ -160,15 +161,32 @@ export function resolveUserConfig({
       ...config,
       root: root,
       mode: mode,
+      base: userOptions.moduleBasePath,
       resolve: {
         ...config.resolve,
         externalConditions: config.resolve?.externalConditions ?? [
           "react-server",
         ],
       },
+      define: {
+        ...config.define,
+        "process.env.VITE_SSR": `"1"`,
+        "process.env.VITE_DEV": `"${mode === "development" ? "1" : "0"}"`,
+        "process.env.VITE_PROD": `"${mode === "production" ? "1" : "0"}"`,
+        "process.env.VITE_MODE": `"${mode}"`,
+        "process.env.VITE_BASE": `"${
+          userOptions.moduleBasePath === "" ||
+          userOptions.moduleBasePath === "/"
+            ? "/"
+            : !userOptions.moduleBasePath.endsWith("/")
+            ? userOptions.moduleBasePath + "/"
+            : userOptions.moduleBasePath
+        }"`,
+      },
       ssr: {
         ...config.ssr,
         target: config.ssr?.target ?? "node",
+
         resolve: {
           ...config.ssr?.resolve,
           externalConditions: config.ssr?.resolve?.externalConditions ?? [

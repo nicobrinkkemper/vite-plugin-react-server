@@ -44,7 +44,6 @@ export async function* renderPage(
     } satisfies CreateHandlerOptions;
     // Create streams with CSS files
     const [rscFull, rscHeadless] = await renderStreams(newHandlerOptions);
-
     // Handle stream creation errors
     if (rscFull.type !== "success") {
       yield {

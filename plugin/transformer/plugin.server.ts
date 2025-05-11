@@ -38,6 +38,15 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
 
   let staticManifest: Manifest;
 
+  const getID = (id: string) => {
+    if(userOptions.moduleBasePath !== '' && !id.startsWith(userOptions.moduleBasePath)) {
+      id = join(userOptions.moduleBasePath, id);
+    }
+    if(!id.startsWith('/')) {
+      id = '/' + id;
+    }
+    return id;
+  }
   return {
     name: "vite:react-server-transform",
     enforce: "pre", // Run before Vite's transforms
@@ -59,12 +68,12 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
       if (!ssr) return null;
       if (!userOptions.autoDiscover.modulePattern(id)) return null;
       if (!code.match('"use client"')) return null;
-
+    
       if (isBuild) {
         const [key, value] = userOptions.normalizer(id);
         if (staticManifest) {
           if (value in staticManifest) {
-            id = '/' + staticManifest[value].file;
+            id = staticManifest[value].file
           } else {
             const hash = this.emitFile({
               id,
@@ -75,15 +84,16 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
             // get fileName from hash
 
             const fileName = this.getFileName(hash);
-            id = '/' + fileName;
+            id = fileName;
           }
         } else {
           throw new Error(`Client manifest not found.`);
         }
       }
+      const finalID = getID(id);
       const transformed = await transformModuleIfNeeded(
         code,
-        id,
+        finalID,
         // Pass null for nextLoad since we don't need module loading in the plugin
         null
       );
