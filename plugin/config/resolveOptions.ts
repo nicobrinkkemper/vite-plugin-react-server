@@ -374,9 +374,7 @@ export const resolveOptions = <
 
   const moduleRootPath =
     typeof options.moduleRootPath === "string"
-      ? options.moduleRootPath.startsWith(projectRoot)
-        ? options.moduleRootPath
-        : join(projectRoot, options.moduleRootPath)
+      ? options.moduleRootPath
       : join(projectRoot, outDir, client)
   // Worker and loader paths
   const rscWorkerPath =

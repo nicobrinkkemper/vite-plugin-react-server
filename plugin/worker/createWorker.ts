@@ -1,7 +1,7 @@
 import {
   Worker,
   type ResourceLimits,
-  type TransferListItem
+  type TransferListItem,
 } from "node:worker_threads";
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
@@ -14,6 +14,7 @@ export type CreateWorkerOptions = {
   currentCondition?: "react-server" | "react-client";
   nodePath?: string;
   nodeOptions?: string[];
+  envPrefix?: string;
   mode?: "production" | "development";
   reverseCondition?: string;
   maxListeners?: number;
@@ -50,6 +51,7 @@ export async function createWorker(
     projectRoot = process.cwd(),
     nodePath = getNodePath(projectRoot),
     currentCondition = getCondition(),
+    envPrefix = "VITE_",
     reverseCondition = currentCondition === "react-server"
       ? "react-client"
       : "react-server",
@@ -61,7 +63,7 @@ export async function createWorker(
       maxYoungGenerationSizeMb: 64,
     },
     htmlChunkSize = 8 * 1024,
-    transferList = []
+    transferList = [],
   } = options;
   let workerPathWithDefault =
     typeof workerPath === "string" ? workerPath : undefined;
@@ -78,20 +80,10 @@ export async function createWorker(
   // Ensure worker uses the same React version
   const workerData = {
     ...options.workerData,
-    importMeta: {
-      env: {
-        DEV: mode === 'development' ? 'true' : 'false',
-        MODE: mode,
-        PROD: mode === 'production' ? 'true' : 'false',
-        SSR: true,
-        BASE_URL: '/',
-      },
-    },
     reactVersion: React.version,
   };
 
   try {
-
     // Ensure consistent NODE_ENV between main thread and worker
     const isTestEnv =
       process.env["VITEST"] || process.env["NODE_ENV"] === "test";
@@ -99,12 +91,17 @@ export async function createWorker(
 
     const env = {
       ...process.env,
-      BASE_URL: '/',
-      VITE_DEV: mode === 'development' ? '1' : '0',
-      VITE_MODE: mode,
-      VITE_PROD: mode === 'production' ? '1' : '0',
-      VITE_SSR: 'true',
-      VITE_BASE_URL: '/',
+      [envPrefix + "DEV"]: mode === "development" ? "1" : "0",
+      [envPrefix + "MODE"]: mode,
+      [envPrefix + "PROD"]: mode === "production" ? "1" : "0",
+      [envPrefix + "SSR"]: "true",
+      [envPrefix + "BASE_URL"]:
+        options.workerData.userOptions.moduleBasePath === "" ||
+        options.workerData.userOptions.moduleBasePath === "/"
+          ? "/"
+          : !options.workerData.userOptions.moduleBasePath.endsWith("/")
+          ? options.workerData.userOptions.moduleBasePath + "/"
+          : options.workerData.userOptions.moduleBasePath,
       NODE_ENV: nodeEnv,
       NODE_PATH: nodePath,
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
@@ -140,10 +137,12 @@ export async function createWorker(
         worker.once("message", (msg) => {
           if (msg.type === "READY") {
             clearTimeout(timeout);
-            if(msg.env !== nodeEnv) {
+            if (msg.env !== nodeEnv) {
               reject({
                 type: "error",
-                error: new Error(`Worker environment mismatch: ${msg.env} !== ${nodeEnv}`),
+                error: new Error(
+                  `Worker environment mismatch: ${msg.env} !== ${nodeEnv}`
+                ),
                 workerPath: workerPathWithDefault,
               } satisfies CreateWorkerError);
             }
@@ -185,4 +184,3 @@ export async function createWorker(
     return error as CreateWorkerError;
   }
 }
-

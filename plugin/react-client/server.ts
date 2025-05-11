@@ -8,7 +8,6 @@ import type {
   RscWorkerOutputMessage,
   RscRenderMessage,
 } from "../worker/types.js";
-import { join } from "node:path";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import { MessageChannel } from "node:worker_threads";
 import {
@@ -17,6 +16,7 @@ import {
 } from "../helpers/serializeUserOptions.js";
 import { createWorker } from "../worker/createWorker.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
+import { requestToRoute } from "../helpers/requestToRoute.js";
 
 let currentWorker: NodeWorker | null = null;
 let isRestarting = false;
@@ -169,7 +169,7 @@ export function handleWorkerRscStream(
 export async function configureWorkerRequestHandler({
   server,
   autoDiscoveredFiles,
-  userOptions,
+  userOptions: _userOptions,
   hmrChannel,
 }: {
   server: ViteDevServer;
@@ -177,15 +177,30 @@ export async function configureWorkerRequestHandler({
   userOptions: ResolvedUserOptions;
   hmrChannel: MessageChannel;
 }) {
-  if(server.config.root !== userOptions.projectRoot) {
-    server.config.logger.error("[react-client] Project root mismatch", {
-      error: new Error(`Server root ${server.config.root} does not match user options root ${userOptions.projectRoot}`)
-    });
-    return;
-  }
+  let {
+    // remove these
+    moduleBaseURL: _moduleBaseURL,
+    projectRoot: _projectRoot,
+    ...handlerUserOptions
+  } = _userOptions;
+  const handlerOptions = Object.assign({}, handlerUserOptions, {
+    moduleBaseURL:
+      typeof server.config.server.host === "string"
+        ? `${server.config.server.https ? "https" : "http"}://${
+            server.config.server.host
+          }:${server.config.server.port}`
+        : "",
+    moduleBasePath:
+      server.config.base === "/"
+        ? ""
+        : server.config.base.endsWith("/")
+        ? server.config.base.slice(0, -1)
+        : server.config.base,
+    projectRoot: server.config.root,
+  });
 
   // Start the worker
-  await restartWorker(server, autoDiscoveredFiles, userOptions, hmrChannel);
+  await restartWorker(server, autoDiscoveredFiles, handlerOptions, hmrChannel);
 
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
@@ -197,18 +212,24 @@ export async function configureWorkerRequestHandler({
       }
 
       // Get the route from the request
-      let route = req.url;
-      if (!route || route === "") route = "/";
+      let route = requestToRoute(req, {
+        moduleBasePath: handlerOptions.moduleBasePath,
+        build: handlerOptions.build
+      });
+      if (!route) {
+        return next();
+      }
       // in the case of the no build.pages and a async Page and or props userOption, we need to await those
       // if they are already autoDiscovered then the promise will resolve immediately
       const routeFiles = await getRouteFiles(
         route,
         autoDiscoveredFiles,
-        userOptions
+        handlerOptions
       );
       if (routeFiles.type === "error") {
-        server.config.logger.error("[react-client] Error getting route files", {
+        server.config.logger.error(routeFiles.error.message, {
           error: routeFiles.error,
+          timestamp: true,
         });
         return next();
       }
@@ -218,12 +239,8 @@ export async function configureWorkerRequestHandler({
       res.setHeader("Content-Type", "text/x-component; charset=utf-8");
       res.setHeader("Transfer-Encoding", "chunked");
       res.setHeader("Connection", "keep-alive");
-      let timeout = setTimeout(() => {
-        server.config.logger.error("[react-client] RSC render timeout");
-        res.end();
-      }, 5000);
       const serializedUserOptions = serializedOptions(
-        userOptions,
+        handlerOptions,
         autoDiscoveredFiles
       );
       const stream = handleWorkerRscStream(currentWorker, {
@@ -234,37 +251,42 @@ export async function configureWorkerRequestHandler({
         propsPath: props,
         // override these at all times to ensure the settings will work for the dev server
         projectRoot: server.config.root,
-        moduleRootPath: join(server.config.root, userOptions.moduleBase),
-        moduleBaseURL: "",
-        moduleBasePath: "",
         build: serializedUserOptions.build,
         manifest: autoDiscoveredFiles.staticManifest,
         cssFiles: new Map(),
         globalCss: new Map(),
       });
+      const writeStream = new WritableStream({
+        write(chunk) {
+          res.write(chunk);
+        },
+
+        close() {
+          clearTimeout(timeout);
+          res.end();
+        },
+        abort() {
+          clearTimeout(timeout);
+          // Restart worker on error
+          restartWorker(
+            server,
+            autoDiscoveredFiles,
+            handlerOptions,
+            hmrChannel
+          );
+          res.end();
+        },
+      })
+      let timeout = setTimeout(() => {
+        server.config.logger.error("[react-client] RSC render timeout");
+        res.end();
+      }, 5000);
 
       // Pipe the stream to the response
-      stream.pipeTo(
-        new WritableStream({
-          write(chunk) {
-            res.write(chunk);
-          },
-
-          close() {
-            clearTimeout(timeout);
-            res.end();
-          },
-          abort() {
-            clearTimeout(timeout);
-            // Restart worker on error
-            restartWorker(server, autoDiscoveredFiles, userOptions, hmrChannel);
-            res.end();
-          },
-        })
-      );
+      stream.pipeTo(writeStream);
     } catch (error) {
       if (error instanceof Error) {
-        server.config.logger.error("[react-client] Error handling request", {
+        server.config.logger.error(error.message, {
           error,
         });
       }

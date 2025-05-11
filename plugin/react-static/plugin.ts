@@ -138,6 +138,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       timing.renderStart = Date.now();
     },
 
+
     async writeBundle(options, bundle) {
       try {
         const bundleManifest = getBundleManifest<false>({
@@ -158,7 +159,10 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
         const clientManifestResult = await tryManifest({
           root: userOptions.projectRoot,
-          outDir: join(userOptions.build.outDir, userOptions.build.client),
+          outDir: join(
+            userOptions.build.outDir,
+            userOptions.build.client
+          ),
           ssrManifest: false,
         });
         if (clientManifestResult.type === "error") {
@@ -268,7 +272,16 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         const pipeableStreamOptions = {
           ...userOptions.pipeableStreamOptions,
           bootstrapModules: [
-            ...(indexHtml ? [indexHtml] : []),
+            ...(indexHtml
+              ? [
+                  userOptions.moduleBaseURL !== ""
+                    ? new URL(
+                        join(userOptions.moduleBasePath, indexHtml),
+                        userOptions.moduleBaseURL
+                      ).href
+                    : join(userOptions.moduleBasePath, indexHtml),
+                ]
+              : []),
             ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
           ],
         };
@@ -279,31 +292,37 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         );
         // Create worker
         if (!worker) {
+          const viteEnvPrefix = typeof resolvedConfig.envPrefix === 'string' ? resolvedConfig.envPrefix : Array.isArray(resolvedConfig.envPrefix) ? resolvedConfig.envPrefix[0] : 'VITE_'
           const workerResult = await createWorker({
             projectRoot: userOptions.projectRoot,
             workerPath: userOptions.htmlWorkerPath,
             currentCondition: "react-server",
             reverseCondition: "react-client",
+            envPrefix: viteEnvPrefix,
             workerData: {
               resolvedConfig: serializeResolvedConfig(resolvedConfig),
-              userOptions: serializedUserOptions,
+              userOptions: {
+                ...serializedUserOptions,
+              },
             },
           });
           if (workerResult.type === "error") {
             throw workerResult.error;
           } else if (workerResult.type === "skip") {
-            this.environment.logger.info("Worker not created, skipping static build");
+            this.environment.logger.info(
+              "Worker not created, skipping static build"
+            );
             return;
           } else {
             worker = workerResult.worker;
           }
         }
         // Render pages
-        const { onEvent, ...rest } = userOptions;
+        const { onEvent, ...handlerOptions } = userOptions;
         const renderPagesGenerator = renderPages(
           autoDiscoveredFiles!,
           {
-            ...rest,
+            ...handlerOptions,
             loader: buildLoader,
             worker: worker,
             logger: createLogger(),
@@ -329,7 +348,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             },
             globalCss: globalCss,
           },
-          cssFilesByPage,
+          cssFilesByPage
         );
 
         // Process render results
@@ -344,11 +363,13 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         if (!finalResult) {
           throw new Error("No render result produced");
         }
-        finalResult.streamMetrics.duration = Math.round(performance.now() - finalResult.streamMetrics.startTime);
-        
-      this.environment.logger.info(`Rendered ${finalResult.completedRoutes.size} unique routes in ${
-        finalResult.streamMetrics.duration
-      }ms`);
+        finalResult.streamMetrics.duration = Math.round(
+          performance.now() - finalResult.streamMetrics.startTime
+        );
+
+        this.environment.logger.info(
+          `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
+        );
 
         // Update timing
         timing.render = Date.now() - (timing.renderStart ?? timing.start);

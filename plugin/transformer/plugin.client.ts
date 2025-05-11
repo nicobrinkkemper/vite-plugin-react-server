@@ -37,6 +37,15 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
   userOptions = resolvedOptionsResult.userOptions;
   let staticManifest: Manifest;
+  const getID = (id: string) => {
+    if(userOptions.moduleBasePath !== '' && !id.startsWith(userOptions.moduleBasePath)) {
+      id = join(userOptions.moduleBasePath, id);
+    }
+    if(!id.startsWith('/')) {
+      id = '/' + id;
+    }
+    return id;
+  }
   return {
     name: "vite:react-server-action-transform",
     enforce: "pre",
@@ -73,13 +82,14 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
       }
       if (isServer && isBuild) {
         const [key] = userOptions.normalizer(id);
-        id = "/" + key + ".js";
+        id = key + ".js";
       }
-      const transformed = await transformModuleIfNeeded(code, id, null);
+      const finalID = getID(id);
+      const transformed = await transformModuleIfNeeded(code, finalID, null);
       if (!transformed) return null;
       return {
         code: transformed,
-        id: id,
+        id: finalID,
         map: null,
       };
     },

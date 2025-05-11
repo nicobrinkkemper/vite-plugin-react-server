@@ -76,6 +76,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
     async configureServer(server) {
       // Create HMR message channel
       hmrChannel = new MessageChannel();
+
       await configureWorkerRequestHandler({
         server,
         autoDiscoveredFiles,

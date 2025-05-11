@@ -1,29 +1,38 @@
-import type { ResolvedUserOptions } from '../types.js';
+import type { ResolvedUserOptions } from "../types.js";
 
 type ResolvePageAndPropsOptionsSuccess<T extends "Page" | "props"> = {
   [optionName in T]: string;
-} & {type: "success"; error?:never}
+} & { type: "success"; error?: never };
 
 type ResolvePageAndPropsOptionsError<T extends "Page" | "props"> = {
   [optionName in T]?: never;
-} & { type: "error"; error: Error }
+} & { type: "error"; error: Error };
 
 export async function resolveUrlOption<T extends "Page" | "props">(
-  options: Pick<ResolvedUserOptions, T>,
+  options: Pick<ResolvedUserOptions, T | "moduleBasePath">,
   optionName: T,
   url: string
-): Promise<ResolvePageAndPropsOptionsSuccess<T> | ResolvePageAndPropsOptionsError<T>> {
+): Promise<
+  ResolvePageAndPropsOptionsSuccess<T> | ResolvePageAndPropsOptionsError<T>
+> {
   try {
     switch (typeof options[optionName]) {
       case "function":
-        const result = options[optionName](url);
-        if(typeof result === "string") {
+        const result = options[optionName](
+          // quick normalization to make it easier to work with dynamic moduleBasePaths (so that you don't have to change the Page/props function)
+          options.moduleBasePath !== "" &&
+            options.moduleBasePath !== "/" &&
+            url.startsWith(options.moduleBasePath)
+            ? url.slice(options.moduleBasePath.length)
+            : url
+        );
+        if (typeof result === "string") {
           return { type: "success", [optionName]: result };
         }
-        if(result instanceof Promise) {
+        if (result instanceof Promise) {
           try {
             const promiseResult = await result;
-            if(typeof promiseResult === "string") {
+            if (typeof promiseResult === "string") {
               return { type: "success", [optionName]: promiseResult };
             }
           } catch (error) {
@@ -40,4 +49,4 @@ export async function resolveUrlOption<T extends "Page" | "props">(
   } catch (error) {
     return { type: "error", error: error as Error };
   }
-} 
+}
