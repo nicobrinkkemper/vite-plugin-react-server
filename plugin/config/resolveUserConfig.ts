@@ -174,7 +174,7 @@ export function resolveUserConfig({
         "process.env.VITE_DEV": `"${mode === "development" ? "1" : "0"}"`,
         "process.env.VITE_PROD": `"${mode === "production" ? "1" : "0"}"`,
         "process.env.VITE_MODE": `"${mode}"`,
-        "process.env.VITE_BASE": `"${
+        "process.env.VITE_BASE_URL": `"${
           userOptions.moduleBasePath === "" ||
           userOptions.moduleBasePath === "/"
             ? "/"

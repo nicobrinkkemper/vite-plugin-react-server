@@ -95,7 +95,7 @@ export async function createWorker(
       [envPrefix + "MODE"]: mode,
       [envPrefix + "PROD"]: mode === "production" ? "1" : "0",
       [envPrefix + "SSR"]: "true",
-      [envPrefix + "BASE"]:
+      [envPrefix + "BASE_URL"]:
         options.workerData.userOptions.moduleBasePath === "" ||
         options.workerData.userOptions.moduleBasePath === "/"
           ? "/"
