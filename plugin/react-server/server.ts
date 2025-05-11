@@ -93,15 +93,13 @@ export async function configureReactServer({
       const eventHandler = createEventHandler(onEvent);
       const cssFilesResult = await collectViteModuleGraphCss({
         moduleGraph: server.moduleGraph,
-        pagePath,
-        loader: (i) => server.ssrLoadModule(i, { fixStacktrace: true }),
-        // explicitly set for development server
-        moduleBaseURL: handlerOptions.moduleBaseURL,
-        moduleBasePath: handlerOptions.moduleBasePath,
-        moduleRootPath: handlerOptions.moduleRootPath,
-        projectRoot: handlerOptions.projectRoot,
-        css: handlerOptions.css,
         parentUrl: pagePath,
+        handlerOptions: {
+          pagePath,
+          loader: server.ssrLoadModule,
+          // explicitly set for development server
+          ...handlerOptions,
+        },
       });
       if (cssFilesResult.type === "skip") {
         return next();

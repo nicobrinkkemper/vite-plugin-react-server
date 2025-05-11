@@ -1,6 +1,5 @@
 import { React, ReactDOMServer } from "../vendor.server.js";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
-import { join } from "node:path";
 export function createRscStream<
   T,
   C extends React.ComponentType<T>,
@@ -44,8 +43,7 @@ export function createRscStream<
   | { type: "error"; error: Error; metrics: StreamMetrics } {
   const startTime = performance.now()
   const htmlIsFragment = Html == React.Fragment;
-  const url =
-    moduleBaseURL !== "" ? new URL(join(route, moduleBasePath), moduleBaseURL).toString() : route;
+  const url = route.startsWith(moduleBaseURL) ? route : moduleBaseURL + route;
   let errorCount = 0;
   let streamError: Error | null = null;
 

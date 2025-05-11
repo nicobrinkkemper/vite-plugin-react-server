@@ -70,11 +70,7 @@ export function addCssFileContent(id: string, code: string, userOptions: Pick<Re
   cssFiles.set(normalizeId, createCssProps({
     id,
     code,
-    projectRoot: userOptions.projectRoot,
-    moduleBaseURL: userOptions.moduleBaseURL,
-    moduleBasePath: userOptions.moduleBasePath,
-    moduleRootPath: userOptions.moduleRootPath,
-    css: userOptions.css,
+    userOptions
   }));
 } 
 

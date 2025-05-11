@@ -32,29 +32,33 @@ export async function collectViteModuleGraphCss<
   InlineCSS extends boolean | undefined = undefined
 >({
   moduleGraph,
-  pagePath,
   onCss,
-  loader,
   parentUrl,
-  moduleBaseURL,
-  moduleBasePath,
-  moduleRootPath,
-  projectRoot,
-  css,
-}: Pick<
-  CreateHandlerOptions<InlineCSS>,
-  | "pagePath"
-  | "moduleBaseURL"
-  | "moduleBasePath"
-  | "moduleRootPath"
-  | "projectRoot"
-  | "css"
-  | "loader"
-> & {
+  handlerOptions,
+}: {
   moduleGraph: ModuleGraph | EnvironmentModuleGraph;
   onCss?: (cssContent: CssContent, parentUrl: string) => void;
   parentUrl?: string;
+  handlerOptions: Pick<
+    CreateHandlerOptions<InlineCSS>,
+    | "pagePath"
+    | "moduleBaseURL"
+    | "moduleBasePath"
+    | "moduleRootPath"
+    | "projectRoot"
+    | "css"
+    | "loader"
+  >;
 }): Promise<CollectViteModuleGraphCssResult> {
+  const {
+    pagePath,
+    moduleBaseURL,
+    moduleBasePath,
+    moduleRootPath,
+    projectRoot,
+    css,
+    loader,
+  } = handlerOptions;
   if (!pagePath) return { type: "skip" };
 
   const cssFiles = new Map<string, CssContent>();
@@ -86,7 +90,7 @@ export async function collectViteModuleGraphCss<
     // Processing module
     if (mod.id.endsWith(".css")) {
       const string = await loader(mod.id + "?inline").then(
-        (m) => m?.['default'] ?? ""
+        (m) => m?.["default"] ?? ""
       );
       if (typeof string !== "string") {
         throw new Error(`CSS module ${mod.id}?inline did not return a string`);
@@ -96,11 +100,13 @@ export async function collectViteModuleGraphCss<
       const cssContent = createCssProps({
         id: mod?.url,
         code: string,
-        moduleBaseURL: moduleBaseURL,
-        moduleBasePath: moduleBasePath,
-        moduleRootPath: moduleRootPath,
-        projectRoot: projectRoot,
-        css: css,
+        userOptions: {
+          moduleBaseURL: moduleBaseURL,
+          moduleBasePath: moduleBasePath,
+          moduleRootPath: moduleRootPath,
+          projectRoot: projectRoot,
+          css: css,
+        },
       });
       cssFiles.set(mod?.url, cssContent);
       onCss?.(cssContent, parentUrl ?? pagePath);
@@ -119,14 +125,10 @@ export async function collectViteModuleGraphCss<
           ) {
             await walkModule(importedMod);
           } else {
-            throw new Error(
-              `Imported module has no id`
-            );
+            throw new Error(`Imported module has no id`);
           }
         } else {
-          throw new Error(
-            `Imported module is not an object`
-          );
+          throw new Error(`Imported module is not an object`);
         }
       }
     }

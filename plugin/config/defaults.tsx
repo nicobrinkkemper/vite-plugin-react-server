@@ -6,7 +6,7 @@ export const DEFAULT_CONFIG = {
   RSC_DIR: "rsc",
   MODULE_BASE: "src",
   MODULE_BASE_PATH: "",
-  MODULE_BASE_URL: "",
+  MODULE_BASE_URL: "/",
   PAGE: "page.tsx",
   PROPS: "props.ts",
   CLIENT_ENTRY: undefined,

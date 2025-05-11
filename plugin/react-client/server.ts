@@ -36,12 +36,20 @@ async function restartWorker(
       currentWorker.terminate();
       currentWorker = null;
     }
-
+    const routeCount = autoDiscoveredFiles.urlMap.size;
+    const hmrBuffer = 20; // Buffer for HMR and other operations
+    const maxListeners = routeCount + hmrBuffer;
     const workerResult = await createWorker({
       projectRoot: server.config.root,
       workerPath: userOptions.rscWorkerPath,
       reverseCondition: "react-server",
       currentCondition: "react-client",
+      maxListeners: maxListeners,
+      envPrefix: typeof server.config.envPrefix === 'string' 
+        ? server.config.envPrefix 
+        : Array.isArray(server.config.envPrefix) 
+          ? server.config.envPrefix[0] 
+          : 'VITE_',
       workerData: {
         hmrPort: hmrChannel.port2,
         resolvedConfig: serializedDevServerConfig(server.config),
@@ -52,6 +60,7 @@ async function restartWorker(
 
     if (workerResult.type === "success") {
       currentWorker = workerResult.worker;
+      server.config.logger.info(`[react-client] Set max listeners to ${maxListeners} for ${routeCount} routes`);
     } else if (workerResult.type === "error") {
       server.config.logger.error("Failed to start rsc-worker", {
         error: workerResult.error,

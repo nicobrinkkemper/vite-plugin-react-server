@@ -138,7 +138,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
       timing.renderStart = Date.now();
     },
 
-
     async writeBundle(options, bundle) {
       try {
         const bundleManifest = getBundleManifest<false>({
@@ -159,10 +158,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
         const clientManifestResult = await tryManifest({
           root: userOptions.projectRoot,
-          outDir: join(
-            userOptions.build.outDir,
-            userOptions.build.client
-          ),
+          outDir: join(userOptions.build.outDir, userOptions.build.client),
           ssrManifest: false,
         });
         if (clientManifestResult.type === "error") {
@@ -195,15 +191,29 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         // Collect CSS files for each page and its props
         for (const [url, { page, props }] of autoDiscoveredFiles?.urlMap ??
           []) {
+          const transformedServerManifest = Object.fromEntries(
+            Object.entries(serverManifest).map(([key, value]) => {
+              if (!value.css?.length) {
+                return [key, value];
+              }
+              return [
+                key,
+                {
+                  ...value,
+                  css:
+                    autoDiscoveredFiles?.staticManifest[key]?.css ?? value.css,
+                },
+              ];
+            })
+          );
           const cssInputs = collectManifestCss(
-            serverManifest,
+            transformedServerManifest,
             props ? [page, props] : page,
             userOptions
           );
 
           // Create a map for this page's CSS files
           const pageCssMap: Map<string, CssContent> = new Map();
-
           // Add global styles if they exist
           if (Object.keys(globalCssInputs).length > 0) {
             for (const [, value] of Object.entries(globalCssInputs)) {
@@ -219,11 +229,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
                   createCssProps({
                     id: value,
                     code: cssContent,
-                    css: userOptions.css,
-                    moduleBaseURL: userOptions.moduleBaseURL,
-                    moduleBasePath: userOptions.moduleBasePath,
-                    moduleRootPath: userOptions.moduleRootPath,
-                    projectRoot: userOptions.projectRoot,
+                    userOptions: userOptions,
                   })
                 );
               }
@@ -232,25 +238,29 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
           // Add page-specific styles
           for (const [, value] of Object.entries(cssInputs)) {
-            const { default: cssContent } = await buildLoader(
-              value + "?inline"
-            );
-            if (typeof cssContent !== "string") {
-              continue;
-            }
-            if (cssContent) {
-              pageCssMap.set(
-                value,
-                createCssProps({
-                  id: value,
-                  code: cssContent,
-                  css: userOptions.css,
-                  moduleBaseURL: userOptions.moduleBaseURL,
-                  moduleBasePath: userOptions.moduleBasePath,
-                  moduleRootPath: userOptions.moduleRootPath,
-                  projectRoot: userOptions.projectRoot,
-                })
+            try {
+              console.log("value", value);
+              const { default: cssContent } = await buildLoader(
+                value + "?inline"
               );
+              if (typeof cssContent !== "string") {
+                continue;
+              }
+              if (cssContent) {
+                // Ensure the CSS file path is properly resolved
+                const cssPath = value.startsWith("/") ? value.slice(1) : value;
+                pageCssMap.set(
+                  cssPath,
+                  createCssProps({
+                    id: cssPath,
+                    code: cssContent,
+                    userOptions: userOptions,
+                  })
+                );
+              }
+            } catch (error) {
+              console.warn(`Failed to process CSS file ${value}:`, error);
+              continue;
             }
           }
           cssFilesByPage.set(url, pageCssMap);
@@ -274,12 +284,8 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           bootstrapModules: [
             ...(indexHtml
               ? [
-                  userOptions.moduleBaseURL !== ""
-                    ? new URL(
-                        join(userOptions.moduleBasePath, indexHtml),
-                        userOptions.moduleBaseURL
-                      ).href
-                    : join(userOptions.moduleBasePath, indexHtml),
+                  userOptions.moduleBaseURL +
+                    join(userOptions.moduleBasePath, indexHtml),
                 ]
               : []),
             ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
@@ -292,12 +298,20 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         );
         // Create worker
         if (!worker) {
-          const viteEnvPrefix = typeof resolvedConfig.envPrefix === 'string' ? resolvedConfig.envPrefix : Array.isArray(resolvedConfig.envPrefix) ? resolvedConfig.envPrefix[0] : 'VITE_'
+          const viteEnvPrefix =
+            typeof resolvedConfig.envPrefix === "string"
+              ? resolvedConfig.envPrefix
+              : Array.isArray(resolvedConfig.envPrefix)
+              ? resolvedConfig.envPrefix[0]
+              : "VITE_";
+          const routeCount = autoDiscoveredFiles?.urlMap.size ?? 0;
+          const maxListeners = routeCount + 1;
           const workerResult = await createWorker({
             projectRoot: userOptions.projectRoot,
             workerPath: userOptions.htmlWorkerPath,
             currentCondition: "react-server",
             reverseCondition: "react-client",
+            maxListeners: maxListeners,
             envPrefix: viteEnvPrefix,
             workerData: {
               resolvedConfig: serializeResolvedConfig(resolvedConfig),

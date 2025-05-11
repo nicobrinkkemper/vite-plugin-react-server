@@ -11,8 +11,6 @@ type TryManifestOptions<SSR extends boolean = false> = {
   manifestPath?: string | undefined;
 };
 
-const stashedManifests: Map<string, any> = new Map();
-
 export async function tryManifest<SSR extends boolean>(
   options: TryManifestOptions<SSR>
 ): Promise<
@@ -26,12 +24,6 @@ export async function tryManifest<SSR extends boolean>(
       error: Error;
       manifest?: never;
     }> {
-  if (stashedManifests.has(options.outDir)) {
-    return {
-      type: "success",
-      manifest: stashedManifests.get(options.outDir),
-    };
-  }
   const localSsrManifestPath = !options.ssrManifest ? undefined : options.manifestPath ? options.manifestPath : join('.vite', 'ssr-manifest.json');
   const localManifestPath = options.ssrManifest ? undefined : options.manifestPath ? options.manifestPath : join('.vite', 'manifest.json');
   const manifestPath = resolve(
@@ -41,7 +33,6 @@ export async function tryManifest<SSR extends boolean>(
   );
   try {
     const result = JSON.parse(await readFile(manifestPath, "utf-8"));
-    stashedManifests.set(options.outDir, result);
     return {
       type: "success",
       manifest: result,

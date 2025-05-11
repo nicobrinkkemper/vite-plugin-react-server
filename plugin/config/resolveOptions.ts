@@ -372,6 +372,10 @@ export const resolveOptions = <
       ? options.moduleBaseURL
       : DEFAULT_CONFIG.MODULE_BASE_URL;
 
+  if ("moduleBaseUrl" in options) {
+    throw new Error("moduleBaseUrl is written as moduleBaseURL (note the all caps) please change it to moduleBaseURL in your config");
+  }
+
   const moduleRootPath =
     typeof options.moduleRootPath === "string"
       ? options.moduleRootPath

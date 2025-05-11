@@ -23,19 +23,22 @@ import { deserializeRegExp } from "./serializeUserOptions.js";
  */
 export const createCssProps = ({
   id,
-  css,
   code,
-  projectRoot,
-  moduleBaseURL,
-  moduleBasePath,
-  moduleRootPath,
+  userOptions,
 }: {
   id: string;
   code: string;
-} & Pick<
-  ResolvedUserOptions,
-  "css" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot"
->): CssContent => {
+  userOptions: Pick<
+    ResolvedUserOptions,
+    | "css"
+    | "moduleBaseURL"
+    | "moduleBasePath"
+    | "moduleRootPath"
+    | "projectRoot"
+  >;
+}): CssContent => {
+  const { css, moduleBaseURL, moduleBasePath, moduleRootPath, projectRoot } =
+    userOptions;
   // If we don't have a bundle entry, create a linked CSS file
   let inline = typeof code === "string" && code.length > css.inlineThreshold;
   // Normalize the ID to be relative to src/
@@ -73,13 +76,19 @@ export const createCssProps = ({
         : {}),
     } as CssContent<true>;
   }
-
+  const safeParseURL = (() => {
+    try {
+      return new URL(join(moduleBasePath, normalizedId), moduleBaseURL).href;
+    } catch (error) {
+      return moduleBaseURL + join(moduleBasePath, normalizedId);
+    }
+  })();
   // Default case
   return {
     id: normalizedId,
     as: "link",
     rel: "stylesheet",
-    href: join(moduleBaseURL, moduleBasePath, normalizedId),
+    href: safeParseURL,
     precedence: "high",
   } as CssContent<false>;
 };
