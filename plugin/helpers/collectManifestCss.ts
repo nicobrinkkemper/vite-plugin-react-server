@@ -29,7 +29,6 @@ export function collectManifestCss(
     // Add CSS files from the css property
     if (fileInfo.css) {
       for (const cssFile of fileInfo.css) {
-        console.log("cssFile", cssFile)
         const [keyNormalized, valueNormalized] = userOptions.normalizer(cssFile);
         cssInputs[keyNormalized] = valueNormalized;
       }

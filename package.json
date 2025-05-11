@@ -27,7 +27,8 @@
     "./check-react-version": "./scripts/check-react-version.mjs",
     "./components": "./dist/plugin/components.js",
     "./types": "./dist/plugin/types.js",
-    "./utils": "./dist/plugin/utils/index.js"
+    "./utils": "./dist/plugin/utils/index.js",
+    "./metrics": "./dist/plugin/metrics/index.js"
   },
   "typesVersions": {
     "*": {
@@ -46,14 +47,14 @@
       "worker": [
         "./dist/plugin/worker/worker.d.ts"
       ],
-      "loader": [
-        "./dist/plugin/worker/loader.d.ts"
-      ],
       "components": [
         "./dist/plugin/components.d.ts"
       ],
       "utils": [
         "./dist/plugin/utils/index.d.ts"
+      ],
+      "metrics": [
+        "./dist/plugin/metrics/index.d.ts"
       ]
     }
   },

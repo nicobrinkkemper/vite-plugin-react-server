@@ -82,6 +82,9 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         autoDiscoveredFiles,
         userOptions,
         hmrChannel,
+        onMetrics: userOptions.onMetrics ? (metrics) => {
+          userOptions.onMetrics?.(metrics);
+        } : undefined,
       });
     },
 

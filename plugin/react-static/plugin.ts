@@ -48,6 +48,7 @@ import {
 import { collectManifestCss } from "../helpers/collectManifestCss.js";
 import { createCssProps } from "../helpers/createCssProps.js";
 import { tryManifest } from "../helpers/tryManifest.js";
+import { performance } from "node:perf_hooks";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -239,7 +240,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           // Add page-specific styles
           for (const [, value] of Object.entries(cssInputs)) {
             try {
-              console.log("value", value);
               const { default: cssContent } = await buildLoader(
                 value + "?inline"
               );
@@ -279,13 +279,19 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         }
         const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
         const indexHtml = staticManifest?.["index.html"]?.file;
+        const safeParseURL = (() => {
+          try {
+            return new URL(join(userOptions.moduleBasePath, indexHtml), userOptions.moduleBaseURL).href;
+          } catch (error) {
+            return userOptions.moduleBaseURL + join(userOptions.moduleBasePath, indexHtml);
+          }
+        })();
         const pipeableStreamOptions = {
           ...userOptions.pipeableStreamOptions,
           bootstrapModules: [
-            ...(indexHtml
+            ...(safeParseURL
               ? [
-                  userOptions.moduleBaseURL +
-                    join(userOptions.moduleBasePath, indexHtml),
+                  safeParseURL,
                 ]
               : []),
             ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),

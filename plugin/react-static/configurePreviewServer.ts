@@ -26,7 +26,6 @@ export async function configurePreviewServer({
     const isHtml = userOptions.autoDiscover.htmlPattern(value)
     if (isHtml || (req.headers.accept?.includes("text/html"))) {
       const indexHtml = isHtml ? join(staticHostDir, value) : join(staticHostDir, value, userOptions.build.htmlOutputPath);
-      console.log("is html", indexHtml)
       try {
         const stats = await stat(indexHtml);
         if (stats.isFile()) {

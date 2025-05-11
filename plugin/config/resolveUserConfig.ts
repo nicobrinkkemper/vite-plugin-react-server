@@ -63,19 +63,18 @@ export function resolveUserConfig({
       input
     );
     const entry = autoDiscoveredFiles.staticManifest[value];
-    if(entry?.name && userOptions.autoDiscover.cssPattern(value)) {
-      const found = entry.css?.find(css => css.startsWith(entry.name as string))
+    if(entry?.name && info.type === 'asset' && userOptions.autoDiscover.cssPattern(value)) {
+      const withoutExt = entry.name?.split('.')[0]
+      const found = entry.css?.find(css => css.startsWith(withoutExt as string))
       if(found) {
         return found
       } else {
-        console.warn("fallback", {input, value, entry});
         return entry.file
       }
     }
     if (entry) {
       return entry.file
     }
-    console.warn("fallback", {input, value});
     return fallback(info, true);
   };
   const pluginOutput = {
@@ -178,6 +177,7 @@ export function resolveUserConfig({
             : true,
       },
     } satisfies ResolvedUserConfig;
+    stashedUserConfig[envId] = clientConfig;
     return {
       type: "success",
       userConfig: clientConfig,
@@ -213,7 +213,14 @@ export function resolveUserConfig({
       ssr: {
         ...config.ssr,
         target: config.ssr?.target ?? "node",
-
+        optimizeDeps: {
+          ...config.ssr?.optimizeDeps,
+          include: config.ssr?.optimizeDeps?.include ?? [
+            "react",
+            "react-dom",
+            "react-server-dom-esm/client",
+          ],
+        },
         resolve: {
           ...config.ssr?.resolve,
           externalConditions: config.ssr?.resolve?.externalConditions ?? [
@@ -254,6 +261,7 @@ export function resolveUserConfig({
         },
       },
     } satisfies ResolvedUserConfig;
+    stashedUserConfig[envId] = serverConfig;
     return {
       type: "success",
       userConfig: serverConfig,

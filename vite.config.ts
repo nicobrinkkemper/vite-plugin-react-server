@@ -26,6 +26,7 @@ export default defineConfig({
         'plugin/loader/css-loader.development': resolve(__dirname, 'plugin/loader/css-loader.development.ts'),
         'plugin/loader/react-loader': resolve(__dirname, 'plugin/loader/react-loader.ts'),
         'plugin/utils': resolve(__dirname, 'plugin/utils/index.ts'),
+        'plugin/metrics': resolve(__dirname, 'plugin/metrics/index.ts'),
       },
       formats: ['es'],
     },

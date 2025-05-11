@@ -36,7 +36,7 @@ export async function configureReactServer({
         ? `${server.config.server.https ? "https" : "http"}://${
             server.config.server.host
           }:${server.config.server.port}`
-        : "",
+        : _moduleBaseURL,
     moduleBasePath:
       server.config.base === "/"
         ? ""
@@ -47,7 +47,7 @@ export async function configureReactServer({
   });
   // Handle Vite server restarts
   server.ws.on("restart", (path) => {
-    console.log(
+    server.config.logger.info(
       "[vite-plugin-react-server] 🔧 Plugin changed, preparing for restart:",
       path
     );
@@ -58,7 +58,7 @@ export async function configureReactServer({
         "Content-Type": "text/x-component",
         "Retry-After": "1",
       });
-      res.end('{"error":"Server restarting..."}');
+      res.end(`0:E{"digest":"","name":"Error","message":"Server restarting...","stack":"","env":"Server"}`);
     }
     activeStreams.clear();
   });
@@ -67,13 +67,10 @@ export async function configureReactServer({
     try {
       if (req.headers.accept !== "text/x-component") return next();
       let route = req.url?.replace("/" + handlerOptions.build.rscOutputPath, "");
-      if(!route?.startsWith(handlerOptions.moduleBasePath)) {
+      if(handlerOptions.moduleBasePath !== '' && !route?.startsWith(handlerOptions.moduleBasePath)) {
         next();
-      } else {
+      } else if(route && handlerOptions.moduleBasePath.length) {
         route  = route.slice(handlerOptions.moduleBasePath.length);
-      }
-      if(typeof route !== "string" ) {
-        throw new Error("req.url is not a string");
       }
       if (!route || route === "") {
         route = "/";
@@ -88,25 +85,7 @@ export async function configureReactServer({
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
 
-      // Create a unified event handler
-      await server.warmupRequest(pagePath);
-      const eventHandler = createEventHandler(onEvent);
-      const cssFilesResult = await collectViteModuleGraphCss({
-        moduleGraph: server.moduleGraph,
-        parentUrl: pagePath,
-        handlerOptions: {
-          pagePath,
-          loader: server.ssrLoadModule,
-          // explicitly set for development server
-          ...handlerOptions,
-        },
-      });
-      if (cssFilesResult.type === "skip") {
-        return next();
-      }
-      if (cssFilesResult.type === "error") {
-        throw cssFilesResult.error;
-      }
+      // first load the page and props
       const pageAndPropsResult = await resolvePageAndProps({
         pagePath,
         propsPath,
@@ -120,6 +99,24 @@ export async function configureReactServer({
       }
       if (pageAndPropsResult.type === "skip") {
         return next();
+      }
+
+      const eventHandler = createEventHandler(onEvent);
+      const cssFilesResult = await collectViteModuleGraphCss({
+        moduleGraph: server.moduleGraph, // by having loaded the page and props, we can get them from the module graph
+        parentUrl: pagePath,
+        handlerOptions: {
+          pagePath,
+          loader: server.ssrLoadModule,
+          // explicitly set for development server
+          ...handlerOptions,
+        },
+      });
+      if (cssFilesResult.type === "skip") {
+        return next();
+      }
+      if (cssFilesResult.type === "error") {
+        throw cssFilesResult.error;
       }
       const { PageComponent, pageProps } = pageAndPropsResult;
       // Create the headless RSC stream directly;

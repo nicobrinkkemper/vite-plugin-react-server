@@ -47,7 +47,7 @@ export async function collectHtmlWorkerContent(
       callback(null, chunk);
     },
     flush(callback) {
-      metrics.duration = Date.now() - startTime;
+      metrics.duration = performance.now() - startTime;
       callback();
     },
   });

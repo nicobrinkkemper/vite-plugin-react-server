@@ -1,5 +1,6 @@
 import { React, ReactDOMServer } from "../vendor.server.js";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import { performance } from "node:perf_hooks";
 export function createRscStream<
   T,
   C extends React.ComponentType<T>,
@@ -41,52 +42,50 @@ export function createRscStream<
 }):
   | { type: "success"; stream: any; metrics: StreamMetrics }
   | { type: "error"; error: Error; metrics: StreamMetrics } {
-  const startTime = performance.now()
-  const htmlIsFragment = Html == React.Fragment;
-  const url = route.startsWith(moduleBaseURL) ? route : moduleBaseURL + route;
   let errorCount = 0;
   let streamError: Error | null = null;
-
-  if (!PageComponent) {
-    return {
-      type: "error",
-      error: new Error("PageComponent is required"),
-      metrics: {
-        chunks: 0,
-        bytes: 0,
-        backpressureCount: 0,
-        drainCount: 0,
-        errorCount: 0,
-        duration: 0,
-        startTime: 0,
-      },
-    };
-  }
-  const elements = htmlIsFragment ? (
-    <CssCollector
-      cssFiles={cssFiles}
-    >
-      <PageComponent {...(pageProps as any)} />
-    </CssCollector>
-  ) : (
-    <Html
-      moduleBase={moduleBase}
-      moduleBaseURL={moduleBaseURL}
-      moduleBasePath={moduleBasePath}
-      moduleRootPath={moduleRootPath}
-      projectRoot={projectRoot}
-      url={url}
-      route={route}
-      pageProps={pageProps}
-      cssFiles={cssFiles}
-      globalCss={globalCss}
-      CssCollector={CssCollector}
-      manifest={manifest}
-    >
-      <PageComponent {...(pageProps as any)} />
-    </Html>
-  );
+  const startTime = performance.now();
   try {
+    const htmlIsFragment = Html == React.Fragment;
+    const url = route.startsWith(moduleBaseURL) ? route : moduleBaseURL + route;
+
+    if (!PageComponent) {
+      return {
+        type: "error",
+        error: new Error("PageComponent is required"),
+        metrics: {
+          chunks: 0,
+          bytes: 0,
+          backpressureCount: 0,
+          drainCount: 0,
+          errorCount: 0,
+          duration: 0,
+          startTime: 0,
+        },
+      };
+    }
+    const elements = htmlIsFragment ? (
+      <CssCollector cssFiles={cssFiles}>
+        <PageComponent {...(pageProps as any)} />
+      </CssCollector>
+    ) : (
+      <Html
+        moduleBase={moduleBase}
+        moduleBaseURL={moduleBaseURL}
+        moduleBasePath={moduleBasePath}
+        moduleRootPath={moduleRootPath}
+        projectRoot={projectRoot}
+        url={url}
+        route={route}
+        pageProps={pageProps}
+        cssFiles={cssFiles}
+        globalCss={globalCss}
+        CssCollector={CssCollector}
+        manifest={manifest}
+      >
+        <PageComponent {...(pageProps as any)} />
+      </Html>
+    );
     const stream = ReactDOMServer.renderToPipeableStream(
       elements,
       moduleBasePath,
@@ -103,7 +102,6 @@ export function createRscStream<
         },
       }
     );
-
     // If we have a stream error, return it immediately
     if (streamError) {
       return {

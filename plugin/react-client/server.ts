@@ -1,145 +1,25 @@
-import type { ViteDevServer } from "vite";
+import type { Logger, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
+  RenderMetrics,
   RequestHandler,
   ResolvedUserOptions,
+  StreamMetrics,
 } from "../types.js";
 import type {
-  RscWorkerOutputMessage,
   RscRenderMessage,
 } from "../worker/types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import { MessageChannel } from "node:worker_threads";
 import {
-  serializedDevServerConfig,
   serializedOptions,
 } from "../helpers/serializeUserOptions.js";
-import { createWorker } from "../worker/createWorker.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { requestToRoute } from "../helpers/requestToRoute.js";
+import { performance } from "node:perf_hooks";
+import { createWorkerStream } from "./createWorkerStream.js";
+import { restartWorker } from "./restartWorker.js";
 
-let currentWorker: NodeWorker | null = null;
-let isRestarting = false;
-
-async function restartWorker(
-  server: ViteDevServer,
-  autoDiscoveredFiles: AutoDiscoveredFiles,
-  userOptions: ResolvedUserOptions,
-  hmrChannel: MessageChannel
-) {
-  if (isRestarting) return;
-  isRestarting = true;
-
-  try {
-    // Terminate the current worker if it exists
-    if (currentWorker) {
-      currentWorker.terminate();
-      currentWorker = null;
-    }
-    const routeCount = autoDiscoveredFiles.urlMap.size;
-    const hmrBuffer = 20; // Buffer for HMR and other operations
-    const maxListeners = routeCount + hmrBuffer;
-    const workerResult = await createWorker({
-      projectRoot: server.config.root,
-      workerPath: userOptions.rscWorkerPath,
-      reverseCondition: "react-server",
-      currentCondition: "react-client",
-      maxListeners: maxListeners,
-      envPrefix: typeof server.config.envPrefix === 'string' 
-        ? server.config.envPrefix 
-        : Array.isArray(server.config.envPrefix) 
-          ? server.config.envPrefix[0] 
-          : 'VITE_',
-      workerData: {
-        hmrPort: hmrChannel.port2,
-        resolvedConfig: serializedDevServerConfig(server.config),
-        userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
-      },
-      transferList: [hmrChannel.port2],
-    });
-
-    if (workerResult.type === "success") {
-      currentWorker = workerResult.worker;
-      server.config.logger.info(`[react-client] Set max listeners to ${maxListeners} for ${routeCount} routes`);
-    } else if (workerResult.type === "error") {
-      server.config.logger.error("Failed to start rsc-worker", {
-        error: workerResult.error,
-      });
-    }
-  } finally {
-    isRestarting = false;
-  }
-}
-
-/**
- * Creates an async generator that yields RSC chunks from the worker.
- * Handles both module requests and RSC streaming.
- *
- * @param worker - The worker thread
- * @param server - The Vite dev server
- * @param message - The RSC render message
- * @param rscWorkerLoaderPort - Optional loader port for module loading
- * @returns An async generator that yields RSC chunks
- */
-async function* createWorkerStream(
-  worker: NodeWorker,
-  message: Omit<RscRenderMessage, "type" | "id">
-): AsyncGenerator<Uint8Array, void, unknown> {
-  let messageHandler: (message: RscWorkerOutputMessage) => void;
-  let cleanup: () => void = () => {};
-
-  // First yield: wait for initial message and handle module requests
-  yield await new Promise<Uint8Array>((resolve) => {
-    messageHandler = (message: RscWorkerOutputMessage) => {
-      if (message.type === "RSC_CHUNK") {
-        resolve(message.chunk);
-      }
-      if (message.type === "ERROR") {
-        resolve(new Uint8Array());
-      }
-    };
-
-    cleanup = () => {
-      worker.off("message", messageHandler);
-    };
-
-    worker.on("message", messageHandler);
-
-    // Send the render message to start the RSC stream
-    worker.postMessage({
-      type: "RSC_RENDER",
-      id: message.route,
-      ...message,
-    });
-  });
-
-  // Subsequent yields: handle RSC chunks until stream ends
-  while (true) {
-    const chunk = await new Promise<Uint8Array>((resolve) => {
-      messageHandler = (message: RscWorkerOutputMessage) => {
-        if (message.type === "RSC_END") {
-          cleanup();
-          resolve(new Uint8Array());
-          return;
-        }
-        if (message.type === "RSC_CHUNK") {
-          resolve(message.chunk);
-        }
-        if (message.type === "ERROR") {
-          cleanup();
-          resolve(new Uint8Array());
-          return;
-        }
-      };
-      worker.once("message", messageHandler);
-    });
-
-    if (chunk.length === 0) {
-      break;
-    }
-    yield chunk;
-  }
-}
 
 /**
  * Handles the RSC stream from the worker.
@@ -151,17 +31,44 @@ async function* createWorkerStream(
  */
 export function handleWorkerRscStream(
   worker: NodeWorker,
-  message: Omit<RscRenderMessage, "type" | "id">
+  message: Omit<RscRenderMessage, "type" | "id">,
+  logger: Logger,
+  onMetrics?: (metrics: StreamMetrics) => void
 ): ReadableStream<Uint8Array> {
   // Create a ReadableStream from the async generator
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const chunk of createWorkerStream(worker, message)) {
+        for await (const chunk of createWorkerStream(
+          worker,
+          message,
+          logger,
+          onMetrics
+        )) {
           controller.enqueue(chunk);
         }
       } catch (error) {
-        controller.error(error);
+        const err =
+          error instanceof Error
+            ? error
+            : typeof error === "string"
+            ? new Error(error)
+            : typeof error === "object" && error != null
+            ? {
+                message:
+                  "message" in error ? String(error.message) : "Unknown error",
+                stack: "stack" in error ? String(error.stack) : "",
+                name: "name" in error ? String(error.name) : "Error",
+              }
+            : {
+                message: "Unknown error",
+                stack: "",
+                name: "Error",
+              };
+        logger.error(err.message, {
+          error: err,
+        });
+        controller.error(err);
       } finally {
         controller.close();
       }
@@ -180,16 +87,19 @@ export async function configureWorkerRequestHandler({
   autoDiscoveredFiles,
   userOptions: _userOptions,
   hmrChannel,
+  onMetrics,
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
   hmrChannel: MessageChannel;
+  onMetrics?: (metrics: RenderMetrics) => void;
 }) {
   let {
     // remove these
-    moduleBaseURL: _moduleBaseURL,
     projectRoot: _projectRoot,
+    moduleBaseURL: _moduleBaseURL,
+    moduleBasePath: _moduleBasePath,
     ...handlerUserOptions
   } = _userOptions;
   const handlerOptions = Object.assign({}, handlerUserOptions, {
@@ -198,7 +108,7 @@ export async function configureWorkerRequestHandler({
         ? `${server.config.server.https ? "https" : "http"}://${
             server.config.server.host
           }:${server.config.server.port}`
-        : "",
+        : _moduleBaseURL,
     moduleBasePath:
       server.config.base === "/"
         ? ""
@@ -209,7 +119,7 @@ export async function configureWorkerRequestHandler({
   });
 
   // Start the worker
-  await restartWorker(server, autoDiscoveredFiles, handlerOptions, hmrChannel);
+  const currentWorker = await restartWorker(server, autoDiscoveredFiles, handlerOptions, hmrChannel);
 
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
@@ -223,7 +133,7 @@ export async function configureWorkerRequestHandler({
       // Get the route from the request
       let route = requestToRoute(req, {
         moduleBasePath: handlerOptions.moduleBasePath,
-        build: handlerOptions.build
+        build: handlerOptions.build,
       });
       if (!route) {
         return next();
@@ -236,10 +146,14 @@ export async function configureWorkerRequestHandler({
         handlerOptions
       );
       if (routeFiles.type === "error") {
-        server.config.logger.error(routeFiles.error.message, {
-          error: routeFiles.error,
-          timestamp: true,
-        });
+        server.config.logger.error(
+          `[react-client] Error fetching route files for ${route}`,
+          {
+            error: routeFiles.error,
+            timestamp: true,
+            environment: "server",
+          }
+        );
         return next();
       }
       const { page, props } = routeFiles;
@@ -252,19 +166,45 @@ export async function configureWorkerRequestHandler({
         handlerOptions,
         autoDiscoveredFiles
       );
-      const stream = handleWorkerRscStream(currentWorker, {
-        ...serializedUserOptions,
-        // we make the worker stream aware of the route, pagePath, propsPath
-        route,
-        pagePath: page,
-        propsPath: props,
-        // override these at all times to ensure the settings will work for the dev server
-        projectRoot: server.config.root,
-        build: serializedUserOptions.build,
-        manifest: autoDiscoveredFiles.staticManifest,
-        cssFiles: new Map(),
-        globalCss: new Map(),
-      });
+      const startTime = performance.now();
+      const stream = handleWorkerRscStream(
+        currentWorker,
+        {
+          ...serializedUserOptions,
+          // we make the worker stream aware of the route, pagePath, propsPath
+          route,
+          pagePath: page,
+          propsPath: props,
+          // override these at all times to ensure the settings will work for the dev server
+          projectRoot: server.config.root,
+          build: serializedUserOptions.build,
+          manifest: autoDiscoveredFiles.staticManifest,
+          cssFiles: new Map(),
+          globalCss: new Map(),
+        },
+        server.config.logger,
+        typeof onMetrics === "function"
+          ? (metrics) => {
+              const elapsedTime = performance.now() - startTime;
+              const formattedMetrics = {
+                route,
+                htmlSize: 0,
+                rscSize: metrics.bytes,
+                processingTime: elapsedTime,
+                chunks: metrics.chunks,
+                chunkRate: metrics.chunks / (elapsedTime / 1000),
+                memoryUsage: process.memoryUsage(),
+                streamMetrics: {
+                  ...metrics,
+                  duration: elapsedTime
+                },
+                htmlSizes: new Map(),
+                rscSizes: new Map([[route, metrics.bytes]]),
+              } satisfies RenderMetrics;
+              onMetrics(formattedMetrics);
+            }
+          : undefined
+      );
       const writeStream = new WritableStream({
         write(chunk) {
           res.write(chunk);
@@ -285,14 +225,16 @@ export async function configureWorkerRequestHandler({
           );
           res.end();
         },
-      })
-      let timeout = setTimeout(() => {
-        server.config.logger.error("[react-client] RSC render timeout");
-        res.end();
-      }, 5000);
+      });
+      let timeout: NodeJS.Timeout;
 
       // Pipe the stream to the response
       stream.pipeTo(writeStream);
+      // wait for timeout
+      timeout = setTimeout(() => {
+        server.config.logger.error("RSC render timeout");
+        res.end();
+      }, 5000);
     } catch (error) {
       if (error instanceof Error) {
         server.config.logger.error(error.message, {

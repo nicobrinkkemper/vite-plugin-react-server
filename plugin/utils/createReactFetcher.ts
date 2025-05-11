@@ -9,13 +9,15 @@ export function createReactFetcher({
   moduleBaseURL = new URL(import.meta.env.BASE_URL, window.location.href).href,
   headers = {
     Accept: "text/x-component",
-    "Content-Type": "application/json",
   },
 }: {
   url?: string;
   moduleBaseURL?: string;
   headers?: HeadersInit;
 } = {}): Promise<ReactNode> {
+  if(moduleBaseURL.endsWith("/")) {
+    moduleBaseURL = moduleBaseURL.slice(0, -1)
+  }
   console.log("createReactFetcher", {url, moduleBaseURL})
   return createFromFetch(
     fetch(url, {

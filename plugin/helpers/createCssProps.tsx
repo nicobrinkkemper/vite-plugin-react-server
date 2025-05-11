@@ -80,6 +80,8 @@ export const createCssProps = ({
     try {
       return new URL(join(moduleBasePath, normalizedId), moduleBaseURL).href;
     } catch (error) {
+      // if the url is not valid, we return the moduleBaseURL + the normalizedId
+      // dont make it a argument of join or it will mangle something like http:// into http:/
       return moduleBaseURL + join(moduleBasePath, normalizedId);
     }
   })();

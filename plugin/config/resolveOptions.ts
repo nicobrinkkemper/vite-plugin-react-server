@@ -370,7 +370,7 @@ export const resolveOptions = <
   const moduleBaseURL =
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
-      : DEFAULT_CONFIG.MODULE_BASE_URL;
+      : process.env['NODE_ENV'] === "development" ? "./" : DEFAULT_CONFIG.MODULE_BASE_URL;
 
   if ("moduleBaseUrl" in options) {
     throw new Error("moduleBaseUrl is written as moduleBaseURL (note the all caps) please change it to moduleBaseURL in your config");
