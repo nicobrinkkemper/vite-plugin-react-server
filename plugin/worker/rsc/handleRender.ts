@@ -1,5 +1,5 @@
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
-import type { RscRenderMessage } from "../types.js";
+import type { RscRenderMessage, StreamHandlers } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
 import { createRscStream } from "../../helpers/createRscStream.js";
 import { CssCollector } from "../../css-collector.js";
@@ -12,12 +12,7 @@ import { performance } from "node:perf_hooks";
 
 export async function handleRender(
   msg: RscRenderMessage,
-  handlers: {
-    onError: (error: any, errorInfo?: any) => void;
-    onData: (data: any) => void;
-    onEnd: () => void;
-    onMetrics: (metrics: any) => void;
-  }
+  handlers: StreamHandlers
 ) {
   let {
     id = workerData.id,

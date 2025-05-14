@@ -6,20 +6,14 @@ import type {
   ResolvedUserOptions,
   StreamMetrics,
 } from "../types.js";
-import type {
-  RscRenderMessage,
-} from "../worker/types.js";
+import type { RscRenderMessage } from "../worker/types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import { MessageChannel } from "node:worker_threads";
-import {
-  serializedOptions,
-} from "../helpers/serializeUserOptions.js";
-import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { requestToRoute } from "../helpers/requestToRoute.js";
+import { serializedOptions } from "../helpers/serializeUserOptions.js";
+import { requestInfo } from "../helpers/requestInfo.js";
 import { performance } from "node:perf_hooks";
 import { createWorkerStream } from "./createWorkerStream.js";
 import { restartWorker } from "./restartWorker.js";
-
 
 /**
  * Handles the RSC stream from the worker.
@@ -103,65 +97,45 @@ export async function configureWorkerRequestHandler({
     ...handlerUserOptions
   } = _userOptions;
   const handlerOptions = Object.assign({}, handlerUserOptions, {
-    moduleBaseURL:
-      typeof server.config.server.host === "string"
-        ? `${server.config.server.https ? "https" : "http"}://${
-            server.config.server.host
-          }:${server.config.server.port}`
-        : _moduleBaseURL,
-    moduleBasePath:
-      server.config.base === "/"
-        ? ""
-        : server.config.base.endsWith("/")
-        ? server.config.base.slice(0, -1)
-        : server.config.base,
+    moduleBaseURL: server.config.base,
+    moduleBasePath: _moduleBasePath,
     projectRoot: server.config.root,
   });
 
   // Start the worker
-  const currentWorker = await restartWorker(server, autoDiscoveredFiles, handlerOptions, hmrChannel);
+  const currentWorker = await restartWorker(
+    server,
+    autoDiscoveredFiles,
+    handlerOptions,
+    hmrChannel
+  );
 
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
-    if (!req.url || req.headers.accept !== "text/x-component") return next();
-    try {
-      if (!currentWorker) {
-        server.config.logger.error("[react-client] No worker available");
-        return next();
-      }
+    if (!req.url) return next();
 
-      // Get the route from the request
-      let route = requestToRoute(req, {
-        moduleBasePath: handlerOptions.moduleBasePath,
-        build: handlerOptions.build,
-      });
-      if (!route) {
-        return next();
-      }
-      // in the case of the no build.pages and a async Page and or props userOption, we need to await those
-      // if they are already autoDiscovered then the promise will resolve immediately
-      const routeFiles = await getRouteFiles(
-        route,
-        autoDiscoveredFiles,
-        handlerOptions
-      );
-      if (routeFiles.type === "error") {
-        server.config.logger.error(
-          `[react-client] Error fetching route files for ${route}`,
-          {
-            error: routeFiles.error,
-            timestamp: true,
-            environment: "server",
-          }
-        );
-        return next();
-      }
-      const { page, props } = routeFiles;
+    const info = requestInfo(req, handlerOptions, "");
+    if (!info.isRscRequest) return next();
+
+    if (!currentWorker) {
+      server.config.logger.warn("[react-client] No worker available");
+      return next();
+    }
+
+    if (!autoDiscoveredFiles.urlMap.has(info.route)) {
+      server.config.logger.warn(`[react-client] No route found for route: ${info.route}`);
+      return next();
+    }
+    try {
+      const routeFiles = autoDiscoveredFiles.urlMap.get(info.route)!;
+      const pagePath = routeFiles.page;
+      const propsPath = routeFiles.props;
 
       // Set up response headers for streaming
-      res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+      res.setHeader("Content-Type", info.contentType);
       res.setHeader("Transfer-Encoding", "chunked");
       res.setHeader("Connection", "keep-alive");
+
       const serializedUserOptions = serializedOptions(
         handlerOptions,
         autoDiscoveredFiles
@@ -172,9 +146,9 @@ export async function configureWorkerRequestHandler({
         {
           ...serializedUserOptions,
           // we make the worker stream aware of the route, pagePath, propsPath
-          route,
-          pagePath: page,
-          propsPath: props,
+          route: info.route,
+          pagePath: pagePath,
+          propsPath: propsPath,
           // override these at all times to ensure the settings will work for the dev server
           projectRoot: server.config.root,
           build: serializedUserOptions.build,
@@ -187,7 +161,7 @@ export async function configureWorkerRequestHandler({
           ? (metrics) => {
               const elapsedTime = performance.now() - startTime;
               const formattedMetrics = {
-                route,
+                route: info.route,
                 htmlSize: 0,
                 rscSize: metrics.bytes,
                 processingTime: elapsedTime,
@@ -196,10 +170,10 @@ export async function configureWorkerRequestHandler({
                 memoryUsage: process.memoryUsage(),
                 streamMetrics: {
                   ...metrics,
-                  duration: elapsedTime
+                  duration: elapsedTime,
                 },
                 htmlSizes: new Map(),
-                rscSizes: new Map([[route, metrics.bytes]]),
+                rscSizes: new Map([[info.route, metrics.bytes]]),
               } satisfies RenderMetrics;
               onMetrics(formattedMetrics);
             }

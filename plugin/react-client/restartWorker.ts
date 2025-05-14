@@ -22,8 +22,8 @@ export async function restartWorker(
     try {
       // Terminate the current worker if it exists
       if (currentWorker) {
-        currentWorker.terminate();
-        currentWorker = null;
+        currentWorker.removeAllListeners();
+        return currentWorker;
       }
       const routeCount = autoDiscoveredFiles.urlMap.size;
       const hmrBuffer = 20; // Buffer for HMR and other operations

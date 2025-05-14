@@ -177,6 +177,8 @@ export type ResolvedUserOptions<
     | "onEvent"
     | "css"
     | "normalizer"
+    | "moduleID"
+    | "publicOrigin"
   >
 > & {
   props:
@@ -187,6 +189,7 @@ export type ResolvedUserOptions<
   build: NonNullable<Required<StreamPluginOptions<InlineCSS>["build"]>>;
   css: NonNullable<Required<StreamPluginOptions<InlineCSS>["css"]>>;
   autoDiscover: {
+    moduleExtension: RegExp;
     modulePattern: (path: string) => boolean;
     cssPattern: (path: string) => boolean;
     jsonPattern: (path: string) => boolean;
@@ -341,11 +344,12 @@ export type PluginEventType = PluginEvent["type"];
 export interface StreamPluginOptions<
   InlineCSS extends boolean | undefined = boolean | undefined
 > {
-  projectRoot?: string;
-  moduleBase: string;
-  moduleBasePath?: string;
-  moduleBaseURL?: string;
-  moduleRootPath?: string;
+  projectRoot?: string; // defaults to process.cwd()
+  moduleBase: string; // defaults to 'src'
+  moduleBasePath?: string; // defaults to '/'
+  moduleBaseURL?: string; // defaults to '/'
+  moduleRootPath?: string; // defaults to client's dist folder
+  publicOrigin?: string; // defaults to window.location.origin in client & http://localhost:port in development
   clientEntry?: string;
   serverEntry?: string;
   // Auto-discovery (zero-config)
@@ -406,6 +410,7 @@ export interface StreamPluginOptions<
   onMetrics?: (metrics: RenderMetrics) => void;
   onEvent?: (event: PluginEvent) => void;
   normalizer?: InputNormalizer;
+  moduleID?: (id: string) => string;
 }
 
 export type MultiPageHandlerOptions = Omit<
@@ -698,9 +703,8 @@ export interface JsContent {
 export type CssCollectorProps<
   InlineCSS extends boolean | undefined = undefined
 > = {
-  // to render the head tag or not
-  as?: React.ElementType;
-  children?: React.ReactNode;
+  as?: React.ElementType; // defaults to react fragment
+  children?: React.ReactNode; // the children containing the css content
   /** A map containing all the css files imported by the route and their proxy values
    * - when inlineCss is true, will contain the `content` property
    * - when prugeCss is true, will contain the module proxy which includes a `userClasses`
@@ -720,7 +724,6 @@ export type CssCollectorProps<
    *
    *
    * */
-
   cssFiles?: Map<string, CssContent<InlineCSS>>;
 } & React.HTMLAttributes<HTMLElement>;
 

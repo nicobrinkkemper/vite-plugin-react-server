@@ -76,14 +76,22 @@ export const createCssProps = ({
         : {}),
     } as CssContent<true>;
   }
+  const joined = normalizedId.startsWith(moduleBasePath) ? normalizedId : join(moduleBasePath, normalizedId);
+  const moduleBaseHasTrailingSlash = moduleBaseURL.endsWith("/");
+  const joinedHasLeadingSlash = joined.startsWith("/");
   const safeParseURL = (() => {
-    try {
-      return new URL(join(moduleBasePath, normalizedId), moduleBaseURL).href;
-    } catch (error) {
-      // if the url is not valid, we return the moduleBaseURL + the normalizedId
-      // dont make it a argument of join or it will mangle something like http:// into http:/
-      return moduleBaseURL + join(moduleBasePath, normalizedId);
+    if(joined.startsWith(moduleBaseHasTrailingSlash ? moduleBaseURL.slice(0, -1) : moduleBaseURL)) {
+      return joined;
     }
+    try {
+      if (moduleBaseURL.includes("//")) {
+        // relative to moduleBaseURL
+        return new URL(joinedHasLeadingSlash ? joined.slice(1) : joined, moduleBaseURL).href;
+      }
+    } catch (error) {}
+    // if the url is not valid, we return the moduleBaseURL + the normalizedId
+    // dont make it a argument of join or it will mangle something like http:// into http:/
+    return moduleBaseURL + (!moduleBaseHasTrailingSlash && !joinedHasLeadingSlash ? "/" : "") + (moduleBaseHasTrailingSlash ? joined.slice(1) : joined);
   })();
   // Default case
   return {

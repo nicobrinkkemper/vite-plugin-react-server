@@ -49,6 +49,8 @@ import { collectManifestCss } from "../helpers/collectManifestCss.js";
 import { createCssProps } from "../helpers/createCssProps.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { performance } from "node:perf_hooks";
+import { resolveEnv } from "../config/resolveEnv.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -89,6 +91,8 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async config(config, configEnv) {
+      
+
       if (config.root && config.root !== userOptions.projectRoot) {
         userOptions.projectRoot = config.root;
       }
@@ -103,7 +107,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         throw autoDiscoverResult.error;
       }
       autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
-
       const resolvedConfig = resolveUserConfig({
         condition: "react-server",
         config,
@@ -166,6 +169,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           throw clientManifestResult.error;
         }
         const clientManifest = clientManifestResult.manifest;
+        resolveEnv(resolvedConfig.mode, userOptions.projectRoot, userConfig.envPrefix);
 
         buildLoader = await createBuildLoader(
           {
@@ -281,19 +285,21 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         const indexHtml = staticManifest?.["index.html"]?.file;
         const safeParseURL = (() => {
           try {
-            return new URL(join(userOptions.moduleBasePath, indexHtml), userOptions.moduleBaseURL).href;
-          } catch (error) {
-            return userOptions.moduleBaseURL + join(userOptions.moduleBasePath, indexHtml);
-          }
+            if (userOptions.moduleBaseURL.includes("//")) {
+              return new URL(
+                join(userOptions.moduleBasePath, indexHtml),
+                userOptions.moduleBaseURL
+              ).href;
+            }
+          } catch (error) {}
+          return userOptions.moduleBaseURL.endsWith("/")
+            ? userOptions.moduleBaseURL + indexHtml
+            : userOptions.moduleBaseURL + "/" + indexHtml;
         })();
         const pipeableStreamOptions = {
           ...userOptions.pipeableStreamOptions,
           bootstrapModules: [
-            ...(safeParseURL
-              ? [
-                  safeParseURL,
-                ]
-              : []),
+            ...(safeParseURL ? [safeParseURL] : []),
             ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
           ],
         };
@@ -309,7 +315,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
               ? resolvedConfig.envPrefix
               : Array.isArray(resolvedConfig.envPrefix)
               ? resolvedConfig.envPrefix[0]
-              : "VITE_";
+              : DEFAULT_CONFIG.ENV_PREFIX;
           const routeCount = autoDiscoveredFiles?.urlMap.size ?? 0;
           const maxListeners = routeCount + 1;
           const workerResult = await createWorker({

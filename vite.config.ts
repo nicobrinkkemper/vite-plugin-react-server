@@ -1,7 +1,35 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
+import type { Plugin as VitePlugin } from 'vite';
+
+/**
+ * I wanted to be quite and bundle the vite plugin with vite itself,
+ * while it offers some benefits over tsc, it also has some drawbacks.
+ * 
+ * The main one is that it alters and transforms our code, making it harder to reason
+ * about the code.
+ * 
+ * This plugin is a workaround to prevent the env.ts file from being transformed,
+ * excepting our files to be run through vite again, thus giving us access to the
+ * plugin user's env instead of the one we use to build the plugin.
+ */
+function preserverEnvPlugin(): VitePlugin {
+  return {
+    name: 'vite:preserver-env',
+    enforce: 'post',
+    transform(_code, id) {
+      // Only transform env.ts
+      if (!id.endsWith('utils/env.ts')) return;
+      return {
+        code: `export const env = import.meta.env;`,
+        map: null
+      };
+    }
+  };
+}
 
 export default defineConfig({
+  plugins: [preserverEnvPlugin()],
   build: {
     minify: false,
     target: "esnext",
@@ -31,6 +59,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
+      // probably too much, but these are the ones that gave errors at some point
       external: [
         // Node.js built-ins
         'node:worker_threads',
@@ -71,9 +100,6 @@ export default defineConfig({
         'crypto',
         'async_hooks',
         '@jridgewell/sourcemap-codec',
-        // if we use node: paths in our code, it should always be catched by below rule.
-        /^node:.*/,
-        /^_virtual/,
         "path",
         "fs",
         "fs/promises",
@@ -81,6 +107,9 @@ export default defineConfig({
         "tsx",
         "tsx/esm/api",
         "rollup",
+        // if we use node: paths in our code, it should always be catched by below rule.
+        /^node:.*/,
+        /^_virtual/,
       ],
       output: {
         dir: 'dist',
@@ -93,5 +122,17 @@ export default defineConfig({
     },
     sourcemap: true,
     // Preserve module structure for proper tree-shaking
-    modulePreload: false,  },
+    modulePreload: false,
+  },
+  optimizeDeps: {
+    exclude: ['**/plugin/utils/**'],
+  },
+  esbuild: {
+    // Preserve import.meta expressions in utils files
+    supported: {
+      'import-meta': true
+    },
+    target: 'esnext',
+    format: 'esm',
+  },
 });

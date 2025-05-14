@@ -8,6 +8,7 @@ import { getCondition } from "../config/getCondition.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 import * as React from "react";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 export type CreateWorkerOptions = {
   projectRoot?: string;
@@ -51,7 +52,7 @@ export async function createWorker(
     projectRoot = process.cwd(),
     nodePath = getNodePath(projectRoot),
     currentCondition = getCondition(),
-    envPrefix = "VITE_",
+    envPrefix = DEFAULT_CONFIG.ENV_PREFIX,
     reverseCondition = currentCondition === "react-server"
       ? "react-client"
       : "react-server",
@@ -90,18 +91,12 @@ export async function createWorker(
     const nodeEnv = isTestEnv ? "test" : mode;
 
     const env = {
-      ...process.env,
       [envPrefix + "DEV"]: mode === "development" ? "1" : "0",
       [envPrefix + "MODE"]: mode,
       [envPrefix + "PROD"]: mode === "production" ? "1" : "0",
       [envPrefix + "SSR"]: "true",
-      [envPrefix + "BASE_URL"]:
-        options.workerData.userOptions.moduleBasePath === "" ||
-        options.workerData.userOptions.moduleBasePath === "/"
-          ? "/"
-          : !options.workerData.userOptions.moduleBasePath.endsWith("/")
-          ? options.workerData.userOptions.moduleBasePath + "/"
-          : options.workerData.userOptions.moduleBasePath,
+      [envPrefix + "BASE_URL"]: options.workerData.userOptions.moduleBaseURL,
+      [envPrefix + "PUBLIC_ORIGIN"]: options.workerData.userOptions.publicOrigin,
       NODE_ENV: nodeEnv,
       NODE_PATH: nodePath,
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)

@@ -1,6 +1,6 @@
 import { normalizePath } from "vite";
 import type { InputNormalizer, NormalizerInput } from "../types.js";
-import path, { join } from "path";
+import path, { join, sep } from "path";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 let stashedNormalizer: InputNormalizer | null = null;
@@ -9,6 +9,7 @@ type CreateInputNormalizerProps = {
   root: string;
   preserveModulesRoot?: string | undefined;
   removeExtension?: boolean | RegExp | string | ((path: string) => boolean);
+  moduleBasePath?: string | undefined;
 };
 
 const resolveExtensionOptions = (
@@ -55,7 +56,10 @@ const resolveRootOption = (
       return normalizedPreserveModulesRoot.slice(root.length + 1);
     }
     return "";
-  } else if (typeof preserveModulesRoot === "string" && typeof root !== "string") {
+  } else if (
+    typeof preserveModulesRoot === "string" &&
+    typeof root !== "string"
+  ) {
     return normalizePath(preserveModulesRoot);
   }
   return "";
@@ -65,22 +69,42 @@ const createKeyNormalizer =
     root: normalizedRoot,
     preserveModulesRoot,
     handleExtension,
+    moduleBasePath,
   }: {
     root: string;
     preserveModulesRoot: string | undefined;
     handleExtension: (path: string) => string;
+    moduleBasePath: string | undefined;
   }) =>
   (key: string) => {
+    if (key.includes("?")) {
+      key = key.split("?")[0];
+    }
+
     // Handle virtual modules first
-    const virtualPrefix = key.match(/^\0+/)?.[0] || '';
-    const actualKey = key.slice(virtualPrefix.length);
-    
+    const virtualPrefix = key.match(/^\0+/) ?? "";
+    const actualKey = virtualPrefix ? key.slice(virtualPrefix[0].length) : key;
+
     let moduleId = normalizePath(actualKey);
-    
+
     // Normalize root path to handle both absolute and relative paths
     const normalizedRootPath = normalizePath(normalizedRoot);
     if (moduleId.startsWith(normalizedRootPath)) {
       moduleId = moduleId.slice(normalizedRootPath.length);
+    }
+    if (
+      typeof moduleBasePath === "string" &&
+      moduleBasePath !== "" &&
+      moduleBasePath !== "/"
+    ) {
+      moduleId = moduleId.startsWith(
+        moduleBasePath.endsWith(sep) ? moduleBasePath : moduleBasePath + sep
+      )
+        ? moduleId.slice(
+            moduleBasePath.length +
+              (moduleBasePath.endsWith(sep) ? 0 : sep.length)
+          )
+        : moduleId;
     }
 
     moduleId = handleExtension(moduleId);
@@ -95,7 +119,7 @@ const createKeyNormalizer =
         ? moduleId.slice(preserveModulesRoot.length + path.sep.length)
         : moduleId;
     }
-    
+
     // Add virtual prefix back
     return virtualPrefix + moduleId;
   };
@@ -104,17 +128,36 @@ const createPathNormalizer =
   ({
     root,
     preserveModulesRoot,
+    moduleBasePath,
   }: {
     root: string;
     preserveModulesRoot: string | undefined;
+    moduleBasePath: string | undefined;
   }) =>
   (path: string) => {
     if (typeof path !== "string") {
       throw new Error(`Invalid path: ${JSON.stringify(path)}`);
     }
+    if (path.includes("?")) {
+      path = path.split("?")[0];
+    }
     let normalPath = normalizePath(path);
-    if(normalPath.startsWith(root)) {
+    if (normalPath.startsWith(root)) {
       normalPath = normalPath.slice(root.length);
+    }
+    if (
+      typeof moduleBasePath === "string" &&
+      moduleBasePath !== "" &&
+      moduleBasePath !== "/"
+    ) {
+      normalPath = normalPath.startsWith(
+        moduleBasePath.endsWith(sep) ? moduleBasePath : moduleBasePath + sep
+      )
+        ? normalPath.slice(
+            moduleBasePath.length +
+              (moduleBasePath.endsWith(sep) ? 0 : sep.length)
+          )
+        : normalPath;
     }
     if (typeof preserveModulesRoot === "string" && preserveModulesRoot !== "") {
       normalPath = normalPath.startsWith(preserveModulesRoot)
@@ -135,10 +178,11 @@ const createPathNormalizer =
  */
 export function createInputNormalizer({
   root,
+  moduleBasePath,
   preserveModulesRoot = undefined,
   removeExtension = DEFAULT_CONFIG.MODULE_EXTENSION,
 }: CreateInputNormalizerProps): InputNormalizer {
-  if(stashedNormalizer) {
+  if (stashedNormalizer) {
     return stashedNormalizer;
   }
   const relativeRoot = resolveRootOption(root, preserveModulesRoot);
@@ -147,10 +191,12 @@ export function createInputNormalizer({
     root: root,
     preserveModulesRoot: preserveModulesRoot,
     handleExtension,
+    moduleBasePath,
   });
   const normalizeEntryPath = createPathNormalizer({
     root: root,
     preserveModulesRoot: relativeRoot,
+    moduleBasePath,
   });
   function normalizeInput(id: NormalizerInput): [string, string] {
     // Normalize both paths to use POSIX separators
@@ -185,19 +231,22 @@ export function createInputNormalizer({
       return normalized;
     }
     throw new Error(`Invalid input type: ${typeof id}`);
-  };
+  }
 
   stashedNormalizer = (input: NormalizerInput): [string, string] => {
     const [key, path] = normalizeInput(input);
     // Apply the same normalization to both key and path
-    const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
-    const virtualPrefix = key.match(/^\0+/)?.[0] || '';
-    
+    const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+    const virtualPrefix = key.match(/^\0+/) ?? "";
     // If key has virtual prefix, ensure path has it too
-    const finalPath = virtualPrefix ? 
-      (normalizedPath.startsWith(virtualPrefix) ? normalizedPath : virtualPrefix + normalizedPath) : 
-      normalizedPath;
-    
+    const finalPath = virtualPrefix
+      ? virtualPrefix.length && normalizedPath.startsWith(virtualPrefix[0])
+        ? normalizedPath
+        : virtualPrefix.length
+        ? virtualPrefix[0] + normalizedPath
+        : normalizedPath
+      : normalizedPath;
+
     return [key, finalPath];
   };
   return stashedNormalizer;

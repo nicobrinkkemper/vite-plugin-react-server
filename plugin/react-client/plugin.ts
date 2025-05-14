@@ -65,7 +65,6 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       userConfig = resolvedConfig.userConfig;
       return userConfig;
     },
-
     async configurePreviewServer(server) {
       await configurePreviewServer({
         server,
@@ -82,9 +81,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         autoDiscoveredFiles,
         userOptions,
         hmrChannel,
-        onMetrics: userOptions.onMetrics ? (metrics) => {
-          userOptions.onMetrics?.(metrics);
-        } : undefined,
+        onMetrics: userOptions.onMetrics,
       });
     },
 

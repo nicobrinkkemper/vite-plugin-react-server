@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 import { createFromFetch } from "react-server-dom-esm/client.browser";
 import { callServer } from "./callServer.js";
 import { pageURL } from "./pageURL.js";
+import { env } from "./env.js";
 
 export function createReactFetcher({
-  url = pageURL().pathname,
-  moduleBaseURL = new URL(import.meta.env.BASE_URL, window.location.href).href,
+  moduleBaseURL = env.BASE_URL,
+  url,
   headers = {
     Accept: "text/x-component",
   },
@@ -15,17 +16,14 @@ export function createReactFetcher({
   moduleBaseURL?: string;
   headers?: HeadersInit;
 } = {}): Promise<ReactNode> {
-  if(moduleBaseURL.endsWith("/")) {
-    moduleBaseURL = moduleBaseURL.slice(0, -1)
-  }
-  console.log("createReactFetcher", {url, moduleBaseURL})
+  const parsedURL = pageURL(moduleBaseURL, url);
   return createFromFetch(
-    fetch(url, {
+    fetch(parsedURL.indexRSC, {
       headers: headers,
     }),
     {
       callServer: callServer,
-      moduleBaseURL:moduleBaseURL,
+      moduleBaseURL: parsedURL.moduleBaseURL,
     }
   ) as Promise<ReactNode>;
 }

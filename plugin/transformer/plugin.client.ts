@@ -37,15 +37,7 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
   userOptions = resolvedOptionsResult.userOptions;
   let staticManifest: Manifest;
-  const getID = (id: string) => {
-    if(userOptions.moduleBasePath !== '' && !id.startsWith(userOptions.moduleBasePath)) {
-      id = join(userOptions.moduleBasePath, id);
-    }
-    if(!id.startsWith('/')) {
-      id = '/' + id;
-    }
-    return id;
-  }
+
   return {
     name: "vite:react-server-action-transform",
     enforce: "pre",
@@ -80,11 +72,11 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
       if (isClient) {
         return null;
       }
+      const [key, value] = userOptions.normalizer(id);
       if (isServer && isBuild) {
-        const [key] = userOptions.normalizer(id);
         id = key + ".js";
       }
-      const finalID = getID(id);
+      const finalID = userOptions.moduleID(value);
       const transformed = await transformModuleIfNeeded(code, finalID, null);
       if (!transformed) return null;
       return {
@@ -98,7 +90,7 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
       if (!chunk.fileName.includes(".client")) return null;
 
       // Get the original file name without extension
-      const originalName = chunk.fileName.replace(".js", "");
+      const originalName = chunk.fileName.replace(userOptions.autoDiscover.moduleExtension, "");
 
       // Find matching entry in static manifest
       const manifestEntry = Object.entries(staticManifest).find(([_, info]) =>

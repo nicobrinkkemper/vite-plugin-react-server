@@ -1,16 +1,13 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { addCssFileContent, hmrState } from "./state.js";
 import { handleRender } from "./handleRender.js";
-import type { RscWorkerOutputMessage } from "../types.js";
+import type { RscWorkerOutputMessage, StreamHandlers } from "../types.js";
 
-export async function messageHandler(
-  msg: any,
-  port = parentPort,
-) {
+export async function messageHandler(msg: any, port = parentPort) {
   if (!port) {
     throw new Error("No port found");
   }
-  const handlers = {
+  const handlers: StreamHandlers = {
     onError: (error: any, errorInfo?: any) => {
       if (!(error instanceof Error)) {
         error = new Error(String(error));
@@ -98,7 +95,7 @@ export async function messageHandler(
       }
       return;
     default: {
-      console.log("messageHandler", { msg: msg.type });
+      console.log("Unknown message", msg);
       return;
     }
   }

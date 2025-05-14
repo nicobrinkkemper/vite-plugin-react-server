@@ -6,6 +6,7 @@ import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { createHandler } from "../helpers/createHandler.js";
 import React from "react";
+import { requestInfo } from "../helpers/requestInfo.js";
 
 export async function configureReactServer({
   server,
@@ -31,18 +32,8 @@ export async function configureReactServer({
   } = _userOptions;
 
   const handlerOptions = Object.assign({}, handlerUserOptions, {
-    moduleBaseURL:
-      typeof server.config.server.host === "string"
-        ? `${server.config.server.https ? "https" : "http"}://${
-            server.config.server.host
-          }:${server.config.server.port}`
-        : _moduleBaseURL,
-    moduleBasePath:
-      server.config.base === "/"
-        ? ""
-        : server.config.base.endsWith("/")
-        ? server.config.base.slice(0, -1)
-        : server.config.base,
+    moduleBaseURL: server.config.base,
+    moduleBasePath: _moduleBasePath,
     projectRoot: server.config.root,
   });
   // Handle Vite server restarts
@@ -64,32 +55,28 @@ export async function configureReactServer({
   });
 
   server.middlewares.use(async (req, res, next) => {
+    if(!req.url) {
+      return next();
+    }
+    const info = requestInfo(req, handlerOptions, "");
+    if (!info.isRscRequest) return next();
     try {
-      if (req.headers.accept !== "text/x-component") return next();
-      let route = req.url?.replace("/" + handlerOptions.build.rscOutputPath, "");
-      if(handlerOptions.moduleBasePath !== '' && !route?.startsWith(handlerOptions.moduleBasePath)) {
-        next();
-      } else if(route && handlerOptions.moduleBasePath.length) {
-        route  = route.slice(handlerOptions.moduleBasePath.length);
-      }
-      if (!route || route === "") {
-        route = "/";
-      }
-      if(!route.startsWith("/")) {
-        route = "/" + route;
-      }
-      if (!autoDiscoveredFiles.urlMap.has(route)) {
+      if (!autoDiscoveredFiles.urlMap.has(info.route)) {
         return next();
       }
-      const routeFiles = autoDiscoveredFiles.urlMap.get(route)!;
+      const routeFiles = autoDiscoveredFiles.urlMap.get(info.route)!;
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
-
+      const port = server.config.server.port ?? 5173;
+      const host = server.config.server.host ?? 'localhost';
+      const protocol = server.config.server.https ? 'https' : 'http'; 
+      process.env['VITE_BASE_URL'] = `${server.config.base}${server.config.base.endsWith('/') ? '' : '/'}`;
+      process.env['VITE_PUBLIC_ORIGIN'] = `${protocol}://${host}:${port}`;
       // first load the page and props
       const pageAndPropsResult = await resolvePageAndProps({
         pagePath,
         propsPath,
-        route,
+        route: info.route,
         loader: server.ssrLoadModule,
         pageExportName: handlerOptions.pageExportName ?? "default",
         propsExportName: handlerOptions.propsExportName ?? "default",
@@ -130,7 +117,7 @@ export async function configureReactServer({
         onEvent: eventHandler,
         manifest: serverManifest,
         worker: server as any,
-        route,
+        route: info.route,
         pagePath,
         propsPath,
         cssFiles: cssFilesResult.cssFiles ?? new Map(),

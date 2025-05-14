@@ -12,7 +12,8 @@ export function formatMetrics(metrics: RenderMetrics): string {
   } = metrics;
 
   // Format memory usage in MB
-  const formatMemory = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)}MB`;
+  const formatMemory = (bytes: number) =>
+    `${(bytes / 1024 / 1024).toFixed(2)}MB`;
 
   return `
 Route: ${route}
@@ -32,6 +33,30 @@ Stream:
 `.trim();
 }
 
-export function logMetrics(metrics: RenderMetrics) {
-  console.log(formatMetrics(metrics));
-} 
+export function metricWatcher({
+  maxTime = 200,
+  warnOnly = false,
+  warn = console.warn,
+  info = console.info,
+}: {
+  maxTime?: number;
+  warnOnly?: boolean;
+  warn?: (...args: any[]) => void;
+  info?: (...args: any[]) => void;
+}) {
+  return (metrics: RenderMetrics) => {
+    if (metrics.processingTime > maxTime) {
+      warn(`It took over ${maxTime}ms to render ${metrics.route}`);
+      warn(formatMetrics(metrics));
+    } else if (!warnOnly) {
+      const rounded = Math.round(metrics.processingTime);
+      if (rounded === 0) {
+        // smaller unit of time
+        const rounded = Math.round(metrics.processingTime * 1000);
+        info(`${metrics.route} (${rounded}μs)`);
+      } else {
+        info(`${metrics.route} (${rounded}ms)`);
+      }
+    }
+  };
+}
