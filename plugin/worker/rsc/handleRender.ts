@@ -1,53 +1,19 @@
-import type {
-  RscChunkOutputMessage,
-  RscEndMessage,
-  RscMetricsMessage,
-  RscWorkerOutputMessage,
-} from "../types.js";
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
-import type { RscRenderMessage } from "../types.js";
+import type { RscRenderMessage, StreamHandlers } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
 import { createRscStream } from "../../helpers/createRscStream.js";
 import { CssCollector } from "../../css-collector.js";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
-import { parentPort, workerData, type MessagePort } from "node:worker_threads";
+import { workerData } from "node:worker_threads";
 import { React } from "../../vendor.server.js";
 import { hmrState } from "./state.js";
-
+import { performance } from "node:perf_hooks";
 
 export async function handleRender(
   msg: RscRenderMessage,
-  port = parentPort,
-  _reactLoaderPort: MessagePort,
-  _cssLoaderPort: MessagePort
+  handlers: StreamHandlers
 ) {
-  const postError = process.env["DEV"]
-    ? (error: any, errorInfo?: any) => {
-        if (!(error instanceof Error)) {
-          error = new Error(String(error));
-        }
-        port?.postMessage({
-          type: "ERROR",
-          id: msg.id,
-          errorInfo,
-          error: {
-            message: error.message,
-            stack: error.stack,
-            name: error.name,
-            cause: error.cause,
-          },
-        } satisfies RscWorkerOutputMessage);
-      }
-    : (error: Error, errorInfo?: any) => {
-        port?.postMessage({
-          type: "ERROR",
-          id: msg.id,
-          errorInfo,
-          error: error.message,
-        } satisfies RscWorkerOutputMessage);
-      };
-
   let {
     id = workerData.id,
     route = workerData.route,
@@ -73,30 +39,30 @@ export async function handleRender(
       pageExportName,
       propsExportName,
       route,
-      loader: async (id: string) => {
-        // Check if module is invalidated
-        if (hmrState.get(id)?.invalidated) {
-          // Clear the HMR state for this module
-          hmrState.delete(id);
-          // Force a reload by using a unique query parameter
-          return import(join(projectRoot, id) + `?t=${Date.now()}`);
+      loader: (id: string) => {
+        try {
+          if (hmrState.get(id)?.invalidated) {
+            // Clear the HMR state for this module
+            hmrState.delete(id);
+            // Force a reload by using a unique query parameter
+            return import(join(projectRoot, id) + `?t=${Date.now()}`);
+          }
+          return import(join(projectRoot, id));
+        } catch (error) {
+          return Promise.reject(error);
         }
-        return import(join(projectRoot, id));
       },
     });
-
     if (pageAndPropsResult.type !== "success") {
-      if (pageAndPropsResult.type === "error") {
-        postError(pageAndPropsResult.error);
-      }
-      return;
+      const { error, ...rest } = pageAndPropsResult;
+      return handlers.onError(error, rest);
     }
 
     const { PageComponent, pageProps } = pageAndPropsResult;
 
     const adaptedOnEvent = (event: "error" | "postpone", data: any) => {
       if (event === "error") {
-        postError(data.error, data.errorInfo);
+        handlers.onError(data.error, data.errorInfo);
       }
     };
 
@@ -128,7 +94,7 @@ export async function handleRender(
     });
 
     if (streamResult.type !== "success") {
-      postError(streamResult.error);
+      handlers.onError(streamResult.error);
       return;
     }
 
@@ -143,38 +109,29 @@ export async function handleRender(
 
     // Handle data chunks
     passThrough.on("data", (chunk) => {
-      port?.postMessage({
-        type: "RSC_CHUNK",
-        id,
-        chunk,
-      } satisfies RscChunkOutputMessage);
+      metrics.chunks++;
+      metrics.bytes += chunk.length;
+      metrics.duration = performance.now() - metrics.startTime;
+      handlers.onData(chunk);
     });
 
     // Handle stream end
     passThrough.on("end", () => {
-      port?.postMessage({
-        type: "RSC_END",
-        id,
-      } satisfies RscEndMessage);
+      metrics.duration = performance.now() - metrics.startTime;
+      handlers.onEnd();
       if (activeStreams.has(id)) {
-        port?.postMessage({
-          type: "RSC_METRICS",
-          id,
-          metrics,
-        } satisfies RscMetricsMessage);
+        handlers.onMetrics(metrics);
         activeStreams.delete(id);
       }
     });
 
     // Handle errors
     passThrough.on("error", (error) => {
-      postError(error as Error);
+      handlers.onError(error as Error, { reason: `${id} stream error` });
       activeStreams.delete(id);
     });
   } catch (error) {
-    if (process.env["DEV"]) {
-      console.error(`[Stream ${id}] Error:`, error);
-    }
-    postError(error as Error);
+    handlers.onError(error as Error, { reason: `${id} render error` });
+    return Promise.reject(error);
   }
 }

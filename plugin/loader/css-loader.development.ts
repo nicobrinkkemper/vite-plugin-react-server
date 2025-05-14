@@ -6,6 +6,7 @@ import { preprocessCSS } from "vite";
 import type { ResolvedConfig } from "vite";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { env } from "../utils/env.js";
 
 /**
  * Global port for communication between the main thread and the CSS loader.
@@ -21,14 +22,7 @@ const cssFilesByPage = new Map<string, Set<string>>();
 
 let currentPage: string | null = null;
 let resolvedConfig: ResolvedConfig | undefined;
-// Get environment variables
-const env = import.meta?.env || {
-  BASE_URL: '/',
-  DEV: true,
-  MODE: 'development',
-  PROD: false,
-  SSR: true
-};
+
 
 /**
  * Initializes the CSS loader with the necessary communication channels.

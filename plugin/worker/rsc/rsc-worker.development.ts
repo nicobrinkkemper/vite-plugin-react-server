@@ -31,7 +31,7 @@ const cssLoaderPath =
 // Register react-loader
 register(loaderPath, {
   parentURL: pluginRoot,
-  data: { port: reactLoaderChannel.port1 },
+  data: { port: reactLoaderChannel.port1},
   transferList: [reactLoaderChannel.port1],
 });
 register(cssLoaderPath, {

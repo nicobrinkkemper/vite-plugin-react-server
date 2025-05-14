@@ -43,7 +43,11 @@ export async function fileWriter(
   );
 
   // Ensure directory exists
-  await mkdir(join(options.build.outDir, options.build.static, options.route), { recursive: true });
+  try {
+    await mkdir(join(options.build.outDir, options.build.static, options.route), { recursive: true });
+  } catch (error) {
+    console.error(`Error creating directory: ${error}`);
+  }
 
   // Create write stream
   const writeStream = createWriteStream(outputPath);

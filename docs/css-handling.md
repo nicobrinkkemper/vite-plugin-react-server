@@ -9,11 +9,8 @@ The CSS handling system provides three main features that can be used independen
 1. **User-defined CssCollector**: 
    -  **CssCollector: `(props)=><link href="my-file"/>`**
 2. **Alters the props for the CssCollector**
-   - **css.inlineCss**: Feature flag to inline CSS content based on a size threshold
-   - **css.purgeCss**: Feature flag to omit unused css modules for a given page
+   - **css.inlineCss**: Feature flag to disable inlining css completely
    - **css.inlineThreshold**: Size in bytes (number)
-   
-
    - **inlinePatterns**: optional regex to force a `<style>` tag
    - **linkPatterns**: optional regex to force a `<link>` tag
 
@@ -33,52 +30,63 @@ The CSS handling system provides three main features that can be used independen
 }
 ```
 
-## When to Change the Defaults
-
-- **For smaller applications**: Enable `inlineCss` for faster page loads
-- **For white-label applications**: Using `purgeCss` may help reduce the overall size of the css, making inlining more viable and use of dynamic classes possible on a module by module basis - not class by class.
-
-- **For custom needs**: Implement your own `CssCollector` component
-
 ## User-defined CssCollector
 
 ### Props Interface
 
-The props your custom collector receives depend on the `inlineCss` option:
+The props your custom collector receives depend on the imported css for each page & prop file combination.
 
 ```typescript
-// Base props interface
-interface CssCollectorProps {
-  cssFiles: CssContent[];
-  root: string;
-  moduleBaseURL: string;
-  moduleBasePath: string;
-  moduleRootPath: string;
-  route: string;
-  purgeCss?: boolean;
-  children?: React.ReactNode;
+import styles from './styles.module.css';
+export const Page = () => {
+ return <div className={styles.userClass}>Hello World</div>
 }
+```  
+then the module will basically contain whatever `styles` exported here. But how does it track css class usages
+during streaming?
+```ts
+const links = Array.from(cssFiles.values()).map(cssFile => <link rel="stylesheet" href={cssFile.path} />)
+```
+The types for cssFiles is an array of either CssProps and or InlineCssProps.
+```ts
+type BaseCssProps = {
+  as: string;
+  id: string;
+};
 
-// Extended props when inlineCss is true
-interface InlineCssCollectorProps extends CssCollectorProps {
-  cssFiles: CssContent[];  // Contains the actual CSS content
-}
+type CssProps = BaseCssProps & {
+  as: "link";
+  type?: never;
+  children?: InlineCssProps extends false ? never : React.ReactNode;
+  id: string;
+  href: string;
+  rel: "stylesheet";
+  precedence?: string;
+};
+type InlineCssProps = BaseCssProps & {
+  as: "style";
+  type: "text/css";
+  children?: React.ReactNode;
+  precedence?: never;
+  rel?: never;
+  href?: never;
+};
 ```
 
 ### Basic Implementation
 
 ```typescript
-function MyCustomCssCollector(props: CssCollectorProps | InlineCssCollectorProps) {
+function MyCustomCssCollector(props: CssCollectorProps) {
   // Check if we're in inline mode
   const isInlineMode = 'content' in props.cssFiles[0];
   
   return (
     <>
-      {props.cssFiles.map(file => 
-        isInlineMode ? (
-          <style key={file.path} dangerouslySetInnerHTML={{ __html: file.content }} />
+      {props.cssFiles.map(cssFile => 
+        cssFile.as === 'style' ? (
+          <style key={cssFile.id} type={cssFile.type}>{cssFile.code}</style>
         ) : (
-          <link key={file.path} rel="stylesheet" href={file.path} />
+          <link key={cssFile.id} rel="stylesheet" href={cssFile.href} />
         )
       )}
       {props.children}
@@ -87,22 +95,15 @@ function MyCustomCssCollector(props: CssCollectorProps | InlineCssCollectorProps
 }
 ```
 
-## Inline CSS Feature
-
-When `inlineCss` is enabled:
-
-1. CSS content is loaded and processed during render
-2. The content is inlined within `<style>` tags
-3. The `InlineCssCollector` component is used (unless overridden)
 
 ### Configuration Options
 
 - **inlinePatterns**: Files matching these patterns are always inlined
 - **linkPatterns**: Files matching these patterns are always linked
 
-### About inlineThreshold (Planned Feature)
+### About inlineThreshold
 
-The `inlineThreshold` option is a planned feature that will allow you to control which CSS files get inlined based on their size:
+The `inlineThreshold` feature will allow you to control which CSS files get inlined based on their size:
 
 - Files smaller than the threshold (in bytes) will be inlined
 - Files larger than the threshold will be linked instead
@@ -111,13 +112,14 @@ This is useful for optimizing performance by:
 - Inlining small CSS files to reduce HTTP requests
 - Avoiding inlining large CSS files that would bloat the HTML document
 
-**Note:** This feature is currently on the roadmap and not yet implemented. The configuration option exists in the type definitions, but the actual functionality will be added in a future release.
 
 ## PurgeCSS Feature
 
+**Note:** This feature is currently on the roadmap and not yet implemented. The configuration option exists in the type definitions, but the actual functionality will be added in a future release.
+
 When `purgeCss` is enabled:
 
-1. A global class registry (`__USED_CSS_CLASSES__`) tracks used CSS classes
+1. A global class registry tracks used CSS classes
 2. During SSR, used classes are recorded
 3. After rendering, unused CSS files are removed from the output
 
@@ -198,87 +200,6 @@ When `purgeCss` is enabled:
    - Filter out unused CSS files
    - Optimize the final CSS output
 
-## Practical Example: Advanced CssCollector
-
-Here's a practical example that handles different CSS file types differently:
-
-```typescript
-import React from 'react';
-import type { CssCollectorProps, InlineCssCollectorProps, CssContent } from './types';
-
-type Props = CssCollectorProps | InlineCssCollectorProps;
-
-function AdvancedCssCollector(props: Props) {
-  const { cssFiles, purgeCss } = props;
-  const isInlineMode = 'content' in cssFiles[0];
-
-  const handleCssFile = (file: CssContent) => {
-    const filePath = file.path;
-    
-    // Use a switch case to handle different CSS file types
-    switch (true) {
-      // Case 1: Always inline critical CSS files
-      case filePath.includes('critical.css'):
-        return isInlineMode ? (
-          <style key={filePath}>{file.content}</style>
-        ) : (
-          <link key={filePath} rel="stylesheet" href={filePath} />
-        );
-
-      // Case 2: Always link external CSS files from CDN
-      case filePath.startsWith('https://'):
-        return <link key={filePath} rel="stylesheet" href={filePath} />;
-
-      // Case 3: Handle CSS modules with special attributes
-      case filePath.includes('.module.css'):
-        return isInlineMode ? (
-          <style 
-            key={filePath} 
-            data-module="true"
-            dangerouslySetInnerHTML={{ __html: file.content }} 
-          />
-        ) : (
-          <link 
-            key={filePath} 
-            rel="stylesheet" 
-            href={filePath}
-            data-module="true"
-          />
-        );
-
-      // Case 4: Handle vendor CSS with preload
-      case filePath.includes('vendor.css'):
-        return (
-          <>
-            <link 
-              key={`preload-${filePath}`}
-              rel="preload"
-              href={filePath}
-              as="style"
-            />
-            <link 
-              key={filePath}
-              rel="stylesheet" 
-              href={filePath}
-            />
-          </>
-        );
-
-      default:
-        return <link key={filePath} rel="stylesheet" href={filePath} />
-    }
-  };
-
-  return (
-    <>
-      {cssFiles.map(handleCssFile)}
-      {props.children}
-    </>
-  );
-}
-
-export default AdvancedCssCollector;
-```
 
 ### Features of the Advanced Collector
 

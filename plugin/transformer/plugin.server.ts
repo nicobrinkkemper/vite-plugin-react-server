@@ -38,42 +38,34 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
 
   let staticManifest: Manifest;
 
-  const getID = (id: string) => {
-    if(userOptions.moduleBasePath !== '' && !id.startsWith(userOptions.moduleBasePath)) {
-      id = join(userOptions.moduleBasePath, id);
-    }
-    if(!id.startsWith('/')) {
-      id = '/' + id;
-    }
-    return id;
-  }
   return {
     name: "vite:react-server-transform",
     enforce: "pre", // Run before Vite's transforms
-    async config(_, configEnv) {
+    async config(_config, configEnv) {
       isBuild = configEnv.command !== "serve";
-      const staticManifestResult = await tryManifest({
-        root: userOptions.projectRoot,
-        ssrManifest: false,
-        outDir: join(userOptions.build.outDir, userOptions.build.static),
-      });
-      if (staticManifestResult.type === "error") {
-        console.error(staticManifestResult.error);
-        throw staticManifestResult.error;
+      if (isBuild) {
+        const staticManifestResult = await tryManifest({
+          root: userOptions.projectRoot,
+          ssrManifest: false,
+          outDir: join(userOptions.build.outDir, userOptions.build.static),
+        });
+        if (staticManifestResult.type === "error") {
+          throw staticManifestResult.error;
+        }
+        staticManifest = staticManifestResult.manifest;
       }
-      staticManifest = staticManifestResult.manifest;
     },
     async transform(code, id, options) {
       const ssr = options?.ssr;
       if (!ssr) return null;
       if (!userOptions.autoDiscover.modulePattern(id)) return null;
       if (!code.match('"use client"')) return null;
-    
+
+      const [key, value] = userOptions.normalizer(id);
       if (isBuild) {
-        const [key, value] = userOptions.normalizer(id);
         if (staticManifest) {
           if (value in staticManifest) {
-            id = staticManifest[value].file
+            id = userOptions.moduleID(staticManifest[value].file);
           } else {
             const hash = this.emitFile({
               id,
@@ -84,16 +76,17 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
             // get fileName from hash
 
             const fileName = this.getFileName(hash);
-            id = fileName;
+            id = userOptions.moduleID(fileName);
           }
         } else {
           throw new Error(`Client manifest not found.`);
         }
+      } else {
+        id = join(userOptions.moduleBasePath, value);
       }
-      const finalID = getID(id);
       const transformed = await transformModuleIfNeeded(
         code,
-        finalID,
+        id,
         // Pass null for nextLoad since we don't need module loading in the plugin
         null
       );

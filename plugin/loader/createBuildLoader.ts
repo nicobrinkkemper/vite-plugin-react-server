@@ -78,6 +78,8 @@ export async function createBuildLoader(
             return { default: serverChunk.source };
           } else if ("code" in serverChunk) {
             return { default: serverChunk.code };
+          } else {
+            console.warn("Could not find inline module for: " + normalizedValue);
           }
         }
 

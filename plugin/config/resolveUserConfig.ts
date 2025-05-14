@@ -5,7 +5,8 @@ import type {
   AutoDiscoveredFiles,
 } from "../types.js";
 import { join } from "node:path";
-import type { OutputOptions } from "rollup";
+import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
+import { DEFAULT_CONFIG } from "./defaults.js";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
@@ -49,30 +50,53 @@ export function resolveUserConfig({
 
   // Get existing inputs
   const root = config.root ?? userOptions.projectRoot ?? process.cwd();
-  const staticEntries =
-    ssr && autoDiscoveredFiles.staticManifest
-      ? Object.entries(autoDiscoveredFiles.staticManifest)
-      : [];
+
+  const handleSsrName = <T extends PreRenderedChunk | PreRenderedAsset>(
+    info: T,
+    input: string | null,
+    fallback: (info: T, ssr: boolean) => string,
+    ssr: boolean
+  ) => {
+    if (!ssr || !input) {
+      return fallback(info, false);
+    }
+    const [, value] = userOptions.normalizer(input);
+    const entry = autoDiscoveredFiles.staticManifest[value];
+    if (
+      entry?.name &&
+      info.type === "asset" &&
+      userOptions.autoDiscover.cssPattern(value)
+    ) {
+      const withoutExt = entry.name?.split(".")[0];
+      const found = entry.css?.find((css) =>
+        css.startsWith(withoutExt as string)
+      );
+      if (found) {
+        return found;
+      } else {
+        return entry.file;
+      }
+    }
+    if (entry) {
+      return entry.file;
+    }
+    return fallback(info, true);
+  };
   const pluginOutput = {
     preserveModulesRoot: userOptions.build.preserveModulesRoot
       ? userOptions.moduleBase
       : undefined,
     entryFileNames: (info) => {
-      if (ssr) {
-        const entry = staticEntries.find(([, { file }]) =>
-          file.startsWith(info.name)
-        );
-        if (entry) {
-          return entry[1].file;
-        }
-      }
-      return userOptions.build.entryFile(info, ssr);
+      const input = info.facadeModuleId;
+      return handleSsrName(info, input, userOptions.build.entryFile, ssr);
     },
     assetFileNames: (i) => {
-      return userOptions.build.assetFile(i, false);
+      const input = i.originalFileNames[0];
+      return handleSsrName(i, input, userOptions.build.assetFile, ssr);
     },
     chunkFileNames: (i) => {
-      return userOptions.build.chunkFile(i, ssr);
+      const input = i.facadeModuleId;
+      return handleSsrName(i, input, userOptions.build.chunkFile, ssr);
     },
     format: "esm",
     exports: "named",
@@ -84,6 +108,7 @@ export function resolveUserConfig({
       config.build?.rollupOptions?.output !== null
     ? [config.build?.rollupOptions?.output, pluginOutput]
     : pluginOutput;
+  const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
   const mode =
     process.env["NODE_ENV"] === "development"
       ? "development"
@@ -95,13 +120,56 @@ export function resolveUserConfig({
       ? "production"
       : "development";
   const minify = config.build?.minify;
+
+  const srrConfig = {
+    ...config.ssr,
+    target: config.ssr?.target ?? "node",
+    optimizeDeps: {
+      ...config.ssr?.optimizeDeps,
+      include: config.ssr?.optimizeDeps?.include ?? [
+        "react",
+        "react-dom",
+        "react-server-dom-esm/client",
+      ],
+    },
+    resolve: {
+      ...config.ssr?.resolve,
+      externalConditions: config.ssr?.resolve?.externalConditions ?? [
+        "react-server",
+      ],
+    },
+  };
+  let publicOrigin = userOptions.publicOrigin;
+  if (configEnv.command === "serve" && !configEnv.isPreview) {
+    publicOrigin = `http${config.server?.https ? "s" : ""}://${
+      typeof config.server?.host === "string"
+        ? config.server?.host
+        : "localhost"
+    }:${typeof config.server?.port === "number" ? config.server?.port : 5173}`;
+  }
+  const define = {
+    ...config.define,
+    [`import.meta.env.PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
+    [`process.env.${vitePrefix}SSR`]: `true`,
+    [`process.env.${vitePrefix}DEV`]: `${
+      mode === "development" ? "true" : "false"
+    }`,
+    [`process.env.${vitePrefix}PROD`]: `${
+      mode === "production" ? "true" : "false"
+    }`,
+    [`process.env.${vitePrefix}MODE`]: `"${mode}"`,
+    [`process.env.${vitePrefix}BASE_URL`]: `"${userOptions.moduleBaseURL}"`,
+    [`process.env.${vitePrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
+  }
+
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)
-    stashedUserConfig[envId] = {
+    const clientConfig = {
       ...config,
       root: root,
       mode: mode,
-      base: userOptions.moduleBasePath,
+      base: userOptions.moduleBaseURL,
+      envPrefix: vitePrefix,
       resolve: {
         ...config.resolve,
         external: config.resolve?.external ?? [
@@ -110,31 +178,18 @@ export function resolveUserConfig({
           "react-server-dom-esm/client",
         ],
       },
-      ssr: {
-        ...config.ssr,
-        target: config.ssr?.target ?? "node",
-        optimizeDeps: {
-          ...config.ssr?.optimizeDeps,
-          include: config.ssr?.optimizeDeps?.include ?? [
-            "react",
-            "react-dom",
-            "react-server-dom-esm/client",
-          ],
-        },
-        resolve: {
-          ...config.ssr?.resolve,
-          externalConditions: config.ssr?.resolve?.externalConditions ?? [
-            "react-server",
-          ],
-        },
-      },
+      define: define,
+      ssr: srrConfig,
       // client build options
       build: {
         ...config.build,
         emptyOutDir: config.build?.emptyOutDir ?? true,
         outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
-        copyPublicDir: config.build?.copyPublicDir ?? true,
+        copyPublicDir:
+          typeof config.build?.copyPublicDir === "boolean"
+            ? config.build?.copyPublicDir
+            : !ssr,
         // modern browsers
         target: config.build?.target ?? ["esnext"],
         minify: minify,
@@ -155,45 +210,27 @@ export function resolveUserConfig({
             ? config.build?.cssCodeSplit
             : true,
       },
+    } satisfies ResolvedUserConfig;
+    stashedUserConfig[envId] = clientConfig;
+    return {
+      type: "success",
+      userConfig: clientConfig,
     };
   } else {
-    stashedUserConfig[envId] = {
+    const serverConfig = {
       ...config,
       root: root,
       mode: mode,
-      base: userOptions.moduleBasePath,
+      base: userOptions.moduleBaseURL,
+      envPrefix: vitePrefix,
       resolve: {
         ...config.resolve,
         externalConditions: config.resolve?.externalConditions ?? [
           "react-server",
         ],
       },
-      define: {
-        ...config.define,
-        "process.env.VITE_SSR": `"1"`,
-        "process.env.VITE_DEV": `"${mode === "development" ? "1" : "0"}"`,
-        "process.env.VITE_PROD": `"${mode === "production" ? "1" : "0"}"`,
-        "process.env.VITE_MODE": `"${mode}"`,
-        "process.env.VITE_BASE_URL": `"${
-          userOptions.moduleBasePath === "" ||
-          userOptions.moduleBasePath === "/"
-            ? "/"
-            : !userOptions.moduleBasePath.endsWith("/")
-            ? userOptions.moduleBasePath + "/"
-            : userOptions.moduleBasePath
-        }"`,
-      },
-      ssr: {
-        ...config.ssr,
-        target: config.ssr?.target ?? "node",
-
-        resolve: {
-          ...config.ssr?.resolve,
-          externalConditions: config.ssr?.resolve?.externalConditions ?? [
-            "react-server",
-          ],
-        },
-      },
+      define: define,
+      ssr: srrConfig,
       // server build options
       build: {
         ...config.build,
@@ -211,7 +248,7 @@ export function resolveUserConfig({
         copyPublicDir:
           typeof config.build?.copyPublicDir === "boolean"
             ? config.build?.copyPublicDir
-            : true,
+            : !ssr,
         assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
         // Ensure CSS files are output to static directory
         cssCodeSplit:
@@ -226,17 +263,11 @@ export function resolveUserConfig({
           output: newOutput,
         },
       },
-    };
-  }
-  if (!stashedUserConfig[envId]) {
+    } satisfies ResolvedUserConfig;
+    stashedUserConfig[envId] = serverConfig;
     return {
-      type: "error",
-      error: new Error("Failed to resolve config"),
+      type: "success",
+      userConfig: serverConfig,
     };
   }
-
-  return {
-    type: "success",
-    userConfig: stashedUserConfig[envId],
-  };
 }

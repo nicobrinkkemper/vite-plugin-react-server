@@ -1,19 +1,57 @@
-import { parentPort, workerData, type MessagePort } from "node:worker_threads";
+import { parentPort, workerData } from "node:worker_threads";
 import { addCssFileContent, hmrState } from "./state.js";
 import { handleRender } from "./handleRender.js";
+import type { RscWorkerOutputMessage, StreamHandlers } from "../types.js";
 
-export function messageHandler(
-  msg: any,
-  port = parentPort,
-  reactLoaderPort: MessagePort,
-  cssLoaderPort: MessagePort
-) {
+export async function messageHandler(msg: any, port = parentPort) {
   if (!port) {
     throw new Error("No port found");
   }
+  const handlers: StreamHandlers = {
+    onError: (error: any, errorInfo?: any) => {
+      if (!(error instanceof Error)) {
+        error = new Error(String(error));
+      }
+      port.postMessage({
+        type: "ERROR",
+        id: msg.id,
+        errorInfo,
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          cause: error.cause,
+        },
+      } satisfies RscWorkerOutputMessage);
+      port.postMessage({
+        type: "RSC_END",
+        id: msg.id,
+      } satisfies RscWorkerOutputMessage);
+    },
+    onData: (data: any) => {
+      port.postMessage({
+        type: "RSC_CHUNK",
+        id: msg.id,
+        chunk: data,
+      } satisfies RscWorkerOutputMessage);
+    },
+    onEnd: () => {
+      port.postMessage({
+        type: "RSC_END",
+        id: msg.id,
+      } satisfies RscWorkerOutputMessage);
+    },
+    onMetrics: (metrics: any) => {
+      port.postMessage({
+        type: "RSC_METRICS",
+        id: msg.id,
+        metrics,
+      } satisfies RscWorkerOutputMessage);
+    },
+  };
   switch (msg.type) {
     case "RSC_RENDER":
-      return handleRender(msg, port, reactLoaderPort, cssLoaderPort);
+      return await handleRender(msg, handlers);
     case "INITIALIZED_REACT_LOADER":
       return;
     case "INITIALIZED_CSS_LOADER":
@@ -46,7 +84,7 @@ export function messageHandler(
         const cssOptions = workerData.userOptions.css || {
           inlineThreshold: 1000,
         };
-        
+
         addCssFileContent(msg.id, msg.content, {
           projectRoot: workerData.userOptions.projectRoot || process.cwd(),
           moduleBaseURL: workerData.userOptions.moduleBaseURL || "",
@@ -57,6 +95,7 @@ export function messageHandler(
       }
       return;
     default: {
+      console.log("Unknown message", msg);
       return;
     }
   }

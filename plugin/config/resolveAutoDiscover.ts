@@ -1,8 +1,5 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type {
-  ResolvedUserOptions,
-  AutoDiscoveredFiles,
-} from "../types.js";
+import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
 import { join } from "path";
 import { resolveBuildPages } from "./autoDiscover/resolveBuildPages.js";
 import { resolvePages } from "./resolvePages.js";
@@ -12,7 +9,6 @@ import { createGlobAutoDiscover } from "./autoDiscover/createGlobAutoDiscover.js
 import { customWorkerFiles } from "./autoDiscover/customWorkerFiles.js";
 import { pageAndPropFiles } from "./autoDiscover/pageAndPropFiles.js";
 
-let stashedAutoDiscover: Record<string, AutoDiscoveredFiles | null> = {};
 
 const clientFiles = createGlobAutoDiscover("**/*.client.*");
 const serverFiles = createGlobAutoDiscover("**/*.server.*");
@@ -29,12 +25,14 @@ type ResolveAutoDiscoverProps = {
 type ResolveAutoDiscoverReturn =
   | {
       type: "success";
+      id: string;
       autoDiscoveredFiles: AutoDiscoveredFiles;
       error?: never;
     }
   | {
       type: "error";
       error: Error;
+      id: string;
       autoDiscoveredFiles?: never;
     };
 
@@ -44,7 +42,7 @@ export async function resolveAutoDiscover({
   userOptions,
   condition,
 }: ResolveAutoDiscoverProps): Promise<ResolveAutoDiscoverReturn> {
-  const ssr = configEnv.isSsrBuild;
+  const ssr = configEnv.isSsrBuild || condition === "react-server"
   const envDir =
     condition === "react-server"
       ? userOptions.build.server
@@ -63,12 +61,6 @@ export async function resolveAutoDiscover({
     )) {
       configInputRecord[userOptions.normalizer(value)[0]] = value;
     }
-  }
-  if (stashedAutoDiscover[envId]) {
-    return {
-      type: "success",
-      autoDiscoveredFiles: stashedAutoDiscover[envId],
-    };
   }
 
   const serverEntry =
@@ -89,6 +81,7 @@ export async function resolveAutoDiscover({
     return {
       type: "error",
       error,
+      id: envId,
     };
   }
 
@@ -107,6 +100,9 @@ export async function resolveAutoDiscover({
     });
     if (staticManifestResult.type === "success") {
       staticManifest = staticManifestResult.manifest;
+    } else {
+      console.warn("Error getting static manifest", staticManifestResult.error);
+      console.warn("Build may be out of date");
     }
   }
 
@@ -161,17 +157,16 @@ export async function resolveAutoDiscover({
           ...cssInputs,
           ...jsonInputs,
         };
-
-  stashedAutoDiscover[envId] = {
-    ...files,
-    workerPaths: customWorkerInputs,
-    serverEntry,
-    clientEntry,
-    staticManifest,
-    inputs,
-  };
   return {
     type: "success",
-    autoDiscoveredFiles: stashedAutoDiscover[envId],
+    id: envId,
+    autoDiscoveredFiles: {
+      ...files,
+      workerPaths: customWorkerInputs,
+      serverEntry,
+      clientEntry,
+      staticManifest,
+      inputs,
+    },
   };
 }

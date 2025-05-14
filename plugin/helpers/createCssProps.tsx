@@ -23,19 +23,22 @@ import { deserializeRegExp } from "./serializeUserOptions.js";
  */
 export const createCssProps = ({
   id,
-  css,
   code,
-  projectRoot,
-  moduleBaseURL,
-  moduleBasePath,
-  moduleRootPath,
+  userOptions,
 }: {
   id: string;
   code: string;
-} & Pick<
-  ResolvedUserOptions,
-  "css" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "projectRoot"
->): CssContent => {
+  userOptions: Pick<
+    ResolvedUserOptions,
+    | "css"
+    | "moduleBaseURL"
+    | "moduleBasePath"
+    | "moduleRootPath"
+    | "projectRoot"
+  >;
+}): CssContent => {
+  const { css, moduleBaseURL, moduleBasePath, moduleRootPath, projectRoot } =
+    userOptions;
   // If we don't have a bundle entry, create a linked CSS file
   let inline = typeof code === "string" && code.length > css.inlineThreshold;
   // Normalize the ID to be relative to src/
@@ -73,13 +76,29 @@ export const createCssProps = ({
         : {}),
     } as CssContent<true>;
   }
-
+  const joined = normalizedId.startsWith(moduleBasePath) ? normalizedId : join(moduleBasePath, normalizedId);
+  const moduleBaseHasTrailingSlash = moduleBaseURL.endsWith("/");
+  const joinedHasLeadingSlash = joined.startsWith("/");
+  const safeParseURL = (() => {
+    if(joined.startsWith(moduleBaseHasTrailingSlash ? moduleBaseURL.slice(0, -1) : moduleBaseURL)) {
+      return joined;
+    }
+    try {
+      if (moduleBaseURL.includes("//")) {
+        // relative to moduleBaseURL
+        return new URL(joinedHasLeadingSlash ? joined.slice(1) : joined, moduleBaseURL).href;
+      }
+    } catch (error) {}
+    // if the url is not valid, we return the moduleBaseURL + the normalizedId
+    // dont make it a argument of join or it will mangle something like http:// into http:/
+    return moduleBaseURL + (!moduleBaseHasTrailingSlash && !joinedHasLeadingSlash ? "/" : "") + (moduleBaseHasTrailingSlash ? joined.slice(1) : joined);
+  })();
   // Default case
   return {
     id: normalizedId,
     as: "link",
     rel: "stylesheet",
-    href: join(moduleBaseURL, moduleBasePath, normalizedId),
+    href: safeParseURL,
     precedence: "high",
   } as CssContent<false>;
 };

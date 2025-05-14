@@ -1,10 +1,14 @@
 import type { PreviewServer } from "vite";
-import { MIME_TYPES } from "../config/mimeTypes.js";
 import type { ResolvedUserOptions } from "../types.js";
 import { join } from "node:path";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
+import { requestInfo } from "../helpers/requestInfo.js";
+
+interface StreamError extends Error {
+  code?: string;
+}
 
 export async function configurePreviewServer({
   server,
@@ -13,54 +17,86 @@ export async function configurePreviewServer({
   server: PreviewServer;
   userOptions: ResolvedUserOptions;
 }) {
-  const staticHostDir = join(userOptions.projectRoot, userOptions.build.outDir, userOptions.build.static);
+  const staticHostDir = join(
+    userOptions.projectRoot,
+    userOptions.build.outDir,
+    userOptions.build.static
+  );
   server.middlewares.use(async (req, res, next) => {
-    if(!req.url) {
+    if (!req.url) {
       return next();
     }
-    const [, value] = userOptions.normalizer(req.url);
-    // handle index.html
-    const isHtml = userOptions.autoDiscover.htmlPattern(value)
-    if (isHtml || req.headers.accept?.includes("text/html")) {
-      const indexHtml = isHtml ? join(staticHostDir, value) : join(staticHostDir, value, userOptions.build.htmlOutputPath);
-      try {
-        const stats = await stat(indexHtml);
-        if (stats.isFile()) {
-          res.setHeader("Content-Type", "text/html; charset=utf-8");
-          await pipeline(createReadStream(indexHtml), res);
-          return;
-        }
-      } catch {
-        // File doesn't exist, continue to next middleware
-      }
-    } 
-    const isRsc = userOptions.autoDiscover.rscPattern(value)
-    if (isRsc || req.headers.accept?.includes("text/x-component")) {
-      const rsc = isRsc ? join(staticHostDir, value) : join(staticHostDir, value, userOptions.build.rscOutputPath);
-      try {
-        const stats = await stat(rsc);
-        if (stats.isFile()) {
-          res.setHeader("Content-Type", "text/x-component; charset=utf-8");
-          await pipeline(createReadStream(rsc), res);
-          return;
-        }
-      } catch {
-        // File doesn't exist, continue to next middleware
-      }
-    }
-    const ext = value.slice(value.lastIndexOf("."));
-    if (ext) {
-      const filePath = join(staticHostDir, value);
+    const { contentType, filePath } = requestInfo(req, userOptions, staticHostDir);
+    
+    // Handle static files including CSS
+    if (filePath) {
       try {
         const stats = await stat(filePath);
         if (stats.isFile()) {
-          const contentType = MIME_TYPES[ext] || "application/octet-stream";
-          res.setHeader("Content-Type", `${contentType}; charset=utf-8`);
-          await pipeline(createReadStream(filePath), res);
+          res.setHeader("Content-Type", contentType);
+          
+          // Create abort controller for the stream
+          const controller = new AbortController();
+          const { signal } = controller;
+
+          // Check if response is still writable before streaming
+          if (!res.writable) {
+            res.statusCode = 499;
+            res.end("Client closed request");
+            return;
+          }
+
+          try {
+            const readStream = createReadStream(filePath);
+            readStream.on('error', () => {
+              if (!res.writable) {
+                controller.abort();
+              }
+            });
+            await pipeline(readStream, res, { signal });
+          } catch (error) {
+            const streamError = error as StreamError;
+            // Handle different error cases
+            if (streamError.code === 'ERR_STREAM_PREMATURE_CLOSE' || 
+                streamError.name === 'AbortError') {
+              // Client closed the connection
+              if (res.writable) {
+                res.statusCode = 499;
+                res.end("Client closed request");
+              }
+            } else if (streamError.code === 'ENOENT') {
+              // File not found
+              res.statusCode = 404;
+              server.config.logger.error(`File not found: ${filePath}. ${streamError.message}`, {
+                error: streamError,
+              });
+              res.end("File not found");
+            } else {
+              // Server error
+              server.config.logger.error(`Error loading file: ${filePath}. ${streamError.message}`, {
+                error: streamError,
+              });
+              res.statusCode = 500;
+              res.end("Internal server error");
+            }
+            return;
+          }
           return;
         }
-      } catch {
-        // File doesn't exist, continue to next middleware
+      } catch (error) {
+        const err = error as Error;
+        // Handle file system errors
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          res.statusCode = 404;
+          res.end("File not found");
+        } else {
+          server.config.logger.error(`Error loading file: ${filePath}.`, {
+            error: err,
+          });
+          res.statusCode = 500;
+          res.end("Internal server error");
+        }
+        return;
       }
     }
     next();

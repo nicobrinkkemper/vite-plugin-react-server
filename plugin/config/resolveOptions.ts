@@ -74,10 +74,11 @@ const registerPath = (
 export const resolveOptions = <
   InlineCSS extends boolean | undefined = boolean | undefined
 >(
-  options: StreamPluginOptions<InlineCSS>,
+  options: StreamPluginOptions<InlineCSS>
 ):
   | { type: "success"; userOptions: ResolvedUserOptions<InlineCSS> }
   | { type: "error"; error: Error } => {
+    
   // Basic configuration
   const projectRoot = options.projectRoot ?? process.cwd();
   const {
@@ -227,11 +228,8 @@ export const resolveOptions = <
 
   const hash = (n: string | null, ssr: boolean) => {
     if (!n) return "";
-    if(ssr) return n;
-    if (
-      hashString === "" ||
-      autoDiscover.nodeOnly(n)
-    ) {
+    if (ssr) return n;
+    if (hashString === "" || autoDiscover.nodeOnly(n)) {
       return n;
     }
     const extensionIndex = n.lastIndexOf(".");
@@ -315,19 +313,42 @@ export const resolveOptions = <
   const chunkFile = (n: PreRenderedChunk, ssr: boolean) => {
     return hash(
       addModuleExtension(
-        getOutputPath(ensureModuleBase(ensureNoRoot("_" + n.name)))),
+        getOutputPath(ensureModuleBase(ensureNoRoot("_" + n.name)))
+      ),
       ssr
     );
   };
 
   const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
-    return hash(
-      getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0]))),
-      ssr
-    );
-  }; 
-  const rscOutputPath = options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath;
-  const htmlOutputPath = options.build?.htmlOutputPath ?? DEFAULT_CONFIG.BUILD.htmlOutputPath;
+    return hash(getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0]))), ssr);
+  };
+
+  const moduleID =
+    typeof options.moduleID === "function"
+      ? options.moduleID
+      : (id: string) => {
+          if (moduleBasePath !== "" && !id.startsWith(moduleBasePath)) {
+            id = join(moduleBasePath, id);
+          }
+          if (!id.startsWith("/")) {
+            if (id.startsWith(moduleBase)) {
+              id = id.slice(moduleBase.length);
+            }
+            id = "/" + id;
+          }
+          if (id.startsWith("/" + moduleBase)) {
+            id = id.slice(moduleBase.length + 1);
+            if (!id.startsWith("/")) {
+              id = "/" + id;
+            }
+          }
+          return id;
+        };
+
+  const rscOutputPath =
+    options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath;
+  const htmlOutputPath =
+    options.build?.htmlOutputPath ?? DEFAULT_CONFIG.BUILD.htmlOutputPath;
 
   // Build configuration object
   const build = {
@@ -375,7 +396,13 @@ export const resolveOptions = <
   const moduleRootPath =
     typeof options.moduleRootPath === "string"
       ? options.moduleRootPath
-      : join(projectRoot, outDir, client)
+      : join(projectRoot, outDir, client);
+
+  const publicOrigin =
+    typeof options.publicOrigin === "string"
+      ? options.publicOrigin
+      : DEFAULT_CONFIG.PUBLIC_ORIGIN;
+
   // Worker and loader paths
   const rscWorkerPath =
     typeof options.rscWorkerPath === "string"
@@ -419,11 +446,11 @@ export const resolveOptions = <
       preserveModulesRoot:
         preserveModulesRoot === true ? moduleBase : undefined,
       removeExtension: true,
+      moduleBasePath,
     });
-  const pipeableStreamOptions =
-    options.pipeableStreamOptions
-      ? options.pipeableStreamOptions
-      : {}
+  const pipeableStreamOptions = options.pipeableStreamOptions
+    ? options.pipeableStreamOptions
+    : {};
 
   // Return resolved options
   try {
@@ -435,6 +462,7 @@ export const resolveOptions = <
         moduleBasePath,
         moduleBaseURL,
         moduleRootPath,
+        publicOrigin,
         build: build,
         onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
         onEvent: options.onEvent,
@@ -443,6 +471,7 @@ export const resolveOptions = <
         Html: options.Html ?? DEFAULT_CONFIG.HTML,
         CssCollector: options.CssCollector ?? CssCollector,
         normalizer: normalizer,
+        moduleID: moduleID,
         pageExportName: pageExportName,
         propsExportName: propsExportName,
         css: {

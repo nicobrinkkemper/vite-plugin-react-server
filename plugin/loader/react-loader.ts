@@ -8,9 +8,9 @@ import {
   type LoadHookContext,
   type ResolveHookContext,
 } from "node:module";
-import { workerData } from "node:worker_threads";
 import type { MessagePort } from "node:worker_threads";
 import type { LoaderContext } from "../types.js";
+import { env } from '../utils/env.js';
 
 let stashedGetSource: any = null;
 let stashedResolve: any = null;
@@ -21,15 +21,6 @@ setSourceMapsSupport(true, {
   generatedCode: true, // Enable for generated code
 });
 
-// Get environment variables from workerData or import.meta
-const env = workerData?.importMeta?.env ||
-  import.meta?.env || {
-    BASE_URL: "/",
-    DEV: false,
-    MODE: "production",
-    PROD: true,
-    SSR: true,
-  };
 
 // Store port globally for use in load hook
 export let loaderPort: MessagePort | undefined;

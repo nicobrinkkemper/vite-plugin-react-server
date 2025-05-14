@@ -28,7 +28,7 @@ export async function collectRscContent(
   handlerOptions: CreateHandlerOptions
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   const metrics = createStreamMetrics();
-  const startTime = performance.now()
+  const startTime = performance.now();
 
   const outputPath = join(
     handlerOptions.build.outDir,
@@ -49,7 +49,7 @@ export async function collectRscContent(
       callback(null, chunk);
     },
     flush(callback) {
-      metrics.duration = Date.now() - startTime;
+      metrics.duration = performance.now() - startTime;
       callback();
     }
   });

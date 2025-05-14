@@ -72,6 +72,13 @@ export interface ChunkErrorMessage extends WorkerMessage {
   sequence?: number;
 }
 
+export type StreamHandlers =  {
+  onError: (error: any, errorInfo?: any) => void;
+  onData: (data: any) => void;
+  onEnd: () => void;
+  onMetrics: (metrics: any) => void;
+} 
+
 // RSC Messages
 export type RscRenderMessage = WorkerMessage & {
   type: "RSC_RENDER";

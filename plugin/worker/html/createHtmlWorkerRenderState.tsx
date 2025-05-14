@@ -44,6 +44,9 @@ export function createHtmlWorkerRenderState(
   } else if (!moduleRootPath.startsWith(projectRoot)) {
     moduleRootPath = join(projectRoot, moduleRootPath);
   }
+  if(!moduleRootPath.endsWith('/')) {
+    moduleRootPath = moduleRootPath + '/';
+  }
   const elements = createFromNodeStream(rscStream, moduleRootPath, moduleBaseURL);
   const metrics = createMetrics();
   const htmlTransform = new Transform({
