@@ -25,6 +25,9 @@ export async function collectHtmlWorkerContent(
   rscStream: PassThrough,
   handlerOptions: CreateHandlerOptions
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
+  if (!handlerOptions.worker) {
+    throw new Error("Worker is not a valid worker");
+  }
   const metrics = createStreamMetrics();
   const startTime = performance.now();
 
@@ -56,7 +59,13 @@ export async function collectHtmlWorkerContent(
 
   // Create a promise that resolves when the route is complete
   const routeComplete = new Promise<void>((resolve, reject) => {
+    if (!handlerOptions.worker) {
+      throw new Error("Worker is not a valid worker");
+    }
     const messageHandler = (msg: any) => {
+      if (!handlerOptions.worker) {
+        throw new Error("Worker is not a valid worker");
+      }
       switch (msg.type) {
         case "HTML_CHUNK":
           if (!isComplete) {
@@ -90,7 +99,10 @@ export async function collectHtmlWorkerContent(
     if (handlerOptions.onEvent) {
       const originalOnEvent = handlerOptions.onEvent;
       handlerOptions.onEvent = (event) => {
-        if (event.type === "file.write.done" && event.data.fileType === "html") {
+        if (
+          event.type === "file.write.done" &&
+          event.data.fileType === "html"
+        ) {
           metrics.bytes = event.data.content.length;
         }
         originalOnEvent(event);

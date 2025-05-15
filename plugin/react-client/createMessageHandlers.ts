@@ -16,7 +16,11 @@ export function createMessageHandler({
       logger.warn("[react-client] Received undefined message from worker");
       return;
     }
+    logger.info('new message '+message.type)
     switch (message.type) {
+      case "READY":
+        logger.info("[react-client] Worker is ready");
+        break;
       case "RSC_CHUNK":
         handlers.onData(message.chunk);
         break;
@@ -28,6 +32,12 @@ export function createMessageHandler({
         break;
       case "RSC_METRICS":
         handlers.onMetrics(message.metrics);
+        break;
+      case "HMR_ACCEPT":
+        handlers.onHmrAccept(message.routes ?? []);
+        break;
+      case "HMR_UPDATE":
+        handlers.onHmrUpdate(message.routes ?? []);
         break;
       default:
         logger.warn(`Unknown message type: ${message.type}`);

@@ -1,5 +1,5 @@
-import { Readable } from "node:stream";
-import type { MessagePort } from "node:worker_threads";
+import type { Readable } from "node:stream";
+import type { MessagePort, Worker } from "node:worker_threads";
 import type React from "react";
 import type { PropsWithChildren } from "react";
 import type {
@@ -18,6 +18,7 @@ import type {
   Manifest,
   ResolveOptions,
   UserConfig,
+  ViteDevServer,
 } from "vite";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
@@ -318,15 +319,49 @@ export type BuildStartEvent = {
   };
 };
 
-export type BuildWriteBundleEvent = {
-  type: "build.writeBundle";
+export type BuildWriteBundleEventServer = {
+  type: "build.writeBundle.server";
   data: {
     pages: string[];
     options: NormalizedOutputOptions;
     bundle: OutputBundle;
-    manifest: Manifest | undefined;
   };
 };
+
+export type BuildWriteBundleEventClient = {
+  type: "build.writeBundle.client";
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions;
+    bundle: OutputBundle;
+  };
+};
+
+export type BuildWriteBundleEventStaticClient = {
+  type: "build.writeBundle.static-client";
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions;
+    bundle: OutputBundle;
+  };
+};
+
+export type BuildWriteBundleEventStaticServer = {
+  type: "build.writeBundle.static-server";
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions; 
+    bundle: OutputBundle;
+  };
+};
+
+
+
+export type BuildWriteBundleEvent =
+  | BuildWriteBundleEventServer
+  | BuildWriteBundleEventClient
+  | BuildWriteBundleEventStaticClient
+  | BuildWriteBundleEventStaticServer;
 
 export type PluginEvent =
   | FileWriteEvent
@@ -452,7 +487,8 @@ export type CreateHandlerOptions<
   PageComponent?: C;
   route: string;
   manifest: Manifest;
-  worker?: any;
+  worker?: Worker;
+  server?: ViteDevServer;
   importedCss?: Set<string>;
   cssFiles: Map<string, CssContent>;
   globalCss: Map<string, CssContent>;
@@ -620,7 +656,27 @@ export interface BuildTiming {
 export type ResolvedBuildPages = {
   propsMap: Map<string, string>;
   pageMap: Map<string, string>;
+  /**
+   * ## routeMap
+   * 
+   * Maps props & page paths to routes
+   * 
+   * @example
+   * const routeMap = new Map<string, string[]>();
+   * routeMap.set("src/page/home/page.tsx", ["/", "/home"]);
+   */
   routeMap: Map<string, string[]>;
+  /**
+   * ## urlMap
+   * 
+   * Maps urls to props & page paths
+   * 
+   * @example
+   * ```ts
+   * const urlMap = new Map<string, { props?: string; page: string }>();
+   * urlMap.set("/", { props: "/props", page: "/page" });
+   * ```
+   */
   urlMap: Map<string, { props?: string; page: string }>;
   errors: Error[];
 };

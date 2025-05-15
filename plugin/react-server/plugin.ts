@@ -24,7 +24,6 @@ import { configurePreviewServer } from "../react-static/configurePreviewServer.j
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
-let cwd: string;
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -48,25 +47,27 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
     throw resolvedOptions.error;
   }
   userOptions = resolvedOptions.userOptions;
-  cwd = process.cwd();
-  if (
-    userOptions.projectRoot != cwd &&
-    typeof userOptions.projectRoot === "string" &&
-    userOptions.projectRoot !== ""
-  ) {
-    throw new Error(
-      "[RSC] Project root is not the current working directory, please set projectRoot in your config"
-    );
-  }
+  
 
   return {
     name: "vite:react-stream-server",
     enforce: "post",
     api: {
       meta: { timing },
-    },
+    },  
     configResolved(_resolvedConfig) {
       resolvedConfig = _resolvedConfig;
+      if (
+        userOptions.projectRoot != resolvedConfig.root &&
+        typeof userOptions.projectRoot === "string" &&
+        userOptions.projectRoot !== ""
+      ) {
+        throw new Error(
+          "[RSC] Project root is not the current working directory, please set projectRoot in your config.\n" +
+            " projectRoot: " + userOptions.projectRoot + "\n" +
+            " resolvedConfig.root: " + resolvedConfig.root
+        );
+      }
       timing.configResolved = performance.now();
 
       // Verify transformer runs first, preserver runs last
@@ -131,6 +132,18 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
       }
 
       return resolvedConfig.userConfig;
+    },
+    async writeBundle(options, bundle) {
+      if (userOptions.onEvent) {
+        userOptions.onEvent({
+          type: "build.writeBundle.server",
+          data: {
+            pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
+            options,
+            bundle,
+          },
+        });
+      }
     },
     async buildStart() {
       if (!timing.buildStart) {

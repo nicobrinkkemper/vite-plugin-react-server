@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 import * as React from "react";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { createLogger, type Logger } from "vite";
 
 export type CreateWorkerOptions = {
   projectRoot?: string;
@@ -25,6 +26,7 @@ export type CreateWorkerOptions = {
   htmlChunkSize?: number; // Size of HTML chunks in bytes
   workerData?: any;
   transferList?: TransferListItem[];
+  logger?: Logger;
 };
 
 type CreateWorkerSuccess = {
@@ -65,6 +67,7 @@ export async function createWorker(
     },
     htmlChunkSize = 8 * 1024,
     transferList = [],
+    logger = createLogger()
   } = options;
   let workerPathWithDefault =
     typeof workerPath === "string" ? workerPath : undefined;
@@ -130,6 +133,7 @@ export async function createWorker(
         }, 5000);
 
         worker.once("message", (msg) => {
+          logger.info(`Initial worker message ${msg.type}, ${msg.env}`);  
           if (msg.type === "READY") {
             clearTimeout(timeout);
             if (msg.env !== nodeEnv) {
@@ -159,9 +163,11 @@ export async function createWorker(
               workerPath: workerPathWithDefault,
             } satisfies CreateWorkerSkip);
           } else {
+            const error = new Error(`Worker exited with code ${code}`);
+            logger.error(`worker exited with code ${code}`, {error});
             reject({
               type: "error",
-              error: new Error(`Worker exited with code ${code}`),
+              error,
               workerPath: workerPathWithDefault,
             } satisfies CreateWorkerError);
           }

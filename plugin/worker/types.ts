@@ -77,6 +77,8 @@ export type StreamHandlers =  {
   onData: (data: any) => void;
   onEnd: () => void;
   onMetrics: (metrics: any) => void;
+  onHmrAccept: (routes: string[]) => void;
+  onHmrUpdate: (routes: string[]) => void;
 } 
 
 // RSC Messages
@@ -309,7 +311,10 @@ export type RscWorkerOutputMessage =
   | ModuleRequestMessage
   | ModuleResponseMessage
   | CssProcessedMessage
-  | RscMetricsMessage;
+  | RscMetricsMessage
+  | HmrAcceptMessage
+  | HmrUpdateMessage
+  | { type: "READY" };
 
 export interface ClientReferenceMessage extends WorkerMessage {
   type: "CLIENT_REFERENCE";

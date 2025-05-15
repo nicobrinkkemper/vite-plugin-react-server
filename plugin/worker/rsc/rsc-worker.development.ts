@@ -19,10 +19,19 @@ if (workerData) {
 // Create channels for each loader
 const reactLoaderChannel = new MessageChannel();
 const cssLoaderChannel = new MessageChannel();
+const envLoaderChannel = new MessageChannel();
+
+// Register loaders
+register(join(pluginRoot, "worker/env-loader.js"), {
+  parentURL: import.meta.url,
+  data: { port: envLoaderChannel.port2 },
+  transferList: [envLoaderChannel.port2],
+});
 
 // Listen for messages from loaders
 reactLoaderChannel.port2.on("message", messageHandler);
 cssLoaderChannel.port2.on("message", messageHandler);
+envLoaderChannel.port2.on("message", messageHandler);
 
 const loaderPath = "file://" + join(pluginRoot, "loader/react-loader.js");
 const cssLoaderPath =
@@ -78,6 +87,6 @@ parentPort!.postMessage({
   env: process.env["NODE_ENV"],
 });
 
-if (process.env["NODE_ENV"] !== "development") {
-  throw new Error("This module must be run in development mode");
+if (process.env["NODE_ENV"] === "production") {
+  throw new Error("This module should not run in production mode.");
 }

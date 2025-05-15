@@ -82,22 +82,47 @@ export function resolveUserConfig({
     }
     return fallback(info, true);
   };
+  const userDefinedOutput = config.build?.rollupOptions?.output;
+  const hasValidOutput = userDefinedOutput && !Array.isArray(userDefinedOutput);
+  
+  const userDefinedAssetFileNames = hasValidOutput
+    ? "assetFileNames" in userDefinedOutput
+      ? userDefinedOutput.assetFileNames
+      : undefined
+    : undefined;
+  const userDefinedChunkFileNames = hasValidOutput
+    ? "chunkFileNames" in userDefinedOutput
+      ? userDefinedOutput.chunkFileNames
+      : undefined
+    : undefined;
+  const userDefinedEntryFileNames = hasValidOutput
+    ? "entryFileNames" in userDefinedOutput
+      ? userDefinedOutput.entryFileNames
+      : undefined
+    : undefined;
+
   const pluginOutput = {
     preserveModulesRoot: userOptions.build.preserveModulesRoot
       ? userOptions.moduleBase
       : undefined,
-    entryFileNames: (info) => {
-      const input = info.facadeModuleId;
-      return handleSsrName(info, input, userOptions.build.entryFile, ssr);
-    },
-    assetFileNames: (i) => {
-      const input = i.originalFileNames[0];
-      return handleSsrName(i, input, userOptions.build.assetFile, ssr);
-    },
-    chunkFileNames: (i) => {
-      const input = i.facadeModuleId;
-      return handleSsrName(i, input, userOptions.build.chunkFile, ssr);
-    },
+    entryFileNames:
+      userDefinedEntryFileNames ??
+      ((info) => {
+        const input = info.facadeModuleId;
+        return handleSsrName(info, input, userOptions.build.entryFile, ssr);
+      }),
+    assetFileNames:
+      userDefinedAssetFileNames ??
+      ((i) => {
+        const input = i.originalFileNames[0];
+        return handleSsrName(i, input, userOptions.build.assetFile, ssr);
+      }),
+    chunkFileNames:
+      userDefinedChunkFileNames ??
+      ((i) => {
+        const input = i.facadeModuleId;
+        return handleSsrName(i, input, userOptions.build.chunkFile, ssr);
+      }),
     format: "esm",
     exports: "named",
   } satisfies OutputOptions;
@@ -160,7 +185,7 @@ export function resolveUserConfig({
     [`process.env.${vitePrefix}MODE`]: `"${mode}"`,
     [`process.env.${vitePrefix}BASE_URL`]: `"${userOptions.moduleBaseURL}"`,
     [`process.env.${vitePrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
-  }
+  };
 
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)

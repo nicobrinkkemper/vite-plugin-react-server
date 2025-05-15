@@ -48,6 +48,20 @@ export async function messageHandler(msg: any, port = parentPort) {
         metrics,
       } satisfies RscWorkerOutputMessage);
     },
+    onHmrAccept: (routes: string[]) => {
+      port.postMessage({
+        type: "HMR_ACCEPT",
+        path: msg.path,
+        routes: routes ?? msg.routes,
+      });
+    },
+    onHmrUpdate: (routes: string[]) => {
+      port.postMessage({
+        type: "HMR_UPDATE",
+        path: msg.path,
+        routes: routes ?? msg.routes,
+      });
+    },
   };
   switch (msg.type) {
     case "RSC_RENDER":
@@ -64,20 +78,13 @@ export async function messageHandler(msg: any, port = parentPort) {
         routes: msg.routes || [],
       });
       // Notify the main thread that we've processed the update
-      port.postMessage({
-        type: "HMR_ACCEPT",
-        path: msg.path,
-        routes: msg.routes,
-      });
+      handlers.onHmrUpdate(msg.routes);
       return;
     case "HMR_CLEANUP":
       // Clear the invalidation state
       hmrState.delete(msg.path);
       // Notify the main thread that we've processed the cleanup
-      port.postMessage({
-        type: "HMR_ACCEPT",
-        path: msg.path,
-      });
+      handlers.onHmrAccept(msg.routes);
       return;
     case "CSS_FILE":
       if (msg.id) {

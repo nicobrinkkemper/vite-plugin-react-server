@@ -1,4 +1,4 @@
-import type { Logger, ViteDevServer } from "vite";
+import type { ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   RenderMetrics,
@@ -6,69 +6,13 @@ import type {
   ResolvedUserOptions,
   StreamMetrics,
 } from "../types.js";
-import type { RscRenderMessage } from "../worker/types.js";
-import type { Worker as NodeWorker } from "node:worker_threads";
 import { MessageChannel } from "node:worker_threads";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { performance } from "node:perf_hooks";
-import { createWorkerStream } from "./createWorkerStream.js";
 import { restartWorker } from "./restartWorker.js";
+import { handleWorkerRscStream } from "./handleWorkerRscStream.js";
 
-/**
- * Handles the RSC stream from the worker.
- * Creates a ReadableStream that pipes RSC chunks to the response.
- *
- * @param worker - The worker thread
- * @param message - The RSC render message
- * @returns A ReadableStream that yields RSC chunks
- */
-export function handleWorkerRscStream(
-  worker: NodeWorker,
-  message: Omit<RscRenderMessage, "type" | "id">,
-  logger: Logger,
-  onMetrics?: (metrics: StreamMetrics) => void
-): ReadableStream<Uint8Array> {
-  // Create a ReadableStream from the async generator
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      try {
-        for await (const chunk of createWorkerStream(
-          worker,
-          message,
-          logger,
-          onMetrics
-        )) {
-          controller.enqueue(chunk);
-        }
-      } catch (error) {
-        const err =
-          error instanceof Error
-            ? error
-            : typeof error === "string"
-            ? new Error(error)
-            : typeof error === "object" && error != null
-            ? {
-                message:
-                  "message" in error ? String(error.message) : "Unknown error",
-                stack: "stack" in error ? String(error.stack) : "",
-                name: "name" in error ? String(error.name) : "Error",
-              }
-            : {
-                message: "Unknown error",
-                stack: "",
-                name: "Error",
-              };
-        logger.error(err.message, {
-          error: err,
-        });
-        controller.error(err);
-      } finally {
-        controller.close();
-      }
-    },
-  });
-}
 
 /**
  * Configures the worker request handler.
@@ -109,28 +53,29 @@ export async function configureWorkerRequestHandler({
     handlerOptions,
     hmrChannel
   );
-
+  const logger = server.config.logger
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
     if (!req.url) return next();
+    logger.info(`Received request: ${req.url}`)
 
     const info = requestInfo(req, handlerOptions, "");
     if (!info.isRscRequest) return next();
+    logger.info(`Request info: ${JSON.stringify(info)}`)
 
     if (!currentWorker) {
-      server.config.logger.warn("[react-client] No worker available");
+      logger.warn("[react-client] No worker available");
       return next();
     }
 
     if (!autoDiscoveredFiles.urlMap.has(info.route)) {
-      server.config.logger.warn(`[react-client] No route found for route: ${info.route}`);
+      logger.warn(`[react-client] No route found for route: ${info.route}`);
       return next();
     }
     try {
       const routeFiles = autoDiscoveredFiles.urlMap.get(info.route)!;
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
-
       // Set up response headers for streaming
       res.setHeader("Content-Type", info.contentType);
       res.setHeader("Transfer-Encoding", "chunked");
@@ -140,6 +85,27 @@ export async function configureWorkerRequestHandler({
         handlerOptions,
         autoDiscoveredFiles
       );
+      const userOnMetrics = typeof onMetrics === "function"
+      ? (metrics: StreamMetrics) => {
+          const elapsedTime = performance.now() - startTime;
+          const formattedMetrics = {
+            route: info.route,
+            htmlSize: 0,
+            rscSize: metrics.bytes,
+            processingTime: elapsedTime,
+            chunks: metrics.chunks,
+            chunkRate: metrics.chunks / (elapsedTime / 1000),
+            memoryUsage: process.memoryUsage(),
+            streamMetrics: {
+              ...metrics,
+              duration: elapsedTime,
+            },
+            htmlSizes: new Map(),
+            rscSizes: new Map([[info.route, metrics.bytes]]),
+          } satisfies RenderMetrics;
+          onMetrics(formattedMetrics);
+        }
+      : ()=>{};
       const startTime = performance.now();
       const stream = handleWorkerRscStream(
         currentWorker,
@@ -157,27 +123,17 @@ export async function configureWorkerRequestHandler({
           globalCss: new Map(),
         },
         server.config.logger,
-        typeof onMetrics === "function"
-          ? (metrics) => {
-              const elapsedTime = performance.now() - startTime;
-              const formattedMetrics = {
-                route: info.route,
-                htmlSize: 0,
-                rscSize: metrics.bytes,
-                processingTime: elapsedTime,
-                chunks: metrics.chunks,
-                chunkRate: metrics.chunks / (elapsedTime / 1000),
-                memoryUsage: process.memoryUsage(),
-                streamMetrics: {
-                  ...metrics,
-                  duration: elapsedTime,
-                },
-                htmlSizes: new Map(),
-                rscSizes: new Map([[info.route, metrics.bytes]]),
-              } satisfies RenderMetrics;
-              onMetrics(formattedMetrics);
-            }
-          : undefined
+        {
+          onMetrics: userOnMetrics,
+          onHmrAccept: (routes: string[]) => {
+            // TODO: implement
+            console.log("onHmrAccept", routes);
+          },
+          onHmrUpdate: (routes: string[]) => {
+            // TODO: implement
+            console.log("onHmrUpdate", routes);
+          },
+        }
       );
       const writeStream = new WritableStream({
         write(chunk) {
@@ -206,7 +162,9 @@ export async function configureWorkerRequestHandler({
       stream.pipeTo(writeStream);
       // wait for timeout
       timeout = setTimeout(() => {
-        server.config.logger.error("RSC render timeout");
+        currentWorker.postMessage('SHUTDOWN')
+        console.log(currentWorker)
+        server.config.logger.error("RSC render timeout.");
         res.end();
       }, 5000);
     } catch (error) {

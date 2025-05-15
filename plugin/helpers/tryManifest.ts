@@ -38,7 +38,6 @@ export async function tryManifest<SSR extends boolean>(
       manifest: result,
     };
   } catch (e) {
-    console.trace("No manifest found", manifestPath);
     return {
       type: "error",
       error: e as Error,

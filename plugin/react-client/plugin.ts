@@ -37,6 +37,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         config.root !== ""
       ) {
         root = config.root;
+        userOptions.projectRoot = root;
       }
 
       const autoDiscoverResult = await resolveAutoDiscover({
@@ -71,11 +72,22 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
         userOptions,
       });
     },
+    async writeBundle(options, bundle) {
+      if(userOptions.onEvent){
+        userOptions.onEvent({
+          type: `build.writeBundle.${userConfig.build.ssr ? "client" : "static-client"}`,
+          data: {
+            pages: [...autoDiscoveredFiles.routeMap.keys()],
+            options,
+            bundle,
+          }
+        });
+      }
+    },
     // setup dev server
     async configureServer(server) {
       // Create HMR message channel
       hmrChannel = new MessageChannel();
-
       await configureWorkerRequestHandler({
         server,
         autoDiscoveredFiles,

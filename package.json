@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.1.10",
+  "version": "1.1.11",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -28,7 +28,8 @@
     "./components": "./dist/plugin/components.js",
     "./types": "./dist/plugin/types.js",
     "./utils": "./dist/plugin/utils/index.js",
-    "./metrics": "./dist/plugin/metrics/index.js"
+    "./metrics": "./dist/plugin/metrics/index.js",
+    "./file-preserver": "./dist/plugin/file-preserver/plugin.js"
   },
   "typesVersions": {
     "*": {
@@ -55,6 +56,9 @@
       ],
       "metrics": [
         "./dist/plugin/metrics/index.d.ts"
+      ],
+      "file-preserver": [
+        "./dist/plugin/file-preserver/plugin.d.ts"
       ]
     }
   },
@@ -70,8 +74,8 @@
     "prepublishOnly": "npm run build",
     "lint": "eslint ./src --fix",
     "setup:test-fixtures": "npx tsx test/setup.ts",
-    "test:server": "npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run",
-    "test:client": "npm run setup:test-fixtures && vitest run",
+    "test:server": "NODE_ENV=development NODE_OPTIONS='--conditions react-server' vitest run test/server",
+    "test:client": "NODE_ENV=development vitest run test/client",
     "test:build": "npm run setup:test-fixtures && npm test test/server/build.test.ts",
     "test:llm": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
     "test:streams": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/renderStreams.test.ts -no-watch",
@@ -81,7 +85,7 @@
     "test:metrics": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/metrics.test.ts --reporter=verbose -no-watch",
     "test:hooks": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/hooks.test.ts --reporter=verbose -no-watch",
     "test:inline-css": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/inline-css.test.ts --reporter=verbose -no-watch",
-    "test": "npm run build && npm run setup:test-fixtures && npm run test:client && NODE_ENV=development npm run test:server",
+    "test": "npm run build && npm run setup:test-fixtures && npm run test:server",
     "test:coverage": "npm run setup:test-fixtures && vitest run --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
     "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",

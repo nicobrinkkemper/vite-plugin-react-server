@@ -15,12 +15,24 @@ import { createMessageHandler } from "./createMessageHandlers.js";
  * @param rscWorkerLoaderPort - Optional loader port for module loading
  * @returns An async generator that yields RSC chunks
  */
-export async function* createWorkerStream(
+export async function* createWorkerStream({
+  worker,
+  message,
+  logger,
+  handlers: {
+    onHmrAccept,
+    onHmrUpdate,
+    onMetrics,
+    onError,
+    onData,
+    onEnd,
+  }
+}: {
   worker: NodeWorker,
   message: Omit<RscRenderMessage, "type" | "id">,
   logger: Logger,
-  onMetrics?: (metrics: StreamMetrics) => void
-): AsyncGenerator<Uint8Array> {
+  handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> & Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd">>
+}): AsyncGenerator<Uint8Array> {
   let messageHandler: ((message: RscWorkerOutputMessage | undefined) => void) | null = null;
   let currentResolve: ((chunk: Uint8Array) => void) | null = null;
   const handlers: StreamHandlers = {
@@ -31,19 +43,45 @@ export async function* createWorkerStream(
       if (errorInfo) {
         logger.error(errorInfo.componentStack);
       }
+      if (typeof onError === "function") {
+        onError(error, errorInfo);
+      }
     },
     onData: (chunk: Uint8Array) => {
       currentResolve?.(chunk);
+      logger.info(`received chunk ${chunk.length} bytes`);
+      if (typeof onData === "function") {
+        onData(chunk);
+      } 
     },
     onEnd: () => {
       currentResolve?.(new Uint8Array());
+      logger.info(`received end`);
       if (messageHandler) {
         worker.removeListener("message", messageHandler);
         messageHandler = null;
       }
+      if (typeof onEnd === "function") {
+        onEnd();
+      }
     },
     onMetrics: (metrics: StreamMetrics) => {
-      onMetrics?.(metrics);
+      logger.info(`received chunks ${metrics.chunks}`);
+      if (typeof onMetrics === "function") {
+        onMetrics(metrics);
+      }
+    },
+    onHmrAccept: (routes: string[]) => {
+      logger.info(`received hmr accept ${routes.join(", ")}`);
+      if (typeof onHmrAccept === "function") {
+        onHmrAccept(routes);
+      }
+    },
+    onHmrUpdate: (routes: string[]) => {
+      logger.info(`received hmr update ${routes.join(", ")}`);
+      if (typeof onHmrUpdate === "function") {
+        onHmrUpdate(routes);
+      }
     },
   };
 
@@ -53,14 +91,21 @@ export async function* createWorkerStream(
       worker.removeListener("message", messageHandler);
       messageHandler = null;
     }
-
+    logger.info(`sending message RSC_RENDER`);
     worker.postMessage({
       ...message,
       type: "RSC_RENDER",
       id: Math.random().toString(36).slice(2),
     });
-
+    
+    logger.info(`waiting for message handler`);
+    let workerTimeout: NodeJS.Timeout | null = null;
     yield await new Promise<Uint8Array>((resolve) => {
+      workerTimeout = setTimeout(() => {
+        logger.info(`worker timeout`);
+        worker.postMessage('SHUTDOWN')
+        worker.terminate()
+      }, 5000);
       currentResolve = resolve;
       messageHandler = createMessageHandler({
         handlers,
@@ -68,7 +113,10 @@ export async function* createWorkerStream(
       });
       worker.on("message", messageHandler);
     });
-
+    if (workerTimeout) {
+      clearTimeout(workerTimeout);
+    }
+    logger.info(`received message handler`);
     while (true) {
       const chunk = await new Promise<Uint8Array>((resolve) => {
         currentResolve = resolve;

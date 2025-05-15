@@ -143,6 +143,16 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async writeBundle(options, bundle) {
+      if (userOptions.onEvent) {
+        userOptions.onEvent({
+          type: "build.writeBundle.static-server",
+          data: {
+            pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
+            options,
+            bundle
+          },
+        });
+      }
       try {
         const bundleManifest = getBundleManifest<false>({
           bundle,
@@ -270,17 +280,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           cssFilesByPage.set(url, pageCssMap);
         }
 
-        if (userOptions.onEvent) {
-          userOptions.onEvent({
-            type: "build.writeBundle",
-            data: {
-              pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
-              options,
-              bundle,
-              manifest: serverManifest,
-            },
-          });
-        }
         const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
         const indexHtml = staticManifest?.["index.html"]?.file;
         const safeParseURL = (() => {
