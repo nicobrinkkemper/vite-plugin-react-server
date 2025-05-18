@@ -105,9 +105,9 @@ export async function messageHandler(
 
         addCssFileContent(msg.id, msg.content, {
           projectRoot: workerData.userOptions.projectRoot || process.cwd(),
-          moduleBaseURL: workerData.userOptions.moduleBaseURL || "",
-          moduleBasePath: workerData.userOptions.moduleBasePath || "",
-          moduleRootPath: workerData.userOptions.moduleRootPath || "",
+          moduleBaseURL: workerData.userOptions.moduleBaseURL || "/",
+          moduleBasePath: workerData.userOptions.moduleBasePath || "/",
+          moduleRootPath: workerData.userOptions.moduleRootPath,
           css: cssOptions,
         });
       }

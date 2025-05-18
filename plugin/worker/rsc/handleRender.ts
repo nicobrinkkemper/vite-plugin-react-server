@@ -23,14 +23,13 @@ export async function handleRender(
     propsExportName = workerData.userOptions.propsExportName,
     projectRoot = workerData.userOptions.projectRoot,
     moduleRootPath = workerData.userOptions.moduleRootPath,
-    moduleBaseURL = workerData.userOptions.moduleBaseURL,
-    moduleBasePath = workerData.userOptions.moduleBasePath,
+    moduleBaseURL = workerData.userOptions.moduleBaseURL ?? "/",
+    moduleBasePath = workerData.userOptions.moduleBasePath ?? "/",
     moduleBase = workerData.userOptions.moduleBase,
     pipeableStreamOptions = workerData.userOptions.pipeableStreamOptions,
     cssFiles: messageCssFiles,
     globalCss = workerData.globalCss,
   } = msg;
-
   try {
     // Load modules
     const pageAndPropsResult = await resolvePageAndProps({

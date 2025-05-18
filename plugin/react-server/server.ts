@@ -27,13 +27,11 @@ export async function configureReactServer({
     onEvent,
     // remove these
     moduleBaseURL: _moduleBaseURL,
-    moduleBasePath: _moduleBasePath,
     projectRoot: _projectRoot,
     ...handlerUserOptions
   } = _userOptions;
   const handlerOptions = Object.assign({}, handlerUserOptions, {
     moduleBaseURL: server.config.base,
-    moduleBasePath: _moduleBasePath,
     projectRoot: server.config.root,
   });
 

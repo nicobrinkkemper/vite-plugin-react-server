@@ -418,7 +418,14 @@ export const resolveOptions = <
     typeof options.loaderPath === "string"
       ? join(projectRoot, options.loaderPath)
       : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
-
+  // these will never be cleaned up, because, we are resolving the user config
+  // and it's assumed they are relevant until the process stops
+  if (process.env.VITE_BASE_URL !== moduleBaseURL) {
+    process.env.VITE_BASE_URL = moduleBaseURL;
+  }
+  if (process.env.VITE_PUBLIC_ORIGIN !== publicOrigin) {
+    process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
+  }
   // Auto-discovery configuration
   const autoDiscover = {
     moduleExtension:

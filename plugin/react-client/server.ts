@@ -40,12 +40,11 @@ export async function configureWorkerRequestHandler({
     // remove these
     projectRoot: _projectRoot,
     moduleBaseURL: _moduleBaseURL,
-    moduleBasePath: _moduleBasePath,
     ...handlerUserOptions
   } = _userOptions;
   const handlerOptions = Object.assign({}, handlerUserOptions, {
     moduleBaseURL: server.config.base,
-    moduleBasePath: _moduleBasePath,
+    moduleBasePath: server.config.base,
     projectRoot: server.config.root,
   });
 
@@ -155,13 +154,13 @@ export async function configureWorkerRequestHandler({
         logger,
         handlers: {
           onMetrics: userOnMetrics,
-          onHmrAccept: (routes: string[]) => {
+          onHmrAccept: () => {
             // TODO: implement
-            console.log("onHmrAccept", routes);
+           // console.log("onHmrAccept", routes);
           },
-          onHmrUpdate: (routes: string[]) => {
+          onHmrUpdate: () => {
             // TODO: implement
-            console.log("onHmrUpdate", routes);
+           // console.log("onHmrUpdate", routes);
           },
         },
         verbose: handlerOptions.verbose,

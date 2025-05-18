@@ -70,7 +70,12 @@ import(`plugin.${getCondition("")}.js`);
 The main entry point adapts based on the environment:
 
 - **Client Mode** (default) → Does not require the react-server condition, uses a worker thread for RSC requests
+  Benefits:
+  - log errors to console
+  - onMetric event for each page
+  - worker thread
 - **Server Mode** (`NODE_OPTIONS="--conditions react-server"`) → Does not need worker thread for RSC requests
+  - Direct pipeline from vite to react
 
 ### Custom composition
 
@@ -79,6 +84,7 @@ You can pick and choose only the plugins you like to get the desired behavior as
 ### Page & prop setup
 
 The minimal config is
+
 ```tsx
 // vite.config.tsx
 import type { StreamPluginOptions } from "vite-plugin-react-server/types";
@@ -107,8 +113,9 @@ export function Page({ url }) {
 }
 ```
 
-Of course we need a client file as well, and the vite index.html pointing to it, 
-```tsx 
+Of course we need a client file as well, and the vite index.html pointing to it,
+
+```tsx
 import React, { use } from "react";
 import { createRoot } from "react-dom/client";
 import { createReactFetcher } from "vite-plugin-react-server/utils";
@@ -127,7 +134,9 @@ const intitalData = createReactFetcher();
 
 createRoot(rootElement).render(<Shell data={intitalData} />);
 ```
+
 index.html for completeness sake
+
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -159,57 +168,46 @@ export function Page({ file, title, url }: Props) {
    </>
 }
 ```
+
 You can also define a router specifically for the props file.
 
 ```tsx
-import type { StreamPluginOptions } from "vite-plugin-react-server/types";
-import { join } from "node:path";
-import { defineConfig } from "vite";
-import { vitePluginReactServer } from "vite-plugin-react-server";
-import { config } from "./vite.react.config.js";
-
-export default defineConfig(() => {
-  return {
-    plugins: vitePluginReactServer({
-      moduleBase: "src",
-      Page: "src/page.tsx",
-      // define the props router
-      props: "src/props.ts"
-    }),
-  };
-});
+{
+  moduleBase: "src",
+  Page: "src/page.tsx",
+  // define the props router
+  props: "src/props.ts",
+}
 ```
 
 Move prop lines from `src/page.tsx` to `src/props.ts`
-```tsx
-export const props = (url) => ({ title: "Hello World", file: import.meta.url, url });
 
-export type Props = ReturnType<typeof props>
+```tsx
+export const props = (url) => ({
+  title: "Hello World",
+  file: import.meta.url,
+  url,
+});
+
+export type Props = ReturnType<typeof props>;
 ```
 
 We can also make a static build for these pages, which will render them to index.html and headless index.rsc files, which can be used to make a static RSC site.
 
 ```tsx
-import type { StreamPluginOptions } from "vite-plugin-react-server/types";
-import { join } from "node:path";
-import { defineConfig } from "vite";
-import { vitePluginReactServer } from "vite-plugin-react-server";
-import { config } from "./vite.react.config.js";
-
-export default defineConfig(() => {
-  return {
-    plugins: vitePluginReactServer({
-      moduleBase: "src",
-      Page: "src/page.tsx",
-      props: "src/props.ts"
-      // define the routes we want to render
-      build: [
-        pages: ['/', '/404']
-      ]
-    }),
-  };
-});
+{
+  moduleBase: "src",
+  Page: "src/page.tsx",
+  props: "src/props.ts"
+  // define the routes we want to render
+  build: [
+    pages: ['/', '/404']
+  ]
+};
 ```
+
+And that's how you can work with react server components using a familiar vite workflow.
+If your app grows and you need more control, see the [docs](./docs) - check out the source code - and have fun building.
 
 ### Worker support
 
@@ -221,8 +219,6 @@ Both workers can be customized using the `htmlWorkerPath` and `rscWorkerPath` re
 
 Keep in mind that, using your custom worker means interacting with the message system of this plugin during development/static generation process.
 
-For more information on creating your custom workers, see [docs](/docs)
-
 ## Plugin Usage
 
 ```ts
@@ -233,17 +229,13 @@ import type { StreamPluginOptions } from "vite-plugin-react-server/server";
 
 const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
   switch (url) {
+    case "/":
+      return `src/page/${file}`;
     case "/bidoof":
-    case "/bidoof/index.rsc":
       return `src/page/bidoof/${file}`;
     case "/404":
-    case "/404/index.rsc":
-      return `src/page/404/${file}`;
-    case "/":
-    case "/index.rsc":
-      return `src/page/${file}`;
     default:
-      throw new Error(`Unknown route: ${url}`);
+      return `src/page/404/${file}`;
   }
 };
 
@@ -262,12 +254,27 @@ export default defineConfig({
 });
 ```
 
+This will mirror your directory structure for new static routes. If you need to handle
+dynamic requests, like pointing /:theme/ to a certain folder, you need to parse this yourself
+using code.
+
+### Async build pages
+
+If you have a large amount of pages that needs async operations to fetch, you can pass a async function to build pages.
+
+```tsx
+build:{
+  pages: async ()=>await import('my-pages')
+}
+```
 ### Built-in React Server Components
 
-This plugin has two built-in React Component, each can be configured through the options to be your own component. Defining your custom React server components will affect the final production output, they won't be used during development.
+This plugin built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
 
-- Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files)
+- Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files & global css)
 - CssCollector - used to emit `<link>` and `<style>` tags based on `css` config
+
+Defining your custom Html React server component will affect the final production output.
 
 #### Build Steps
 
@@ -309,7 +316,7 @@ export default defineConfig({
 NODE_OPTIONS="--conditions=react-server" vite
 ```
 
-Is the recommended way for a more direct server pipeline that doesn't require a `rsc-worker`.
+A direct server pipeline that doesn't require a `rsc-worker`.
 
 To develop the app using the `rsc-worker`, simply run
 
@@ -317,7 +324,7 @@ To develop the app using the `rsc-worker`, simply run
 vite
 ```
 
-without the `react-server` condition.
+without the `react-server` condition. This will work a little bit differently under the hood, it can provide additional development support like error logging, metric events and custom rsc worker development.
 
 ## Static Site Generation
 
@@ -430,15 +437,31 @@ Changes the default name "props"
 export const Page = ({ name }) => {
   return <div>Hello {name}</div>;
 };
+// src/async-page.tsx
+export const Page = async ({ name }) => {
+  return <div>Hello {name}</div>;
+};
 ```
 
 ### Sample Props File
+
+All of the below are valid
 
 ```ts
 // src/my-props.ts
 export const props = {
   name: "John Doe",
 };
+export const props = (url)=>{
+  name: "John Doe",
+};
+export const props = async (url)=>{
+  name: "John Doe",
+}
+// enum bonus
+export const props = ['key']; // -> {key: "key"}
+// Object.fromEntries()
+export const props = [['key',{value: 'some value'}]]
 ```
 
 ## Contributions
