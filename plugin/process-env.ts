@@ -2,9 +2,9 @@ declare global {
   namespace NodeJS {
     interface ProcessEnv {
       VITE_BASE_URL: string;
-      VITE_DEV: boolean;
-      VITE_PROD: boolean;
-      VITE_SSR: boolean;
+      VITE_DEV: string;
+      VITE_PROD: string;
+      VITE_SSR: string;
       VITE_MODE: string;
       VITE_PUBLIC_ORIGIN: string;
     }

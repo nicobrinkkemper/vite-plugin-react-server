@@ -1,3 +1,4 @@
+import { toError } from "../error/toError.js";
 
 type ResolvePropsOptions<N extends string> = {
   id: string;
@@ -53,15 +54,16 @@ export const resolveProps = async <T, N extends string>({
     | { type: "error"; error: Error; module?: never }
   > => {
     try {
+      const result = await loader(id);
       return {
         type: "success",
         key: id,
-        module: await loader(id),
+        module: result,
       };
     } catch (error) {
       return {
         type: "error",
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       };
     }
   })();
@@ -117,7 +119,7 @@ export const resolveProps = async <T, N extends string>({
     } catch (error) {
       return {
         type: "error",
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       };
     }
   } else if (props instanceof Promise) {
@@ -132,7 +134,7 @@ export const resolveProps = async <T, N extends string>({
     } catch (error) {
       return {
         type: "error",
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       };
     }
   } else if (Array.isArray(props)) {
@@ -149,7 +151,7 @@ export const resolveProps = async <T, N extends string>({
     } catch (error) {
       return {
         type: "error",
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       };
     }
   } else if (typeof props === "string") {
@@ -162,7 +164,7 @@ export const resolveProps = async <T, N extends string>({
     } catch (error) {
       return {
         type: "error",
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       };
     }
   }

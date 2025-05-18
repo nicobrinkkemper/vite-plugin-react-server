@@ -3,15 +3,17 @@ import { createServer } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import { testUserOptions } from "../test-config";
 import { mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { setupTestProject } from "../setup.js";
 import { handleRSCStream, RSCStreamResponse } from "../rsc-stream.js";
 
+let server,
+  port = 3104,
+  pageURL,
+  response: RSCStreamResponse;
+const testDir = resolve(__dirname, "../fixtures/rsc-server.test");
+
 describe("RSC Server", () => {
-  let server;
-  const testDir = resolve(__dirname, "../fixtures/rsc-server.test");
-  let pageURL = `http://localhost:5173/index.rsc`;
-  let response: RSCStreamResponse;
 
   beforeAll(async () => {
     // Clean up and create test directory
@@ -28,14 +30,21 @@ describe("RSC Server", () => {
           projectRoot: testDir,
         }),
       ],
+      server: {
+        port: port,
+      },
     });
 
     await server.listen();
+    if (server.config?.server?.port) {
+      port = server.config.server.port;
+    }
+    pageURL = `http://localhost:${port}/index.rsc`;
     response = await handleRSCStream(pageURL);
   });
 
   afterAll(async () => {
-    await server.close();
+    await server?.close();
     await rm(testDir, { recursive: true, force: true });
   });
 

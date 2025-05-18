@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { ResolvedUserConfig, ResolvedUserOptions } from "../../server.js";
 import type { Manifest } from "vite";
-import { getModuleRef } from "../moduleRefs.js";
+import { getModuleRef } from "../helpers/moduleRefs.js";
 import { readFile } from "node:fs/promises";
 import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";

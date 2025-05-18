@@ -1,4 +1,4 @@
-import { toError } from "./error/toError.js";
+import { toError } from "../error/toError.js";
 
 type ResolvePageOptions<N extends string> = {
   id: string;

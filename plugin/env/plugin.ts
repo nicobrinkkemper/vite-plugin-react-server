@@ -1,18 +1,17 @@
 import type { Plugin } from "vite";
 import { resolveConfigDefine, resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { userProjectRoot } from "../root.js";
 const isBuild = process.argv[process.argv.length - 1] === "build";
-const root =
-  process.argv[process.argv.length - 2].match(
-    /^(.+?)\/node_modules\/.+$/
-  )?.[1] || process.cwd();
+const isPreview = process.argv.findIndex((arg) => arg === "preview") !== -1;
+
 
 // Set up environment variables from .env files as early as possible
 // This is to ensure that the env variables are available even in the config file,
 // and you can use process.env to configure the plugin.
 const cleanupInitialUserConfigEnv = resolveEnv(
-  process.env["NODE_ENV"] || (isBuild ? "production" : "development"),
-  root,
+  process.env["NODE_ENV"] || (isBuild || isPreview ? "production" : "development"),
+  userProjectRoot,
   DEFAULT_CONFIG.ENV_PREFIX
 );
 
@@ -51,7 +50,7 @@ export function envPlugin(): Plugin {
     config(config, { mode }) {
       const invalidEnv =
         (mode !== undefined && mode !== process.env.VITE_MODE) ||
-        (config.root !== undefined && config.root !== root);
+        (config.root !== undefined && config.root !== userProjectRoot);
       if (invalidEnv) {
         cleanupInitialUserConfigEnv();
       }
@@ -59,7 +58,7 @@ export function envPlugin(): Plugin {
       const cleanupUserConfigEnv = invalidEnv
         ? resolveEnv(
             mode || process.env.VITE_MODE,
-            config.root ?? root,
+            config.root ?? userProjectRoot,
             config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX
           )
         : cleanupInitialUserConfigEnv;

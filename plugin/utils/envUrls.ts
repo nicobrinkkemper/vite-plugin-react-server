@@ -5,4 +5,4 @@ export const absoluteURL = createAbsoluteURL(env.BASE_URL, env.PUBLIC_ORIGIN);
 export const baseURL = createBaseURL(env.BASE_URL);
 export const pageURL = createPageURL(env.BASE_URL, env.PUBLIC_ORIGIN, env.DEV);
 export const { indexRSC: rootIndexRSC, moduleBaseURL } = pageURL("/");
-export const { BASE_URL: baseUrl, PUBLIC_ORIGIN: publicOrigin } = env;
+export const { BASE_URL, PUBLIC_ORIGIN } = env;

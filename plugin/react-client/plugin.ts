@@ -7,7 +7,7 @@ import type {
 } from "../types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
-import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
+import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { configureWorkerRequestHandler } from "./server.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { MessageChannel } from "node:worker_threads";
@@ -112,7 +112,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
 
         // Find all routes affected by this file change
         const affectedRoutes = autoDiscoveredFiles.routeMap.get(value) || [];
-
+        console.log({affectedRoutes})
         // Send HMR update directly to worker through MessageChannel
         if (hmrChannel?.port1) {
           hmrChannel.port1.postMessage({

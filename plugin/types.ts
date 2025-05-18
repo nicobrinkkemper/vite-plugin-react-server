@@ -337,12 +337,10 @@ export type BuildWriteBundleEventStaticServer = {
   type: "build.writeBundle.static-server";
   data: {
     pages: string[];
-    options: NormalizedOutputOptions; 
+    options: NormalizedOutputOptions;
     bundle: OutputBundle;
   };
 };
-
-
 
 export type BuildWriteBundleEvent =
   | BuildWriteBundleEventServer
@@ -646,9 +644,9 @@ export type ResolvedBuildPages = {
   pageMap: Map<string, string>;
   /**
    * ## routeMap
-   * 
+   *
    * Maps props & page paths to routes
-   * 
+   *
    * @example
    * const routeMap = new Map<string, string[]>();
    * routeMap.set("src/page/home/page.tsx", ["/", "/home"]);
@@ -656,9 +654,9 @@ export type ResolvedBuildPages = {
   routeMap: Map<string, string[]>;
   /**
    * ## urlMap
-   * 
+   *
    * Maps urls to props & page paths
-   * 
+   *
    * @example
    * ```ts
    * const urlMap = new Map<string, { props?: string; page: string }>();
@@ -780,6 +778,12 @@ export interface InlineCssCollectorProps {
   purgeCss?: boolean;
   children?: React.ReactNode;
 }
+
+export type CssCollectorElementsProps<
+  InlineCSS extends boolean | undefined = undefined
+> = {
+  cssFiles: Map<string, CssContent<InlineCSS>>;
+};
 
 export interface HtmlRenderState {
   id: string;

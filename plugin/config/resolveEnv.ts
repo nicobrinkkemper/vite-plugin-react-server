@@ -55,8 +55,10 @@ export function resolveEnv(
 
   if (!mergedEnv["VITE_MODE"] && process.env["VITE_MODE"] == null) {
     const modeIndex = process.argv.findIndex((arg) => arg === "--mode");
+    const isBuild = process.argv.includes("build");
+    const isPreview = process.argv.includes("preview");
     if (modeIndex === -1) {
-      const inferredMode = process.argv.includes("build")
+      const inferredMode = isPreview || isBuild
         ? "production"
         : "development";
       if (
@@ -103,7 +105,7 @@ export function resolveEnv(
     mergedEnv["VITE_BASE_URL"] = "/";
   if (!mergedEnv["VITE_SSR"] && process.env["VITE_SSR"] == null)
     mergedEnv["VITE_SSR"] =
-      process.argv.includes("--ssr") || getCondition("") === "server";
+      String(process.argv.includes("--ssr") || getCondition("") === "server");
   if (!mergedEnv["VITE_DEV"] && process.env["VITE_DEV"] == null)
     mergedEnv["VITE_DEV"] = mergedEnv["VITE_MODE"] === "development";
   if (!mergedEnv["VITE_PROD"] && process.env["VITE_PROD"] == null)

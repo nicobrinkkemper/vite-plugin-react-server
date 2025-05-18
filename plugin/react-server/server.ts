@@ -7,6 +7,8 @@ import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { createHandler } from "../helpers/createHandler.js";
 import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
+import { getRouteFiles } from "../helpers/getRouteFiles.js";
+import { toError } from "../error/toError.js";
 
 export async function configureReactServer({
   server,
@@ -62,10 +64,15 @@ export async function configureReactServer({
     const info = requestInfo(req, handlerOptions, "");
     if (!info.isRscRequest) return next();
     try {
-      if (!autoDiscoveredFiles.urlMap.has(info.route)) {
+      const routeFiles = await getRouteFiles(
+        info.route,
+        autoDiscoveredFiles,
+        handlerOptions
+      );
+      if (routeFiles.type === "error") {
+        server.config.logger.error(routeFiles.error.message);
         return next();
       }
-      const routeFiles = autoDiscoveredFiles.urlMap.get(info.route)!;
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
 
@@ -130,6 +137,7 @@ export async function configureReactServer({
         activeStreams.delete(res);
       });
     } catch (error) {
+      server.config.logger.error(toError(error).message);
       res.end();
     }
   });

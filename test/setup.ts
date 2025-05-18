@@ -182,3 +182,60 @@ return (
   );
 
 }
+
+
+export async function setupTestProjectPropsVariations(testDir: string) {
+  // Create base directories
+  await mkdir(testDir, { recursive: true });
+  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page2"), { recursive: true });
+  await setupIndexHTML(testDir);
+  await setupClientTSX(testDir);
+  await setupServerTSX(testDir);
+
+  // Create a test page component
+  await writeFile(
+    resolve(testDir, "src", "page", "page.tsx"),
+    `import React from "react";
+export function props(){
+    return import.meta.env;
+}
+export function Page(propsEnv) {
+return (
+  <div>
+    <h1>Home Page</h1>
+    <p>Base URL: {propsEnv.BASE_URL}</p>
+    <p>Public: {propsEnv.PUBLIC_ORIGIN}</p>
+    <p>Mode: {import.meta.env.MODE}</p>
+    <p>Prod: {import.meta.env.PROD}</p>
+    <p>Dev: {import.meta.env.DEV}</p>
+    <p>SSR: {import.meta.env.SSR}</p>
+    <p>URL: {import.meta.env.BASE_URL}</p>
+    <p>Public Origin: {import.meta.env.PUBLIC_ORIGIN}</p>
+  </div>
+);
+}`
+  );
+  // Create a test page component
+  await writeFile(
+    resolve(testDir, "src", "page2", "page.tsx"),
+    `import React from "react";
+export function Page({url, propsEnv = import.meta.env}) {
+return (
+  <div>
+    <h1>Home Page for {url}</h1>
+    <p>Base URL: {propsEnv.BASE_URL}</p>
+    <p>Public: {propsEnv.PUBLIC_ORIGIN}</p>
+    <p>Mode: {import.meta.env.MODE}</p>
+    <p>Prod: {import.meta.env.PROD}</p>
+    <p>Dev: {import.meta.env.DEV}</p>
+    <p>SSR: {import.meta.env.SSR}</p>
+    <p>URL: {import.meta.env.BASE_URL}</p>
+    <p>Public Origin: {import.meta.env.PUBLIC_ORIGIN}</p>
+  </div>
+);
+}`
+  );
+
+}

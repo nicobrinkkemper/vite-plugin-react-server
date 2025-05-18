@@ -25,12 +25,14 @@
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
-    "./components": "./dist/plugin/components.js",
+    "./components": "./dist/plugin/components/index.js",
     "./types": "./dist/plugin/types.js",
     "./utils": "./dist/plugin/utils/index.js",
     "./metrics": "./dist/plugin/metrics/index.js",
-    "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
-    "./env": "./dist/plugin/env/plugin.js"
+    "./env": "./dist/plugin/env/plugin.js",
+    "./config": "./dist/plugin/config/index.js",
+    "./vendor": "./dist/plugin/vendor/index.js",
+    "./file-preserver": "./dist/plugin/file-preserver/plugin.js"
   },
   "typesVersions": {
     "*": {
@@ -50,7 +52,7 @@
         "./dist/plugin/worker/worker.d.ts"
       ],
       "components": [
-        "./dist/plugin/components.d.ts"
+        "./dist/plugin/components/index.d.ts"
       ],
       "utils": [
         "./dist/plugin/utils/index.d.ts"
@@ -58,11 +60,17 @@
       "metrics": [
         "./dist/plugin/metrics/index.d.ts"
       ],
-      "file-preserver": [
-        "./dist/plugin/file-preserver/plugin.d.ts"
+      "config": [
+        "./dist/plugin/config/index.d.ts"
       ],
       "env": [
         "./dist/plugin/env/plugin.d.ts"
+      ],
+      "vendor": [
+        "./dist/plugin/vendor/index.d.ts"
+      ],
+      "file-preserver": [
+        "./dist/plugin/file-preserver/plugin.d.ts"
       ]
     }
   },

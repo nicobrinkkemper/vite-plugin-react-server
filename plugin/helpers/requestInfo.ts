@@ -3,6 +3,16 @@ import type { ResolvedUserOptions } from "../types.js";
 import type { Connect } from "vite";
 import { MIME_TYPES } from "../config/mimeTypes.js";
 
+/**
+ * # Request info
+ * 
+ * Does the initial work to check if the request is for html, rsc, css, or something else not handled by this plugin.
+ * 
+ * @param req 
+ * @param userOptions 
+ * @param hostDir 
+ * @returns 
+ */
 export function requestInfo(
   req: Connect.IncomingMessage,
   userOptions: Pick<ResolvedUserOptions, "normalizer" | "build" | "autoDiscover">,

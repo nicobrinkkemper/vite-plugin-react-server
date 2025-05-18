@@ -1,5 +1,5 @@
 import React from "react";
-import type { HtmlProps } from "./types.js";
+import type { HtmlProps } from "../types.js";
 import { CssCollectorElements } from "./css-collector-elements.js";
 export const Html = ({
   children,

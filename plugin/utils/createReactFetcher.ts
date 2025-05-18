@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 // @ts-ignore
 import { createFromFetch } from "react-server-dom-esm/client.browser";
+import { createCallServer } from "./createCallServer.js";
 import { env } from "./env.js";
 import { createPageURL } from "./urls.js";
-import { createCallServer } from "./createCallServer.js";
 
 export function createReactFetcher({
   moduleBaseURL = env.BASE_URL,

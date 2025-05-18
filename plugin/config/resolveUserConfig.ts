@@ -34,7 +34,10 @@ export function resolveUserConfig({
       ? config.build?.ssr
       : Boolean(configEnv.isSsrBuild) ||
         condition === "react-server" ||
-        (process.env["VITE_SSR"] !== undefined && !!process.env["VITE_SSR"]);
+        (typeof process.env["VITE_SSR"] === "string"
+          ? process.env["VITE_SSR"] === "true" ||
+            process.env["VITE_SSR"] === "1"
+          : Boolean(process.env["VITE_SSR"]));
   const envDir =
     condition === "react-client" && ssr
       ? userOptions.build.client
@@ -175,7 +178,7 @@ export function resolveUserConfig({
     },
   };
   let publicOrigin =
-    userOptions.publicOrigin ?? process.env["VITE_PUBLIC_ORIGIN"];
+    userOptions.publicOrigin ?? process.env.VITE_PUBLIC_ORIGIN ?? "";
   let PROD = mode === "production";
   let DEV = mode === "development";
   if (configEnv.command === "serve" && !configEnv.isPreview) {
@@ -185,16 +188,30 @@ export function resolveUserConfig({
         : "localhost"
     }:${typeof config.server?.port === "number" ? config.server?.port : 5173}`;
   }
+  const ssrDefine = ssr
+    ? {
+        [`process.env.${vitePrefix}SSR`]: `${ssr}`,
+        [`process.env.${vitePrefix}DEV`]: `${DEV}`,
+        [`process.env.${vitePrefix}PROD`]: `${PROD}`,
+        [`process.env.${vitePrefix}MODE`]: `"${mode}"`,
+        [`process.env.${vitePrefix}BASE_URL`]: `"${userOptions.moduleBaseURL}"`,
+        [`process.env.${vitePrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
+      }
+    : {};
   const define = {
     ...config.define,
     [`import.meta.env.PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
-    [`process.env.${vitePrefix}SSR`]: `${ssr}`,
-    [`process.env.${vitePrefix}DEV`]: `${DEV}`,
-    [`process.env.${vitePrefix}PROD`]: `${PROD}`,
-    [`process.env.${vitePrefix}MODE`]: `"${mode}"`,
-    [`process.env.${vitePrefix}BASE_URL`]: `"${userOptions.moduleBaseURL}"`,
-    [`process.env.${vitePrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
+    ...ssrDefine,
   };
+  // these will never be cleaned up, because, we are resolving the user config
+  // and it's assumed the thread closes after this and we don't want
+  // it to change after the config has been resolved
+  if (process.env.VITE_BASE_URL !== userOptions.moduleBaseURL) {
+    process.env.VITE_BASE_URL = userOptions.moduleBaseURL;
+  }
+  if (process.env.VITE_PUBLIC_ORIGIN !== publicOrigin) {
+    process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
+  }
 
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)

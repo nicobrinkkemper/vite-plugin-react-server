@@ -39,7 +39,7 @@ import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
-import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
+import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
 import {
   serializedOptions,
@@ -50,6 +50,7 @@ import { createCssProps } from "../helpers/createCssProps.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { performance } from "node:perf_hooks";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { baseURL } from "../utils/envUrls.node.js";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -276,23 +277,10 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
 
         const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
         const indexHtml = staticManifest?.["index.html"]?.file;
-        const safeParseURL = (() => {
-          try {
-            if (userOptions.moduleBaseURL.includes("//")) {
-              return new URL(
-                join(userOptions.moduleBasePath, indexHtml),
-                userOptions.moduleBaseURL
-              ).href;
-            }
-          } catch (error) {}
-          return userOptions.moduleBaseURL.endsWith("/")
-            ? userOptions.moduleBaseURL + indexHtml
-            : userOptions.moduleBaseURL + "/" + indexHtml;
-        })();
         const pipeableStreamOptions = {
           ...userOptions.pipeableStreamOptions,
           bootstrapModules: [
-            ...(safeParseURL ? [safeParseURL] : []),
+            ...(indexHtml ? [baseURL(indexHtml)] : []),
             ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
           ],
         };

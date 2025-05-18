@@ -1,13 +1,13 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
+import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../../types.js";
 import { join } from "path";
-import { resolveBuildPages } from "./autoDiscover/resolveBuildPages.js";
-import { resolvePages } from "./resolvePages.js";
-import { tryManifest } from "../helpers/tryManifest.js";
+import { resolveBuildPages } from "./resolveBuildPages.js";
+import { resolvePages } from "../resolvePages.js";
+import { tryManifest } from "../../helpers/tryManifest.js";
 import type { Manifest } from "vite";
-import { createGlobAutoDiscover } from "./autoDiscover/createGlobAutoDiscover.js";
-import { customWorkerFiles } from "./autoDiscover/customWorkerFiles.js";
-import { pageAndPropFiles } from "./autoDiscover/pageAndPropFiles.js";
+import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
+import { customWorkerFiles } from "./customWorkerFiles.js";
+import { pageAndPropFiles } from "./pageAndPropFiles.js";
 
 const clientFiles = createGlobAutoDiscover("**/*.client.*");
 const serverFiles = createGlobAutoDiscover("**/*.server.*");

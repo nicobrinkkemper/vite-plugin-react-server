@@ -119,6 +119,7 @@ export async function messageHandler(
           stream.end();
           activeStreams.delete(renderId);
         });
+        parentPort?.removeAllListeners();
       } else {
         activeStreams.delete(msg.id);
       }
@@ -127,7 +128,6 @@ export async function messageHandler(
         type: "SHUTDOWN_COMPLETE",
         id: msg.id,
       } satisfies RscWorkerOutputMessage);
-      process.exit(0);
       return;
     }
     default: {

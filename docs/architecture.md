@@ -8,10 +8,10 @@ Aside from that, if you keep your props static and with the right client entry p
 can be uploaded to any host.
 
 ## Server first
-Vite is good at working with the Client side stuff, it's not built with React's server paradigm in mind. This plugin bridges the gap between these two workflows.
+Vite is not built with React's server paradigm in mind. This plugin bridges the gap between these two workflows.
 
 ### Environment Variables
-The plugin treats environment variables as a first-class citizen, similar to how Vite handles `import.meta.env`. This means:
+The plugin treats process.env similar to `import.meta.env`
 
 1. **Server-Side Access**: Environment variables are available in server components through `process.env`, making it consistent with Node.js conventions.
 

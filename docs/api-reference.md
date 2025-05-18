@@ -17,7 +17,7 @@ export const config = {
 
 ### Core Options
 
-| Option | Type | Description | Default |
+| Option | Type | Description | Example |
 |--------|------|-------------|---------|
 | `moduleBase` | `string` | Root directory for project modules | `"src"` |
 | `moduleBasePath` | `string` | Second argument to `renderToPipeableStream` | `"/my-repo/"` |
@@ -50,8 +50,7 @@ export const config = {
 
 | Option | Type | Description | Default |
 |--------|------|-------------|---------|
-| `inlineCss` | `boolean` | Inline CSS in HTML | `false` |
-| `purgeCss` | `boolean` | Remove unused CSS | `false` |
+| `inlineCss` | `boolean` | Inline CSS in HTML | `true` |
 | `inlineThreshold` | `number` | Size threshold for inlining (bytes) | `4096` |
 | `inlinePatterns` | `RegExp[]` | Patterns for files to always inline | `[/\.module\.css$/]` |
 | `linkPatterns` | `RegExp[]` | Patterns for files to always link | `[/node_modules/]` |
@@ -278,10 +277,10 @@ Generates static HTML and RSC files to `dist/static`.
 
 ## Development Commands
 
-### Client Development
+### Rsc Worker Development
 
 ```sh
 vite
 ```
 
-Starts the Vite dev server for client-side development.
+Starts the Vite dev server for worker development.

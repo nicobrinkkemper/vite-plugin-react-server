@@ -4,7 +4,7 @@ import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
-import { CssCollector } from "../css-collector.js";
+import { CssCollector } from "../components/css-collector.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 // ============================================================================

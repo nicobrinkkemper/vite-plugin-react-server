@@ -17,7 +17,7 @@ import type {
 import { type StreamPluginOptions } from "../types.js";
 import {
   resolveAutoDiscover
-} from "../config/resolveAutoDiscover.js";
+} from "../config/autoDiscover/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
 import { configureReactServer } from "./server.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";

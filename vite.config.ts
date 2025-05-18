@@ -55,13 +55,17 @@ export default defineConfig({
           __dirname,
           "plugin/loader/react-loader.ts"
         ),
+        "plugin/components": resolve(__dirname, "plugin/components/index.ts"),
         "plugin/utils": resolve(__dirname, "plugin/utils/index.ts"),
         "plugin/metrics": resolve(__dirname, "plugin/metrics/index.ts"),
+        "plugin/env": resolve(__dirname, "plugin/env/plugin.ts"),
+        "plugin/vendor": resolve(__dirname, "plugin/vendor/index.ts"),
+        "plugin/config": resolve(__dirname, "plugin/config/index.ts"),
+        "plugin/helpers": resolve(__dirname, "plugin/helpers/index.ts"),
         "plugin/file-preserver": resolve(
           __dirname,
           "plugin/file-preserver/plugin.ts"
         ),
-        "plugin/env": resolve(__dirname, "plugin/env/plugin.ts"),
       },
       formats: ["es"],
     },

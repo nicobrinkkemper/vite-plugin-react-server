@@ -9,7 +9,7 @@ type ResolvePageAndPropsOptionsError<T extends "Page" | "props"> = {
 } & { type: "error"; error: Error };
 
 export async function resolveUrlOption<T extends "Page" | "props">(
-  options: Pick<ResolvedUserOptions, T | "moduleBasePath">,
+  options: Pick<ResolvedUserOptions, T>,
   optionName: T,
   url: string
 ): Promise<
@@ -19,12 +19,7 @@ export async function resolveUrlOption<T extends "Page" | "props">(
     switch (typeof options[optionName]) {
       case "function":
         const result = options[optionName](
-          // quick normalization to make it easier to work with dynamic moduleBasePaths (so that you don't have to change the Page/props function)
-          options.moduleBasePath !== "" &&
-            options.moduleBasePath !== "/" &&
-            url.startsWith(options.moduleBasePath)
-            ? url.slice(options.moduleBasePath.length)
-            : url
+          url
         );
         if (typeof result === "string") {
           return { type: "success", [optionName]: result };
