@@ -49,7 +49,6 @@ import { collectManifestCss } from "../helpers/collectManifestCss.js";
 import { createCssProps } from "../helpers/createCssProps.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { performance } from "node:perf_hooks";
-import { resolveConfigDefine, resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 if (getCondition() !== "react-server") {
@@ -66,7 +65,6 @@ let userOptions: ResolvedUserOptions;
 let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
 let serverManifest: Manifest | undefined = undefined;
 let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
-let cleanupEnv: () => void;
 export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
