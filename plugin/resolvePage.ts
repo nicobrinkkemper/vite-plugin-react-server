@@ -75,18 +75,14 @@ export const resolvePage = async <T, N extends string>({
     return {
       type: "error",
       error: new Error(
-        `Export ${exportName} not found in module ${id}. Module: ${JSON.stringify(
-          module
-        )}`
+        `Export "${exportName}" not found in module ${id}.`
       ),
     };
   } else if (!Page) {
     return {
       type: "error",
       error: new Error(
-        `Export ${exportName} is null or undefined in module ${id}. Module: ${JSON.stringify(
-          module
-        )}`
+        `Export "${exportName}" is null or undefined in module ${id}.`
       ),
     };
   } else if (Page instanceof Error) {

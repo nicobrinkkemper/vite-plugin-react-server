@@ -4,11 +4,11 @@ The benefits and ease of use of Node.js, the React UI library and vite combined.
 ## Who is this for?
 This plugin offers a way to bundle esmodules that would enable a custom react-server implementation, for example using NextJS or express.
 
-Aside from that, if you keep your props static and with the right client entry point, it enables you to generate a modern static site using simple routing function that maps requests to source files. This static site
+Aside from that, if you keep your props static and with the right client entry point, it enables you to generate a modern static site using a simple routing function that maps requests to source files. This static site
 can be uploaded to any host.
 
 ## Server first
-Vite is really good at working with the Client side stuff, it's not built with React's server paradigm in mind. This plugin bridges the gap between these two workflows.
+Vite is good at working with the Client side stuff, it's not built with React's server paradigm in mind. This plugin bridges the gap between these two workflows.
 
 ### Environment Variables
 The plugin treats environment variables as a first-class citizen, similar to how Vite handles `import.meta.env`. This means:
@@ -137,7 +137,7 @@ The plugins are executed in a specific order to ensure proper transformation and
 4. **Static Plugin**
    - HTML Worker: Handles HTML content generation
    - File Writer: Manages file output for static builds
-   - Page Renderer: Exports headless & full html pages, emits metric events
+   - Page Renderer: Exports headless & full html pages, emits events
    - Stream Handler: Manages RSC to HTML stream conversion
 
 5. **Preserver Plugin**
@@ -155,3 +155,5 @@ The transformation pipeline ensures that:
 4. Static generation (if enabled) happens after all transformations
 5. Directives are preserved throughout the build process
 
+It also gives you the ability to override all the above behavior by either composing
+your plugins or developing a entirely new rsc-worker for your application that can then be used during your development process - which gives you full control over the node.js environment including it's loaders, etc.

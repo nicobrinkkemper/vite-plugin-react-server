@@ -118,7 +118,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
     configResolved(config) {
       resolvedConfig = config;
-      // add the env to the process.env directly
     },
     async buildStart() {
       timing.buildStart = Date.now();
