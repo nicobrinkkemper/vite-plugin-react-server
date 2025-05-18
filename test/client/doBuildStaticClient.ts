@@ -10,7 +10,7 @@ import { inspect } from "node:util";
  * @param optionOverrides - Optional overrides for the options
  * @returns The events from the build
  */
-export async function doBuildClientOnly(optionOverrides: Partial<StreamPluginOptions>) {
+export async function doBuildStaticClient(optionOverrides: Partial<StreamPluginOptions>) {
     const events: PluginEvent[] = [];
     // check directory
     const options = {
@@ -40,13 +40,6 @@ export async function doBuildClientOnly(optionOverrides: Partial<StreamPluginOpt
         ssr: false,
       },
     });
-
-    // await build({
-    //   plugins: [vitePluginReactClient(options)],
-    //   build: {
-    //     ssr: true,
-    //   },
-    // });
 
     process.chdir(originalCwd);
     return events;

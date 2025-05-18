@@ -13,7 +13,6 @@ import type {
   AliasOptions,
   BuildOptions,
   Connect,
-  InlineConfig,
   Logger,
   Manifest,
   ResolveOptions,
@@ -180,6 +179,7 @@ export type ResolvedUserOptions<
     | "normalizer"
     | "moduleID"
     | "publicOrigin"
+    | "verbose"
   >
 > & {
   props:
@@ -207,19 +207,6 @@ export type ResolvedUserOptions<
     virtualPattern: (path: string) => boolean;
   };
 };
-
-export type createBuildConfigFn<C extends "react-client" | "react-server"> =
-  (input: {
-    condition: C;
-    userOptions: ResolvedUserOptions;
-    userConfig: ResolvedUserConfig;
-    mode: "production" | "development" | "test";
-    inputNormalizer: C extends "react-server"
-      ? InputNormalizerWorker
-      : InputNormalizerWorker;
-  }) => C extends "react-server"
-    ? Promise<InlineConfig>
-    : Promise<InlineConfig>;
 
 export interface StreamMetrics {
   chunks: number;
@@ -446,6 +433,7 @@ export interface StreamPluginOptions<
   onEvent?: (event: PluginEvent) => void;
   normalizer?: InputNormalizer;
   moduleID?: (id: string) => string;
+  verbose?: boolean;
 }
 
 export type MultiPageHandlerOptions = Omit<

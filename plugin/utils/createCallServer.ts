@@ -2,7 +2,7 @@ import {
   createFromFetch,
   encodeReply,
   // @ts-ignore
-} from "react-server-dom-esm/client";
+} from "react-server-dom-esm/client.browser";
 
 type ServerResponse = { returnValue: unknown };
 

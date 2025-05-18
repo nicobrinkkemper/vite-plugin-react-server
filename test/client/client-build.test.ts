@@ -1,33 +1,43 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { doDevServer } from "./doDevServer.js";
-import type { ViteDevServer } from "vite";
-import { mkdir, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setupTestProject } from "../setup.js";
-import { MessageChannel } from "node:worker_threads";
-import { resolveEnv } from "../../plugin/config/resolveEnv.js";
-import { doBuildClientOnly } from "./doBuildClientOnly.js";
+import { doBuildStaticClient } from "./doBuildStaticClient.js";
+import type { PluginEvent } from "vite-plugin-react-server/types";
+
+const testDir = join(process.cwd(), "test/client/fixtures/client-build");
+let events: PluginEvent[];
 
 describe("RSC Worker (Client)", () => {
-  const testDir = join(process.cwd(), "test/client/fixtures/client-build");
-  let events: any;
   beforeAll(async () => {
-    // Clean up and create test directory
+    // just to be save, remove the test directory
+    await rm(testDir, { recursive: true, force: true });
     await setupTestProject(testDir);
-    events = await doBuildClientOnly({
+    // set the events to test
+    events = await doBuildStaticClient({
       projectRoot: testDir,
     });
-    console.log(events);
-    //console.log("Server is listening on port", server.config.server.port);
-  }, 10000); // 10s timeout for server setup
+  })
 
   afterAll(async () => {
-   // await server.close();
+    // comment below line to see the fixture directory
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("should build client with react-server condition", async () => {
+  
+  it("should receive events", async () => {
+    // check if the events are not empty
     expect(events.length).toBeGreaterThan(0);
-  }); 
+  });
+
+  // check if the events are of type PluginEvent
+  it("should receive build.writeBundle.static-client", async () => {
+    const eventOrder = events.map((e) => e.type);
+    expect(eventOrder).toEqual(
+      expect.arrayContaining([
+        "build.writeBundle.static-client",
+      ])
+    );
+  });
 
 }); 

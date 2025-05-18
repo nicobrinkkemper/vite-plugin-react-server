@@ -20,8 +20,9 @@ export const config = {
 | Option | Type | Description | Default |
 |--------|------|-------------|---------|
 | `moduleBase` | `string` | Root directory for project modules | `"src"` |
-| `moduleBasePath` | `string` | Second argument to `renderToPipeableStream` | `""` |
-| `moduleBaseURL` | `string` | Prefix for imports | `""` |
+| `moduleBasePath` | `string` | Second argument to `renderToPipeableStream` | `"/my-repo/"` |
+| `moduleBaseURL` | `string` | Requests from this base | `"/my-repo/"` |
+| `publicOrigin` | `string` | Origin for moduleBaseURL | `"https://username.github.io"` |
 | `Page` | `(url: string) => string` | Maps URLs to page component files | - |
 | `props` | `(url: string) => string` | Maps URLs to props files | - |
 | `Html` | `React.ComponentType<HtmlProps>` | Wrapper component for production pages | - |

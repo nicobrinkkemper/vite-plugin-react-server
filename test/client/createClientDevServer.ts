@@ -8,21 +8,18 @@ import type { ViteDevServer } from "vite";
  * @param optionOverrides - Optional overrides for the options
  * @returns The Vite dev server instance
  */
-export async function doDevServer(optionOverrides: any = {}) {
+export async function createClientDevServer(optionOverrides: any = {}, port = 5175) {
   const server: ViteDevServer = await createServer({
     plugins: [vitePluginReactClient({
       ...testUserOptions,
       ...optionOverrides,
-      build: {
-        ...testUserOptions.build,
-        ...optionOverrides?.build,
-      },
-      workerData: optionOverrides.workerData,
     })],
-    logLevel: 'info'
+    logLevel: 'info',
+    server: {
+      port: port,
+    },
   });
-
+  
   await server.listen();
-  console.log("Server is listening on port", server.config.server.port);
-  return server;
+  return server
 } 

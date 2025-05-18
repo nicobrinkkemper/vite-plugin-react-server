@@ -61,6 +61,7 @@ export default defineConfig({
           __dirname,
           "plugin/file-preserver/plugin.ts"
         ),
+        "plugin/env": resolve(__dirname, "plugin/env/plugin.ts"),
       },
       formats: ["es"],
     },

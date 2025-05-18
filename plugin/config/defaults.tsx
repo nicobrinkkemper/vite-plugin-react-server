@@ -77,4 +77,5 @@ export const DEFAULT_CONFIG = {
     rscPattern: (n: string) => /\.rsc$/.test(n),  
   },
   MODULE_ID: (id: string) => id,
+  VERBOSE: false,
 } as const;

@@ -9,6 +9,7 @@ export function createReactFetcher({
   moduleBaseURL = env.BASE_URL,
   publicOrigin = env.PUBLIC_ORIGIN,
   url = window.location.pathname,
+  indexRSC = "index.rsc",
   headers = {
     Accept: "text/x-component",
   },
@@ -16,9 +17,10 @@ export function createReactFetcher({
   url?: string;
   moduleBaseURL?: string;
   publicOrigin?: string;
+  indexRSC?: string;
   headers?: HeadersInit;
 } = {}): Promise<ReactNode> {
-  const parsedURL = createPageURL(moduleBaseURL, publicOrigin)(url);
+  const parsedURL = createPageURL(moduleBaseURL, publicOrigin, env.DEV)(url, indexRSC);
   return createFromFetch(
     fetch(parsedURL.indexRSC, {
       headers: headers,

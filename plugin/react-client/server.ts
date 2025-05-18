@@ -26,12 +26,14 @@ export async function configureWorkerRequestHandler({
   userOptions: _userOptions,
   hmrChannel,
   onMetrics,
+  verbose = false
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
   hmrChannel: MessageChannel;
   onMetrics?: (metrics: RenderMetrics) => void;
+  verbose?: boolean;
 }) {
   let {
     // remove these
@@ -47,21 +49,22 @@ export async function configureWorkerRequestHandler({
   });
 
   // Start the worker
-  const currentWorker = await restartWorker(
+  const currentWorker = await restartWorker({
     server,
     autoDiscoveredFiles,
-    handlerOptions,
-    hmrChannel
-  );
+    userOptions: handlerOptions,
+    hmrChannel,
+    verbose
+  });
   const logger = server.config.logger
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
     if (!req.url) return next();
-    logger.info(`Received request: ${req.url}`)
+    if(verbose) logger.info(`Received request: ${req.url}`)
 
     const info = requestInfo(req, handlerOptions, "");
     if (!info.isRscRequest) return next();
-    logger.info(`Request info: ${JSON.stringify(info)}`)
+    if(verbose) logger.info(`Request info: ${JSON.stringify(info)}`)
 
     if (!currentWorker) {
       logger.warn("[react-client] No worker available");
@@ -107,9 +110,9 @@ export async function configureWorkerRequestHandler({
         }
       : ()=>{};
       const startTime = performance.now();
-      const stream = handleWorkerRscStream(
-        currentWorker,
-        {
+      const stream = handleWorkerRscStream({
+        worker: currentWorker,
+        message: {
           ...serializedUserOptions,
           // we make the worker stream aware of the route, pagePath, propsPath
           route: info.route,
@@ -122,8 +125,8 @@ export async function configureWorkerRequestHandler({
           cssFiles: new Map(),
           globalCss: new Map(),
         },
-        server.config.logger,
-        {
+        logger,
+        handlers: {
           onMetrics: userOnMetrics,
           onHmrAccept: (routes: string[]) => {
             // TODO: implement
@@ -133,8 +136,9 @@ export async function configureWorkerRequestHandler({
             // TODO: implement
             console.log("onHmrUpdate", routes);
           },
-        }
-      );
+        },
+        verbose
+      });
       const writeStream = new WritableStream({
         write(chunk) {
           res.write(chunk);
@@ -147,12 +151,13 @@ export async function configureWorkerRequestHandler({
         abort() {
           clearTimeout(timeout);
           // Restart worker on error
-          restartWorker(
+          restartWorker({
             server,
             autoDiscoveredFiles,
-            handlerOptions,
-            hmrChannel
-          );
+            userOptions: handlerOptions,
+            hmrChannel,
+            verbose
+          });
           res.end();
         },
       });
@@ -163,13 +168,12 @@ export async function configureWorkerRequestHandler({
       // wait for timeout
       timeout = setTimeout(() => {
         currentWorker.postMessage('SHUTDOWN')
-        console.log(currentWorker)
         server.config.logger.error("RSC render timeout.");
         res.end();
       }, 5000);
     } catch (error) {
       if (error instanceof Error) {
-        server.config.logger.error(error.message, {
+        server.config.logger.error(error.message + (error.stack ?? ''), {
           error,
         });
       }

@@ -10,12 +10,19 @@ import type { MessageChannel, Worker } from "node:worker_threads";
 let currentWorker: Worker | null = null;
 let isRestarting = false;
 
-export async function restartWorker(
+export async function restartWorker({
+    server,
+    autoDiscoveredFiles,
+    userOptions,
+    hmrChannel,
+    verbose = false
+  } :{
     server: ViteDevServer,
     autoDiscoveredFiles: AutoDiscoveredFiles,
     userOptions: ResolvedUserOptions,
-    hmrChannel: MessageChannel
-  ) {
+    hmrChannel: MessageChannel,
+    verbose?: boolean
+  }) {
     if (isRestarting) return;
     isRestarting = true;
   
@@ -50,7 +57,7 @@ export async function restartWorker(
   
       if (workerResult.type === "success") {
         currentWorker = workerResult.worker;
-        server.config.logger.info(
+        if(verbose) server.config.logger.info(
           `[react-client] Set max listeners to ${maxListeners} for ${routeCount} routes`
         );
       } else if (workerResult.type === "error") {

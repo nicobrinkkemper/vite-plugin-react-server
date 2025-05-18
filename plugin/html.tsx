@@ -6,11 +6,9 @@ export const Html = ({
   CssCollector,
   cssFiles,
   globalCss,
-  moduleBasePath,
 }: React.PropsWithChildren<HtmlProps>) => (
   <html>
     <head>
-      {moduleBasePath !== ""}
       <CssCollectorElements cssFiles={globalCss} />
     </head>
     <body>

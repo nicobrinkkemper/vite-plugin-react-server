@@ -49,7 +49,7 @@ import { collectManifestCss } from "../helpers/collectManifestCss.js";
 import { createCssProps } from "../helpers/createCssProps.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { performance } from "node:perf_hooks";
-import { resolveEnv } from "../config/resolveEnv.js";
+import { resolveConfigDefine, resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 if (getCondition() !== "react-server") {
@@ -66,7 +66,7 @@ let userOptions: ResolvedUserOptions;
 let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
 let serverManifest: Manifest | undefined = undefined;
 let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
-
+let cleanupEnv: () => void;
 export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
@@ -91,12 +91,9 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async config(config, configEnv) {
-      
-
       if (config.root && config.root !== userOptions.projectRoot) {
         userOptions.projectRoot = config.root;
       }
-
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,
@@ -123,8 +120,8 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
     configResolved(config) {
       resolvedConfig = config;
+      // add the env to the process.env directly
     },
-
     async buildStart() {
       timing.buildStart = Date.now();
       if (userOptions.onEvent && autoDiscoveredFiles) {
@@ -139,6 +136,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async renderStart() {
+      
       timing.renderStart = Date.now();
     },
 
@@ -149,7 +147,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           data: {
             pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
             options,
-            bundle
+            bundle,
           },
         });
       }
@@ -179,8 +177,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           throw clientManifestResult.error;
         }
         const clientManifest = clientManifestResult.manifest;
-        resolveEnv(resolvedConfig.mode, userOptions.projectRoot, userConfig.envPrefix);
-
+        
         buildLoader = await createBuildLoader(
           {
             userConfig,
@@ -324,6 +321,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             reverseCondition: "react-client",
             maxListeners: maxListeners,
             envPrefix: viteEnvPrefix,
+            logger: this.environment.logger,
             workerData: {
               resolvedConfig: serializeResolvedConfig(resolvedConfig),
               userOptions: {
@@ -395,6 +393,11 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         this.environment.logger.info(
           `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
         );
+        if(process.env['NODE_ENV'] !== 'production') {
+          this.environment.logger.warn(
+            `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env['NODE_ENV']})`
+          );
+        }
 
         // Update timing
         timing.render = Date.now() - (timing.renderStart ?? timing.start);

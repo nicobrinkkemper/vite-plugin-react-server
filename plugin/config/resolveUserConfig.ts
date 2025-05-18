@@ -32,7 +32,9 @@ export function resolveUserConfig({
   const ssr =
     typeof config.build?.ssr === "boolean"
       ? config.build?.ssr
-      : Boolean(configEnv.isSsrBuild) || condition === "react-server";
+      : Boolean(configEnv.isSsrBuild) ||
+        condition === "react-server" ||
+        (process.env["VITE_SSR"] !== undefined && !!process.env["VITE_SSR"]);
   const envDir =
     condition === "react-client" && ssr
       ? userOptions.build.client
@@ -76,20 +78,31 @@ export function resolveUserConfig({
       } else {
         return entry.file;
       }
-    }
-    if (entry) {
+    } else if (entry) {
       return entry.file;
     }
     return fallback(info, true);
   };
   const userDefinedOutput = config.build?.rollupOptions?.output;
-  const hasValidOutput = userDefinedOutput && !Array.isArray(userDefinedOutput);
-  
-  const userDefinedAssetFileNames = hasValidOutput
+  const hasOtherOutput =
+    Array.isArray(userDefinedOutput) && userDefinedOutput.length > 1;
+  const hasValidOutput = userDefinedOutput && !hasOtherOutput;
+  const hasObjectOutput =
+    userDefinedOutput &&
+    !hasOtherOutput &&
+    typeof userDefinedOutput === "object" &&
+    userDefinedOutput !== null;
+
+  const userDefinedAssetFileNames = hasObjectOutput
     ? "assetFileNames" in userDefinedOutput
       ? userDefinedOutput.assetFileNames
       : undefined
+    : // find the other asset file names
+    hasOtherOutput
+    ? (userDefinedOutput.find((o) => o.assetFileNames) as OutputOptions)
+        .assetFileNames
     : undefined;
+
   const userDefinedChunkFileNames = hasValidOutput
     ? "chunkFileNames" in userDefinedOutput
       ? userDefinedOutput.chunkFileNames
@@ -101,6 +114,7 @@ export function resolveUserConfig({
       : undefined
     : undefined;
 
+  let stashedReturns: Record<string, string> = {};
   const pluginOutput = {
     preserveModulesRoot: userOptions.build.preserveModulesRoot
       ? userOptions.moduleBase
@@ -111,12 +125,17 @@ export function resolveUserConfig({
         const input = info.facadeModuleId;
         return handleSsrName(info, input, userOptions.build.entryFile, ssr);
       }),
-    assetFileNames:
-      userDefinedAssetFileNames ??
-      ((i) => {
-        const input = i.originalFileNames[0];
-        return handleSsrName(i, input, userOptions.build.assetFile, ssr);
-      }),
+    assetFileNames: process.env["VITEST"]
+      ? undefined
+      : userDefinedAssetFileNames ??
+        ((i) => {
+          const input = i.originalFileNames[0];
+          if (!stashedReturns[input]) {
+            const r = handleSsrName(i, input, userOptions.build.assetFile, ssr);
+            stashedReturns[input] = r;
+          }
+          return stashedReturns[input];
+        }),
     chunkFileNames:
       userDefinedChunkFileNames ??
       ((i) => {
@@ -134,16 +153,7 @@ export function resolveUserConfig({
     ? [config.build?.rollupOptions?.output, pluginOutput]
     : pluginOutput;
   const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
-  const mode =
-    process.env["NODE_ENV"] === "development"
-      ? "development"
-      : config.mode
-      ? config.mode
-      : configEnv.mode
-      ? configEnv.mode
-      : configEnv.command === "build"
-      ? "production"
-      : "development";
+  const mode = config.mode ?? process.env["VITE_MODE"];
   const minify = config.build?.minify;
 
   const srrConfig = {
@@ -164,7 +174,10 @@ export function resolveUserConfig({
       ],
     },
   };
-  let publicOrigin = userOptions.publicOrigin;
+  let publicOrigin =
+    userOptions.publicOrigin ?? process.env["VITE_PUBLIC_ORIGIN"];
+  let PROD = mode === "production";
+  let DEV = mode === "development";
   if (configEnv.command === "serve" && !configEnv.isPreview) {
     publicOrigin = `http${config.server?.https ? "s" : ""}://${
       typeof config.server?.host === "string"
@@ -175,13 +188,9 @@ export function resolveUserConfig({
   const define = {
     ...config.define,
     [`import.meta.env.PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
-    [`process.env.${vitePrefix}SSR`]: `true`,
-    [`process.env.${vitePrefix}DEV`]: `${
-      mode === "development" ? "true" : "false"
-    }`,
-    [`process.env.${vitePrefix}PROD`]: `${
-      mode === "production" ? "true" : "false"
-    }`,
+    [`process.env.${vitePrefix}SSR`]: `${ssr}`,
+    [`process.env.${vitePrefix}DEV`]: `${DEV}`,
+    [`process.env.${vitePrefix}PROD`]: `${PROD}`,
     [`process.env.${vitePrefix}MODE`]: `"${mode}"`,
     [`process.env.${vitePrefix}BASE_URL`]: `"${userOptions.moduleBaseURL}"`,
     [`process.env.${vitePrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,

@@ -1,13 +1,9 @@
-// Check environment before any imports
-if (process.env["NODE_ENV"] !== "production") {
-  process.exit(1);
-}
-
 import { parentPort, MessageChannel } from "node:worker_threads";
 import { messageHandler } from "./messageHandler.js";
 import { register } from "node:module";
 import { join } from "node:path";
 import { pluginRoot } from "../../root.js";
+import type { ReadyMessage } from "../types.js";
 
 if (!parentPort) {
   throw new Error("This module must be run as a worker");
@@ -34,4 +30,4 @@ envLoaderChannel.port2.on("message", messageHandler);
 parentPort.on("message", messageHandler);
 
 // Signal ready
-parentPort.postMessage({ type: "READY", env: process.env["NODE_ENV"] });
+parentPort.postMessage({ type: "READY", env: process.env["NODE_ENV"], pid: process.pid } satisfies ReadyMessage);

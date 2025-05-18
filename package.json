@@ -29,7 +29,8 @@
     "./types": "./dist/plugin/types.js",
     "./utils": "./dist/plugin/utils/index.js",
     "./metrics": "./dist/plugin/metrics/index.js",
-    "./file-preserver": "./dist/plugin/file-preserver/plugin.js"
+    "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
+    "./env": "./dist/plugin/env/plugin.js"
   },
   "typesVersions": {
     "*": {
@@ -59,6 +60,9 @@
       ],
       "file-preserver": [
         "./dist/plugin/file-preserver/plugin.d.ts"
+      ],
+      "env": [
+        "./dist/plugin/env/plugin.d.ts"
       ]
     }
   },
@@ -77,15 +81,19 @@
     "test:server": "NODE_ENV=development NODE_OPTIONS='--conditions react-server' vitest run test/server",
     "test:client": "NODE_ENV=development vitest run test/client",
     "test:build": "npm run setup:test-fixtures && npm test test/server/build.test.ts",
+    "test:unit": "vitest run test/unit",
     "test:llm": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
-    "test:streams": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/renderStreams.test.ts -no-watch",
-    "test:renders": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/renderPages.test.ts -no-watch",
-    "test:html-worker": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/rscToHtmlStream.test.ts -no-watch",
-    "test:large-html": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/large-html.test.ts --reporter=verbose -no-watch",
-    "test:metrics": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/metrics.test.ts --reporter=verbose -no-watch",
-    "test:hooks": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/hooks.test.ts --reporter=verbose -no-watch",
-    "test:inline-css": "npm run build && npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run test/server/inline-css.test.ts --reporter=verbose -no-watch",
-    "test": "npm run build && npm run setup:test-fixtures && npm run test:server",
+    "test:streams": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/renderStreams.test.ts",
+    "test:renders": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/renderPages.test.ts",
+    "test:html-worker": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/rscToHtmlStream.test.ts",
+    "test:large-html": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/large-html.test.ts --reporter=verbose",
+    "test:metrics": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/metrics.test.ts --reporter=verbose",
+    "test:hooks": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/hooks.test.ts --reporter=verbose",
+    "test:inline-css": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/inline-css.test.ts --reporter=verbose",
+    "test:dev-server-env": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/dev-server-env.test.ts --reporter=verbose",
+    "test:rsc-server": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/rsc-server.test.ts --reporter=verbose",
+    "test:client-env": "npm run build && vitest run test/client/dev-client-server-env.test.ts --reporter=verbose",
+    "test": "npm run build && npm run test:server && npm run test:client && npm run test:unit",
     "test:coverage": "npm run setup:test-fixtures && vitest run --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
     "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",

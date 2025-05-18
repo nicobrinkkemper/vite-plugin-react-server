@@ -219,7 +219,8 @@ export type HtmlWorkerOutputMessage =
   | { type: "HTML_CHUNK"; id: string; chunk: string; encoding: string }
   | { type: "CLEANUP_COMPLETE"; id: string }
   | { type: "SHUTDOWN_COMPLETE"; id: string }
-  | HmrAcceptMessage;
+  | HmrAcceptMessage
+  | ReadyMessage;
 
 export type InitializedReactLoaderMessage = {
   type: "INITIALIZED_REACT_LOADER";
@@ -237,18 +238,27 @@ export type InitializedRscWorkerLoaderMessage = {
   id: string;
 }
 
+export type InitializedEnvLoaderMessage = {
+  type: "INITIALIZED_ENV_LOADER";
+  id: string;
+  env: Record<string, string>;
+}
+
 // HMR Messages
 export type HmrMessage = {
-  path: string;
+  id: string;
 }
 
 export type HmrUpdateMessage = HmrMessage & {
   type: "HMR_UPDATE";
   routes?: string[];
+  timestamp?: number;
 }
 
 export type HmrCleanupMessage = HmrMessage & {
   type: "HMR_CLEANUP";
+  routes?: string[];
+  timestamp?: number;
 }
 
 export type HmrAcceptMessage = HmrMessage & {
@@ -267,8 +277,10 @@ export type RscWorkerInputMessage =
   | InitializedCssLoaderMessage
   | ModuleRequestMessage  
   | InitializedRscWorkerLoaderMessage
+  | InitializedEnvLoaderMessage
   | HmrUpdateMessage
-  | HmrAcceptMessage;
+  | HmrAcceptMessage
+  | { type: "HMR_CLEANUP"; id: string; routes?: string[] };
 
 export interface CssFileRequestMessage extends WorkerMessage {
   type: "CSS_FILE_REQUEST";
@@ -299,6 +311,12 @@ export interface CssProcessedMessage extends WorkerMessage {
   id: string;
 }
 
+export type ReadyMessage = {
+  type: "READY";
+  env: string | undefined;
+  pid: number;
+}
+
 export type RscWorkerOutputMessage =
   | RscChunkOutputMessage
   | RscEndMessage
@@ -314,7 +332,8 @@ export type RscWorkerOutputMessage =
   | RscMetricsMessage
   | HmrAcceptMessage
   | HmrUpdateMessage
-  | { type: "READY" };
+  | ReadyMessage
+  | { type: "SHUTDOWN_COMPLETE"; id: string };
 
 export interface ClientReferenceMessage extends WorkerMessage {
   type: "CLIENT_REFERENCE";

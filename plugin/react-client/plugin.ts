@@ -1,4 +1,4 @@
-import {  type Plugin } from "vite";
+import { type ConfigEnv, type Plugin } from "vite";
 import type {
   AutoDiscoveredFiles,
   ResolvedUserConfig,
@@ -14,6 +14,7 @@ import { MessageChannel } from "node:worker_threads";
 
 let userOptions: ResolvedUserOptions;
 let userConfig: ResolvedUserConfig;
+let configEnv: ConfigEnv;
 let root: string;
 let autoDiscoveredFiles: AutoDiscoveredFiles;
 let hmrChannel: MessageChannel | null = null;
@@ -29,7 +30,8 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
   return {
     name: "vite:react-client",
 
-    async config(config, configEnv) {
+    async config(config, viteConfigEnv) {
+      configEnv = viteConfigEnv;
       if (
         typeof config.root === "string" &&
         config.root !== root &&
@@ -64,7 +66,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       }
 
       userConfig = resolvedConfig.userConfig;
-      return userConfig;
+      return userConfig
     },
     async configurePreviewServer(server) {
       await configurePreviewServer({
@@ -73,14 +75,16 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       });
     },
     async writeBundle(options, bundle) {
-      if(userOptions.onEvent){
+      if (userOptions.onEvent) {
         userOptions.onEvent({
-          type: `build.writeBundle.${userConfig.build.ssr ? "client" : "static-client"}`,
+          type: `build.writeBundle.${
+            userConfig.build.ssr ? "client" : "static-client"
+          }`,
           data: {
             pages: [...autoDiscoveredFiles.routeMap.keys()],
             options,
             bundle,
-          }
+          },
         });
       }
     },
@@ -105,24 +109,24 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
 
         // Get the route for this file
         const [, value] = userOptions.normalizer(file);
-        
+
         // Find all routes affected by this file change
         const affectedRoutes = autoDiscoveredFiles.routeMap.get(value) || [];
 
         // Send HMR update directly to worker through MessageChannel
         if (hmrChannel?.port1) {
           hmrChannel.port1.postMessage({
-            type: 'HMR_UPDATE',
+            type: "HMR_UPDATE",
             path: file,
             timestamp,
-            routes: affectedRoutes
+            routes: affectedRoutes,
           });
 
           // Trigger a full page refresh for affected routes
           for (const route of affectedRoutes) {
             server.ws.send({
-              type: 'full-reload',
-              path: route
+              type: "full-reload",
+              path: route,
             });
           }
         }
@@ -132,9 +136,9 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       } catch (error) {
         if (hmrChannel?.port1) {
           hmrChannel.port1.postMessage({
-            type: 'HMR_ERROR',
+            type: "HMR_ERROR",
             path: file,
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
           });
         }
         return ctx.modules;

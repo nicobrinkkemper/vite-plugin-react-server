@@ -1,34 +1,31 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { doDevServer } from "./doDevServer.js";
 import type { ViteDevServer } from "vite";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setupTestProject } from "../setup.js";
-import { resolveEnv } from "../../plugin/config/resolveEnv.js";
+import { createClientDevServer } from "./createClientDevServer.js";
 
 describe("RSC Worker (Client)", () => {
-  let server: ViteDevServer;
+  let server: ViteDevServer, port = 5176;
   const testDir = join(process.cwd(), "test/client/fixtures/rsc-worker");
-  let pageURL = `http://localhost:5173/index.rsc`;
+  let pageURL;
   beforeAll(async () => {
     // Set up environment variables
-    process.env.NODE_ENV = "development";
-    resolveEnv("development", process.cwd());
-
     // Clean up and create test directory
     await rm(testDir, { recursive: true, force: true });
     await mkdir(testDir, { recursive: true });
     await setupTestProject(testDir);
 
-    server = await doDevServer({
+    server = await createClientDevServer({
       projectRoot: testDir,
-    });
-    pageURL = `http://localhost:${server.config.server.port}/index.rsc`;
+    }, port);
+    port = server.config.server.port;
+    pageURL = `http://localhost:${port}/index.rsc`;
     //console.log("Server is listening on port", server.config.server.port);
-  }, 10000); // 10s timeout for server setup
+  }); 
 
   afterAll(async () => {
-    // await server.close();
+    await server?.close();
     await rm(testDir, { recursive: true, force: true });
   });
 
@@ -74,7 +71,7 @@ describe("RSC Worker (Client)", () => {
     // Verify the response contains RSC data
     expect(result).toContain("0:");
     expect(result).toContain("1:");
-  }, 10000); // 10s timeout for the test
+  });
 
   it("should handle requests", async () => {
     // Make a request to trigger HMR
@@ -83,5 +80,5 @@ describe("RSC Worker (Client)", () => {
 
     // The server should be ready to handle HMR updates
     expect(server.ws).toBeDefined();
-  }, 10000); // 10s timeout for the test
+  }); // 
 });

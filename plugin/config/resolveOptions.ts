@@ -386,12 +386,12 @@ export const resolveOptions = <
   const moduleBasePath =
     typeof options.moduleBasePath === "string"
       ? options.moduleBasePath
-      : DEFAULT_CONFIG.MODULE_BASE_PATH;
+      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_PATH;
 
   const moduleBaseURL =
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
-      : DEFAULT_CONFIG.MODULE_BASE_URL;
+      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_URL;
 
   const moduleRootPath =
     typeof options.moduleRootPath === "string"
@@ -401,7 +401,7 @@ export const resolveOptions = <
   const publicOrigin =
     typeof options.publicOrigin === "string"
       ? options.publicOrigin
-      : DEFAULT_CONFIG.PUBLIC_ORIGIN;
+      : process.env.VITE_PUBLIC_ORIGIN ?? DEFAULT_CONFIG.PUBLIC_ORIGIN;
 
   // Worker and loader paths
   const rscWorkerPath =
@@ -464,6 +464,7 @@ export const resolveOptions = <
         moduleRootPath,
         publicOrigin,
         build: build,
+        verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
         onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
         onEvent: options.onEvent,
         Page: options.Page ?? undefined,

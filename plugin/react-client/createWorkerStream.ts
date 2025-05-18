@@ -1,5 +1,8 @@
 import type { Logger } from "vite";
-import type { RscWorkerOutputMessage, RscRenderMessage } from "../worker/types.js";
+import type {
+  RscWorkerOutputMessage,
+  RscRenderMessage,
+} from "../worker/types.js";
 import type { StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
@@ -19,27 +22,30 @@ export async function* createWorkerStream({
   worker,
   message,
   logger,
-  handlers: {
-    onHmrAccept,
-    onHmrUpdate,
-    onMetrics,
-    onError,
-    onData,
-    onEnd,
-  }
+  handlers: { onHmrAccept, onHmrUpdate, onMetrics, onError, onData, onEnd },
+  verbose = false,
 }: {
-  worker: NodeWorker,
-  message: Omit<RscRenderMessage, "type" | "id">,
-  logger: Logger,
-  handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> & Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd">>
+  worker: NodeWorker;
+  message: Omit<RscRenderMessage, "type" | "id">;
+  logger: Logger;
+  handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> &
+    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd">>;
+  verbose?: boolean;
 }): AsyncGenerator<Uint8Array> {
-  let messageHandler: ((message: RscWorkerOutputMessage | undefined) => void) | null = null;
+  let messageHandler:
+    | ((message: RscWorkerOutputMessage | undefined) => void)
+    | null = null;
   let currentResolve: ((chunk: Uint8Array) => void) | null = null;
   const handlers: StreamHandlers = {
     onError: (error: any, errorInfo?: any) => {
-      logger.error(error.message + error.stack, {
-        error,
-      });
+      logger.error(
+        "[react-client] " +
+          (error.stack ?? error.stack.includes(error.message) ? "" : error.message + "\n") +
+          error.stack,
+        {
+          error,
+        }
+      );
       if (errorInfo) {
         logger.error(errorInfo.componentStack);
       }
@@ -49,14 +55,14 @@ export async function* createWorkerStream({
     },
     onData: (chunk: Uint8Array) => {
       currentResolve?.(chunk);
-      logger.info(`received chunk ${chunk.length} bytes`);
+      if (verbose) logger.info(`received chunk ${chunk.length} bytes`);
       if (typeof onData === "function") {
         onData(chunk);
-      } 
+      }
     },
     onEnd: () => {
       currentResolve?.(new Uint8Array());
-      logger.info(`received end`);
+      if (verbose) logger.info(`received end`);
       if (messageHandler) {
         worker.removeListener("message", messageHandler);
         messageHandler = null;
@@ -66,19 +72,19 @@ export async function* createWorkerStream({
       }
     },
     onMetrics: (metrics: StreamMetrics) => {
-      logger.info(`received chunks ${metrics.chunks}`);
+      if (verbose) logger.info(`received chunks ${metrics.chunks}`);
       if (typeof onMetrics === "function") {
         onMetrics(metrics);
       }
     },
     onHmrAccept: (routes: string[]) => {
-      logger.info(`received hmr accept ${routes.join(", ")}`);
+      if (verbose) logger.info(`received hmr accept ${routes.join(", ")}`);
       if (typeof onHmrAccept === "function") {
         onHmrAccept(routes);
       }
     },
     onHmrUpdate: (routes: string[]) => {
-      logger.info(`received hmr update ${routes.join(", ")}`);
+      if (verbose) logger.info(`received hmr update ${routes.join(", ")}`);
       if (typeof onHmrUpdate === "function") {
         onHmrUpdate(routes);
       }
@@ -91,32 +97,32 @@ export async function* createWorkerStream({
       worker.removeListener("message", messageHandler);
       messageHandler = null;
     }
-    logger.info(`sending message RSC_RENDER`);
+    if (verbose) logger.info(`sending message RSC_RENDER`);
     worker.postMessage({
       ...message,
       type: "RSC_RENDER",
       id: Math.random().toString(36).slice(2),
     });
-    
-    logger.info(`waiting for message handler`);
+
+    if (verbose) logger.info(`waiting for message handler`);
     let workerTimeout: NodeJS.Timeout | null = null;
     yield await new Promise<Uint8Array>((resolve) => {
       workerTimeout = setTimeout(() => {
-        logger.info(`worker timeout`);
-        worker.postMessage('SHUTDOWN')
-        worker.terminate()
+        if (verbose) logger.info(`worker timeout`);
+        worker.terminate();
       }, 5000);
       currentResolve = resolve;
       messageHandler = createMessageHandler({
         handlers,
         logger,
+        verbose,
       });
       worker.on("message", messageHandler);
     });
     if (workerTimeout) {
       clearTimeout(workerTimeout);
     }
-    logger.info(`received message handler`);
+    if (verbose) logger.info(`received message handler`);
     while (true) {
       const chunk = await new Promise<Uint8Array>((resolve) => {
         currentResolve = resolve;
@@ -127,6 +133,7 @@ export async function* createWorkerStream({
         messageHandler = createMessageHandler({
           handlers,
           logger,
+          verbose,
         });
         worker.on("message", messageHandler);
       });

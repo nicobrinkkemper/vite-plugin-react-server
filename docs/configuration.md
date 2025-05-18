@@ -8,7 +8,7 @@
 import type { StreamPluginOptions } from "vite-plugin-react-server";
 
 const config = {
-  moduleBase: "src", // required
+  moduleBase: "src", // source prefix
 ```
 
 `src` is a convention, you can name it however you want.
@@ -16,20 +16,25 @@ const config = {
 ### moduleBasePath
 
 ```ts
-  moduleBasePath: "", // default
+  moduleBasePath: "/", // import prefix
 ```
 
-`moduleBasePath` is used as the second argument to React's `renderToPipeableStream` for server-side rendering.
+`moduleBasePath` is used as the second argument to React's `renderToPipeableStream` for server-side rendering. Defaults to VITE_BASE_URL or "/"
 
 ### moduleBaseURL
 
 ```ts
-  moduleBaseURL: "", // default
+  moduleBaseURL: "/", // url prefix
 ```
 
-`moduleBaseURL` is used to prefix imports. Defining this option opts out of relative imports in the browser. ie `../` becomes `https://my-url/`.
+`moduleBaseURL` should be same as moduleBasePath in most cases. The url equivalant. Defaults to VITE_BASE_URL or "/"
 
-> Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL matches your base path - or leave empty to opt in to relative paths.
+> Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL and moduleBasePath matches your base path - or leave empty and use VITE_BASE_URL.
+```ts
+publicOrigin: "", // URL parseable origin
+```
+
+`publicOrigin` should be used as a static replacement for location.origin. Defaults to VITE_PUBLIC_ORIGIN or ""
 
 ### Page & props
 
@@ -173,8 +178,7 @@ It requires nodejs version 23.7.0 or higher.
 
 When running the server plugin in dev mode, it will pipe the react stream directly to the response. This will use
 vite's `ssrLoadModule` to load modules and therefor support anything that vite supports. Hot-reloading
-is only supported for client components, since those run in the browser. However, nothing stops the user from making their
-own stream-update protocol - using vite's import.meta.hot.accept for example.
+is supported for defined route files, hot module replacement is only supported for client-side modules.
 
 ```sh
 vite build
@@ -190,5 +194,4 @@ dist/static/index.rsc
 dist/static/about/index.html
 dist/static/about/index.rsc
 ```
-
-Aside from generating these html and rsc files, it copies all client files to the static directory - which includes the public directory - just drag 'n drop the static folder to your host of choice.
+For an example of this, see the demo.

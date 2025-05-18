@@ -103,7 +103,7 @@ export class ErrorBoundary extends React.Component {
 
 What should happen here? The error is on the server, but the ErrorBoundary is inheritely a client thing. Let's look at the stream it produces during development:
 
-```json
+```text
 5:I["/src/components/ErrorBoundary.client.tsx","ErrorBoundary"]
 :N1746137013072.7915
 1:[]
@@ -129,6 +129,8 @@ a:{"name":"CssCollectorElements","env":"Server","key":null,"owner":"$2","stack":
 0:["$3","$8"]
 6:E{"digest":"","name":"Error","message":"test","stack":[["TestError","/bidoof-template/src/page/error-example/page.tsx",8,11]],"env":"Server"}
 ```
+This information essentially renders the error message directly to your UI, using react. During production, this is information
+you want to hide, which is what this plugin will manage for you.
 
 ## Plugin Architecture
 
@@ -157,8 +159,8 @@ You can customize these workers or opt out of using them entirely:
 The plugin provides three built-in React components that can be customized:
 
 1. **Html**: Used as the wrapper for production pages
-2. **CssCollector**: Used to emit `<link>` tags when `inlineCss:false`
-3. **InlineCssCollector**: Used to emit `<style>` tags when `inlineCss:true`
+2. **CssCollector**: Used to emit `<link>` tags 
+3. **CssCollectorElemenets**: render only the `cssFiles` prop, useful for custom Html components
 
 ## Development vs. Production
 
