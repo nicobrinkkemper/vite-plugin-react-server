@@ -216,16 +216,22 @@ Defines the root directory for project modules. This can be customized.
 ### moduleBasePath
 
 ```ts
-moduleBasePath: "",
+moduleBasePath: "/",
 ```
 Passed as the second argument to `renderToPipeableStream` for server-side rendering.
 
 ### moduleBaseURL
 
 ```ts
-moduleBaseURL: "https://github.com/my-gh-pages",
+moduleBaseURL: "/",
 ```
 Defines asset URL resolution for CSS collectors and bootstrapModule.
+
+```ts
+publicOrigin: "https://github.com",
+```
+
+
 
 ### Page and props Mapping
 
