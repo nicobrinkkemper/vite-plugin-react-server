@@ -150,6 +150,5 @@ export async function* createWorkerStream({
       worker.removeListener("message", messageHandler);
       messageHandler = null;
     }
-    handlers.onEnd();
   }
 }

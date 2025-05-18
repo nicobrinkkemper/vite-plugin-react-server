@@ -26,14 +26,12 @@ export async function configureWorkerRequestHandler({
   userOptions: _userOptions,
   hmrChannel,
   onMetrics,
-  verbose = false
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
   hmrChannel: MessageChannel;
   onMetrics?: (metrics: RenderMetrics) => void;
-  verbose?: boolean;
 }) {
   let {
     // remove these
@@ -54,17 +52,16 @@ export async function configureWorkerRequestHandler({
     autoDiscoveredFiles,
     userOptions: handlerOptions,
     hmrChannel,
-    verbose
   });
   const logger = server.config.logger
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
     if (!req.url) return next();
-    if(verbose) logger.info(`Received request: ${req.url}`)
+    if(handlerOptions.verbose) logger.info(`Received request: ${req.url}`)
 
     const info = requestInfo(req, handlerOptions, "");
     if (!info.isRscRequest) return next();
-    if(verbose) logger.info(`Request info: ${JSON.stringify(info)}`)
+    if(handlerOptions.verbose) logger.info(`Request info: ${JSON.stringify(info)}`)
 
     if (!currentWorker) {
       logger.warn("[react-client] No worker available");
@@ -137,7 +134,7 @@ export async function configureWorkerRequestHandler({
             console.log("onHmrUpdate", routes);
           },
         },
-        verbose
+        verbose: handlerOptions.verbose
       });
       const writeStream = new WritableStream({
         write(chunk) {
@@ -156,7 +153,6 @@ export async function configureWorkerRequestHandler({
             autoDiscoveredFiles,
             userOptions: handlerOptions,
             hmrChannel,
-            verbose
           });
           res.end();
         },
