@@ -160,7 +160,7 @@ The plugin provides three built-in React components that can be customized:
 
 1. **Html**: Used as the wrapper for production pages
 2. **CssCollector**: Used to emit `<link>` tags 
-3. **CssCollectorElemenets**: render only the `cssFiles` prop, useful for custom Html components
+3. **CssCollectorElements**: render only the `cssFiles` or `globalStyles` prop, useful for custom Html components
 
 ## Development vs. Production
 
@@ -182,6 +182,4 @@ In production mode:
 
 The plugin supports static site generation through the static plugin:
 
-- Generates static HTML and RSC files for each configured route
-- Copies client assets to the static directory
-- Enables easy deployment to static hosting services
+- Generates static HTML and RSC files for each configured build.pages
