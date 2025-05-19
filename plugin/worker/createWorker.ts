@@ -9,6 +9,9 @@ import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 import * as React from "react";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { createLogger, type Logger } from "vite";
+import type { HtmlWorkerOutputMessage } from "./types.js";
+import type { RscWorkerOutputMessage } from "./types.js";
 
 export type CreateWorkerOptions = {
   projectRoot?: string;
@@ -25,6 +28,8 @@ export type CreateWorkerOptions = {
   htmlChunkSize?: number; // Size of HTML chunks in bytes
   workerData?: any;
   transferList?: TransferListItem[];
+  logger?: Logger;
+  verbose?: boolean;
 };
 
 type CreateWorkerSuccess = {
@@ -65,6 +70,8 @@ export async function createWorker(
     },
     htmlChunkSize = 8 * 1024,
     transferList = [],
+    logger = createLogger(),
+    verbose = false,
   } = options;
   let workerPathWithDefault =
     typeof workerPath === "string" ? workerPath : undefined;
@@ -96,7 +103,8 @@ export async function createWorker(
       [envPrefix + "PROD"]: mode === "production" ? "1" : "0",
       [envPrefix + "SSR"]: "true",
       [envPrefix + "BASE_URL"]: options.workerData.userOptions.moduleBaseURL,
-      [envPrefix + "PUBLIC_ORIGIN"]: options.workerData.userOptions.publicOrigin,
+      [envPrefix + "PUBLIC_ORIGIN"]:
+        options.workerData.userOptions.publicOrigin,
       NODE_ENV: nodeEnv,
       NODE_PATH: nodePath,
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
@@ -128,11 +136,35 @@ export async function createWorker(
         const timeout = setTimeout(() => {
           reject({ type: "error", error: new Error("Worker ready timeout") });
         }, 5000);
-
-        worker.once("message", (msg) => {
+        const exitHandler = (code: number) => {
+          clearTimeout(timeout);
+          worker.removeListener("message", messageHandler);
+          worker.removeListener("exit", exitHandler);
+          if (code === 0) {
+            resolve({
+              type: "skip",
+              reason: "Worker exited with code 0",
+              workerPath: workerPathWithDefault,
+            } satisfies CreateWorkerSkip);
+          } else {
+            const error = new Error(`Worker exited with code ${code}`);
+            logger.error(`worker exited with code ${code}`, { error });
+            reject({
+              type: "error",
+              error,
+              workerPath: workerPathWithDefault,
+            } satisfies CreateWorkerError);
+          }
+        };
+        const messageHandler = (msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage) => {
+          if (verbose) logger.info(`Initial worker message ${msg.type}`);
           if (msg.type === "READY") {
+            if (verbose) logger.info(`Worker running for ${msg.env}`);
             clearTimeout(timeout);
+            worker.removeListener("message", messageHandler);
+            worker.removeListener("exit", exitHandler);
             if (msg.env !== nodeEnv) {
+              if (verbose) logger.info(`Worker environment mismatch.`);
               reject({
                 type: "error",
                 error: new Error(
@@ -147,25 +179,9 @@ export async function createWorker(
               workerPath: workerPathWithDefault,
             } satisfies CreateWorkerSuccess);
           }
-        });
-
-        worker.once("exit", (code) => {
-          clearTimeout(timeout);
-          worker.removeAllListeners();
-          if (code === 0) {
-            resolve({
-              type: "skip",
-              reason: "Worker exited with code 0",
-              workerPath: workerPathWithDefault,
-            } satisfies CreateWorkerSkip);
-          } else {
-            reject({
-              type: "error",
-              error: new Error(`Worker exited with code ${code}`),
-              workerPath: workerPathWithDefault,
-            } satisfies CreateWorkerError);
-          }
-        });
+        }
+        worker.once("message", messageHandler);
+        worker.once("exit", exitHandler);
       }
     );
   } catch (error) {

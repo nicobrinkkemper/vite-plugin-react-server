@@ -88,7 +88,4 @@ export const config = {
 
 ## Build Requirements
 
-1. Client build must complete before server build
-2. Server builds require `NODE_OPTIONS="--conditions=react-server"`
-3. Module resolution requires consistent `moduleBase` configuration
-4. CSS modules require appropriate configuration 
+First `vite build`, then `vite build --ssr` and then `NODE_OPTIONS="--conditions=react-server" vite build`

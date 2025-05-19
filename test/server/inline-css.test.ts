@@ -68,6 +68,7 @@ describe("Plugin Inline Css Event hooks", () => {
       
       // Verify RSC content
       expect(rscContent).toBeTruthy();
+      // console.log(rscContent);
     }
   });
 });

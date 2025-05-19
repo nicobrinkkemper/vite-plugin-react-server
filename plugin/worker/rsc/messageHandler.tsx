@@ -1,9 +1,18 @@
 import { parentPort, workerData } from "node:worker_threads";
-import { addCssFileContent, hmrState } from "./state.js";
+import { activeStreams, addCssFileContent, hmrState } from "./state.js";
 import { handleRender } from "./handleRender.js";
-import type { RscWorkerOutputMessage, StreamHandlers } from "../types.js";
+import type {
+  HmrAcceptMessage,
+  RscWorkerInputMessage,
+  RscWorkerOutputMessage,
+  StreamHandlers,
+} from "../types.js";
+import { sendMessage } from "../sendMessage.js";
 
-export async function messageHandler(msg: any, port = parentPort) {
+export async function messageHandler(
+  msg: RscWorkerInputMessage,
+  port = parentPort
+) {
   if (!port) {
     throw new Error("No port found");
   }
@@ -48,6 +57,20 @@ export async function messageHandler(msg: any, port = parentPort) {
         metrics,
       } satisfies RscWorkerOutputMessage);
     },
+    onHmrAccept: (routes: string[]) => {
+      port.postMessage({
+        type: "HMR_ACCEPT",
+        id: (msg as HmrAcceptMessage).id,
+        routes: routes,
+      });
+    },
+    onHmrUpdate: (routes: string[]) => {
+      port.postMessage({
+        type: "HMR_UPDATE",
+        id: msg.id,
+        routes: routes,
+      });
+    },
   };
   switch (msg.type) {
     case "RSC_RENDER":
@@ -56,28 +79,23 @@ export async function messageHandler(msg: any, port = parentPort) {
       return;
     case "INITIALIZED_CSS_LOADER":
       return;
+    case "INITIALIZED_ENV_LOADER":
+      return;
     case "HMR_UPDATE":
       // Mark the module as invalidated
-      hmrState.set(msg.path, {
+      hmrState.set(msg.id, {
         timestamp: msg.timestamp || Date.now(),
         invalidated: true,
         routes: msg.routes || [],
       });
       // Notify the main thread that we've processed the update
-      port.postMessage({
-        type: "HMR_ACCEPT",
-        path: msg.path,
-        routes: msg.routes,
-      });
+      handlers.onHmrUpdate(msg.routes || []);
       return;
     case "HMR_CLEANUP":
       // Clear the invalidation state
-      hmrState.delete(msg.path);
+      hmrState.delete(msg.id);
       // Notify the main thread that we've processed the cleanup
-      port.postMessage({
-        type: "HMR_ACCEPT",
-        path: msg.path,
-      });
+      handlers.onHmrAccept(msg.routes || []);
       return;
     case "CSS_FILE":
       if (msg.id) {
@@ -87,13 +105,31 @@ export async function messageHandler(msg: any, port = parentPort) {
 
         addCssFileContent(msg.id, msg.content, {
           projectRoot: workerData.userOptions.projectRoot || process.cwd(),
-          moduleBaseURL: workerData.userOptions.moduleBaseURL || "",
-          moduleBasePath: workerData.userOptions.moduleBasePath || "",
-          moduleRootPath: workerData.userOptions.moduleRootPath || "",
+          moduleBaseURL: workerData.userOptions.moduleBaseURL || "/",
+          moduleBasePath: workerData.userOptions.moduleBasePath || "/",
+          moduleRootPath: workerData.userOptions.moduleRootPath,
           css: cssOptions,
         });
       }
       return;
+    case "SHUTDOWN": {
+      // If id is "*", clean up all render states
+      if (msg.id === "*") {
+        activeStreams.forEach((stream, renderId) => {
+          stream.end();
+          activeStreams.delete(renderId);
+        });
+        parentPort?.removeAllListeners();
+      } else {
+        activeStreams.delete(msg.id);
+      }
+      // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
+      sendMessage({
+        type: "SHUTDOWN_COMPLETE",
+        id: msg.id,
+      } satisfies RscWorkerOutputMessage);
+      return;
+    }
     default: {
       console.log("Unknown message", msg);
       return;

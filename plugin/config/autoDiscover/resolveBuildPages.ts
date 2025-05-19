@@ -34,26 +34,25 @@ export async function resolveBuildPages({
       errors.push(pageResult.error);
       continue;
     }
+    const [pageKey, pageValue] = userOptions.normalizer(pageResult.Page);
     if(!userOptions.props) {
-      urlMap.set(page, { props: undefined, page: pageResult.Page });
-      pageMap.set(page, pageResult.Page);
+      urlMap.set(page, { props: undefined, page: pageValue });
+      pageMap.set(pageKey, pageValue);
       // Add to routeMap
-      const routes = routeMap.get(pageResult.Page) || [];
+      const routes = routeMap.get(pageValue) || [];
       routes.push(page);
-      routeMap.set(pageResult.Page, routes);
+      routeMap.set(pageValue, routes);
       continue;
+    }
+    try {
+      await access(join(userOptions.projectRoot, pageValue));
+    } catch {
+      errors.push(new Error(`Page file not found: ${pageValue}`));
     }
     const propsResult = await resolveUrlOption(userOptions, "props", page);
     if(propsResult.type === "error") {
       errors.push(propsResult.error);
       continue;
-    }
-    const [pageKey, pageValue] = userOptions.normalizer(pageResult.Page);
-
-    try {
-      await access(join(userOptions.projectRoot, pageValue));
-    } catch {
-      errors.push(new Error(`Page file not found: ${pageValue}`));
     }
 
     // If propsPath is defined, check if it exists

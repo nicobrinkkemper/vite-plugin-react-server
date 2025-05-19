@@ -1,6 +1,6 @@
 import { join } from "path";
 import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "../plugin/types.js";
-import { Html } from "../plugin/html.js";
+import { Html } from "../plugin/components/html.js";
 
 const resolvedTestConfig = {
   moduleBase: "src",

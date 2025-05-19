@@ -1,3 +1,4 @@
+import { toError } from "../error/toError.js";
 
 type ResolvePageOptions<N extends string> = {
   id: string;
@@ -16,7 +17,7 @@ type ResolvePageResult<T, N extends string> =
  * During development (ssrLoadModule):
  * - Real modules have exports available directly on the module object
  * - Virtual modules have exports stored in temporaryReferences
- * 
+ *
  * @param options.id - The module ID to resolve
  * @param options.exportName - The name of the export to resolve (e.g. 'Page')
  * @param options.loader - The loader function to use for loading the module
@@ -58,17 +59,31 @@ export const resolvePage = async <T, N extends string>({
   if (module instanceof Error) {
     return {
       type: "error",
-      error: module,
+      error: {
+        name: module.name,
+        message: module.message,
+        stack: module.stack,
+      },
     };
   } else if (!(exportName in module)) {
+    if ("error" in module) {
+      return {
+        type: "error",
+        error: toError(module.error),
+      };
+    }
     return {
       type: "error",
-      error: new Error(`Export ${exportName} not found in module ${id}`),
+      error: new Error(
+        `Export "${exportName}" not found in module ${id}.`
+      ),
     };
   } else if (!Page) {
     return {
       type: "error",
-      error: new Error(`Export ${exportName} is null or undefined in module ${id}`),
+      error: new Error(
+        `Export "${exportName}" is null or undefined in module ${id}.`
+      ),
     };
   } else if (Page instanceof Error) {
     return {

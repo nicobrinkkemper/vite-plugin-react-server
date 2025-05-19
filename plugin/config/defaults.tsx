@@ -1,5 +1,5 @@
-import { CssCollector } from "../css-collector.js";
-import { Html } from "../html.js";
+import { CssCollector } from "../components/css-collector.js";
+import { Html } from "../components/html.js";
 export const DEFAULT_CONFIG = {
   MODULE_EXTENSION: /\.(m|c)?(j|t)sx?$/,
   CLIENT_ASSETS_DIR: "assets",
@@ -31,7 +31,7 @@ export const DEFAULT_CONFIG = {
   PREVIEW_HOST: "localhost",
   ENV_PREFIX: "VITE_",
   BUILD: {
-    pages: ["/"],
+    pages: [],
     client: "client",
     server: "server",
     static: "static",
@@ -77,4 +77,5 @@ export const DEFAULT_CONFIG = {
     rscPattern: (n: string) => /\.rsc$/.test(n),  
   },
   MODULE_ID: (id: string) => id,
+  VERBOSE: false,
 } as const;

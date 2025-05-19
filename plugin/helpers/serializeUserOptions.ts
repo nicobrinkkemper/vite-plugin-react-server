@@ -190,7 +190,7 @@ export const serializedOptions = <T extends ResolvedUserOptions>(
     autoDiscover,
     ...handlerOptions
   } = userOptions;
-  const { entryFile, chunkFile, assetFile, pages, ...buildOptions } = build;
+  const { entryFile, chunkFile, assetFile, pages, ...buildOptions } = build ?? {};
   const result = {
     ...handlerOptions,
     build: {

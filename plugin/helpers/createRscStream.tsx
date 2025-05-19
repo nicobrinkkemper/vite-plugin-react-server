@@ -1,4 +1,4 @@
-import { React, ReactDOMServer } from "../vendor.server.js";
+import { React, ReactDOMServer } from "../vendor/vendor.server.js";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
 import { performance } from "node:perf_hooks";
 export function createRscStream<

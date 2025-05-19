@@ -4,7 +4,7 @@ import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
-import { CssCollector } from "../css-collector.js";
+import { CssCollector } from "../components/css-collector.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 
 // ============================================================================
@@ -386,12 +386,12 @@ export const resolveOptions = <
   const moduleBasePath =
     typeof options.moduleBasePath === "string"
       ? options.moduleBasePath
-      : DEFAULT_CONFIG.MODULE_BASE_PATH;
+      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_PATH;
 
   const moduleBaseURL =
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
-      : DEFAULT_CONFIG.MODULE_BASE_URL;
+      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_URL;
 
   const moduleRootPath =
     typeof options.moduleRootPath === "string"
@@ -401,7 +401,7 @@ export const resolveOptions = <
   const publicOrigin =
     typeof options.publicOrigin === "string"
       ? options.publicOrigin
-      : DEFAULT_CONFIG.PUBLIC_ORIGIN;
+      : process.env.VITE_PUBLIC_ORIGIN ?? DEFAULT_CONFIG.PUBLIC_ORIGIN;
 
   // Worker and loader paths
   const rscWorkerPath =
@@ -418,7 +418,14 @@ export const resolveOptions = <
     typeof options.loaderPath === "string"
       ? join(projectRoot, options.loaderPath)
       : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
-
+  // these will never be cleaned up, because, we are resolving the user options
+  // and it's assumed they are relevant until the process stops
+  if (process.env.VITE_BASE_URL !== moduleBaseURL) {
+    process.env.VITE_BASE_URL = moduleBaseURL;
+  }
+  if (process.env.VITE_PUBLIC_ORIGIN !== publicOrigin) {
+    process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
+  }
   // Auto-discovery configuration
   const autoDiscover = {
     moduleExtension:
@@ -464,6 +471,7 @@ export const resolveOptions = <
         moduleRootPath,
         publicOrigin,
         build: build,
+        verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
         onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
         onEvent: options.onEvent,
         Page: options.Page ?? undefined,

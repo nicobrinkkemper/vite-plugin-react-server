@@ -7,6 +7,8 @@ import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { createHandler } from "../helpers/createHandler.js";
 import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
+import { getRouteFiles } from "../helpers/getRouteFiles.js";
+import { toError } from "../error/toError.js";
 
 export async function configureReactServer({
   server,
@@ -20,22 +22,19 @@ export async function configureReactServer({
   serverManifest: Manifest;
 }) {
   const activeStreams = new Set<ServerResponse>();
-
   const {
     Html: _UserHtmlComponent,
     onEvent,
     // remove these
     moduleBaseURL: _moduleBaseURL,
-    moduleBasePath: _moduleBasePath,
     projectRoot: _projectRoot,
     ...handlerUserOptions
   } = _userOptions;
-
   const handlerOptions = Object.assign({}, handlerUserOptions, {
     moduleBaseURL: server.config.base,
-    moduleBasePath: _moduleBasePath,
     projectRoot: server.config.root,
   });
+
   // Handle Vite server restarts
   server.ws.on("restart", (path) => {
     server.config.logger.info(
@@ -46,32 +45,35 @@ export async function configureReactServer({
     // Close streams with restart message
     for (const res of activeStreams) {
       res.writeHead(503, {
-        "Content-Type": "text/x-component",
+        "Content-Type": "text/x-component; charset=utf-8",
         "Retry-After": "1",
       });
-      res.end(`0:E{"digest":"","name":"Error","message":"Server restarting...","stack":"","env":"Server"}`);
+      res.end(
+        `0:E{"digest":"","name":"Error","message":"Server restarting...","stack":"","env":"Server"}`
+      );
     }
     activeStreams.clear();
   });
 
   server.middlewares.use(async (req, res, next) => {
-    if(!req.url) {
+    if (!req.url) {
       return next();
     }
     const info = requestInfo(req, handlerOptions, "");
     if (!info.isRscRequest) return next();
     try {
-      if (!autoDiscoveredFiles.urlMap.has(info.route)) {
+      const routeFiles = await getRouteFiles(
+        info.route,
+        autoDiscoveredFiles,
+        handlerOptions
+      );
+      if (routeFiles.type === "error") {
+        server.config.logger.error(routeFiles.error.message);
         return next();
       }
-      const routeFiles = autoDiscoveredFiles.urlMap.get(info.route)!;
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
-      const port = server.config.server.port ?? 5173;
-      const host = server.config.server.host ?? 'localhost';
-      const protocol = server.config.server.https ? 'https' : 'http'; 
-      process.env['VITE_BASE_URL'] = `${server.config.base}${server.config.base.endsWith('/') ? '' : '/'}`;
-      process.env['VITE_PUBLIC_ORIGIN'] = `${protocol}://${host}:${port}`;
+
       // first load the page and props
       const pageAndPropsResult = await resolvePageAndProps({
         pagePath,
@@ -116,7 +118,7 @@ export async function configureReactServer({
         Html: React.Fragment,
         onEvent: eventHandler,
         manifest: serverManifest,
-        worker: server as any,
+        server,
         route: info.route,
         pagePath,
         propsPath,
@@ -124,6 +126,8 @@ export async function configureReactServer({
         globalCss: new Map(),
       });
       if (rscResult.type === "success") {
+        // set headers
+        res.setHeader("Content-Type", "text/x-component; charset=utf-8");
         rscResult.stream!.pipe(res);
       }
       activeStreams.add(res);
@@ -131,7 +135,21 @@ export async function configureReactServer({
         activeStreams.delete(res);
       });
     } catch (error) {
+      server.config.logger.error(toError(error).message);
       res.end();
+    }
+  });
+  // Listen for when the server actually starts
+  server.httpServer?.once("listening", () => {
+    const address = server.httpServer?.address();
+    if (address && typeof address !== "string") {
+      const port = address.port;
+      const host = server.config.server.host ?? "localhost";
+      const protocol = server.config.server.https ? "https" : "http";
+      handlerOptions.publicOrigin = `${protocol}://${host}:${port}`;
+      if (handlerOptions.publicOrigin !== process.env.VITE_PUBLIC_ORIGIN) {
+        process.env.VITE_PUBLIC_ORIGIN = handlerOptions.publicOrigin;
+      }
     }
   });
 }

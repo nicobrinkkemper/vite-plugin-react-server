@@ -2,11 +2,11 @@ import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
 import type { RscRenderMessage, StreamHandlers } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
 import { createRscStream } from "../../helpers/createRscStream.js";
-import { CssCollector } from "../../css-collector.js";
+import { CssCollector } from "../../components/css-collector.js";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { workerData } from "node:worker_threads";
-import { React } from "../../vendor.server.js";
+import { React } from "../../vendor/vendor.server.js";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
 
@@ -23,14 +23,13 @@ export async function handleRender(
     propsExportName = workerData.userOptions.propsExportName,
     projectRoot = workerData.userOptions.projectRoot,
     moduleRootPath = workerData.userOptions.moduleRootPath,
-    moduleBaseURL = workerData.userOptions.moduleBaseURL,
-    moduleBasePath = workerData.userOptions.moduleBasePath,
+    moduleBaseURL = workerData.userOptions.moduleBaseURL ?? "/",
+    moduleBasePath = workerData.userOptions.moduleBasePath ?? "/",
     moduleBase = workerData.userOptions.moduleBase,
     pipeableStreamOptions = workerData.userOptions.pipeableStreamOptions,
     cssFiles: messageCssFiles,
     globalCss = workerData.globalCss,
   } = msg;
-
   try {
     // Load modules
     const pageAndPropsResult = await resolvePageAndProps({

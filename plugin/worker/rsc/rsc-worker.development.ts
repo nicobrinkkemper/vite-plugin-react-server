@@ -5,6 +5,7 @@ import { register as registerTsx } from "tsx/esm/api";
 import { join } from "node:path";
 import { pluginRoot } from "../../root.js";
 import { deserializeRegExp } from "../../helpers/serializeUserOptions.js";
+import type { HmrAcceptMessage, HmrUpdateMessage, ReadyMessage } from "../types.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -19,16 +20,20 @@ if (workerData) {
 // Create channels for each loader
 const reactLoaderChannel = new MessageChannel();
 const cssLoaderChannel = new MessageChannel();
+const envLoaderChannel = new MessageChannel();
+
 
 // Listen for messages from loaders
 reactLoaderChannel.port2.on("message", messageHandler);
 cssLoaderChannel.port2.on("message", messageHandler);
+envLoaderChannel.port2.on("message", messageHandler);
 
 const loaderPath = "file://" + join(pluginRoot, "loader/react-loader.js");
 const cssLoaderPath =
   "file://" + join(pluginRoot, "loader/css-loader.development.js");
+const envLoaderPath =
+  "file://" + join(pluginRoot, "loader/env-loader.development.js");
 
-// Register react-loader
 register(loaderPath, {
   parentURL: pluginRoot,
   data: { port: reactLoaderChannel.port1},
@@ -43,6 +48,12 @@ register(cssLoaderPath, {
 // Register loaders
 registerTsx();
 
+// Register env-loader (ensure this the last)
+register(envLoaderPath, {
+  parentURL: pluginRoot,
+  data: { port: envLoaderChannel.port1, resolvedConfig: workerData.resolvedConfig },
+  transferList: [envLoaderChannel.port1],
+});
 // Set up message handling
 parentPort!.on("message", messageHandler);
 
@@ -57,8 +68,9 @@ if (hmrPort) {
       // Invalidate the module in the worker
       parentPort!.postMessage({
         type: "HMR_UPDATE",
-        path: message.path,
-      });
+        id: message.id,
+        routes: message.routes,
+      } satisfies HmrUpdateMessage);
     }
   });
 
@@ -67,8 +79,9 @@ if (hmrPort) {
     // Handle the update
     parentPort!.postMessage({
       type: "HMR_ACCEPT",
-      path: message.path,
-    });
+      id: message.id,
+      routes: message.routes,
+    } satisfies HmrAcceptMessage);
   });
 }
 
@@ -76,8 +89,9 @@ if (hmrPort) {
 parentPort!.postMessage({
   type: "READY",
   env: process.env["NODE_ENV"],
-});
+  pid: process.pid,
+} satisfies ReadyMessage);
 
-if (process.env["NODE_ENV"] !== "development") {
-  throw new Error("This module must be run in development mode");
+if (process.env["NODE_ENV"] === "production") {
+  throw new Error("This module should not run in production mode.");
 }

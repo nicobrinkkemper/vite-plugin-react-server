@@ -17,7 +17,7 @@ type GetRouteFilesError = {
 export const getRouteFiles = async (
   route: string,
   autoDiscoveredFiles: AutoDiscoveredFiles,
-  userOptions: ResolvedUserOptions
+  userOptions: Pick<ResolvedUserOptions, "Page" | "props" | "moduleBasePath">
 ): Promise<GetRouteFilesSuccess | GetRouteFilesError> => {
   if (autoDiscoveredFiles.urlMap.has(route)) {
     const { page, props } = autoDiscoveredFiles.urlMap.get(route)!;
@@ -32,6 +32,7 @@ export const getRouteFiles = async (
     return { type: "error", error };
   }
   if (!userOptions.props) {
+    autoDiscoveredFiles.urlMap.set(route, { page: Page, props: undefined });
     return { type: "success", page: Page, props: undefined };
   }
   const {
@@ -43,5 +44,6 @@ export const getRouteFiles = async (
   if (propsType === "error") {
     return { type: "error", error: propsError };
   }
+  autoDiscoveredFiles.urlMap.set(route, { page: Page, props });
   return { type: "success", page: Page, props };
 };

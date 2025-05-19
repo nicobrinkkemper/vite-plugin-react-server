@@ -51,7 +51,7 @@ Caveats:
 - Stack-traces become even more detailed when the browser's developer console is opened
 
 For example when we go to the demo and visit the error page after using the `npm run start` command
-```sh
+```text
 Error
 
 test
@@ -63,7 +63,7 @@ processFullBinaryRow@http://localhost:5173/node_modules/.vite/deps/react-server-
 progress@http://localhost:5173/node_modules/.vite/deps/react-server-dom-esm_client__browser.js?v=ee6397a5:1942:80
 ```
 After opening the developer console and refreshing
-```sh
+```text
 Error
 
 test
@@ -80,7 +80,7 @@ createReactFetcher@http://localhost:5173/src/utils/createReactFetcher.ts:11:22
 @http://localhost:5173/src/client.tsx:45:39
 ```
 After navigating back and forth home and error-page:
-```sh
+```text
 
 Go back
 Error

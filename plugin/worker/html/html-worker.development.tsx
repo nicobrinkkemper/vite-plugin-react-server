@@ -3,6 +3,7 @@ import { messageHandler } from "./messageHandler.js";
 import { MessageChannel, parentPort } from "node:worker_threads";
 import { pluginRoot } from "../../root.js";
 import { register } from "node:module";
+import type { ReadyMessage } from "../types.js";
 
 // Create channels for each loader
 const cssLoaderChannel = new MessageChannel();
@@ -22,4 +23,4 @@ parentPort?.postMessage({
   type: "READY",
   env: process.env["NODE_ENV"],
   pid: process.pid,
-});
+} satisfies ReadyMessage);

@@ -5,7 +5,9 @@ A Vite plugin that enables React Server Components (RSC) streaming and static HT
 ## Example Projects
 
 - [The official demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
+  - [Github Pages](https://nicobrinkkemper.github.io/vite-plugin-react-server-demo-official/)
 - [The mmcelebration.com project](https://github.com/nicobrinkkemper/mmc)
+  - [Github Pages](https://nicobrinkkemper.github.io/mmc/)
 
 ## Installation
 
@@ -50,7 +52,11 @@ This ensures the patch is applied after every `npm install`. If errors arise rel
 This plugin uses environment detection to determine the execution context. It achieves this by checking the `NODE_OPTIONS` environment variable:
 
 ```typescript
+<<<<<<< HEAD
 import { getCondition } from "vite-plugin-react-server";
+=======
+import { getCondition } from "vite-plugin-react-server/config";
+>>>>>>> main
 
 if (getCondition() !== "react-server") {
   throw new Error("-10 poision damage");
@@ -60,7 +66,11 @@ if (getCondition() !== "react-server") {
 Alternatively, you can pass the argument for the `react-` prefix to just get client or server back.
 
 ```typescript
+<<<<<<< HEAD
 import { getCondition } from "vite-plugin-react-server";
+=======
+import { getCondition } from "vite-plugin-react-server/config";
+>>>>>>> main
 
 import(`plugin.${getCondition("")}.js`);
 ```
@@ -68,11 +78,144 @@ import(`plugin.${getCondition("")}.js`);
 The main entry point adapts based on the environment:
 
 - **Client Mode** (default) → Does not require the react-server condition, uses a worker thread for RSC requests
+  Benefits:
+  - log errors to console
+  - onMetric event for each page
+  - worker thread
 - **Server Mode** (`NODE_OPTIONS="--conditions react-server"`) → Does not need worker thread for RSC requests
+  - Direct pipeline from vite to react
 
 ### Custom composition
 
 You can pick and choose only the plugins you like to get the desired behavior as well. For example, we can choose only to use the preserver, the transformer, static plugin, etc.
+
+### Page & prop setup
+
+The minimal config is
+
+```tsx
+// vite.config.tsx
+import type { StreamPluginOptions } from "vite-plugin-react-server/types";
+import { join } from "node:path";
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server";
+import { config } from "./vite.react.config.js";
+
+export default defineConfig(() => {
+  return {
+    plugins: vitePluginReactServer({
+      moduleBase: "src",
+      Page: "src/page.tsx",
+    }),
+  };
+});
+```
+
+And our Page file.
+
+```tsx
+// src/page.tsx
+import React from "react";
+export function Page({ url }) {
+  return <div>You are on {url}</div>;
+}
+```
+
+Of course we need a client file as well, and the vite index.html pointing to it,
+
+```tsx
+import React, { use } from "react";
+import { createRoot } from "react-dom/client";
+import { createReactFetcher } from "vite-plugin-react-server/utils";
+// src/client.tsx
+const Shell: React.FC<{
+  data: React.Usable<React.ReactNode>;
+}> = ({ data: initialServerData }) => {
+  const content = use(initialServerData);
+  return content as React.ReactNode;
+};
+// Initialize the app
+const rootElement = document.getElementById("root");
+if (!rootElement) throw new Error("Root element not found");
+
+const intitalData = createReactFetcher();
+
+createRoot(rootElement).render(<Shell data={intitalData} />);
+```
+
+index.html for completeness sake
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/client.tsx"></script>
+  </body>
+</html>
+```
+
+By default, without any prop configurations, the Page receives a normalized url.
+
+With custom "get prop" function, we can enrich the props with more information.
+
+```tsx
+import React from "react";
+
+export const props = (url) => ({ title: "Hello World", file: import.meta.url, url });
+
+export type Props = ReturnType<typeof props>
+
+export function Page({ file, title, url }: Props) {
+  return <>
+     <title>{title}<title>
+     <div>This file is here: {file}</div>;
+     <div>You are on: {url}</div>;
+   </>
+}
+```
+
+You can also define a router specifically for the props file.
+
+```tsx
+{
+  moduleBase: "src",
+  Page: "src/page.tsx",
+  // define the props router
+  props: "src/props.ts",
+}
+```
+
+Move prop lines from `src/page.tsx` to `src/props.ts`
+
+```tsx
+export const props = (url) => ({
+  title: "Hello World",
+  file: import.meta.url,
+  url,
+});
+
+export type Props = ReturnType<typeof props>;
+```
+
+We can also make a static build for these pages, which will render them to index.html and headless index.rsc files, which can be used to make a static RSC site.
+
+```tsx
+{
+  moduleBase: "src",
+  Page: "src/page.tsx",
+  props: "src/props.ts"
+  // define the routes we want to render
+  build: [
+    pages: ['/', '/404']
+  ]
+};
+```
+
+And that's how you can work with react server components using a familiar vite workflow.
+If your app grows and you need more control, see the [docs](./docs) - check out the source code - and have fun building.
 
 ### Worker support
 
@@ -84,8 +227,11 @@ Both workers can be customized using the `htmlWorkerPath` and `rscWorkerPath` re
 
 Keep in mind that, using your custom worker means interacting with the message system of this plugin during development/static generation process.
 
+<<<<<<< HEAD
 For more information on creating your custom workers, see [docs](/docs)
 
+=======
+>>>>>>> main
 ## Plugin Usage
 
 ```ts
@@ -96,17 +242,13 @@ import type { StreamPluginOptions } from "vite-plugin-react-server/server";
 
 const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
   switch (url) {
+    case "/":
+      return `src/page/${file}`;
     case "/bidoof":
-    case "/bidoof/index.rsc":
       return `src/page/bidoof/${file}`;
     case "/404":
-    case "/404/index.rsc":
-      return `src/page/404/${file}`;
-    case "/":
-    case "/index.rsc":
-      return `src/page/${file}`;
     default:
-      throw new Error(`Unknown route: ${url}`);
+      return `src/page/404/${file}`;
   }
 };
 
@@ -125,12 +267,33 @@ export default defineConfig({
 });
 ```
 
+This will mirror your directory structure for new static routes. If you need to handle
+dynamic requests, like pointing /:theme/ to a certain folder, you need to parse this yourself
+using code.
+
+### Async build pages
+
+If you have a large amount of pages that needs async operations to fetch, you can pass a async function to build pages.
+
+```tsx
+build:{
+  pages: async ()=>await import('my-pages')
+}
+```
 ### Built-in React Server Components
 
+<<<<<<< HEAD
 This plugin has two built-in React Component, each can be configured through the options to be your own component. Defining your custom React server components will affect the final production output, they won't be used during development.
 
 - Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files)
+=======
+This plugin built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
+
+- Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files & global css)
+>>>>>>> main
 - CssCollector - used to emit `<link>` and `<style>` tags based on `css` config
+
+Defining your custom Html React server component will affect the final production output.
 
 #### Build Steps
 
@@ -172,7 +335,11 @@ export default defineConfig({
 NODE_OPTIONS="--conditions=react-server" vite
 ```
 
+<<<<<<< HEAD
 Is the recommended way for a more direct server pipeline that doesn't require a `rsc-worker`.
+=======
+A direct server pipeline that doesn't require a `rsc-worker`.
+>>>>>>> main
 
 To develop the app using the `rsc-worker`, simply run
 
@@ -180,7 +347,11 @@ To develop the app using the `rsc-worker`, simply run
 vite
 ```
 
+<<<<<<< HEAD
 without the `react-server` condition.
+=======
+without the `react-server` condition. This will work a little bit differently under the hood, it can provide additional development support like error logging, metric events and custom rsc worker development.
+>>>>>>> main
 
 ## Static Site Generation
 
@@ -224,7 +395,7 @@ Defines the root directory for project modules. This can be customized.
 ### moduleBasePath
 
 ```ts
-moduleBasePath: "",
+moduleBasePath: "/",
 ```
 
 Passed as the second argument to `renderToPipeableStream` for server-side rendering.
@@ -232,10 +403,14 @@ Passed as the second argument to `renderToPipeableStream` for server-side render
 ### moduleBaseURL
 
 ```ts
-moduleBaseURL: "https://github.com/my-gh-pages",
+moduleBaseURL: "/",
 ```
 
 Defines asset URL resolution for CSS collectors and bootstrapModule.
+
+```ts
+publicOrigin: "https://github.com",
+```
 
 ### Page and props Mapping
 
@@ -289,15 +464,31 @@ Changes the default name "props"
 export const Page = ({ name }) => {
   return <div>Hello {name}</div>;
 };
+// src/async-page.tsx
+export const Page = async ({ name }) => {
+  return <div>Hello {name}</div>;
+};
 ```
 
 ### Sample Props File
+
+All of the below are valid
 
 ```ts
 // src/my-props.ts
 export const props = {
   name: "John Doe",
 };
+export const props = (url)=>{
+  name: "John Doe",
+};
+export const props = async (url)=>{
+  name: "John Doe",
+}
+// enum bonus
+export const props = ['key']; // -> {key: "key"}
+// Object.fromEntries()
+export const props = [['key',{value: 'some value'}]]
 ```
 
 ## Contributions
