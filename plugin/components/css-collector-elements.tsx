@@ -1,5 +1,5 @@
 import React from "react";
-import type { CssCollectorProps, CssContent } from "./types.js";
+import type { CssCollectorProps, CssContent } from "../types.js";
 
 // Create link elements for each CSS file
 export const CssCollectorElements = ({

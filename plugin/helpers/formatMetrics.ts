@@ -32,6 +32,6 @@ Stream:
 `.trim();
 }
 
-export function logMetrics(metrics: RenderMetrics) {
-  console.log(formatMetrics(metrics));
+export function logMetrics(metrics: RenderMetrics, logger: {info: (message: string) => void} = console) {
+  logger.info(formatMetrics(metrics));
 } 

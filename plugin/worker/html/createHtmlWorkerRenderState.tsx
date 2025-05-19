@@ -8,7 +8,7 @@ import { Transform } from "node:stream";
 import type { HtmlWorkerOutputMessage } from "../types.js";
 import { join } from "node:path";
 import type { StreamMetrics } from "../../types.js";
-import { ReactDOMServer } from "../../vendor.client.js";
+import { ReactDOMServer } from "../../vendor/vendor.client.js";
 
 
 const createMetrics = (): StreamMetrics => {

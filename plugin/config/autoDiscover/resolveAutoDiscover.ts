@@ -1,14 +1,13 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
+import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../../types.js";
 import { join } from "path";
-import { resolveBuildPages } from "./autoDiscover/resolveBuildPages.js";
-import { resolvePages } from "./resolvePages.js";
-import { tryManifest } from "../helpers/tryManifest.js";
+import { resolveBuildPages } from "./resolveBuildPages.js";
+import { resolvePages } from "../resolvePages.js";
+import { tryManifest } from "../../helpers/tryManifest.js";
 import type { Manifest } from "vite";
-import { createGlobAutoDiscover } from "./autoDiscover/createGlobAutoDiscover.js";
-import { customWorkerFiles } from "./autoDiscover/customWorkerFiles.js";
-import { pageAndPropFiles } from "./autoDiscover/pageAndPropFiles.js";
-
+import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
+import { customWorkerFiles } from "./customWorkerFiles.js";
+import { pageAndPropFiles } from "./pageAndPropFiles.js";
 
 const clientFiles = createGlobAutoDiscover("**/*.client.*");
 const serverFiles = createGlobAutoDiscover("**/*.server.*");
@@ -42,7 +41,7 @@ export async function resolveAutoDiscover({
   userOptions,
   condition,
 }: ResolveAutoDiscoverProps): Promise<ResolveAutoDiscoverReturn> {
-  const ssr = configEnv.isSsrBuild || condition === "react-server"
+  const ssr = configEnv.isSsrBuild || condition === "react-server";
   const envDir =
     condition === "react-server"
       ? userOptions.build.server
@@ -100,9 +99,14 @@ export async function resolveAutoDiscover({
     });
     if (staticManifestResult.type === "success") {
       staticManifest = staticManifestResult.manifest;
-    } else {
-      console.warn("Error getting static manifest", staticManifestResult.error);
-      console.warn("Build may be out of date");
+    } else if (configEnv.command === "build") {
+      // in dev mode, the static manifest is not needed
+      // with ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
+      console.error(staticManifestResult.error);
+      console.warn("Continuing without static manifest");
+      // this can still work, but, it won't be able to look up any client-side assets
+      // so likely the error will happen later in the build loader not being able to find the asset
+      staticManifest = {};
     }
   }
 

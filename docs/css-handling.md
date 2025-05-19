@@ -123,8 +123,6 @@ When `purgeCss` is enabled:
 2. During SSR, used classes are recorded
 3. After rendering, unused CSS files are removed from the output
 
-This feature is particularly useful for large applications with many CSS files.
-
 ## CSS Class Tracking
 
 The CSS class tracking system works in conjunction with the RSC stream to capture which CSS classes are actually used during server-side rendering. This is particularly important for the `purgeCss` feature.

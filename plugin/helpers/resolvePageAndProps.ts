@@ -1,5 +1,5 @@
-import { resolvePage } from "../resolvePage.js";
-import { resolveProps } from "../resolveProps.js";
+import { resolvePage } from "./resolvePage.js";
+import { resolveProps } from "./resolveProps.js";
 
 type ResolvePageAndPropsOptions<N1 extends string, N2 extends string> = {
   pagePath: string;
@@ -52,8 +52,11 @@ export async function resolvePageAndProps<
         ? handlerOptions.loader
         : async () => {
             const resolvePageResult = await resolvePagePromise;
-            if (resolvePageResult.type != "success") {
-              return resolvePageResult;
+            if (resolvePageResult.type === "error") {
+              return resolvePageResult.error
+            }
+            if (resolvePageResult.type === "skip") {
+              return null;
             }
             return resolvePageResult.module;
           },

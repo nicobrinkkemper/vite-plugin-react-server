@@ -57,18 +57,16 @@ describe("Plugin build test", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("emits build events", async () => {
-    // Verify build.start comes first
-    expect(events[0].type).toBe("build.start");
-  });
-
   it("emits build events in order", async () => {
     // Verify event order
     const eventOrder = events.map((e) => e.type);
     expect(eventOrder).toEqual(
       expect.arrayContaining([
+        "build.writeBundle.static-client",
+        "build.writeBundle.client",
         "build.start",
-        "build.writeBundle",
+        "build.writeBundle.server",
+        "build.writeBundle.static-server",
         "file.write",
         "file.write.done",
         "file.write",

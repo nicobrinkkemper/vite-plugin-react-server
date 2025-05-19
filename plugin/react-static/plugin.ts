@@ -39,7 +39,7 @@ import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
-import { resolveAutoDiscover } from "../config/resolveAutoDiscover.js";
+import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
 import {
   serializedOptions,
@@ -49,8 +49,8 @@ import { collectManifestCss } from "../helpers/collectManifestCss.js";
 import { createCssProps } from "../helpers/createCssProps.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { performance } from "node:perf_hooks";
-import { resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { baseURL } from "../utils/envUrls.node.js";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -66,7 +66,6 @@ let userOptions: ResolvedUserOptions;
 let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
 let serverManifest: Manifest | undefined = undefined;
 let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
-
 export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
@@ -91,12 +90,9 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async config(config, configEnv) {
-      
-
       if (config.root && config.root !== userOptions.projectRoot) {
         userOptions.projectRoot = config.root;
       }
-
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,
@@ -124,7 +120,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     configResolved(config) {
       resolvedConfig = config;
     },
-
     async buildStart() {
       timing.buildStart = Date.now();
       if (userOptions.onEvent && autoDiscoveredFiles) {
@@ -139,10 +134,21 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async renderStart() {
+      
       timing.renderStart = Date.now();
     },
 
     async writeBundle(options, bundle) {
+      if (userOptions.onEvent) {
+        userOptions.onEvent({
+          type: "build.writeBundle.static-server",
+          data: {
+            pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
+            options,
+            bundle,
+          },
+        });
+      }
       try {
         const bundleManifest = getBundleManifest<false>({
           bundle,
@@ -169,8 +175,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           throw clientManifestResult.error;
         }
         const clientManifest = clientManifestResult.manifest;
-        resolveEnv(resolvedConfig.mode, userOptions.projectRoot, userConfig.envPrefix);
-
+        
         buildLoader = await createBuildLoader(
           {
             userConfig,
@@ -270,36 +275,12 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           cssFilesByPage.set(url, pageCssMap);
         }
 
-        if (userOptions.onEvent) {
-          userOptions.onEvent({
-            type: "build.writeBundle",
-            data: {
-              pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
-              options,
-              bundle,
-              manifest: serverManifest,
-            },
-          });
-        }
         const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
         const indexHtml = staticManifest?.["index.html"]?.file;
-        const safeParseURL = (() => {
-          try {
-            if (userOptions.moduleBaseURL.includes("//")) {
-              return new URL(
-                join(userOptions.moduleBasePath, indexHtml),
-                userOptions.moduleBaseURL
-              ).href;
-            }
-          } catch (error) {}
-          return userOptions.moduleBaseURL.endsWith("/")
-            ? userOptions.moduleBaseURL + indexHtml
-            : userOptions.moduleBaseURL + "/" + indexHtml;
-        })();
         const pipeableStreamOptions = {
           ...userOptions.pipeableStreamOptions,
           bootstrapModules: [
-            ...(safeParseURL ? [safeParseURL] : []),
+            ...(indexHtml ? [baseURL(indexHtml)] : []),
             ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
           ],
         };
@@ -325,6 +306,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
             reverseCondition: "react-client",
             maxListeners: maxListeners,
             envPrefix: viteEnvPrefix,
+            logger: this.environment.logger,
             workerData: {
               resolvedConfig: serializeResolvedConfig(resolvedConfig),
               userOptions: {
@@ -396,6 +378,11 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         this.environment.logger.info(
           `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
         );
+        if(process.env['NODE_ENV'] !== 'production') {
+          this.environment.logger.warn(
+            `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env['NODE_ENV']})`
+          );
+        }
 
         // Update timing
         timing.render = Date.now() - (timing.renderStart ?? timing.start);

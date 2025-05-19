@@ -13,7 +13,7 @@ import type { FileWriterOptions } from "../types.js";
 import { join } from "node:path";
 import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { Readable, Transform } from "node:stream";
+import { type Readable, Transform } from "node:stream";
 
 /**
  * Writes HTML and RSC files for a route using streams

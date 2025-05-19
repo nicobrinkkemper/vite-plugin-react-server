@@ -1,5 +1,5 @@
-import { Readable } from "node:stream";
-import type { MessagePort } from "node:worker_threads";
+import type { Readable } from "node:stream";
+import type { MessagePort, Worker } from "node:worker_threads";
 import type React from "react";
 import type { PropsWithChildren } from "react";
 import type {
@@ -13,11 +13,11 @@ import type {
   AliasOptions,
   BuildOptions,
   Connect,
-  InlineConfig,
   Logger,
   Manifest,
   ResolveOptions,
   UserConfig,
+  ViteDevServer,
 } from "vite";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
@@ -179,6 +179,7 @@ export type ResolvedUserOptions<
     | "normalizer"
     | "moduleID"
     | "publicOrigin"
+    | "verbose"
   >
 > & {
   props:
@@ -206,19 +207,6 @@ export type ResolvedUserOptions<
     virtualPattern: (path: string) => boolean;
   };
 };
-
-export type createBuildConfigFn<C extends "react-client" | "react-server"> =
-  (input: {
-    condition: C;
-    userOptions: ResolvedUserOptions;
-    userConfig: ResolvedUserConfig;
-    mode: "production" | "development" | "test";
-    inputNormalizer: C extends "react-server"
-      ? InputNormalizerWorker
-      : InputNormalizerWorker;
-  }) => C extends "react-server"
-    ? Promise<InlineConfig>
-    : Promise<InlineConfig>;
 
 export interface StreamMetrics {
   chunks: number;
@@ -318,15 +306,47 @@ export type BuildStartEvent = {
   };
 };
 
-export type BuildWriteBundleEvent = {
-  type: "build.writeBundle";
+export type BuildWriteBundleEventServer = {
+  type: "build.writeBundle.server";
   data: {
     pages: string[];
     options: NormalizedOutputOptions;
     bundle: OutputBundle;
-    manifest: Manifest | undefined;
   };
 };
+
+export type BuildWriteBundleEventClient = {
+  type: "build.writeBundle.client";
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions;
+    bundle: OutputBundle;
+  };
+};
+
+export type BuildWriteBundleEventStaticClient = {
+  type: "build.writeBundle.static-client";
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions;
+    bundle: OutputBundle;
+  };
+};
+
+export type BuildWriteBundleEventStaticServer = {
+  type: "build.writeBundle.static-server";
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions;
+    bundle: OutputBundle;
+  };
+};
+
+export type BuildWriteBundleEvent =
+  | BuildWriteBundleEventServer
+  | BuildWriteBundleEventClient
+  | BuildWriteBundleEventStaticClient
+  | BuildWriteBundleEventStaticServer;
 
 export type PluginEvent =
   | FileWriteEvent
@@ -411,6 +431,7 @@ export interface StreamPluginOptions<
   onEvent?: (event: PluginEvent) => void;
   normalizer?: InputNormalizer;
   moduleID?: (id: string) => string;
+  verbose?: boolean;
 }
 
 export type MultiPageHandlerOptions = Omit<
@@ -452,7 +473,8 @@ export type CreateHandlerOptions<
   PageComponent?: C;
   route: string;
   manifest: Manifest;
-  worker?: any;
+  worker?: Worker;
+  server?: ViteDevServer;
   importedCss?: Set<string>;
   cssFiles: Map<string, CssContent>;
   globalCss: Map<string, CssContent>;
@@ -620,7 +642,27 @@ export interface BuildTiming {
 export type ResolvedBuildPages = {
   propsMap: Map<string, string>;
   pageMap: Map<string, string>;
+  /**
+   * ## routeMap
+   *
+   * Maps props & page paths to routes
+   *
+   * @example
+   * const routeMap = new Map<string, string[]>();
+   * routeMap.set("src/page/home/page.tsx", ["/", "/home"]);
+   */
   routeMap: Map<string, string[]>;
+  /**
+   * ## urlMap
+   *
+   * Maps urls to props & page paths
+   *
+   * @example
+   * ```ts
+   * const urlMap = new Map<string, { props?: string; page: string }>();
+   * urlMap.set("/", { props: "/props", page: "/page" });
+   * ```
+   */
   urlMap: Map<string, { props?: string; page: string }>;
   errors: Error[];
 };
@@ -736,6 +778,12 @@ export interface InlineCssCollectorProps {
   purgeCss?: boolean;
   children?: React.ReactNode;
 }
+
+export type CssCollectorElementsProps<
+  InlineCSS extends boolean | undefined = undefined
+> = {
+  cssFiles: Map<string, CssContent<InlineCSS>>;
+};
 
 export interface HtmlRenderState {
   id: string;

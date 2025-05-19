@@ -6,24 +6,32 @@ import { createWorker } from "../worker/createWorker.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import type { MessageChannel, Worker } from "node:worker_threads";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
 
-export async function restartWorker(
+export async function restartWorker({
+    server,
+    autoDiscoveredFiles,
+    userOptions,
+    hmrChannel,
+  } :{
     server: ViteDevServer,
     autoDiscoveredFiles: AutoDiscoveredFiles,
     userOptions: ResolvedUserOptions,
-    hmrChannel: MessageChannel
-  ) {
-    if (isRestarting) return;
+    hmrChannel: MessageChannel,
+  }) {
+    if (isRestarting) {
+      throw new Error('Worker is restarting')
+    }
     isRestarting = true;
   
     try {
       // Terminate the current worker if it exists
       if (currentWorker) {
         currentWorker.removeAllListeners();
-        return currentWorker;
+        currentWorker = null;
       }
       const routeCount = autoDiscoveredFiles.urlMap.size;
       const hmrBuffer = 20; // Buffer for HMR and other operations
@@ -39,7 +47,7 @@ export async function restartWorker(
             ? server.config.envPrefix
             : Array.isArray(server.config.envPrefix)
             ? server.config.envPrefix[0]
-            : "VITE_",
+            : DEFAULT_CONFIG.ENV_PREFIX,
         workerData: {
           hmrPort: hmrChannel.port2,
           resolvedConfig: serializedDevServerConfig(server.config),
@@ -50,7 +58,7 @@ export async function restartWorker(
   
       if (workerResult.type === "success") {
         currentWorker = workerResult.worker;
-        server.config.logger.info(
+        if(userOptions.verbose) server.config.logger.info(
           `[react-client] Set max listeners to ${maxListeners} for ${routeCount} routes`
         );
       } else if (workerResult.type === "error") {

@@ -1,5 +1,5 @@
 import React from "react";
-import type { CssCollectorProps } from "./types.js";
+import type { CssCollectorProps } from "../types.js";
 import { CssCollectorElements } from "./css-collector-elements.js";
 
 /**

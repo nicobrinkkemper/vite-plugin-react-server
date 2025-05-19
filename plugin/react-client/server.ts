@@ -1,4 +1,4 @@
-import type { Logger, ViteDevServer } from "vite";
+import type { ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   RenderMetrics,
@@ -6,69 +6,16 @@ import type {
   ResolvedUserOptions,
   StreamMetrics,
 } from "../types.js";
-import type { RscRenderMessage } from "../worker/types.js";
-import type { Worker as NodeWorker } from "node:worker_threads";
-import { MessageChannel } from "node:worker_threads";
+import { MessageChannel, type Worker } from "node:worker_threads";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { performance } from "node:perf_hooks";
-import { createWorkerStream } from "./createWorkerStream.js";
 import { restartWorker } from "./restartWorker.js";
-
-/**
- * Handles the RSC stream from the worker.
- * Creates a ReadableStream that pipes RSC chunks to the response.
- *
- * @param worker - The worker thread
- * @param message - The RSC render message
- * @returns A ReadableStream that yields RSC chunks
- */
-export function handleWorkerRscStream(
-  worker: NodeWorker,
-  message: Omit<RscRenderMessage, "type" | "id">,
-  logger: Logger,
-  onMetrics?: (metrics: StreamMetrics) => void
-): ReadableStream<Uint8Array> {
-  // Create a ReadableStream from the async generator
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      try {
-        for await (const chunk of createWorkerStream(
-          worker,
-          message,
-          logger,
-          onMetrics
-        )) {
-          controller.enqueue(chunk);
-        }
-      } catch (error) {
-        const err =
-          error instanceof Error
-            ? error
-            : typeof error === "string"
-            ? new Error(error)
-            : typeof error === "object" && error != null
-            ? {
-                message:
-                  "message" in error ? String(error.message) : "Unknown error",
-                stack: "stack" in error ? String(error.stack) : "",
-                name: "name" in error ? String(error.name) : "Error",
-              }
-            : {
-                message: "Unknown error",
-                stack: "",
-                name: "Error",
-              };
-        logger.error(err.message, {
-          error: err,
-        });
-        controller.error(err);
-      } finally {
-        controller.close();
-      }
-    },
-  });
-}
+import { handleWorkerRscStream } from "./handleWorkerRscStream.js";
+import { getRouteFiles } from "../helpers/getRouteFiles.js";
+import type { RscWorkerInputMessage } from "../worker/types.js";
+import { Readable } from "node:stream";
+import { ReadableStream } from "node:stream/web";
 
 /**
  * Configures the worker request handler.
@@ -93,44 +40,62 @@ export async function configureWorkerRequestHandler({
     // remove these
     projectRoot: _projectRoot,
     moduleBaseURL: _moduleBaseURL,
-    moduleBasePath: _moduleBasePath,
     ...handlerUserOptions
   } = _userOptions;
   const handlerOptions = Object.assign({}, handlerUserOptions, {
     moduleBaseURL: server.config.base,
-    moduleBasePath: _moduleBasePath,
+    moduleBasePath: server.config.base,
     projectRoot: server.config.root,
   });
 
   // Start the worker
-  const currentWorker = await restartWorker(
-    server,
-    autoDiscoveredFiles,
-    handlerOptions,
-    hmrChannel
-  );
+  let currentWorker: Worker | null = null;
+  const logger = server.config.logger;
+
+  // Handle server restarts
+  server.ws.on("restart", async () => {
+    logger.info("[react-client] Server restarting, shutting down worker...");
+    if (currentWorker) {
+      currentWorker.postMessage({
+        type: "SHUTDOWN",
+        id: "*",
+      } satisfies RscWorkerInputMessage);
+      await new Promise((resolve, reject) => {
+        currentWorker?.on("message", (message) => {
+          if (message.type === "SHUTDOWN_COMPLETE") {
+            resolve(true);
+          } else {
+            reject("Did not receive SHUTDOWN_COMPLETE");
+          }
+        });
+      });
+      currentWorker.removeAllListeners();
+      currentWorker = null;
+    }
+  });
 
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
     if (!req.url) return next();
+    if (handlerOptions.verbose) logger.info(`Received request: ${req.url}`);
 
     const info = requestInfo(req, handlerOptions, "");
     if (!info.isRscRequest) return next();
+    if (handlerOptions.verbose)
+      logger.info(`Request info: ${JSON.stringify(info)}`);
 
-    if (!currentWorker) {
-      server.config.logger.warn("[react-client] No worker available");
+    const routeFiles = await getRouteFiles(
+      info.route,
+      autoDiscoveredFiles,
+      handlerOptions
+    );
+    if (routeFiles.type === "error") {
+      logger.error(routeFiles.error.message);
       return next();
     }
-
-    if (!autoDiscoveredFiles.urlMap.has(info.route)) {
-      server.config.logger.warn(`[react-client] No route found for route: ${info.route}`);
-      return next();
-    }
+    const pagePath = routeFiles.page;
+    const propsPath = routeFiles.props;
     try {
-      const routeFiles = autoDiscoveredFiles.urlMap.get(info.route)!;
-      const pagePath = routeFiles.page;
-      const propsPath = routeFiles.props;
-
       // Set up response headers for streaming
       res.setHeader("Content-Type", info.contentType);
       res.setHeader("Transfer-Encoding", "chunked");
@@ -140,25 +105,9 @@ export async function configureWorkerRequestHandler({
         handlerOptions,
         autoDiscoveredFiles
       );
-      const startTime = performance.now();
-      const stream = handleWorkerRscStream(
-        currentWorker,
-        {
-          ...serializedUserOptions,
-          // we make the worker stream aware of the route, pagePath, propsPath
-          route: info.route,
-          pagePath: pagePath,
-          propsPath: propsPath,
-          // override these at all times to ensure the settings will work for the dev server
-          projectRoot: server.config.root,
-          build: serializedUserOptions.build,
-          manifest: autoDiscoveredFiles.staticManifest,
-          cssFiles: new Map(),
-          globalCss: new Map(),
-        },
-        server.config.logger,
+      const userOnMetrics =
         typeof onMetrics === "function"
-          ? (metrics) => {
+          ? (metrics: StreamMetrics) => {
               const elapsedTime = performance.now() - startTime;
               const formattedMetrics = {
                 route: info.route,
@@ -177,44 +126,86 @@ export async function configureWorkerRequestHandler({
               } satisfies RenderMetrics;
               onMetrics(formattedMetrics);
             }
-          : undefined
-      );
-      const writeStream = new WritableStream({
-        write(chunk) {
-          res.write(chunk);
+          : () => {};
+      const startTime = performance.now();
+      if (!currentWorker) {
+        currentWorker = await restartWorker({
+          server,
+          autoDiscoveredFiles,
+          userOptions: serializedUserOptions,
+          hmrChannel,
+        });
+      }
+      const stream = handleWorkerRscStream({
+        worker: currentWorker!,
+        message: {
+          ...serializedUserOptions,
+          // we make the worker stream aware of the route, pagePath, propsPath
+          route: info.route,
+          pagePath: pagePath,
+          propsPath: propsPath,
+          // override these at all times to ensure the settings will work for the dev server
+          projectRoot: server.config.root,
+          build: serializedUserOptions.build,
+          manifest: autoDiscoveredFiles.staticManifest,
+          cssFiles: new Map(),
+          globalCss: new Map(),
         },
-
-        close() {
-          clearTimeout(timeout);
-          res.end();
+        logger,
+        handlers: {
+          onMetrics: userOnMetrics,
+          onHmrAccept: () => {
+            // TODO: implement
+           // console.log("onHmrAccept", routes);
+          },
+          onHmrUpdate: () => {
+            // TODO: implement
+           // console.log("onHmrUpdate", routes);
+          },
         },
-        abort() {
-          clearTimeout(timeout);
-          // Restart worker on error
-          restartWorker(
-            server,
-            autoDiscoveredFiles,
-            handlerOptions,
-            hmrChannel
-          );
-          res.end();
-        },
+        verbose: handlerOptions.verbose,
       });
-      let timeout: NodeJS.Timeout;
 
       // Pipe the stream to the response
-      stream.pipeTo(writeStream);
+      if (res.writable) {
+        Readable.fromWeb(stream as unknown as ReadableStream).pipe(res);
+      }
       // wait for timeout
-      timeout = setTimeout(() => {
-        server.config.logger.error("RSC render timeout");
-        res.end();
-      }, 5000);
     } catch (error) {
       if (error instanceof Error) {
-        server.config.logger.error(error.message, {
+        server.config.logger.error(error.message + (error.stack ?? ""), {
           error,
         });
       }
+    }
+    let timeout: NodeJS.Timeout;
+    try {
+      await new Promise((reject) => {
+        timeout = setTimeout(() => {
+          clearTimeout(timeout);
+          reject(new Error("RSC Render timeout"));
+        }, 5000);
+      });
+    } catch {
+      if (currentWorker) {
+        currentWorker.postMessage({
+          type: "SHUTDOWN",
+          id: "*",
+        } satisfies RscWorkerInputMessage);
+        await new Promise((resolve, reject) => {
+          currentWorker?.on("message", (message) => {
+            if (message.type === "SHUTDOWN_COMPLETE") {
+              resolve(true);
+            } else {
+              reject("Dit not receive SHUTDOWN_COMPLETE");
+            }
+          });
+        });
+        currentWorker.removeAllListeners();
+      }
+      server.config.logger.error("RSC render timeout.");
+      clearTimeout(timeout!);
+      res.end();
     }
   };
   // attach handler to the server
