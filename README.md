@@ -270,7 +270,7 @@ build: {
 
 ### Built-in React Server Components
 
-This plugin has two built-in React Component, each can be configured through the options to be your own component. Defining your custom React server components will affect the final production output, they won't be used during development.
+This plugin has two built-in React Component, each can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
 
 - Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files & global css)
 - CssCollector - used to emit `<link>` and `<style>` tags based on `css` config
