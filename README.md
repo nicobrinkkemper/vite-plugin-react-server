@@ -52,11 +52,7 @@ This ensures the patch is applied after every `npm install`. If errors arise rel
 This plugin uses environment detection to determine the execution context. It achieves this by checking the `NODE_OPTIONS` environment variable:
 
 ```typescript
-<<<<<<< HEAD
-import { getCondition } from "vite-plugin-react-server";
-=======
 import { getCondition } from "vite-plugin-react-server/config";
->>>>>>> main
 
 if (getCondition() !== "react-server") {
   throw new Error("-10 poision damage");
@@ -66,11 +62,7 @@ if (getCondition() !== "react-server") {
 Alternatively, you can pass the argument for the `react-` prefix to just get client or server back.
 
 ```typescript
-<<<<<<< HEAD
-import { getCondition } from "vite-plugin-react-server";
-=======
 import { getCondition } from "vite-plugin-react-server/config";
->>>>>>> main
 
 import(`plugin.${getCondition("")}.js`);
 ```
