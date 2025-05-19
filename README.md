@@ -227,11 +227,6 @@ Both workers can be customized using the `htmlWorkerPath` and `rscWorkerPath` re
 
 Keep in mind that, using your custom worker means interacting with the message system of this plugin during development/static generation process.
 
-<<<<<<< HEAD
-For more information on creating your custom workers, see [docs](/docs)
-
-=======
->>>>>>> main
 ## Plugin Usage
 
 ```ts
@@ -276,21 +271,22 @@ using code.
 If you have a large amount of pages that needs async operations to fetch, you can pass a async function to build pages.
 
 ```tsx
-build:{
-  pages: async ()=>await import('my-pages')
+build: {
+  pages: async () => await import("my-pages");
 }
 ```
+
 ### Built-in React Server Components
 
 <<<<<<< HEAD
 This plugin has two built-in React Component, each can be configured through the options to be your own component. Defining your custom React server components will affect the final production output, they won't be used during development.
 
-- Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files)
-=======
-This plugin built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
+- # Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files)
+
+  This plugin built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
 
 - Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files & global css)
->>>>>>> main
+  > > > > > > > main
 - CssCollector - used to emit `<link>` and `<style>` tags based on `css` config
 
 Defining your custom Html React server component will affect the final production output.
@@ -339,7 +335,8 @@ NODE_OPTIONS="--conditions=react-server" vite
 Is the recommended way for a more direct server pipeline that doesn't require a `rsc-worker`.
 =======
 A direct server pipeline that doesn't require a `rsc-worker`.
->>>>>>> main
+
+> > > > > > > main
 
 To develop the app using the `rsc-worker`, simply run
 
@@ -351,7 +348,8 @@ vite
 without the `react-server` condition.
 =======
 without the `react-server` condition. This will work a little bit differently under the hood, it can provide additional development support like error logging, metric events and custom rsc worker development.
->>>>>>> main
+
+> > > > > > > main
 
 ## Static Site Generation
 
