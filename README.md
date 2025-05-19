@@ -278,15 +278,9 @@ build: {
 
 ### Built-in React Server Components
 
-<<<<<<< HEAD
 This plugin has two built-in React Component, each can be configured through the options to be your own component. Defining your custom React server components will affect the final production output, they won't be used during development.
 
-- # Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files)
-
-  This plugin built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
-
 - Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files & global css)
-  > > > > > > > main
 - CssCollector - used to emit `<link>` and `<style>` tags based on `css` config
 
 Defining your custom Html React server component will affect the final production output.
@@ -331,12 +325,7 @@ export default defineConfig({
 NODE_OPTIONS="--conditions=react-server" vite
 ```
 
-<<<<<<< HEAD
-Is the recommended way for a more direct server pipeline that doesn't require a `rsc-worker`.
-=======
 A direct server pipeline that doesn't require a `rsc-worker`.
-
-> > > > > > > main
 
 To develop the app using the `rsc-worker`, simply run
 
@@ -344,12 +333,7 @@ To develop the app using the `rsc-worker`, simply run
 vite
 ```
 
-<<<<<<< HEAD
 without the `react-server` condition.
-=======
-without the `react-server` condition. This will work a little bit differently under the hood, it can provide additional development support like error logging, metric events and custom rsc worker development.
-
-> > > > > > > main
 
 ## Static Site Generation
 
