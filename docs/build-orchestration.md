@@ -25,7 +25,7 @@ import { getCondition } from './config/getCondition.js';
 export const { vitePluginReactServer } = await import(`./plugin.${getCondition('')}.js`);
 ```
 
-This is imports the whole suite of plugins that are relevant for each condition, not just /client or /server.
+This imports the whole suite of plugins that are relevant for each condition, not just /client or /server.
 
 
 ## Build Process
