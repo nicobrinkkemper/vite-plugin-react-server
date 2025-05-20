@@ -1,10 +1,11 @@
 import { React, ReactDOMServer } from "../vendor/vendor.server.js";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
 import { performance } from "node:perf_hooks";
+
 export function createRscStream<
-  T,
-  C extends React.ComponentType<T>,
-  InlineCSS extends boolean = true
+  T = unknown,
+  C extends React.ComponentType<T> = React.ComponentType<T>,
+  InlineCSS extends boolean | undefined = undefined
 >({
   Html = React.Fragment,
   PageComponent,
@@ -46,7 +47,7 @@ export function createRscStream<
   let streamError: Error | null = null;
   const startTime = performance.now();
   try {
-    const htmlIsFragment = Html == React.Fragment;
+    const htmlIsFragment = Html === React.Fragment;
     const url = route.startsWith(moduleBaseURL) ? route : moduleBaseURL + route;
 
     if (!PageComponent) {
@@ -64,8 +65,9 @@ export function createRscStream<
         },
       };
     }
+
     const elements = htmlIsFragment ? (
-      <CssCollector cssFiles={cssFiles}>
+      <CssCollector as={React.Fragment} cssFiles={cssFiles} pageProps={pageProps as T}>
         <PageComponent {...(pageProps as any)} />
       </CssCollector>
     ) : (
@@ -77,10 +79,10 @@ export function createRscStream<
         projectRoot={projectRoot}
         url={url}
         route={route}
-        pageProps={pageProps}
+        pageProps={pageProps as T}
         cssFiles={cssFiles}
         globalCss={globalCss}
-        CssCollector={CssCollector}
+        CssCollector={CssCollector as any}
         manifest={manifest}
       >
         <PageComponent {...(pageProps as any)} />

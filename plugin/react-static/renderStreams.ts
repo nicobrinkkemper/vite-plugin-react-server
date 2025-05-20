@@ -27,8 +27,8 @@ import React from "react";
  * @param options The render options
  * @returns A tuple containing the document worker result and RSC direct result
  */
-export function renderStreams(
-  handler: CreateHandlerOptions,
+export function renderStreams<T = unknown, InlineCSS extends boolean | undefined = undefined>(
+  handler: CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>,
 ) {
   return Promise.all([
     /**

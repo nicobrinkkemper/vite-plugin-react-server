@@ -21,9 +21,9 @@ import { fileWriter } from "./fileWriter.js";
  * @param rscFull The stream containing the RSC content
  * @returns A promise that resolves with the complete RSC content
  */
-export async function collectHtmlWorkerContent(
+export async function collectHtmlWorkerContent<T = unknown, InlineCSS extends boolean | undefined = undefined>(
   rscStream: PassThrough,
-  handlerOptions: CreateHandlerOptions
+  handlerOptions: CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   if (!handlerOptions.worker) {
     throw new Error("Worker is not a valid worker");

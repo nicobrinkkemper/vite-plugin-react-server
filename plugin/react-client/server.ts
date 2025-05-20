@@ -23,7 +23,10 @@ import { ReadableStream } from "node:stream/web";
  * @param autoDiscoveredFiles - The auto discovered files
  * @param userOptions - The user options
  */
-export async function configureWorkerRequestHandler({
+export async function configureWorkerRequestHandler<
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined
+>({
   server,
   autoDiscoveredFiles,
   userOptions: _userOptions,
@@ -32,7 +35,7 @@ export async function configureWorkerRequestHandler({
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   hmrChannel: MessageChannel;
   onMetrics?: (metrics: RenderMetrics) => void;
 }) {
@@ -101,7 +104,7 @@ export async function configureWorkerRequestHandler({
       res.setHeader("Transfer-Encoding", "chunked");
       res.setHeader("Connection", "keep-alive");
 
-      const serializedUserOptions = serializedOptions(
+      const serializedUserOptions = serializedOptions<T, InlineCSS>(
         handlerOptions,
         autoDiscoveredFiles
       );
@@ -156,11 +159,11 @@ export async function configureWorkerRequestHandler({
           onMetrics: userOnMetrics,
           onHmrAccept: () => {
             // TODO: implement
-           // console.log("onHmrAccept", routes);
+            // console.log("onHmrAccept", routes);
           },
           onHmrUpdate: () => {
             // TODO: implement
-           // console.log("onHmrUpdate", routes);
+            // console.log("onHmrUpdate", routes);
           },
         },
         verbose: handlerOptions.verbose,

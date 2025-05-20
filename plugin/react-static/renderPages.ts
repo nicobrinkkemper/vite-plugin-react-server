@@ -14,9 +14,9 @@ import { renderPage } from "./renderPage.js";
 import { PassThrough } from "node:stream";
 import type { StreamMetrics, RenderPagesResult, AutoDiscoveredFiles, CssContent, MultiPageHandlerOptions } from "../types.js";
 
-export async function* renderPages(
+export async function* renderPages<T = unknown, InlineCSS extends boolean | undefined = undefined>(
   autoDiscoveredFiles: AutoDiscoveredFiles,
-  handlerOptions: MultiPageHandlerOptions,
+  handlerOptions: MultiPageHandlerOptions<T, InlineCSS>,
   cssFilesByPage: Map<string, Map<string, CssContent>>,
 ): AsyncGenerator<RenderPagesResult, RenderPagesResult, unknown> {
   const routes = Array.from(autoDiscoveredFiles.urlMap.keys());
@@ -45,7 +45,7 @@ export async function* renderPages(
     if (!page) continue;
 
     try {
-      const pageRenderer = renderPage({
+      const pageRenderer = renderPage<T, InlineCSS>({
         ...handlerOptions,
         route,
         pagePath: page,

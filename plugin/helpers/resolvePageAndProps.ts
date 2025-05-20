@@ -10,7 +10,7 @@ type ResolvePageAndPropsOptions<N1 extends string, N2 extends string> = {
   loader: (id: string) => Promise<any>;
 };
 
-type ResolvePageAndPropsResult<T> =
+type ResolvePageAndPropsResult<T = unknown> =
   | {
       type: "success";
       error?: never;

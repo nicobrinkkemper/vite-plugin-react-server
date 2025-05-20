@@ -14,10 +14,10 @@ const serverFiles = createGlobAutoDiscover("**/*.server.*");
 const cssFiles = createGlobAutoDiscover("**/*.css");
 const jsonFiles = createGlobAutoDiscover("**/*.json");
 
-type ResolveAutoDiscoverProps = {
+type ResolveAutoDiscoverProps<T = unknown, InlineCSS extends boolean | undefined = undefined> = {
   config: UserConfig;
   configEnv: ConfigEnv;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   condition: "react-server" | "react-client";
 };
 
@@ -35,12 +35,12 @@ type ResolveAutoDiscoverReturn =
       autoDiscoveredFiles?: never;
     };
 
-export async function resolveAutoDiscover({
+export async function resolveAutoDiscover<T = unknown, InlineCSS extends boolean | undefined = undefined>({
   config,
   configEnv,
   userOptions,
   condition,
-}: ResolveAutoDiscoverProps): Promise<ResolveAutoDiscoverReturn> {
+}: ResolveAutoDiscoverProps<T, InlineCSS>): Promise<ResolveAutoDiscoverReturn> {
   const ssr = configEnv.isSsrBuild || condition === "react-server";
   const envDir =
     condition === "react-server"

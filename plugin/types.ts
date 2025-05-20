@@ -151,10 +151,11 @@ export interface StreamPluginOptionsClient {
 }
 
 export type ResolvedUserOptions<
+  T = unknown,
   InlineCSS extends boolean | undefined = boolean | undefined
 > = Required<
   Pick<
-    StreamPluginOptions,
+    StreamPluginOptions<T, InlineCSS>,
     | "moduleBase"
     | "moduleBasePath"
     | "moduleBaseURL"
@@ -187,8 +188,8 @@ export type ResolvedUserOptions<
     | string
     | ((url: string) => string)
     | ((url: string) => Promise<string>);
-  build: NonNullable<Required<StreamPluginOptions<InlineCSS>["build"]>>;
-  css: NonNullable<Required<StreamPluginOptions<InlineCSS>["css"]>>;
+  build: NonNullable<Required<StreamPluginOptions<T, InlineCSS>["build"]>>;
+  css: NonNullable<Required<StreamPluginOptions<T, InlineCSS>["css"]>>;
   autoDiscover: {
     moduleExtension: RegExp;
     modulePattern: (path: string) => boolean;
@@ -231,8 +232,10 @@ export interface RenderMetrics {
   rscSizes: Map<string, number>;
 }
 
-export interface CssCollectorOptions {
-  inlineCss?: boolean;
+export interface CssCollectorOptions<
+  InlineCSS extends boolean | undefined = undefined
+> {
+  inlineCss?: InlineCSS;
   purgeCss?: boolean;
   inlineThreshold?: number;
   inlinePatterns?: RegExp[];
@@ -362,6 +365,7 @@ export type PluginEvent =
 export type PluginEventType = PluginEvent["type"];
 
 export interface StreamPluginOptions<
+  T = unknown,
   InlineCSS extends boolean | undefined = boolean | undefined
 > {
   projectRoot?: string; // defaults to process.cwd()
@@ -419,12 +423,12 @@ export interface StreamPluginOptions<
   loaderPath?: string;
   pageExportName?: string;
   propsExportName?: string;
-  Html?: React.FC<PropsWithChildren<HtmlProps>>;
+  Html?: React.FC<PropsWithChildren<HtmlProps<T, InlineCSS>>>;
   CssCollector?: React.FC<
-    React.PropsWithChildren<CssCollectorProps<InlineCSS>>
+    React.PropsWithChildren<CssCollectorProps<T, InlineCSS>>
   >;
   build?: BuildConfig;
-  css?: CssCollectorOptions;
+  css?: CssCollectorOptions<InlineCSS>;
   moduleBaseExceptions?: string[];
   pipeableStreamOptions?: ReactServerDomEsmOptions;
   onMetrics?: (metrics: RenderMetrics) => void;
@@ -434,8 +438,11 @@ export interface StreamPluginOptions<
   verbose?: boolean;
 }
 
-export type MultiPageHandlerOptions = Omit<
-  CreateHandlerOptions,
+export type MultiPageHandlerOptions<
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined
+> = Omit<
+  CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>,
   | "pagePath"
   | "route"
   | "cssFiles"
@@ -449,7 +456,7 @@ export type CreateHandlerOptions<
   C extends React.ComponentType<T> = React.ComponentType<T>,
   InlineCSS extends boolean | undefined = undefined
 > = Pick<
-  ResolvedUserOptions<InlineCSS>,
+  ResolvedUserOptions<T, InlineCSS>,
   | "autoDiscover"
   | "css"
   | "pageExportName"
@@ -476,10 +483,10 @@ export type CreateHandlerOptions<
   worker?: Worker;
   server?: ViteDevServer;
   importedCss?: Set<string>;
-  cssFiles: Map<string, CssContent>;
-  globalCss: Map<string, CssContent>;
+  cssFiles: Map<string, CssContent<InlineCSS>>;
+  globalCss: Map<string, CssContent<InlineCSS>>;
   build: Pick<
-    ResolvedUserOptions["build"],
+    ResolvedUserOptions<T, InlineCSS>["build"],
     | "outDir"
     | "pages"
     | "server"
@@ -683,8 +690,11 @@ export type WorkerMessage =
 export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
 
-export type HtmlProps = {
-  pageProps: any;
+export type HtmlProps<
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined
+> = {
+  pageProps: T;
   route: string;
   url: string;
   projectRoot: string;
@@ -692,10 +702,10 @@ export type HtmlProps = {
   moduleBaseURL: string;
   moduleBasePath: string;
   moduleRootPath: string;
-  cssFiles: Map<string, CssContent>;
+  cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  CssCollector: React.FC<React.PropsWithChildren<CssCollectorProps>>;
-  globalCss: Map<string, CssContent>;
+  CssCollector: <As extends keyof React.JSX.IntrinsicElements | undefined = undefined>(props: CssCollectorProps<T, InlineCSS, As>) => React.ReactNode;
+  globalCss: Map<string, CssContent<InlineCSS>>;
 };
 
 export interface PageAsset {
@@ -743,31 +753,19 @@ export interface JsContent {
 }
 
 export type CssCollectorProps<
-  InlineCSS extends boolean | undefined = undefined
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined,
+  As extends keyof React.JSX.IntrinsicElements | undefined = undefined
 > = {
-  as?: React.ElementType; // defaults to react fragment
-  children?: React.ReactNode; // the children containing the css content
-  /** A map containing all the css files imported by the route and their proxy values
-   * - when inlineCss is true, will contain the `content` property
-   * - when prugeCss is true, will contain the module proxy which includes a `userClasses`
-   * @example ```tsx
-   * import styles from './styles.module.css';
-   * export const Page = () => {
-   *  return <div className={styles.userClass}>Hello World</div>
-   * }
-   * ```
-   * then the module will basically contain whatever `styles` exported here. But how does it track css class usages
-   * during streaming?
-   *
-   * const tags = Array.from(importedCss?.values() ?? []).map(cssFile => {
-   *  return <link rel="stylesheet" href={cssFile.path} />
-   * })
-   * ```
-   *
-   *
-   * */
+  as: As;
+  children?: React.ReactNode;
   cssFiles?: Map<string, CssContent<InlineCSS>>;
-} & React.HTMLAttributes<HTMLElement>;
+  pageProps: T;
+} & (As extends keyof React.JSX.IntrinsicElements 
+    ? React.JSX.IntrinsicElements[As] 
+    : As extends undefined 
+      ? React.ComponentProps<typeof React.Fragment>
+      : never);
 
 export interface InlineCssCollectorProps {
   cssFiles: Map<string, CssContent>;

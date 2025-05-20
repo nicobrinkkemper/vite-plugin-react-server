@@ -10,12 +10,12 @@ interface StreamError extends Error {
   code?: string;
 }
 
-export async function configurePreviewServer({
+export async function configurePreviewServer<T = unknown, InlineCSS extends boolean | undefined = undefined>({
   server,
   userOptions,
 }: {
   server: PreviewServer;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
 }) {
   const staticHostDir = join(
     userOptions.projectRoot,

@@ -72,11 +72,12 @@ const registerPath = (
 // ============================================================================
 
 export const resolveOptions = <
+  T = unknown,
   InlineCSS extends boolean | undefined = boolean | undefined
 >(
-  options: StreamPluginOptions<InlineCSS>
+  options: StreamPluginOptions<T, InlineCSS>
 ):
-  | { type: "success"; userOptions: ResolvedUserOptions<InlineCSS> }
+  | { type: "success"; userOptions: ResolvedUserOptions<T, InlineCSS> }
   | { type: "error"; error: Error } => {
     
   // Basic configuration
@@ -500,7 +501,7 @@ export const resolveOptions = <
         moduleBaseExceptions: options.moduleBaseExceptions ?? [],
         autoDiscover: autoDiscover,
         pipeableStreamOptions,
-      } as ResolvedUserOptions<InlineCSS>,
+      } as ResolvedUserOptions<T, InlineCSS>,
     };
   } catch (error) {
     return {

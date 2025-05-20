@@ -21,7 +21,10 @@ import { deserializeRegExp } from "./serializeUserOptions.js";
  * @param css - The css options
  * @returns A CssContent object
  */
-export const createCssProps = ({
+export const createCssProps = <
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined
+>({
   id,
   code,
   userOptions,
@@ -29,14 +32,14 @@ export const createCssProps = ({
   id: string;
   code: string;
   userOptions: Pick<
-    ResolvedUserOptions,
+    ResolvedUserOptions<T, InlineCSS>,
     | "css"
     | "moduleBaseURL"
     | "moduleBasePath"
     | "moduleRootPath"
     | "projectRoot"
   >;
-}): CssContent => {
+}): CssContent<InlineCSS> => {
   const { css, moduleBaseURL, moduleBasePath, moduleRootPath, projectRoot } =
     userOptions;
   // If we don't have a bundle entry, create a linked CSS file
@@ -74,24 +77,37 @@ export const createCssProps = ({
             "data-vite-dev-id": join(projectRoot, moduleRootPath, normalizedId),
           }
         : {}),
-    } as CssContent<true>;
+    } as CssContent<InlineCSS>;
   }
-  const joined = normalizedId.startsWith(moduleBasePath) ? normalizedId : join(moduleBasePath, normalizedId);
+  const joined = normalizedId.startsWith(moduleBasePath)
+    ? normalizedId
+    : join(moduleBasePath, normalizedId);
   const moduleBaseHasTrailingSlash = moduleBaseURL.endsWith("/");
   const joinedHasLeadingSlash = joined.startsWith("/");
   const safeParseURL = (() => {
-    if(joined.startsWith(moduleBaseHasTrailingSlash ? moduleBaseURL.slice(0, -1) : moduleBaseURL)) {
+    if (
+      joined.startsWith(
+        moduleBaseHasTrailingSlash ? moduleBaseURL.slice(0, -1) : moduleBaseURL
+      )
+    ) {
       return joined;
     }
     try {
       if (moduleBaseURL.includes("//")) {
         // relative to moduleBaseURL
-        return new URL(joinedHasLeadingSlash ? joined.slice(1) : joined, moduleBaseURL).href;
+        return new URL(
+          joinedHasLeadingSlash ? joined.slice(1) : joined,
+          moduleBaseURL
+        ).href;
       }
     } catch (error) {}
     // if the url is not valid, we return the moduleBaseURL + the normalizedId
     // dont make it a argument of join or it will mangle something like http:// into http:/
-    return moduleBaseURL + (!moduleBaseHasTrailingSlash && !joinedHasLeadingSlash ? "/" : "") + (moduleBaseHasTrailingSlash ? joined.slice(1) : joined);
+    return (
+      moduleBaseURL +
+      (!moduleBaseHasTrailingSlash && !joinedHasLeadingSlash ? "/" : "") +
+      (moduleBaseHasTrailingSlash ? joined.slice(1) : joined)
+    );
   })();
   // Default case
   return {
@@ -100,5 +116,5 @@ export const createCssProps = ({
     rel: "stylesheet",
     href: safeParseURL,
     precedence: "high",
-  } as CssContent<false>;
+  } as CssContent<InlineCSS>;
 };

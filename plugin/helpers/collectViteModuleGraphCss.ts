@@ -29,6 +29,7 @@ type CollectViteModuleGraphCssResult =
     };
 
 export async function collectViteModuleGraphCss<
+  T = unknown,
   InlineCSS extends boolean | undefined = undefined
 >({
   moduleGraph,
@@ -40,7 +41,7 @@ export async function collectViteModuleGraphCss<
   onCss?: (cssContent: CssContent, parentUrl: string) => void;
   parentUrl?: string;
   handlerOptions: Pick<
-    CreateHandlerOptions<InlineCSS>,
+    CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>,
     | "pagePath"
     | "moduleBaseURL"
     | "moduleBasePath"

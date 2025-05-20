@@ -6,24 +6,22 @@ import { CssCollectorElements } from "./css-collector-elements.js";
  * A component that emits <link> tags for CSS files during streaming.
  * The high precedence ensures they bubble up to the document head.
  */
-export function CssCollector({
-  children = null,
-  cssFiles = new Map(),
-  as: As = React.Fragment,
+export const CssCollector = <
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined,
+  As extends keyof React.JSX.IntrinsicElements | undefined = undefined
+>({
+  as,
+  children,
+  cssFiles,
+  pageProps,
   ...props
-}: Pick<CssCollectorProps, "children" | "cssFiles" | "as">) {
-  if (As === React.Fragment) {
-    return (
-      <>
-        {children}
-        <CssCollectorElements cssFiles={cssFiles} />
-      </>
-    );
-  }
+}: CssCollectorProps<T, InlineCSS, As>) => {
+  const Component = (as ?? React.Fragment) as React.ElementType;
   return (
-    <As {...props}>
+    <Component {...props}>
       {children}
-      <CssCollectorElements cssFiles={cssFiles} />
-    </As>
+      <CssCollectorElements cssFiles={cssFiles ?? new Map()} />
+    </Component>
   );
-}
+};

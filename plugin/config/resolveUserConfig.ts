@@ -10,11 +10,11 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
-export type ResolveUserConfigProps = {
+export type ResolveUserConfigProps<T = unknown, InlineCSS extends boolean | undefined = undefined> = {
   condition: "react-client" | "react-server";
   config: UserConfig;
   configEnv: ConfigEnv;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "inputs" | "staticManifest">;
 };
 
@@ -22,13 +22,13 @@ export type ResolveUserConfigReturn =
   | { type: "success"; userConfig: ResolvedUserConfig }
   | { type: "error"; error: Error };
 
-export function resolveUserConfig({
+export function resolveUserConfig<T = unknown, InlineCSS extends boolean | undefined = undefined>({
   condition,
   config,
   configEnv,
   userOptions,
   autoDiscoveredFiles,
-}: ResolveUserConfigProps): ResolveUserConfigReturn {
+}: ResolveUserConfigProps<T, InlineCSS>): ResolveUserConfigReturn {
   const ssr =
     typeof config.build?.ssr === "boolean"
       ? config.build?.ssr

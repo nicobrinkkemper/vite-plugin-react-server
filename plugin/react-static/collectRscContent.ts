@@ -23,9 +23,9 @@ import { fileWriter } from "./fileWriter.js";
  * @param handlerOptions The options for the handler
  * @returns A promise that resolves with the complete RSC content and metrics
  */
-export async function collectRscContent(
+export async function collectRscContent<T = unknown, InlineCSS extends boolean | undefined = undefined>(
   rscStream: PassThrough,
-  handlerOptions: CreateHandlerOptions
+  handlerOptions: CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   const metrics = createStreamMetrics();
   const startTime = performance.now();

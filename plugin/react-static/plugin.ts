@@ -59,16 +59,21 @@ if (getCondition() !== "react-server") {
   );
 }
 
-let worker: Worker;
-let userConfig: ResolvedUserConfig;
-let resolvedConfig: ResolvedConfig;
-let userOptions: ResolvedUserOptions;
-let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
-let serverManifest: Manifest | undefined = undefined;
-let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
-export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
+export function reactStaticPlugin<
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined
+>(
+  options: StreamPluginOptions<T, InlineCSS>
+): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
+  let worker: Worker;
+  let userConfig: ResolvedUserConfig;
+  let resolvedConfig: ResolvedConfig;
+  let userOptions: ResolvedUserOptions<T, InlineCSS>;
+  let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
+  let serverManifest: Manifest | undefined = undefined;
+  let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
   const timing: BuildTiming = {
     start: Date.now(),
     configResolved: 0,
@@ -134,7 +139,6 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
     },
 
     async renderStart() {
-      
       timing.renderStart = Date.now();
     },
 
@@ -175,11 +179,11 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           throw clientManifestResult.error;
         }
         const clientManifest = clientManifestResult.manifest;
-        
-        buildLoader = await createBuildLoader(
+
+        buildLoader = await createBuildLoader<T, InlineCSS>(
           {
             userConfig,
-            userOptions,
+            userOptions: userOptions as ResolvedUserOptions<T, InlineCSS>,
             serverManifest: serverManifest ?? {},
             staticManifest: autoDiscoveredFiles?.staticManifest ?? {},
             clientManifest: clientManifest ?? {},
@@ -197,7 +201,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
           userOptions
         );
 
-        const globalCss: Map<string, CssContent> = new Map();
+        const globalCss: Map<string, CssContent<InlineCSS>> = new Map();
         // Collect CSS files for each page and its props
         for (const [url, { page, props }] of autoDiscoveredFiles?.urlMap ??
           []) {
@@ -236,7 +240,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
               if (cssContent) {
                 globalCss.set(
                   value,
-                  createCssProps({
+                  createCssProps<T, InlineCSS>({
                     id: value,
                     code: cssContent,
                     userOptions: userOptions,
@@ -327,7 +331,7 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         }
         // Render pages
         const { onEvent, ...handlerOptions } = userOptions;
-        const renderPagesGenerator = renderPages(
+        const renderPagesGenerator = renderPages<T, InlineCSS>(
           autoDiscoveredFiles!,
           {
             ...handlerOptions,
@@ -378,9 +382,9 @@ export function reactStaticPlugin(options: StreamPluginOptions): VitePlugin<{
         this.environment.logger.info(
           `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
         );
-        if(process.env['NODE_ENV'] !== 'production') {
+        if (process.env["NODE_ENV"] !== "production") {
           this.environment.logger.warn(
-            `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env['NODE_ENV']})`
+            `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env["NODE_ENV"]})`
           );
         }
 

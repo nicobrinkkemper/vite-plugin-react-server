@@ -6,9 +6,9 @@ import { readFile } from "node:fs/promises";
 import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";
 
-export interface BuildLoaderOptions {
+export interface BuildLoaderOptions<T = unknown, InlineCSS extends boolean | undefined = undefined> {
   userConfig: ResolvedUserConfig;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   serverManifest: Manifest;
   clientManifest: Manifest;
   staticManifest: Manifest;
@@ -37,13 +37,13 @@ export interface BuildLoaderOptions {
  *
  * @returns A loader function that resolves module paths to their exports
  */
-export async function createBuildLoader(
+export async function createBuildLoader<T = unknown, InlineCSS extends boolean | undefined = undefined>(
   {
     userOptions,
     serverManifest,
     clientManifest,
     staticManifest,
-  }: BuildLoaderOptions,
+  }: BuildLoaderOptions<T, InlineCSS>,
   bundle: OutputBundle
 ) {
   const manifestKeys = Object.keys(serverManifest);

@@ -1,9 +1,11 @@
 import type { CreateHandlerOptions } from "../types.js";
 import { createRscStream } from "./createRscStream.js";
 
-
-export async function createHandler(handlerOptions: CreateHandlerOptions) {
-  if(!handlerOptions.PageComponent) {
+export async function createHandler<
+  T = unknown,
+  InlineCSS extends boolean | undefined = undefined
+>(handlerOptions: CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>) {
+  if (!handlerOptions.PageComponent) {
     throw new Error("PageComponent is required");
   }
   try {

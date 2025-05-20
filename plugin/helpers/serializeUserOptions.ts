@@ -173,8 +173,8 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
 };
 
 // For your own options (if you need custom non-serializable functions)
-export const serializedOptions = <T extends ResolvedUserOptions>(
-  userOptions: T,
+export const serializedOptions = <T = unknown, InlineCSS extends boolean | undefined = undefined>(
+  userOptions: ResolvedUserOptions<T, InlineCSS>,
   autoDiscoveredFiles: AutoDiscoveredFiles,
   customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS
 ) => {

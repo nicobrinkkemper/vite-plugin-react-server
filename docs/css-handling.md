@@ -215,7 +215,7 @@ When `purgeCss` is enabled:
 ```typescript
 {
   CssCollector: AdvancedCssCollector,
-  CSS: {
+  css: {
     inlineCss: true,
     inlineThreshold: 4096,
     inlinePatterns: [/\.module\.css$/, /critical\.css$/],
@@ -223,69 +223,54 @@ When `purgeCss` is enabled:
   }
 }
 ```
-
-- Use `purgeCss` only for dynamic css cases, like themes
-- Helps make less http calls 
-
-### For Performance Optimization
-- Use CSS modules for component-specific styles
-- Enable both `inlineCss` and `purgeCss` for optimal performance
-- Monitor the size of inlined CSS to avoid large HTML documents
-
-## Combining Features
-
-The features can be used in various combinations:
-
-1. **Basic Usage**: Default CssCollector with no inlining or purging
-2. **Optimized Bundle**: Inline CSS + PurgeCSS for smallest possible output
-3. **Custom Handling**: User CssCollector + selected features
 
 ## Configuration Example
 
-```typescript
-{
-  // Use custom collector
-  CssCollector: MyCustomCssCollector,
-  
-  
-  // Custom CSS settings
-  CSS: {
-    // Feature flags
-    inlineCss: true,
-    purgeCss: true,
-    // actual config
-    inlineThreshold: 8192, // 8KB
-    inlinePatterns: [
-      /\.inline\.css$/
-    ],
-  }
-}
-```
-
-This example demonstrates several advanced features:
-
-1. **Type Safety**: Properly handles both inline and non-inline modes using TypeScript
-2. **Flexible Handling**: Uses a switch case to apply different strategies based on file characteristics
-3. **Performance Optimization**: 
-   - Preloads vendor CSS files
-   - Inlines critical CSS when possible
-   - Handles CDN files appropriately
-4. **Module Support**: Special handling for CSS modules with data attributes
-5. **Fallback Strategy**: Default case for standard CSS files
-
-To use this collector, you would configure it like this:
 
 ```typescript
 {
-  CssCollector: AdvancedCssCollector,
+  CssCollector: MyCssCollector, // import from anywhere
   css: {
     inlineCss: true, // default
-    purgeCss: true, // requires custom implementation
     inlineThreshold: 4096,
-    inlinePatterns: [/\.module\.css$/, /critical\.css$/],
-    linkPatterns: [/node_modules/, /vendor\.css$/]
   }
 }
 ```
 
-This collector provides a good balance between performance and flexibility, while demonstrating how to handle different CSS file types appropriately based on their characteristics and usage patterns. 
+By adding our own own CssCollector, we can have one final say over the cssFiles that we render. We could filter out some of the css files however we wish.
+```tsx
+import { CssCollectorElements } from "vite-plugin-react-server/components"
+
+export const MyCssCollector: YourCssCollectorType = ({
+  as: Component = React.Fragment,
+  children,
+  cssFiles,
+  pageProps,
+  ...props
+}) => {
+  if (!cssFiles) return children;
+
+  const cssArray = Array.isArray(cssFiles)
+    ? cssFiles
+    : Array.from(cssFiles?.values() ?? []);
+
+  const removeNonCurrentThemeCss = new Map(
+    cssArray
+      .filter(
+        (file) =>
+          !removeableCSS.includes(file.id) ||
+          filters[pageProps.theme].includes(file.id)
+      )
+      .map((file) => [file.id, file])
+  );
+
+  return (
+    <Component {...props}>
+      {children}
+      <CssCollectorElements cssFiles={removeNonCurrentThemeCss} />
+    </Component>
+  );
+};
+```
+
+By moving this logic to the CssCollector itself, we can test out the behavior in development using the react-server condition.
