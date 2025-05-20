@@ -247,21 +247,17 @@ The features can be used in various combinations:
   // Use custom collector
   CssCollector: MyCustomCssCollector,
   
-  // Enable features
-  inlineCss: true,
-  purgeCss: true,
   
   // Custom CSS settings
   CSS: {
+    // Feature flags
+    inlineCss: true,
+    purgeCss: true,
+    // actual config
     inlineThreshold: 8192, // 8KB
     inlinePatterns: [
-      /\.module\.css$/,
-      /\.critical\.css$/
+      /\.inline\.css$/
     ],
-    linkPatterns: [
-      /node_modules/,
-      /\.vendor\.css$/
-    ]
   }
 }
 ```
@@ -282,9 +278,9 @@ To use this collector, you would configure it like this:
 ```typescript
 {
   CssCollector: AdvancedCssCollector,
-  inlineCss: true,
-  purgeCss: true,
-  CSS: {
+  css: {
+    inlineCss: true, // default
+    purgeCss: true, // requires custom implementation
     inlineThreshold: 4096,
     inlinePatterns: [/\.module\.css$/, /critical\.css$/],
     linkPatterns: [/node_modules/, /vendor\.css$/]
