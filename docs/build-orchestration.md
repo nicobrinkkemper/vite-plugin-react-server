@@ -9,35 +9,47 @@ The Vite React Server Plugin provides build system support for React Server Comp
 The plugin consists of two main components:
 
 1. **Client Plugin** (`vite-plugin-react-server/client`)
-   - Bundles client-side ESM modules
+   - Bundles static & client boundary ESM modules
    - Executes without the react-server condition
    - Manages the `rsc-worker` process
 
-2. **Server Plugin** (`vite-plugin-react-server`)
-   - Bundles server-side ESM modules
+2. **Server Plugin** (`vite-plugin-react-server/server`)
+   - Bundles server boundary ESM modules
    - Executes with the react-server condition enabled
    - Handles RSC execution in the main thread
+
+Main entry is simply:
+```tsx
+import { getCondition } from './config/getCondition.js';
+
+export const { vitePluginReactServer } = await import(`./plugin.${getCondition('')}.js`);
+```
+
+This is imports the whole suite of plugins that are relevant for each condition, not just /client or /server.
+
 
 ## Build Process
 
 The build process executes in the following sequence:
 
-1. **Client Build** (`vite build`)
-   - Generates client-side ESM files in `dist/client`
-   - Creates client asset manifest
+1. **Static Build** (`vite build`)
+   - Generates client-side ESM files in `dist/static`
+   - Creates static manifest
    - Processes CSS modules
    - Outputs browser-optimized code
 
-2. **Server Build** (`NODE_OPTIONS="--conditions=react-server" vite build`)
+2. **Client boundary Build** (`vite build --ssr`)
+   - Generates client-boundary ssr files in `dist/client`
+   - Same as the static, but with bare specifier imports intended for ssr.
+   - Outputs Node.js-optimized code
+   - Uses the same hashes as static build for consistency
+
+3. **Server Build** (`NODE_OPTIONS="--conditions=react-server" vite build`)
    - Resolves assets using client manifest
    - Generates RSC content
-   - Creates static output directory
    - Outputs Node.js-optimized code
-
-3. **Static Generation**
-   - Copies client assets to `dist/static`
-   - Generates HTML files
-   - Creates RSC files
+   - Uses the same hashes as static build for consistency
+   - Upgrades `dist/static` directory with fixed index.html/.rsc files
 
 ## Build Output Structure
 
@@ -45,15 +57,14 @@ The build generates the following directory structure:
 
 ```
 dist/
-├── client/          # Client-side assets
-│   ├── assets/      # Bundled client assets
-│   └── manifest.json # Client asset manifest
-├── server/          # Server-side code
-│   └── ...         # Server-specific files
-└── static/          # Static site output
-    ├── index.html   # Generated HTML
-    ├── index.rsc    # RSC content
-    └── assets/      # Copied client assets
+├── static/                 
+    ├── index.html          # Generated HTML
+    ├── index.rsc           # Headless RSC content
+│   └── .vite/manifest.json # Main manifest
+├── client/                 
+│   └── ...                 # React client boundary
+├── server/                 
+│   └── ...                 # React server boundary
 ```
 
 ## Environment-Specific Behavior
