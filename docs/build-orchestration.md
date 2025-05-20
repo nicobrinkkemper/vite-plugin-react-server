@@ -53,7 +53,7 @@ export const { vitePluginReactServer } = await import(
 );
 ```
 
-This imports the all of plugins that are relevant for each condition. For example
+This imports all of plugins that are relevant for each condition. For example
 
 ```tsx
 // plugin.client.ts
