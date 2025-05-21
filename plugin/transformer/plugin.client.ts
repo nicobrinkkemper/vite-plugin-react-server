@@ -69,14 +69,16 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
           "Server and client components cannot be used in the same file"
         );
       }
-      if (isClient) {
+      if (isClient || !isServer) {
         return null;
       }
       const [key, value] = userOptions.normalizer(id);
-      if (isServer && isBuild) {
+      if (isBuild) {
         id = key + ".js";
+      } else {
+        id = value;
       }
-      const finalID = userOptions.moduleID(value);
+      const finalID = userOptions.moduleID(id);
       const transformed = await transformModuleIfNeeded(code, finalID, null);
       if (!transformed) return null;
       return {

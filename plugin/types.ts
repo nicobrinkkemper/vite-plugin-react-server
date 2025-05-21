@@ -172,7 +172,7 @@ export type ResolvedUserOptions<
     | "loaderPath"
     | "clientEntry"
     | "serverEntry"
-    | "moduleBaseExceptions"
+    // | "moduleBaseExceptions"
     | "pipeableStreamOptions"
     | "onMetrics"
     | "onEvent"
@@ -429,7 +429,7 @@ export interface StreamPluginOptions<
   >;
   build?: BuildConfig;
   css?: CssCollectorOptions<InlineCSS>;
-  moduleBaseExceptions?: string[];
+  // moduleBaseExceptions?: string[];
   pipeableStreamOptions?: ReactServerDomEsmOptions;
   onMetrics?: (metrics: RenderMetrics) => void;
   onEvent?: (event: PluginEvent) => void;

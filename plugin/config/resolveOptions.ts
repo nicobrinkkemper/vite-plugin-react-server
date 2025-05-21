@@ -498,7 +498,7 @@ export const resolveOptions = <
         loaderPath: loaderPath,
         clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
         serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
-        moduleBaseExceptions: options.moduleBaseExceptions ?? [],
+     //   moduleBaseExceptions: options.moduleBaseExceptions ?? [],
         autoDiscover: autoDiscover,
         pipeableStreamOptions,
       } as ResolvedUserOptions<T, InlineCSS>,
