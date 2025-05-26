@@ -244,10 +244,19 @@ export interface CssCollectorOptions<
   linkPatterns?: RegExp[];
 }
 
+export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
+  InlineCSS extends true
+    ? StyleCssProps
+    : InlineCSS extends false
+    ? LinkCssProps
+    : InlineCSS extends undefined | boolean
+    ? StyleCssProps | LinkCssProps
+    : never;
+
 /**
  * Boxed component type for the CssCollector
  */
-export type CssCollectorType<
+export type CssCollectorBoxedType<
   _T extends PagePropOpt = PagePropOpt,
   _InlineCSS extends InlineCssOpt = InlineCssOpt,
   _As extends AsOpt = AsOpt
@@ -256,17 +265,38 @@ export type CssCollectorType<
   InlineCSS extends _InlineCSS = _InlineCSS,
   As extends _As = _As
 >(
-  props: CssCollectorProps<T, InlineCSS, As> & { key?: string }
-) => React.ReactNode;
+  props: CssCollectorProps<T, InlineCSS, As>
+) => React.ReactElement;
+
+export type CssCollectorProps<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  As extends AsOpt = AsOpt
+> = {
+  as: As;
+  cssFiles?: Map<string, CssContent<InlineCSS>>;
+  pageProps?: T;
+  Page: PageComponentType<T>;
+  id?: string;
+} & React.ComponentPropsWithoutRef<As>;
+
+export type CssCollectorComponent = (
+  props: CssCollectorProps
+) => React.ReactElement;
 
 /**
  * Boxed component type for the Html component
  */
-export type HtmlComponentType<
+export type HtmlBoxedType<
   _T extends PagePropOpt = PagePropOpt,
-  _InlineCSS extends InlineCssOpt = InlineCssOpt
-> = <T extends _T = _T, InlineCSS extends _InlineCSS = _InlineCSS>(
-  props: HtmlProps<T, InlineCSS> & { key?: string }
+  _InlineCSS extends InlineCssOpt = InlineCssOpt,
+  _As extends AsOpt = "div"
+> = <
+  T extends _T = _T,
+  InlineCSS extends _InlineCSS = _InlineCSS,
+  As extends _As = _As
+>(
+  props: HtmlProps<T, InlineCSS, As> & { key?: string }
 ) => React.ReactNode;
 
 export type FileWriteEvent = {
@@ -451,7 +481,7 @@ export interface StreamPluginOptions<
   pageExportName?: string;
   propsExportName?: string;
   Html?: React.FC<HtmlProps<T, InlineCSS>>;
-  CssCollector?: CssCollectorType<T, InlineCSS>;
+  CssCollector?: CssCollectorBoxedType<T, InlineCSS>;
   build?: BuildConfig;
   css?: CssCollectorOptions<InlineCSS>;
   // moduleBaseExceptions?: string[];
@@ -704,13 +734,17 @@ export type PagePath = string & { readonly __brand: unique symbol };
 
 export type InlineCssOpt = undefined | boolean;
 export type PagePropOpt = Record<string, unknown> | undefined;
-export type AsOpt = React.ElementType;
+export type AsOpt = Exclude<
+  keyof React.JSX.IntrinsicElements,
+  "symbol" | "object"
+>;
 export type PageComponentType<T extends PagePropOpt = PagePropOpt> =
   React.ComponentType<T & React.PropsWithChildren<{}>>;
 
 export type HtmlProps<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  As extends AsOpt = AsOpt
 > = {
   pageProps?: T;
   Page: PageComponentType<T>;
@@ -723,9 +757,10 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  CssCollector: CssCollectorType<T, InlineCSS>;
+  CssCollector: CssCollectorBoxedType<T, InlineCSS, As>;
   globalCss: Map<string, CssContent<InlineCSS>>;
   children?: React.ReactNode;
+  as: As;
 };
 
 export interface PageAsset {
@@ -757,27 +792,6 @@ export type StyleCssProps = BaseCssProps & {
   rel?: never;
   href?: never;
 };
-
-export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
-  InlineCSS extends true
-    ? StyleCssProps
-    : InlineCSS extends false
-    ? LinkCssProps
-    : StyleCssProps | LinkCssProps;
-
-export type CssCollectorProps<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt
-> = {
-  as?: As;
-  children?: React.ReactNode;
-  cssFiles?: Map<string, CssContent<InlineCSS>>;
-  pageProps?: T;
-  Page: PageComponentType<T>;
-} & (As extends keyof React.JSX.IntrinsicElements
-  ? Omit<React.JSX.IntrinsicElements[As], "children">
-  : React.ComponentProps<typeof React.Fragment>);
 
 export type CssCollectorElementsProps<
   InlineCSS extends InlineCssOpt = InlineCssOpt

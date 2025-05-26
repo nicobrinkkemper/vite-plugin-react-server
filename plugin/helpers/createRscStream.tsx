@@ -6,10 +6,7 @@ import type {
 } from "../types.js";
 import { performance } from "node:perf_hooks";
 
-
-export function createRscStream<
-  T extends PagePropOpt = PagePropOpt
->({
+export function createRscStream<T extends PagePropOpt = PagePropOpt>({
   Html = React.Fragment,
   PageComponent,
   pageProps,
@@ -92,6 +89,7 @@ export function createRscStream<
         CssCollector={CssCollector}
         manifest={manifest}
         Page={PageComponent}
+        as={"div"}
       />
     );
     const stream = ReactDOMServer.renderToPipeableStream(
