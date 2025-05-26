@@ -25,45 +25,44 @@ describe("Server Action Build Exclusion", () => {
 
     // Run build
     try {
-      const buildResult = await doBuild({
+      await doBuild({
         ...testUserOptions,
         projectRoot: testDir,
         Page: "src/page/page.tsx",
         build: {
-          pages: ['/']
+          pages: ["/"],
         },
         onEvent: (event) => {
-          if (event.type === 'build.writeBundle.server' || event.type === 'build.writeBundle.static-server') {
+          if (
+            event.type === "build.writeBundle.server" ||
+            event.type === "build.writeBundle.static-server"
+          ) {
             // Get all JS files from the server bundle
             Object.entries(event.data.bundle).forEach(([id, chunk]) => {
-              if (id.endsWith('.js') && !id.endsWith('.map') && 'code' in chunk) {
+              if (
+                id.endsWith(".js") &&
+                !id.endsWith(".map") &&
+                "code" in chunk
+              ) {
                 serverBundles.push({ id, code: chunk.code });
-                console.log('Server bundle:', id);
               }
             });
-          } else if (event.type === 'build.writeBundle.client' || event.type === 'build.writeBundle.static-client') {
+          } else if (
+            event.type === "build.writeBundle.client" ||
+            event.type === "build.writeBundle.static-client"
+          ) {
             // Get all JS files from the client bundle
             Object.entries(event.data.bundle).forEach(([id, chunk]) => {
-              if (id.endsWith('.js') && !id.endsWith('.map') && 'code' in chunk) {
+              if (
+                id.endsWith(".js") &&
+                !id.endsWith(".map") &&
+                "code" in chunk
+              ) {
                 clientBundles.push({ id, code: chunk.code });
-                console.log('Client bundle:', id);
               }
             });
           }
-        }
-      });
-
-      // Debug: Print all bundles and their contents
-      console.log('\nServer Bundles:');
-      serverBundles.forEach(bundle => {
-        console.log(`\n${bundle.id}:`);
-        console.log(bundle.code);
-      });
-
-      console.log('\nClient Bundles:');
-      clientBundles.forEach(bundle => {
-        console.log(`\n${bundle.id}:`);
-        console.log(bundle.code);
+        },
       });
     } catch (error) {
       console.trace(error);
@@ -105,7 +104,7 @@ describe("Server Action Build Exclusion", () => {
     // Check that client bundles contain createServerReference instead of raw server actions
     for (const bundle of clientBundles) {
       // Client bundles should contain createServerReference for server actions
-      if (bundle.id.includes('actions.server')) {
+      if (bundle.id.includes("actions.server")) {
         expect(bundle.code).not.toContain("registerServerReference");
       }
     }
@@ -115,5 +114,4 @@ describe("Server Action Build Exclusion", () => {
       expect(bundle.code).not.toContain("createRoot");
     }
   });
-  
-}); 
+});

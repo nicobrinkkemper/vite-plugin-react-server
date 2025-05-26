@@ -53,7 +53,7 @@ describe("RSC Server", () => {
       response = await handleRSCStream(pageURL);
       response2 = await handleRSCStream(pageURL2);
     } catch (error) {
-      console.log("error", error);
+      throw error;
     }
   });
 
@@ -94,9 +94,7 @@ describe("RSC Server", () => {
     expect(response.result).toContain(
       `[["Page","${testDir}/src/page/page.tsx",`
     );
-    expect(response.result).not.toContain(
-      `$undefined`
-    );
+    expect(response.result).not.toContain(`$undefined`);
   });
 
   it("should handle no props at all", async () => {
@@ -110,9 +108,9 @@ describe("RSC Server", () => {
     expect(response2.result).toContain(
       `[["Page","${testDir}/src/page2/page.tsx",`
     );
-    expect(response2.result).toContain(`{"children":["Home Page for ","/page2"]}`);
-    expect(response2.result).not.toContain(
-      `$undefined`
+    expect(response2.result).toContain(
+      `{"children":["Home Page for ","/page2"]}`
     );
+    expect(response2.result).not.toContain(`$undefined`);
   });
 });

@@ -1,5 +1,5 @@
 import React from "react";
-import { ClientComponent } from "./ClientComponent.client-CSo8h7Zj.js";
+import { ClientComponent } from "./ClientComponent.client-B3zzXAO4.js";
 import "react-server-dom-esm/server.node";
 async function Page({ add, subtract }) {
   const addResult = await add(2, 3);

@@ -22,8 +22,7 @@ export async function setupIndexHTML(testDir: string) {
 export async function setupClientTSX(testDir: string) {
   await writeFile(
     resolve(testDir, "src/client.tsx"),
-    `"use client"
-  import React from 'react'
+    `import React from 'react'
   import { createRoot } from 'react-dom/client'
   const root = createRoot(document.getElementById('root')!)
   root.render(<div>Client App</div>)
@@ -99,7 +98,6 @@ export function Page(props: any) {
 }
 
 export async function setupPageTSX2(testDir: string) {
-
   await mkdir(resolve(testDir, "src/page2"), { recursive: true });
   await writeFile(
     resolve(testDir, "src/page2/props.ts"),
@@ -454,9 +452,7 @@ return (
     resolve(testDir, "src", "page", "props.ts"),
     `export const props = ()=>import.meta.env;`
   );
-
 }
-
 
 export async function setupTestProjectPropsVariations(testDir: string) {
   // Create base directories
@@ -511,5 +507,4 @@ return (
 );
 }`
   );
-
 }

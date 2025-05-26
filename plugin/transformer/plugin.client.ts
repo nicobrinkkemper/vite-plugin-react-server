@@ -72,7 +72,7 @@ export function reactTransformPlugin<
           code: code,
           map: null,
         };
-      } else if (id.includes("/" + userOptions.moduleBasePath + "/")) {
+      } else if (id.includes("/" + userOptions.moduleBase + "/")) {
         return {
           code: "",
           map: null,
