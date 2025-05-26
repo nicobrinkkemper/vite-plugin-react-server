@@ -1,12 +1,18 @@
 import { createRenderMetrics } from "../helpers/metrics.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
-import type { CreateHandlerOptions, RenderPageResult } from "../types.js";
+import type {
+  CreateHandlerOptions,
+  RenderPageResult,
+  PagePropOpt,
+} from "../types.js";
 import { renderStreams } from "./renderStreams.js";
 import { collectHtmlWorkerContent } from "./collectHtmlWorkerContent.js";
 import { collectRscContent } from "./collectRscContent.js";
 
-export async function* renderPage<T = unknown, InlineCSS extends boolean | undefined = undefined>(
-  handlerOptions: CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>
+export async function* renderPage<
+  T extends PagePropOpt = PagePropOpt
+>(
+  handlerOptions: CreateHandlerOptions<T>
 ): AsyncGenerator<RenderPageResult, void, unknown> {
   if (!handlerOptions.pagePath) {
     yield {
@@ -41,7 +47,7 @@ export async function* renderPage<T = unknown, InlineCSS extends boolean | undef
       ...handlerOptions,
       PageComponent,
       pageProps,
-    } as CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>;
+    } as CreateHandlerOptions<T>;
     // Create streams with CSS files
     const [rscFull, rscHeadless] = await renderStreams(newHandlerOptions);
     // Handle stream creation errors

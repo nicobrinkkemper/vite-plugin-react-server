@@ -9,9 +9,12 @@ import { workerData } from "node:worker_threads";
 import { React } from "../../vendor/vendor.server.js";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
+import type { PagePropOpt } from "../../types.js";
 
-export async function handleRender(
-  msg: RscRenderMessage,
+export async function handleRender<
+  T extends PagePropOpt = PagePropOpt
+>(
+  msg: RscRenderMessage<T>,
   handlers: StreamHandlers
 ) {
   let {
@@ -73,11 +76,11 @@ export async function handleRender(
     }
 
     // Create stream
-    const streamResult = createRscStream({
+    const streamResult = await createRscStream({
       projectRoot: projectRoot,
       Html: React.Fragment,
-      PageComponent: PageComponent,
-      CssCollector: CssCollector,
+      PageComponent,
+      CssCollector,
       pageProps,
       moduleBase,
       moduleRootPath,

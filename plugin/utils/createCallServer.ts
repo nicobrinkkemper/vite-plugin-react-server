@@ -1,10 +1,12 @@
 import {
   createFromFetch,
   encodeReply,
-  // @ts-ignore
 } from "react-server-dom-esm/client.browser";
 
-type ServerResponse = { returnValue: unknown };
+interface ServerActionResponse {
+  returnValue: unknown;
+  type: 'server-action-response';
+}
 
 export const createCallServer = (moduleBaseURL: string) => {
   const callServer = async (_id: string, args: unknown[]): Promise<unknown> => {
@@ -19,8 +21,13 @@ export const createCallServer = (moduleBaseURL: string) => {
       }),
       { callServer, moduleBaseURL }
     );
-    const returnValue = (response as ServerResponse).returnValue;
-    return returnValue;
+    
+    // Check if this is a server action response
+    if (response && typeof response === 'object' && 'returnValue' in response) {
+      return (response as ServerActionResponse).returnValue;
+    }
+    
+    return response;
   };
   return callServer;
 };

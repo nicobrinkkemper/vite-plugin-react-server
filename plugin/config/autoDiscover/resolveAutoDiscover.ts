@@ -1,5 +1,10 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../../types.js";
+import type {
+  ResolvedUserOptions,
+  AutoDiscoveredFiles,
+  PagePropOpt,
+  InlineCssOpt,
+} from "../../types.js";
 import { join } from "path";
 import { resolveBuildPages } from "./resolveBuildPages.js";
 import { resolvePages } from "../resolvePages.js";
@@ -14,7 +19,10 @@ const serverFiles = createGlobAutoDiscover("**/*.server.*");
 const cssFiles = createGlobAutoDiscover("**/*.css");
 const jsonFiles = createGlobAutoDiscover("**/*.json");
 
-type ResolveAutoDiscoverProps<T = unknown, InlineCSS extends boolean | undefined = undefined> = {
+type ResolveAutoDiscoverProps<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+> = {
   config: UserConfig;
   configEnv: ConfigEnv;
   userOptions: ResolvedUserOptions<T, InlineCSS>;
@@ -35,7 +43,10 @@ type ResolveAutoDiscoverReturn =
       autoDiscoveredFiles?: never;
     };
 
-export async function resolveAutoDiscover<T = unknown, InlineCSS extends boolean | undefined = undefined>({
+export async function resolveAutoDiscover<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>({
   config,
   configEnv,
   userOptions,
@@ -91,7 +102,7 @@ export async function resolveAutoDiscover<T = unknown, InlineCSS extends boolean
 
   // Load static manifest for client build
   let staticManifest: Manifest = {};
-  if (ssr) {
+  if (ssr && configEnv.command === "build") {
     const staticManifestResult = await tryManifest({
       root: userOptions.projectRoot,
       ssrManifest: false,
@@ -118,7 +129,7 @@ export async function resolveAutoDiscover<T = unknown, InlineCSS extends boolean
     inputs: {},
     userOptions,
   });
-  const serverInputs = await serverFiles({
+  const serverActions = await serverFiles({
     inputs: {},
     userOptions,
   });
@@ -141,8 +152,6 @@ export async function resolveAutoDiscover<T = unknown, InlineCSS extends boolean
     ...configInputRecord,
     ...clientInputs,
     ...clientEntry,
-    ...serverInputs,
-    ...serverEntry,
   };
   // Add inputs based on condition
   const inputs =
@@ -160,6 +169,8 @@ export async function resolveAutoDiscover<T = unknown, InlineCSS extends boolean
           ...agnosticInputs,
           ...cssInputs,
           ...jsonInputs,
+          ...serverActions,
+          ...serverEntry,
         };
   return {
     type: "success",
@@ -171,6 +182,7 @@ export async function resolveAutoDiscover<T = unknown, InlineCSS extends boolean
       clientEntry,
       staticManifest,
       inputs,
+      serverActions,
     },
   };
 }

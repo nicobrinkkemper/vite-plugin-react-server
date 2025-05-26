@@ -6,7 +6,7 @@ const projectRoot = workerData?.projectRoot || process.env["npm_config_local_pre
 const nodeRequire = createRequire(join(projectRoot, "package.json"));
 
 // Import ReactDOM from the project's node_modules
-const ReactDOMServer = nodeRequire("react-server-dom-esm/server");
+const ReactDOMServer = nodeRequire("react-server-dom-esm/server.node");
 const React = nodeRequire("react");
 
 export { ReactDOMServer, React };

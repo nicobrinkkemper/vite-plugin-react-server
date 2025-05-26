@@ -34,6 +34,8 @@ import type {
   RenderPagesResult,
   AutoDiscoveredFiles,
   CssContent,
+  PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
@@ -51,6 +53,7 @@ import { tryManifest } from "../helpers/tryManifest.js";
 import { performance } from "node:perf_hooks";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { baseURL } from "../utils/envUrls.node.js";
+import { readFile } from "node:fs/promises";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -60,8 +63,8 @@ if (getCondition() !== "react-server") {
 }
 
 export function reactStaticPlugin<
-  T = unknown,
-  InlineCSS extends boolean | undefined = undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 >(
   options: StreamPluginOptions<T, InlineCSS>
 ): VitePlugin<{
@@ -98,6 +101,10 @@ export function reactStaticPlugin<
       if (config.root && config.root !== userOptions.projectRoot) {
         userOptions.projectRoot = config.root;
       }
+      if(configEnv.command !== "build") {
+        return;
+      }
+      // Initialize autoDiscoveredFiles for both server and client builds
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,
@@ -169,7 +176,7 @@ export function reactStaticPlugin<
         if (!serverManifest) {
           throw new Error("Failed to parse server manifest");
         }
-
+        
         const clientManifestResult = await tryManifest({
           root: userOptions.projectRoot,
           outDir: join(userOptions.build.outDir, userOptions.build.client),
@@ -230,12 +237,20 @@ export function reactStaticPlugin<
           const pageCssMap: Map<string, CssContent> = new Map();
           // Add global styles if they exist
           if (Object.keys(globalCssInputs).length > 0) {
-            for (const [, value] of Object.entries(globalCssInputs)) {
-              const cssContent = await buildLoader(value + "?inline").then(
-                (r) => String(r.default)
+            for (const [key, value] of Object.entries(globalCssInputs)) {
+              let cssContent = await buildLoader(value + "?inline").then((r) =>
+                String(r.default)
               );
-              if (cssContent === "undefined") {
-                throw new Error(`CSS content is undefined for ${value}`);
+              if (cssContent === "undefined" || !cssContent) {
+                cssContent = await readFile(
+                  join(
+                    userOptions.projectRoot,
+                    userOptions.build.outDir,
+                    userOptions.build.static,
+                    key + ".css"
+                  ),
+                  "utf-8"
+                ) ?? ""
               }
               if (cssContent) {
                 globalCss.set(
@@ -331,7 +346,7 @@ export function reactStaticPlugin<
         }
         // Render pages
         const { onEvent, ...handlerOptions } = userOptions;
-        const renderPagesGenerator = renderPages<T, InlineCSS>(
+        const renderPagesGenerator = renderPages(
           autoDiscoveredFiles!,
           {
             ...handlerOptions,
@@ -359,6 +374,10 @@ export function reactStaticPlugin<
               client: userOptions.build.client,
             },
             globalCss: globalCss,
+            css: {
+              ...handlerOptions.css,
+              inlineCss: handlerOptions.css?.inlineCss ?? true,
+            },
           },
           cssFilesByPage
         );

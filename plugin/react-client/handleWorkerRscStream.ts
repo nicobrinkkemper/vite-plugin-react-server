@@ -21,7 +21,7 @@ export function handleWorkerRscStream({
   message: Omit<RscRenderMessage, "type" | "id">,
   logger: Logger,
   handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate"> &
-    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd">>,
+    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd" | "onServerAction" | "onServerActionResponse">>,
   verbose?: boolean
 }): ReadableStream<Uint8Array> {
   // Create a ReadableStream from the async generator
@@ -34,7 +34,17 @@ export function handleWorkerRscStream({
           worker,
           message,
           logger,
-          handlers,
+          handlers: {
+            ...handlers,
+            onServerAction: (id: string, args: unknown[]) => {
+              if (verbose) logger.info(`Received server action ${id}`);
+              handlers.onServerAction?.(id, args);
+            },
+            onServerActionResponse: (id: string, result?: unknown, error?: string) => {
+              if (verbose) logger.info(`Received server action response ${id}`);
+              handlers.onServerActionResponse?.(id, result, error);
+            }
+          },
           verbose
         })) {
           if (!isFlowing) {

@@ -1,6 +1,8 @@
 import type { ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
+  InlineCssOpt,
+  PagePropOpt,
   RenderMetrics,
   RequestHandler,
   ResolvedUserOptions,
@@ -24,8 +26,8 @@ import { ReadableStream } from "node:stream/web";
  * @param userOptions - The user options
  */
 export async function configureWorkerRequestHandler<
-  T = unknown,
-  InlineCSS extends boolean | undefined = undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 >({
   server,
   autoDiscoveredFiles,

@@ -246,7 +246,9 @@ export function createInputNormalizer({
         ? virtualPrefix[0] + normalizedPath
         : normalizedPath
       : normalizedPath;
-
+    if(virtualPrefix){
+      return ['', ''];
+    }
     return [key, finalPath];
   };
   return stashedNormalizer;

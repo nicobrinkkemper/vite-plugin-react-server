@@ -3,6 +3,8 @@ import type {
   ResolvedUserConfig,
   ResolvedUserOptions,
   AutoDiscoveredFiles,
+  PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
@@ -10,7 +12,10 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
-export type ResolveUserConfigProps<T = unknown, InlineCSS extends boolean | undefined = undefined> = {
+export type ResolveUserConfigProps<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+> = {
   condition: "react-client" | "react-server";
   config: UserConfig;
   configEnv: ConfigEnv;
@@ -22,7 +27,10 @@ export type ResolveUserConfigReturn =
   | { type: "success"; userConfig: ResolvedUserConfig }
   | { type: "error"; error: Error };
 
-export function resolveUserConfig<T = unknown, InlineCSS extends boolean | undefined = undefined>({
+export function resolveUserConfig<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>({
   condition,
   config,
   configEnv,
@@ -62,6 +70,9 @@ export function resolveUserConfig<T = unknown, InlineCSS extends boolean | undef
     fallback: (info: T, ssr: boolean) => string,
     ssr: boolean
   ) => {
+    if('source' in info && info.source === '') {
+      return '';
+    }
     if (!ssr || !input) {
       return fallback(info, false);
     }
@@ -157,6 +168,7 @@ export function resolveUserConfig<T = unknown, InlineCSS extends boolean | undef
     : pluginOutput;
   const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
   const mode = config.mode ?? process.env["VITE_MODE"];
+  console.log({mode})
   const minify = config.build?.minify;
 
   const srrConfig = {
@@ -234,6 +246,7 @@ export function resolveUserConfig<T = unknown, InlineCSS extends boolean | undef
       // client build options
       build: {
         ...config.build,
+        modulePreload: config.build?.modulePreload ?? false,
         emptyOutDir: config.build?.emptyOutDir ?? true,
         outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
@@ -285,6 +298,7 @@ export function resolveUserConfig<T = unknown, InlineCSS extends boolean | undef
       // server build options
       build: {
         ...config.build,
+        modulePreload: config.build?.modulePreload ?? false,
         emptyOutDir: config.build?.emptyOutDir ?? true,
         outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         target: config.build?.target ?? "node18",

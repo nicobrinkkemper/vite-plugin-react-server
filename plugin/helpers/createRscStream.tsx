@@ -1,11 +1,14 @@
 import { React, ReactDOMServer } from "../vendor/vendor.server.js";
-import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import type {
+  CreateHandlerOptions,
+  StreamMetrics,
+  PagePropOpt,
+} from "../types.js";
 import { performance } from "node:perf_hooks";
 
+
 export function createRscStream<
-  T = unknown,
-  C extends React.ComponentType<T> = React.ComponentType<T>,
-  InlineCSS extends boolean | undefined = undefined
+  T extends PagePropOpt = PagePropOpt
 >({
   Html = React.Fragment,
   PageComponent,
@@ -23,7 +26,7 @@ export function createRscStream<
   onEvent,
   projectRoot,
 }: Pick<
-  CreateHandlerOptions<T, C, InlineCSS>,
+  CreateHandlerOptions<T>,
   | "Html"
   | "PageComponent"
   | "pageProps"
@@ -67,9 +70,13 @@ export function createRscStream<
     }
 
     const elements = htmlIsFragment ? (
-      <CssCollector as={React.Fragment} cssFiles={cssFiles} pageProps={pageProps as T}>
-        <PageComponent {...(pageProps as any)} />
-      </CssCollector>
+      <CssCollector
+        key={route}
+        as={React.Fragment}
+        cssFiles={cssFiles}
+        pageProps={pageProps}
+        Page={PageComponent}
+      />
     ) : (
       <Html
         moduleBase={moduleBase}
@@ -79,14 +86,13 @@ export function createRscStream<
         projectRoot={projectRoot}
         url={url}
         route={route}
-        pageProps={pageProps as T}
+        pageProps={pageProps}
         cssFiles={cssFiles}
         globalCss={globalCss}
-        CssCollector={CssCollector as any}
+        CssCollector={CssCollector}
         manifest={manifest}
-      >
-        <PageComponent {...(pageProps as any)} />
-      </Html>
+        Page={PageComponent}
+      />
     );
     const stream = ReactDOMServer.renderToPipeableStream(
       elements,

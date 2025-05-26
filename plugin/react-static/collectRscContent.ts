@@ -1,8 +1,8 @@
 /**
  * rscHandler.ts
- * 
+ *
  * PURPOSE: Handles collecting RSC content from the rscHeadless stream
- * 
+ *
  * This module:
  * 1. Collects RSC content from the rscHeadless stream
  * 2. Returns the complete RSC content when the stream is done
@@ -12,20 +12,28 @@
 import { PassThrough, Transform } from "node:stream";
 import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
-import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import type {
+  CreateHandlerOptions,
+  StreamMetrics,
+  PagePropOpt,
+  InlineCssOpt,
+} from "../types.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { fileWriter } from "./fileWriter.js";
 
 /**
  * Collects RSC content from the rscHeadless stream
- * 
+ *
  * @param rscStream The stream containing the RSC content
  * @param handlerOptions The options for the handler
  * @returns A promise that resolves with the complete RSC content and metrics
  */
-export async function collectRscContent<T = unknown, InlineCSS extends boolean | undefined = undefined>(
+export async function collectRscContent<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(
   rscStream: PassThrough,
-  handlerOptions: CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>
+  handlerOptions: CreateHandlerOptions<T, InlineCSS>
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   const metrics = createStreamMetrics();
   const startTime = performance.now();
@@ -51,7 +59,7 @@ export async function collectRscContent<T = unknown, InlineCSS extends boolean |
     flush(callback) {
       metrics.duration = performance.now() - startTime;
       callback();
-    }
+    },
   });
 
   try {
@@ -63,7 +71,7 @@ export async function collectRscContent<T = unknown, InlineCSS extends boolean |
 
     // Wait for stream to complete
     await new Promise<void>((resolve) => {
-      metricsTransform.on('end', resolve);
+      metricsTransform.on("end", resolve);
     });
 
     // Wait for file writing to complete
@@ -74,4 +82,4 @@ export async function collectRscContent<T = unknown, InlineCSS extends boolean |
     metricsTransform.destroy();
     throw error;
   }
-} 
+}

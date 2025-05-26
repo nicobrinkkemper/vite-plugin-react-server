@@ -11,17 +11,20 @@ type MessageHandlerContext = {
 export function createMessageHandler({
   handlers,
   logger,
-  verbose = false
+  verbose = false,
 }: MessageHandlerContext) {
   return (message: RscWorkerOutputMessage | undefined) => {
     if (!message) {
-      logger.warn("[react-client] Received undefined message from worker");
+      logger.warn("Received undefined message");
       return;
     }
-    if(verbose) logger.info('new message '+message.type)
+
     switch (message.type) {
       case "READY":
         if(verbose) logger.info("[react-client] Worker is ready");
+        break;
+      case "ERROR":
+        handlers.onError(message.error, message.errorInfo);
         break;
       case "RSC_CHUNK":
         handlers.onData(message.chunk);
@@ -29,21 +32,23 @@ export function createMessageHandler({
       case "RSC_END":
         handlers.onEnd();
         break;
-      case "ERROR":
-        handlers.onError(message.error, message.errorInfo);
-        break;
       case "RSC_METRICS":
         handlers.onMetrics(message.metrics);
         break;
       case "HMR_ACCEPT":
-        handlers.onHmrAccept(message.routes ?? []);
+        handlers.onHmrAccept(message.routes);
         break;
       case "HMR_UPDATE":
-        handlers.onHmrUpdate(message.routes ?? []);
+        handlers.onHmrUpdate(message.routes);
+        break;
+      case "SERVER_ACTION":
+        handlers.onServerAction?.(message.id, message.args);
+        break;
+      case "SERVER_ACTION_RESPONSE":
+        handlers.onServerActionResponse?.(message.id, message.result, message.error);
         break;
       default:
-        logger.warn(`Unknown worker output message type: ${message.type}`);
-        break;
+        logger.warn(`Unknown worker output message type: ${(message as { type: string }).type}`);
     }
   };
 }

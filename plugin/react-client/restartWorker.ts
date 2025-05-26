@@ -23,7 +23,7 @@ export async function restartWorker({
     hmrChannel: MessageChannel,
   }) {
     if (isRestarting) {
-      throw new Error('Worker is restarting')
+      return currentWorker;
     }
     isRestarting = true;
   
@@ -36,6 +36,23 @@ export async function restartWorker({
       const routeCount = autoDiscoveredFiles.urlMap.size;
       const hmrBuffer = 20; // Buffer for HMR and other operations
       const maxListeners = routeCount + hmrBuffer;
+
+      // Load server actions
+      const serverActions = new Map();
+      try {
+        for (const [id, module] of Object.entries(autoDiscoveredFiles.serverActions)) {
+          const actions = await import(module);
+          for (const [name, action] of Object.entries(actions)) {
+            if (typeof action === "function") {
+              serverActions.set(`${id}#${name}`, action);
+            }
+          }
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`Failed to load server actions: ${errorMessage}`);
+      }
+
       const workerResult = await createWorker({
         projectRoot: server.config.root,
         workerPath: userOptions.rscWorkerPath,
@@ -52,6 +69,7 @@ export async function restartWorker({
           hmrPort: hmrChannel.port2,
           resolvedConfig: serializedDevServerConfig(server.config),
           userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
+          serverActions,
         },
         transferList: [hmrChannel.port2],
       });

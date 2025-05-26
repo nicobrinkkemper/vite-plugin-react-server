@@ -57,24 +57,50 @@ export async function messageHandler(
         metrics,
       } satisfies RscWorkerOutputMessage);
     },
-    onHmrAccept: (routes: string[]) => {
+    onHmrAccept: (routes?: string[]) => {
       port.postMessage({
         type: "HMR_ACCEPT",
         id: (msg as HmrAcceptMessage).id,
         routes: routes,
       });
     },
-    onHmrUpdate: (routes: string[]) => {
+    onHmrUpdate: (routes?: string[]) => {
       port.postMessage({
         type: "HMR_UPDATE",
         id: msg.id,
         routes: routes,
       });
     },
+    onServerAction: async (id: string, args: unknown[]) => {
+      try {
+        // Get the server action function from the worker data
+        const serverAction = workerData.serverActions?.[id];
+        if (!serverAction) {
+          throw new Error(`Server action ${id} not found`);
+        }
+        // Execute the server action
+        const result = await serverAction(...args);
+        // Send the result back
+        port.postMessage({
+          type: "SERVER_ACTION_RESPONSE",
+          id,
+          result,
+        } satisfies RscWorkerOutputMessage);
+      } catch (error) {
+        // Send error back
+        port.postMessage({
+          type: "SERVER_ACTION_RESPONSE",
+          id,
+          error: error instanceof Error ? error.message : String(error),
+        } satisfies RscWorkerOutputMessage);
+      }
+    },
   };
   switch (msg.type) {
     case "RSC_RENDER":
       return await handleRender(msg, handlers);
+    case "SERVER_ACTION":
+      return handlers.onServerAction?.(msg.id, msg.args);
     case "INITIALIZED_REACT_LOADER":
       return;
     case "INITIALIZED_CSS_LOADER":

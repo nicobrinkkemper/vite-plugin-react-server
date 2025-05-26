@@ -13,6 +13,8 @@ import type {
   BuildTiming,
   ReactStreamPluginMeta,
   ResolvedUserOptions,
+  PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import {
@@ -31,7 +33,10 @@ if (getCondition() !== "react-server") {
       process.env["NODE_OPTIONS"]
   );
 }
-export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
+export function reactServerPlugin<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(options: StreamPluginOptions<T, InlineCSS>): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
   const timing: BuildTiming = {
@@ -39,7 +44,7 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
   };
 
   let autoDiscoveredFiles: AutoDiscoveredFiles;
-  let userOptions: ResolvedUserOptions;
+  let userOptions: ResolvedUserOptions<T, InlineCSS>;
   let serverManifest: Manifest = {};
 
   const resolvedOptions = resolveOptions(options);

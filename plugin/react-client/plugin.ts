@@ -1,6 +1,8 @@
 import { type ConfigEnv, type Plugin } from "vite";
 import type {
   AutoDiscoveredFiles,
+  InlineCssOpt,
+  PagePropOpt,
   ResolvedUserConfig,
   ResolvedUserOptions,
   StreamPluginOptions,
@@ -13,8 +15,8 @@ import { configurePreviewServer } from "../react-static/configurePreviewServer.j
 import { MessageChannel } from "node:worker_threads";
 
 export function reactClientPlugin<
-  T = unknown,
-  InlineCSS extends boolean | undefined = undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 >(options: StreamPluginOptions<T, InlineCSS>): Plugin {
   let userOptions: ResolvedUserOptions<T, InlineCSS>;
   let userConfig: ResolvedUserConfig;

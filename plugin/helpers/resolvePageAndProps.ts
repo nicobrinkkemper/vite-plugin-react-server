@@ -1,3 +1,4 @@
+import type { PageComponentType, PagePropOpt } from "../types.js";
 import { resolvePage } from "./resolvePage.js";
 import { resolveProps } from "./resolveProps.js";
 
@@ -10,11 +11,11 @@ type ResolvePageAndPropsOptions<N1 extends string, N2 extends string> = {
   loader: (id: string) => Promise<any>;
 };
 
-type ResolvePageAndPropsResult<T = unknown> =
+type ResolvePageAndPropsResult<T extends PagePropOpt = PagePropOpt> =
   | {
       type: "success";
       error?: never;
-      PageComponent: React.ComponentType<T>;
+      PageComponent: PageComponentType<T>;
       pageProps: T;
     }
   | {
@@ -31,9 +32,9 @@ type ResolvePageAndPropsResult<T = unknown> =
     };
 
 export async function resolvePageAndProps<
-  T,
-  N1 extends string,
-  N2 extends string
+  T extends PagePropOpt = PagePropOpt,
+  N1 extends string = string,
+  N2 extends string = string
 >(
   handlerOptions: ResolvePageAndPropsOptions<N1, N2>
 ): Promise<ResolvePageAndPropsResult<T>> {
@@ -72,7 +73,7 @@ export async function resolvePageAndProps<
     const { props } = resolvePropsResult;
     return {
       type: "success",
-      PageComponent: Page as React.ComponentType<T>,
+      PageComponent: Page as PageComponentType<T>,
       pageProps: props as T,
     };
   } catch (error) {

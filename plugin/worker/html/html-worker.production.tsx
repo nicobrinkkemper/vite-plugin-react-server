@@ -23,6 +23,7 @@ register(cssLoaderPath, {
 parentPort?.on("message", messageHandler);
 parentPort?.postMessage({
   type: "READY",
+  id: "html-worker",
   env: process.env["NODE_ENV"],
   pid: process.pid,
 } satisfies ReadyMessage);

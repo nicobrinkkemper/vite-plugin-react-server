@@ -2,6 +2,8 @@ import type { ResolvedConfig, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   ResolvedUserOptions,
+  PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { cleanObject } from "./cleanObject.js";
 
@@ -173,7 +175,7 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
 };
 
 // For your own options (if you need custom non-serializable functions)
-export const serializedOptions = <T = unknown, InlineCSS extends boolean | undefined = undefined>(
+export const serializedOptions = <T extends PagePropOpt = PagePropOpt, InlineCSS extends InlineCssOpt = InlineCssOpt>(
   userOptions: ResolvedUserOptions<T, InlineCSS>,
   autoDiscoveredFiles: AutoDiscoveredFiles,
   customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS

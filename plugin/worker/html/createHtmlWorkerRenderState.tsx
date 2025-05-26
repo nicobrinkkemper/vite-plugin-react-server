@@ -1,15 +1,15 @@
 import type { HtmlWorkerRenderState } from "./types.js";
 import { PassThrough } from "stream";
-import { workerData } from "node:worker_threads";
-import type { AllReadyMessage, SerializeableRenderToPipeableStreamOptions } from "../types.js";
+import { workerData, parentPort } from "node:worker_threads";
+import type { SerializeableRenderToPipeableStreamOptions } from "../types.js";
 import { type ErrorInfo } from "react";
-import { createFromNodeStream } from "react-server-dom-esm/client.node";
 import { Transform } from "node:stream";
 import type { HtmlWorkerOutputMessage } from "../types.js";
 import { join } from "node:path";
 import type { StreamMetrics } from "../../types.js";
-import { ReactDOMServer } from "../../vendor/vendor.client.js";
+import { ReactDOMServer, ReactDOMClient } from "../../vendor/vendor.client.js";
 
+type CallServerCallback = (id: string, args: unknown[]) => Promise<unknown>;
 
 const createMetrics = (): StreamMetrics => {
   return {
@@ -47,7 +47,31 @@ export function createHtmlWorkerRenderState(
   if(!moduleRootPath.endsWith('/')) {
     moduleRootPath = moduleRootPath + '/';
   }
-  const elements = createFromNodeStream(rscStream, moduleRootPath, moduleBaseURL);
+  const elements = ReactDOMClient.createFromNodeStream(rscStream, moduleRootPath, moduleBaseURL, {
+    callServer: (async (id: string, args: unknown[]) => {
+      // Forward server action calls back to the main thread
+      sendMessage({
+        type: "SERVER_ACTION",
+        id,
+        args
+      } as HtmlWorkerOutputMessage);
+      console.log('[html-worker] callServer', id, args);
+      // Wait for response
+      return new Promise((resolve, reject) => {
+        const handler = (msg: any) => {
+          if (msg.type === "SERVER_ACTION_RESPONSE" && msg.id === id) {
+            parentPort?.removeListener("message", handler);
+            if (msg.error) {
+              reject(new Error(msg.error));
+            } else {
+              resolve(msg.result);
+            }
+          }
+        };
+        parentPort?.on("message", handler);
+      });
+    }) as CallServerCallback
+  });
   const metrics = createMetrics();
   const htmlTransform = new Transform({
     transform(chunk, encoding, callback) {
@@ -69,7 +93,7 @@ export function createHtmlWorkerRenderState(
         id,
         success: true,
         metrics: metrics,
-      });
+      } satisfies HtmlWorkerOutputMessage);
       callback();
     },
   })
@@ -80,7 +104,7 @@ export function createHtmlWorkerRenderState(
       sendMessage({
         type: "ALL_READY",
         id,
-      } satisfies AllReadyMessage);
+      } satisfies HtmlWorkerOutputMessage);
     },
     onError: (error: unknown, errorInfo: ErrorInfo) => {
       sendMessage({

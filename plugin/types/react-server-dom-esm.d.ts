@@ -1,17 +1,140 @@
+declare module 'react-server-dom-esm/client' {
+  export interface Options {
+    callServer?: (id: string, args: any[]) => Promise<any>;
+    moduleBaseURL?: string;
+    temporaryReferences?: Map<any, any>;
+    signal?: AbortSignal;
+  }
+
+  export function createFromFetch(
+    promiseForResponse: Promise<Response>,
+    options?: Options
+  ): Promise<any>;
+
+  export function createFromReadableStream(
+    stream: ReadableStream,
+    options?: Options
+  ): Promise<any>;
+
+  export function createServerReference(
+    id: string,
+    callServer?: (id: string, args: any[]) => Promise<any>
+  ): (...args: any[]) => Promise<any>;
+
+  export function createTemporaryReferenceSet(): Map<any, any>;
+
+  export function encodeReply(
+    value: unknown,
+    options?: {
+      callServer?: (id: string, args: unknown[]) => Promise<unknown>;
+      temporaryReferences?: Map<unknown, unknown>;
+      signal?: AbortSignal;
+    }
+  ): Promise<FormData>;
+
+  export function registerServerReference(
+    reference: (...args: any[]) => Promise<any>,
+    id: string
+  ): void;
+}
+
+declare module 'react-server-dom-esm/server' {
+  export interface Options {
+    callServer?: (id: string, args: any[]) => Promise<any>;
+    moduleBasePath?: string;
+  }
+
+  export function createTemporaryReferenceSet(): {
+    add: (value: any) => void;
+    has: (value: any) => boolean;
+  };
+
+  export function decodeAction(
+    body: Uint8Array | string,
+    serverManifest: any
+  ): Promise<any>;
+
+  export function decodeFormState(
+    actionResult: any,
+    body: Uint8Array | string,
+    serverManifest: any
+  ): Promise<any>;
+
+  export function decodeReply(
+    body: Uint8Array | string,
+    moduleBasePath: string,
+    options?: Options
+  ): Promise<any>;
+
+  export function decodeReplyFromBusboy(
+    busboy: any,
+    moduleBasePath: string,
+    options?: Options
+  ): Promise<any>;
+
+  export function registerClientReference(
+    reference: any,
+    id: string,
+    exportName?: string
+  ): void;
+
+  export function registerServerReference(
+    reference: any,
+    id: string,
+    exportName?: string
+  ): void;
+
+  export function renderToPipeableStream(
+    model: React.ReactNode,
+    moduleBasePath: string,
+    options?: Options
+  ): {
+    pipe: (writable: NodeJS.WritableStream) => void;
+    abort: () => void;
+  };
+
+  export function unstable_prerenderToNodeStream(
+    model: React.ReactNode,
+    moduleBasePath: string,
+    options?: Options
+  ): NodeJS.ReadableStream;
+}
+
+declare module 'react-server-dom-esm/client.browser' {
+  export function createFromFetch(
+    promiseForResponse: Promise<Response>,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      callClient?: (id: string, args: any[]) => Promise<any>;
+      moduleBaseURL?: string;
+    }
+  ): Promise<React.ReactNode>;
+
+  export function createFromReadableStream(
+    stream: ReadableStream,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      callClient?: (id: string, args: any[]) => Promise<any>;
+      moduleBaseURL?: string;
+    }
+  ): Promise<React.ReactNode>;
+
+  export function encodeReply(
+    value: unknown,
+    options?: {
+      callServer?: (id: string, args: unknown[]) => Promise<unknown>;
+      callClient?: (id: string, args: unknown[]) => Promise<unknown>;
+      moduleBaseURL?: string;
+      signal?: AbortSignal;
+    }
+  ): Promise<FormData>;
+}
+
 declare module 'react-server-dom-esm/server.node' {
-  import { ReactElement, type Usable } from 'react';
-  import { Writable } from 'stream';
+  import { ReactElement } from 'react';
 
-  export function createTemporaryReferenceSet(): WeakMap<any, any>;
+  export function createTemporaryReferenceSet(): Set;
 
-  /* example
-         options ? options.onError : void 0,
-+          options ? options.identifierPrefix : void 0,
-+          options ? options.onPostpone : void 0,
-+          options ? options.temporaryReferences : void 0,
-+          options ? options.environmentName : void 0,
-+          options ? options.filterStackFrame : void 0,
-*/
   export interface ReactServerDomEsmRenderToPipeableStreamOptions {
     onError?: (error: Error, errorInfo: any) => void;
     identifierPrefix?: string;
@@ -22,25 +145,57 @@ declare module 'react-server-dom-esm/server.node' {
     importMap?: {
       imports?: Record<string, string>;
     };
+    callServer?: (id: string, args: any[]) => Promise<any>;
+    callClient?: (id: string, args: any[]) => Promise<any>;
   }
+
   export function renderToPipeableStream(
     element: ReactElement,
     moduleBasePath: string,
     options?: ReactServerDomEsmRenderToPipeableStreamOptions
-  ): PipeableStream;
-  export function decodeReplyFromBusboy(busboyStream: any): Promise<unknown>;
-  export function decodeReply(reply: string): Promise<unknown>;
-  export function decodeAction(action: string): Promise<unknown>;
-  export function decodeFormState(formState: string): Promise<unknown>;
-  export function registerServerReference(proxy: any, id: string): void;
-  export function registerClientReference(proxy: any, id: string): void;
-
-
-  export interface PipeableStream {
-    pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => Writable;
+  ): {
+    pipe: (writable: NodeJS.WritableStream) => void;
     abort: () => void;
-  }
-} 
+  };
+
+  export function decodeReply(
+    body: Uint8Array | string,
+    moduleBasePath: string,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      callClient?: (id: string, args: any[]) => Promise<any>;
+    }
+  ): Promise<any>;
+
+  export function decodeAction(
+    body: Uint8Array | string,
+    serverManifest: any
+  ): Promise<any>;
+
+  export function decodeFormState(
+    actionResult: any,
+    body: Uint8Array | string,
+    serverManifest: any
+  ): Promise<any>;
+
+  export function decodeReplyFromBusboy(
+    busboy: any,
+    moduleBasePath: string,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      callClient?: (id: string, args: any[]) => Promise<any>;
+    }
+  ): Promise<any>;
+
+  export function unstable_prerenderToNodeStream(
+    model: React.ReactNode,
+    moduleBasePath: string,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      callClient?: (id: string, args: any[]) => Promise<any>;
+    }
+  ): NodeJS.ReadableStream;
+}
 
 declare module 'react-server-dom-esm/client.node' {
   import { ReactElement } from 'react';
@@ -49,6 +204,19 @@ declare module 'react-server-dom-esm/client.node' {
   export interface CreateFromNodeStreamOptions {
     nonce?: string;
     encodeFormAction?: (id: string, boundPromise: Promise<unknown>) => string;
+    callServer?: (id: string, args: unknown[]) => Promise<unknown>;
   }
-  export function createFromNodeStream(stream: NodeJS.ReadableStream, moduleRootPath: string, moduleBaseURL: string, options?: CreateFromNodeStreamOptions): Usable;
+  export function createFromNodeStream(
+    stream: NodeJS.ReadableStream,
+    options?: {
+      moduleMap?: Record<string, any>;
+      moduleLoading?: {
+        loadModule: (id: string) => Promise<any>;
+      };
+    }
+  ): Promise<any>;
+}
+
+declare module 'react-server-dom-esm/client' {
+  // No exports
 }

@@ -1,24 +1,27 @@
 import React from "react";
-import type { HtmlProps } from "../types.js";
+import type { HtmlComponentType } from "../types.js";
 import { CssCollectorElements } from "./css-collector-elements.js";
-export const Html = <
-  T = unknown,
-  InlineCSS extends boolean | undefined = undefined
->({
+
+export const Html: HtmlComponentType = ({
   children,
   CssCollector,
   cssFiles,
   globalCss,
   pageProps,
-}: React.PropsWithChildren<HtmlProps<T, InlineCSS>>) => (
+  Page,
+}) => (
   <html>
     <head>
       <CssCollectorElements cssFiles={globalCss} />
     </head>
     <body>
-      <CssCollector as="div" id="root" cssFiles={cssFiles} pageProps={pageProps}>
-        {children}
-      </CssCollector>
+      <CssCollector
+        as="div"
+        id="root"
+        cssFiles={cssFiles}
+        pageProps={pageProps}
+        Page={Page}
+       />
     </body>
   </html>
 );

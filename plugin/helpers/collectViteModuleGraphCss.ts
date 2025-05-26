@@ -1,5 +1,5 @@
 import type { EnvironmentModuleGraph, ModuleGraph } from "vite";
-import type { CreateHandlerOptions, CssContent } from "../types.js";
+import type { CreateHandlerOptions, CssContent,  InlineCssOpt,  PagePropOpt } from "../types.js";
 import { createCssProps } from "./createCssProps.js";
 
 type CollectViteModuleGraphCssResult =
@@ -29,8 +29,8 @@ type CollectViteModuleGraphCssResult =
     };
 
 export async function collectViteModuleGraphCss<
-  T = unknown,
-  InlineCSS extends boolean | undefined = undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 >({
   moduleGraph,
   onCss,
@@ -41,7 +41,7 @@ export async function collectViteModuleGraphCss<
   onCss?: (cssContent: CssContent, parentUrl: string) => void;
   parentUrl?: string;
   handlerOptions: Pick<
-    CreateHandlerOptions<T, React.ComponentType<T>, InlineCSS>,
+    CreateHandlerOptions<T, InlineCSS>,
     | "pagePath"
     | "moduleBaseURL"
     | "moduleBasePath"

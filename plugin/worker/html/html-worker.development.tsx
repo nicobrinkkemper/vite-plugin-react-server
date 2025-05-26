@@ -23,4 +23,5 @@ parentPort?.postMessage({
   type: "READY",
   env: process.env["NODE_ENV"],
   pid: process.pid,
+  id: "html-worker",
 } satisfies ReadyMessage);

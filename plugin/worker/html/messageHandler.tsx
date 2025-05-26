@@ -1,13 +1,12 @@
-import { parentPort } from "node:worker_threads";
+import { parentPort, workerData } from "node:worker_threads";
 import type {
   HtmlWorkerInputMessage,
   HtmlWorkerOutputMessage,
 } from "../types.js";
-// @ts-ignore
-import * as ReactDOMServer from "react-dom/server.node";
 import type { HtmlWorkerRenderState } from "./types.js";
 import { createHtmlWorkerRenderState } from "./createHtmlWorkerRenderState.js";
 
+const isDev = process.env['NODE_ENV'] !== "production";
 // Track active renders
 const activeRenders = new Map<string, HtmlWorkerRenderState>();
 
@@ -41,8 +40,16 @@ function cleanup(id: string) {
     });
   }
 }
-
+let verbose = workerData.userOptions.verbose;
 export async function messageHandler(msg: HtmlWorkerInputMessage) {
+  if(verbose) {
+    if('chunk' in msg) {
+      let preview = Buffer.from(msg.chunk).toString('utf-8');
+      console.log(`[html-worker:${msg.type}] ${preview}`);
+    } else {
+      console.log(`[html-worker:${msg.type}] ${JSON.stringify(msg)}`);
+    }
+  }
   const { type, id } = msg;
   try {
     switch (type) {
@@ -117,6 +124,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       }
     }
   } catch (error) {
+    if(isDev) console.error("Error in html-worker:", error);
     sendMessage({
       type: "ERROR",
       id,

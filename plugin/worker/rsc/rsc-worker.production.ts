@@ -30,4 +30,4 @@ envLoaderChannel.port2.on("message", messageHandler);
 parentPort.on("message", messageHandler);
 
 // Signal ready
-parentPort.postMessage({ type: "READY", env: process.env["NODE_ENV"], pid: process.pid } satisfies ReadyMessage);
+parentPort.postMessage({ type: "READY", id: "rsc-worker", env: process.env["NODE_ENV"], pid: process.pid } satisfies ReadyMessage);

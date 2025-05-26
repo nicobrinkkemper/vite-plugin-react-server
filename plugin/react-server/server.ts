@@ -1,6 +1,6 @@
 import type { Manifest, ViteDevServer } from "vite";
 import type { ServerResponse } from "http";
-import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
+import type { AutoDiscoveredFiles, InlineCssOpt, PagePropOpt, ResolvedUserOptions } from "../types.js";
 import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
@@ -9,8 +9,12 @@ import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { toError } from "../error/toError.js";
+import { PassThrough } from "stream";
 
-export async function configureReactServer({
+export async function configureReactServer<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>({
   server,
   autoDiscoveredFiles,
   userOptions: _userOptions,
@@ -18,7 +22,7 @@ export async function configureReactServer({
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   serverManifest: Manifest;
 }) {
   const activeStreams = new Set<ServerResponse>();
@@ -34,6 +38,16 @@ export async function configureReactServer({
     moduleBaseURL: server.config.base,
     projectRoot: server.config.root,
   });
+
+  // Set environment-specific configuration
+  const define = {
+    ...server.config.define,
+    'process.env.NODE_ENV': JSON.stringify(process.env['NODE_ENV'] || 'development'),
+  };
+  server.config = {
+    ...server.config,
+    define,
+  };
 
   // Handle Vite server restarts
   server.ws.on("restart", (path) => {
@@ -109,7 +123,7 @@ export async function configureReactServer({
       }
       const { PageComponent, pageProps } = pageAndPropsResult;
       // Create the headless RSC stream directly;
-      const rscResult = await createHandler({
+      const rscResult = createHandler({
         ...handlerOptions,
         PageComponent: PageComponent,
         pageProps: pageProps,

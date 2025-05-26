@@ -1,6 +1,11 @@
 import type { PreRenderedAsset } from "rollup";
 import type { PreRenderedChunk } from "rollup";
-import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
+import type {
+  StreamPluginOptions,
+  ResolvedUserOptions,
+  PagePropOpt,
+  InlineCssOpt,
+} from "../types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
@@ -72,14 +77,13 @@ const registerPath = (
 // ============================================================================
 
 export const resolveOptions = <
-  T = unknown,
-  InlineCSS extends boolean | undefined = boolean | undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 >(
   options: StreamPluginOptions<T, InlineCSS>
 ):
   | { type: "success"; userOptions: ResolvedUserOptions<T, InlineCSS> }
   | { type: "error"; error: Error } => {
-    
   // Basic configuration
   const projectRoot = options.projectRoot ?? process.cwd();
   const {
@@ -331,17 +335,20 @@ export const resolveOptions = <
           if (moduleBasePath !== "" && !id.startsWith(moduleBasePath)) {
             id = join(moduleBasePath, id);
           }
-          if (!id.startsWith("/")) {
-            if (id.startsWith(moduleBase)) {
-              id = id.slice(moduleBase.length);
-            }
-            id = "/" + id;
-          }
-          if (id.startsWith("/" + moduleBase)) {
+          if (
+            !id.startsWith("/") &&
+            process.env["NODE_ENV"] === "production" &&
+            id.startsWith(moduleBase)
+          ) {
+            id = id.slice(moduleBase.length);
+          } else if (
+            process.env["NODE_ENV"] === "production" &&
+            id.startsWith("/" + moduleBase)
+          ) {
             id = id.slice(moduleBase.length + 1);
-            if (!id.startsWith("/")) {
-              id = "/" + id;
-            }
+          }
+          if (!id.startsWith("/")) {
+            id = "/" + id;
           }
           return id;
         };
@@ -487,7 +494,6 @@ export const resolveOptions = <
           inlineCss: options.css?.inlineCss ?? DEFAULT_CONFIG.CSS.inlineCss,
           inlineThreshold:
             options.css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold,
-          purgeCss: options.css?.purgeCss ?? DEFAULT_CONFIG.CSS.purgeCss,
           inlinePatterns:
             options.css?.inlinePatterns ?? DEFAULT_CONFIG.CSS.inlinePatterns,
           linkPatterns:
@@ -498,7 +504,7 @@ export const resolveOptions = <
         loaderPath: loaderPath,
         clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
         serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
-     //   moduleBaseExceptions: options.moduleBaseExceptions ?? [],
+        //   moduleBaseExceptions: options.moduleBaseExceptions ?? [],
         autoDiscover: autoDiscover,
         pipeableStreamOptions,
       } as ResolvedUserOptions<T, InlineCSS>,

@@ -1,4 +1,5 @@
 import type { ResolvedUserOptions, CssContent } from "../types.js";
+import type { InlineCssOpt, PagePropOpt } from "../../server.js";
 import { join, relative } from "node:path";
 import { deserializeRegExp } from "./serializeUserOptions.js";
 
@@ -22,8 +23,8 @@ import { deserializeRegExp } from "./serializeUserOptions.js";
  * @returns A CssContent object
  */
 export const createCssProps = <
-  T = unknown,
-  InlineCSS extends boolean | undefined = undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 >({
   id,
   code,

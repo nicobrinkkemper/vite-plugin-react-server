@@ -12,9 +12,16 @@ export const CssCollectorElements = ({
     ? cssFiles
     : Array.from(cssFiles.values());
   if (!cssFilesArray.length) return null;
-  return cssFilesArray.map((cssFile: CssContent) => {
+  const arr = cssFilesArray.map((cssFile: CssContent) => {
     // Emit style tag for inline CSS
-    const { as: As, id, children, precedence, type, ...rest } = cssFile;
+    const {
+      as: As = React.Fragment,
+      id,
+      children,
+      precedence,
+      type,
+      ...rest
+    } = cssFile;
     if (
       As !== "link" &&
       (typeof children === "string" || React.isValidElement(children))
@@ -23,11 +30,13 @@ export const CssCollectorElements = ({
       // since we can't bubble up the style tags, we need to be creative
       return (
         <As {...rest} type={type ?? "text/css"} key={cssFile.id}>
-          {children}
+          {children ?? null}
         </As>
       );
     }
     // link tag
     return <As {...rest} key={cssFile.id} precedence={precedence} />;
   });
+  if (!arr.length) return null;
+  return arr;
 };

@@ -1,9 +1,12 @@
 import { resolveOptions } from "../config/resolveOptions.js";
-import type { ResolvedUserOptions, StreamPluginOptions } from "../types.js";
+import type { InlineCssOpt, PagePropOpt, ResolvedUserOptions, StreamPluginOptions } from "../types.js";
 import type { Manifest, Plugin } from "vite";
-import { transformModuleIfNeeded } from "../loader/react-loader.js";
+import { transformModuleIfNeeded } from "../loader/react-loader.server.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
+import { setStashedResolve } from "../helpers/moduleResolver.js";
+import type { SourceMapInput } from 'rollup';
+
 /**
  * Plugin for transforming React Client Components.
  *
@@ -28,10 +31,13 @@ import { join } from "node:path";
  * });
  * ```
  */
-let isBuild = true;
+let isBuild = true, isSsr = false;
 
-export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
-  let userOptions: ResolvedUserOptions;
+export function reactTransformPlugin<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(options: StreamPluginOptions<T, InlineCSS>): Plugin {
+  let userOptions: ResolvedUserOptions<T, InlineCSS>;
   const resolvedOptionsResult = resolveOptions(options);
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
   userOptions = resolvedOptionsResult.userOptions;
@@ -42,7 +48,7 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
     name: "vite:react-server-transform",
     enforce: "pre", // Run before Vite's transforms
     async config(_config, configEnv) {
-      isBuild = configEnv.command !== "serve";
+      isBuild = configEnv.command === "build"
       if (isBuild) {
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
@@ -55,17 +61,35 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
         staticManifest = staticManifestResult.manifest;
       }
     },
+    async resolveId(source: string, importer: string | undefined, options: { attributes: Record<string, string>; custom?: any; ssr?: boolean; isEntry: boolean }) {
+      if(!options?.ssr) {
+        return null;
+      } 
+      // Set stashedResolve before any transform operations
+      setStashedResolve(async (specifier: string, context: { importer?: string }) => {
+        try {
+          const resolved = await this.resolve(specifier, importer, {
+            custom: { conditions: ['react-server'] }
+          });
+          if (!resolved) return null;
+          return { id: resolved.id };
+        } catch (error) {
+          console.error('Error resolving module:', specifier, error);
+          return null;
+        }
+      });
+      return null; // Let Vite handle the resolution
+    },
     async transform(code, id, options) {
-      const ssr = options?.ssr;
-      if (!ssr) return null;
-      if (!userOptions.autoDiscover.modulePattern(id)) return null;
-      if (!code.match('"use client"')) return null;
-
+      if(!options?.ssr || !userOptions.autoDiscover.moduleExtension.test(id)) {
+        return null;
+      } 
       const [key, value] = userOptions.normalizer(id);
+      let moduleID = value;
       if (isBuild) {
         if (staticManifest) {
           if (value in staticManifest) {
-            id = userOptions.moduleID(staticManifest[value].file);
+            moduleID = staticManifest[value].file;
           } else {
             const hash = this.emitFile({
               id,
@@ -73,28 +97,25 @@ export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
               fileName: key + ".js",
               name: value,
             });
-            // get fileName from hash
-
             const fileName = this.getFileName(hash);
-            id = userOptions.moduleID(fileName);
+            id = fileName;
           }
         } else {
-          throw new Error(`Client manifest not found.`);
+          throw new Error(`Static manifest not found during dev build.`);
         }
       } else {
+        // For non-SSR builds, just use the normalized path
         id = join(userOptions.moduleBasePath, value);
       }
+      let finalID = userOptions.moduleID(moduleID);
+      // Always transform in server context
       const transformed = await transformModuleIfNeeded(
         code,
-        id,
-        // Pass null for nextLoad since we don't need module loading in the plugin
-        null
+        finalID,
       );
-      if (!transformed) return null;
       return {
-        code: transformed,
-        id: id,
-        map: null,
+        code: transformed.source,
+        map: transformed.sourceMap as SourceMapInput | undefined,
       };
     },
   };

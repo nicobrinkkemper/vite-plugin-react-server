@@ -28,7 +28,7 @@ reactLoaderChannel.port2.on("message", messageHandler);
 cssLoaderChannel.port2.on("message", messageHandler);
 envLoaderChannel.port2.on("message", messageHandler);
 
-const loaderPath = "file://" + join(pluginRoot, "loader/react-loader.js");
+const loaderPath = "file://" + join(pluginRoot, "loader/react-loader.server.js");
 const cssLoaderPath =
   "file://" + join(pluginRoot, "loader/css-loader.development.js");
 const envLoaderPath =
@@ -90,6 +90,7 @@ parentPort!.postMessage({
   type: "READY",
   env: process.env["NODE_ENV"],
   pid: process.pid,
+  id: "rsc-worker"
 } satisfies ReadyMessage);
 
 if (process.env["NODE_ENV"] === "production") {

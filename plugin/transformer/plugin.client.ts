@@ -1,7 +1,11 @@
 import { resolveOptions } from "../config/resolveOptions.js";
-import type { ResolvedUserOptions, StreamPluginOptions } from "../types.js";
-import { type Manifest, type Plugin } from "vite";
-import { transformModuleIfNeeded } from "../loader/react-loader.js";
+import type {
+  InlineCssOpt,
+  PagePropOpt,
+  ResolvedUserOptions,
+  StreamPluginOptions,
+} from "../types.js";
+import type { Manifest, Plugin } from "vite";
 import { join } from "node:path";
 import { tryManifest } from "../helpers/tryManifest.js";
 
@@ -29,85 +33,51 @@ import { tryManifest } from "../helpers/tryManifest.js";
  * });
  * ```
  */
-let isBuild = true;
+let isBuild = true,
+  isSsr: boolean = false;
 
-export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
-  let userOptions: ResolvedUserOptions;
+export function reactTransformPlugin<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(options: StreamPluginOptions<T, InlineCSS>): Plugin {
+  let userOptions: ResolvedUserOptions<T, InlineCSS>;
   const resolvedOptionsResult = resolveOptions(options);
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
   userOptions = resolvedOptionsResult.userOptions;
+
   let staticManifest: Manifest;
 
   return {
-    name: "vite:react-server-action-transform",
-    enforce: "pre",
-    async config(_, configEnv) {
-      isBuild = configEnv.command !== "serve";
-      if (!configEnv.isSsrBuild) {
-        staticManifest = {};
-      } else {
+    name: "vite:react-client-transform",
+    enforce: "pre", // Run before Vite's transforms
+    async config(config, configEnv) {
+      isBuild = configEnv.command === "build";
+      isSsr = configEnv.isSsrBuild || Boolean(config?.build?.ssr);
+      if (isBuild && isSsr) {
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
           ssrManifest: false,
           outDir: join(userOptions.build.outDir, userOptions.build.static),
         });
         if (staticManifestResult.type === "error") {
-          staticManifest = {};
-        } else {
-          staticManifest = staticManifestResult.manifest;
+          throw staticManifestResult.error;
         }
+        staticManifest = staticManifestResult.manifest;
       }
     },
     async transform(code, id, options) {
-      const ssr = options?.ssr;
-      const isServer = code.match('"use server"') !== null;
-      const isClient = code.match('"use client"') !== null;
-      if (!ssr) return null;
-      if (!isServer && !isClient) return null;
-      if (isServer && isClient) {
-        throw new Error(
-          "Server and client components cannot be used in the same file"
-        );
-      }
-      if (isClient || !isServer) {
-        return null;
-      }
-      const [key, value] = userOptions.normalizer(id);
-      if (isBuild) {
-        id = key + ".js";
-      } else {
-        id = value;
-      }
-      const finalID = userOptions.moduleID(id);
-      const transformed = await transformModuleIfNeeded(code, finalID, null);
-      if (!transformed) return null;
-      return {
-        code: transformed,
-        id: finalID,
-        map: null,
-      };
-    },
-    renderChunk(code, chunk, _options) {
-      // Only process client components
-      if (!chunk.fileName.includes(".client")) return null;
-
-      // Get the original file name without extension
-      const originalName = chunk.fileName.replace(userOptions.autoDiscover.moduleExtension, "");
-
-      // Find matching entry in static manifest
-      const manifestEntry = Object.entries(staticManifest).find(([_, info]) =>
-        info.file.startsWith(originalName)
-      );
-
-      if (manifestEntry) {
-        // Use the static manifest's file name
+      const isClientComponent = code?.match(/^"use client"[\s;]*\n?/m);
+      if (id.endsWith(userOptions.clientEntry) || isClientComponent) {
         return {
-          code,
-          fileName: manifestEntry[1].file,
+          code: code,
+          map: null,
+        };
+      } else if (id.includes("/" + userOptions.moduleBasePath + "/")) {
+        return {
+          code: "",
+          map: null,
         };
       }
-
-      return null;
     },
   };
 }

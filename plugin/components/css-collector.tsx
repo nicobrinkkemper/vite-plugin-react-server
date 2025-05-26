@@ -1,27 +1,30 @@
 import React from "react";
-import type { CssCollectorProps } from "../types.js";
+import type {
+  AsOpt,
+  CssCollectorType,
+  InlineCssOpt,
+  PagePropOpt,
+} from "../types.js";
 import { CssCollectorElements } from "./css-collector-elements.js";
 
 /**
- * A component that emits <link> tags for CSS files during streaming.
- * The high precedence ensures they bubble up to the document head.
+ * A upgraded Root component that adds the cssFiles to the bottom of the page,,
+ * expecting links to bubble up to the document head.
  */
-export const CssCollector = <
-  T = unknown,
-  InlineCSS extends boolean | undefined = undefined,
-  As extends keyof React.JSX.IntrinsicElements | undefined = undefined
->({
-  as,
-  children,
+export const CssCollector: CssCollectorType<
+  PagePropOpt,
+  InlineCssOpt,
+  AsOpt
+> = ({
+  as: As = React.Fragment,
+  children: _,
   cssFiles,
   pageProps,
+  Page,
   ...props
-}: CssCollectorProps<T, InlineCSS, As>) => {
-  const Component = (as ?? React.Fragment) as React.ElementType;
-  return (
-    <Component {...props}>
-      {children}
-      <CssCollectorElements cssFiles={cssFiles ?? new Map()} />
-    </Component>
-  );
-};
+}) => (
+  <As {...(As !== React.Fragment ? props : null)}>
+    <Page {...pageProps!} />
+    <CssCollectorElements cssFiles={cssFiles!} />
+  </As>
+);

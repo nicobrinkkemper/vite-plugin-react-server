@@ -22,14 +22,14 @@ export async function* createWorkerStream({
   worker,
   message,
   logger,
-  handlers: { onHmrAccept, onHmrUpdate, onMetrics, onError, onData, onEnd },
+  handlers: { onHmrAccept, onHmrUpdate, onMetrics, onError, onData, onEnd, onServerAction, onServerActionResponse },
   verbose = false,
 }: {
   worker: NodeWorker;
   message: Omit<RscRenderMessage, "type" | "id">;
   logger: Logger;
   handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> &
-    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd">>;
+    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd" | "onServerAction" | "onServerActionResponse">>;
   verbose?: boolean;
 }): AsyncGenerator<Uint8Array> {
   let messageHandler:
@@ -77,18 +77,30 @@ export async function* createWorkerStream({
         onMetrics(metrics);
       }
     },
-    onHmrAccept: (routes: string[]) => {
-      if (verbose) logger.info(`received hmr accept ${routes.join(", ")}`);
+    onHmrAccept: (routes?: string[]) => {
+      if (verbose) logger.info(`received hmr accept ${routes?.join(", ")}`);
       if (typeof onHmrAccept === "function") {
         onHmrAccept(routes);
       }
     },
-    onHmrUpdate: (routes: string[]) => {
-      if (verbose) logger.info(`received hmr update ${routes.join(", ")}`);
+    onHmrUpdate: (routes?: string[]) => {
+      if (verbose) logger.info(`received hmr update ${routes?.join(", ")}`);
       if (typeof onHmrUpdate === "function") {
         onHmrUpdate(routes);
       }
     },
+    onServerAction: (id: string, args: unknown[]) => {
+      if (verbose) logger.info(`received server action ${id}`);
+      if (typeof onServerAction === "function") {
+        onServerAction(id, args);
+      }
+    },
+    onServerActionResponse: (id: string, result?: unknown, error?: string) => {
+      if (verbose) logger.info(`received server action response ${id}`);
+      if (typeof onServerActionResponse === "function") {
+        onServerActionResponse(id, result, error);
+      }
+    }
   };
 
   try {

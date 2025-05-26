@@ -1,5 +1,9 @@
 import type { Node } from "estree";
-import type { StreamPluginOptions } from "../types.js";
+import type {
+  InlineCssOpt,
+  PagePropOpt,
+  StreamPluginOptions,
+} from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { basename } from "path";
 
@@ -17,10 +21,13 @@ function createSourceMap(id: string, code: string, mappings: string) {
   };
 }
 
-function removeRanges(code: string, ranges: Array<{ start: number; end: number }>) {
+function removeRanges(
+  code: string,
+  ranges: Array<{ start: number; end: number }>
+) {
   // Sort ranges in reverse order to not affect positions
   ranges.sort((a, b) => b.start - a.start);
-  
+
   let result = code;
   for (const range of ranges) {
     result = result.slice(0, range.start) + result.slice(range.end);
@@ -31,12 +38,15 @@ function removeRanges(code: string, ranges: Array<{ start: number; end: number }
 function countLines(str: string): number {
   let count = 1;
   for (let i = 0; i < str.length; i++) {
-    if (str[i] === '\n') count++;
+    if (str[i] === "\n") count++;
   }
   return count;
 }
 
-export function reactPreservePlugin(_options: StreamPluginOptions): import("vite").Plugin {
+export function reactPreservePlugin<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(_options: StreamPluginOptions<T, InlineCSS>): import("vite").Plugin {
   const meta: Record<string, Set<string>> = {};
 
   return {
@@ -47,7 +57,11 @@ export function reactPreservePlugin(_options: StreamPluginOptions): import("vite
       order: "post", // Ensure this runs last in transform phase
       handler(code: string, id: string) {
         // Skip node_modules and vite files
-        if (id.includes("node_modules") || id.includes("vite/dist") || !id.match(DEFAULT_CONFIG.MODULE_EXTENSION)) {
+        if (
+          id.includes("node_modules") ||
+          id.includes("vite/dist") ||
+          !id.match(DEFAULT_CONFIG.MODULE_EXTENSION)
+        ) {
           return null;
         }
 
@@ -91,14 +105,16 @@ export function reactPreservePlugin(_options: StreamPluginOptions): import("vite
           if (directive && "start" in node && "end" in node) {
             meta[id] ||= new Set<string>();
             meta[id].add(directive);
-            rangesToRemove.push({ 
-              start: node.start as number, 
-              end: node.end as number 
+            rangesToRemove.push({
+              start: node.start as number,
+              end: node.end as number,
             });
             hasChanged = true;
-            
+
             // Add mapping for each line removed
-            const removedLines = code.slice(node.start as number, node.end as number).split('\n').length - 1;
+            const removedLines =
+              code.slice(node.start as number, node.end as number).split("\n")
+                .length - 1;
             for (let i = 0; i < removedLines; i++) {
               mappings += ";AACA";
               lineCount++;
@@ -134,10 +150,11 @@ export function reactPreservePlugin(_options: StreamPluginOptions): import("vite
       }
 
       if (chunkDirectives.size) {
-        const directivesCode = Array.from(chunkDirectives)
-          .map((d) => `"${d}";`)
-          .join("\n") + "\n";
-        
+        const directivesCode =
+          Array.from(chunkDirectives)
+            .map((d) => `"${d}";`)
+            .join("\n") + "\n";
+
         const newCode = directivesCode + code;
 
         // Create source map for the prepended directives
@@ -155,4 +172,3 @@ export function reactPreservePlugin(_options: StreamPluginOptions): import("vite
     },
   };
 }
-
