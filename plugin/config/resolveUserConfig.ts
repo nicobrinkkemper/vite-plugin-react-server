@@ -70,8 +70,8 @@ export function resolveUserConfig<
     fallback: (info: T, ssr: boolean) => string,
     ssr: boolean
   ) => {
-    if('source' in info && info.source === '') {
-      return '';
+    if ("source" in info && info.source === "") {
+      return "";
     }
     if (!ssr || !input) {
       return fallback(info, false);
@@ -168,7 +168,6 @@ export function resolveUserConfig<
     : pluginOutput;
   const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
   const mode = config.mode ?? process.env["VITE_MODE"];
-  console.log({mode})
   const minify = config.build?.minify;
 
   const srrConfig = {

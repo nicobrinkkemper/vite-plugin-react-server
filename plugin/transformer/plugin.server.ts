@@ -1,11 +1,16 @@
 import { resolveOptions } from "../config/resolveOptions.js";
-import type { InlineCssOpt, PagePropOpt, ResolvedUserOptions, StreamPluginOptions } from "../types.js";
+import type {
+  InlineCssOpt,
+  PagePropOpt,
+  ResolvedUserOptions,
+  StreamPluginOptions,
+} from "../types.js";
 import type { Manifest, Plugin } from "vite";
-import { transformModuleIfNeeded } from "../loader/react-loader.server.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
 import { setStashedResolve } from "../helpers/moduleResolver.js";
-import type { SourceMapInput } from 'rollup';
+import type { SourceMapInput } from "rollup";
+import { transformModuleIfNeeded } from "../loader/react-loader.server.js";
 
 /**
  * Plugin for transforming React Client Components.
@@ -31,7 +36,7 @@ import type { SourceMapInput } from 'rollup';
  * });
  * ```
  */
-let isBuild = true, isSsr = false;
+let isBuild = true;
 
 export function reactTransformPlugin<
   T extends PagePropOpt = PagePropOpt,
@@ -48,7 +53,7 @@ export function reactTransformPlugin<
     name: "vite:react-server-transform",
     enforce: "pre", // Run before Vite's transforms
     async config(_config, configEnv) {
-      isBuild = configEnv.command === "build"
+      isBuild = configEnv.command === "build";
       if (isBuild) {
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
@@ -61,29 +66,38 @@ export function reactTransformPlugin<
         staticManifest = staticManifestResult.manifest;
       }
     },
-    async resolveId(source: string, importer: string | undefined, options: { attributes: Record<string, string>; custom?: any; ssr?: boolean; isEntry: boolean }) {
-      if(!options?.ssr) {
+    async resolveId(
+      _id: string,
+      importer: string | undefined,
+      options: {
+        attributes: Record<string, string>;
+        custom?: any;
+        ssr?: boolean;
+        isEntry: boolean;
+      }
+    ) {
+      if (!options?.ssr) {
         return null;
-      } 
+      }
       // Set stashedResolve before any transform operations
-      setStashedResolve(async (specifier: string, context: { importer?: string }) => {
+      setStashedResolve(async (specifier: string) => {
         try {
           const resolved = await this.resolve(specifier, importer, {
-            custom: { conditions: ['react-server'] }
+            custom: { conditions: ["react-server"] },
           });
           if (!resolved) return null;
           return { id: resolved.id };
         } catch (error) {
-          console.error('Error resolving module:', specifier, error);
+          console.error("Error resolving module:", specifier, error);
           return null;
         }
       });
       return null; // Let Vite handle the resolution
     },
     async transform(code, id, options) {
-      if(!options?.ssr || !userOptions.autoDiscover.moduleExtension.test(id)) {
+      if (!options?.ssr || !userOptions.autoDiscover.moduleExtension.test(id)) {
         return null;
-      } 
+      }
       const [key, value] = userOptions.normalizer(id);
       let moduleID = value;
       if (isBuild) {
@@ -109,10 +123,15 @@ export function reactTransformPlugin<
       }
       let finalID = userOptions.moduleID(moduleID);
       // Always transform in server context
-      const transformed = await transformModuleIfNeeded(
-        code,
-        finalID,
-      );
+      const transformed = await transformModuleIfNeeded(code, finalID);
+      console.log("transformed", transformed);
+      if (!transformed.source) {
+        return {
+          code: "",
+          map: null,
+        };
+      }
+
       return {
         code: transformed.source,
         map: transformed.sourceMap as SourceMapInput | undefined,

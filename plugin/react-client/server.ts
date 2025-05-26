@@ -17,7 +17,7 @@ import { handleWorkerRscStream } from "./handleWorkerRscStream.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import type { RscWorkerInputMessage } from "../worker/types.js";
 import { Readable } from "node:stream";
-import { ReadableStream } from "node:stream/web";
+import type { ReadableStream } from "node:stream/web";
 
 /**
  * Configures the worker request handler.

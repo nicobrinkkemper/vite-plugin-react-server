@@ -65,13 +65,12 @@ describe("Server Action Build Exclusion", () => {
         },
       });
     } catch (error) {
-      console.trace(error);
       throw error;
     }
   });
 
   afterAll(async () => {
-    // await rm(testDir, { recursive: true, force: true });
+    await rm(testDir, { recursive: true, force: true });
   });
 
   it("should not include excluded files in server build", async () => {

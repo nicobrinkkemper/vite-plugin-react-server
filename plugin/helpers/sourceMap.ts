@@ -5,7 +5,8 @@ import type { SourceMap } from "../types/sourceMap.js";
 const VLQ_SHIFT = 5;
 const VLQ_CONTINUATION_BIT = 1 << VLQ_SHIFT;
 const VLQ_VALUE_MASK = VLQ_CONTINUATION_BIT - 1;
-const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_CHARS =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 export function encodeVLQ(numbers: number[]): string {
   return numbers
@@ -162,11 +163,7 @@ export function createMappingsSerializer() {
   };
 }
 
-export function createSourceMap(
-  originalSource: string,
-  transformedSource: string,
-  originalSourceMap?: any
-): SourceMap {
+export function createSourceMap(originalSource: string): SourceMap {
   return {
     version: 3,
     file: basename(originalSource),
@@ -178,11 +175,7 @@ export function createSourceMap(
   };
 }
 
-export function updateSourceMap(
-  sourceMap: SourceMap,
-  originalSource: string,
-  transformedSource: string
-) {
+export function updateSourceMap(sourceMap: SourceMap, originalSource: string) {
   // Update the source map with the transformed source
   sourceMap.sourcesContent = [originalSource];
   sourceMap.mappings = "AAAA;"; // Simple line mapping

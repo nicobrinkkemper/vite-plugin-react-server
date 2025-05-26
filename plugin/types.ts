@@ -1,5 +1,5 @@
 import type { Readable } from "node:stream";
-import type { MessagePort, Worker } from "node:worker_threads";
+import type { Worker } from "node:worker_threads";
 import type React from "react";
 import type {
   NormalizedOutputOptions,
@@ -698,8 +698,6 @@ export type ResolvedBuildPages = {
   errors: Error[];
 };
 
-
-
 // Add branded types for safety
 export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
@@ -881,7 +879,7 @@ export interface LoaderContext {
   importAttributes?: Record<string, string>;
   conditions?: string[];
   env?: {
-    targetEnvironment?: 'client' | 'server' | 'browser';
+    targetEnvironment?: "client" | "server" | "browser";
   };
   url: string;
 }

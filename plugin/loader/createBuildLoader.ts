@@ -1,4 +1,4 @@
-import { join, toNamespacedPath } from "node:path";
+import { join } from "node:path";
 import type {
   InlineCssOpt,
   PagePropOpt,
@@ -7,7 +7,6 @@ import type {
 } from "../../server.js";
 import type { Manifest } from "vite";
 import { getModuleRef } from "../helpers/moduleRefs.js";
-import { readFile } from "node:fs/promises";
 import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";
 import { toError } from "../error/toError.js";
@@ -50,7 +49,8 @@ export async function createBuildLoader<
 
   return async function buildLoader(id: string) {
     const [withoutQuery, query] = id.split("?", 2);
-    const [normalizedKey, normalizedValue] = userOptions.normalizer(withoutQuery);
+    const [normalizedKey, normalizedValue] =
+      userOptions.normalizer(withoutQuery);
     const moduleRef = getModuleRef(id);
 
     // Check if we have a temporary reference (cached module)
@@ -83,20 +83,15 @@ export async function createBuildLoader<
         if (serverChunk) {
           if (serverChunk.type === "asset") {
             // For CSS files, ensure we're in the React Server environment
-            if(userOptions.autoDiscover.jsonPattern(normalizedValue)) {
+            if (userOptions.autoDiscover.jsonPattern(normalizedValue)) {
               const jsonContent = serverChunk.source;
-              if (typeof jsonContent === 'string') {
+              if (typeof jsonContent === "string") {
                 return { default: JSON.parse(jsonContent) };
               }
             } else if (userOptions.autoDiscover.cssPattern(normalizedValue)) {
-              try {
-                const cssContent = serverChunk.source;
-                if (typeof cssContent === 'string') {
-                  return { default: cssContent };
-                }
-              } catch (error) {
-                console.warn("Error processing CSS file:", error);
-                return null;
+              const cssContent = serverChunk.source;
+              if (typeof cssContent === "string") {
+                return { default: cssContent };
               }
             }
             return { default: serverChunk.source };
@@ -109,8 +104,10 @@ export async function createBuildLoader<
       }
 
       // Determine if this is a client component
-      const isClientComponent = userOptions.autoDiscover.clientComponents(normalizedValue);
-      const isServerAction = userOptions.autoDiscover.serverFunctions(normalizedValue);
+      const isClientComponent =
+        userOptions.autoDiscover.clientComponents(normalizedValue);
+      const isServerAction =
+        userOptions.autoDiscover.serverFunctions(normalizedValue);
       const isPage = userOptions.autoDiscover.pagePattern(normalizedValue);
       const isProps = userOptions.autoDiscover.propsPattern(normalizedValue);
 
@@ -130,9 +127,10 @@ export async function createBuildLoader<
             temporaryReferences?.set(moduleRef, module);
             return module;
           } catch (error) {
-            console.warn("Error loading client module:", error);
+            const err = toError(error);
+            console.warn("Error loading client module:", err);
             temporaryReferences?.delete(moduleRef);
-            throw error;
+            throw err;
           }
         }
       }
@@ -153,9 +151,10 @@ export async function createBuildLoader<
             temporaryReferences?.set(moduleRef, module);
             return module;
           } catch (error) {
-            console.warn("Error loading server module:", error);
+            const err = toError(error);
+            console.warn("Error loading server module:", err);
             temporaryReferences?.delete(moduleRef);
-            throw error;
+            throw err;
           }
         }
       }
@@ -175,9 +174,10 @@ export async function createBuildLoader<
           temporaryReferences?.set(moduleRef, module);
           return module;
         } catch (error) {
-          console.warn("Error loading static module:", error);
+          const err = toError(error);
+          console.warn("Error loading static module:", err);
           temporaryReferences?.delete(moduleRef);
-          throw error;
+          throw err;
         }
       }
 
@@ -187,7 +187,7 @@ export async function createBuildLoader<
         error: error instanceof Error ? error : new Error(String(error)),
         id: id,
       };
-      temporaryReferences?.set(moduleRef, emptyExports);
+      temporaryReferences?.delete(moduleRef);
       return emptyExports;
     }
   };

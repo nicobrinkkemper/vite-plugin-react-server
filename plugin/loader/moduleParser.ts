@@ -27,19 +27,16 @@ import type {
   ExportNamedDeclaration,
   AssignmentProperty,
   Expression,
-  Node,
   Program as AcornProgram,
   Statement,
   ModuleDeclaration,
   ParenthesizedExpression,
 } from "acorn";
 import { resolveClientImport } from "../helpers/moduleResolver.js";
-import { basename } from "path";
 import type { RawSourceMap } from "source-map-js";
-import type { LoaderContext } from "../types.js";
 
 // Add isDev check at the top level
-const isDev = process.env["NODE_ENV"] === "development";
+const isDev = process.env["NODE_ENV"] !== "production";
 
 // Directive is a special type in Acorn that extends ExpressionStatement
 type Directive = Statement & {
@@ -434,6 +431,7 @@ export function transformModuleWithPreservedFunctions(
   source: string,
   url: string,
   program: Program,
+  sourceMap: RawSourceMap | null,
   isServerEnvironment: boolean,
   isClientEnvironment: boolean,
   isServerFunction: RegExpMatchArray | null,
@@ -454,7 +452,9 @@ export function transformModuleWithPreservedFunctions(
     if (isClientComponent) {
       // On the server, client components should be replaced with references
       const newSource = [
-        `import { registerClientReference } from 'react-server-dom-esm/server.node';`,
+        `import { registerClientReference } from 'react-server-dom-esm/server${
+          isDev ? ".node" : ""
+        }';`,
         "",
         ...exportNames.map(
           (name) =>
@@ -465,14 +465,16 @@ export function transformModuleWithPreservedFunctions(
       ].join("\n");
       return {
         source: newSource,
-        sourceMap: null,
+        sourceMap: sourceMap || null,
       };
     }
 
     // For server modules in server environment
     if (isServerFunction) {
       const newSource = [
-        `import { registerServerReference } from 'react-server-dom-esm/server.node';`,
+        `import { registerServerReference } from 'react-server-dom-esm/server${
+          isDev ? ".node" : ""
+        }';`,
         "",
         ...exportNames
           .map((name) => {
@@ -496,7 +498,7 @@ export { ${name} };`;
       ].join("\n");
       return {
         source: newSource,
-        sourceMap: null,
+        sourceMap: sourceMap,
       };
     }
   }
@@ -504,11 +506,6 @@ export { ${name} };`;
   // For all other cases, return original source
   return {
     source,
-    sourceMap: null,
+    sourceMap: sourceMap,
   };
-}
-
-export function handleServerActionImports(source: string): string {
-  // Just return the source - error handling is done in the main transformation
-  return source;
 }

@@ -117,7 +117,7 @@ export function reactClientPlugin<
 
         // Find all routes affected by this file change
         const affectedRoutes = autoDiscoveredFiles.routeMap.get(value) || [];
-        console.log({ affectedRoutes });
+
         // Send HMR update directly to worker through MessageChannel
         if (hmrChannel?.port1) {
           hmrChannel.port1.postMessage({

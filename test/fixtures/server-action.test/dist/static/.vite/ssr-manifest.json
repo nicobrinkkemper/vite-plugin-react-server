@@ -1,9 +1,36 @@
 {
-  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js?commonjs-module": [],
-  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react/index.js?commonjs-es-import": [],
-  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react/index.js?commonjs-module": [],
-  "\u0000commonjsHelpers.js": [],
-  "../../../node_modules/react/cjs/react.development.js": [],
-  "../../../node_modules/react/index.js": [],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js?commonjs-exports": [],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js?commonjs-exports": [],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react-dom/client.js?commonjs-es-import": [],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react-dom/client.js?commonjs-module": [],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react-dom/index.js?commonjs-module": [],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js?commonjs-module": [
+    "/_index-B5bmW2o5.js"
+  ],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react/index.js?commonjs-es-import": [
+    "/_index-B5bmW2o5.js"
+  ],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/react/index.js?commonjs-module": [
+    "/_index-B5bmW2o5.js"
+  ],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js?commonjs-exports": [],
+  "\u0000/Users/nico.brinkkemper/Documents/code/vite-plugin-react-server/node_modules/scheduler/index.js?commonjs-module": [],
+  "\u0000commonjsHelpers.js": [
+    "/_index-B5bmW2o5.js"
+  ],
+  "../../../node_modules/react-dom/cjs/react-dom-client.development.js": [],
+  "../../../node_modules/react-dom/cjs/react-dom.development.js": [],
+  "../../../node_modules/react-dom/client.js": [],
+  "../../../node_modules/react-dom/index.js": [],
+  "../../../node_modules/react/cjs/react.development.js": [
+    "/_index-B5bmW2o5.js"
+  ],
+  "../../../node_modules/react/index.js": [
+    "/_index-B5bmW2o5.js"
+  ],
+  "../../../node_modules/scheduler/cjs/scheduler.development.js": [],
+  "../../../node_modules/scheduler/index.js": [],
+  "index.html": [],
+  "src/client.tsx": [],
   "src/page/ClientComponent.client.tsx": []
 }

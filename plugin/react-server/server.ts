@@ -1,6 +1,11 @@
 import type { Manifest, ViteDevServer } from "vite";
 import type { ServerResponse } from "http";
-import type { AutoDiscoveredFiles, InlineCssOpt, PagePropOpt, ResolvedUserOptions } from "../types.js";
+import type {
+  AutoDiscoveredFiles,
+  InlineCssOpt,
+  PagePropOpt,
+  ResolvedUserOptions,
+} from "../types.js";
 import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
@@ -9,7 +14,6 @@ import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { toError } from "../error/toError.js";
-import { PassThrough } from "stream";
 
 export async function configureReactServer<
   T extends PagePropOpt = PagePropOpt,
@@ -42,7 +46,9 @@ export async function configureReactServer<
   // Set environment-specific configuration
   const define = {
     ...server.config.define,
-    'process.env.NODE_ENV': JSON.stringify(process.env['NODE_ENV'] || 'development'),
+    "process.env.NODE_ENV": JSON.stringify(
+      process.env["NODE_ENV"] || "development"
+    ),
   };
   server.config = {
     ...server.config,

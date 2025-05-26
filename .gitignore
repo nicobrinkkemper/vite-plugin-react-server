@@ -43,5 +43,8 @@ tsconfig.tsbuildinfo
 .rollup.cache
 
 # test
-test/fixtures/test-project/
-test/fixtures/test-project/dist/
+test/fixtures/*
+test/client/fixtures/*
+test/server/fixtures/*
+test/client/fixtures/*
+test/unit/fixtures/*
