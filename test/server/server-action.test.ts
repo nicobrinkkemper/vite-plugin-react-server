@@ -53,7 +53,7 @@ describe("Generic Server Action Build Output", () => {
   });
 
   afterAll(async () => {
-    // await rm(testDir, { recursive: true, force: true });
+    await rm(testDir, { recursive: true, force: true });
   });
 
   it("should output at least one server action file", () => {
