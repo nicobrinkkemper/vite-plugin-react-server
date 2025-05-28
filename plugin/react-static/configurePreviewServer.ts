@@ -36,7 +36,8 @@ export async function configurePreviewServer<
     const { contentType, filePath } = requestInfo(
       req,
       userOptions,
-      staticHostDir
+      staticHostDir,
+      server.config.logger
     );
 
     // Handle static files including CSS

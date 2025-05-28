@@ -152,6 +152,8 @@ export async function resolveAutoDiscover<
     ...configInputRecord,
     ...clientInputs,
     ...clientEntry,
+    ...cssInputs,
+    ...jsonInputs,
   };
   // Add inputs based on condition
   const inputs =
@@ -159,16 +161,20 @@ export async function resolveAutoDiscover<
       ? {
           ...indexHtmlInputs,
           ...agnosticInputs,
-          ...cssInputs,
-          ...jsonInputs,
+          ...(!(configEnv.command === "build" || configEnv.isSsrBuild)
+            ? {
+                // when we are not building, we likely still want the files for the client server, so we include them in the inputs
+                ...pageAndPropInputs,
+                ...serverActions,
+                ...serverEntry,
+              }
+            : {}),
         }
       : {
           ...configInputRecord,
           ...customWorkerInputs,
           ...pageAndPropInputs,
           ...agnosticInputs,
-          ...cssInputs,
-          ...jsonInputs,
           ...serverActions,
           ...serverEntry,
         };

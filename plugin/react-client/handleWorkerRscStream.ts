@@ -29,7 +29,7 @@ export function handleWorkerRscStream({
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        if(verbose) logger.info("Starting stream");
+        if(verbose) logger.info("[react-client] Starting stream");
         for await (const chunk of createWorkerStream({
           worker,
           message,
@@ -37,11 +37,11 @@ export function handleWorkerRscStream({
           handlers: {
             ...handlers,
             onServerAction: (id: string, args: unknown[]) => {
-              if (verbose) logger.info(`Received server action ${id}`);
+              if (verbose) logger.info(`[react-client] Received server action ${id}`);
               handlers.onServerAction?.(id, args);
             },
             onServerActionResponse: (id: string, result?: unknown, error?: string) => {
-              if (verbose) logger.info(`Received server action response ${id}`);
+              if (verbose) logger.info(`[react-client] Received server action response ${id}`);
               handlers.onServerActionResponse?.(id, result, error);
             }
           },
@@ -49,7 +49,7 @@ export function handleWorkerRscStream({
         })) {
           if (!isFlowing) {
             isFlowing = true;
-            if(verbose) logger.info("Stream is flowing");
+            if(verbose) logger.info("[react-client] Stream is flowing");
           }
           controller.enqueue(chunk);
         }
@@ -58,7 +58,7 @@ export function handleWorkerRscStream({
       } finally {
         if (isFlowing) {
           isFlowing = false;
-          if(verbose) logger.info("Stream closing");
+          if(verbose) logger.info("[react-client] Stream closing");
         }
         controller.close();
       }

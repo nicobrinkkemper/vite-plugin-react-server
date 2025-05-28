@@ -258,7 +258,9 @@ export function resolveUserConfig<
         minify: minify,
         rollupOptions: {
           ...config.build?.rollupOptions,
-          input: autoDiscoveredFiles.inputs,
+          input: {
+            ...autoDiscoveredFiles.inputs,
+          },
           output: newOutput,
           preserveEntrySignatures:
             config.build?.rollupOptions?.preserveEntrySignatures ??

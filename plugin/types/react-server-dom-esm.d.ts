@@ -26,9 +26,8 @@ declare module 'react-server-dom-esm/client' {
   export function encodeReply(
     value: unknown,
     options?: {
-      callServer?: (id: string, args: unknown[]) => Promise<unknown>;
-      temporaryReferences?: Map<unknown, unknown>;
       signal?: AbortSignal;
+      temporaryReferences?: Map<unknown, unknown>;
     }
   ): Promise<FormData>;
 
@@ -105,7 +104,6 @@ declare module 'react-server-dom-esm/client.browser' {
     promiseForResponse: Promise<Response>,
     options?: {
       callServer?: (id: string, args: any[]) => Promise<any>;
-      callClient?: (id: string, args: any[]) => Promise<any>;
       moduleBaseURL?: string;
     }
   ): Promise<React.ReactNode>;
@@ -114,7 +112,6 @@ declare module 'react-server-dom-esm/client.browser' {
     stream: ReadableStream,
     options?: {
       callServer?: (id: string, args: any[]) => Promise<any>;
-      callClient?: (id: string, args: any[]) => Promise<any>;
       moduleBaseURL?: string;
     }
   ): Promise<React.ReactNode>;
@@ -122,10 +119,8 @@ declare module 'react-server-dom-esm/client.browser' {
   export function encodeReply(
     value: unknown,
     options?: {
-      callServer?: (id: string, args: unknown[]) => Promise<unknown>;
-      callClient?: (id: string, args: unknown[]) => Promise<unknown>;
-      moduleBaseURL?: string;
       signal?: AbortSignal;
+      temporaryReferences?: Map<unknown, unknown>;
     }
   ): Promise<FormData>;
 }
@@ -161,10 +156,6 @@ declare module 'react-server-dom-esm/server.node' {
   export function decodeReply(
     body: Uint8Array | string,
     moduleBasePath: string,
-    options?: {
-      callServer?: (id: string, args: any[]) => Promise<any>;
-      callClient?: (id: string, args: any[]) => Promise<any>;
-    }
   ): Promise<any>;
 
   export function decodeAction(

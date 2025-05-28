@@ -5,7 +5,7 @@ import type { AutoDiscoveredFiles } from "../../types.js";
 import { createWorker } from "../worker/createWorker.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
-import type { MessageChannel, Worker } from "node:worker_threads";
+import { MessageChannel, type Worker } from "node:worker_threads";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 let currentWorker: Worker | null = null;
@@ -33,26 +33,19 @@ export async function restartWorker({
         currentWorker.removeAllListeners();
         currentWorker = null;
       }
+      
       const routeCount = autoDiscoveredFiles.urlMap.size;
       const hmrBuffer = 20; // Buffer for HMR and other operations
       const maxListeners = routeCount + hmrBuffer;
 
-      // Load server actions
-      const serverActions = new Map();
-      try {
-        for (const [id, module] of Object.entries(autoDiscoveredFiles.serverActions)) {
-          const actions = await import(module);
-          for (const [name, action] of Object.entries(actions)) {
-            if (typeof action === "function") {
-              serverActions.set(`${id}#${name}`, action);
-            }
-          }
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`Failed to load server actions: ${errorMessage}`);
-      }
-
+      // Create a new MessageChannel for this worker
+      const workerHmrChannel = new MessageChannel();
+      
+      // Forward messages from the plugin's HMR channel to the worker's channel
+      hmrChannel.port1.addEventListener('message', (event: Event) => {
+        workerHmrChannel.port1.postMessage((event as MessageEvent).data);
+      });
+      
       const workerResult = await createWorker({
         projectRoot: server.config.root,
         workerPath: userOptions.rscWorkerPath,
@@ -66,12 +59,11 @@ export async function restartWorker({
             ? server.config.envPrefix[0]
             : DEFAULT_CONFIG.ENV_PREFIX,
         workerData: {
-          hmrPort: hmrChannel.port2,
+          hmrPort: workerHmrChannel.port2,
           resolvedConfig: serializedDevServerConfig(server.config),
           userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
-          serverActions,
         },
-        transferList: [hmrChannel.port2],
+        transferList: [workerHmrChannel.port2],
       });
   
       if (workerResult.type === "success") {
@@ -83,9 +75,11 @@ export async function restartWorker({
         server.config.logger.error("Failed to start rsc-worker", {
           error: workerResult.error,
         });
+        throw workerResult.error;
       }
     } finally {
       isRestarting = false;
     }
+   
     return currentWorker;
-  }
+}

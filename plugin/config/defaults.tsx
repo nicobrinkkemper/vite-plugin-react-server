@@ -67,7 +67,7 @@ export const DEFAULT_CONFIG = {
     serverFunctions: (n: string) => /(\.|\/)?server(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
     cssPattern: (n: string) => /\.css$/.test(n),
     cssModulePattern: (n: string) => /\.css\.js$/.test(n),
-    virtualPattern: (n: string) => /^\/_virtual\//.test(n),
+    virtualPattern: (n: string) => /^\/_virtual\//.test(n) || /^\/@/.test(n),
     vendorPattern: (n: string) =>
       /^\/node_modules\//.test(n),
     htmlPattern: (n: string) => /\.html$/.test(n),

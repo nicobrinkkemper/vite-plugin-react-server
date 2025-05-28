@@ -57,14 +57,14 @@ export async function handleRender<
     });
     if (pageAndPropsResult.type !== "success") {
       const { error, ...rest } = pageAndPropsResult;
-      return handlers.onError(error, rest);
+      return handlers.onError(id, error, rest);
     }
 
     const { PageComponent, pageProps } = pageAndPropsResult;
 
     const adaptedOnEvent = (event: "error" | "postpone", data: any) => {
       if (event === "error") {
-        handlers.onError(data.error, data.errorInfo);
+        handlers.onError(id, data.error, data.errorInfo);
       }
     };
 
@@ -76,7 +76,7 @@ export async function handleRender<
     }
 
     // Create stream
-    const streamResult = await createRscStream({
+    const streamResult = createRscStream({
       projectRoot: projectRoot,
       Html: React.Fragment,
       PageComponent,
@@ -96,7 +96,7 @@ export async function handleRender<
     });
 
     if (streamResult.type !== "success") {
-      handlers.onError(streamResult.error);
+      handlers.onError(id, streamResult.error);
       return;
     }
 
@@ -114,26 +114,26 @@ export async function handleRender<
       metrics.chunks++;
       metrics.bytes += chunk.length;
       metrics.duration = performance.now() - metrics.startTime;
-      handlers.onData(chunk);
+      handlers.onData(id, chunk);
     });
 
     // Handle stream end
     passThrough.on("end", () => {
       metrics.duration = performance.now() - metrics.startTime;
-      handlers.onEnd();
+      handlers.onEnd(id);
       if (activeStreams.has(id)) {
-        handlers.onMetrics(metrics);
+        handlers.onMetrics(id, metrics);
         activeStreams.delete(id);
       }
     });
 
     // Handle errors
     passThrough.on("error", (error) => {
-      handlers.onError(error as Error, { reason: `${id} stream error` });
+      handlers.onError(id, error as Error, { reason: `${id} stream error` });
       activeStreams.delete(id);
     });
   } catch (error) {
-    handlers.onError(error as Error, { reason: `${id} render error` });
+    handlers.onError(id, error as Error, { reason: `${id} render error` });
     return Promise.reject(error);
   }
 }

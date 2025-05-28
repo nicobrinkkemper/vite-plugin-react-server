@@ -6,9 +6,8 @@ import type { RawSourceMap } from "source-map-js";
 
 export async function transformServerModule(
   source: string,
-  id: string,
-  isServerEnvironment: boolean,
-  isClientEnvironment: boolean,
+  url: string,
+  moduleId: string,
   isServerFunction: RegExpMatchArray | null,
   isClientComponent: RegExpMatchArray | null,
   ast?: Program,
@@ -22,7 +21,7 @@ export async function transformServerModule(
       ecmaVersion: "latest",
     }) as Program);
 
-  const exportNames = await parseExportNamesInto(program.body, id, {
+  const exportNames = await parseExportNamesInto(program.body, url, {
     load: () => null,
   });
 
@@ -37,11 +36,10 @@ export async function transformServerModule(
   // Use the shared transformation function
   return transformModuleWithPreservedFunctions(
     source,
-    id,
+    url,
+    moduleId,
     program,
     sourceMap || null,
-    isServerEnvironment,
-    isClientEnvironment,
     isServerFunction,
     isClientComponent
   );

@@ -10,7 +10,7 @@ import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
 import { setStashedResolve } from "../helpers/moduleResolver.js";
 import type { SourceMapInput } from "rollup";
-import { transformModuleIfNeeded } from "../loader/react-loader.server.js";
+import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
 
 /**
  * Plugin for transforming React Client Components.
@@ -95,7 +95,7 @@ export function reactTransformPlugin<
       return null; // Let Vite handle the resolution
     },
     async transform(code, id, options) {
-      if (!options?.ssr || !userOptions.autoDiscover.moduleExtension.test(id)) {
+      if (!options?.ssr ||  !userOptions.autoDiscover.modulePattern(id)) {
         return null;
       }
       const [key, value] = userOptions.normalizer(id);
@@ -112,27 +112,43 @@ export function reactTransformPlugin<
               name: value,
             });
             const fileName = this.getFileName(hash);
-            id = fileName;
+            moduleID = fileName;
           }
         } else {
           throw new Error(`Static manifest not found during dev build.`);
         }
       } else {
         // For non-SSR builds, just use the normalized path
-        id = join(userOptions.moduleBasePath, value);
+        moduleID = join(userOptions.moduleBasePath, value);
       }
       let finalID = userOptions.moduleID(moduleID);
       // Always transform in server context
-      const transformed = await transformModuleIfNeeded(code, finalID);
-      console.log("transformed", transformed);
+      const transformed = await transformModuleIfNeeded(code, id, finalID);
+      if (userOptions.verbose)
+        if(transformed.source !== code) {
+          if(id !== finalID) {
+            this.environment.logger.info(
+              "[react-server-transform] " + id.split('/').pop() + " -> " + finalID
+            );
+          } else {
+            this.environment.logger.info(
+              "[react-server-transform] " + id.split('/').pop() + (code.startsWith('\"use client\"') ? " (client)" : "")
+            );
+          };
+          this.environment.logger.info(
+            "[react-server-transform] " + transformed.source
+          );
+        }
       if (!transformed.source) {
         return {
+          id: finalID,
           code: "",
           map: null,
         };
       }
 
       return {
+        id: finalID,
         code: transformed.source,
         map: transformed.sourceMap as SourceMapInput | undefined,
       };

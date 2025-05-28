@@ -6,8 +6,7 @@ import * as acorn from "acorn-loose";
 export async function transformModuleIfNeeded(
   source: string,
   url: string,
-  isServerEnvironment: boolean = false,
-  isClientEnvironment: boolean = !isServerEnvironment,
+  moduleId: string,
   isServerFunction: RegExpMatchArray | null = source?.match(
     /^"use server"[\s;]*\n?/m
   ),
@@ -27,12 +26,6 @@ export async function transformModuleIfNeeded(
   // Do a quick check for the exact string. If it doesn't exist, don't
   // bother parsing.
   if (!isServerFunction && !isClientComponent) {
-    if (!isServerEnvironment) {
-      return {
-        source: null,
-        sourceMap: null,
-      };
-    }
     return {
       source,
       sourceMap: null,
@@ -43,17 +36,10 @@ export async function transformModuleIfNeeded(
   const ast = parser(source);
 
   if (isClientComponent) {
-    if (!isServerEnvironment) {
-      return {
-        source,
-        sourceMap: null,
-      };
-    }
     const result = await transformClientModule(
       source,
       url,
-      isServerEnvironment,
-      isClientEnvironment,
+      moduleId,
       isServerFunction,
       isClientComponent,
       ast,
@@ -64,17 +50,10 @@ export async function transformModuleIfNeeded(
       sourceMap: result.sourceMap,
     };
   }
-  if (!isServerEnvironment) {
-    return {
-      source: null,
-      sourceMap: null,
-    };
-  }
   return await transformServerModule(
     source,
     url,
-    isServerEnvironment,
-    isClientEnvironment,
+    moduleId,
     isServerFunction,
     isClientComponent,
     ast,

@@ -6,14 +6,18 @@ import {
 interface ServerActionResponse {
   returnValue: unknown;
   type: 'server-action-response';
+  error?: string;
 }
 
 export const createCallServer = (moduleBaseURL: string) => {
-  const callServer = async (_id: string, args: unknown[]): Promise<unknown> => {
+  const callServer = async (id: string, args: unknown[]): Promise<unknown> => {
     const response = await createFromFetch(
       fetch(moduleBaseURL, {
         method: "POST",
-        body: await encodeReply(args),
+        body: await encodeReply({
+          id,
+          args
+        }),
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -24,7 +28,11 @@ export const createCallServer = (moduleBaseURL: string) => {
     
     // Check if this is a server action response
     if (response && typeof response === 'object' && 'returnValue' in response) {
-      return (response as ServerActionResponse).returnValue;
+      const serverResponse = response as ServerActionResponse;
+      if (serverResponse.error) {
+        throw new Error(serverResponse.error);
+      }
+      return serverResponse.returnValue;
     }
     
     return response;

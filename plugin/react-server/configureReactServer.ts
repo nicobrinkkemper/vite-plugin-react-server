@@ -13,7 +13,8 @@ import { createHandler } from "../helpers/createHandler.js";
 import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { toError } from "../error/toError.js";
+import { logError } from "../error/toError.js";
+import { handleServerAction } from "./handleServerAction.js";
 
 export async function configureReactServer<
   T extends PagePropOpt = PagePropOpt,
@@ -38,10 +39,13 @@ export async function configureReactServer<
     projectRoot: _projectRoot,
     ...handlerUserOptions
   } = _userOptions;
-  const handlerOptions = Object.assign({}, handlerUserOptions, {
+  const handlerOptions = {
+    ...handlerUserOptions,
     moduleBaseURL: server.config.base,
     projectRoot: server.config.root,
-  });
+    Html: React.Fragment,
+    onEvent: createEventHandler(onEvent)
+  };
 
   // Set environment-specific configuration
   const define = {
@@ -79,7 +83,13 @@ export async function configureReactServer<
     if (!req.url) {
       return next();
     }
-    const info = requestInfo(req, handlerOptions, "");
+    const info = requestInfo(req, handlerOptions, "", server.config.logger);
+
+    // Handle server actions
+    if (info.isServerActionRequest) {
+      return handleServerAction(req, res, server, handlerOptions);
+    }
+
     if (!info.isRscRequest) return next();
     try {
       const routeFiles = await getRouteFiles(
@@ -155,7 +165,7 @@ export async function configureReactServer<
         activeStreams.delete(res);
       });
     } catch (error) {
-      server.config.logger.error(toError(error).message);
+      logError(error, server.config.logger);
       res.end();
     }
   });

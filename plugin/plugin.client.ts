@@ -1,5 +1,4 @@
 import { reactPreservePlugin } from "./preserver/plugin.js";
-import { reactTransformPlugin } from "./transformer/plugin.client.js";
 import type {
   StreamPluginOptions,
   InlineCssOpt,
@@ -15,7 +14,6 @@ export function vitePluginReactServer<
   return [
     envPlugin(),
     reactClientPlugin(options),
-    reactTransformPlugin(options),
     reactPreservePlugin(options),
   ];
 }

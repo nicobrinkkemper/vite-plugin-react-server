@@ -82,12 +82,12 @@ export async function configureWorkerRequestHandler<
   // Create the request handler
   const handler: RequestHandler = async (req, res, next) => {
     if (!req.url) return next();
-    if (handlerOptions.verbose) logger.info(`Received request: ${req.url}`);
 
-    const info = requestInfo(req, handlerOptions, "");
-    if (!info.isRscRequest) return next();
-    if (handlerOptions.verbose)
-      logger.info(`Request info: ${JSON.stringify(info)}`);
+    const info = requestInfo(req, handlerOptions, "", server.config.logger);
+
+    if (!info.isRscRequest) {
+      return next();
+    }
 
     const routeFiles = await getRouteFiles(
       info.route,
@@ -145,6 +145,8 @@ export async function configureWorkerRequestHandler<
         worker: currentWorker!,
         message: {
           ...serializedUserOptions,
+          id: info.route,
+          type: "RSC_RENDER",
           // we make the worker stream aware of the route, pagePath, propsPath
           route: info.route,
           pagePath: pagePath,
@@ -158,7 +160,10 @@ export async function configureWorkerRequestHandler<
         },
         logger,
         handlers: {
-          onMetrics: userOnMetrics,
+          onMetrics: (id, metrics) => {
+            metrics.route = id;
+            userOnMetrics(metrics);
+          },
           onHmrAccept: () => {
             // TODO: implement
             // console.log("onHmrAccept", routes);

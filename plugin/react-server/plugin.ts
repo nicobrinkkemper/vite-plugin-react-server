@@ -21,7 +21,7 @@ import {
   resolveAutoDiscover
 } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
-import { configureReactServer } from "./server.js";
+import { configureReactServer } from "./configureReactServer.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 

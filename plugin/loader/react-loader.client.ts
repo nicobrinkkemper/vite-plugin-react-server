@@ -14,7 +14,22 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
   const { format } = context;
   if (format === "module") {
     const result = await nextLoad(url, context);
-    return _transformModuleIfNeeded(result.source, url);
+    const isServerFunction = result.source?.match(/^"use server"[\s;]*\n?/m);
+    const isClientFunction = result.source?.match(/^"use client"[\s;]*\n?/m);
+    const transformed = await transformModuleIfNeeded(
+      result.source,
+      url,
+      isServerFunction,
+      isClientFunction
+    );
+    if (!transformed.source) {
+      return result;
+    }
+    return {
+      ...result,
+      source: transformed.source,
+      map: transformed.sourceMap,
+    };
   }
 
   return nextLoad(url, context);
@@ -28,12 +43,3 @@ export async function resolve(
   return nextResolve(specifier, context);
 }
 
-async function _transformModuleIfNeeded(source: string, url: string) {
-  return transformModuleIfNeeded(
-    source,
-    url,
-    false, // isServerEnvironment
-    true // isClientEnvironmentßß
-  );
-}
-export { _transformModuleIfNeeded as transformModuleIfNeeded };

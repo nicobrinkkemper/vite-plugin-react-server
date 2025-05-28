@@ -896,6 +896,7 @@ export interface LoaderContext {
     targetEnvironment?: "client" | "server" | "browser";
   };
   url: string;
+  userOptions?: any; // Add userOptions to the context
 }
 // Add type declaration for import.meta.cssModules
 declare global {

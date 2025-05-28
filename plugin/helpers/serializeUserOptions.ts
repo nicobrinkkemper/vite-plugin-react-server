@@ -209,3 +209,19 @@ export const serializedOptions = <T extends PagePropOpt = PagePropOpt, InlineCSS
     customNonSerializableFunctions
   ));
 };
+
+export function hydrateUserOptions(userOptions: any) {
+  if (!userOptions) return userOptions;
+  
+  // Restore RegExp objects
+  if (userOptions.autoDiscover) {
+    const { autoDiscover } = userOptions;
+    for (const key in autoDiscover) {
+      if (typeof autoDiscover[key] === 'string' && autoDiscover[key].startsWith('__REGEXP__')) {
+        autoDiscover[key] = deserializeRegExp(autoDiscover[key]);
+      }
+    }
+  }
+  
+  return userOptions;
+}

@@ -277,14 +277,9 @@ export function handleExports(
   source: string,
   url: string,
   program: Program,
-  isServerEnvironment: boolean | undefined,
-  isClientEnvironment: boolean | undefined,
   isServerFunction: RegExpMatchArray | null,
   isClientComponent: RegExpMatchArray | null
 ): { imports: string[]; declarations: string[]; exportNames: string[] } {
-  if (isClientEnvironment || !isServerEnvironment) {
-    throw new Error("Not allowed on non server environment.");
-  }
   const imports: string[] = [];
   const declarations: string[] = [];
   const exportNames: string[] = [];
@@ -296,14 +291,33 @@ export function handleExports(
       type: "function" | "class" | "variable" | "default";
       declaration?: string;
       localName?: string;
+      before?: string[];
+      after?: string[];
     }
   >();
 
-  // First pass: collect all exports
+  let lastEnd = 0;
+  let currentBefore: string[] = [];
+  let foundFirstExport = false;
+
+  // First pass: collect all exports and code between them
   for (const node of program.body) {
+    // Add any code before this node
+    if (node.start > lastEnd) {
+      const beforeCode = source.slice(lastEnd, node.start);
+      if (beforeCode.trim()) {
+        currentBefore.push(beforeCode);
+      }
+    }
+
     if (node.type === "ImportDeclaration") {
       imports.push(source.slice(node.start, node.end));
     } else if (node.type === "ExportNamedDeclaration") {
+      if (!foundFirstExport) {
+        // This is the first export, so all code before it goes into its before array
+        foundFirstExport = true;
+      }
+
       if (node.declaration) {
         // For exported declarations (function, class, var, etc)
         const declarationStart = node.start;
@@ -315,23 +329,43 @@ export function handleExports(
           node.declaration.id
         ) {
           const name = node.declaration.id.name;
-          exports.set(name, { type: "function", declaration });
+          exports.set(name, { 
+            type: "function", 
+            declaration,
+            before: [...currentBefore] // Copy the current before array
+          });
+          currentBefore = []; // Reset for next export
         } else if (
           node.declaration.type === "ClassDeclaration" &&
           node.declaration.id
         ) {
           const name = node.declaration.id.name;
-          exports.set(name, { type: "class", declaration });
+          exports.set(name, { 
+            type: "class", 
+            declaration,
+            before: [...currentBefore] // Copy the current before array
+          });
+          currentBefore = []; // Reset for next export
         } else if (node.declaration.type === "VariableDeclaration") {
           for (const decl of node.declaration.declarations) {
             if (decl.id && decl.id.type === "Identifier") {
               const name = decl.id.name;
-              exports.set(name, { type: "variable", declaration });
+              exports.set(name, { 
+                type: "variable", 
+                declaration,
+                before: [...currentBefore] // Copy the current before array
+              });
+              currentBefore = []; // Reset for next export
             }
           }
         }
-      } else if (node.specifiers) {
-        // For named exports (export { a, b, c })
+      }
+      // For named exports (export { a, b, c })
+      if (node.specifiers && node.specifiers.length > 0) {
+        // For grouped exports, all specifiers share the same before/after code
+        const beforeCode = [...currentBefore];
+        currentBefore = [];
+        
         for (const spec of node.specifiers) {
           if (spec.type === "ExportSpecifier") {
             const localName =
@@ -339,13 +373,51 @@ export function handleExports(
             const exportedName =
               spec.exported.type === "Identifier" ? spec.exported.name : "";
             if (localName && exportedName) {
-              exports.set(exportedName, { type: "variable", localName });
+              // Check if the local name is a function by looking for its declaration
+              const functionMatch = source.match(
+                new RegExp(
+                  `(?:export\\s+)?(?:async\\s+)?function\\s+${localName}\\s*\\([^)]*\\)\\s*(?::\\s*[^{]*)?\\s*{[\\s\\S]*?\\n}`
+                )
+              );
+              if (functionMatch) {
+                exports.set(exportedName, { 
+                  type: "function", 
+                  localName,
+                  declaration: functionMatch[0],
+                  before: beforeCode // Share the same before code
+                });
+              } else {
+                // Try a more flexible pattern that matches the entire function body
+                const flexibleMatch = source.match(
+                  new RegExp(
+                    `(?:export\\s+)?(?:async\\s+)?function\\s+${localName}\\s*\\([^)]*\\)\\s*(?::\\s*[^{]*)?\\s*{[\\s\\S]*?\\n}`
+                  )
+                );
+                if (flexibleMatch) {
+                  exports.set(exportedName, { 
+                    type: "function", 
+                    localName,
+                    declaration: flexibleMatch[0],
+                    before: beforeCode // Share the same before code
+                  });
+                } else {
+                  exports.set(exportedName, { 
+                    type: "variable", 
+                    localName,
+                    before: beforeCode // Share the same before code
+                  });
+                }
+              }
             }
           }
         }
       }
     } else if (node.type === "ExportDefaultDeclaration") {
-      exports.set("default", { type: "default" });
+      exports.set("default", { 
+        type: "default",
+        before: [...currentBefore] // Copy the current before array
+      });
+      currentBefore = []; // Reset for next export
     } else if (
       node.type === "FunctionDeclaration" ||
       node.type === "VariableDeclaration" ||
@@ -359,27 +431,59 @@ export function handleExports(
         declarations.push(source.slice(node.start, node.end));
       }
     }
+
+    lastEnd = node.end;
+  }
+
+  // Add any remaining code after the last node
+  if (lastEnd < source.length) {
+    const afterCode = source.slice(lastEnd);
+    if (afterCode.trim()) {
+      // Add to the last export's after array
+      const lastExport = Array.from(exports.values()).pop();
+      if (lastExport) {
+        lastExport.after = [afterCode];
+      }
+    }
   }
 
   // Second pass: generate transformed exports
   if (isServerFunction) {
     // For server modules, create server references
     for (const [name, info] of exports) {
+      if (info.before) {
+        declarations.push(...info.before);
+      }
       if (info.type === "function") {
-        // Find the function in the original source
-        const functionMatch = source.match(
-          new RegExp(
-            `export\\s+(?:async\\s+)?function\\s+${name}\\s*\\([^)]*\\)\\s*{[\\s\\S]*?\\n}`
-          )
-        );
-        if (functionMatch) {
-          const functionBody = functionMatch[0].slice(
-            functionMatch[0].indexOf("function")
+        if (info.declaration) {
+          // If we already have the function declaration from the first pass, use it
+          const functionBody = info.declaration.slice(
+            info.declaration.indexOf("function")
           );
-          // Create a server reference and export it
           declarations.push(`const ${name} = registerServerReference(${functionBody}, "${url}", "${name}");
 export { ${name} };`);
+        } else {
+          // Try to find the function in the original source
+          const functionMatch = source.match(
+            new RegExp(
+              `(?:export\\s+)?(?:async\\s+)?function\\s+${info.localName || name}\\s*\\([^)]*\\)\\s*(?::\\s*[^{]*)?\\s*{[\\s\\S]*?\\n}`
+            )
+          );
+          if (functionMatch) {
+            const functionBody = functionMatch[0].slice(
+              functionMatch[0].indexOf("function")
+            );
+            declarations.push(`const ${name} = registerServerReference(${functionBody}, "${url}", "${name}");
+export { ${name} };`);
+          } else if (isDev) {
+            throw new Error(`Function ${name} not found in:\n${source}`);
+          } else {
+            throw new Error(`Transform failed.`);
+          }
         }
+      }
+      if (info.after) {
+        declarations.push(...info.after);
       }
       exportNames.push(name);
     }
@@ -430,82 +534,124 @@ export { ${name} };`);
 export function transformModuleWithPreservedFunctions(
   source: string,
   url: string,
+  moduleId: string,
   program: Program,
   sourceMap: RawSourceMap | null,
-  isServerEnvironment: boolean,
-  isClientEnvironment: boolean,
   isServerFunction: RegExpMatchArray | null,
   isClientComponent: RegExpMatchArray | null
 ): { source: string; sourceMap: RawSourceMap | null } {
-  // For client modules in server environment
-  if (isServerEnvironment) {
-    const { exportNames } = handleExports(
-      source,
-      url,
-      program,
-      isServerEnvironment,
-      isClientEnvironment,
-      isServerFunction,
-      isClientComponent
-    );
-    const urlLiteral = JSON.stringify(url);
-    if (isClientComponent) {
-      // On the server, client components should be replaced with references
-      const newSource = [
-        `import { registerClientReference } from 'react-server-dom-esm/server${
-          isDev ? ".node" : ""
-        }';`,
-        "",
-        ...exportNames.map(
-          (name) =>
-            `export const ${name} = registerClientReference(function() {
-          throw new Error("Attempted to call ${name}() from the server but ${name} is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
-        }, ${urlLiteral}, "${name}");`
-        ),
-      ].join("\n");
-      return {
-        source: newSource,
-        sourceMap: sourceMap || null,
-      };
-    }
+  const { exportNames } = handleExports(
+    source,
+    url,
+    program,
+    isServerFunction,
+    isClientComponent
+  );
+  const moduleIdLiteral = JSON.stringify(moduleId);
 
-    // For server modules in server environment
-    if (isServerFunction) {
-      const newSource = [
-        `import { registerServerReference } from 'react-server-dom-esm/server${
-          isDev ? ".node" : ""
-        }';`,
-        "",
-        ...exportNames
-          .map((name) => {
-            // Find the function in the original source
-            const functionMatch = source.match(
-              new RegExp(
-                `export\\s+(?:async\\s+)?function\\s+${name}\\s*\\([^)]*\\)\\s*{[\\s\\S]*?\\n}`
-              )
-            );
-            if (functionMatch) {
-              const functionBody = functionMatch[0].slice(
-                functionMatch[0].indexOf("function")
-              );
-              return `const ${name} = registerServerReference(${functionBody}, "${url}", "${name}");
-export { ${name} };`;
-            }
-            return "";
-          })
-          .filter(Boolean),
-        "",
-      ].join("\n");
+  if (isClientComponent) {
+    if(!exportNames.length) {
       return {
-        source: newSource,
-        sourceMap: sourceMap,
-      };
+        source: source,
+        sourceMap: sourceMap || null,
+      }
     }
+    // On the server, client components should be replaced with references
+    const newSource = [
+      `import { registerClientReference } from 'react-server-dom-esm/server${
+        isDev ? ".node" : ""
+      }';`,
+      "",
+      // Transform exports
+      ...exportNames.map(
+        (name) =>
+          `export const ${name} = registerClientReference(function() {
+          throw new Error("Attempted to call ${name}() from the server but ${name} is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");
+        }, ${moduleIdLiteral}, ${JSON.stringify(name)});`
+      ),
+    ].join("\n");
+    return {
+      source: newSource,
+      sourceMap: sourceMap || null,
+    };
   }
 
-  // For all other cases, return original source
+  // For server modules in server environment
+  if (isServerFunction) {
+    if(exportNames.length === 0) {
+      return {
+        source: source,
+        sourceMap: sourceMap || null,
+      }
+    }
+
+    // First add the import
+    let newSource = `import { registerServerReference } from 'react-server-dom-esm/server${
+      isDev ? ".node" : ""
+    }';\n\n`;
+
+    // Split the source into lines to process it
+    const lines = source.split('\n');
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      
+      // Handle direct exports
+      if (line.match(/^export\s+(?:async\s+)?function\s+\w+/)) {
+        // Find the end of the function
+        let functionBody = line;
+        let j = i + 1;
+        let braceCount = (line.match(/{/g) || []).length - (line.match(/}/g) || []).length;
+        
+        while (j < lines.length && braceCount > 0) {
+          functionBody += '\n' + lines[j];
+          braceCount += (lines[j].match(/{/g) || []).length - (lines[j].match(/}/g) || []).length;
+          j++;
+        }
+        
+        // Extract function name and wrap with registerServerReference
+        const functionName = functionBody.match(/function\s+(\w+)/)?.[1];
+        if (functionName) {
+          const wrappedFunction = functionBody.replace(/^export\s+/, '');
+          newSource += `const ${functionName} = registerServerReference(${wrappedFunction}, ${moduleIdLiteral}, ${JSON.stringify(functionName)});
+export { ${functionName} };\n\n`;
+        }
+        i = j;
+      }
+      // Handle named exports
+      else if (line.match(/^export\s+{/)) {
+        const names = line.match(/{([^}]*)}/)?.[1].split(',').map(n => n.trim());
+        if (names) {
+          for (const name of names) {
+            // Look for the function declaration
+            const functionMatch = source.match(
+              new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\([^)]*\\)\\s*(?::\\s*[^{]*)?\\s*{[\\s\\S]*?\\n}`)
+            );
+            if (functionMatch) {
+              const functionBody = functionMatch[0];
+              newSource += `const ${name} = registerServerReference(${functionBody}, ${moduleIdLiteral}, ${JSON.stringify(name)});
+export { ${name} };\n\n`;
+            } else {
+              newSource += `export { ${name} };\n`;
+            }
+          }
+        }
+        i++;
+      }
+      // Keep other lines as is
+      else {
+        newSource += line + '\n';
+        i++;
+      }
+    }
+
+    return {
+      source: newSource,
+      sourceMap: sourceMap,
+    };
+  }
   return {
     source,
-    sourceMap: sourceMap,
+    sourceMap: sourceMap || null,
   };
 }

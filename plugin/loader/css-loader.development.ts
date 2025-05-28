@@ -7,6 +7,7 @@ import type { ResolvedConfig } from "vite";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { env } from "../utils/env.js";
+import type { InitializedCssLoaderMessage } from "../worker/types.js";
 
 /**
  * Global port for communication between the main thread and the CSS loader.
@@ -31,10 +32,10 @@ let resolvedConfig: ResolvedConfig | undefined;
  * @param data - Configuration data for the CSS loader
  * @param data.port - The message port for communication
  */
-export async function initialize(data: { port: MessagePort, resolvedConfig: SerializedUserConfig }) {
+export async function initialize(data: { id: string, port: MessagePort, resolvedConfig: SerializedUserConfig }) {
   loaderPort = data.port;
   resolvedConfig = data.resolvedConfig;
-  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER" });
+  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER", id: data.id } satisfies InitializedCssLoaderMessage);
 }
 
 /**

@@ -6,6 +6,7 @@ import type {
   PagePropOpt,
   StreamMetrics,
 } from "../types.js";
+import type { MessagePort } from "node:worker_threads";
 
 // Base message types
 export interface WorkerMessage {
@@ -75,14 +76,16 @@ export interface ChunkErrorMessage extends WorkerMessage {
 }
 
 export type StreamHandlers =  {
-  onError: (error: any, errorInfo?: any) => void;
-  onData: (data: any) => void;
-  onEnd: () => void;
-  onMetrics: (metrics: any) => void;
-  onHmrAccept: (routes?: string[]) => void;
-  onHmrUpdate: (routes?: string[]) => void;
+  onError: (id: string, error: any, errorInfo?: any) => void;
+  onData: (id: string, data: any) => void;
+  onEnd: (id: string) => void;
+  onMetrics: (id: string, metrics: any) => void;
+  onHmrAccept: (id: string, routes?: string[]) => void;
+  onHmrUpdate: (id: string, routes?: string[]) => void;
   onServerAction?: (id: string, args: unknown[]) => void;
   onServerActionResponse?: (id: string, result?: unknown, error?: string) => void;
+  onServerModule?: (id: string, url: string, source: string) => void;
+  onShutdown?: (id: string) => void;
 };
 
 // RSC Messages
@@ -229,12 +232,10 @@ export type HtmlWorkerOutputMessage =
 export type InitializedReactLoaderMessage = {
   type: "INITIALIZED_REACT_LOADER";
   id: string;
-  port: MessagePort;
 }
 export type InitializedCssLoaderMessage = {
   type: "INITIALIZED_CSS_LOADER";
   id: string;
-  port: MessagePort;
 }
 
 export type InitializedRscWorkerLoaderMessage = {
@@ -286,7 +287,8 @@ export type RscWorkerInputMessage =
   | HmrAcceptMessage
   | HmrCleanupMessage
   | CleanupCompleteMessage
-  | ServerActionMessage;
+  | ServerActionMessage
+  | ServerModuleMessage;
 
 export interface CssFileRequestMessage extends WorkerMessage {
   type: "CSS_FILE_REQUEST";
@@ -359,7 +361,8 @@ export type RscWorkerOutputMessage =
   | ReadyMessage
   | ServerActionMessage
   | ServerActionResponseMessage
-  | ShutdownCompleteMessage;
+  | ShutdownCompleteMessage
+  | ServerModuleMessage;
 
 export interface ClientReferenceMessage extends WorkerMessage {
   type: "CLIENT_REFERENCE";
@@ -426,3 +429,9 @@ export type LoaderMessage = {
   port?: MessagePort;
   importMap?: string;
 };
+
+export interface ServerModuleMessage extends WorkerMessage {
+  type: "SERVER_MODULE";
+  url: string;
+  source: string;
+}

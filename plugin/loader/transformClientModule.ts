@@ -8,8 +8,7 @@ import {
 export async function transformClientModule(
   source: string,
   url: string,
-  isServerEnvironment: boolean,
-  isClientEnvironment: boolean,
+  moduleId: string,
   isServerFunction: RegExpMatchArray | null,
   isClientComponent: RegExpMatchArray | null,
   ast: Program,
@@ -34,10 +33,9 @@ export async function transformClientModule(
   const transformed = transformModuleWithPreservedFunctions(
     source,
     url,
+    moduleId,
     ast,
     sourceMap || null,
-    isServerEnvironment,
-    isClientEnvironment,
     isServerFunction,
     isClientComponent
   );

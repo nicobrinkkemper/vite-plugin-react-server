@@ -1,8 +1,14 @@
 import { cleanObject } from "../helpers/cleanObject.js";
-import type { HtmlWorkerOutputMessage, RscWorkerOutputMessage } from "./types.js";
+import type {
+  HtmlWorkerOutputMessage,
+  RscWorkerOutputMessage,
+} from "./types.js";
 import { parentPort } from "node:worker_threads";
 
-export function sendMessage(msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage, port = parentPort) {
+export function sendMessage(
+  msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage,
+  port = parentPort
+) {
   if (!port) {
     console.error("[Worker] No port available to send message");
     return;
@@ -10,17 +16,20 @@ export function sendMessage(msg: HtmlWorkerOutputMessage | RscWorkerOutputMessag
 
   try {
     // Handle error messages
-    if ('error' in msg) {
+    if ("error" in msg) {
       const error = msg.error;
-      const serializedError = error instanceof Error ? {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        cause: error.cause,
-      } : {
-        message: String(error),
-        name: 'Error',
-      };
+      const serializedError =
+        error instanceof Error
+          ? {
+              message: error.message,
+              stack: error.stack,
+              name: error.name,
+              cause: error.cause,
+            }
+          : {
+              message: String(error),
+              name: "Error",
+            };
 
       port.postMessage({
         ...cleanObject(msg),
@@ -38,7 +47,7 @@ export function sendMessage(msg: HtmlWorkerOutputMessage | RscWorkerOutputMessag
         type: "ERROR",
         error: {
           message: err instanceof Error ? err.message : String(err),
-          name: err instanceof Error ? err.name : 'Error',
+          name: err instanceof Error ? err.name : "Error",
         },
       });
     } catch {
@@ -47,3 +56,12 @@ export function sendMessage(msg: HtmlWorkerOutputMessage | RscWorkerOutputMessag
     }
   }
 }
+
+export const sendRscWorkerMessage = sendMessage as (
+  msg: RscWorkerOutputMessage,
+  port?: MessagePort
+) => void;
+export const sendHtmlWorkerMessage = sendMessage as (
+  msg: HtmlWorkerOutputMessage,
+  port?: MessagePort
+) => void;

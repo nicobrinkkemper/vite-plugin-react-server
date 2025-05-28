@@ -11,6 +11,8 @@ export const activeStreams = new Map<string, PassThrough>();
 // Track CSS files
 export const cssFiles = new Map<string, CssContent>();
 
+// Track module IDs
+export const moduleIds = new Map<string, string>();
 
 export const hmrState = new Map<string, HmrState>();
 
@@ -104,4 +106,12 @@ export function getInvalidatedModules(): string[] {
   return Array.from(hmrState.entries())
     .filter(([_, state]) => state.invalidated)
     .map(([path]) => path);
+}
+
+export function addModuleId(id: string, url: string) {
+  moduleIds.set(id, url);
+}
+
+export function getModuleId(id: string): string | undefined {
+  return moduleIds.get(id);
 } 
