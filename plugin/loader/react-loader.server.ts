@@ -40,8 +40,6 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
     const source = typeof result.source === 'string' ? result.source : 
                   result.source instanceof Uint8Array ? new TextDecoder().decode(result.source) :
                   String(result.source);
-    const isServerFunction = source?.match(/^"use server"[\s;]*\n?/m);
-    const isClientFunction = source?.match(/^"use client"[\s;]*\n?/m);
 
     // Handle file URLs
     const filePath = url.startsWith("file://") ? fileURLToPath(url) : url;
@@ -63,8 +61,8 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
       source,
       url,
       finalID,
-      isServerFunction,
-      isClientFunction,
+      userOptions?.autoDiscover?.isServerFunction(source),
+      userOptions?.autoDiscover?.isClientComponent(source),
       true, // isServerEnvironment
     );
 
