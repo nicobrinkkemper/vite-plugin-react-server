@@ -54,7 +54,6 @@ function createClientReferenceError(name: string): string {
 export function transformModuleWithPreservedFunctions(
   source: string,
   moduleId: string,
-  _url: string,
   program: Program,
   isServerFunction: boolean | RegExpMatchArray | null,
   isClientComponent: boolean | RegExpMatchArray | null,

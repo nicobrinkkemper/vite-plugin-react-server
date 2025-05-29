@@ -127,7 +127,6 @@ export function reactTransformPlugin<
       // Always transform in server context
       const transformed = transformModuleIfNeeded(
         code,
-        id,
         finalID,
         userOptions.autoDiscover.isServerFunction(code),
         userOptions.autoDiscover.isClientComponent(code),

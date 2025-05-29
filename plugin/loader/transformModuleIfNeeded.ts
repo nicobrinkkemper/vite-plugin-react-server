@@ -5,7 +5,6 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 export function transformModuleIfNeeded(
   source: string,
-  url: string,
   moduleId: string,
   isServerFunction: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunction(source),
   isClientComponent: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponent(source),
@@ -25,7 +24,6 @@ export function transformModuleIfNeeded(
   const result = transformModuleWithPreservedFunctions(
     source,
     moduleId,
-    url,
     ast,
     isServerFunction,
     isClientComponent

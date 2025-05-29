@@ -5,7 +5,6 @@ import { parse } from "acorn";
 import { describe, test, expect } from "vitest";
 import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
 import { load } from "../../plugin/loader/react-loader.server.js";
-import React from "react";
 import { createDefaultLoader } from "../../plugin/loader/createDefaultLoader";
 
 describe("Loader Core Functionality", () => {
@@ -18,7 +17,6 @@ describe("Loader Core Functionality", () => {
       `;
       const result = transformModuleIfNeeded(
         source,
-        "test.js",
         "test",
         null, // no directives
         null,
@@ -51,7 +49,6 @@ export class Calculator {
 }`;
       const result = transformModuleIfNeeded(
         source,
-        "test.js",
         "test",
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
         null,
@@ -104,7 +101,6 @@ export class Modal {
 }`;
       const result = transformModuleIfNeeded(
         source,
-        "test.jsx",
         "test",
         null,
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective),
@@ -151,7 +147,6 @@ export default function DefaultExport() {
 }`;
       const result = transformModuleIfNeeded(
         source,
-        "test.js",
         "test",
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
         null,
@@ -208,7 +203,6 @@ export async function clearCompletedTodos() {
 }`;
       const result = transformModuleIfNeeded(
         source,
-        "test.js",
         "test",
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
         null,

@@ -59,7 +59,6 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
 
     const transformed = transformModuleIfNeeded(
       source,
-      url,
       finalID,
       userOptions?.autoDiscover?.isServerFunction(source),
       userOptions?.autoDiscover?.isClientComponent(source),
