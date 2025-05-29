@@ -44,7 +44,8 @@ export async function configureReactServer<
     moduleBaseURL: server.config.base,
     projectRoot: server.config.root,
     Html: React.Fragment,
-    onEvent: createEventHandler(onEvent)
+    onEvent: createEventHandler(onEvent),
+    css: handlerUserOptions.css
   };
 
   // Set environment-specific configuration

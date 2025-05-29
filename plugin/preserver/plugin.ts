@@ -6,6 +6,7 @@ import type {
 } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { basename } from "path";
+import { resolveAutoDiscoverMatcher } from "../config/resolveAutoDiscoverMatcher.js";
 
 const REACT_DIRECTIVES = new Set(["use client", "use server"]);
 
@@ -46,9 +47,12 @@ function countLines(str: string): number {
 export function reactPreservePlugin<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt
->(_options: StreamPluginOptions<T, InlineCSS>): import("vite").Plugin {
+>(options: StreamPluginOptions<T, InlineCSS>): import("vite").Plugin {
   const meta: Record<string, Set<string>> = {};
-
+  // saves us from transforming all the options
+  const moduleExtension = resolveAutoDiscoverMatcher(options.autoDiscover?.moduleExtension, DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension);
+  const vendorPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.vendorPattern, DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern);
+  const virtualPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.virtualPattern, DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern);
   return {
     name: "vite-plugin-react-server:preserve-directives",
     enforce: "post",
@@ -58,9 +62,9 @@ export function reactPreservePlugin<
       handler(code: string, id: string) {
         // Skip node_modules and vite files
         if (
-          id.includes("node_modules") ||
-          id.includes("vite/dist") ||
-          !id.match(DEFAULT_CONFIG.MODULE_EXTENSION)
+          vendorPattern(id) ||
+          virtualPattern(id) ||
+          !moduleExtension(id)
         ) {
           return null;
         }

@@ -1,27 +1,26 @@
-import { join } from "node:path";
 import { messageHandler } from "./messageHandler.js";
-import { MessageChannel, parentPort } from "node:worker_threads";
-import { pluginRoot } from "../../root.js";
-import { register } from "node:module";
+import { parentPort, workerData } from "node:worker_threads";
 import type { ReadyMessage } from "../types.js";
 
-// Create channels for each loader
-const cssLoaderChannel = new MessageChannel();
-cssLoaderChannel.port2.on("message", messageHandler);
+const verbose = workerData.verbose;
 
-const cssLoaderPath = "file://" + join(pluginRoot, "loader/css-loader.development.js");
-register(cssLoaderPath, {
-  parentURL: pluginRoot,
-  data: { port: cssLoaderChannel.port1 },
-  transferList: [cssLoaderChannel.port1],
-});
-
+function developmentMessageHandler(msg: any) {
+  if (verbose) {
+    if ("chunk" in msg) {
+      let preview = Buffer.from(msg.chunk).toString("utf-8");
+      console.log(`[html-worker:${msg.type}] ${preview}`);
+    } else {
+      console.log(`[html-worker:${msg.type}] ${JSON.stringify(msg)}`);
+    }
+  }
+  messageHandler(msg);
+}
 
 // Signal ready with environment
-parentPort?.on("message", messageHandler);
+parentPort?.on("message", developmentMessageHandler);
 parentPort?.postMessage({
   type: "READY",
+  id: "html-worker",
   env: process.env["NODE_ENV"],
   pid: process.pid,
-  id: "html-worker",
 } satisfies ReadyMessage);

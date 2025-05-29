@@ -34,7 +34,6 @@ export default defineConfig({
           __dirname,
           "plugin/worker/rsc/index.ts"
         ),
-        "plugin/worker/loader": resolve(__dirname, "plugin/worker/loader.ts"),
         "plugin/preserver/plugin": resolve(
           __dirname,
           "plugin/preserver/plugin.ts"

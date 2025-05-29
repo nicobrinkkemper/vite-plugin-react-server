@@ -10,7 +10,7 @@ import type {
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
-import { configureWorkerRequestHandler } from "./server.js";
+import { configureWorkerRequestHandler } from "./configureWorkerRequestHandler.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { MessageChannel } from "node:worker_threads";
 

@@ -19,6 +19,40 @@ if (!parentPort) {
 // In test mode, we want errors to propagate up immediately
 const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 const isDevEnv = process.env["NODE_ENV"] !== "production";
+const verbose = workerData.verbose;
+
+const developmentMessageHandler = (msg: any) => {
+  if (verbose) {
+    if ("chunk" in msg) {
+      let preview = Buffer.from(msg.chunk).toString("utf-8");
+      console.log(`[rsc-worker:${msg.type}] ${preview}`);
+    } else {
+      console.log(`[rsc-worker:${msg.type}] ${JSON.stringify(msg)}`);
+    }
+  }
+  messageHandler(msg);
+};
+
+const developmentCssLoaderMessageHandler = (msg: any) => {
+  if (verbose) {
+    console.log(`[css-loader:${msg.type}] ${JSON.stringify(msg)}`);
+  }
+  messageHandler(msg);
+};
+
+const developmentEnvLoaderMessageHandler = (msg: any) => {
+  if (verbose) {
+    console.log(`[env-loader:${msg.type}] ${JSON.stringify(msg)}`);
+  }
+  messageHandler(msg);
+};
+
+const developmentReactLoaderMessageHandler = (msg: any) => {
+  if (verbose) {
+    console.log(`[react-loader:${msg.type}] ${JSON.stringify(msg)}`);
+  }
+  messageHandler(msg);
+};
 
 try {
   // Deserialize workerData to restore RegExp objects
@@ -32,9 +66,9 @@ try {
   const envLoaderChannel = new MessageChannel();
 
   // Set up message handlers before transferring ports
-  reactLoaderChannel.port1.on("message", messageHandler);
-  cssLoaderChannel.port1.on("message", messageHandler);
-  envLoaderChannel.port1.on("message", messageHandler);
+  reactLoaderChannel.port1.on("message", developmentReactLoaderMessageHandler);
+  cssLoaderChannel.port1.on("message", developmentCssLoaderMessageHandler);
+  envLoaderChannel.port1.on("message", developmentEnvLoaderMessageHandler);
 
   const reactLoaderPath =
     "file://" + join(pluginRoot, "loader/react-loader.server.js");
@@ -48,19 +82,19 @@ try {
     parentURL: pluginRoot,
     data: {
       id: "react-loader",
-      port: reactLoaderChannel.port2,
+      port: reactLoaderChannel.port1,
       userOptions: workerData.userOptions,
     },
-    transferList: [reactLoaderChannel.port2],
+    transferList: [reactLoaderChannel.port1],
   });
   register(cssLoaderPath, {
     parentURL: pluginRoot,
     data: {
       id: "css-loader",
-      port: cssLoaderChannel.port2,
+      port: cssLoaderChannel.port1,
       resolvedConfig: workerData.resolvedConfig,
     },
-    transferList: [cssLoaderChannel.port2],
+    transferList: [cssLoaderChannel.port1],
   });
 
   // Register loaders
@@ -70,14 +104,14 @@ try {
   register(envLoaderPath, {
     parentURL: pluginRoot,
     data: {
-      port: envLoaderChannel.port2,
+      port: envLoaderChannel.port1,
       resolvedConfig: workerData.resolvedConfig,
     },
-    transferList: [envLoaderChannel.port2],
+    transferList: [envLoaderChannel.port1],
   });
 
   // Set up message handling
-  parentPort!.on("message", messageHandler);
+  parentPort!.on("message", developmentMessageHandler);
 
   const { hmrPort } = workerData;
   if (hmrPort) {

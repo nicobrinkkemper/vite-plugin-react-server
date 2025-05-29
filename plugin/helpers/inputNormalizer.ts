@@ -180,7 +180,7 @@ export function createInputNormalizer({
   root,
   moduleBasePath,
   preserveModulesRoot = undefined,
-  removeExtension = DEFAULT_CONFIG.MODULE_EXTENSION,
+  removeExtension = DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
 }: CreateInputNormalizerProps): InputNormalizer {
   if (stashedNormalizer) {
     return stashedNormalizer;

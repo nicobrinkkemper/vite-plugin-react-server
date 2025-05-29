@@ -1,9 +1,9 @@
-import type { Program } from "./moduleParser.js";
-import { transformClientModule } from "./transformClientModule.js";
-import { transformServerModule } from "./transformServerModule.js";
-import * as acorn from "acorn-loose";
+import { getCondition } from "../config/getCondition.js";
+import { transformModuleWithPreservedFunctions } from "./transformModuleWithPreservedFunctions.js";
+import { createDefaultLoader, type Loader } from "./createDefaultLoader.js";
+import { parse } from "./parse.js";
 
-export async function transformModuleIfNeeded(
+export function transformModuleIfNeeded(
   source: string,
   url: string,
   moduleId: string,
@@ -13,50 +13,46 @@ export async function transformModuleIfNeeded(
   isClientComponent: RegExpMatchArray | null = source?.match(
     /^"use client"[\s;]*\n?/m
   ),
-  loader: (id: string) => string | null = (_id: string) => "",
-  parser: (source: string) => Program = (source: string) =>
-    acorn.parse(source, {
-      sourceType: "module",
-      ecmaVersion: "latest",
-    }) as Program
+  isServerEnvironment = getCondition() === 'react-server',
+  loader: Loader = createDefaultLoader(source),
 ) {
   if (!source || source.length === 0) {
-    source = String(loader(url));
+    const result = loader(url);
+    source = result.source;
   }
-  // Do a quick check for the exact string. If it doesn't exist, don't
-  // bother parsing.
-  if (!isServerFunction && !isClientComponent) {
+
+  // Parse source and handle source maps
+  const { source: parsedSource, ast, map } = parse(source, url);
+
+  // Handle environment-specific cases
+  if (
+    (isServerEnvironment && !isServerFunction && !isClientComponent) ||
+    (!isServerEnvironment && isClientComponent)
+  ) {
     return {
-      source,
-      sourceMap: null,
+      source: parsedSource,
+      sourceMap: map
+    };
+  }
+  if (!isServerEnvironment) {
+    return {
+      source: parsedSource,
+      sourceMap: map
     };
   }
 
-  // Parse the AST once
-  const ast = parser(source);
-
-  if (isClientComponent) {
-    const result = await transformClientModule(
-      source,
-      url,
-      moduleId,
-      isServerFunction,
-      isClientComponent,
-      ast,
-      null
-    );
-    return {
-      source: result.source,
-      sourceMap: result.sourceMap,
-    };
-  }
-  return await transformServerModule(
-    source,
-    url,
+  const result = transformModuleWithPreservedFunctions(
+    parsedSource,
     moduleId,
-    isServerFunction,
-    isClientComponent,
+    url,
     ast,
-    null
+    map, // Pass source map to transformModuleWithPreservedFunctions
+    isServerFunction,
+    isClientComponent
   );
+
+  return {
+    source: result.source,
+    sourceMap: result.map || map // Use result.sourceMap if available, otherwise use the original map
+  };
 }

@@ -11,34 +11,7 @@ import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 import { CssCollector } from "../components/css-collector.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/**
- * Resolves a matcher pattern to a function that tests paths
- */
-const resolveAutoDiscoverMatcher = (
-  options: undefined | string | RegExp | ((path: string) => boolean),
-  fallback: RegExp | ((path: string) => boolean)
-) => {
-  if (!options) {
-    if (typeof fallback === "function") {
-      return fallback;
-    } else {
-      return (path: string) => fallback.test(path);
-    }
-  }
-  if (typeof options === "string") {
-    const matcher = new RegExp(options);
-    return (path: string) => matcher.test(path);
-  } else if (typeof options === "function") {
-    return options;
-  } else {
-    return (path: string) => options.test(path);
-  }
-};
+import { resolveAutoDiscoverMatcher } from "./resolveAutoDiscoverMatcher.js";
 
 /**
  * Ensures a path ends with .js extension
@@ -107,40 +80,81 @@ export const resolveOptions = <
   const assetsDir =
     options.build?.assetsDir ?? `${DEFAULT_CONFIG.CLIENT_ASSETS_DIR}`;
 
-  // Path normalization helpers
-  const ensureModuleBase = (n: string | null) => {
-    if (!n) return "";
-    return n.startsWith(moduleBase + "/") ? n.slice(moduleBase.length + 1) : n;
-  };
+  // Build options
+  const preserveModulesRoot =
+    options.build?.preserveModulesRoot ??
+    DEFAULT_CONFIG.BUILD.preserveModulesRoot;
 
-  const hasWrongRoot = !projectRoot.startsWith("/");
-  if (hasWrongRoot) {
-    console.warn("projectRoot is not a full path", projectRoot);
+  // Module path configuration
+  const moduleBase =
+    typeof options.moduleBase === "string"
+      ? options.moduleBase
+      : DEFAULT_CONFIG.MODULE_BASE;
+
+  const moduleBasePath =
+    typeof options.moduleBasePath === "string"
+      ? options.moduleBasePath
+      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_PATH;
+
+  const moduleBaseURL =
+    typeof options.moduleBaseURL === "string"
+      ? options.moduleBaseURL
+      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_URL;
+
+  const moduleRootPath =
+    typeof options.moduleRootPath === "string"
+      ? options.moduleRootPath
+      : join(projectRoot, outDir, client);
+
+  const publicOrigin =
+    typeof options.publicOrigin === "string"
+      ? options.publicOrigin
+      : process.env.VITE_PUBLIC_ORIGIN ?? DEFAULT_CONFIG.PUBLIC_ORIGIN;
+
+  // Worker and loader paths
+  const rscWorkerPath =
+    typeof options.rscWorkerPath === "string"
+      ? join(projectRoot, options.rscWorkerPath)
+      : join(pluginRoot, DEFAULT_CONFIG.RSC_WORKER_PATH);
+
+  const htmlWorkerPath =
+    typeof options.htmlWorkerPath === "string"
+      ? join(projectRoot, options.htmlWorkerPath)
+      : join(pluginRoot, DEFAULT_CONFIG.HTML_WORKER_PATH);
+
+  const loaderPath =
+    typeof options.loaderPath === "string"
+      ? join(projectRoot, options.loaderPath)
+      : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
+  // these will never be cleaned up, because, we are resolving the user options
+  // and it's assumed they are relevant until the process stops
+  if (process.env.VITE_BASE_URL !== moduleBaseURL) {
+    process.env.VITE_BASE_URL = moduleBaseURL;
   }
-  /**
-   * If the defined project root is already wrong, we keep it as is.
-   * Otherwise, we remove the leading slash as a representation of the wrong root.
-   */
-  const wrongRoot = !hasWrongRoot ? projectRoot.slice(1) : projectRoot;
+  if (process.env.VITE_PUBLIC_ORIGIN !== publicOrigin) {
+    process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
+  }
 
-  const ensureNoRoot = (n: string | null) => {
-    if (typeof n !== "string" || n === "") {
-      return "";
-    }
-    // if the path starts with the wrong root, we remove the wrong root
-    if (n.startsWith(wrongRoot)) {
-      return n.slice(wrongRoot.length + 1);
-    }
-    // if the path starts with the project root, we remove the project root
-    return n.startsWith(projectRoot + "/")
-      ? n.slice(projectRoot.length + 1)
-      : n;
-  };
+  const normalizer =
+    options.normalizer ??
+    createInputNormalizer({
+      root: projectRoot,
+      preserveModulesRoot:
+        preserveModulesRoot === true ? moduleBase : undefined,
+      removeExtension: true,
+      moduleBasePath,
+    });
 
+  const testModuleExtension = resolveAutoDiscoverMatcher(
+    options.autoDiscover?.moduleExtension,
+    DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension
+  );
   // Auto-discovery pattern matchers
   const testModulePattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.modulePattern,
-    DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern
+    options.autoDiscover?.moduleExtension
+      ? (id: string) => testModuleExtension(id.toLowerCase())
+      : DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern
   );
 
   const testJson = resolveAutoDiscoverMatcher(
@@ -165,12 +179,20 @@ export const resolveOptions = <
 
   const testClientComponents = resolveAutoDiscoverMatcher(
     options.autoDiscover?.clientComponents,
-    DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents
+    options.autoDiscover?.moduleExtension
+      ? (id: string) =>
+          testModuleExtension(id.toLowerCase()) &&
+          /(\.|\/)?client(\.|\/)/.test(id.toLowerCase())
+      : DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents
   );
 
   const testServerFunctions = resolveAutoDiscoverMatcher(
     options.autoDiscover?.serverFunctions,
-    DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions
+    options.autoDiscover?.moduleExtension
+      ? (id: string) =>
+          testModuleExtension(id.toLowerCase()) &&
+          /(\.|\/)?server(\.|\/)/.test(id.toLowerCase())
+      : DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions
   );
 
   const testNodeOnly = resolveAutoDiscoverMatcher(
@@ -180,12 +202,20 @@ export const resolveOptions = <
 
   const testPropsPattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.propsPattern,
-    DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
+    options.autoDiscover?.moduleExtension
+      ? (id: string) =>
+          testModuleExtension(id.toLowerCase()) &&
+          /(\.|\/)?props(\.|\/)/.test(id.toLowerCase())
+      : DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
   );
 
   const testPagePattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.pagePattern,
-    DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
+    options.autoDiscover?.moduleExtension
+      ? (id: string) =>
+          testModuleExtension(id.toLowerCase()) &&
+          /(\.|\/)?page(\.|\/)/.test(id.toLowerCase())
+      : DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
   );
 
   const testCssModule = resolveAutoDiscoverMatcher(
@@ -208,10 +238,15 @@ export const resolveOptions = <
     DEFAULT_CONFIG.AUTO_DISCOVER.dotFiles
   );
 
-  // Build options
-  const preserveModulesRoot =
-    options.build?.preserveModulesRoot ??
-    DEFAULT_CONFIG.BUILD.preserveModulesRoot;
+  const testServerDirective = resolveAutoDiscoverMatcher(
+    options.autoDiscover?.serverDirective,
+    DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective
+  );
+
+  const testClientDirective = resolveAutoDiscoverMatcher(
+    options.autoDiscover?.clientDirective,
+    DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective
+  );
 
   const hashOption =
     typeof options.build?.hash === "string"
@@ -309,48 +344,44 @@ export const resolveOptions = <
         return hash(`${n.name}.js`, ssr);
       }
     }
-    return hash(
-      addModuleExtension(getOutputPath(ensureModuleBase(ensureNoRoot(n.name)))),
-      ssr
-    );
+    return hash(addModuleExtension(getOutputPath(normalizer(n.name)[0])), ssr);
   };
 
   const chunkFile = (n: PreRenderedChunk, ssr: boolean) => {
-    return hash(
-      addModuleExtension(
-        getOutputPath(ensureModuleBase(ensureNoRoot("_" + n.name)))
-      ),
-      ssr
-    );
+    return hash(addModuleExtension(getOutputPath(normalizer(n.name)[0])), ssr);
   };
 
   const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
-    return hash(getOutputPath(ensureModuleBase(ensureNoRoot(n.names[0]))), ssr);
+    return hash(getOutputPath(normalizer(n.names[0])[0]), ssr);
   };
 
   const moduleID =
     typeof options.moduleID === "function"
       ? options.moduleID
       : (id: string) => {
-          if (moduleBasePath !== "" && !id.startsWith(moduleBasePath)) {
-            id = join(moduleBasePath, id);
+          // First normalize the path to handle any leading/trailing slashes
+          let normalizedId = id.replace(/^\/+|\/+$/g, '');
+          
+          // If moduleBasePath is set and id doesn't start with it, add it
+          if (moduleBasePath !== "" && !normalizedId.startsWith(moduleBasePath)) {
+            normalizedId = join(moduleBasePath, normalizedId);
           }
-          if (
-            !id.startsWith("/") &&
-            process.env["NODE_ENV"] === "production" &&
-            id.startsWith(moduleBase)
-          ) {
-            id = id.slice(moduleBase.length);
-          } else if (
-            process.env["NODE_ENV"] === "production" &&
-            id.startsWith("/" + moduleBase)
-          ) {
-            id = id.slice(moduleBase.length + 1);
+          
+          // Handle moduleBase in production
+          if (process.env["NODE_ENV"] === "production") {
+            if (normalizedId.startsWith(moduleBase)) {
+              normalizedId = normalizedId.slice(moduleBase.length);
+            } else if (normalizedId.startsWith("/" + moduleBase)) {
+              normalizedId = normalizedId.slice(moduleBase.length + 1);
+            }
           }
-          if (!id.startsWith("/")) {
-            id = "/" + id;
+          
+          // Ensure the path starts with a slash
+          if (!normalizedId.startsWith("/")) {
+            normalizedId = "/" + normalizedId;
           }
-          return id;
+          
+          return normalizedId;
         };
 
   const rscOutputPath =
@@ -385,59 +416,13 @@ export const resolveOptions = <
         : assetFile,
   };
 
-  // Module path configuration
-  const moduleBase =
-    typeof options.moduleBase === "string"
-      ? options.moduleBase
-      : DEFAULT_CONFIG.MODULE_BASE;
-
-  const moduleBasePath =
-    typeof options.moduleBasePath === "string"
-      ? options.moduleBasePath
-      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_PATH;
-
-  const moduleBaseURL =
-    typeof options.moduleBaseURL === "string"
-      ? options.moduleBaseURL
-      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_URL;
-
-  const moduleRootPath =
-    typeof options.moduleRootPath === "string"
-      ? options.moduleRootPath
-      : join(projectRoot, outDir, client);
-
-  const publicOrigin =
-    typeof options.publicOrigin === "string"
-      ? options.publicOrigin
-      : process.env.VITE_PUBLIC_ORIGIN ?? DEFAULT_CONFIG.PUBLIC_ORIGIN;
-
-  // Worker and loader paths
-  const rscWorkerPath =
-    typeof options.rscWorkerPath === "string"
-      ? join(projectRoot, options.rscWorkerPath)
-      : join(pluginRoot, DEFAULT_CONFIG.RSC_WORKER_PATH);
-
-  const htmlWorkerPath =
-    typeof options.htmlWorkerPath === "string"
-      ? join(projectRoot, options.htmlWorkerPath)
-      : join(pluginRoot, DEFAULT_CONFIG.HTML_WORKER_PATH);
-
-  const loaderPath =
-    typeof options.loaderPath === "string"
-      ? join(projectRoot, options.loaderPath)
-      : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
-  // these will never be cleaned up, because, we are resolving the user options
-  // and it's assumed they are relevant until the process stops
-  if (process.env.VITE_BASE_URL !== moduleBaseURL) {
-    process.env.VITE_BASE_URL = moduleBaseURL;
-  }
-  if (process.env.VITE_PUBLIC_ORIGIN !== publicOrigin) {
-    process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
-  }
   // Auto-discovery configuration
   const autoDiscover = {
     moduleExtension:
-      options.autoDiscover?.moduleExtension ?? DEFAULT_CONFIG.MODULE_EXTENSION,
+      options.autoDiscover?.moduleExtension ??
+      DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
+    serverDirective: testServerDirective,
+    clientDirective: testClientDirective,
     modulePattern: testModulePattern,
     cssPattern: testCss,
     jsonPattern: testJson,
@@ -453,16 +438,6 @@ export const resolveOptions = <
     htmlPattern: testHtml,
     rscPattern: testRsc,
   };
-
-  const normalizer =
-    options.normalizer ??
-    createInputNormalizer({
-      root: projectRoot,
-      preserveModulesRoot:
-        preserveModulesRoot === true ? moduleBase : undefined,
-      removeExtension: true,
-      moduleBasePath,
-    });
   const pipeableStreamOptions = options.pipeableStreamOptions
     ? options.pipeableStreamOptions
     : {};

@@ -7,6 +7,7 @@ import type { StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
+import { logError } from "../error/toError.js";
 
 /**
  * Creates an async generator that yields RSC chunks from the worker.
@@ -60,18 +61,9 @@ export async function* createWorkerStream({
   let currentResolve: ((chunk: Uint8Array) => void) | null = null;
   const handlers: StreamHandlers = {
     onError: (id, error, errorInfo) => {
-      logger.error(
-        "[react-client] " +
-          (error.stack ?? error.stack?.includes(error.message)
-            ? ""
-            : error.message + "\n") +
-          (error.stack ?? ""),
-        {
-          error,
-        }
-      );
+      logError(error, logger);
       if (errorInfo) {
-        logger.error(errorInfo.componentStack);
+        logError(errorInfo.componentStack, logger);
       }
       if (typeof onError === "function") {
         onError(id, error, errorInfo);

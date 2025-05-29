@@ -436,35 +436,40 @@ export interface StreamPluginOptions<
   // Auto-discovery (zero-config)
   autoDiscover?:
     | {
-        moduleExtension?: RegExp;
+      // default: /\.(m|c)?(j|t)sx?$/
+        moduleExtension?: RegExpOpt;
+        // default: /^"use server"[\s;]*\n?/m
+        serverDirective?: RegExpOpt;
+        // default: /^"use client"[\s;]*\n?/m
+        clientDirective?: RegExpOpt;
         // default: /\.(m|c)?(j|t)sx?$/
-        modulePattern?: string | RegExp | ((path: string) => boolean);
+        modulePattern?: RegExpOpt;
         // default: [Pp]age.tsx
-        pagePattern?: string | RegExp | ((path: string) => boolean);
+        pagePattern?: RegExpOpt;
         // default: [Pp]rops.ts
-        propsPattern?: string | RegExp | ((path: string) => boolean);
+        propsPattern?: RegExpOpt;
         // default: "use client" and .client./\.(m|c)?(j|t)sx?$/
-        clientComponents?: string | RegExp | ((path: string) => boolean);
+        clientComponents?: RegExpOpt;
         // default: "use server" and .server./\.(m|c)?(j|t)sx?$/
-        serverFunctions?: string | RegExp | ((path: string) => boolean);
+        serverFunctions?: RegExpOpt;
         // default: /\.css$/
-        cssPattern?: string | RegExp | ((path: string) => boolean);
+        cssPattern?: RegExpOpt;
         // default: /\.json$/
-        jsonPattern?: string | RegExp | ((path: string) => boolean);
+        jsonPattern?: RegExpOpt;
         // default: /\.html$/
-        htmlPattern?: string | RegExp | ((path: string) => boolean);
+        htmlPattern?: RegExpOpt;
         // default: /\.css\.js/
-        cssModulePattern?: string | RegExp | ((path: string) => boolean);
+        cssModulePattern?: RegExpOpt;
         // default: /node_modules|(_virtual)/
-        vendorPattern?: string | RegExp | ((path: string) => boolean);
+        vendorPattern?: RegExpOpt;
         // default: /\.node\.js$/
-        nodeOnly?: string | RegExp | ((path: string) => boolean);
+        nodeOnly?: RegExpOpt;
         // default: /\.node\.js$/
-        dotFiles?: string | RegExp | ((path: string) => boolean);
+        dotFiles?: RegExpOpt;
         // default: /^\/_virtual\//
-        virtualPattern?: string | RegExp | ((path: string) => boolean);
+        virtualPattern?: RegExpOpt;
         // default: /\.rsc$/
-        rscPattern?: string | RegExp | ((path: string) => boolean);
+        rscPattern?: RegExpOpt;
       }
     | undefined;
   // Manual configuration
@@ -734,6 +739,7 @@ export type PagePath = string & { readonly __brand: unique symbol };
 
 export type InlineCssOpt = undefined | boolean;
 export type PagePropOpt = Record<string, unknown> | undefined;
+export type RegExpOpt = RegExp | string | ((path: string) => boolean);
 export type AsOpt = Exclude<
   keyof React.JSX.IntrinsicElements,
   "symbol" | "object"

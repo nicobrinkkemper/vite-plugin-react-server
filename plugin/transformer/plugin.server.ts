@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { setStashedResolve } from "../helpers/moduleResolver.js";
 import type { SourceMapInput } from "rollup";
 import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
+import { logError } from "../error/toError.js";
 
 /**
  * Plugin for transforming React Client Components.
@@ -37,6 +38,7 @@ import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
  * ```
  */
 let isBuild = true;
+let isSSR = false;
 
 export function reactTransformPlugin<
   T extends PagePropOpt = PagePropOpt,
@@ -52,9 +54,10 @@ export function reactTransformPlugin<
   return {
     name: "vite:react-server-transform",
     enforce: "pre", // Run before Vite's transforms
-    async config(_config, configEnv) {
-      isBuild = configEnv.command === "build";
-      if (isBuild) {
+    async configResolved(config) {
+      isBuild = config.command === "build";
+      isSSR = config.build?.ssr === true;
+      if (isBuild && isSSR) {
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
           ssrManifest: false,
@@ -88,14 +91,14 @@ export function reactTransformPlugin<
           if (!resolved) return null;
           return { id: resolved.id };
         } catch (error) {
-          console.error("Error resolving module:", specifier, error);
+          logError(error, this.environment.logger);
           return null;
         }
       });
       return null; // Let Vite handle the resolution
     },
     async transform(code, id, options) {
-      if (!options?.ssr ||  !userOptions.autoDiscover.modulePattern(id)) {
+      if (!options?.ssr || !userOptions.autoDiscover.modulePattern(id)) {
         return null;
       }
       const [key, value] = userOptions.normalizer(id);
@@ -123,18 +126,30 @@ export function reactTransformPlugin<
       }
       let finalID = userOptions.moduleID(moduleID);
       // Always transform in server context
-      const transformed = await transformModuleIfNeeded(code, id, finalID);
+      const transformed = transformModuleIfNeeded(
+        code,
+        id,
+        finalID,
+        code?.match(/^"use server"[\s;]*\n?/m),
+        code?.match(/^"use client"[\s;]*\n?/m),
+        true
+      );
       if (userOptions.verbose)
-        if(transformed.source !== code) {
-          if(id !== finalID) {
+        if (transformed.source !== code) {
+          if (id !== finalID) {
             this.environment.logger.info(
-              "[react-server-transform] " + id.split('/').pop() + " -> " + finalID
+              "[react-server-transform] " +
+                id.split("/").pop() +
+                " -> " +
+                finalID
             );
           } else {
             this.environment.logger.info(
-              "[react-server-transform] " + id.split('/').pop() + (code.startsWith('\"use client\"') ? " (client)" : "")
+              "[react-server-transform] " +
+                id.split("/").pop() +
+                (code.startsWith('"use client"') ? " (client)" : "")
             );
-          };
+          }
           this.environment.logger.info(
             "[react-server-transform] " + transformed.source
           );

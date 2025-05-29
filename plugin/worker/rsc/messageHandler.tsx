@@ -19,19 +19,11 @@ const isDevEnv = process.env["NODE_ENV"] !== "production";
 
 const handlers: Required<StreamHandlers> = {
   onError: (id, error, errorInfo) => {
-    if (!(error instanceof Error)) {
-      error = new Error(String(error));
-    }
     sendRscWorkerMessage({
       type: "ERROR",
       id: id,
       errorInfo,
-      error: {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        cause: error.cause,
-      },
+      error: toError(error),
     });
     sendRscWorkerMessage({
       type: "RSC_END",

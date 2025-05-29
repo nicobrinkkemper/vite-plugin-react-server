@@ -1,7 +1,6 @@
 import { CssCollector } from "../components/css-collector.js";
 import { Html } from "../components/html.js";
 export const DEFAULT_CONFIG = {
-  MODULE_EXTENSION: /\.(m|c)?(j|t)sx?$/,
   CLIENT_ASSETS_DIR: "assets",
   RSC_DIR: "rsc",
   MODULE_BASE: "src",
@@ -60,21 +59,75 @@ export const DEFAULT_CONFIG = {
     // ? = optional
     // () = group
     // | = or
-    modulePattern: (n: string) => /\.(m|c)?(j|t)sx?$/.test(n),
-    pagePattern: (n: string) => /\.?[p]age(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
+    /**
+     * /\.(m|c)?(j|t)sx?$/ and .lowerCase()
+     */
+    modulePattern: (n: string) => /\.(m|c)?(j|t)sx?$/.test(n.toLowerCase()),
+    /**
+     * /\.?page(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
+     */
+    pagePattern: (n: string) => /\.?page(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
+    /**
+     * /\.?props(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
+     */
     propsPattern: (n: string) => /\.?props(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()), 
+    /**
+     * /(\.|\/)?client(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
+     */
     clientComponents: (n: string) => /(\.|\/)?client(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
+    /**
+     * /(\.|\/)?server(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
+     */
     serverFunctions: (n: string) => /(\.|\/)?server(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
-    cssPattern: (n: string) => /\.css$/.test(n),
-    cssModulePattern: (n: string) => /\.css\.js$/.test(n),
-    virtualPattern: (n: string) => /^\/_virtual\//.test(n) || /^\/@/.test(n),
-    vendorPattern: (n: string) =>
-      /^\/node_modules\//.test(n),
-    htmlPattern: (n: string) => /\.html$/.test(n),
-    jsonPattern: (n: string) => /\.json$/.test(n),
-    nodeOnly: (n: string) => /\.node(\.js)?$/.test(n),
-    dotFiles: (n: string) => n.split('/').some(p => p.startsWith('.')),
-    rscPattern: (n: string) => /\.rsc$/.test(n),  
+    /**
+     * /\.css$/
+     */
+    cssPattern: /\.css$/,
+    /**
+     * /\.css\.js$/
+     */
+    cssModulePattern: /\.css\.js$/,
+    /**
+     * /^\/@\//
+     */
+    virtualPattern: /^\/@\//,
+    /**
+     * /^\/node_modules\//
+     */
+    vendorPattern: /^\/node_modules\//,
+    /**
+     * /\.html$/
+     */
+    htmlPattern: /\.html$/,
+    /**
+     * /\.json$/
+     */
+    jsonPattern: /\.json$/,
+    /**
+     * /\.node(\.js)?$/
+     */
+    nodeOnly: /\.node(\.js)?$/,
+    /**
+     * /\.node(\.js)?$/
+     */
+    dotFiles: (n: string) => n.split('/').some(p => p.startsWith('.')), 
+    /**
+     * /\.rsc$/
+     */
+    rscPattern: /\.rsc$/,  
+    /**
+     * /\.(m|c)?(j|t)sx?$/
+     */
+    moduleExtension: /\.(m|c)?(j|t)sx?$/,
+    /**
+     * /^"use server"[\s;]*\n?/m
+     */
+    serverDirective: /^"use server"[\s;]*\n?/m,
+    /**
+     * /^"use client"[\s;]*\n?/m
+     */
+    clientDirective: /^"use client"[\s;]*\n?/m,
+    
   },
   MODULE_ID: (id: string) => id,
   VERBOSE: false,

@@ -1,4 +1,4 @@
-import type { LoaderContext } from "../types.js";
+import type { LoaderContext, ResolvedUserOptions } from "../types.js";
 import type { ModuleInfo } from "rollup";
 import { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
 import type { MessagePort } from "node:worker_threads";
@@ -6,6 +6,7 @@ import type { InitializedReactLoaderMessage, ServerModuleMessage } from "../work
 import { hydrateUserOptions } from "../helpers/index.js";
 import { resolveOptions } from "../config/index.js";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 export interface LoaderOptions {
   id: string;
@@ -19,12 +20,16 @@ export interface LoaderOptions {
 
 export type LoaderFunction = (options: LoaderOptions) => Promise<ModuleInfo>;
 
-let userOptions: any;
+let userOptions: ResolvedUserOptions | undefined;
 let loaderPort: MessagePort | undefined;
 export async function initialize(data: { id: string, port: MessagePort, userOptions: any }) {
-  userOptions = resolveOptions(hydrateUserOptions(data.userOptions));
+  const userOptionsResult = resolveOptions(hydrateUserOptions(data.userOptions));
   loaderPort = data.port;
-  data.port.postMessage({ type: "INITIALIZED_REACT_LOADER", id: data.id } satisfies InitializedReactLoaderMessage);
+  loaderPort.postMessage({ type: "INITIALIZED_REACT_LOADER", id: data.id } satisfies InitializedReactLoaderMessage);
+  if(userOptionsResult.type === "error") {
+    throw userOptionsResult.error
+  }
+  userOptions = userOptionsResult.userOptions;
 }
 
 export async function load(url: string, context: LoaderContext, nextLoad: any) {
@@ -46,44 +51,43 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
     let finalID = filePath;
     if (userOptions?.normalizer) {
       const [, value] = userOptions.normalizer(filePath);
-      moduleID = value;
+      moduleID = join(userOptions.moduleBasePath, value);
       finalID = userOptions.moduleID(moduleID);
     }
-    if (userOptions.verbose) {
+    if (userOptions?.verbose) {
+      console.log("[react-loader] moduleID:", moduleID);
       console.log("[react-loader] finalID:", finalID);
     }
 
-    const transformed = await transformModuleIfNeeded(
+    const transformed = transformModuleIfNeeded(
       source,
-      filePath,
+      url,
       finalID,
       isServerFunction,
-      isClientFunction
+      isClientFunction,
+      true, // isServerEnvironment
+      undefined, // loader
     );
-    if (!transformed.source) {
-      return result;
-    }
-    const newSrc = transformed.source;
 
-    if (userOptions.verbose) {
-      console.log("[react-loader] Transformed source:", newSrc);
+    if (userOptions?.verbose) {
+      console.log("[react-loader] Transformed source:", transformed.source);
     }
 
     if (loaderPort) {
-      if (userOptions.verbose) {
+      if (userOptions?.verbose) {
         console.log("[react-loader] Sending SERVER_MODULE message:", { id: finalID, url: filePath });
       }
       loaderPort.postMessage({
         type: "SERVER_MODULE",
         id: finalID,
         url: filePath,
-        source: newSrc,
+        source: transformed.source,
       } satisfies ServerModuleMessage);
     }
 
     return {
       ...result,
-      source: newSrc,
+      source: transformed.source,
       map: transformed.sourceMap,
     };
   }
