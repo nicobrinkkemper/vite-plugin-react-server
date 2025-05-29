@@ -195,6 +195,8 @@ export type ResolvedUserOptions<
   };
   autoDiscover: {
     moduleExtension: RegExp;
+    serverDirective: RegExp;
+    clientDirective: RegExp;
     modulePattern: (path: string) => boolean;
     cssPattern: (path: string) => boolean;
     jsonPattern: (path: string) => boolean;
@@ -209,6 +211,8 @@ export type ResolvedUserOptions<
     nodeOnly: (path: string) => boolean;
     dotFiles: (path: string) => boolean;
     virtualPattern: (path: string) => boolean;
+    isServerFunction: (code: string) => boolean;
+    isClientComponent: (code: string) => boolean;
   };
 };
 
@@ -437,11 +441,11 @@ export interface StreamPluginOptions<
   autoDiscover?:
     | {
       // default: /\.(m|c)?(j|t)sx?$/
-        moduleExtension?: RegExpOpt;
+        moduleExtension?: RegExp;
         // default: /^"use server"[\s;]*\n?/m
-        serverDirective?: RegExpOpt;
+        serverDirective?: RegExp;
         // default: /^"use client"[\s;]*\n?/m
-        clientDirective?: RegExpOpt;
+        clientDirective?: RegExp;
         // default: /\.(m|c)?(j|t)sx?$/
         modulePattern?: RegExpOpt;
         // default: [Pp]age.tsx
@@ -470,6 +474,10 @@ export interface StreamPluginOptions<
         virtualPattern?: RegExpOpt;
         // default: /\.rsc$/
         rscPattern?: RegExpOpt;
+        // default serverDirective regex
+        isServerFunction?: RegExpOpt;
+        // default clientDirective regex
+        isClientComponent?: RegExpOpt;
       }
     | undefined;
   // Manual configuration
@@ -740,6 +748,7 @@ export type PagePath = string & { readonly __brand: unique symbol };
 export type InlineCssOpt = undefined | boolean;
 export type PagePropOpt = Record<string, unknown> | undefined;
 export type RegExpOpt = RegExp | string | ((path: string) => boolean);
+
 export type AsOpt = Exclude<
   keyof React.JSX.IntrinsicElements,
   "symbol" | "object"

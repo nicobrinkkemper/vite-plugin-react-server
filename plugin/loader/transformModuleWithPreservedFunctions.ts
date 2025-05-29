@@ -16,12 +16,6 @@
  *
  * This ensures that implementation details are never leaked across boundaries and errors are easy to debug.
  */
-import type {
-  ExportDefaultDeclaration,
-  ExportNamedDeclaration,
-  Statement,
-  ModuleDeclaration
-} from "acorn";
 import type { RawSourceMap } from "source-map-js";
 import { handleExports } from "./handleExports.js";
 import type { Program } from "./types.js";
@@ -41,26 +35,6 @@ export interface TransformOptions {
  */
 function createClientReferenceError(name: string): string {
   return `Attempted to call ${name}() from the server but ${name} is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.`;
-}
-
-function isExportNamedDeclaration(node: Statement | ModuleDeclaration): node is ExportNamedDeclaration {
-  return node.type === "ExportNamedDeclaration";
-}
-
-function hasDeclaration(node: ExportNamedDeclaration): node is ExportNamedDeclaration & { declaration: { type: "FunctionDeclaration" | "ClassDeclaration" | "VariableDeclaration" } } {
-  return node.declaration !== null && 
-         node.declaration !== undefined &&
-         (node.declaration.type === "FunctionDeclaration" ||
-          node.declaration.type === "ClassDeclaration" ||
-          node.declaration.type === "VariableDeclaration");
-}
-
-function hasFunctionOrClassDeclaration(node: ExportNamedDeclaration & { declaration: { type: "FunctionDeclaration" | "ClassDeclaration" | "VariableDeclaration" } }): node is ExportNamedDeclaration & { declaration: { type: "FunctionDeclaration" | "ClassDeclaration" } } {
-  return node.declaration.type === "FunctionDeclaration" || node.declaration.type === "ClassDeclaration";
-}
-
-function hasVariableDeclaration(node: ExportNamedDeclaration & { declaration: { type: "FunctionDeclaration" | "ClassDeclaration" | "VariableDeclaration" } }): node is ExportNamedDeclaration & { declaration: { type: "VariableDeclaration" } } {
-  return node.declaration.type === "VariableDeclaration";
 }
 
 /**
@@ -84,12 +58,12 @@ export function transformModuleWithPreservedFunctions(
   _url: string,
   program: Program,
   map: RawSourceMap | null,
-  isServerFunction: RegExpMatchArray | null,
-  isClientComponent: RegExpMatchArray | null,
+  isServerFunction: boolean | RegExpMatchArray | null,
+  isClientComponent: boolean | RegExpMatchArray | null,
 ): { source: string; map: RawSourceMap | null } {
 
   // Get export names and create module ID literal
-  const { exportNames } = handleExports(source, program, isServerFunction, isClientComponent);
+  const { exportNames, exports } = handleExports(source, program, isServerFunction, isClientComponent);
   const moduleIdLiteral = JSON.stringify(moduleId);
 
   // For server modules in server environment, register server references
@@ -97,56 +71,27 @@ export function transformModuleWithPreservedFunctions(
     const imports = ['import { registerServerReference } from "react-server-dom-esm/server.node";'];
     const registrations: string[] = [];
 
-    // Register each function
+    // Register each export
     for (const name of exportNames) {
-      if (name === "default") {
-        // For default exports, we need to find the actual function name
-        const defaultExport = program.body.find(
-          (node): node is ExportDefaultDeclaration =>
-            node.type === "ExportDefaultDeclaration" &&
-            (node.declaration.type === "FunctionDeclaration" ||
-             node.declaration.type === "ClassDeclaration" ||
-             node.declaration.type === "ArrowFunctionExpression") &&
-            (node.declaration.type === "FunctionDeclaration" || node.declaration.type === "ClassDeclaration") &&
-            node.declaration.id !== null
+      const exportInfo = exports.get(name);
+      if (exportInfo) {
+        // For default exports, use the localName if available
+        const exportName = name === "default" && exportInfo.localName ? exportInfo.localName : name;
+        // Register all exports in server modules
+        registrations.push(
+          `registerServerReference(${exportName}, ${moduleIdLiteral}, ${JSON.stringify(name)});`
         );
-        if ((defaultExport?.declaration.type === "FunctionDeclaration" || defaultExport?.declaration.type === "ClassDeclaration") && defaultExport.declaration.id) {
-          const funcName = defaultExport.declaration.id.name;
-          registrations.push(
-            `registerServerReference(${funcName}, ${moduleIdLiteral}, "default");`
-          );
-        }
-      } else {
-        // Find the original function name and location
-        const namedExport = program.body.find(
-          (node): node is ExportNamedDeclaration & { declaration: { type: "FunctionDeclaration" | "ClassDeclaration" | "VariableDeclaration" } } =>
-            isExportNamedDeclaration(node) && hasDeclaration(node) &&
-            ((hasFunctionOrClassDeclaration(node) && node.declaration.id?.name === name) ||
-             (hasVariableDeclaration(node) &&
-              node.declaration.declarations[0]?.id?.type === "Identifier" &&
-              node.declaration.declarations[0]?.id?.name === name))
-        );
-        if (namedExport && hasFunctionOrClassDeclaration(namedExport) && namedExport.declaration.id) {
-          const funcName = namedExport.declaration.id.name;
-          registrations.push(
-            `registerServerReference(${funcName}, ${moduleIdLiteral}, ${JSON.stringify(name)});`
-          );
-        } else if (namedExport && hasVariableDeclaration(namedExport) && 
-                  namedExport.declaration.declarations[0]?.id?.type === "Identifier" && 
-                  namedExport.declaration.declarations[0]?.id?.name === name) {
-          const funcName = namedExport.declaration.declarations[0].id.name;
-          registrations.push(
-            `registerServerReference(${funcName}, ${moduleIdLiteral}, ${JSON.stringify(name)});`
-          );
-        }
       }
     }
 
     // Create new source with registrations
-    const newSource = source + "\n\n" + [...imports, ...registrations].join("\n\n");
+    // First, add the imports at the top
+    const newSource = [...imports, source].join("\n\n");
+    // Then, add the registrations at the end
+    const finalSource = newSource + "\n\n" + registrations.join("\n");
 
     // Don't create source maps for RSC modules
-    return { source: newSource, map: null };
+    return { source: finalSource, map: null };
   }
 
   // For client modules in server environment, register client references

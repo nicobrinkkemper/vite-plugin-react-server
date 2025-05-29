@@ -1,6 +1,6 @@
-import * as acorn from "acorn-loose";
+import * as acorn from "acorn";
 import type { Program } from "./types.js";
-import { createBasicSourceMap } from "./sourceMap.js";
+import * as esbuild from "esbuild";
 
 export interface LoaderResult {
   source: string;
@@ -13,46 +13,45 @@ export interface LoaderResult {
  */
 export function parse(source: string, id?: string): LoaderResult {
   let program: Program;
-  let sourceMappingURL = null;
-  let sourceMappingStart = 0;
-  let sourceMappingEnd = 0;
-  let sourceMappingLines = 0;
 
   try {
-    // Parse with acorn to get AST and detect source map comments
-    program = acorn.parse(source, {
+    // Use esbuild to transform the code
+    const result = esbuild.transformSync(source, {
+      loader: 'tsx',
+      format: 'esm',
+      target: 'esnext',
+      sourcemap: true,
+      sourcefile: id,
+    });
+
+    // Parse the transformed code with acorn
+    program = acorn.parse(result.code, {
       ecmaVersion: 'latest' as const,
       sourceType: 'module',
       locations: true,
-      onComment(_block, text, start, end, startLoc, endLoc) {
-        if (text.startsWith('# sourceMappingURL=') || text.startsWith('@ sourceMappingURL=')) {
-          sourceMappingURL = text.slice(19);
-          sourceMappingStart = start;
-          sourceMappingEnd = end;
-          if (startLoc && endLoc) {
-            sourceMappingLines = endLoc.line - startLoc.line;
-          }
-        }
-      }
+      allowAwaitOutsideFunction: true,
+      allowImportExportEverywhere: true,
+      allowReturnOutsideFunction: true,
+      allowReserved: true
     }) as Program;
+
+    return {
+      source: result.code,
+      ast: program,
+      map: result.map ? JSON.parse(result.map) : null
+    };
   } catch (e) {
     console.warn('[parse] Error parsing source:', e);
-    return { 
+    return {
       source,
-      ast: acorn.parse(source, { sourceType: "module", ecmaVersion: "latest" }) as Program,
+      ast: {
+        type: "Program",
+        body: [],
+        sourceType: "module",
+        start: 0,
+        end: source.length,
+      },
       map: null
     };
   }
-
-  // If we found a source map comment, strip it
-  if (sourceMappingURL) {
-    source = source.slice(0, sourceMappingStart) + '\n'.repeat(sourceMappingLines) + source.slice(sourceMappingEnd);
-  }
-
-  // Always create a basic source map
-  return {
-    source,
-    ast: program,
-    map: createBasicSourceMap(id || '', source)
-  };
 } 

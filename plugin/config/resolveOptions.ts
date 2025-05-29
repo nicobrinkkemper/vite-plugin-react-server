@@ -238,14 +238,20 @@ export const resolveOptions = <
     DEFAULT_CONFIG.AUTO_DISCOVER.dotFiles
   );
 
-  const testServerDirective = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.serverDirective,
-    DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective
+  const isServerFunction = resolveAutoDiscoverMatcher(
+    options.autoDiscover?.isServerFunction,
+    options.autoDiscover?.serverDirective
+      ? (code: string) =>
+          code.match(options.autoDiscover?.serverDirective!) !== null
+      : DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective
   );
 
-  const testClientDirective = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.clientDirective,
-    DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective
+  const isClientComponent = resolveAutoDiscoverMatcher(
+    options.autoDiscover?.isClientComponent,
+    options.autoDiscover?.clientDirective
+      ? (code: string) =>
+          code.match(options.autoDiscover?.clientDirective!) !== null
+      : DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective
   );
 
   const hashOption =
@@ -360,13 +366,16 @@ export const resolveOptions = <
       ? options.moduleID
       : (id: string) => {
           // First normalize the path to handle any leading/trailing slashes
-          let normalizedId = id.replace(/^\/+|\/+$/g, '');
-          
+          let normalizedId = id.replace(/^\/+|\/+$/g, "");
+
           // If moduleBasePath is set and id doesn't start with it, add it
-          if (moduleBasePath !== "" && !normalizedId.startsWith(moduleBasePath)) {
+          if (
+            moduleBasePath !== "" &&
+            !normalizedId.startsWith(moduleBasePath)
+          ) {
             normalizedId = join(moduleBasePath, normalizedId);
           }
-          
+
           // Handle moduleBase in production
           if (process.env["NODE_ENV"] === "production") {
             if (normalizedId.startsWith(moduleBase)) {
@@ -375,12 +384,12 @@ export const resolveOptions = <
               normalizedId = normalizedId.slice(moduleBase.length + 1);
             }
           }
-          
+
           // Ensure the path starts with a slash
           if (!normalizedId.startsWith("/")) {
             normalizedId = "/" + normalizedId;
           }
-          
+
           return normalizedId;
         };
 
@@ -421,8 +430,12 @@ export const resolveOptions = <
     moduleExtension:
       options.autoDiscover?.moduleExtension ??
       DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
-    serverDirective: testServerDirective,
-    clientDirective: testClientDirective,
+    serverDirective:
+      options.autoDiscover?.serverDirective ??
+      DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective,
+    clientDirective:
+      options.autoDiscover?.clientDirective ??
+      DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective,
     modulePattern: testModulePattern,
     cssPattern: testCss,
     jsonPattern: testJson,
@@ -437,6 +450,8 @@ export const resolveOptions = <
     virtualPattern: testVirtual,
     htmlPattern: testHtml,
     rscPattern: testRsc,
+    isServerFunction: isServerFunction,
+    isClientComponent: isClientComponent,
   };
   const pipeableStreamOptions = options.pipeableStreamOptions
     ? options.pipeableStreamOptions

@@ -111,7 +111,8 @@
     "experimental:move-patches": "mv patches/* ./scripts/",
     "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches",
     "experimental:patch-react": "npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\""
   },
   "keywords": [
     "vite",

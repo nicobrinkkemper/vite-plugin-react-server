@@ -130,8 +130,8 @@ export function reactTransformPlugin<
         code,
         id,
         finalID,
-        code?.match(/^"use server"[\s;]*\n?/m),
-        code?.match(/^"use client"[\s;]*\n?/m),
+        userOptions.autoDiscover.isServerFunction(code),
+        userOptions.autoDiscover.isClientComponent(code),
         true
       );
       if (userOptions.verbose)

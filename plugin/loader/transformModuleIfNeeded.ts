@@ -2,19 +2,16 @@ import { getCondition } from "../config/getCondition.js";
 import { transformModuleWithPreservedFunctions } from "./transformModuleWithPreservedFunctions.js";
 import { createDefaultLoader, type Loader } from "./createDefaultLoader.js";
 import { parse } from "./parse.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 export function transformModuleIfNeeded(
   source: string,
   url: string,
   moduleId: string,
-  isServerFunction: RegExpMatchArray | null = source?.match(
-    /^"use server"[\s;]*\n?/m
-  ),
-  isClientComponent: RegExpMatchArray | null = source?.match(
-    /^"use client"[\s;]*\n?/m
-  ),
-  isServerEnvironment = getCondition() === 'react-server',
-  loader: Loader = createDefaultLoader(source),
+  isServerFunction: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunction(source),
+  isClientComponent: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponent(source),
+  isServerEnvironment = getCondition() === "react-server",
+  loader: Loader = createDefaultLoader(source)
 ) {
   if (!source || source.length === 0) {
     const result = loader(url);
@@ -31,13 +28,7 @@ export function transformModuleIfNeeded(
   ) {
     return {
       source: parsedSource,
-      sourceMap: map
-    };
-  }
-  if (!isServerEnvironment) {
-    return {
-      source: parsedSource,
-      sourceMap: map
+      sourceMap: map,
     };
   }
 
@@ -53,6 +44,6 @@ export function transformModuleIfNeeded(
 
   return {
     source: result.source,
-    sourceMap: result.map || map // Use result.sourceMap if available, otherwise use the original map
+    sourceMap: result.map || map, // Use result.sourceMap if available, otherwise use the original map
   };
 }

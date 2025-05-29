@@ -127,6 +127,9 @@ export const DEFAULT_CONFIG = {
      * /^"use client"[\s;]*\n?/m
      */
     clientDirective: /^"use client"[\s;]*\n?/m,
+
+    isServerFunction: (code: string) => code.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective) !== null,
+    isClientComponent: (code: string) => code.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective) !== null,
     
   },
   MODULE_ID: (id: string) => id,

@@ -5,4 +5,6 @@ export type Directive = Statement & {
   directive: string;
 };
 
-export type Program = AcornProgram
+export interface Program extends AcornProgram {
+  exports?: string[];
+}

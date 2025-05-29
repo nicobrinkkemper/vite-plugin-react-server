@@ -143,7 +143,7 @@ export function requestInfo(
     } else if (isHtmlRequest) {
       logger.info(`[react-dev-server] (html) ${routeWithLeadingSlash}`);
     } else if (isRscRequest) {
-      logger.info(`[react-dev-server] (rsc) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (rsc.) ${routeWithLeadingSlash}`);
     } else if (isCssRequest) {
       logger.info(`[react-dev-server] (css) ${routeWithLeadingSlash}`);
     } else if (isJsRequest) {
