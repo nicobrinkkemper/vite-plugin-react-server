@@ -1,4 +1,5 @@
-
+// alternative to webpack-sources/lib/helpers/createMappingsSerializer.js
+// unused for now, but it's a dependency of react-server-dom-esm and you may or may not want to download webpack-sources
 export function createMappingsSerializer() {
     let generatedLine = 1;
     let generatedColumn = 0;
