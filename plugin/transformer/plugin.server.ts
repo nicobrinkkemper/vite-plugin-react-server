@@ -9,7 +9,6 @@ import type { Manifest, Plugin } from "vite";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
 import { setStashedResolve } from "../helpers/moduleResolver.js";
-import type { SourceMapInput } from "rollup";
 import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
 import { logError } from "../error/toError.js";
 
@@ -53,7 +52,7 @@ export function reactTransformPlugin<
 
   return {
     name: "vite:react-server-transform",
-    enforce: "pre", // Run before Vite's transforms
+    enforce: "post", // Run after Vite's transforms
     async configResolved(config) {
       isBuild = config.command === "build";
       isSSR = config.build?.ssr === true;
@@ -135,7 +134,7 @@ export function reactTransformPlugin<
         true
       );
       if (userOptions.verbose)
-        if (transformed.source !== code) {
+        if (transformed !== code) {
           if (id !== finalID) {
             this.environment.logger.info(
               "[react-server-transform] " +
@@ -151,10 +150,10 @@ export function reactTransformPlugin<
             );
           }
           this.environment.logger.info(
-            "[react-server-transform] " + transformed.source
+            "[react-server-transform] " + transformed
           );
         }
-      if (!transformed.source) {
+      if (!transformed) {
         return {
           id: finalID,
           code: "",
@@ -164,8 +163,8 @@ export function reactTransformPlugin<
 
       return {
         id: finalID,
-        code: transformed.source,
-        map: transformed.sourceMap as SourceMapInput | undefined,
+        code: transformed,
+        map: null,
       };
     },
   };

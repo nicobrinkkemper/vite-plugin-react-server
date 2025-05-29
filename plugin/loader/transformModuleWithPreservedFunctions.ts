@@ -16,7 +16,6 @@
  *
  * This ensures that implementation details are never leaked across boundaries and errors are easy to debug.
  */
-import type { RawSourceMap } from "source-map-js";
 import { handleExports } from "./handleExports.js";
 import type { Program } from "./types.js";
 
@@ -57,10 +56,9 @@ export function transformModuleWithPreservedFunctions(
   moduleId: string,
   _url: string,
   program: Program,
-  map: RawSourceMap | null,
   isServerFunction: boolean | RegExpMatchArray | null,
   isClientComponent: boolean | RegExpMatchArray | null,
-): { source: string; map: RawSourceMap | null } {
+): string {
 
   // Get export names and create module ID literal
   const { exportNames, exports } = handleExports(source, program, isServerFunction, isClientComponent);
@@ -90,8 +88,7 @@ export function transformModuleWithPreservedFunctions(
     // Then, add the registrations at the end
     const finalSource = newSource + "\n\n" + registrations.join("\n");
 
-    // Don't create source maps for RSC modules
-    return { source: finalSource, map: null };
+    return finalSource;
   }
 
   // For client modules in server environment, register client references
@@ -115,10 +112,9 @@ export function transformModuleWithPreservedFunctions(
     // Create new source with declarations
     const newSource = [...imports, ...declarations].join("\n\n");
 
-    // Don't create source maps for RSC modules
-    return { source: newSource, map: null };
+    return newSource;
   }
 
   // For other cases, return original source
-  return { source, map: map };
+  return source;
 }

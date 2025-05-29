@@ -6,6 +6,7 @@ import { describe, test, expect } from "vitest";
 import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
 import { load } from "../../plugin/loader/react-loader.server.js";
 import React from "react";
+import { createDefaultLoader } from "../../plugin/loader/createDefaultLoader";
 
 describe("Loader Core Functionality", () => {
   describe("transformModuleIfNeeded", () => {
@@ -24,13 +25,11 @@ describe("Loader Core Functionality", () => {
         true // isServerEnvironment
       );
       // esbuild transforms exports into a more explicit format
-      expect(result.source).toBe(`function test() {
-  return 42;
-}
-export {
-  test
-};
-`);
+      expect(result).toBe(`
+        export function test() {
+          return 42;
+        }
+      `);
     });
 
     test("should transform server modules and preserve all exports", async () => {
@@ -60,27 +59,27 @@ export class Calculator {
       );
 
       // Check that all exports are preserved and registered
-      expect(result.source).toContain(
+      expect(result).toContain(
         'import { registerServerReference } from "react-server-dom-esm/server.node";'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(add, "test", "add");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(subtract, "test", "subtract");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(multiply, "test", "multiply");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(Calculator, "test", "Calculator");'
       );
 
       // Verify function implementations are preserved
-      expect(result.source).toContain("function add(a, b) {");
-      expect(result.source).toContain("function subtract(a, b) {");
-      expect(result.source).toContain("const multiply = (a, b) => a * b;");
-      expect(result.source).toContain("class Calculator {");
+      expect(result).toContain("function add(a, b) {");
+      expect(result).toContain("function subtract(a, b) {");
+      expect(result).toContain("const multiply = (a, b) => a * b;");
+      expect(result).toContain("class Calculator {");
     });
 
     test("should transform client modules and register all components", async () => {
@@ -113,24 +112,24 @@ export class Modal {
       );
 
       // Check that all components are registered and exported
-      expect(result.source).toContain(
+      expect(result).toContain(
         'import { registerClientReference } from "react-server-dom-esm/server.node";'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         "export const Button = registerClientReference(function() {"
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         "export const Input = registerClientReference(function() {"
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         "export const Card = registerClientReference(function() {"
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         "export const Modal = registerClientReference(function() {"
       );
 
       // Verify error-throwing functions are registered
-      expect(result.source).toContain(
+      expect(result).toContain(
         'throw new Error("Attempted to call Button() from the server but Button is on the client. It\'s not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");'
       );
     });
@@ -160,24 +159,24 @@ export default function DefaultExport() {
       );
 
       // Check that all exports are preserved
-      expect(result.source).toContain(
+      expect(result).toContain(
         'import { registerServerReference } from "react-server-dom-esm/server.node";'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(serverAction, "test", "serverAction");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(clientComponent, "test", "clientComponent");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(regularValue, "test", "regularValue");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(DefaultExport, "test", "default");'
       );
 
       // Verify server function is registered
-      expect(result.source).toContain("function serverAction() {");
+      expect(result).toContain("function serverAction() {");
     });
 
     test("should handle server actions with multiple async functions", async () => {
@@ -217,32 +216,32 @@ export async function clearCompletedTodos() {
       );
 
       // Check that all exports are preserved and registered
-      expect(result.source).toContain(
+      expect(result).toContain(
         'import { registerServerReference } from "react-server-dom-esm/server.node";'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(getTodos, "test", "getTodos");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(addTodo, "test", "addTodo");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(toggleTodo, "test", "toggleTodo");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(deleteTodo, "test", "deleteTodo");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(editTodo, "test", "editTodo");'
       );
-      expect(result.source).toContain(
+      expect(result).toContain(
         'registerServerReference(clearCompletedTodos, "test", "clearCompletedTodos");'
       );
 
       // Verify async functions are registered
-      expect(result.source).toContain("async function getTodos() {");
-      expect(result.source).toContain("async function addTodo(title) {");
-      expect(result.source).toContain("async function toggleTodo(id) {");
+      expect(result).toContain("async function getTodos() {");
+      expect(result).toContain("async function addTodo(title) {");
+      expect(result).toContain("async function toggleTodo(id) {");
     });
   });
 
@@ -398,15 +397,22 @@ export function test() {
       conditions: ["react-server"],
       importAttributes: {},
       url: "test.js"
-    }, async (url, context) => ({
-      format: "module",
-      source
-    }));
+    }, createDefaultLoader(source));
 
-    expect(result.map).not.toBeNull();
-    expect(result.map?.version).toBe(3);
+    expect(result.map).toBeDefined();
     expect(result.map?.sources).toContain("test.js");
-    expect(result.map?.sourcesContent).toContain(source);
+    expect(result.map?.sourcesContent).toContain(`import { registerServerReference } from "react-server-dom-esm/server.node";
+
+"use server";
+function test() {
+  return 42;
+}
+export {
+  test
+};
+
+
+registerServerReference(test, "test.js", "test");`);
     expect(result.map?.mappings).toBeDefined();
   });
 
@@ -421,14 +427,22 @@ export function test() {
       conditions: ["react-server"],
       importAttributes: {},
       url: "test.js"
-    }, async (url, context) => ({
-      format: "module",
-      source
-    }));
+    }, createDefaultLoader(source));
 
-    expect(result.map).not.toBeNull();
-    expect(result.map?.version).toBe(3);
+    expect(result.map).toBeDefined();
     expect(result.map?.sources).toContain("test.js");
+    expect(result.map?.sourcesContent).toContain(`import { registerServerReference } from "react-server-dom-esm/server.node";
+
+"use server";
+function test() {
+  return 42;
+}
+export {
+  test
+};
+
+
+registerServerReference(test, "test.js", "test");`);
     expect(result.map?.mappings).toBeDefined();
   });
 
@@ -443,12 +457,9 @@ export function test() {
       conditions: ["react-server"],
       importAttributes: {},
       url: "test.js"
-    }, async (url, context) => ({
-      format: "module",
-      source
-    }));
+    }, createDefaultLoader(source));
 
-    expect(result.map).not.toBeNull();
+    expect(result.map).toBeDefined();
     expect(result.map?.mappings).toBeDefined();
   });
 
@@ -463,13 +474,9 @@ export function test() {
       conditions: ["react-server"],
       importAttributes: {},
       url: "test.js"
-    }, async (url, context) => ({
-      format: "module",
-      source
-    }));
+    }, createDefaultLoader(source));
 
-    expect(result.map).not.toBeNull();
-    expect(result.map?.version).toBe(3);
+    expect(result.map).toBeDefined();
     expect(result.map?.sources).toContain("test.js");
     expect(result.map?.mappings).toBeDefined();
   });

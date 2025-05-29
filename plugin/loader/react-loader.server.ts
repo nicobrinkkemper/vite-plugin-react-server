@@ -66,11 +66,10 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
       isServerFunction,
       isClientFunction,
       true, // isServerEnvironment
-      undefined, // loader
     );
 
     if (userOptions?.verbose) {
-      console.log("[react-loader] Transformed source:", transformed.source);
+      console.log("[react-loader] Transformed source:", transformed);
     }
 
     if (loaderPort) {
@@ -81,14 +80,21 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
         type: "SERVER_MODULE",
         id: finalID,
         url: filePath,
-        source: transformed.source,
+        source: transformed,
       } satisfies ServerModuleMessage);
     }
 
+    // If we have a source map, update it to point to the transformed source
+    const map = result.map ? {
+      ...result.map,
+      sourcesContent: [transformed],
+      mappings: result.map.mappings
+    } : null;
+
     return {
       ...result,
-      source: transformed.source,
-      map: transformed.sourceMap,
+      source: transformed,
+      map
     };
   }
 
