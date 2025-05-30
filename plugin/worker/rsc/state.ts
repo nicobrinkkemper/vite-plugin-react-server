@@ -59,17 +59,13 @@ export function clearServerActionFiles() {
   serverActionFiles.clear();
 }
 
-export function addCssFile(id: string, cssFile: CssContent) {
-  cssFiles.set(id, cssFile);
-}
 
 
-export function addCssFileContent(id: string, code: string, userOptions: Pick<ResolvedUserOptions, "projectRoot" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "css">) {
+export function addCssFileContent(id: string, code: string, userOptions: Pick<ResolvedUserOptions, "projectRoot" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "css" | "normalizer" | "moduleID">) {
   if(typeof code !== "string"){
     throw new Error(`Expected css to be loaded as a string, but got ${typeof code}`);
   }
-  const normalizeId = id.startsWith(userOptions.moduleRootPath) ? id.slice(userOptions.moduleRootPath.length) : id;
-  cssFiles.set(normalizeId, createCssProps({
+  cssFiles.set(id, createCssProps({
     id,
     code,
     userOptions

@@ -37,6 +37,7 @@ export function handleExports(
       before?: string[];
       after?: string[];
       isAsync?: boolean;
+      isServerAction?: boolean;
     }
   >;
 } {
@@ -53,6 +54,7 @@ export function handleExports(
       before?: string[];
       after?: string[];
       isAsync?: boolean;
+      isServerAction?: boolean;
     }
   >();
 
@@ -71,7 +73,28 @@ export function handleExports(
     }
 
     if (node.type === "ImportDeclaration") {
+      const importSource = node.source.value as string;
+      const isServerImport = importSource.includes(".server.");
       imports.push(source.slice(node.start, node.end));
+
+      // If this is a server import, mark all imported functions as server actions
+      if (isServerImport) {
+        for (const spec of node.specifiers) {
+          if (spec.type === "ImportSpecifier") {
+            const localName = spec.local.type === "Identifier" ? spec.local.name : "";
+            const importedName = spec.imported.type === "Identifier" ? spec.imported.name : "";
+            if (localName && importedName) {
+              exports.set(localName, {
+                type: "function",
+                localName,
+                isServerAction: true,
+                before: [...currentBefore],
+              });
+              exportNames.push(localName);
+            }
+          }
+        }
+      }
     } else if (node.type === "ExportAllDeclaration") {
       // For export * from './other', just add the * export
       exports.set("*", {
@@ -95,11 +118,12 @@ export function handleExports(
           exports.set(name, {
             type: "function",
             declaration: source.slice(node.declaration.start, node.declaration.end),
-            before: [...currentBefore], // Copy the current before array
+            before: [...currentBefore],
             isAsync: node.declaration.async,
+            isServerAction: isServerFunction === true,
           });
           exportNames.push(name);
-          currentBefore = []; // Reset for next export
+          currentBefore = [];
         } else if (
           node.declaration.type === "ClassDeclaration" &&
           node.declaration.id
@@ -108,22 +132,19 @@ export function handleExports(
           exports.set(name, {
             type: "class",
             declaration: source.slice(node.declaration.start, node.declaration.end),
-            before: [...currentBefore], // Copy the current before array
+            before: [...currentBefore],
           });
           exportNames.push(name);
-          currentBefore = []; // Reset for next export
+          currentBefore = [];
         } else if (node.declaration.type === "VariableDeclaration") {
           for (const decl of node.declaration.declarations) {
             if (decl.id && decl.id.type === "Identifier") {
               const name = decl.id.name;
-              // Check if the declaration is a function expression or arrow function
               const init = decl.init;
               const isFunction = init && (
                 init.type === "FunctionExpression" ||
                 init.type === "ArrowFunctionExpression"
               );
-              // For function expressions and arrow functions, we want to mark them as async
-              // if they are explicitly marked as async
               const isAsync = isFunction && (
                 (init.type === "FunctionExpression" && init.async === true) ||
                 (init.type === "ArrowFunctionExpression" && init.async === true)
@@ -131,11 +152,12 @@ export function handleExports(
               exports.set(name, {
                 type: isFunction ? "function" : "variable",
                 declaration: source.slice(decl.start, decl.end),
-                before: [...currentBefore], // Copy the current before array
-                isAsync: isAsync || false
+                before: [...currentBefore],
+                isAsync: isAsync || false,
+                isServerAction: isFunction  != null && isServerFunction === true,
               });
               exportNames.push(name);
-              currentBefore = []; // Reset for next export
+              currentBefore = [];
             }
           }
         }
@@ -159,7 +181,8 @@ export function handleExports(
                   localName,
                   declaration: source.slice(functionDecl.start, functionDecl.end),
                   before: [...currentBefore],
-                  isAsync: functionDecl.async
+                  isAsync: functionDecl.async,
+                  isServerAction: isServerFunction === true,
                 });
                 exportNames.push(exportedName);
               } else {
@@ -189,7 +212,8 @@ export function handleExports(
                       localName,
                       declaration: source.slice(decl.start, decl.end),
                       before: [...currentBefore],
-                      isAsync
+                      isAsync,
+                      isServerAction: isServerFunction === true,
                     });
                     exportNames.push(exportedName);
                   }
@@ -205,7 +229,6 @@ export function handleExports(
             }
           }
         }
-        currentBefore = []; // Reset for next export
       }
     } else if (node.type === "ExportDefaultDeclaration") {
       if (node.declaration && node.declaration.type === "FunctionDeclaration" && node.declaration.id) {

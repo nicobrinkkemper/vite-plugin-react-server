@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.1.13",
+  "version": "1.1.14",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -101,7 +101,11 @@
     "test:client-env": "npm run build && vitest run test/client/dev-client-server-env.test.ts --reporter=verbose",
     "test:todo": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/todo.test.ts --reporter=verbose",
     "test:server-action": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/server-action.test.ts --reporter=verbose",
+    "test:server-action-client": "npm run build && vitest run test/client/server-action.test.ts --reporter=verbose",
+
     "test:server-action-integration": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/server-action-integration.test.ts --reporter=verbose",
+    "test:server-action-integration-client": "npm run build && vitest run test/client/server-action-integration.test.ts --reporter=verbose",
+
     "test": "npm run build && npm run test:server && npm run test:client && npm run test:unit",
     "test:coverage": "npm run setup:test-fixtures && vitest run --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",

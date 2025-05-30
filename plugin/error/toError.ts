@@ -34,8 +34,6 @@ export function toError(error: unknown): {
 export function logError(error: unknown, logger: Logger | Console = console) {
   const err = toError(error);
   if (process.env["NODE_ENV"] !== "production") {
-    console.trace(err)
-    
     if (err.stack && err.stack.includes(err.message)) {
       logger.error(err.stack);
     } else if (err.stack) {

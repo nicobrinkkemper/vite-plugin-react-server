@@ -1,117 +1,19 @@
-import { parentPort, workerData } from "node:worker_threads";
+import { parentPort } from "node:worker_threads";
 import {
   activeStreams,
-  addCssFileContent,
   hmrState,
-  addModuleId,
 } from "./state.js";
 import { handleRender } from "./handleRender.js";
 import type {
   RscWorkerInputMessage,
-  StreamHandlers,
 } from "../types.js";
-import { sendRscWorkerMessage } from "../sendMessage.js";
 import { toError } from "../../error/toError.js";
+import { handlers } from "./handlers.js";
 
 // In test mode, we want errors to propagate up immediately
 const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 const isDevEnv = process.env["NODE_ENV"] !== "production";
 
-const handlers: Required<StreamHandlers> = {
-  onError: (id, error, errorInfo) => {
-    sendRscWorkerMessage({
-      type: "ERROR",
-      id: id,
-      errorInfo,
-      error: toError(error),
-    });
-    sendRscWorkerMessage({
-      type: "RSC_END",
-      id: id,
-    });
-  },
-  onData: (id, data: any) => {
-    sendRscWorkerMessage({
-      type: "RSC_CHUNK",
-      id: id,
-      chunk: data,
-    });
-  },
-  onEnd: (id: string) => {
-    sendRscWorkerMessage({
-      type: "RSC_END",
-      id: id,
-    });
-  },
-  onMetrics: (id: string, metrics: any) => {
-    sendRscWorkerMessage({
-      type: "RSC_METRICS",
-      id: id,
-      metrics,
-    });
-  },
-  onHmrAccept: (id, routes) => {
-    sendRscWorkerMessage({
-      type: "HMR_ACCEPT",
-      id: id,
-      routes: routes,
-    });
-  },
-  onHmrUpdate: (id, routes) => {
-    sendRscWorkerMessage({
-      type: "HMR_UPDATE",
-      id: id,
-      routes: routes,
-    });
-  },
-  onServerModule: (id, url, source) => {
-    sendRscWorkerMessage({
-      type: "SERVER_MODULE",
-      id,
-      url,
-      source,
-    });
-  },
-  onServerActionResponse: (id, result, error) => {
-    sendRscWorkerMessage({
-      type: "SERVER_ACTION_RESPONSE",
-      id,
-      result,
-      error,
-    });
-  },
-  onServerAction: async (id, args) => {
-    try {
-      // Get the server action function from the worker data
-      const serverAction = workerData.serverActions?.[id];
-      if (!serverAction) {
-        throw new Error(`Server action ${id} not found`);
-      }
-      // Execute the server action
-      const result = await serverAction(...args);
-      // Send the result back
-      sendRscWorkerMessage({
-        type: "SERVER_ACTION_RESPONSE",
-        id,
-        result,
-      });
-    } catch (error) {
-      // Send error back
-      sendRscWorkerMessage({
-        type: "SERVER_ACTION_RESPONSE",
-        id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  },
-  onShutdown: (id: string) => {
-    // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
-    sendRscWorkerMessage({
-      type: "SHUTDOWN_COMPLETE",
-      id: id,
-    });
-  },
-};
 
 export async function messageHandler(
   msg: RscWorkerInputMessage,
@@ -127,10 +29,9 @@ export async function messageHandler(
       case "SERVER_ACTION":
         return handlers.onServerAction(msg.id, msg.args);
       case "INITIALIZED_REACT_LOADER":
-        return;
       case "INITIALIZED_CSS_LOADER":
-        return;
       case "INITIALIZED_ENV_LOADER":
+        console.log("Initialized ", msg.id);
         return;
       case "HMR_UPDATE":
         // Mark the module as invalidated
@@ -149,24 +50,9 @@ export async function messageHandler(
         handlers.onHmrAccept(msg.id, msg.routes || []);
         return;
       case "CSS_FILE":
-        if (msg.id) {
-          const cssOptions = workerData.userOptions.css || {
-            inlineThreshold: 1000,
-          };
-
-          addCssFileContent(msg.id, msg.content, {
-            projectRoot: workerData.userOptions.projectRoot || process.cwd(),
-            moduleBaseURL: workerData.userOptions.moduleBaseURL || "/",
-            moduleBasePath: workerData.userOptions.moduleBasePath || "/",
-            moduleRootPath: workerData.userOptions.moduleRootPath,
-            css: cssOptions,
-          });
-        }
+        handlers.onCssFile(msg.id, msg.content);
         return;
       case "SERVER_MODULE":
-        if (msg.id && msg.url) {
-          addModuleId(msg.id, msg.url);
-        }
         handlers.onServerModule(msg.id, msg.url, msg.source);
         return;
       case "SHUTDOWN": {

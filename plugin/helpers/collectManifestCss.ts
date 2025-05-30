@@ -1,5 +1,4 @@
 import type { Manifest } from "vite";
-import type { ResolvedUserOptions } from "../types.js";
 
 /**
  * Collects CSS file paths from a manifest by walking through imports starting from a given file
@@ -7,7 +6,6 @@ import type { ResolvedUserOptions } from "../types.js";
 export function collectManifestCss(
   manifest: Manifest,
   startFile: string | string[],
-  userOptions: Pick<ResolvedUserOptions, "normalizer">
 ): Record<string, string> {
   const cssInputs: Record<string, string> = {};
   const visited = new Set<string>();
@@ -29,8 +27,7 @@ export function collectManifestCss(
     // Add CSS files from the css property
     if (fileInfo.css) {
       for (const cssFile of fileInfo.css) {
-        const [keyNormalized, valueNormalized] = userOptions.normalizer(cssFile);
-        cssInputs[keyNormalized] = valueNormalized;
+        cssInputs[cssFile] = cssFile + '.css';
       }
     }
 
@@ -49,8 +46,7 @@ export function collectManifestCss(
         const importedFile = manifest[importPath];
         if (importedFile?.css) {
           for (const cssFile of importedFile.css) {
-            const [keyNormalized, valueNormalized] = userOptions.normalizer(cssFile);
-            cssInputs[keyNormalized] = valueNormalized;
+            cssInputs[cssFile] = cssFile + '.css';
           }
         }
       }

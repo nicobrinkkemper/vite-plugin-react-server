@@ -140,7 +140,7 @@ export async function handleServerAction<
     const { pipe } = ReactDOMServer.renderToPipeableStream(
       {
         type: "server-action-response",
-        returnValue: result,
+        returnValue: result
       },
       handlerOptions.moduleBasePath,
       {
@@ -155,23 +155,5 @@ export async function handleServerAction<
     pipe(res);
   } catch (error) {
     logError(error, server.config.logger);
-    res.statusCode = 500;
-    res.setHeader("Content-Type", "text/x-component; charset=utf-8");
-
-    const { pipe } = ReactDOMServer.renderToPipeableStream(
-      {
-        type: "server-action-response",
-        error: toError(error).message,
-      },
-      handlerOptions.moduleBasePath,
-      {
-        onError(error: Error) {
-          logError(error, server.config.logger);
-          res.end();
-        },
-      }
-    );
-
-    pipe(res);
   }
 }

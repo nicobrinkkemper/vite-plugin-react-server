@@ -1,6 +1,6 @@
 import type { ResolvedUserOptions, CssContent } from "../types.js";
 import type { InlineCssOpt, PagePropOpt } from "../../server.js";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { deserializeRegExp } from "./serializeUserOptions.js";
 
 /**
@@ -39,23 +39,20 @@ export const createCssProps = <
     | "moduleBasePath"
     | "moduleRootPath"
     | "projectRoot"
+    | "normalizer"
+    | "moduleID"
   >;
 }): CssContent<InlineCSS> => {
-  const { css, moduleBaseURL, moduleBasePath, moduleRootPath, projectRoot } =
-    userOptions;
+  const { css, moduleRootPath } = userOptions;
   // If we don't have a bundle entry, create a linked CSS file
   let inline = typeof code === "string" && code.length > css.inlineThreshold;
   // Normalize the ID to be relative to src/
-  const normalizedId = id.startsWith(projectRoot)
-    ? relative(projectRoot, id)
-    : id;
-
+  const [, value] = userOptions.normalizer(id);
+  const moduleID = userOptions.moduleID(value);
   if (css.inlinePatterns?.length) {
     // Deserialize RegExp patterns if they exist
-    const inlinePatterns = css.inlinePatterns?.map((pattern) =>
-      typeof pattern === "string" ? deserializeRegExp(pattern) : pattern
-    );
-    if (inlinePatterns.some((pattern) => pattern.test?.(normalizedId))) {
+    const inlinePatterns = css.inlinePatterns;
+    if (inlinePatterns.some((pattern) => pattern.test?.(id))) {
       inline = true;
     }
   }
@@ -63,59 +60,33 @@ export const createCssProps = <
     const linkPatterns = css.linkPatterns?.map((pattern) =>
       typeof pattern === "string" ? deserializeRegExp(pattern) : pattern
     );
-    if (linkPatterns.some((pattern) => pattern.test?.(normalizedId))) {
+    if (linkPatterns.some((pattern) => pattern.test?.(id))) {
       inline = false;
     }
   }
   if (inline) {
     return {
       type: "text/css",
-      id: normalizedId,
+      id: moduleID,
       as: "style",
       children: code.trim(),
       ...(process.env["NODE_ENV"] !== "production"
         ? {
-            "data-vite-dev-id": join(projectRoot, moduleRootPath, normalizedId),
+            "data-vite-dev-id": join(moduleRootPath, moduleID),
           }
         : {}),
     } as CssContent<InlineCSS>;
   }
-  const joined = normalizedId.startsWith(moduleBasePath)
-    ? normalizedId
-    : join(moduleBasePath, normalizedId);
-  const moduleBaseHasTrailingSlash = moduleBaseURL.endsWith("/");
-  const joinedHasLeadingSlash = joined.startsWith("/");
-  const safeParseURL = (() => {
-    if (
-      joined.startsWith(
-        moduleBaseHasTrailingSlash ? moduleBaseURL.slice(0, -1) : moduleBaseURL
-      )
-    ) {
-      return joined;
-    }
-    try {
-      if (moduleBaseURL.includes("//")) {
-        // relative to moduleBaseURL
-        return new URL(
-          joinedHasLeadingSlash ? joined.slice(1) : joined,
-          moduleBaseURL
-        ).href;
-      }
-    } catch (error) {}
-    // if the url is not valid, we return the moduleBaseURL + the normalizedId
-    // dont make it a argument of join or it will mangle something like http:// into http:/
-    return (
-      moduleBaseURL +
-      (!moduleBaseHasTrailingSlash && !joinedHasLeadingSlash ? "/" : "") +
-      (moduleBaseHasTrailingSlash ? joined.slice(1) : joined)
-    );
-  })();
   // Default case
   return {
-    id: normalizedId,
+    id: moduleID,
     as: "link",
     rel: "stylesheet",
-    href: safeParseURL,
+    href:
+      typeof process.env.VITE_PUBLIC_ORIGIN === "string" &&
+      process.env.VITE_PUBLIC_ORIGIN !== ""
+        ? new URL(moduleID, process.env.VITE_PUBLIC_ORIGIN).href
+        : moduleID,
     precedence: "high",
   } as CssContent<InlineCSS>;
 };

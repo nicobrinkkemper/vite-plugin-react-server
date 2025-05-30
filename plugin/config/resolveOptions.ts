@@ -40,8 +40,11 @@ const handleSearchQuery = (path: string) => {
 const registerPath = (
   path: string,
   _pattern?: string | RegExp | ((path: string) => boolean) | undefined,
-  _fallback?: string | undefined
+  ext?: string | undefined
 ) => {
+  if (ext && !path.endsWith(ext)) {
+    return path + ext;
+  }
   return path;
 };
 
@@ -145,24 +148,24 @@ export const resolveOptions = <
       moduleBasePath,
     });
 
-  const testModuleExtension = resolveAutoDiscoverMatcher(
+  const moduleExtension = resolveAutoDiscoverMatcher(
     options.autoDiscover?.moduleExtension,
     DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension
   );
   // Auto-discovery pattern matchers
-  const testModulePattern = resolveAutoDiscoverMatcher(
+  const modulePattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.modulePattern,
     options.autoDiscover?.moduleExtension
-      ? (id: string) => testModuleExtension(id.toLowerCase())
+      ? (id: string) => moduleExtension(id.toLowerCase())
       : DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern
   );
 
-  const testJson = resolveAutoDiscoverMatcher(
+  const jsonPattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.jsonPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.jsonPattern
   );
 
-  const testCss = resolveAutoDiscoverMatcher(
+  const cssPattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.cssPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.cssPattern
   );
@@ -177,80 +180,85 @@ export const resolveOptions = <
     DEFAULT_CONFIG.AUTO_DISCOVER.rscPattern
   );
 
-  const testClientComponents = resolveAutoDiscoverMatcher(
+  const clientComponents = resolveAutoDiscoverMatcher(
     options.autoDiscover?.clientComponents,
     options.autoDiscover?.moduleExtension
       ? (id: string) =>
-          testModuleExtension(id.toLowerCase()) &&
+          moduleExtension(id.toLowerCase()) &&
           /(\.|\/)?client(\.|\/)/.test(id.toLowerCase())
       : DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents
   );
 
-  const testServerFunctions = resolveAutoDiscoverMatcher(
+  const serverFunctions = resolveAutoDiscoverMatcher(
     options.autoDiscover?.serverFunctions,
     options.autoDiscover?.moduleExtension
       ? (id: string) =>
-          testModuleExtension(id.toLowerCase()) &&
+          moduleExtension(id.toLowerCase()) &&
           /(\.|\/)?server(\.|\/)/.test(id.toLowerCase())
       : DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions
   );
 
-  const testNodeOnly = resolveAutoDiscoverMatcher(
+  const nodeOnly = resolveAutoDiscoverMatcher(
     options.autoDiscover?.nodeOnly,
     DEFAULT_CONFIG.AUTO_DISCOVER.nodeOnly
   );
 
-  const testPropsPattern = resolveAutoDiscoverMatcher(
+  const propsPattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.propsPattern,
     options.autoDiscover?.moduleExtension
       ? (id: string) =>
-          testModuleExtension(id.toLowerCase()) &&
+          moduleExtension(id.toLowerCase()) &&
           /(\.|\/)?props(\.|\/)/.test(id.toLowerCase())
       : DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
   );
 
-  const testPagePattern = resolveAutoDiscoverMatcher(
+  const pagePattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.pagePattern,
     options.autoDiscover?.moduleExtension
       ? (id: string) =>
-          testModuleExtension(id.toLowerCase()) &&
+          moduleExtension(id.toLowerCase()) &&
           /(\.|\/)?page(\.|\/)/.test(id.toLowerCase())
       : DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
   );
 
-  const testCssModule = resolveAutoDiscoverMatcher(
+  const cssModulePattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.cssModulePattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.cssModulePattern
   );
 
-  const testVendor = resolveAutoDiscoverMatcher(
+  const vendorPattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.vendorPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern
   );
 
-  const testVirtual = resolveAutoDiscoverMatcher(
+  const virtualPattern = resolveAutoDiscoverMatcher(
     options.autoDiscover?.virtualPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern
   );
 
-  const testDotFiles = resolveAutoDiscoverMatcher(
+  const dotFiles = resolveAutoDiscoverMatcher(
     options.autoDiscover?.dotFiles,
     DEFAULT_CONFIG.AUTO_DISCOVER.dotFiles
   );
 
-  const isServerFunction = resolveAutoDiscoverMatcher(
+  const isServerFunctionCode = resolveAutoDiscoverMatcher(
     options.autoDiscover?.isServerFunction,
     options.autoDiscover?.serverDirective
-      ? (code: string) =>
-          code.match(options.autoDiscover?.serverDirective!) !== null
-      : DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective
+      ? (code: string, moduleId?: string) =>
+          code.match(options.autoDiscover?.serverDirective!) != null ||
+          (moduleId && serverFunctions(moduleId)) ||
+          false
+      : (code: string, moduleId?: string) =>
+          code.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective) != null ||
+          (moduleId && serverFunctions(moduleId)) ||
+          false
   );
 
-  const isClientComponent = resolveAutoDiscoverMatcher(
+  const isClientComponentCode = resolveAutoDiscoverMatcher(
     options.autoDiscover?.isClientComponent,
     options.autoDiscover?.clientDirective
       ? (code: string) =>
-          code.match(options.autoDiscover?.clientDirective!) !== null
+          code.match(options.autoDiscover?.clientDirective!) != null
       : DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective
   );
 
@@ -287,67 +295,83 @@ export const resolveOptions = <
       return n + hashString;
     }
   };
+  const jsExtension = options.autoDiscover?.jsExtension ?? ".js";
+  const cssExtension = options.autoDiscover?.cssExtension ?? ".css";
+  const htmlExtension = options.autoDiscover?.htmlExtension ?? ".html";
+  const jsonExtension = options.autoDiscover?.jsonExtension ?? ".json";
+  const rscExtension = options.autoDiscover?.rscExtension ?? ".rsc";
 
   // Output path resolution
   const getOutputPath = (n: string | null) => {
     if (!n) return "";
     let path = handleSearchQuery(n);
-    path = path.startsWith(moduleBase + "/")
-      ? path.slice(moduleBase.length + 1)
+    path = path.startsWith(moduleBase + moduleBasePath)
+      ? path.slice(moduleBase.length + moduleBasePath.length)
       : path;
 
-    if (testVendor(path))
-      return registerPath(path, options.autoDiscover?.vendorPattern, "vendor");
-    if (testCssModule(path))
+    if (vendorPattern(path))
+      return registerPath(
+        path,
+        options.autoDiscover?.vendorPattern,
+        jsExtension
+      );
+    if (cssModulePattern(path))
       return registerPath(
         path,
         options.autoDiscover?.cssModulePattern,
-        ".css.js"
+        cssExtension + jsExtension
       );
-    if (testCss(path))
-      return registerPath(path, options.autoDiscover?.cssPattern, ".css");
-    if (testClientComponents(path))
+    if (cssPattern(path))
+      return registerPath(path, options.autoDiscover?.cssPattern, cssExtension);
+    if (clientComponents(path))
       return registerPath(
         path,
         options.autoDiscover?.clientComponents,
-        "client"
+        jsExtension
       );
     if (testHtml(path))
-      return registerPath(path, options.autoDiscover?.htmlPattern, ".html");
-    if (testJson(path))
-      return registerPath(path, options.autoDiscover?.jsonPattern, ".json");
-    if (testPropsPattern(path))
+      return registerPath(
+        path,
+        options.autoDiscover?.htmlPattern,
+        htmlExtension
+      );
+    if (jsonPattern(path))
+      return registerPath(
+        path,
+        options.autoDiscover?.jsonPattern,
+        jsonExtension
+      );
+    if (propsPattern(path))
       return registerPath(
         path,
         options.autoDiscover?.propsPattern,
-        options.propsExportName?.toLowerCase() ??
-          DEFAULT_CONFIG.PROPS_EXPORT_NAME.toLowerCase()
+        jsExtension
       );
-    if (testPagePattern(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.pagePattern,
-        options.pageExportName?.toLowerCase() ??
-          DEFAULT_CONFIG.PAGE_EXPORT_NAME.toLowerCase()
-      );
-    if (testServerFunctions(path))
+    if (pagePattern(path))
+      return registerPath(path, options.autoDiscover?.pagePattern, jsExtension);
+    if (serverFunctions(path))
       return registerPath(
         path,
         options.autoDiscover?.serverFunctions,
-        "server"
+        jsExtension
       );
-    if (testModulePattern(path)) return path;
+    if (modulePattern(path))
+      return registerPath(
+        path,
+        options.autoDiscover?.modulePattern,
+        jsExtension
+      );
     return path;
   };
 
   // File naming functions
   const entryFile = (n: PreRenderedChunk, ssr: boolean) => {
-    if (testVendor(n.name)) {
+    if (vendorPattern(n.name)) {
       const search = n.facadeModuleId?.split("?")[1];
       if (search) {
-        return hash(`${n.name}.${search}.js`, ssr);
+        return hash(`${n.name}.${search}${jsExtension}`, ssr);
       } else {
-        return hash(`${n.name}.js`, ssr);
+        return hash(`${n.name}${jsExtension}`, ssr);
       }
     }
     return hash(addModuleExtension(getOutputPath(normalizer(n.name)[0])), ssr);
@@ -358,7 +382,12 @@ export const resolveOptions = <
   };
 
   const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
-    return hash(getOutputPath(normalizer(n.names[0])[0]), ssr);
+    const firstName = n.names[0];
+    const extIndex = firstName.lastIndexOf(".");
+    const nameWithoutExtension = firstName.slice(0, extIndex);
+    const extension = firstName.slice(extIndex);
+    const assetName = normalizer(nameWithoutExtension)[0] + extension;
+    return hash(getOutputPath(assetName), ssr);
   };
 
   const moduleID =
@@ -427,6 +456,11 @@ export const resolveOptions = <
 
   // Auto-discovery configuration
   const autoDiscover = {
+    jsExtension: jsExtension,
+    cssExtension: cssExtension,
+    htmlExtension: htmlExtension,
+    jsonExtension: jsonExtension,
+    rscExtension: rscExtension,
     moduleExtension:
       options.autoDiscover?.moduleExtension ??
       DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
@@ -436,22 +470,22 @@ export const resolveOptions = <
     clientDirective:
       options.autoDiscover?.clientDirective ??
       DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective,
-    modulePattern: testModulePattern,
-    cssPattern: testCss,
-    jsonPattern: testJson,
-    clientComponents: testClientComponents,
-    serverFunctions: testServerFunctions,
-    nodeOnly: testNodeOnly,
-    propsPattern: testPropsPattern,
-    pagePattern: testPagePattern,
-    cssModulePattern: testCssModule,
-    vendorPattern: testVendor,
-    dotFiles: testDotFiles,
-    virtualPattern: testVirtual,
+    modulePattern: modulePattern,
+    cssPattern: cssPattern,
+    jsonPattern: jsonPattern,
+    clientComponents: clientComponents,
+    serverFunctions: serverFunctions,
+    nodeOnly: nodeOnly,
+    propsPattern: propsPattern,
+    pagePattern: pagePattern,
+    cssModulePattern: cssModulePattern,
+    vendorPattern: vendorPattern,
+    dotFiles: dotFiles,
+    virtualPattern: virtualPattern,
     htmlPattern: testHtml,
     rscPattern: testRsc,
-    isServerFunction: isServerFunction,
-    isClientComponent: isClientComponent,
+    isServerFunctionCode: isServerFunctionCode,
+    isClientComponentCode: isClientComponentCode,
   };
   const pipeableStreamOptions = options.pipeableStreamOptions
     ? options.pipeableStreamOptions

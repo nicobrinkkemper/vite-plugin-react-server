@@ -24,7 +24,7 @@ import {
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
-import { createBuildLoader } from "../loader/createBuildLoader.js";
+import { createBuildLoader } from "./createBuildLoader.js";
 import type {
   BuildTiming,
   ReactStreamPluginMeta,
@@ -204,8 +204,7 @@ export function reactStaticPlugin<
         // First collect global styles from index.html
         const globalCssInputs = collectManifestCss(
           autoDiscoveredFiles?.staticManifest ?? {},
-          "index.html",
-          userOptions
+          "index.html"
         );
 
         const globalCss: Map<string, CssContent<InlineCSS>> = new Map();
@@ -229,8 +228,7 @@ export function reactStaticPlugin<
           );
           const cssInputs = collectManifestCss(
             transformedServerManifest,
-            props ? [page, props] : page,
-            userOptions
+            props ? [page, props] : page
           );
 
           // Create a map for this page's CSS files
@@ -247,16 +245,16 @@ export function reactStaticPlugin<
                     userOptions.projectRoot,
                     userOptions.build.outDir,
                     userOptions.build.static,
-                    key + ".css"
+                    key
                   ),
                   "utf-8"
                 ) ?? ""
               }
               if (cssContent) {
                 globalCss.set(
-                  value,
+                  key,
                   createCssProps<T, InlineCSS>({
-                    id: value,
+                    id: key,
                     code: cssContent,
                     userOptions: userOptions,
                   })
@@ -266,7 +264,7 @@ export function reactStaticPlugin<
           }
 
           // Add page-specific styles
-          for (const [, value] of Object.entries(cssInputs)) {
+          for (const [key, value] of Object.entries(cssInputs)) {
             try {
               const { default: cssContent } = await buildLoader(
                 value + "?inline"
@@ -276,11 +274,10 @@ export function reactStaticPlugin<
               }
               if (cssContent) {
                 // Ensure the CSS file path is properly resolved
-                const cssPath = value.startsWith("/") ? value.slice(1) : value;
                 pageCssMap.set(
-                  cssPath,
+                  key,
                   createCssProps({
-                    id: cssPath,
+                    id: key,
                     code: cssContent,
                     userOptions: userOptions,
                   })

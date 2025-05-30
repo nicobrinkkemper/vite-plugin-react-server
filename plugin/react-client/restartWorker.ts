@@ -62,6 +62,7 @@ export async function restartWorker({
           hmrPort: workerHmrChannel.port2,
           resolvedConfig: serializedDevServerConfig(server.config),
           userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
+          serverActions: autoDiscoveredFiles.serverActions,
         },
         transferList: [workerHmrChannel.port2],
       });

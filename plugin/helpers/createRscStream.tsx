@@ -97,6 +97,7 @@ export function createRscStream<T extends PagePropOpt = PagePropOpt>({
       moduleBasePath,
       {
         ...pipeableStreamOptions,
+        moduleBaseURL: moduleBaseURL,
         onError(error: Error, errorInfo: any) {
           const err = error instanceof Error ? error : new Error(String(error));
           streamError = err;

@@ -9,7 +9,7 @@ const resolvedTestConfig = {
   pageExportName: "Page",
   moduleBasePath: '/',
   moduleBaseURL: '/',
-  verbose: false, // Enable verbose mode for better debugging
+  verbose: false, // Enable verbose mode for debugging
   build: {
     pages: ["/"],
     assetsDir: 'assets',

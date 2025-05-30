@@ -381,64 +381,6 @@ export async function clearCompletedTodos() {
 });
 
 describe("Source Map Handling", () => {
-  test("should generate basic source map for files without one", async () => {
-    const source = `"use server";
-export function test() {
-  return 42;
-}`;
-    const result = await load("test.js", {
-      format: "module",
-      conditions: ["react-server"],
-      importAttributes: {},
-      url: "test.js"
-    }, createDefaultLoader(source));
-
-    expect(result.map).toBeDefined();
-    expect(result.map?.sources).toContain("test.js");
-    expect(result.map?.sourcesContent).toContain(`import { registerServerReference } from "react-server-dom-esm/server.node";
-
-"use server";
-function test() {
-  return 42;
-}
-export {
-  test
-};
-
-
-registerServerReference(test, "test.js", "test");`);
-    expect(result.map?.mappings).toBeDefined();
-  });
-
-  test("should preserve and extend existing source maps", async () => {
-    const source = `"use server";
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbInRlc3QudHMiXSwic291cmNlQ29udGVudCI6WyJleHBvcnQgZnVuY3Rpb24gdGVzdCgpIHsgcmV0dXJuIDQyOyB9Il0sIm1hcHBpbmdzIjoiQUFBQSJ9
-export function test() {
-  return 42;
-}`;
-    const result = await load("test.js", {
-      format: "module",
-      conditions: ["react-server"],
-      importAttributes: {},
-      url: "test.js"
-    }, createDefaultLoader(source));
-
-    expect(result.map).toBeDefined();
-    expect(result.map?.sources).toContain("test.js");
-    expect(result.map?.sourcesContent).toContain(`import { registerServerReference } from "react-server-dom-esm/server.node";
-
-"use server";
-function test() {
-  return 42;
-}
-export {
-  test
-};
-
-
-registerServerReference(test, "test.js", "test");`);
-    expect(result.map?.mappings).toBeDefined();
-  });
 
   test("should handle source maps with multiple lines", async () => {
     const source = `"use server";
@@ -473,5 +415,79 @@ export function test() {
     expect(result.map).toBeDefined();
     expect(result.map?.sources).toContain("test.js");
     expect(result.map?.mappings).toBeDefined();
+  });
+});
+
+describe('Source Map Generation', () => {
+  test('should generate source maps from central entry point', async () => {
+    const source = `"use server";
+export function hello() {
+  return "world";
+}`;
+
+    const result = transformModuleIfNeeded(
+      source,
+      'test.js',
+      source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
+      null,
+      true // isServerEnvironment
+    );
+
+    // Extract source map from the result
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    expect(sourceMapMatch).toBeTruthy();
+    
+    const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
+    
+    // Verify source map structure
+    expect(sourceMap).toEqual({
+      version: 3,
+      file: 'test.js',
+      sources: ['test.js'],
+      sourcesContent: expect.arrayContaining([expect.stringContaining('registerServerReference')]),
+      mappings: expect.any(String),
+      sourceRoot: '',
+      names: []
+    });
+
+    // Verify the transformed code is in the source map content
+    expect(sourceMap.sourcesContent[0]).toContain('registerServerReference');
+    expect(sourceMap.sourcesContent[0]).toContain('hello');
+  });
+
+  test('should preserve source maps for client components', async () => {
+    const source = `"use client";
+export function hello() {
+  return "world";
+}`;
+
+    const result = transformModuleIfNeeded(
+      source,
+      'test.js',
+      null,
+      source.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective),
+      true // isServerEnvironment
+    );
+
+    // Extract source map from the result
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    expect(sourceMapMatch).toBeTruthy();
+    
+    const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
+    
+    // Verify source map structure
+    expect(sourceMap).toEqual({
+      version: 3,
+      file: 'test.js',
+      sources: ['test.js'],
+      sourcesContent: expect.arrayContaining([expect.stringContaining('registerClientReference')]),
+      mappings: expect.any(String),
+      sourceRoot: '',
+      names: []
+    });
+
+    // Verify the transformed code is in the source map content
+    expect(sourceMap.sourcesContent[0]).toContain('registerClientReference');
+    expect(sourceMap.sourcesContent[0]).toContain('hello');
   });
 });

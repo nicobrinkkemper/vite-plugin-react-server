@@ -18,6 +18,7 @@ import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import type { RscWorkerInputMessage } from "../worker/types.js";
 import { Readable } from "node:stream";
 import type { ReadableStream } from "node:stream/web";
+import { PassThrough } from "node:stream";
 
 /**
  * Configures the worker request handler.
@@ -51,6 +52,9 @@ export async function configureWorkerRequestHandler<
     moduleBaseURL: server.config.base,
     moduleBasePath: server.config.base,
     projectRoot: server.config.root,
+    moduleID: (id: string) => {
+      return id
+    }
   });
 
   // Start the worker
@@ -85,6 +89,109 @@ export async function configureWorkerRequestHandler<
 
     const info = requestInfo(req, handlerOptions, "", server.config.logger);
 
+    // Serialize user options for worker
+    const serializedUserOptions = serializedOptions<T, InlineCSS>(
+      handlerOptions,
+      autoDiscoveredFiles
+    );
+
+    // Handle server action requests
+    if (info.isServerActionRequest) {
+      try {
+        // Read request body
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(chunk);
+        }
+        const body = Buffer.concat(chunks).toString();
+        const parsed = JSON.parse(body);
+        
+        // Get action ID and args from the request body
+        let id: string;
+        let args: unknown[];
+        if (Array.isArray(parsed)) {
+          // Format 1: Direct args array
+          args = parsed;
+          id = req.url?.split("?")[0] ?? "";
+        } else if (parsed && typeof parsed === "object" && "id" in parsed) {
+          // Format 2: Object with id and args
+          id = parsed.id;
+          args = parsed.args ?? [];
+        } else {
+          throw new Error("Invalid server action request format");
+        }
+
+        // Set up response headers for streaming
+        res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+        res.setHeader("Transfer-Encoding", "chunked");
+        res.setHeader("Connection", "keep-alive");
+
+        if (!currentWorker) {
+          currentWorker = await restartWorker({
+            server,
+            autoDiscoveredFiles,
+            userOptions: serializedUserOptions,
+            hmrChannel,
+          });
+        }
+
+        // Send server action request to worker
+        currentWorker!.postMessage({
+          type: "SERVER_ACTION",
+          id,
+          args,
+        } satisfies RscWorkerInputMessage);
+
+        // Create a pass-through stream for the response
+        const passThrough = new PassThrough();
+        passThrough.pipe(res);
+
+        // Handle worker messages
+        const messageHandler = (message: any) => {
+          if (message.type === "RSC_CHUNK") {
+            passThrough.write(message.chunk);
+          } else if (message.type === "RSC_END") {
+            passThrough.end();
+            currentWorker!.removeListener("message", messageHandler);
+          } else if (message.type === "ERROR") {
+            passThrough.end();
+            currentWorker!.removeListener("message", messageHandler);
+            server.config.logger.error(message.error.message + (message.error.stack ?? ""), {
+              error: message.error,
+            });
+          }
+        };
+
+        currentWorker!.on("message", messageHandler);
+
+        // Handle errors
+        passThrough.on("error", (error) => {
+          server.config.logger.error(error.message + (error.stack ?? ""), {
+            error,
+          });
+          res.end();
+        });
+
+        return;
+      } catch (error) {
+        if (error instanceof Error) {
+          server.config.logger.error(error.message + (error.stack ?? ""), {
+            error,
+          });
+        }
+        res.statusCode = 500;
+        res.end(JSON.stringify({
+          type: "server-action-response",
+          returnValue: {
+            success: false,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        }));
+        return;
+      }
+    }
+
+    // Handle RSC requests
     if (!info.isRscRequest) {
       return next();
     }
@@ -106,10 +213,6 @@ export async function configureWorkerRequestHandler<
       res.setHeader("Transfer-Encoding", "chunked");
       res.setHeader("Connection", "keep-alive");
 
-      const serializedUserOptions = serializedOptions<T, InlineCSS>(
-        handlerOptions,
-        autoDiscoveredFiles
-      );
       const userOnMetrics =
         typeof onMetrics === "function"
           ? (metrics: StreamMetrics) => {

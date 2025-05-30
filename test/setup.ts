@@ -366,7 +366,7 @@ export function TodoList({ initialTodos, addTodo, toggleTodo, deleteTodo, getTod
   await writeFile(
     resolve(testDir, "src/page/page.tsx"),
     `import React from 'react';
-import { TodoList } from '../../components/TodoList.client.js';
+import { TodoList } from '../components/TodoList.client';
 import type { Props } from './props.js';
 
 export function Page({ todos, addTodo, toggleTodo, deleteTodo, getTodos }: Props) {

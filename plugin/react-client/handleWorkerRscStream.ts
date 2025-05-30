@@ -37,12 +37,21 @@ export function handleWorkerRscStream({
           handlers: {
             ...handlers,
             onServerAction: (id: string, args: unknown[]) => {
-              if (verbose) logger.info(`[react-client] Received server action ${id}`);
+              if (verbose) logger.info(`[react-client] Forwarding server action ${id} to worker`);
               handlers.onServerAction?.(id, args);
             },
             onServerActionResponse: (id: string, result?: unknown, error?: string) => {
-              if (verbose) logger.info(`[react-client] Received server action response ${id}`);
-              handlers.onServerActionResponse?.(id, result, error);
+              if (verbose) logger.info(`[react-client] Forwarding server action response ${id} from worker`);
+              if (typeof handlers.onServerActionResponse === "function") {
+                // Ensure consistent response format
+                const response = {
+                  type: "server-action-response",
+                  returnValue: error 
+                    ? { success: false, error }
+                    : result  // Direct result, no success/data wrapper
+                };
+                handlers.onServerActionResponse(id, response);
+              }
             }
           },
           verbose

@@ -138,6 +138,12 @@ export type SerializedUserConfig = Extract<
   ResolvedUserConfig,
   SerializableRecord
 >;
+
+export type SerializedUserOptions = Extract<
+  ResolvedUserOptions,
+  SerializableRecord
+>;
+
 // Client plugin options
 export interface StreamPluginOptionsClient {
   outDir?: string;
@@ -197,6 +203,11 @@ export type ResolvedUserOptions<
     moduleExtension: RegExp;
     serverDirective: RegExp;
     clientDirective: RegExp;
+    cssExtension: string;
+    jsonExtension: string;
+    htmlExtension: string;
+    rscExtension: string;
+    jsExtension: string;
     modulePattern: (path: string) => boolean;
     cssPattern: (path: string) => boolean;
     jsonPattern: (path: string) => boolean;
@@ -211,8 +222,8 @@ export type ResolvedUserOptions<
     nodeOnly: (path: string) => boolean;
     dotFiles: (path: string) => boolean;
     virtualPattern: (path: string) => boolean;
-    isServerFunction: (code: string) => boolean;
-    isClientComponent: (code: string) => boolean;
+    isServerFunctionCode: (code: string) => boolean;
+    isClientComponentCode: (code: string) => boolean;
   };
 };
 
@@ -446,6 +457,16 @@ export interface StreamPluginOptions<
         serverDirective?: RegExp;
         // default: /^"use client"[\s;]*\n?/m
         clientDirective?: RegExp;
+        // css extension
+        cssExtension?: string;
+        // json extension
+        jsonExtension?: string;
+        // html extension
+        htmlExtension?: string;
+        // rsc extension
+        rscExtension?: string;
+        // .js extension
+        jsExtension?: string;
         // default: /\.(m|c)?(j|t)sx?$/
         modulePattern?: RegExpOpt;
         // default: [Pp]age.tsx
@@ -538,6 +559,8 @@ export type CreateHandlerOptions<
   | "onEvent"
   | "onMetrics"
   | "projectRoot"
+  | "normalizer"
+  | "moduleID"  
 > & {
   logger: Logger;
   loader: ModuleLoader;

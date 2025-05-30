@@ -86,6 +86,7 @@ export type StreamHandlers =  {
   onServerActionResponse?: (id: string, result?: unknown, error?: string) => void;
   onServerModule?: (id: string, url: string, source: string) => void;
   onShutdown?: (id: string) => void;
+  onCssFile?: (id: string, code: string) => void;
 };
 
 // RSC Messages
@@ -288,6 +289,7 @@ export type RscWorkerInputMessage =
   | HmrCleanupMessage
   | CleanupCompleteMessage
   | ServerActionMessage
+  | ServerActionResponseMessage
   | ServerModuleMessage;
 
 export interface CssFileRequestMessage extends WorkerMessage {

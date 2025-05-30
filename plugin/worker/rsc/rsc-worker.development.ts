@@ -4,13 +4,13 @@ import { register } from "node:module";
 import { register as registerTsx } from "tsx/esm/api";
 import { join } from "node:path";
 import { pluginRoot } from "../../root.js";
-import { deserializeRegExp } from "../../helpers/serializeUserOptions.js";
 import type {
   HmrAcceptMessage,
   HmrUpdateMessage,
   ReadyMessage,
 } from "../types.js";
 import { toError } from "../../error/toError.js";
+
 // Initialize worker
 if (!parentPort) {
   throw new Error("This module must be run as a worker");
@@ -55,20 +55,15 @@ const developmentReactLoaderMessageHandler = (msg: any) => {
 };
 
 try {
-  // Deserialize workerData to restore RegExp objects
-  if (workerData) {
-    workerData.userOptions = deserializeRegExp(workerData.userOptions);
-  }
-
   // Create channels for each loader
   const reactLoaderChannel = new MessageChannel();
   const cssLoaderChannel = new MessageChannel();
   const envLoaderChannel = new MessageChannel();
 
   // Set up message handlers before transferring ports
-  reactLoaderChannel.port1.on("message", developmentReactLoaderMessageHandler);
-  cssLoaderChannel.port1.on("message", developmentCssLoaderMessageHandler);
-  envLoaderChannel.port1.on("message", developmentEnvLoaderMessageHandler);
+  reactLoaderChannel.port2.on("message", developmentReactLoaderMessageHandler);
+  cssLoaderChannel.port2.on("message", developmentCssLoaderMessageHandler);
+  envLoaderChannel.port2.on("message", developmentEnvLoaderMessageHandler);
 
   const reactLoaderPath =
     "file://" + join(pluginRoot, "loader/react-loader.server.js");
@@ -76,6 +71,20 @@ try {
     "file://" + join(pluginRoot, "loader/css-loader.development.js");
   const envLoaderPath =
     "file://" + join(pluginRoot, "loader/env-loader.development.js");
+
+  register(cssLoaderPath, {
+    parentURL: pluginRoot,
+    data: {
+      id: "css-loader",
+      port: cssLoaderChannel.port1,
+      userOptions: workerData.userOptions,
+      resolvedConfig: workerData.resolvedConfig,
+    },
+    transferList: [cssLoaderChannel.port1],
+  });
+
+  // Register tsx
+  registerTsx();
 
   // Register loaders with their ports
   register(reactLoaderPath, {
@@ -87,18 +96,6 @@ try {
     },
     transferList: [reactLoaderChannel.port1],
   });
-  register(cssLoaderPath, {
-    parentURL: pluginRoot,
-    data: {
-      id: "css-loader",
-      port: cssLoaderChannel.port1,
-      resolvedConfig: workerData.resolvedConfig,
-    },
-    transferList: [cssLoaderChannel.port1],
-  });
-
-  // Register loaders
-  registerTsx();
 
   // Register env-loader (ensure this the last)
   register(envLoaderPath, {

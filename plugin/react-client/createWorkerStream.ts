@@ -32,6 +32,7 @@ export async function* createWorkerStream({
     onEnd,
     onServerAction,
     onServerActionResponse,
+    onCssFile,
   },
   verbose = false,
 }: {
@@ -48,6 +49,7 @@ export async function* createWorkerStream({
         | "onEnd"
         | "onServerAction"
         | "onServerActionResponse"
+        | "onCssFile"
       >
     >;
   verbose?: boolean;
@@ -114,6 +116,12 @@ export async function* createWorkerStream({
         onHmrUpdate(id, routes);
       }
     },
+    onCssFile: (id: string, code: string) => {
+      if (verbose) logger.info(`[react-client] received css file ${id}`);
+      if (typeof onCssFile === "function") {
+        onCssFile(id, code);
+      }
+    },
     onServerAction: (id: string, args: unknown[]) => {
       if (verbose) logger.info(`[react-client] received server action ${id}`);
       if (typeof onServerAction === "function") {
@@ -124,7 +132,13 @@ export async function* createWorkerStream({
       if (verbose)
         logger.info(`[react-client] received server action response ${id}`);
       if (typeof onServerActionResponse === "function") {
-        onServerActionResponse(id, result, error);
+        const response = {
+          type: "server-action-response",
+          returnValue: error 
+            ? { success: false, error }
+            : result
+        };
+        onServerActionResponse(id, response);
       }
     },
   };

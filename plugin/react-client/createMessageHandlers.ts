@@ -50,6 +50,9 @@ export function createMessageHandler({
       case "SERVER_MODULE":
         handlers.onServerModule?.(message.id, message.url, message.source);
         break;
+      case "CSS_FILE":
+        handlers.onCssFile?.(message.id, message.content);
+        break;
       default:
         logger.warn(`Unknown worker output message type: ${(message as { type: string }).type}`);
     }

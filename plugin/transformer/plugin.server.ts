@@ -128,8 +128,8 @@ export function reactTransformPlugin<
       const transformed = transformModuleIfNeeded(
         code,
         finalID,
-        userOptions.autoDiscover.isServerFunction(code),
-        userOptions.autoDiscover.isClientComponent(code),
+        userOptions.autoDiscover.isServerFunctionCode(code),
+        userOptions.autoDiscover.isClientComponentCode(code),
         true
       );
       if (userOptions.verbose)

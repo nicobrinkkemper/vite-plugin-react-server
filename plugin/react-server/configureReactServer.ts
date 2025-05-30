@@ -35,13 +35,12 @@ export async function configureReactServer<
     Html: _UserHtmlComponent,
     onEvent,
     // remove these
-    moduleBaseURL: _moduleBaseURL,
-    projectRoot: _projectRoot,
     ...handlerUserOptions
   } = _userOptions;
   const handlerOptions = {
     ...handlerUserOptions,
     moduleBaseURL: server.config.base,
+    moduleBasePath: server.config.base,
     projectRoot: server.config.root,
     Html: React.Fragment,
     onEvent: createEventHandler(onEvent),

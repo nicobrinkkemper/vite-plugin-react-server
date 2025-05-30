@@ -47,6 +47,7 @@ export async function handleRender<
             // Clear the HMR state for this module
             hmrState.delete(id);
             // Force a reload by using a unique query parameter
+            console.log("LOADING", id);
             return import(join(projectRoot, id) + `?t=${Date.now()}`);
           }
           return import(join(projectRoot, id));

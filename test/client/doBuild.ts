@@ -12,7 +12,7 @@ import { resolve } from "path";
  * @param optionOverrides - Optional overrides for the options
  * @returns The events from the build
  */
-export async function doBuildStaticClient<
+export async function doBuild<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt
 >(optionOverrides: Partial<StreamPluginOptions<T, InlineCSS>>) {
@@ -50,6 +50,13 @@ export async function doBuildStaticClient<
     plugins: [vitePluginReactServer(options)],
     build: {
       ssr: false,
+    },
+  });
+
+  await build({
+    plugins: [vitePluginReactServer(options)],
+    build: {
+      ssr: true,
     },
   });
 
