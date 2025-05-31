@@ -18,7 +18,7 @@
  */
 import { handleExports } from "./handleExports.js";
 import type { Program } from "./types.js";
-import createMappingsSerializer from "webpack-sources/lib/helpers/createMappingsSerializer.js";
+import { createMappingsSerializer } from "../source-map/createMappingsSerializer.js";
 
 export interface TransformOptions {
   id: string;

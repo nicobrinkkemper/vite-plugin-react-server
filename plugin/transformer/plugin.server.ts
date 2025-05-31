@@ -100,21 +100,12 @@ export function reactTransformPlugin<
       if (!options?.ssr || !userOptions.autoDiscover.modulePattern(id)) {
         return null;
       }
-      const [key, value] = userOptions.normalizer(id);
+      const [, value] = userOptions.normalizer(id);
       let moduleID = value;
       if (isBuild) {
         if (staticManifest) {
           if (value in staticManifest) {
             moduleID = staticManifest[value].file;
-          } else {
-            const hash = this.emitFile({
-              id,
-              type: "chunk",
-              fileName: key + ".js",
-              name: value,
-            });
-            const fileName = this.getFileName(hash);
-            moduleID = fileName;
           }
         } else {
           throw new Error(`Static manifest not found during dev build.`);

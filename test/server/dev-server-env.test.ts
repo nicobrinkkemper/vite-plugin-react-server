@@ -3,12 +3,12 @@ import { createServer } from "vite";
 import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { setupTestProjectEnv } from "../setup.js";
 import { handleRSCStream, RSCStreamResponse } from "../rsc-stream.js";
 
 let server,
-  port = 3000;
+  port = 3033;
 let pageURL = `http://localhost:${port}/index.rsc`;
 let response: RSCStreamResponse;
 const testDir = resolve(__dirname, "../fixtures/dev-server-env.test");

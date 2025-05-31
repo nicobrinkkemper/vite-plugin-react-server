@@ -74,11 +74,11 @@ export const DEFAULT_CONFIG = {
     /**
      * /(\.|\/)?client(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
      */
-    clientComponents: (n: string) => /(\.|\/)?client(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
+    clientComponents: (n: string) => /(\.|\/)?client(\.(m|c)?(j|t)sx?)?$/.test(n.toLowerCase()),
     /**
      * /(\.|\/)?server(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
      */
-    serverFunctions: (n: string) => /(\.|\/)?server(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
+    serverFunctions: (n: string) => /(\.|\/)?server(\.(m|c)?(j|t)sx?)?$/.test(n.toLowerCase()),
     /**
      * /\.css$/
      */
@@ -133,6 +133,11 @@ export const DEFAULT_CONFIG = {
       (moduleId && DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions(moduleId)) || 
       false,
     isClientComponentCode: (code: string) => code.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective) !== null,
+    jsExtension: ".js",
+    cssExtension: ".css",
+    jsonExtension: ".json",
+    htmlExtension: ".html",
+    rscExtension: ".rsc",
     
   },
   MODULE_ID: (id: string) => id,

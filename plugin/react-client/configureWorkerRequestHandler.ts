@@ -52,9 +52,6 @@ export async function configureWorkerRequestHandler<
     moduleBaseURL: server.config.base,
     moduleBasePath: server.config.base,
     projectRoot: server.config.root,
-    moduleID: (id: string) => {
-      return id
-    }
   });
 
   // Start the worker

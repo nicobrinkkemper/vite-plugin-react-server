@@ -19,8 +19,7 @@ export const createCallServer = (moduleBaseURL: string) => {
           args
         }),
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          Accept: "text/x-component",
         },
       }),
       { callServer, moduleBaseURL }

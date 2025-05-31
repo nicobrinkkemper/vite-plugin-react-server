@@ -22,6 +22,12 @@ import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
 export type OnEvent = (event: PluginEvent) => void;
 
+export type CreateInputNormalizerProps = {
+  root: string;
+  preserveModulesRoot?: string | undefined;
+  removeExtension?: boolean | RegExp | string | ((path: string) => boolean);
+  moduleBasePath: string | undefined;
+};
 export type Serializable =
   | string
   | number

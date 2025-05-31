@@ -38,28 +38,6 @@ if(workerData) {
   throw new Error("This module must be run with workerData");
 }
 
-// Create shared CSS registry
-export const clientFiles = new Set<string>();
-export const serverActionFiles = new Set<string>();
-
-// Helper functions
-export function clearCssFiles() {
-  cssFiles.clear();
-}
-
-export function getCssFiles() {
-  return cssFiles.entries();
-}
-
-export function clearClientFiles() {
-  clientFiles.clear();
-}
-
-export function clearServerActionFiles() {
-  serverActionFiles.clear();
-}
-
-
 
 export function addCssFileContent(id: string, code: string, userOptions: Pick<ResolvedUserOptions, "projectRoot" | "moduleBaseURL" | "moduleBasePath" | "moduleRootPath" | "css" | "normalizer" | "moduleID">) {
   if(typeof code !== "string"){
@@ -72,19 +50,6 @@ export function addCssFileContent(id: string, code: string, userOptions: Pick<Re
   }));
 } 
 
-export function addClientFile(url: string) {
-  clientFiles.add(url);
-}
-
-export function addServerActionFile(url: string) {
-  serverActionFiles.add(url);
-}
-
-export function clearAllFiles() {
-  clearCssFiles();
-  clearClientFiles();
-  clearServerActionFiles();
-}
 
 // Helper to check if a module is invalidated
 export function isModuleInvalidated(path: string): boolean {

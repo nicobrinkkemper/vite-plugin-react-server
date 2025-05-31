@@ -101,6 +101,7 @@ try {
   register(envLoaderPath, {
     parentURL: pluginRoot,
     data: {
+      id: "env-loader",
       port: envLoaderChannel.port1,
       resolvedConfig: workerData.resolvedConfig,
     },

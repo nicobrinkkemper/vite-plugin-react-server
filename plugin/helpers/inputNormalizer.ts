@@ -1,16 +1,13 @@
 import { normalizePath } from "vite";
-import type { InputNormalizer, NormalizerInput } from "../types.js";
+import type {
+  CreateInputNormalizerProps,
+  InputNormalizer,
+  NormalizerInput,
+} from "../types.js";
 import path, { join, sep } from "path";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 let stashedNormalizer: InputNormalizer | null = null;
-
-type CreateInputNormalizerProps = {
-  root: string;
-  preserveModulesRoot?: string | undefined;
-  removeExtension?: boolean | RegExp | string | ((path: string) => boolean);
-  moduleBasePath?: string | undefined;
-};
 
 const resolveExtensionOptions = (
   removeExtension: CreateInputNormalizerProps["removeExtension"]
@@ -18,7 +15,12 @@ const resolveExtensionOptions = (
   if (typeof removeExtension === "boolean") {
     if (removeExtension) {
       return (path: string) => {
+        // if extension is client or server, don't remove it
+        if (path.endsWith(".client") || path.endsWith(".server")) {
+          return path;
+        }
         const extensionIndex = path.lastIndexOf(".");
+
         return extensionIndex !== -1 ? path.slice(0, extensionIndex) : path;
       };
     }
@@ -33,6 +35,9 @@ const resolveExtensionOptions = (
   }
   if (typeof removeExtension === "function") {
     return (path: string) => {
+      if (path.endsWith(".client") || path.endsWith(".server")) {
+        return path;
+      }
       const extIndex = path.lastIndexOf(".");
       if (extIndex !== -1) {
         const extension = path.slice(extIndex);
@@ -64,6 +69,7 @@ const resolveRootOption = (
   }
   return "";
 };
+
 const createKeyNormalizer =
   ({
     root: normalizedRoot,
@@ -178,7 +184,7 @@ const createPathNormalizer =
  */
 export function createInputNormalizer({
   root,
-  moduleBasePath,
+  moduleBasePath = DEFAULT_CONFIG.MODULE_BASE_PATH,
   preserveModulesRoot = undefined,
   removeExtension = DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
 }: CreateInputNormalizerProps): InputNormalizer {
@@ -235,8 +241,12 @@ export function createInputNormalizer({
 
   stashedNormalizer = (input: NormalizerInput): [string, string] => {
     const [key, path] = normalizeInput(input);
-    // Apply the same normalization to both key and path
-    const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+    let normalizedPath = path.startsWith(moduleBasePath)
+      ? path.slice(moduleBasePath.length)
+      : path;
+    normalizedPath = normalizedPath.startsWith("/")
+      ? normalizedPath.slice(1)
+      : normalizedPath;
     const virtualPrefix = key.match(/^\0+/) ?? "";
     // If key has virtual prefix, ensure path has it too
     const finalPath = virtualPrefix
@@ -246,9 +256,6 @@ export function createInputNormalizer({
         ? virtualPrefix[0] + normalizedPath
         : normalizedPath
       : normalizedPath;
-    if(virtualPrefix){
-      return ['', ''];
-    }
     return [key, finalPath];
   };
   return stashedNormalizer;

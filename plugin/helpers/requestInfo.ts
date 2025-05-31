@@ -42,13 +42,39 @@ export function requestInfo(
   const hasRscHeader = req.headers.accept?.includes("text/x-component");
   const hasCssHeader = req.headers.accept?.includes("text/css");
   const isFolder = !ext;
+  const isFormContentType =
+    req.headers["content-type"]?.includes(
+      "application/x-www-form-urlencoded"
+    ) || !!req.headers["content-type"]?.includes("multipart/form-data");
+  
+  // Server action detection
+  const hasServerActionHeaders =
+    req.method === "POST" &&
+    (req.headers["sec-fetch-dest"] === "empty" ||
+      req.headers["sec-fetch-dest"] === "") &&
+    req.headers["sec-fetch-mode"] === "cors";
+  const isServerActionRequest = hasServerActionHeaders;
+
+  const isFormActionRequest = !isServerActionRequest && (
+    req.method === "POST" ||
+    (isFormContentType &&
+      req.headers["sec-fetch-dest"] === "document" &&
+      req.headers["sec-fetch-mode"] === "navigate")
+  );
+
   const isJsRequest =
-    !isJson && !isHtml && !isCss && !isRsc && (isJS || hasJsHeader);
+    !isFormActionRequest && !isJson && !isHtml && !isCss && !isRsc && (isJS || hasJsHeader);
   const isJsonRequest = isJson || (hasJsonHeader && !isJsRequest);
+  // Form action detection
+  
   const isHtmlRequest =
     isHtml ||
     hasHtmlHeader ||
-    (isFolder && !hasRscHeader && !isRsc && !isJsRequest);
+    (isFolder &&
+      !hasRscHeader &&
+      !isRsc &&
+      !isJsRequest &&
+      !isFormActionRequest);
   const isRscRequest =
     !isJsRequest && !isHtmlRequest && (isRsc || hasRscHeader);
   const isCssRequest =
@@ -57,24 +83,6 @@ export function requestInfo(
     !isJsRequest &&
     !isJsonRequest &&
     (isCss || hasCssHeader);
-
-  // Form action detection
-  const formContentType = req.headers["content-type"] ?? "";
-  const isFormContentType =
-    formContentType.includes("application/x-www-form-urlencoded") ||
-    formContentType.includes("multipart/form-data");
-  const isFormActionRequest =
-    isFormContentType &&
-    req.headers["sec-fetch-dest"] === "document" &&
-    req.headers["sec-fetch-mode"] === "navigate";
-
-  // Server action detection
-  const hasServerActionHeaders =
-    isJsonRequest &&
-    (req.headers["sec-fetch-dest"] === "empty" ||
-      req.headers["sec-fetch-dest"] === "") &&
-    req.headers["sec-fetch-mode"] === "cors";
-  const isServerActionRequest = hasServerActionHeaders;
 
   let filePath = join(hostDir, value);
   let contentType;
@@ -143,7 +151,7 @@ export function requestInfo(
     } else if (isHtmlRequest) {
       logger.info(`[react-dev-server] (html) ${routeWithLeadingSlash}`);
     } else if (isRscRequest) {
-      logger.info(`[react-dev-server] (rsc.) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (rsc) ${routeWithLeadingSlash}`);
     } else if (isCssRequest) {
       logger.info(`[react-dev-server] (css) ${routeWithLeadingSlash}`);
     } else if (isJsRequest) {

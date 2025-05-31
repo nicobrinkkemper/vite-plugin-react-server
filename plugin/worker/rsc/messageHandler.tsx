@@ -31,7 +31,6 @@ export async function messageHandler(
       case "INITIALIZED_REACT_LOADER":
       case "INITIALIZED_CSS_LOADER":
       case "INITIALIZED_ENV_LOADER":
-        console.log("Initialized ", msg.id);
         return;
       case "HMR_UPDATE":
         // Mark the module as invalidated

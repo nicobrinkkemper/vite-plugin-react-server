@@ -85,11 +85,11 @@ export async function configureReactServer<
     }
     const info = requestInfo(req, handlerOptions, "", server.config.logger);
 
+
     // Handle server actions
     if (info.isServerActionRequest) {
       return handleServerAction(req, res, server, handlerOptions);
     }
-
     if (!info.isRscRequest) return next();
     try {
       const routeFiles = await getRouteFiles(

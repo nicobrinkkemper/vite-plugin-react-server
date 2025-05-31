@@ -1,5 +1,5 @@
+import { createMappingsSerializer } from "../source-map/createMappingsSerializer.js";
 import type { SourceMap } from "../types/sourceMap.js";
-import createMappingsSerializer from 'webpack-sources/lib/helpers/createMappingsSerializer.js';
 import { basename } from "path";
 
 /**

@@ -12,16 +12,16 @@ import { pluginRoot } from "../root.js";
 import { CssCollector } from "../components/css-collector.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { resolveAutoDiscoverMatcher } from "./resolveAutoDiscoverMatcher.js";
-
-/**
- * Ensures a path ends with .js extension
- */
-const addExtension = (path: string, extension: string = "js") => {
-  if (path.endsWith(`.${extension}`)) return path;
-  if (path.endsWith("/.")) return path.slice(0, -2) + "." + extension;
-  if (path.endsWith(".")) return path + "." + extension;
-  return path + "." + extension;
-};
+import { extMap } from "./extMap.js";
+// /**
+//  * Ensures a path ends with .js extension
+//  */
+// const addExtension = (path: string, extension: string = "js") => {
+//   if (path.endsWith(`.${extension}`)) return path;
+//   if (path.endsWith("/.")) return path.slice(0, -2) + "." + extension;
+//   if (path.endsWith(".")) return path + "." + extension;
+//   return path + "." + extension;
+// };
 
 /**
  * Handles search query parameters in file paths
@@ -60,8 +60,25 @@ export const resolveOptions = <
 ):
   | { type: "success"; userOptions: ResolvedUserOptions<T, InlineCSS> }
   | { type: "error"; error: Error } => {
+  // Module path configuration
+  const moduleBase =
+    typeof options.moduleBase === "string"
+      ? options.moduleBase
+      : DEFAULT_CONFIG.MODULE_BASE;
   // Basic configuration
   const projectRoot = options.projectRoot ?? process.cwd();
+
+  // Build options
+  const preserveModulesRoot =
+    options.build?.preserveModulesRoot ??
+    DEFAULT_CONFIG.BUILD.preserveModulesRoot;
+
+  const isProd =
+    process.env["NODE_ENV"] === "production" ||
+    process.env["VITE_PROD"] === "true" ||
+    process.env["VITE_PROD"] === "1";
+  const prodModuleBase = isProd && preserveModulesRoot ? moduleBase : undefined;
+
   const {
     pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME,
     propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME,
@@ -82,17 +99,6 @@ export const resolveOptions = <
   const outDir = options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir;
   const assetsDir =
     options.build?.assetsDir ?? `${DEFAULT_CONFIG.CLIENT_ASSETS_DIR}`;
-
-  // Build options
-  const preserveModulesRoot =
-    options.build?.preserveModulesRoot ??
-    DEFAULT_CONFIG.BUILD.preserveModulesRoot;
-
-  // Module path configuration
-  const moduleBase =
-    typeof options.moduleBase === "string"
-      ? options.moduleBase
-      : DEFAULT_CONFIG.MODULE_BASE;
 
   const moduleBasePath =
     typeof options.moduleBasePath === "string"
@@ -138,16 +144,6 @@ export const resolveOptions = <
     process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
   }
 
-  const normalizer =
-    options.normalizer ??
-    createInputNormalizer({
-      root: projectRoot,
-      preserveModulesRoot:
-        preserveModulesRoot === true ? moduleBase : undefined,
-      removeExtension: true,
-      moduleBasePath,
-    });
-
   const moduleExtension = resolveAutoDiscoverMatcher(
     options.autoDiscover?.moduleExtension,
     DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension
@@ -183,18 +179,14 @@ export const resolveOptions = <
   const clientComponents = resolveAutoDiscoverMatcher(
     options.autoDiscover?.clientComponents,
     options.autoDiscover?.moduleExtension
-      ? (id: string) =>
-          moduleExtension(id.toLowerCase()) &&
-          /(\.|\/)?client(\.|\/)/.test(id.toLowerCase())
+      ? (id: string) => /(\.|\/)?client(\.|\/)?/.test(id.toLowerCase())
       : DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents
   );
 
   const serverFunctions = resolveAutoDiscoverMatcher(
     options.autoDiscover?.serverFunctions,
     options.autoDiscover?.moduleExtension
-      ? (id: string) =>
-          moduleExtension(id.toLowerCase()) &&
-          /(\.|\/)?server(\.|\/)/.test(id.toLowerCase())
+      ? (id: string) => /(\.|\/)?server(\.|\/)?/.test(id.toLowerCase())
       : DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions
   );
 
@@ -268,18 +260,16 @@ export const resolveOptions = <
       : DEFAULT_CONFIG.BUILD.hash;
 
   const hashString = hashOption === "" ? "" : `-[${hashOption}]`;
-
-  const addModuleExtension = (path: string) => {
-    const isAsset =
-      autoDiscover.cssPattern(path) || autoDiscover.jsonPattern(path);
-    if (isAsset) {
-      return path;
-    }
-    return addExtension(path);
-  };
+  // const addModuleExtension = (path: string) => {
+  //   const isAsset =
+  //     autoDiscover.cssPattern(path) || autoDiscover.jsonPattern(path);
+  //   if (isAsset) {
+  //     return path;
+  //   }
+  //   return addExtension(path);
+  // };
 
   // File naming and hashing
-
   const hash = (n: string | null, ssr: boolean) => {
     if (!n) return "";
     if (ssr) return n;
@@ -361,9 +351,17 @@ export const resolveOptions = <
         options.autoDiscover?.modulePattern,
         jsExtension
       );
-    return path;
+    return registerPath(path, options.autoDiscover?.modulePattern, jsExtension);
   };
 
+  const normalizer =
+    options.normalizer ??
+    createInputNormalizer({
+      root: projectRoot,
+      preserveModulesRoot: prodModuleBase,
+      removeExtension: true,
+      moduleBasePath,
+    });
   // File naming functions
   const entryFile = (n: PreRenderedChunk, ssr: boolean) => {
     if (vendorPattern(n.name)) {
@@ -374,11 +372,11 @@ export const resolveOptions = <
         return hash(`${n.name}${jsExtension}`, ssr);
       }
     }
-    return hash(addModuleExtension(getOutputPath(normalizer(n.name)[0])), ssr);
+    return hash(getOutputPath(normalizer(n.name)[0]), ssr);
   };
 
   const chunkFile = (n: PreRenderedChunk, ssr: boolean) => {
-    return hash(addModuleExtension(getOutputPath(normalizer(n.name)[0])), ssr);
+    return hash(getOutputPath(normalizer(n.name)[0]), ssr);
   };
 
   const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
@@ -389,37 +387,31 @@ export const resolveOptions = <
     const assetName = normalizer(nameWithoutExtension)[0] + extension;
     return hash(getOutputPath(assetName), ssr);
   };
-
   const moduleID =
     typeof options.moduleID === "function"
       ? options.moduleID
       : (id: string) => {
-          // First normalize the path to handle any leading/trailing slashes
-          let normalizedId = id.replace(/^\/+|\/+$/g, "");
-
-          // If moduleBasePath is set and id doesn't start with it, add it
-          if (
-            moduleBasePath !== "" &&
-            !normalizedId.startsWith(moduleBasePath)
-          ) {
-            normalizedId = join(moduleBasePath, normalizedId);
+          if (prodModuleBase && id.startsWith(prodModuleBase)) {
+            id = id.slice(prodModuleBase.length);
           }
-
-          // Handle moduleBase in production
-          if (process.env["NODE_ENV"] === "production") {
-            if (normalizedId.startsWith(moduleBase)) {
-              normalizedId = normalizedId.slice(moduleBase.length);
-            } else if (normalizedId.startsWith("/" + moduleBase)) {
-              normalizedId = normalizedId.slice(moduleBase.length + 1);
-            }
+          if (!id.startsWith(moduleBasePath)) {
+            id = join(moduleBasePath, id);
           }
-
-          // Ensure the path starts with a slash
-          if (!normalizedId.startsWith("/")) {
-            normalizedId = "/" + normalizedId;
+          // in the case the moduleBase comes after the base path, remove it
+          if (prodModuleBase && id.startsWith("/" + prodModuleBase)) {
+            id = id.slice(prodModuleBase.length + 1);
           }
-
-          return normalizedId;
+          // these paths will generally start with a /, simply ensure they always do
+          if (!id.startsWith("/")) {
+            id = "/" + id;
+          }
+          if (isProd) {
+            // generally it will work if we just use the .js extension for modules
+            return mapExtension(id);
+          }
+          // but for extra good development workflow, we keep the path intact
+          // not even stripping the moduleBase or ts extensions
+          return id;
         };
 
   const rscOutputPath =
@@ -487,6 +479,7 @@ export const resolveOptions = <
     isServerFunctionCode: isServerFunctionCode,
     isClientComponentCode: isClientComponentCode,
   };
+  const mapExtension = extMap(autoDiscover);
   const pipeableStreamOptions = options.pipeableStreamOptions
     ? options.pipeableStreamOptions
     : {};
