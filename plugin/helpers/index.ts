@@ -15,10 +15,10 @@ export * from "./inputNormalizer.js";
 export * from "./collectBundleManifestCss.js";
 export * from "./collectManifestCss.js";
 export * from "./collectViteModuleGraphCss.js";
-export * from "./createCssProps.jsx";
+export * from "./createCssProps.js";
 
 // Stream and handler creation
-export * from "./createRscStream.jsx";
+export * from "./createRscStream.js";
 export * from "./createHandler.js";
 export * from "./createEventHandler.js";
 

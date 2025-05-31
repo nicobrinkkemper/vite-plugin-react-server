@@ -3,10 +3,9 @@ import type {
   HtmlWorkerInputMessage,
   HtmlWorkerOutputMessage,
 } from "../types.js";
-// @ts-ignore
-import * as ReactDOMServer from "react-dom/server.node";
 import type { HtmlWorkerRenderState } from "./types.js";
 import { createHtmlWorkerRenderState } from "./createHtmlWorkerRenderState.js";
+import { toError } from "../../error/toError.js";
 
 // Track active renders
 const activeRenders = new Map<string, HtmlWorkerRenderState>();
@@ -41,7 +40,6 @@ function cleanup(id: string) {
     });
   }
 }
-
 export async function messageHandler(msg: HtmlWorkerInputMessage) {
   const { type, id } = msg;
   try {
@@ -120,7 +118,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
     sendMessage({
       type: "ERROR",
       id,
-      error: error instanceof Error ? error : new Error(String(error)),
+      error: toError(error),
     });
   }
 }

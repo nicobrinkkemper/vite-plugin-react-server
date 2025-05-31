@@ -7,6 +7,7 @@ import type { StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
+import { logError } from "../error/toError.js";
 
 /**
  * Creates an async generator that yields RSC chunks from the worker.
@@ -22,71 +23,122 @@ export async function* createWorkerStream({
   worker,
   message,
   logger,
-  handlers: { onHmrAccept, onHmrUpdate, onMetrics, onError, onData, onEnd },
+  handlers: {
+    onHmrAccept,
+    onHmrUpdate,
+    onMetrics,
+    onError,
+    onData,
+    onEnd,
+    onServerAction,
+    onServerActionResponse,
+    onCssFile,
+  },
   verbose = false,
 }: {
   worker: NodeWorker;
-  message: Omit<RscRenderMessage, "type" | "id">;
+  message: Omit<RscRenderMessage, "type" | "id"> &
+    Partial<Pick<RscRenderMessage, "id">> & { type?: "RSC_RENDER" };
   logger: Logger;
   handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> &
-    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd">>;
+    Partial<
+      Pick<
+        StreamHandlers,
+        | "onError"
+        | "onData"
+        | "onEnd"
+        | "onServerAction"
+        | "onServerActionResponse"
+        | "onCssFile"
+      >
+    >;
   verbose?: boolean;
 }): AsyncGenerator<Uint8Array> {
+  if (!worker) {
+    throw new Error("Worker is not running");
+  }
   let messageHandler:
     | ((message: RscWorkerOutputMessage | undefined) => void)
     | null = null;
   let currentResolve: ((chunk: Uint8Array) => void) | null = null;
   const handlers: StreamHandlers = {
-    onError: (error: any, errorInfo?: any) => {
-      logger.error(
-        "[react-client] " +
-          (error.stack ?? error.stack.includes(error.message) ? "" : error.message + "\n") +
-          error.stack,
-        {
-          error,
-        }
-      );
+    onError: (id, error, errorInfo) => {
+      logError(error, logger);
       if (errorInfo) {
-        logger.error(errorInfo.componentStack);
+        logError(errorInfo.componentStack, logger);
       }
       if (typeof onError === "function") {
-        onError(error, errorInfo);
+        onError(id, error, errorInfo);
       }
     },
-    onData: (chunk: Uint8Array) => {
+    onData: (id: string, chunk: Uint8Array) => {
       currentResolve?.(chunk);
-      if (verbose) logger.info(`received chunk ${chunk.length} bytes`);
+      if (verbose) {
+        logger.info(
+          `[react-client] received chunk ${id} ${
+            Buffer.from(chunk).byteLength
+          } bytes`
+        );
+      }
       if (typeof onData === "function") {
-        onData(chunk);
+        onData(id, chunk);
       }
     },
-    onEnd: () => {
+    onEnd: (id: string) => {
       currentResolve?.(new Uint8Array());
-      if (verbose) logger.info(`received end`);
+      if (verbose) logger.info(`[react-client] received end`);
       if (messageHandler) {
         worker.removeListener("message", messageHandler);
         messageHandler = null;
       }
       if (typeof onEnd === "function") {
-        onEnd();
+        onEnd(id);
       }
     },
-    onMetrics: (metrics: StreamMetrics) => {
-      if (verbose) logger.info(`received chunks ${metrics.chunks}`);
+    onMetrics: (id: string, metrics: StreamMetrics) => {
+      if (verbose)
+        logger.info(`[react-client] received chunks ${metrics.chunks}`);
       if (typeof onMetrics === "function") {
-        onMetrics(metrics);
+        onMetrics(id, metrics);
       }
     },
-    onHmrAccept: (routes: string[]) => {
-      if (verbose) logger.info(`received hmr accept ${routes.join(", ")}`);
+    onHmrAccept: (id: string, routes?: string[]) => {
+      if (verbose)
+        logger.info(`[react-client] received hmr accept ${routes?.join(", ")}`);
       if (typeof onHmrAccept === "function") {
-        onHmrAccept(routes);
+        onHmrAccept(id, routes);
       }
     },
-    onHmrUpdate: (routes: string[]) => {
-      if (verbose) logger.info(`received hmr update ${routes.join(", ")}`);
+    onHmrUpdate: (id: string, routes?: string[]) => {
+      if (verbose)
+        logger.info(`[react-client] received hmr update ${routes?.join(", ")}`);
       if (typeof onHmrUpdate === "function") {
-        onHmrUpdate(routes);
+        onHmrUpdate(id, routes);
+      }
+    },
+    onCssFile: (id: string, code: string) => {
+      if (verbose) logger.info(`[react-client] received css file ${id}`);
+      if (typeof onCssFile === "function") {
+        onCssFile(id, code);
+      }
+    },
+    onServerAction: (id: string, args: unknown[]) => {
+      if (verbose) logger.info(`[react-client] received server action ${id}`);
+      if (typeof onServerAction === "function") {
+        onServerAction(id, args);
+      }
+    },
+    onServerActionResponse: (id: string, result?: unknown, error?: string) => {
+      if (verbose)
+        logger.info(`[react-client] received server action response ${id}`);
+      if (typeof onServerActionResponse === "function") {
+        const response = {
+          type: "server-action-response",
+          returnValue: error 
+            ? { success: false, error }
+            : result
+        };
+        onServerActionResponse(id, response);
       }
     },
   };
@@ -97,14 +149,14 @@ export async function* createWorkerStream({
       worker.removeListener("message", messageHandler);
       messageHandler = null;
     }
-    if (verbose) logger.info(`sending message RSC_RENDER`);
+    if (verbose) logger.info(`[react-client] sending message RSC_RENDER`);
     worker.postMessage({
       ...message,
       type: "RSC_RENDER",
-      id: Math.random().toString(36).slice(2),
+      id: message?.id ?? message.route,
     });
 
-    if (verbose) logger.info(`waiting for message handler`);
+    if (verbose) logger.info(`[react-client] waiting for message handler`);
     let workerTimeout: NodeJS.Timeout | null = null;
     yield await new Promise<Uint8Array>((resolve) => {
       workerTimeout = setTimeout(() => {
@@ -122,7 +174,7 @@ export async function* createWorkerStream({
     if (workerTimeout) {
       clearTimeout(workerTimeout);
     }
-    if (verbose) logger.info(`received message handler`);
+    if (verbose) logger.info(`[react-client] received message handler`);
     while (true) {
       const chunk = await new Promise<Uint8Array>((resolve) => {
         currentResolve = resolve;

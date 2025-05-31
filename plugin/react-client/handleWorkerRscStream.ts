@@ -21,7 +21,7 @@ export function handleWorkerRscStream({
   message: Omit<RscRenderMessage, "type" | "id">,
   logger: Logger,
   handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate"> &
-    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd">>,
+    Partial<Pick<StreamHandlers, "onError" | "onData" | "onEnd" | "onServerAction" | "onServerActionResponse">>,
   verbose?: boolean
 }): ReadableStream<Uint8Array> {
   // Create a ReadableStream from the async generator
@@ -29,17 +29,36 @@ export function handleWorkerRscStream({
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        if(verbose) logger.info("Starting stream");
+        if(verbose) logger.info("[react-client] Starting stream");
         for await (const chunk of createWorkerStream({
           worker,
           message,
           logger,
-          handlers,
+          handlers: {
+            ...handlers,
+            onServerAction: (id: string, args: unknown[]) => {
+              if (verbose) logger.info(`[react-client] Forwarding server action ${id} to worker`);
+              handlers.onServerAction?.(id, args);
+            },
+            onServerActionResponse: (id: string, result?: unknown, error?: string) => {
+              if (verbose) logger.info(`[react-client] Forwarding server action response ${id} from worker`);
+              if (typeof handlers.onServerActionResponse === "function") {
+                // Ensure consistent response format
+                const response = {
+                  type: "server-action-response",
+                  returnValue: error 
+                    ? { success: false, error }
+                    : result  // Direct result, no success/data wrapper
+                };
+                handlers.onServerActionResponse(id, response);
+              }
+            }
+          },
           verbose
         })) {
           if (!isFlowing) {
             isFlowing = true;
-            if(verbose) logger.info("Stream is flowing");
+            if(verbose) logger.info("[react-client] Stream is flowing");
           }
           controller.enqueue(chunk);
         }
@@ -48,7 +67,7 @@ export function handleWorkerRscStream({
       } finally {
         if (isFlowing) {
           isFlowing = false;
-          if(verbose) logger.info("Stream closing");
+          if(verbose) logger.info("[react-client] Stream closing");
         }
         controller.close();
       }

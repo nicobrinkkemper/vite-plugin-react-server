@@ -1,11 +1,12 @@
 import { React, ReactDOMServer } from "../vendor/vendor.server.js";
-import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import type {
+  CreateHandlerOptions,
+  StreamMetrics,
+  PagePropOpt,
+} from "../types.js";
 import { performance } from "node:perf_hooks";
-export function createRscStream<
-  T,
-  C extends React.ComponentType<T>,
-  InlineCSS extends boolean = true
->({
+
+export function createRscStream<T extends PagePropOpt = PagePropOpt>({
   Html = React.Fragment,
   PageComponent,
   pageProps,
@@ -22,7 +23,7 @@ export function createRscStream<
   onEvent,
   projectRoot,
 }: Pick<
-  CreateHandlerOptions<T, C, InlineCSS>,
+  CreateHandlerOptions<T>,
   | "Html"
   | "PageComponent"
   | "pageProps"
@@ -46,7 +47,7 @@ export function createRscStream<
   let streamError: Error | null = null;
   const startTime = performance.now();
   try {
-    const htmlIsFragment = Html == React.Fragment;
+    const htmlIsFragment = Html === React.Fragment;
     const url = route.startsWith(moduleBaseURL) ? route : moduleBaseURL + route;
 
     if (!PageComponent) {
@@ -64,10 +65,15 @@ export function createRscStream<
         },
       };
     }
+
     const elements = htmlIsFragment ? (
-      <CssCollector cssFiles={cssFiles}>
-        <PageComponent {...(pageProps as any)} />
-      </CssCollector>
+      <CssCollector
+        key={route}
+        as={React.Fragment}
+        cssFiles={cssFiles}
+        pageProps={pageProps}
+        Page={PageComponent}
+      />
     ) : (
       <Html
         moduleBase={moduleBase}
@@ -82,15 +88,16 @@ export function createRscStream<
         globalCss={globalCss}
         CssCollector={CssCollector}
         manifest={manifest}
-      >
-        <PageComponent {...(pageProps as any)} />
-      </Html>
+        Page={PageComponent}
+        as={"div"}
+      />
     );
     const stream = ReactDOMServer.renderToPipeableStream(
       elements,
       moduleBasePath,
       {
         ...pipeableStreamOptions,
+        moduleBaseURL: moduleBaseURL,
         onError(error: Error, errorInfo: any) {
           const err = error instanceof Error ? error : new Error(String(error));
           streamError = err;

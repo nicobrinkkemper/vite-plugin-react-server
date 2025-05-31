@@ -3,11 +3,12 @@ import { createServer } from "vite";
 import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { setupTestProjectEnv } from "../setup.js";
 import { handleRSCStream, RSCStreamResponse } from "../rsc-stream.js";
 
-let server, port = 3000;
+let server,
+  port = 3033;
 let pageURL = `http://localhost:${port}/index.rsc`;
 let response: RSCStreamResponse;
 const testDir = resolve(__dirname, "../fixtures/dev-server-env.test");
@@ -34,11 +35,10 @@ describe("RSC Server", () => {
       });
 
       await server.listen();
-      if(server.config?.server?.port) {
+      if (server.config?.server?.port) {
         port = server.config.server.port;
       }
       response = await handleRSCStream(pageURL);
-
     } catch (error) {
       console.log("error", error);
     }
@@ -54,7 +54,6 @@ describe("RSC Server", () => {
     expect(response.statusCode).toBe(200);
     const contentLength = response.responseHeaders.get("content-length");
     if (contentLength != null && !isNaN(Number(contentLength))) {
-      console.log("contentLength", response.responseHeaders);
       expect(Number(contentLength)).toBeGreaterThan(0);
     }
     expect(response.responseHeaders).toBeInstanceOf(Headers);
@@ -70,10 +69,16 @@ describe("RSC Server", () => {
     // Verify the response contains RSC data
     expect(response.result).toContain("0:");
     expect(response.result).toContain("1:");
-    expect(response.result).toContain("/* @__PURE__ */ __vite_ssr_import_0__.default.createElement");
-    expect(response.result).toContain(`["Public: ","http://localhost:${port}"]`);
+    expect(response.result).toContain(
+      "/* @__PURE__ */ __vite_ssr_import_0__.default.createElement"
+    );
+    expect(response.result).toContain(
+      `["Public: ","http://localhost:${port}"]`
+    );
     expect(response.result).toContain(`{"children":["URL: ","/"]}`);
     expect(response.result).toContain(`["Dev: ",true]`);
-    expect(response.result).toContain(`[["Page","${testDir}/src/page/page.tsx",`);
+    expect(response.result).toContain(
+      `[["Page","${testDir}/src/page/page.tsx",`
+    );
   });
 });

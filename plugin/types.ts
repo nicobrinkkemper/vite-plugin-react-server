@@ -1,7 +1,6 @@
 import type { Readable } from "node:stream";
-import type { MessagePort, Worker } from "node:worker_threads";
+import type { Worker } from "node:worker_threads";
 import type React from "react";
-import type { PropsWithChildren } from "react";
 import type {
   NormalizedOutputOptions,
   OutputBundle,
@@ -23,6 +22,12 @@ import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
 export type OnEvent = (event: PluginEvent) => void;
 
+export type CreateInputNormalizerProps = {
+  root: string;
+  preserveModulesRoot?: string | undefined;
+  removeExtension?: boolean | RegExp | string | ((path: string) => boolean);
+  moduleBasePath: string | undefined;
+};
 export type Serializable =
   | string
   | number
@@ -66,6 +71,7 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
   clientEntry: Record<string, string>;
   inputs: Record<string, string>;
   staticManifest: Manifest;
+  serverActions: Record<string, string>;
 };
 export type FileWriterOptions = Pick<
   CreateHandlerOptions,
@@ -118,6 +124,7 @@ export type ResolvedUserConfig = Required<
           | "ssrManifest"
           | "manifest"
           | "rollupOptions"
+          | "modulePreload"
         >
       >
     > &
@@ -137,6 +144,12 @@ export type SerializedUserConfig = Extract<
   ResolvedUserConfig,
   SerializableRecord
 >;
+
+export type SerializedUserOptions = Extract<
+  ResolvedUserOptions,
+  SerializableRecord
+>;
+
 // Client plugin options
 export interface StreamPluginOptionsClient {
   outDir?: string;
@@ -151,10 +164,11 @@ export interface StreamPluginOptionsClient {
 }
 
 export type ResolvedUserOptions<
-  InlineCSS extends boolean | undefined = boolean | undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 > = Required<
   Pick<
-    StreamPluginOptions,
+    StreamPluginOptions<T, InlineCSS>,
     | "moduleBase"
     | "moduleBasePath"
     | "moduleBaseURL"
@@ -171,7 +185,7 @@ export type ResolvedUserOptions<
     | "loaderPath"
     | "clientEntry"
     | "serverEntry"
-    | "moduleBaseExceptions"
+    // | "moduleBaseExceptions"
     | "pipeableStreamOptions"
     | "onMetrics"
     | "onEvent"
@@ -187,10 +201,19 @@ export type ResolvedUserOptions<
     | string
     | ((url: string) => string)
     | ((url: string) => Promise<string>);
-  build: NonNullable<Required<StreamPluginOptions<InlineCSS>["build"]>>;
-  css: NonNullable<Required<StreamPluginOptions<InlineCSS>["css"]>>;
+  build: NonNullable<Required<StreamPluginOptions<T, InlineCSS>["build"]>>;
+  css: NonNullable<Required<StreamPluginOptions<T, InlineCSS>["css"]>> & {
+    inlineCss: InlineCSS;
+  };
   autoDiscover: {
     moduleExtension: RegExp;
+    serverDirective: RegExp;
+    clientDirective: RegExp;
+    cssExtension: string;
+    jsonExtension: string;
+    htmlExtension: string;
+    rscExtension: string;
+    jsExtension: string;
     modulePattern: (path: string) => boolean;
     cssPattern: (path: string) => boolean;
     jsonPattern: (path: string) => boolean;
@@ -205,6 +228,8 @@ export type ResolvedUserOptions<
     nodeOnly: (path: string) => boolean;
     dotFiles: (path: string) => boolean;
     virtualPattern: (path: string) => boolean;
+    isServerFunctionCode: (code: string) => boolean;
+    isClientComponentCode: (code: string) => boolean;
   };
 };
 
@@ -231,13 +256,69 @@ export interface RenderMetrics {
   rscSizes: Map<string, number>;
 }
 
-export interface CssCollectorOptions {
-  inlineCss?: boolean;
-  purgeCss?: boolean;
+export interface CssCollectorOptions<
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+> {
+  inlineCss?: InlineCSS;
   inlineThreshold?: number;
   inlinePatterns?: RegExp[];
   linkPatterns?: RegExp[];
 }
+
+export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
+  InlineCSS extends true
+    ? StyleCssProps
+    : InlineCSS extends false
+    ? LinkCssProps
+    : InlineCSS extends undefined | boolean
+    ? StyleCssProps | LinkCssProps
+    : never;
+
+/**
+ * Boxed component type for the CssCollector
+ */
+export type CssCollectorBoxedType<
+  _T extends PagePropOpt = PagePropOpt,
+  _InlineCSS extends InlineCssOpt = InlineCssOpt,
+  _As extends AsOpt = AsOpt
+> = <
+  T extends _T = _T,
+  InlineCSS extends _InlineCSS = _InlineCSS,
+  As extends _As = _As
+>(
+  props: CssCollectorProps<T, InlineCSS, As>
+) => React.ReactElement;
+
+export type CssCollectorProps<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  As extends AsOpt = AsOpt
+> = {
+  as: As;
+  cssFiles?: Map<string, CssContent<InlineCSS>>;
+  pageProps?: T;
+  Page: PageComponentType<T>;
+  id?: string;
+} & React.ComponentPropsWithoutRef<As>;
+
+export type CssCollectorComponent = (
+  props: CssCollectorProps
+) => React.ReactElement;
+
+/**
+ * Boxed component type for the Html component
+ */
+export type HtmlBoxedType<
+  _T extends PagePropOpt = PagePropOpt,
+  _InlineCSS extends InlineCssOpt = InlineCssOpt,
+  _As extends AsOpt = "div"
+> = <
+  T extends _T = _T,
+  InlineCSS extends _InlineCSS = _InlineCSS,
+  As extends _As = _As
+>(
+  props: HtmlProps<T, InlineCSS, As> & { key?: string }
+) => React.ReactNode;
 
 export type FileWriteEvent = {
   type: "file.write";
@@ -362,7 +443,8 @@ export type PluginEvent =
 export type PluginEventType = PluginEvent["type"];
 
 export interface StreamPluginOptions<
-  InlineCSS extends boolean | undefined = boolean | undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 > {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
@@ -375,35 +457,54 @@ export interface StreamPluginOptions<
   // Auto-discovery (zero-config)
   autoDiscover?:
     | {
+      // default: /\.(m|c)?(j|t)sx?$/
         moduleExtension?: RegExp;
+        // default: /^"use server"[\s;]*\n?/m
+        serverDirective?: RegExp;
+        // default: /^"use client"[\s;]*\n?/m
+        clientDirective?: RegExp;
+        // css extension
+        cssExtension?: string;
+        // json extension
+        jsonExtension?: string;
+        // html extension
+        htmlExtension?: string;
+        // rsc extension
+        rscExtension?: string;
+        // .js extension
+        jsExtension?: string;
         // default: /\.(m|c)?(j|t)sx?$/
-        modulePattern?: string | RegExp | ((path: string) => boolean);
+        modulePattern?: RegExpOpt;
         // default: [Pp]age.tsx
-        pagePattern?: string | RegExp | ((path: string) => boolean);
+        pagePattern?: RegExpOpt;
         // default: [Pp]rops.ts
-        propsPattern?: string | RegExp | ((path: string) => boolean);
+        propsPattern?: RegExpOpt;
         // default: "use client" and .client./\.(m|c)?(j|t)sx?$/
-        clientComponents?: string | RegExp | ((path: string) => boolean);
+        clientComponents?: RegExpOpt;
         // default: "use server" and .server./\.(m|c)?(j|t)sx?$/
-        serverFunctions?: string | RegExp | ((path: string) => boolean);
+        serverFunctions?: RegExpOpt;
         // default: /\.css$/
-        cssPattern?: string | RegExp | ((path: string) => boolean);
+        cssPattern?: RegExpOpt;
         // default: /\.json$/
-        jsonPattern?: string | RegExp | ((path: string) => boolean);
+        jsonPattern?: RegExpOpt;
         // default: /\.html$/
-        htmlPattern?: string | RegExp | ((path: string) => boolean);
+        htmlPattern?: RegExpOpt;
         // default: /\.css\.js/
-        cssModulePattern?: string | RegExp | ((path: string) => boolean);
+        cssModulePattern?: RegExpOpt;
         // default: /node_modules|(_virtual)/
-        vendorPattern?: string | RegExp | ((path: string) => boolean);
+        vendorPattern?: RegExpOpt;
         // default: /\.node\.js$/
-        nodeOnly?: string | RegExp | ((path: string) => boolean);
+        nodeOnly?: RegExpOpt;
         // default: /\.node\.js$/
-        dotFiles?: string | RegExp | ((path: string) => boolean);
+        dotFiles?: RegExpOpt;
         // default: /^\/_virtual\//
-        virtualPattern?: string | RegExp | ((path: string) => boolean);
+        virtualPattern?: RegExpOpt;
         // default: /\.rsc$/
-        rscPattern?: string | RegExp | ((path: string) => boolean);
+        rscPattern?: RegExpOpt;
+        // default serverDirective regex
+        isServerFunction?: RegExpOpt;
+        // default clientDirective regex
+        isClientComponent?: RegExpOpt;
       }
     | undefined;
   // Manual configuration
@@ -419,13 +520,11 @@ export interface StreamPluginOptions<
   loaderPath?: string;
   pageExportName?: string;
   propsExportName?: string;
-  Html?: React.FC<PropsWithChildren<HtmlProps>>;
-  CssCollector?: React.FC<
-    React.PropsWithChildren<CssCollectorProps<InlineCSS>>
-  >;
+  Html?: React.FC<HtmlProps<T, InlineCSS>>;
+  CssCollector?: CssCollectorBoxedType<T, InlineCSS>;
   build?: BuildConfig;
-  css?: CssCollectorOptions;
-  moduleBaseExceptions?: string[];
+  css?: CssCollectorOptions<InlineCSS>;
+  // moduleBaseExceptions?: string[];
   pipeableStreamOptions?: ReactServerDomEsmOptions;
   onMetrics?: (metrics: RenderMetrics) => void;
   onEvent?: (event: PluginEvent) => void;
@@ -434,8 +533,11 @@ export interface StreamPluginOptions<
   verbose?: boolean;
 }
 
-export type MultiPageHandlerOptions = Omit<
-  CreateHandlerOptions,
+export type MultiPageHandlerOptions<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+> = Omit<
+  CreateHandlerOptions<T, InlineCSS>,
   | "pagePath"
   | "route"
   | "cssFiles"
@@ -445,11 +547,10 @@ export type MultiPageHandlerOptions = Omit<
 >;
 
 export type CreateHandlerOptions<
-  T = unknown,
-  C extends React.ComponentType<T> = React.ComponentType<T>,
-  InlineCSS extends boolean | undefined = undefined
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 > = Pick<
-  ResolvedUserOptions<InlineCSS>,
+  ResolvedUserOptions<T, InlineCSS>,
   | "autoDiscover"
   | "css"
   | "pageExportName"
@@ -464,22 +565,24 @@ export type CreateHandlerOptions<
   | "onEvent"
   | "onMetrics"
   | "projectRoot"
+  | "normalizer"
+  | "moduleID"  
 > & {
   logger: Logger;
   loader: ModuleLoader;
   pagePath: string;
   propsPath?: string;
   pageProps?: T;
-  PageComponent?: C;
+  PageComponent?: PageComponentType<T>;
   route: string;
   manifest: Manifest;
   worker?: Worker;
   server?: ViteDevServer;
   importedCss?: Set<string>;
-  cssFiles: Map<string, CssContent>;
-  globalCss: Map<string, CssContent>;
+  cssFiles: Map<string, CssContent<InlineCSS>>;
+  globalCss: Map<string, CssContent<InlineCSS>>;
   build: Pick<
-    ResolvedUserOptions["build"],
+    ResolvedUserOptions<T, InlineCSS>["build"],
     | "outDir"
     | "pages"
     | "server"
@@ -667,24 +770,28 @@ export type ResolvedBuildPages = {
   errors: Error[];
 };
 
-// Add strict type checking for worker messages
-export type WorkerMessage =
-  | { type: "READY" }
-  | { type: "ERROR"; error: string | Error }
-  | { type: "RSC_CHUNK"; id: string; chunk: Buffer }
-  | { type: "RSC_END"; id: string }
-  | { type: "SHUTDOWN"; id: string }
-  | { type: "SHUTDOWN_COMPLETE" }
-  | { type: "CHUNK_PROCESSED"; id: string; success: boolean }
-  | { type: "CHUNK_ERROR"; id: string; error: string }
-  | { type: "METRICS"; metrics: StreamMetrics };
-
 // Add branded types for safety
 export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
 
-export type HtmlProps = {
-  pageProps: any;
+export type InlineCssOpt = undefined | boolean;
+export type PagePropOpt = Record<string, unknown> | undefined;
+export type RegExpOpt = RegExp | string | ((path: string) => boolean);
+
+export type AsOpt = Exclude<
+  keyof React.JSX.IntrinsicElements,
+  "symbol" | "object"
+>;
+export type PageComponentType<T extends PagePropOpt = PagePropOpt> =
+  React.ComponentType<T & React.PropsWithChildren<{}>>;
+
+export type HtmlProps<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  As extends AsOpt = AsOpt
+> = {
+  pageProps?: T;
+  Page: PageComponentType<T>;
   route: string;
   url: string;
   projectRoot: string;
@@ -692,10 +799,12 @@ export type HtmlProps = {
   moduleBaseURL: string;
   moduleBasePath: string;
   moduleRootPath: string;
-  cssFiles: Map<string, CssContent>;
+  cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  CssCollector: React.FC<React.PropsWithChildren<CssCollectorProps>>;
-  globalCss: Map<string, CssContent>;
+  CssCollector: CssCollectorBoxedType<T, InlineCSS, As>;
+  globalCss: Map<string, CssContent<InlineCSS>>;
+  children?: React.ReactNode;
+  as: As;
 };
 
 export interface PageAsset {
@@ -709,16 +818,17 @@ type BaseCssProps = {
   id: string;
 };
 
-type CssProps = BaseCssProps & {
+export type LinkCssProps = BaseCssProps & {
   as: "link";
   type?: never;
-  children?: InlineCssProps extends false ? never : React.ReactNode;
+  children?: never;
   id: string;
   href: string;
   rel: "stylesheet";
   precedence?: string;
 };
-type InlineCssProps = BaseCssProps & {
+
+export type StyleCssProps = BaseCssProps & {
   as: "style";
   type: "text/css";
   children?: React.ReactNode;
@@ -727,60 +837,8 @@ type InlineCssProps = BaseCssProps & {
   href?: never;
 };
 
-export type CssContent<InlineCSS extends boolean | undefined = undefined> =
-  InlineCSS extends true
-    ? InlineCssProps
-    : InlineCSS extends false
-    ? CssProps
-    : CssProps | InlineCssProps;
-
-export interface JsContent {
-  type?: string;
-  content: string;
-  key?: string;
-  path: string;
-  id?: string;
-}
-
-export type CssCollectorProps<
-  InlineCSS extends boolean | undefined = undefined
-> = {
-  as?: React.ElementType; // defaults to react fragment
-  children?: React.ReactNode; // the children containing the css content
-  /** A map containing all the css files imported by the route and their proxy values
-   * - when inlineCss is true, will contain the `content` property
-   * - when prugeCss is true, will contain the module proxy which includes a `userClasses`
-   * @example ```tsx
-   * import styles from './styles.module.css';
-   * export const Page = () => {
-   *  return <div className={styles.userClass}>Hello World</div>
-   * }
-   * ```
-   * then the module will basically contain whatever `styles` exported here. But how does it track css class usages
-   * during streaming?
-   *
-   * const tags = Array.from(importedCss?.values() ?? []).map(cssFile => {
-   *  return <link rel="stylesheet" href={cssFile.path} />
-   * })
-   * ```
-   *
-   *
-   * */
-  cssFiles?: Map<string, CssContent<InlineCSS>>;
-} & React.HTMLAttributes<HTMLElement>;
-
-export interface InlineCssCollectorProps {
-  cssFiles: Map<string, CssContent>;
-  moduleBaseURL: string;
-  moduleRootPath: string;
-  moduleBasePath: string;
-  route?: string;
-  purgeCss?: boolean;
-  children?: React.ReactNode;
-}
-
 export type CssCollectorElementsProps<
-  InlineCSS extends boolean | undefined = undefined
+  InlineCSS extends InlineCssOpt = InlineCssOpt
 > = {
   cssFiles: Map<string, CssContent<InlineCSS>>;
 };
@@ -840,27 +898,28 @@ export type RenderPagesResult =
       >;
     };
 
-export type HandlerAssets = {
-  css: CssContent[];
+export type HandlerAssets<InlineCSS extends InlineCssOpt = InlineCssOpt> = {
+  css: CssContent<InlineCSS>[];
   js: string[];
   bootstrapModules: string[];
 };
 
-export type CreateHandlerResult =
-  | {
-      type: "success";
-      controller: AbortController;
-      stream: any;
-      assets: {
-        css: CssContent[];
-        js: string[];
-        bootstrapModules: string[];
-      };
-      route: string;
-      metrics: StreamMetrics;
-    }
-  | { type: "error"; error: Error }
-  | { type: "skip" };
+export type CreateHandlerResult<InlineCSS extends InlineCssOpt = InlineCssOpt> =
+
+    | {
+        type: "success";
+        controller: AbortController;
+        stream: any;
+        assets: {
+          css: CssContent<InlineCSS>[];
+          js: string[];
+          bootstrapModules: string[];
+        };
+        route: string;
+        metrics: StreamMetrics;
+      }
+    | { type: "error"; error: Error }
+    | { type: "skip" };
 
 export type ReactStaticEvent =
   | FileWriteEvent
@@ -874,7 +933,14 @@ export type ReactStaticEvent =
 
 // Define LoaderContext interface locally
 export interface LoaderContext {
-  data?: { port?: MessagePort };
+  format?: string;
+  importAttributes?: Record<string, string>;
+  conditions?: string[];
+  env?: {
+    targetEnvironment?: "client" | "server" | "browser";
+  };
+  url: string;
+  userOptions?: any; // Add userOptions to the context
 }
 // Add type declaration for import.meta.cssModules
 declare global {

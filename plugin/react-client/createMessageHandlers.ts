@@ -11,39 +11,50 @@ type MessageHandlerContext = {
 export function createMessageHandler({
   handlers,
   logger,
-  verbose = false
+  verbose = false,
 }: MessageHandlerContext) {
   return (message: RscWorkerOutputMessage | undefined) => {
     if (!message) {
-      logger.warn("[react-client] Received undefined message from worker");
+      logger.warn("Received undefined message");
       return;
     }
-    if(verbose) logger.info('new message '+message.type)
+
     switch (message.type) {
       case "READY":
         if(verbose) logger.info("[react-client] Worker is ready");
         break;
+      case "ERROR":
+        handlers.onError(message.id, message.error, message.errorInfo);
+        break;
       case "RSC_CHUNK":
-        handlers.onData(message.chunk);
+        handlers.onData(message.id, message.chunk);
         break;
       case "RSC_END":
-        handlers.onEnd();
-        break;
-      case "ERROR":
-        handlers.onError(message.error, message.errorInfo);
+        handlers.onEnd(message.id);
         break;
       case "RSC_METRICS":
-        handlers.onMetrics(message.metrics);
+        handlers.onMetrics(message.id, message.metrics);
         break;
       case "HMR_ACCEPT":
-        handlers.onHmrAccept(message.routes ?? []);
+        handlers.onHmrAccept(message.id, message.routes);
         break;
       case "HMR_UPDATE":
-        handlers.onHmrUpdate(message.routes ?? []);
+        handlers.onHmrUpdate(message.id, message.routes);
+        break;
+      case "SERVER_ACTION":
+        handlers.onServerAction?.(message.id, message.args);
+        break;
+      case "SERVER_ACTION_RESPONSE":
+        handlers.onServerActionResponse?.(message.id, message.result, message.error);
+        break;
+      case "SERVER_MODULE":
+        handlers.onServerModule?.(message.id, message.url, message.source);
+        break;
+      case "CSS_FILE":
+        handlers.onCssFile?.(message.id, message.content);
         break;
       default:
-        logger.warn(`Unknown worker output message type: ${message.type}`);
-        break;
+        logger.warn(`Unknown worker output message type: ${(message as { type: string }).type}`);
     }
   };
 }

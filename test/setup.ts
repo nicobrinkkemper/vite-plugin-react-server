@@ -12,7 +12,7 @@ export async function setupIndexHTML(testDir: string) {
     </head>
     <body>
       <div id="root"></div>
-      <script type="module" src="src/client.tsx"></script>
+      <script type="module" src="/src/client.tsx"></script>
     </body>
   </html>
   `
@@ -22,8 +22,7 @@ export async function setupIndexHTML(testDir: string) {
 export async function setupClientTSX(testDir: string) {
   await writeFile(
     resolve(testDir, "src/client.tsx"),
-    `"use client"
-  import React from 'react'
+    `import React from 'react'
   import { createRoot } from 'react-dom/client'
   const root = createRoot(document.getElementById('root')!)
   root.render(<div>Client App</div>)
@@ -48,13 +47,12 @@ export async function setupLinkClientTSX(testDir: string) {
   // Create Link component
   await writeFile(
     resolve(testDir, "src/components/Link.client.tsx"),
-    `"use client"
-  import React from 'react'
-  
-  export function Link({ to, children }: { to: string, children: React.ReactNode }) {
-    return <a href={to}>{children}</a>
-  }
-  `
+    `"use client";
+import React from 'react';
+
+export function Link({ to, children }: { to: string, children: React.ReactNode }) {
+  return <a href={to}>{children}</a>;
+}`
   );
 }
 export async function setupPropsTS(testDir: string) {
@@ -100,7 +98,6 @@ export function Page(props: any) {
 }
 
 export async function setupPageTSX2(testDir: string) {
-
   await mkdir(resolve(testDir, "src/page2"), { recursive: true });
   await writeFile(
     resolve(testDir, "src/page2/props.ts"),
@@ -120,8 +117,7 @@ export const props = (url: string)=>({
   );
   await writeFile(
     resolve(testDir, "src/page2/page.tsx"),
-    `"use server"
-  import React from 'react'
+    `import React from 'react'
   import styles from './test.module.css'
   export function Page() {
     return React.createElement('div', {className: styles.test}, 
@@ -129,6 +125,282 @@ export const props = (url: string)=>({
     )
   }
   `
+  );
+}
+
+export async function setupTestServerActionJS(testDir: string) {
+  // Create base directories
+  await mkdir(testDir, { recursive: true });
+  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+
+  // Use existing setup functions for basic structure
+  await setupIndexHTML(testDir);
+  await setupClientTSX(testDir);
+
+  // Create server actions
+  await writeFile(
+    resolve(testDir, "src/page/actions.server.ts"),
+    `"use server";
+
+export function add(a, b) {
+  return a + b;
+}
+
+export function subtract(a, b) {
+  return a - b;
+}`
+  );
+
+  // Create a client component that uses the actions
+  await writeFile(
+    resolve(testDir, "src/page/ClientComponent.client.tsx"),
+    `"use client"
+import React, { useState } from 'react';
+
+export function ClientComponent({add, subtract}) {
+  const [result, setResult] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAdd = async () => {
+    try {
+      const sum = await add(2, 3);
+      setResult(sum);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleSubtract = async () => {
+    try {
+      const diff = await subtract(5, 2);
+      setResult(diff);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handleAdd}>Add 2 + 3</button>
+      <button onClick={handleSubtract}>Subtract 5 - 2</button>
+      {result !== null && <p>Result: {result}</p>}
+      {error && <p>Error: {error}</p>}
+    </div>
+  );
+}`
+  );
+
+  // Create page component that uses both server actions and client component
+  await writeFile(
+    resolve(testDir, "src/page/page.tsx"),
+    `import React from 'react';
+import { ClientComponent } from './ClientComponent.client.js';
+
+export async function Page({add, subtract}) {
+  const addResult = await add(2, 3);
+  const subtractResult = await subtract(5, 2);
+  
+  return (
+    <div>
+      <h1>Server Actions Test</h1>
+      <p>Server-side Add: {addResult}</p>
+      <p>Server-side Subtract: {subtractResult}</p>
+      <ClientComponent add={add} subtract={subtract} />
+    </div>
+  );
+}`
+  );
+
+  // Create props file
+  await writeFile(
+    resolve(testDir, "src/page/props.ts"),
+    `import * as actions from './actions.server.js';
+export const props = async () => {
+  return {
+    add: actions.add,
+    subtract: actions.subtract,
+  };
+};`
+  );
+}
+
+export async function setupTodoTestProject(testDir: string) {
+  // Create base directories
+  await mkdir(testDir, { recursive: true });
+  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
+
+  // Use existing setup functions for basic structure
+  await setupIndexHTML(testDir);
+  await setupClientTSX(testDir);
+
+  // Create server actions
+  await writeFile(
+    resolve(testDir, "src/page/actions.server.ts"),
+    `"use server"
+
+type Todo = {
+  id: number;
+  title: string;
+  completed: boolean;
+  created_at: string;
+};
+
+let todos: Todo[] = [];
+
+export async function getTodos(): Promise<Todo[]> {
+  return todos;
+}
+
+export async function addTodo(title: string): Promise<{ success: boolean }> {
+  const newTodo: Todo = {
+    id: Date.now(),
+    title,
+    completed: false,
+    created_at: new Date().toISOString()
+  };
+  todos = [...todos, newTodo];
+  return { success: true };
+}
+
+export async function toggleTodo(id: number): Promise<{ success: boolean }> {
+  todos = todos.map(todo => 
+    todo.id === id ? { ...todo, completed: !todo.completed } : todo
+  );
+  return { success: true };
+}
+
+export async function deleteTodo(id: number): Promise<{ success: boolean }> {
+  todos = todos.filter(todo => todo.id !== id);
+  return { success: true };
+}`
+  );
+
+  // Create client component for todo list
+  await writeFile(
+    resolve(testDir, "src/components/TodoList.client.tsx"),
+    `"use client"
+
+import React, { useState } from 'react';
+
+type Todo = {
+  id: number;
+  title: string;
+  completed: boolean;
+  created_at: string;
+};
+
+type Props = {
+  initialTodos: Todo[];
+  addTodo: (title: string) => Promise<{ success: boolean }>;
+  toggleTodo: (id: number) => Promise<{ success: boolean }>;
+  deleteTodo: (id: number) => Promise<{ success: boolean }>;
+  getTodos: () => Promise<Todo[]>;
+};
+
+export function TodoList({ initialTodos, addTodo, toggleTodo, deleteTodo, getTodos }: Props) {
+  const [todos, setTodos] = useState<Todo[]>(initialTodos);
+  const [newTodo, setNewTodo] = useState('');
+
+  async function handleAddTodo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTodo.trim()) return;
+
+    await addTodo(newTodo);
+    setNewTodo('');
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
+  async function handleToggleTodo(id: number) {
+    await toggleTodo(id);
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
+  async function handleDeleteTodo(id: number) {
+    await deleteTodo(id);
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
+  return (
+    <div>
+      <h1>Todo List</h1>
+      
+      <form onSubmit={handleAddTodo}>
+        <input
+          type="text"
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
+          placeholder="Add a new todo..."
+        />
+        <button type="submit">Add</button>
+      </form>
+
+      <ul>
+        {todos.map((todo) => (
+          <li key={todo.id}>
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              onChange={() => handleToggleTodo(todo.id)}
+            />
+            <span style={{ textDecoration: todo.completed ? 'line-through' : 'none' }}>
+              {todo.title}
+            </span>
+            <button onClick={() => handleDeleteTodo(todo.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}`
+  );
+
+  // Create server page component
+  await writeFile(
+    resolve(testDir, "src/page/page.tsx"),
+    `import React from 'react';
+import { TodoList } from '../components/TodoList.client';
+import type { Props } from './props.js';
+
+export function Page({ todos, addTodo, toggleTodo, deleteTodo, getTodos }: Props) {
+  return (
+    <div>
+      <TodoList 
+        initialTodos={todos} 
+        addTodo={addTodo}
+        toggleTodo={toggleTodo}
+        deleteTodo={deleteTodo}
+        getTodos={getTodos}
+      />
+    </div>
+  );
+}`
+  );
+
+  // Create props file
+  await writeFile(
+    resolve(testDir, "src/page/props.ts"),
+    `import { addTodo, deleteTodo, getTodos, toggleTodo } from './actions.server.ts';
+
+export const props = async () => {
+  const todos = await getTodos();
+  return {
+    todos,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
+    getTodos,
+  };
+};
+
+export type Props = Awaited<ReturnType<typeof props>>;`
   );
 }
 
@@ -180,9 +452,7 @@ return (
     resolve(testDir, "src", "page", "props.ts"),
     `export const props = ()=>import.meta.env;`
   );
-
 }
-
 
 export async function setupTestProjectPropsVariations(testDir: string) {
   // Create base directories
@@ -237,5 +507,4 @@ return (
 );
 }`
   );
-
 }

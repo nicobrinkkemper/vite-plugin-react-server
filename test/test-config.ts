@@ -1,6 +1,5 @@
 import { join } from "path";
 import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "../plugin/types.js";
-import { Html } from "../plugin/components/html.js";
 
 const resolvedTestConfig = {
   moduleBase: "src",
@@ -8,7 +7,9 @@ const resolvedTestConfig = {
   Page: "src/page/page.tsx",
   props: "src/page/props.ts",
   pageExportName: "Page",
-  Html: Html,
+  moduleBasePath: '/',
+  moduleBaseURL: '/',
+  verbose: false, // Enable verbose mode for debugging
   build: {
     pages: ["/"],
     assetsDir: 'assets',
@@ -21,7 +22,6 @@ const resolvedTestConfig = {
   onEvent: undefined as ((event: PluginEvent) => void) | undefined,
   css: {
     inlineCss: false as boolean,
-    purgeCss: false as boolean,
   },
 } satisfies StreamPluginOptions;
 

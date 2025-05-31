@@ -7,6 +7,7 @@ const nodeRequire = createRequire(join(projectRoot, "package.json"));
 
 // Import ReactDOM from the project's node_modules
 const ReactDOMServer = nodeRequire("react-dom/server");
+const ReactDOMClient = nodeRequire("react-server-dom-esm/client");
 const React = nodeRequire("react");
 
-export { ReactDOMServer, React };
+export { ReactDOMServer, React, ReactDOMClient };

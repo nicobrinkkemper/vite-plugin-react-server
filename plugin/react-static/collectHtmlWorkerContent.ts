@@ -10,7 +10,12 @@
  */
 
 import { PassThrough, Transform } from "node:stream";
-import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import type {
+  CreateHandlerOptions,
+  StreamMetrics,
+  PagePropOpt,
+  InlineCssOpt,
+} from "../types.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { createRscToHtmlStream } from "./rscToHtmlStream.js";
 import { fileWriter } from "./fileWriter.js";
@@ -21,9 +26,12 @@ import { fileWriter } from "./fileWriter.js";
  * @param rscFull The stream containing the RSC content
  * @returns A promise that resolves with the complete RSC content
  */
-export async function collectHtmlWorkerContent(
+export async function collectHtmlWorkerContent<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(
   rscStream: PassThrough,
-  handlerOptions: CreateHandlerOptions
+  handlerOptions: CreateHandlerOptions<T, InlineCSS>
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   if (!handlerOptions.worker) {
     throw new Error("Worker is not a valid worker");

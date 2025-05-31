@@ -44,7 +44,7 @@ This ensures the patch is applied after every `npm install`. If errors arise rel
 Create a shared configuration file (let's call it `vite.react.config.ts`):
 
 ```ts
-import type { StreamPluginOptions } from "vite-plugin-react-server/server";
+import type { StreamPluginOptions } from "vite-plugin-react-server/types";
 
 const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
   switch (url) {

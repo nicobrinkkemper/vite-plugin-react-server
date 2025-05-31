@@ -3,6 +3,8 @@ import type {
   ResolvedUserConfig,
   ResolvedUserOptions,
   AutoDiscoveredFiles,
+  PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
@@ -10,11 +12,14 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
-export type ResolveUserConfigProps = {
+export type ResolveUserConfigProps<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+> = {
   condition: "react-client" | "react-server";
   config: UserConfig;
   configEnv: ConfigEnv;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "inputs" | "staticManifest">;
 };
 
@@ -22,13 +27,16 @@ export type ResolveUserConfigReturn =
   | { type: "success"; userConfig: ResolvedUserConfig }
   | { type: "error"; error: Error };
 
-export function resolveUserConfig({
+export function resolveUserConfig<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>({
   condition,
   config,
   configEnv,
   userOptions,
   autoDiscoveredFiles,
-}: ResolveUserConfigProps): ResolveUserConfigReturn {
+}: ResolveUserConfigProps<T, InlineCSS>): ResolveUserConfigReturn {
   const ssr =
     typeof config.build?.ssr === "boolean"
       ? config.build?.ssr
@@ -62,19 +70,24 @@ export function resolveUserConfig({
     fallback: (info: T, ssr: boolean) => string,
     ssr: boolean
   ) => {
+    if ("source" in info && info.source === "") {
+      return "";
+    }
     if (!ssr || !input) {
       return fallback(info, false);
     }
-    const [, value] = userOptions.normalizer(input);
+    let [id, value] = userOptions.normalizer(input);
+    if (value.startsWith(userOptions.moduleBasePath)) {
+      value = value.slice(userOptions.moduleBasePath.length);
+    }
     const entry = autoDiscoveredFiles.staticManifest[value];
     if (
       entry?.name &&
       info.type === "asset" &&
       userOptions.autoDiscover.cssPattern(value)
     ) {
-      const withoutExt = entry.name?.split(".")[0];
       const found = entry.css?.find((css) =>
-        css.startsWith(withoutExt as string)
+        css.startsWith(id as string)
       );
       if (found) {
         return found;
@@ -125,25 +138,63 @@ export function resolveUserConfig({
     entryFileNames:
       userDefinedEntryFileNames ??
       ((info) => {
-        const input = info.facadeModuleId;
-        return handleSsrName(info, input, userOptions.build.entryFile, ssr);
+        const input =
+          info.facadeModuleId ??
+          info.name + userOptions.autoDiscover.moduleExtension;
+        const inputId = input + (ssr ? "-ssr" : "");
+        if (!stashedReturns[inputId]) {
+          const r = handleSsrName(
+            info,
+            input,
+            userOptions.build.entryFile,
+            ssr
+          );
+          if (userOptions.verbose) {
+            console.log("entryFileNames", input, r);
+          }
+          stashedReturns[inputId] = r;
+        }
+        return stashedReturns[inputId];
       }),
     assetFileNames: process.env["VITEST"]
       ? undefined
       : userDefinedAssetFileNames ??
         ((i) => {
           const input = i.originalFileNames[0];
-          if (!stashedReturns[input]) {
+          const inputId = input + (ssr ? "-ssr" : "");
+
+          if (!stashedReturns[inputId]) {
             const r = handleSsrName(i, input, userOptions.build.assetFile, ssr);
-            stashedReturns[input] = r;
+
+            if (userOptions.verbose) {
+              console.log("assetFileNames", input, stashedReturns[input]);
+            }
+            stashedReturns[inputId] = r;
           }
-          return stashedReturns[input];
+          return stashedReturns[inputId];
         }),
     chunkFileNames:
       userDefinedChunkFileNames ??
-      ((i) => {
-        const input = i.facadeModuleId;
-        return handleSsrName(i, input, userOptions.build.chunkFile, ssr);
+      ((info) => {
+        const input =
+          info.facadeModuleId ??
+          info.name + userOptions.autoDiscover.moduleExtension;
+        const inputId = input + (ssr ? "-ssr" : "");
+
+        if (!stashedReturns[inputId]) {
+          const r = handleSsrName(
+            info,
+            input,
+            userOptions.build.chunkFile,
+            ssr
+          );
+
+          if (userOptions.verbose) {
+            console.log("chunkFileNames", input, stashedReturns[input]);
+          }
+          stashedReturns[inputId] = r;
+        }
+        return stashedReturns[inputId];
       }),
     format: "esm",
     exports: "named",
@@ -234,6 +285,7 @@ export function resolveUserConfig({
       // client build options
       build: {
         ...config.build,
+        modulePreload: config.build?.modulePreload ?? false,
         emptyOutDir: config.build?.emptyOutDir ?? true,
         outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         assetsDir: config.build?.assetsDir ?? userOptions.build.assetsDir,
@@ -246,7 +298,9 @@ export function resolveUserConfig({
         minify: minify,
         rollupOptions: {
           ...config.build?.rollupOptions,
-          input: autoDiscoveredFiles.inputs,
+          input: {
+            ...autoDiscoveredFiles.inputs,
+          },
           output: newOutput,
           preserveEntrySignatures:
             config.build?.rollupOptions?.preserveEntrySignatures ??
@@ -285,6 +339,7 @@ export function resolveUserConfig({
       // server build options
       build: {
         ...config.build,
+        modulePreload: config.build?.modulePreload ?? false,
         emptyOutDir: config.build?.emptyOutDir ?? true,
         outDir: config.build?.outDir ?? join(userOptions.build.outDir, envDir),
         target: config.build?.target ?? "node18",

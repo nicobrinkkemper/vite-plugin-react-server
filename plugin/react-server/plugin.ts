@@ -13,13 +13,15 @@ import type {
   BuildTiming,
   ReactStreamPluginMeta,
   ResolvedUserOptions,
+  PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import {
   resolveAutoDiscover
 } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { getCondition } from "../config/getCondition.js";
-import { configureReactServer } from "./server.js";
+import { configureReactServer } from "./configureReactServer.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 
@@ -31,7 +33,10 @@ if (getCondition() !== "react-server") {
       process.env["NODE_OPTIONS"]
   );
 }
-export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
+export function reactServerPlugin<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(options: StreamPluginOptions<T, InlineCSS>): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
   const timing: BuildTiming = {
@@ -39,7 +44,7 @@ export function reactServerPlugin(options: StreamPluginOptions): VitePlugin<{
   };
 
   let autoDiscoveredFiles: AutoDiscoveredFiles;
-  let userOptions: ResolvedUserOptions;
+  let userOptions: ResolvedUserOptions<T, InlineCSS>;
   let serverManifest: Manifest = {};
 
   const resolvedOptions = resolveOptions(options);

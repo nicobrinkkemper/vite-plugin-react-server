@@ -1,6 +1,11 @@
 import type { Manifest, ViteDevServer } from "vite";
 import type { ServerResponse } from "http";
-import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
+import type {
+  AutoDiscoveredFiles,
+  InlineCssOpt,
+  PagePropOpt,
+  ResolvedUserOptions,
+} from "../types.js";
 import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
@@ -8,9 +13,13 @@ import { createHandler } from "../helpers/createHandler.js";
 import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { toError } from "../error/toError.js";
+import { logError } from "../error/toError.js";
+import { handleServerAction } from "./handleServerAction.js";
 
-export async function configureReactServer({
+export async function configureReactServer<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>({
   server,
   autoDiscoveredFiles,
   userOptions: _userOptions,
@@ -18,7 +27,7 @@ export async function configureReactServer({
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   serverManifest: Manifest;
 }) {
   const activeStreams = new Set<ServerResponse>();
@@ -26,14 +35,29 @@ export async function configureReactServer({
     Html: _UserHtmlComponent,
     onEvent,
     // remove these
-    moduleBaseURL: _moduleBaseURL,
-    projectRoot: _projectRoot,
     ...handlerUserOptions
   } = _userOptions;
-  const handlerOptions = Object.assign({}, handlerUserOptions, {
+  const handlerOptions = {
+    ...handlerUserOptions,
     moduleBaseURL: server.config.base,
+    moduleBasePath: server.config.base,
     projectRoot: server.config.root,
-  });
+    Html: React.Fragment,
+    onEvent: createEventHandler(onEvent),
+    css: handlerUserOptions.css
+  };
+
+  // Set environment-specific configuration
+  const define = {
+    ...server.config.define,
+    "process.env.NODE_ENV": JSON.stringify(
+      process.env["NODE_ENV"] || "development"
+    ),
+  };
+  server.config = {
+    ...server.config,
+    define,
+  };
 
   // Handle Vite server restarts
   server.ws.on("restart", (path) => {
@@ -59,7 +83,13 @@ export async function configureReactServer({
     if (!req.url) {
       return next();
     }
-    const info = requestInfo(req, handlerOptions, "");
+    const info = requestInfo(req, handlerOptions, "", server.config.logger);
+
+
+    // Handle server actions
+    if (info.isServerActionRequest) {
+      return handleServerAction(req, res, server, handlerOptions);
+    }
     if (!info.isRscRequest) return next();
     try {
       const routeFiles = await getRouteFiles(
@@ -109,7 +139,7 @@ export async function configureReactServer({
       }
       const { PageComponent, pageProps } = pageAndPropsResult;
       // Create the headless RSC stream directly;
-      const rscResult = await createHandler({
+      const rscResult = createHandler({
         ...handlerOptions,
         PageComponent: PageComponent,
         pageProps: pageProps,
@@ -135,7 +165,7 @@ export async function configureReactServer({
         activeStreams.delete(res);
       });
     } catch (error) {
-      server.config.logger.error(toError(error).message);
+      logError(error, server.config.logger);
       res.end();
     }
   });

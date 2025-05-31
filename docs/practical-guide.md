@@ -32,7 +32,7 @@ Server side / client boundary
 Server side / server boundary
 
 - **Static folder**
-Poratable React package for browsers
+Portable React package for browsers
 
 If the data returned from a prop file or function isn't actually static, then you need to make sure the endpoints are dynamic too.
 

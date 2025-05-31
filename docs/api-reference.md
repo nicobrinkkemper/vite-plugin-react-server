@@ -7,7 +7,7 @@ This document provides a comprehensive reference for the Vite React Server Plugi
 The plugin accepts a configuration object that satisfies the `StreamPluginOptions` type:
 
 ```ts
-import type { StreamPluginOptions } from "vite-plugin-react-server/server";
+import type { StreamPluginOptions } from "vite-plugin-react-server/types";
 
 export const config = {
   moduleBase: 'src',

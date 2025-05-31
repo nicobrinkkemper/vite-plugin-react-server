@@ -2,6 +2,8 @@ import type { ResolvedConfig, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   ResolvedUserOptions,
+  PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { cleanObject } from "./cleanObject.js";
 
@@ -173,8 +175,8 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
 };
 
 // For your own options (if you need custom non-serializable functions)
-export const serializedOptions = <T extends ResolvedUserOptions>(
-  userOptions: T,
+export const serializedOptions = <T extends PagePropOpt = PagePropOpt, InlineCSS extends InlineCssOpt = InlineCssOpt>(
+  userOptions: ResolvedUserOptions<T, InlineCSS>,
   autoDiscoveredFiles: AutoDiscoveredFiles,
   customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS
 ) => {
@@ -207,3 +209,19 @@ export const serializedOptions = <T extends ResolvedUserOptions>(
     customNonSerializableFunctions
   ));
 };
+
+export function hydrateUserOptions(userOptions: any) {
+  if (!userOptions) return userOptions;
+  
+  // Restore RegExp objects
+  if (userOptions.autoDiscover) {
+    const { autoDiscover } = userOptions;
+    for (const key in autoDiscover) {
+      if (typeof autoDiscover[key] === 'string' && autoDiscover[key].startsWith('__REGEXP__')) {
+        autoDiscover[key] = deserializeRegExp(autoDiscover[key]);
+      }
+    }
+  }
+  
+  return userOptions;
+}

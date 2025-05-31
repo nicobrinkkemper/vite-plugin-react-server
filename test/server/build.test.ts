@@ -23,9 +23,6 @@ describe("Plugin build test", () => {
       onMetrics: (m) => {
         metrics.push(m);
       },
-      css: {
-        inlineThreshold: 10,
-      }
     });
     
     // Get HTML content from file.write.done event
@@ -54,7 +51,7 @@ describe("Plugin build test", () => {
   });
 
   afterAll(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    //await rm(testDir, { recursive: true, force: true });
   });
 
   it("emits build events in order", async () => {
@@ -118,5 +115,10 @@ describe("Plugin build test", () => {
       expect(htmlLength).toBe(metric.htmlSize);
       expect(rscLength).toBe(metric.rscSize);
     }
+  });
+
+  // check for css
+  it("should collect css files", async () => {
+    expect(htmlContent).toContain(".css");
   });
 });

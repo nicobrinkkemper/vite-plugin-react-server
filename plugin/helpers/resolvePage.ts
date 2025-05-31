@@ -72,11 +72,10 @@ export const resolvePage = async <T, N extends string>({
         error: toError(module.error),
       };
     }
+    console.log({ module });
     return {
       type: "error",
-      error: new Error(
-        `Export "${exportName}" not found in module ${id}.`
-      ),
+      error: new Error(`Export "${exportName}" not found in module ${id}.`),
     };
   } else if (!Page) {
     return {

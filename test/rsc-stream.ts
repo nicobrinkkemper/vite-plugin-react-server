@@ -7,22 +7,14 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
     },
   });
 
-  if (!response.ok || !response.body) {
-    return {
-      result: "",
-      responseHeaders: response.headers,
-      ok: response.ok,
-      statusCode: response.status,
-    }
-  }
 
-  const reader = response.body.getReader();
+  const reader = response?.body?.getReader();
   const decoder = new TextDecoder();
   let result = "";
   let responseHeaders = response.headers;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await reader?.read() ?? { done: true, value: new Uint8Array() };
       
 
       // Decode each chunk and append to result
@@ -36,7 +28,7 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
   } catch (error) {
     console.error("Error reading RSC stream", error);
   } finally {
-    reader.releaseLock();
+    reader?.releaseLock();
   }
 
   return {

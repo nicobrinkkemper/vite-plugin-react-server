@@ -12,6 +12,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { createLogger, type Logger } from "vite";
 import type { HtmlWorkerOutputMessage } from "./types.js";
 import type { RscWorkerOutputMessage } from "./types.js";
+import { toError } from "../error/toError.js";
 
 export type CreateWorkerOptions = {
   projectRoot?: string;
@@ -73,14 +74,11 @@ export async function createWorker(
     logger = createLogger(),
     verbose = false,
   } = options;
+  const id = reverseCondition === "react-server" ? "worker/rsc" : "worker/html";
   let workerPathWithDefault =
     typeof workerPath === "string" ? workerPath : undefined;
   if (!workerPathWithDefault) {
-    if (currentCondition === "react-server") {
-      workerPathWithDefault = join(pluginRoot, `worker/rsc`);
-    } else {
-      workerPathWithDefault = join(pluginRoot, `worker/html`);
-    }
+    workerPathWithDefault = join(pluginRoot, id);
   }
   if (!workerPathWithDefault.startsWith("/")) {
     workerPathWithDefault = join("./", workerPathWithDefault);
@@ -89,6 +87,7 @@ export async function createWorker(
   const workerData = {
     ...options.workerData,
     reactVersion: React.version,
+    id: id,
   };
 
   try {
@@ -147,24 +146,25 @@ export async function createWorker(
               workerPath: workerPathWithDefault,
             } satisfies CreateWorkerSkip);
           } else {
-            const error = new Error(`Worker exited with code ${code}`);
-            logger.error(`worker exited with code ${code}`, { error });
-            reject({
-              type: "error",
-              error,
+            const error = `[create:${id}] exited with code ${code}`;
+            resolve({
+              type: "skip",
+              reason: error,
               workerPath: workerPathWithDefault,
-            } satisfies CreateWorkerError);
+            } satisfies CreateWorkerSkip);
           }
         };
-        const messageHandler = (msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage) => {
-          if (verbose) logger.info(`Initial worker message ${msg.type}`);
+        const messageHandler = (
+          msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage
+        ) => {
+          if (verbose) logger.info(`[create:${id}] Initial worker message ${msg.type}`);
           if (msg.type === "READY") {
-            if (verbose) logger.info(`Worker running for ${msg.env}`);
+            if (verbose) logger.info(`[create:${id}] Worker running for ${msg.env}`);
             clearTimeout(timeout);
             worker.removeListener("message", messageHandler);
             worker.removeListener("exit", exitHandler);
             if (msg.env !== nodeEnv) {
-              if (verbose) logger.info(`Worker environment mismatch.`);
+              if (verbose) logger.info(`[create:${id}] Worker environment mismatch.`);
               reject({
                 type: "error",
                 error: new Error(
@@ -179,19 +179,16 @@ export async function createWorker(
               workerPath: workerPathWithDefault,
             } satisfies CreateWorkerSuccess);
           }
-        }
+        };
         worker.once("message", messageHandler);
         worker.once("exit", exitHandler);
       }
     );
   } catch (error) {
-    if (error instanceof Error) {
-      return {
-        type: "error",
-        workerPath: workerPathWithDefault,
-        error: error,
-      } satisfies CreateWorkerError;
-    }
-    return error as CreateWorkerError;
+    return {
+      type: "error",
+      error: toError(error),
+      workerPath: workerPathWithDefault,
+    };
   }
 }

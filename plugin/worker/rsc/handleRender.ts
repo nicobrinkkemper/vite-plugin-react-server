@@ -9,9 +9,12 @@ import { workerData } from "node:worker_threads";
 import { React } from "../../vendor/vendor.server.js";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
+import type { PagePropOpt } from "../../types.js";
 
-export async function handleRender(
-  msg: RscRenderMessage,
+export async function handleRender<
+  T extends PagePropOpt = PagePropOpt
+>(
+  msg: RscRenderMessage<T>,
   handlers: StreamHandlers
 ) {
   let {
@@ -44,6 +47,7 @@ export async function handleRender(
             // Clear the HMR state for this module
             hmrState.delete(id);
             // Force a reload by using a unique query parameter
+            console.log("LOADING", id);
             return import(join(projectRoot, id) + `?t=${Date.now()}`);
           }
           return import(join(projectRoot, id));
@@ -54,14 +58,14 @@ export async function handleRender(
     });
     if (pageAndPropsResult.type !== "success") {
       const { error, ...rest } = pageAndPropsResult;
-      return handlers.onError(error, rest);
+      return handlers.onError(id, error, rest);
     }
 
     const { PageComponent, pageProps } = pageAndPropsResult;
 
     const adaptedOnEvent = (event: "error" | "postpone", data: any) => {
       if (event === "error") {
-        handlers.onError(data.error, data.errorInfo);
+        handlers.onError(id, data.error, data.errorInfo);
       }
     };
 
@@ -76,8 +80,8 @@ export async function handleRender(
     const streamResult = createRscStream({
       projectRoot: projectRoot,
       Html: React.Fragment,
-      PageComponent: PageComponent,
-      CssCollector: CssCollector,
+      PageComponent,
+      CssCollector,
       pageProps,
       moduleBase,
       moduleRootPath,
@@ -93,7 +97,7 @@ export async function handleRender(
     });
 
     if (streamResult.type !== "success") {
-      handlers.onError(streamResult.error);
+      handlers.onError(id, streamResult.error);
       return;
     }
 
@@ -111,26 +115,26 @@ export async function handleRender(
       metrics.chunks++;
       metrics.bytes += chunk.length;
       metrics.duration = performance.now() - metrics.startTime;
-      handlers.onData(chunk);
+      handlers.onData(id, chunk);
     });
 
     // Handle stream end
     passThrough.on("end", () => {
       metrics.duration = performance.now() - metrics.startTime;
-      handlers.onEnd();
+      handlers.onEnd(id);
       if (activeStreams.has(id)) {
-        handlers.onMetrics(metrics);
+        handlers.onMetrics(id, metrics);
         activeStreams.delete(id);
       }
     });
 
     // Handle errors
     passThrough.on("error", (error) => {
-      handlers.onError(error as Error, { reason: `${id} stream error` });
+      handlers.onError(id, error as Error, { reason: `${id} stream error` });
       activeStreams.delete(id);
     });
   } catch (error) {
-    handlers.onError(error as Error, { reason: `${id} render error` });
+    handlers.onError(id, error as Error, { reason: `${id} render error` });
     return Promise.reject(error);
   }
 }

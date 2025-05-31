@@ -1,12 +1,14 @@
 import { type MessagePort } from "node:worker_threads";
 import type { LoadHookContext } from "node:module";
-import type { LoaderContext, SerializedUserConfig } from "../types.js";
+import type { LoaderContext, ResolvedUserOptions, SerializedUserConfig, SerializedUserOptions } from "../types.js";
 import { fileURLToPath } from "node:url";
 import { preprocessCSS } from "vite";
 import type { ResolvedConfig } from "vite";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { env } from "../utils/env.js";
+import type { InitializedCssLoaderMessage } from "../worker/types.js";
+import { resolveOptions } from "../config/resolveOptions.js";
+import { hydrateUserOptions } from "../helpers/index.js";
 
 /**
  * Global port for communication between the main thread and the CSS loader.
@@ -14,15 +16,8 @@ import { env } from "../utils/env.js";
  */
 export let loaderPort: MessagePort | undefined;
 
-/**
- * Tracks CSS files used by each page.
- * Maps page URLs to sets of CSS file paths that are used by that page.
- */
-const cssFilesByPage = new Map<string, Set<string>>();
-
-let currentPage: string | null = null;
 let resolvedConfig: ResolvedConfig | undefined;
-
+let userOptions: ResolvedUserOptions | undefined; 
 
 /**
  * Initializes the CSS loader with the necessary communication channels.
@@ -31,31 +26,18 @@ let resolvedConfig: ResolvedConfig | undefined;
  * @param data - Configuration data for the CSS loader
  * @param data.port - The message port for communication
  */
-export async function initialize(data: { port: MessagePort, resolvedConfig: SerializedUserConfig }) {
+export async function initialize(data: { id: string, port: MessagePort, resolvedConfig: SerializedUserConfig, userOptions: SerializedUserOptions }) {
   loaderPort = data.port;
   resolvedConfig = data.resolvedConfig;
-  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER" });
+  const resolvedUserOptions = resolveOptions(hydrateUserOptions(data.userOptions));
+  if(resolvedUserOptions.type === "error") {
+    throw new Error(resolvedUserOptions.error.message);
+  }
+  userOptions = resolvedUserOptions.userOptions;
+  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER", id: data.id } satisfies InitializedCssLoaderMessage);
 }
 
-/**
- * Sets the current page being processed.
- * Used to track which CSS files are associated with which pages.
- *
- * @param page - The URL of the current page, or null if no page is active
- */
-export function setCurrentPage(page: string | null) {
-  currentPage = page;
-}
 
-/**
- * Retrieves all CSS files associated with a specific page.
- *
- * @param page - The URL of the page
- * @returns An array of CSS file paths used by the page
- */
-export function getCssFilesForPage(page: string): string[] {
-  return Array.from(cssFilesByPage.get(page) || []);
-}
 
 /**
  * Processes a CSS file request.
@@ -78,6 +60,11 @@ async function processCssFile(
 
     // Process CSS using Vite's preprocessCSS
     const source = await readFile(path, "utf-8");
+    let moduleID = path;
+    if(userOptions?.normalizer) {
+      let [,value] = userOptions.normalizer(path);
+      moduleID = userOptions.moduleID(value || path);
+    }
     const processed = await preprocessCSS(source, path, {
       ...config,
       env: env
@@ -87,11 +74,8 @@ async function processCssFile(
     if (loaderPort) {
       loaderPort.postMessage({
         type: "CSS_FILE",
-        id: currentPage ? join(path, "?page=" + currentPage) : path,
-        path: path,
-        content: processed.code,
-        modules: processed.modules || {},
-        inline,
+        id: moduleID,
+        content: processed.code
       });
     }
 

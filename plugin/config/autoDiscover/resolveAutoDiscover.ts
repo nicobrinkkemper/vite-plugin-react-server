@@ -1,5 +1,10 @@
 import type { ConfigEnv, UserConfig } from "vite";
-import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../../types.js";
+import type {
+  ResolvedUserOptions,
+  AutoDiscoveredFiles,
+  PagePropOpt,
+  InlineCssOpt,
+} from "../../types.js";
 import { join } from "path";
 import { resolveBuildPages } from "./resolveBuildPages.js";
 import { resolvePages } from "../resolvePages.js";
@@ -14,10 +19,13 @@ const serverFiles = createGlobAutoDiscover("**/*.server.*");
 const cssFiles = createGlobAutoDiscover("**/*.css");
 const jsonFiles = createGlobAutoDiscover("**/*.json");
 
-type ResolveAutoDiscoverProps = {
+type ResolveAutoDiscoverProps<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+> = {
   config: UserConfig;
   configEnv: ConfigEnv;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
   condition: "react-server" | "react-client";
 };
 
@@ -35,12 +43,15 @@ type ResolveAutoDiscoverReturn =
       autoDiscoveredFiles?: never;
     };
 
-export async function resolveAutoDiscover({
+export async function resolveAutoDiscover<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>({
   config,
   configEnv,
   userOptions,
   condition,
-}: ResolveAutoDiscoverProps): Promise<ResolveAutoDiscoverReturn> {
+}: ResolveAutoDiscoverProps<T, InlineCSS>): Promise<ResolveAutoDiscoverReturn> {
   const ssr = configEnv.isSsrBuild || condition === "react-server";
   const envDir =
     condition === "react-server"
@@ -91,7 +102,7 @@ export async function resolveAutoDiscover({
 
   // Load static manifest for client build
   let staticManifest: Manifest = {};
-  if (ssr) {
+  if (ssr && configEnv.command === "build") {
     const staticManifestResult = await tryManifest({
       root: userOptions.projectRoot,
       ssrManifest: false,
@@ -118,7 +129,7 @@ export async function resolveAutoDiscover({
     inputs: {},
     userOptions,
   });
-  const serverInputs = await serverFiles({
+  const serverActions = await serverFiles({
     inputs: {},
     userOptions,
   });
@@ -141,8 +152,8 @@ export async function resolveAutoDiscover({
     ...configInputRecord,
     ...clientInputs,
     ...clientEntry,
-    ...serverInputs,
-    ...serverEntry,
+    ...cssInputs,
+    ...jsonInputs,
   };
   // Add inputs based on condition
   const inputs =
@@ -150,16 +161,22 @@ export async function resolveAutoDiscover({
       ? {
           ...indexHtmlInputs,
           ...agnosticInputs,
-          ...cssInputs,
-          ...jsonInputs,
+          ...(!(configEnv.command === "build" || configEnv.isSsrBuild)
+            ? {
+                // when we are not building, we likely still want the files for the client server, so we include them in the inputs
+                ...pageAndPropInputs,
+                ...serverActions,
+                ...serverEntry,
+              }
+            : {}),
         }
       : {
           ...configInputRecord,
           ...customWorkerInputs,
           ...pageAndPropInputs,
           ...agnosticInputs,
-          ...cssInputs,
-          ...jsonInputs,
+          ...serverActions,
+          ...serverEntry,
         };
   return {
     type: "success",
@@ -171,6 +188,7 @@ export async function resolveAutoDiscover({
       clientEntry,
       staticManifest,
       inputs,
+      serverActions,
     },
   };
 }

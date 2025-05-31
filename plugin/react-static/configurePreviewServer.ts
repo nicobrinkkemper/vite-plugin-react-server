@@ -1,5 +1,9 @@
 import type { PreviewServer } from "vite";
-import type { ResolvedUserOptions } from "../types.js";
+import type {
+  ResolvedUserOptions,
+  PagePropOpt,
+  InlineCssOpt,
+} from "../types.js";
 import { join } from "node:path";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -10,12 +14,15 @@ interface StreamError extends Error {
   code?: string;
 }
 
-export async function configurePreviewServer({
+export async function configurePreviewServer<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>({
   server,
   userOptions,
 }: {
   server: PreviewServer;
-  userOptions: ResolvedUserOptions;
+  userOptions: ResolvedUserOptions<T, InlineCSS>;
 }) {
   const staticHostDir = join(
     userOptions.projectRoot,
@@ -26,15 +33,20 @@ export async function configurePreviewServer({
     if (!req.url) {
       return next();
     }
-    const { contentType, filePath } = requestInfo(req, userOptions, staticHostDir);
-    
+    const { contentType, filePath } = requestInfo(
+      req,
+      userOptions,
+      staticHostDir,
+      server.config.logger
+    );
+
     // Handle static files including CSS
     if (filePath) {
       try {
         const stats = await stat(filePath);
         if (stats.isFile()) {
           res.setHeader("Content-Type", contentType);
-          
+
           // Create abort controller for the stream
           const controller = new AbortController();
           const { signal } = controller;
@@ -48,7 +60,7 @@ export async function configurePreviewServer({
 
           try {
             const readStream = createReadStream(filePath);
-            readStream.on('error', () => {
+            readStream.on("error", () => {
               if (!res.writable) {
                 controller.abort();
               }
@@ -57,25 +69,33 @@ export async function configurePreviewServer({
           } catch (error) {
             const streamError = error as StreamError;
             // Handle different error cases
-            if (streamError.code === 'ERR_STREAM_PREMATURE_CLOSE' || 
-                streamError.name === 'AbortError') {
+            if (
+              streamError.code === "ERR_STREAM_PREMATURE_CLOSE" ||
+              streamError.name === "AbortError"
+            ) {
               // Client closed the connection
               if (res.writable) {
                 res.statusCode = 499;
                 res.end("Client closed request");
               }
-            } else if (streamError.code === 'ENOENT') {
+            } else if (streamError.code === "ENOENT") {
               // File not found
               res.statusCode = 404;
-              server.config.logger.error(`File not found: ${filePath}. ${streamError.message}`, {
-                error: streamError,
-              });
+              server.config.logger.error(
+                `File not found: ${filePath}. ${streamError.message}`,
+                {
+                  error: streamError,
+                }
+              );
               res.end("File not found");
             } else {
               // Server error
-              server.config.logger.error(`Error loading file: ${filePath}. ${streamError.message}`, {
-                error: streamError,
-              });
+              server.config.logger.error(
+                `Error loading file: ${filePath}. ${streamError.message}`,
+                {
+                  error: streamError,
+                }
+              );
               res.statusCode = 500;
               res.end("Internal server error");
             }
@@ -86,7 +106,7 @@ export async function configurePreviewServer({
       } catch (error) {
         const err = error as Error;
         // Handle file system errors
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
           res.statusCode = 404;
           res.end("File not found");
         } else {

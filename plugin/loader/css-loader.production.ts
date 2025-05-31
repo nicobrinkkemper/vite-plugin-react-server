@@ -18,11 +18,10 @@ let stashedCssFiles = new Map();
  *
  * @param data - Configuration data for the CSS loader
  * @param data.port - The message port for communication
- * @param data.server - The Vite dev server instance
  */
-export async function initialize(data: { port: MessagePort }) {
+export async function initialize(data: { id: string, port: MessagePort }) {
   loaderPort = data.port;
-  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER" });
+  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER", id: data.id });
 }
 
 /**
@@ -30,7 +29,6 @@ export async function initialize(data: { port: MessagePort }) {
  * Sends a request to the main thread and waits for the processed CSS.
  *
  * @param filePath - The file system path of the CSS file
- * @param config - The Vite config
  * @returns A promise that resolves to the processed CSS content
  */
 async function processCssFile(

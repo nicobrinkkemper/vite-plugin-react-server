@@ -58,9 +58,7 @@ export function resolveEnv(
     const isBuild = process.argv.includes("build");
     const isPreview = process.argv.includes("preview");
     if (modeIndex === -1) {
-      const inferredMode = isPreview || isBuild
-        ? "production"
-        : "development";
+      const inferredMode = isPreview || isBuild ? "production" : "development";
       if (
         inferredMode === "production" &&
         process.env["NODE_ENV"] !== "production"
@@ -76,13 +74,22 @@ export function resolveEnv(
         inferredMode === "development" &&
         process.env["NODE_ENV"] !== "development"
       ) {
-        console.warn(
-          `NODE_ENV is not ${inferredMode} but VITE_MODE is ${inferredMode}, NODE_ENV takes precedence`
-        );
-        mergedEnv["VITE_MODE"] =
-          process.env["NODE_ENV"] === "development"
-            ? "development"
-            : "production";
+        if (process.env["NODE_ENV"] === "test") {
+          if (process.env["NODE_ENV"] !== "test") {
+            console.warn(
+              `NODE_ENV is not ${inferredMode} but VITE_MODE is ${mode}, NODE_ENV takes precedence`
+            );
+          }
+          mergedEnv["VITE_MODE"] = "development";
+        } else {
+          console.warn(
+            `NODE_ENV is not ${inferredMode} but VITE_MODE is ${mode}, NODE_ENV takes precedence`
+          );
+          mergedEnv["VITE_MODE"] =
+            process.env["NODE_ENV"] === "development"
+              ? "development"
+              : "production";
+        }
       } else {
         mergedEnv["VITE_MODE"] = inferredMode;
       }
@@ -104,8 +111,9 @@ export function resolveEnv(
   if (!mergedEnv["VITE_BASE_URL"] && process.env["VITE_BASE_URL"] != null)
     mergedEnv["VITE_BASE_URL"] = "/";
   if (!mergedEnv["VITE_SSR"] && process.env["VITE_SSR"] == null)
-    mergedEnv["VITE_SSR"] =
-      String(process.argv.includes("--ssr") || getCondition("") === "server");
+    mergedEnv["VITE_SSR"] = String(
+      process.argv.includes("--ssr") || getCondition("") === "server"
+    );
   if (!mergedEnv["VITE_DEV"] && process.env["VITE_DEV"] == null)
     mergedEnv["VITE_DEV"] = mergedEnv["VITE_MODE"] === "development";
   if (!mergedEnv["VITE_PROD"] && process.env["VITE_PROD"] == null)

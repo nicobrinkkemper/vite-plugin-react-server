@@ -1,6 +1,8 @@
 import { type ConfigEnv, type Plugin } from "vite";
 import type {
   AutoDiscoveredFiles,
+  InlineCssOpt,
+  PagePropOpt,
   ResolvedUserConfig,
   ResolvedUserOptions,
   StreamPluginOptions,
@@ -8,18 +10,21 @@ import type {
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
-import { configureWorkerRequestHandler } from "./server.js";
+import { configureWorkerRequestHandler } from "./configureWorkerRequestHandler.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { MessageChannel } from "node:worker_threads";
 
-let userOptions: ResolvedUserOptions;
-let userConfig: ResolvedUserConfig;
-let configEnv: ConfigEnv;
-let root: string;
-let autoDiscoveredFiles: AutoDiscoveredFiles;
-let hmrChannel: MessageChannel | null = null;
+export function reactClientPlugin<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt
+>(options: StreamPluginOptions<T, InlineCSS>): Plugin {
+  let userOptions: ResolvedUserOptions<T, InlineCSS>;
+  let userConfig: ResolvedUserConfig;
+  let configEnv: ConfigEnv;
+  let root: string;
+  let autoDiscoveredFiles: AutoDiscoveredFiles;
+  let hmrChannel: MessageChannel | null = null;
 
-export function reactClientPlugin(options: StreamPluginOptions): Plugin {
   const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
@@ -53,7 +58,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       }
       autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
 
-      const resolvedConfig = resolveUserConfig({
+      const resolvedConfig = resolveUserConfig<T, InlineCSS>({
         condition: "react-client",
         config,
         configEnv,
@@ -66,10 +71,10 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
       }
 
       userConfig = resolvedConfig.userConfig;
-      return userConfig
+      return userConfig;
     },
     async configurePreviewServer(server) {
-      await configurePreviewServer({
+      await configurePreviewServer<T, InlineCSS>({
         server,
         userOptions,
       });
@@ -92,7 +97,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
     async configureServer(server) {
       // Create HMR message channel
       hmrChannel = new MessageChannel();
-      await configureWorkerRequestHandler({
+      await configureWorkerRequestHandler<T, InlineCSS>({
         server,
         autoDiscoveredFiles,
         userOptions,
@@ -112,7 +117,7 @@ export function reactClientPlugin(options: StreamPluginOptions): Plugin {
 
         // Find all routes affected by this file change
         const affectedRoutes = autoDiscoveredFiles.routeMap.get(value) || [];
-        console.log({affectedRoutes})
+
         // Send HMR update directly to worker through MessageChannel
         if (hmrChannel?.port1) {
           hmrChannel.port1.postMessage({
