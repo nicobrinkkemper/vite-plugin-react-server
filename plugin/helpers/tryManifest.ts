@@ -8,7 +8,7 @@ type TryManifestOptions<SSR extends boolean = false> = {
   outDir: string;
   ssrManifest?: SSR;
   preserveModulesRoot?: string;
-  manifestPath?: string | undefined;
+  manifestPath?: string | boolean | undefined;
 };
 
 export async function tryManifest<SSR extends boolean>(
@@ -23,16 +23,26 @@ export async function tryManifest<SSR extends boolean>(
       type: "error";
       error: Error;
       manifest?: never;
-    }> {
-  const localSsrManifestPath = !options.ssrManifest ? undefined : options.manifestPath ? options.manifestPath : join('.vite', 'ssr-manifest.json');
-  const localManifestPath = options.ssrManifest ? undefined : options.manifestPath ? options.manifestPath : join('.vite', 'manifest.json');
-  const manifestPath = resolve(
-    options.root,
-    options.outDir,
-    options.ssrManifest ? localSsrManifestPath as string : localManifestPath as string
-  );
+    }
+  | {
+      type: "skip";
+    }
+> {
+  let path = options.manifestPath;
+  if (path === false) {
+    return {
+      type: "skip",
+    };
+  }
+  if (options.ssrManifest) {
+    path = join(".vite", "ssr-manifest.json");
+  } else {
+    path = join(".vite", "manifest.json");
+  }
   try {
-    const result = JSON.parse(await readFile(manifestPath, "utf-8"));
+    const result = JSON.parse(
+      await readFile(resolve(options.root, options.outDir, path), "utf-8")
+    );
     return {
       type: "success",
       manifest: result,

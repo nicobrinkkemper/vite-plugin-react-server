@@ -388,13 +388,13 @@ publicOrigin: "https://github.com",
 ### Page and props Mapping
 
 ```ts
-Page: (id) => join(id.replace("index.rsc", ""), "page.tsx");
+Page: (id) => join('src', id, "page.tsx");
 ```
 
 Defines how pages are mapped to file paths.
 
 ```ts
-props: (id) => join(id.replace("index.rsc", ""), "props.ts");
+props: (id) => join('src', id, "props.ts");
 ```
 
 Defines how to load the initial props of the page file.

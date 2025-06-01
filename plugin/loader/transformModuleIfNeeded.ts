@@ -10,9 +10,6 @@ export function transformModuleIfNeeded(
   isClientComponent: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode(source),
   isServerEnvironment = getCondition() === "react-server"
 ) {
-  // Parse source and handle source maps
-  const ast = parse(source);  
-
   // Handle environment-specific cases
   if (
     (isServerEnvironment && !isServerFunction && !isClientComponent) ||
@@ -24,7 +21,7 @@ export function transformModuleIfNeeded(
   const result = transformModuleWithPreservedFunctions(
     source,
     moduleId,
-    ast,
+    parse(source),
     isServerFunction,
     isClientComponent
   );

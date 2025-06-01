@@ -44,22 +44,7 @@ htmlWorkerPath: `server/html-worker.${
 
 ## Worker Implementation Details
 
-### HTML Worker Implementation
-
-#### Worker Entry Points
-
-The HTML worker has different implementations for development and production environments:
-
-```typescript
-// html-worker.ts
-await (
-    process.env['NODE_ENV'] === 'production' 
-      ? import(/* @vite-ignore */'./html-worker.production.js') 
-      : import(/* @vite-ignore */'./html-worker.development.js')
-);
-```
-
-#### Development Worker
+### Development Worker
 
 The development worker sets up message channels and loaders:
 
@@ -78,28 +63,6 @@ register(loaderPath, {
   parentURL: pluginRoot,
   data: { port: reactLoaderChannel.port1 },
   transferList: [reactLoaderChannel.port1],
-});
-```
-
-#### Production Worker
-
-The production worker focuses on message handling and resource management:
-
-```typescript
-// html-worker.production.tsx
-// Mark shared resources as untransferable
-if (workerData && typeof workerData === 'object') {
-  Object.values(workerData).forEach(value => {
-    if (value && typeof value === 'object') {
-      (parentPort as MessagePort & { markAsUntransferable: (obj: any) => void })
-        .markAsUntransferable(value);
-    }
-  });
-}
-
-// Set up message handler
-parentPort.on("message", (msg) => {
-  messageHandler(msg);
 });
 ```
 
@@ -124,28 +87,32 @@ interface BaseMessage {
    ```ts
    interface RouteReadyMessage extends BaseMessage {
      type: "ROUTE_READY";
-     id: string; // Route identifier
+     moduleRootPath: string;
+     moduleBaseURL: string;
+     cssFiles: CssContent[];
+     pipeableStreamOptions: SerializeableRenderToPipeableStreamOptions;
+     projectRoot: string;
    }
    ```
    - Sent when a route is ready to be processed
    - Worker should initialize render state for this route
+   - Contains configuration for module resolution and CSS handling
 
 2. **RSC_CHUNK**
    ```ts
-   interface RscChunkMessage extends BaseMessage {
+   interface WorkerRscChunkMessage extends WorkerMessage {
      type: "RSC_CHUNK";
-     id: string; // Route identifier
-     chunk: string; // RSC content chunk
+     chunk: ArrayBufferLike;
    }
    ```
    - Contains a chunk of RSC content
    - Worker should process this chunk and update metrics
+   - Sequence number helps maintain order of chunks
 
 3. **RSC_END**
    ```ts
    interface RscEndMessage extends BaseMessage {
      type: "RSC_END";
-     id: string; // Route identifier
    }
    ```
    - Signals the end of RSC content for a route
@@ -155,11 +122,20 @@ interface BaseMessage {
    ```ts
    interface CleanupMessage extends BaseMessage {
      type: "CLEANUP";
-     id: string; // Route identifier
    }
    ```
    - Requests cleanup of resources for a route
    - Worker should destroy streams and remove render state
+
+5. **SHUTDOWN**
+   ```ts
+   interface ShutdownMessage extends BaseMessage {
+     type: "SHUTDOWN";
+   }
+   ```
+   - Requests worker shutdown
+   - If id is "*", clean up all render states
+   - Worker should send SHUTDOWN_COMPLETE when done
 
 #### Worker to Main Process Messages
 
@@ -167,8 +143,8 @@ interface BaseMessage {
    ```ts
    interface HtmlChunkMessage extends BaseMessage {
      type: "HTML_CHUNK";
-     id: string; // Route identifier
-     chunk: string; // HTML content chunk
+     chunk: ArrayBufferLike;
+     encoding: string;
    }
    ```
    - Contains a chunk of HTML content
@@ -178,140 +154,178 @@ interface BaseMessage {
    ```ts
    interface HtmlCompleteMessage extends BaseMessage {
      type: "HTML_COMPLETE";
-     id: string; // Route identifier
+     success: boolean;
+     html?: string;
+     chunks?: ArrayBufferLike[];
+     metrics?: StreamMetrics;
    }
    ```
    - Signals the end of HTML generation
+   - Includes success status and optional metrics
    - Main process should finalize the HTML file
 
-3. **CLEANUP_COMPLETE**
+3. **CHUNK_PROCESSED**
    ```ts
-   interface CleanupCompleteMessage extends BaseMessage {
-     type: "CLEANUP_COMPLETE";
-     id: string; // Route identifier
+   interface ChunkProcessedMessage extends BaseMessage {
+     type: "CHUNK_PROCESSED";
+     success: boolean;
    }
    ```
-   - Confirms cleanup has been completed
-   - Main process can release resources
+   - Confirms processing of an RSC chunk
+   - Used for tracking progress and error handling
 
 4. **ERROR**
    ```ts
    interface ErrorMessage extends BaseMessage {
      type: "ERROR";
-     id: string; // Route identifier
-     error: string; // Error message
+     error: Error | string;
+     errorInfo?: ErrorInfo;
    }
    ```
    - Reports an error during processing
+   - Includes error details and optional React error info
    - Main process should handle the error and clean up
 
-### Implementing a Custom Worker
+### Development Mode Messages
 
-To implement your own worker, you need to:
-
-1. **Set up message handling**
+1. **HMR Messages**
    ```ts
-   // In your worker file
-   import { parentPort } from 'worker_threads';
-   
-   parentPort.on('message', (message) => {
-     // Handle message based on type
-     switch (message.type) {
-       case 'ROUTE_READY':
-         handleRouteReady(message);
-         break;
-       case 'RSC_CHUNK':
-         handleRscChunk(message);
-         break;
-       // ... handle other message types
+   interface HmrUpdateMessage extends BaseMessage {
+     type: "HMR_UPDATE";
+     id: string;
+     timestamp?: number;
+     routes?: string[];
+   }
+
+   interface HmrAcceptMessage extends BaseMessage {
+     type: "HMR_ACCEPT";
+     id: string;
+     routes?: string[];
+   }
+
+   interface HmrCleanupMessage extends BaseMessage {
+     type: "HMR_CLEANUP";
+     id: string;
+     routes?: string[];
+   }
+   ```
+   - Used for Hot Module Replacement
+   - Handles module updates, acceptance, and cleanup
+   - Includes route information for targeted updates
+
+2. **Loader Messages**
+   ```ts
+   interface InitializedReactLoaderMessage extends BaseMessage {
+     type: "INITIALIZED_REACT_LOADER";
+   }
+
+   interface InitializedCssLoaderMessage extends BaseMessage {
+     type: "INITIALIZED_CSS_LOADER";
+   }
+
+   interface InitializedEnvLoaderMessage extends BaseMessage {
+     type: "INITIALIZED_ENV_LOADER";
+   }
+   ```
+   - Signal initialization of various loaders
+   - Used for module loading and environment setup
+
+### Server Action Messages
+
+1. **Server Action Request**
+   ```ts
+   interface ServerActionMessage extends BaseMessage {
+     type: "SERVER_ACTION";
+     args: unknown[];
+   }
+   ```
+   - Used to invoke server actions
+   - Contains action arguments
+
+2. **Server Action Response**
+   ```ts
+   interface ServerActionResponseMessage extends BaseMessage {
+     type: "SERVER_ACTION_RESPONSE";
+     result: unknown;
+     error?: string;
+   }
+   ```
+   - Contains server action results
+   - Includes error information if action failed
+
+### Worker Communication Patterns
+
+1. **Initialization Pattern**
+   ```ts
+   // Worker signals ready
+   parentPort?.postMessage({
+     type: "READY",
+     id: "worker",
+     env: process.env.NODE_ENV
+   });
+
+   // Main process waits for ready
+   worker.once("message", (msg) => {
+     if (msg.type === "READY") {
+       // Worker is ready
      }
    });
    ```
 
-2. **Implement render state management**
+2. **Error Handling Pattern**
    ```ts
-   // Track render states for each route
-   const renderStates = new Map<string, RenderState>();
-   
-   interface RenderState {
-     rscStream: any; // Your RSC stream implementation
-     htmlStream: any; // Your HTML stream implementation
-     metrics: {
-       chunksReceived: number;
-       chunksProcessed: number;
-       totalBytes: number;
-     };
-   }
+   // Worker sends error
+   sendMessage({
+     type: "ERROR",
+     id,
+     error: toError(error),
+     errorInfo
+   });
+
+   // Main process handles error
+   worker.on("message", (msg) => {
+     if (msg.type === "ERROR") {
+       // Handle error
+     }
+   });
    ```
 
-3. **Handle RSC processing**
+3. **Cleanup Pattern**
    ```ts
-   function handleRscChunk(message: RscChunkMessage) {
-     const state = getOrCreateRenderState(message.id);
-     
-     // Process the RSC chunk
-     state.rscStream.write(message.chunk);
-     
-     // Update metrics
-     state.metrics.chunksReceived++;
-     state.metrics.totalBytes += message.chunk.length;
-   }
+   // Main process requests cleanup
+   worker.postMessage({
+     type: "CLEANUP",
+     id
+   });
+
+   // Worker confirms cleanup
+   sendMessage({
+     type: "CLEANUP_COMPLETE",
+     id
+   });
    ```
 
-4. **Implement HTML generation**
-   ```ts
-   function handleRscEnd(message: RscEndMessage) {
-     const state = getRenderState(message.id);
-     if (!state) return;
-     
-     // End the RSC stream
-     state.rscStream.end();
-     
-     // Create React component from RSC stream
-     const component = createComponentFromRscStream(state.rscStream);
-     
-     // Set up HTML transform stream
-     const htmlStream = createHtmlStream(component);
-     
-     // Handle HTML chunks
-     htmlStream.on('data', (chunk) => {
-       parentPort.postMessage({
-         type: 'HTML_CHUNK',
-         id: message.id,
-         chunk
-       });
-     });
-     
-     // Handle HTML completion
-     htmlStream.on('end', () => {
-       parentPort.postMessage({
-         type: 'HTML_COMPLETE',
-         id: message.id
-       });
-     });
-   }
-   ```
+### Best Practices
 
-5. **Implement cleanup**
-   ```ts
-   function handleCleanup(message: CleanupMessage) {
-     const state = getRenderState(message.id);
-     if (!state) return;
-     
-     // Destroy streams
-     state.rscStream.destroy();
-     state.htmlStream.destroy();
-     
-     // Remove render state
-     renderStates.delete(message.id);
-     
-     // Confirm cleanup
-     parentPort.postMessage({
-       type: 'CLEANUP_COMPLETE',
-       id: message.id
-     });
-   }
-   ```
+1. **Message Validation**
+   - Always validate message types and required fields
+   - Use TypeScript interfaces for type safety
+   - Handle unknown message types gracefully
+
+2. **Resource Management**
+   - Clean up resources when receiving CLEANUP or SHUTDOWN messages
+   - Use try/catch blocks for error handling
+   - Implement proper stream cleanup
+
+3. **Error Handling**
+   - Always include error details in ERROR messages
+   - Handle both synchronous and asynchronous errors
+   - Implement proper error recovery mechanisms
+
+4. **Performance Monitoring**
+   - Track metrics for RSC and HTML generation
+   - Monitor worker memory usage
+   - Implement proper cleanup to prevent memory leaks
 
 ## Worker Best Practices
 
@@ -329,242 +343,3 @@ function cleanup(id: string) {
   }
 }
 ```
-
-3. **Error Handling**: Implement comprehensive error handling and logging:
-```typescript
-parentPort.on("message", (msg) => {
-  console.log('[html-worker] Received message:', JSON.stringify(msg, null, 2));
-  messageHandler(msg);
-});
-```
-
-4. **Performance Monitoring**: Track detailed metrics for debugging and optimization:
-```typescript
-type StreamMetrics = {
-  totalChunksReceived: number;
-  totalBytesReceived: number;
-  totalChunksProcessed: number;
-  totalBytesProcessed: number;
-};
-```
-
-## Common Worker Issues and Solutions
-
-1. **Memory Leaks**: Always clean up resources using the cleanup function when streams are complete.
-
-2. **Backpressure**: Monitor backpressure events and implement appropriate handling:
-```typescript
-streamState: {
-  backpressureCount: 0,
-  drainCount: 0,
-  // ... other metrics
-}
-```
-
-3. **Environment Validation**: Ensure workers run in the correct environment:
-```typescript
-if (process.env["NODE_ENV"] !== "production") {
-  throw new Error("This module must be run in production mode");
-}
-```
-
-If the html-worker is in production mode the RSC stream created in the main thread should be as well. The worker should send it's initial `READY` signal to communicate its NODE_ENV. 
-
-It's important that the `NODE_ENV` for both the worker thread and main thread are the same. The [createWorker](../plugin/worker/createWorker.ts) module will handle this like so: 
-```ts
-
-  await new Promise<Worker>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error('Worker ready timeout'));
-    }, 1000);
-
-    worker.once("message", (msg) => {
-      if (msg.type === "READY" && msg.env === process.env['NODE_ENV']) {
-        clearTimeout(timeout);
-        resolve(worker);
-      }
-    });
-
-    worker.once("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-  });
-```
-When `createWorker` is called it will automatically reverse the current node condition to make the other paradigm of React available. Plugin users can feel free to reuse the plugin's internal modules as long as the react-condition is satisfied. React dependencies will throw an error early whenever the condition isn't satisfied.
-
-The condition `react-server` mostly implicates the output of the module. If the output of the module is consumed by other server depenencies then it should have this condition. If the module only consumes server side input but targets the client side with it's output, then it should explicitly not have the `react-server` condition.
-
-Modules can
-  1. explicitly run under `react-server` condition
-  2. explititly NOT run under `react-server` condition (we'll call it react-client)
-  3. or be agnostic to the condition
-
-The category a module will fall into depends on the React dependencies they import.
-
-REQUIRED `react-server`
-- `import * as ReactDOMServer "react-server-dom-esm/server"`
-
-Because it generates RSC streams.
-
-NOT `react-server` (react-client)
-- `import * as ReactDOMServer from "react-dom/server";`
-
-You might assume that `react-dom/server` would need the `react-server` condition, because it has server in the name. But since it only consumes server side streams and the output is targetted at the client, it falls into the react-client category.
-
-AGNOSTIC
-- `import React, {use, createElement} from "react"`
-
-The `use` feature and React JSX will work regardless of condition.
-
-REQUIRES "use client"
-- `import React, {useState} from "react"`
-- `<a onClick={function (){/* whatever */}}>`
-
-REQUIRES "use server"
-- async server actions / form actions
-- The default is server-side rendering, "use client" is the escape hatch
-
-
-## Extending the Plugin
-
-You can extend the plugin to add your own functionality:
-
-### Custom Plugins
-
-Create a custom plugin that integrates with the Vite React Server Plugin:
-
-```ts
-import type { Plugin } from 'vite';
-import { 
-  type StreamPluginOptions,
-  type ResolvedUserOptions,
-  type ResolvedUserConfig,
-  checkFilesExist,
-  resolveOptions,
-  resolveUserConfig,
-  resolvePages
-} from 'vite-plugin-react-server';
-
-let userOptions: ResolvedUserOptions;
-let userConfig: resolvedUserConfig;
-let files: CheckFilesExistReturn;
-let pages: string[];
-let isClient = false;
-export function myCustomPlugin(options: StreamPluginOptions): Plugin {
-  const resolvedOptions = resolveOptions(options, isClient)
-  if(resolvedOptions.type === "error"){
-    // handle the error
-    throw resolvedOptions.error;
-  }
-  userOptions = resolvedOptions.userOptions;
-  return {
-    name: 'vite-plugin-react-server-custom',
-    // ... implement plugin hooks
-    async config(config, configEnv){
-      const resolvePagesResult = await resolvePages(userOptions.build.pages);
-      if (resolvePagesResult.type === "error") {
-        throw resolvePagesResult.error;
-      }
-      pages = resolvePagesResult.pages;
-      files = await checkFilesExist(pages, userOptions, root);
-      const resolvedConfig = resolveUserConfig({
-        isClient,
-        config,
-        configEnv,
-        userOptions,
-        files,
-      });
-      if (resolvedConfig.type === "error") {
-        throw resolvedConfig.error;
-      }
-      userConfig = resolvedConfig.userConfig;
-      // now you're left with the complete config
-      // you dont have to return config again when you're already doing so elsewhere
-      // but you could
-  };
-}
-```
-
-### Custom React Components
-
-You can provide your own React components for the plugin to use:
-
-```ts
-export const config = {
-  // ... other config
-  Html: MyCustomHtmlComponent,
-  CssCollector: MyCustomCssCollector,
-};
-```
-
-The `CssCollector` component is a single component that can handle both inline and non-inline CSS modes based on the configuration. When `inlineCss` is enabled, the component receives the CSS content directly and can render it as `<style>` tags. When disabled, it renders `<link>` tags instead.
-
-### Custom Build Process
-
-You can customize the build process by creating your own build plugin:
-
-```ts
-import type { Plugin } from 'vite';
-import type { StreamPluginOptions } from 'vite-plugin-react-server/server';
-
-export function customBuildPlugin(options: StreamPluginOptions): Plugin {
-  return {
-    name: 'vite-plugin-react-server-custom-build',
-    apply: 'build',
-    // ... implement build hooks
-  };
-}
-```
-
-## Metrics Collection
-
-The plugin collects various metrics that you can use in your implementation:
-
-```ts
-interface StreamMetrics {
-  chunksReceived: number;
-  chunksProcessed: number;
-  totalBytes: number;
-  startTime: number;
-  endTime?: number;
-}
-
-interface RenderMetrics {
-  htmlSize: number;
-  rscSize: number;
-  processingTime: number;
-  chunks: number;
-  chunkRate: number;
-}
-```
-
-## Error Handling
-
-Implement comprehensive error handling in your custom workers:
-
-1. **Worker errors**
-   ```ts
-   worker.on('error', (error) => {
-     console.error('Worker error:', error);
-     // Handle worker error
-   });
-   ```
-
-2. **Message errors**
-   ```ts
-   function handleError(message) {
-     const { id, error } = message;
-     console.error(`Error processing route ${id}:`, error);
-     // Clean up resources
-     cleanupResources(id);
-   }
-   ```
-
-3. **Stream errors**
-   ```ts
-   stream.on('error', (error) => {
-     console.error('Stream error:', error);
-     // Handle stream error
-   });
-   ``` 

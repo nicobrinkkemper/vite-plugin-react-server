@@ -11,8 +11,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       exclude: [
-        'node_modules/**',
-        'vitest.config.ts'
+        '',
+      ],
+      include: [
+        'dist'
       ]
     },
     include: [

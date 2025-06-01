@@ -36,19 +36,22 @@ import { logError } from "../error/toError.js";
  * });
  * ```
  */
-let isBuild = true;
-let isSSR = false;
 
 export function reactTransformPlugin<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt
 >(options: StreamPluginOptions<T, InlineCSS>): Plugin {
   let userOptions: ResolvedUserOptions<T, InlineCSS>;
+
   const resolvedOptionsResult = resolveOptions(options);
+
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
+
   userOptions = resolvedOptionsResult.userOptions;
 
-  let staticManifest: Manifest;
+  let staticManifest: Manifest = {};
+  let isBuild = true;
+  let isSSR = false;
 
   return {
     name: "vite:react-server-transform",
@@ -56,16 +59,21 @@ export function reactTransformPlugin<
     async configResolved(config) {
       isBuild = config.command === "build";
       isSSR = config.build?.ssr === true;
+
       if (isBuild && isSSR) {
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
           ssrManifest: false,
           outDir: join(userOptions.build.outDir, userOptions.build.static),
+          manifestPath: config.build.manifest,
         });
+
         if (staticManifestResult.type === "error") {
           throw staticManifestResult.error;
         }
-        staticManifest = staticManifestResult.manifest;
+        if (staticManifestResult.type === "success") {
+          staticManifest = staticManifestResult.manifest;
+        }
       }
     },
     async resolveId(
@@ -100,27 +108,28 @@ export function reactTransformPlugin<
       if (!options?.ssr || !userOptions.autoDiscover.modulePattern(id)) {
         return null;
       }
-      const [, value] = userOptions.normalizer(id);
-      let moduleID = value;
+      const isServerFunctionCode = userOptions.autoDiscover.isServerFunctionCode(code);
+      const isClientComponentCode = userOptions.autoDiscover.isClientComponentCode(code);
+      if(!isServerFunctionCode && !isClientComponentCode) {
+        return null;
+      }
+      let [, moduleID] = userOptions.normalizer(id);
       if (isBuild) {
         if (staticManifest) {
-          if (value in staticManifest) {
-            moduleID = staticManifest[value].file;
+          if (moduleID in staticManifest) {
+            moduleID = staticManifest[moduleID].file;
           }
         } else {
           throw new Error(`Static manifest not found during dev build.`);
         }
-      } else {
-        // For non-SSR builds, just use the normalized path
-        moduleID = join(userOptions.moduleBasePath, value);
       }
       let finalID = userOptions.moduleID(moduleID);
       // Always transform in server context
       const transformed = transformModuleIfNeeded(
         code,
         finalID,
-        userOptions.autoDiscover.isServerFunctionCode(code),
-        userOptions.autoDiscover.isClientComponentCode(code),
+        isServerFunctionCode,
+        isClientComponentCode,
         true
       );
       if (userOptions.verbose)

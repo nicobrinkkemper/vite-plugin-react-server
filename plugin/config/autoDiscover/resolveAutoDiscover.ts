@@ -111,13 +111,13 @@ export async function resolveAutoDiscover<
     if (staticManifestResult.type === "success") {
       staticManifest = staticManifestResult.manifest;
     } else if (configEnv.command === "build") {
-      // in dev mode, the static manifest is not needed
-      // with ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
-      console.error(staticManifestResult.error);
+      // in dev mode the static manifest is not needed
+      // without ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
+      if (staticManifestResult.type === "error") {
+        console.error(staticManifestResult.error);
+      }
       console.warn("Continuing without static manifest");
       // this can still work, but, it won't be able to look up any client-side assets
-      // so likely the error will happen later in the build loader not being able to find the asset
-      staticManifest = {};
     }
   }
 
@@ -161,14 +161,6 @@ export async function resolveAutoDiscover<
       ? {
           ...indexHtmlInputs,
           ...agnosticInputs,
-          ...(!(configEnv.command === "build" || configEnv.isSsrBuild)
-            ? {
-                // when we are not building, we likely still want the files for the client server, so we include them in the inputs
-                ...pageAndPropInputs,
-                ...serverActions,
-                ...serverEntry,
-              }
-            : {}),
         }
       : {
           ...configInputRecord,

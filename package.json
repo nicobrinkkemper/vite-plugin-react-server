@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.1.17",
+  "version": "1.1.18",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -90,7 +90,7 @@
     "test:client": "vitest run test/client",
     "test:build": "npm run setup:test-fixtures && npm test test/server/build.test.ts",
     "test:unit": "NODE_OPTIONS='--conditions react-server' vitest run test/unit",
-    "test:llm": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
+    "test:tee": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
     "test:rsc-worker": "npm run build && vitest run test/client/rsc-worker.test.ts",
     "test:large-html": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/large-html.test.ts --reporter=verbose",
     "test:metrics": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/metrics.test.ts --reporter=verbose",
@@ -102,13 +102,11 @@
     "test:todo": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/todo.test.ts --reporter=verbose",
     "test:server-action": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/server-action.test.ts --reporter=verbose",
     "test:server-action-client": "npm run build && vitest run test/client/server-action.test.ts --reporter=verbose",
-
     "test:server-action-integration": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/server-action-integration.test.ts --reporter=verbose",
     "test:server-action-integration-client": "npm run build && vitest run test/client/server-action-integration.test.ts --reporter=verbose",
-
     "test": "npm run build && npm run test:server && npm run test:client && npm run test:unit",
-    "test-base-url": "BASE_URL='/test/' && npm run build && npm run test:server && npm run test:client && npm run test:unit",
-    "test:coverage": "npm run setup:test-fixtures && vitest run --coverage",
+    "test-base-url": "BASE_URL='/test/' && npm run build && npm run test:server && npm run test:client",
+    "test:coverage": "npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
     "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
@@ -159,6 +157,7 @@
   "devDependencies": {
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
+    "@vitest/coverage-v8": "^3.0.4",
     "acorn-loose": "^8.3.0",
     "happy-dom": "^17.1.8",
     "patch-package": "^8.0.0",
