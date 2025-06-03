@@ -30,12 +30,55 @@ export interface TransformOptions {
   program?: Program;
 }
 
-/**
- * Creates a client reference error message
- */
-function createClientReferenceError(name: string): string {
-  return `Attempted to call ${name}() from the server but ${name} is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.`;
+function createSourceMap(id: string, code: string, mappings: string) {
+  return {
+    version: 3,
+    file: id,
+    sources: [id],
+    sourcesContent: [code],
+    mappings,
+    sourceRoot: "",
+    names: [],
+  };
 }
+
+function generateSourceMap(moduleId: string, source: string, lines: string[], isImportOrRegistration: (line: string) => boolean) {
+  const createMapping = createMappingsSerializer();
+  let generatedLine = 1;
+  let generatedColumn = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const originalLine = isImportOrRegistration(lines[i]) ? 1 : Math.max(1, i - 1);
+    createMapping(generatedLine, generatedColumn, 0, originalLine, 0, -1);
+    generatedLine++;
+  }
+
+  const sourceMap = createSourceMap(moduleId, source, createMapping(generatedLine, generatedColumn, 0, lines.length, 0, -1));
+  const sourceMapJson = JSON.stringify(sourceMap);
+  return `data:application/json;charset=utf-8;base64,${Buffer.from(sourceMapJson).toString("base64")}`;
+}
+
+/**
+ * --- React RSC Directive Handling ---
+ *
+ * 1. 'use client' at file top:
+ *    - Pass through code as-is (after removing directive).
+ *    - Do not transform or register anything.
+ *    - Required for React client features to work.
+ *    - See: https://react.dev/reference/rsc/use-client
+ *
+ * 2. 'use server' at file top:
+ *    - Register all exported async functions as server actions.
+ *    - See: https://react.dev/reference/rsc/use-server#caveats
+ *
+ * 3. 'use server' at function top:
+ *    - Register only that async function as a server action.
+ *    - See: https://react.dev/reference/rsc/use-server#caveats
+ *
+ * 4. No directive:
+ *    - Treat as a normal shared or server-only module.
+ *    - No special registration or transformation.
+ */
 
 /**
  * Transforms a module for RSC boundaries.
@@ -59,36 +102,13 @@ export function transformModuleWithPreservedFunctions(
   isServerFunction: boolean | RegExpMatchArray | null,
   isClientComponent: boolean | RegExpMatchArray | null
 ): string {
-  // Find and remove directives using AST
+  // Remove directives from source code
   let sourceWithoutDirective = source;
   let directiveEnd = 0;
-  
-  // Only look at top-level directives
-  for (const node of program.body) {
-    if (node.type !== "ExpressionStatement") {
-      break;
-    }
-
-    let directive: string | null = null;
-    if ("directive" in node && typeof node.directive === "string") {
-      directive = node.directive;
-    } else if (
-      node.expression.type === "Literal" &&
-      typeof node.expression.value === "string" &&
-      (node.expression.value === "use server" || node.expression.value === "use client")
-    ) {
-      directive = node.expression.value;
-    }
-
-    if (directive && "start" in node && "end" in node) {
-      directiveEnd = node.end;
-    }
-  }
-
-  // Remove the directive and any whitespace after it
-  if (directiveEnd > 0) {
-    sourceWithoutDirective = source.slice(directiveEnd).trim();
-  }
+  let hasFileLevelServerDirective = false;
+  let hasFileLevelClientDirective = false;
+  let hasFunctionLevelClientDirective = false;
+  let hasFunctionLevelServerDirective = false;
 
   // Get export names and create module ID literal
   const { exportNames, exports } = handleExports(
@@ -99,14 +119,299 @@ export function transformModuleWithPreservedFunctions(
   );
   const moduleIdLiteral = JSON.stringify(moduleId);
 
-  // For server modules in server environment, register server references
+  // Helper function to check for directives in a node
+  function checkForDirective(node: any): string | null {
+    if (node.type === "ExpressionStatement") {
+      if ("directive" in node && typeof node.directive === "string") {
+        return node.directive;
+      } else if (
+        node.expression.type === "Literal" &&
+        typeof node.expression.value === "string" &&
+        (node.expression.value === "use server" || node.expression.value === "use client")
+      ) {
+        return node.expression.value;
+      }
+    }
+    return null;
+  }
+
+  // Check for file-level and function-level directives
+  for (const node of program.body) {
+    const directive = checkForDirective(node);
+    if (directive) {
+      if (directive === "use server") {
+        if (node.start === 0) {
+          hasFileLevelServerDirective = true;
+        } else {
+          hasFunctionLevelServerDirective = true;
+        }
+      }
+      if (directive === "use client") {
+        if (node.start === 0) {
+          hasFileLevelClientDirective = true;
+        } else {
+          hasFunctionLevelClientDirective = true;
+        }
+      }
+      if ("start" in node && "end" in node) {
+        directiveEnd = Math.max(directiveEnd, node.end);
+      }
+    }
+
+    // Check for function-level server directives in function bodies
+    if (node.type === "ExportNamedDeclaration" && node.declaration?.type === "FunctionDeclaration") {
+      const funcNode = node.declaration;
+      if (funcNode.body?.body) {
+        for (const stmt of funcNode.body.body) {
+          const directive = checkForDirective(stmt);
+          if (directive === "use server") {
+            hasFunctionLevelServerDirective = true;
+            // Mark this specific function as having a server directive
+            const name = funcNode.id?.name;
+            if (name) {
+              const exportInfo = exports.get(name);
+              if (exportInfo) {
+                exportInfo.declaration = exportInfo.declaration?.replace(
+                  /^export\s+function\s+/,
+                  'export async function '
+                );
+                exportInfo.isAsync = true;
+              }
+            }
+            break;
+          }
+        }
+      }
+    } else if (node.type === "FunctionDeclaration") {
+      if (node.body?.body) {
+        for (const stmt of node.body.body) {
+          const directive = checkForDirective(stmt);
+          if (directive === "use server") {
+            hasFunctionLevelServerDirective = true;
+            // Mark this specific function as having a server directive
+            const name = node.id?.name;
+            if (name) {
+              const exportInfo = exports.get(name);
+              if (exportInfo) {
+                exportInfo.declaration = exportInfo.declaration?.replace(
+                  /^export\s+function\s+/,
+                  'export async function '
+                );
+                exportInfo.isAsync = true;
+              }
+            }
+            break;
+          }
+        }
+      }
+    } else if (node.type === "VariableDeclaration") {
+      for (const decl of node.declarations) {
+        if (decl.init?.type === "FunctionExpression" || decl.init?.type === "ArrowFunctionExpression") {
+          const body = decl.init.body;
+          if (body.type === "BlockStatement" && body.body) {
+            for (const stmt of body.body) {
+              const directive = checkForDirective(stmt);
+              if (directive === "use server") {
+                hasFunctionLevelServerDirective = true;
+                const name = decl.id.type === "Identifier" ? decl.id.name : undefined;
+                if (name) {
+                  const exportInfo = exports.get(name);
+                  if (exportInfo) {
+                    exportInfo.declaration = exportInfo.declaration?.replace(
+                      /^export\s+function\s+/,
+                      'export async function '
+                    );
+                    exportInfo.isAsync = true;
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Validate directive combinations
+  if (hasFileLevelClientDirective && hasFileLevelServerDirective) {
+    throw new Error(`Module ${moduleId} cannot have both "use client" and "use server" directives`);
+  }
+
+  if (hasFunctionLevelClientDirective) {
+    throw new Error(`Module ${moduleId} cannot have function-level "use client" directives - only file-level is allowed`);
+  }
+
+  // Validate against user's explicit intent
+  if (Boolean(isClientComponent) && !hasFileLevelClientDirective) {
+    throw new Error(`Module ${moduleId} is marked as a client component but has no "use client" directive`);
+  }
+
+  if (Boolean(isServerFunction) && !hasFileLevelServerDirective && !hasFunctionLevelServerDirective) {
+    if(process.env['NODE_ENV'] !== "production") {
+      console.log("Error for file", moduleId, source);
+    }
+    throw new Error(`Module ${moduleId} is marked as a server function but has no "use server" directive`);
+  }
+
+  // Remove the directive and any whitespace after it
+  if (directiveEnd > 0) {
+    sourceWithoutDirective = source.slice(directiveEnd).trim();
+  }
+
+  // Validate that there are exports to transform if explicitly marked
+  if (Boolean(isClientComponent) && exportNames.length === 0) {
+    throw new Error(`Module ${moduleId} is marked as a client component but has no exports to transform`);
+  }
+
+  if (Boolean(isServerFunction) && exportNames.length === 0) {
+    throw new Error(`Module ${moduleId} is marked as a server function but has no exports to transform`);
+  }
+
+  // For server modules in client environment, replace with server references
   if (Boolean(isServerFunction)) {
-    const imports = [
-      'import { registerServerReference } from "react-server-dom-esm/server.node";',
-    ];
+    // First collect all exports that need registration
+    const exportedEntries = [];
+    const localNames = new Set();
+
+    // Helper to check if a function has a "use server" directive
+    function hasServerDirective(node: any): boolean {
+      if (hasFileLevelServerDirective) return true;
+      if (node.body?.body) {
+        for (const stmt of node.body.body) {
+          const directive = checkForDirective(stmt);
+          if (directive === "use server") return true;
+        }
+      }
+      return false;
+    }
+
+    // First pass: collect exports and remove directives
+    let newSource = source;
+    let directiveEnd = 0;
+
+    for (const node of program.body) {
+      // Handle directives
+      const directive = checkForDirective(node);
+      if (directive === "use server" || directive === "use client") {
+        if (node.start === 0) {
+          directiveEnd = node.end;
+        } else {
+          // Remove function-level directive
+          newSource = newSource.slice(0, node.start) + newSource.slice(node.end);
+        }
+        continue;
+      }
+
+      // Collect exports that need registration
+      switch (node.type) {
+        case 'ExportDefaultDeclaration':
+          if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
+            const name = node.declaration.id.name;
+            if (hasServerDirective(node.declaration)) {
+              exportedEntries.push({
+                localName: name,
+                exportedName: 'default',
+                type: 'function'
+              });
+              localNames.add(name);
+            }
+          }
+          break;
+        case 'ExportNamedDeclaration':
+          if (node.declaration) {
+            if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
+              const name = node.declaration.id.name;
+              if (hasServerDirective(node.declaration)) {
+                exportedEntries.push({
+                  localName: name,
+                  exportedName: name,
+                  type: 'function'
+                });
+                localNames.add(name);
+              }
+            } else if (node.declaration.type === 'VariableDeclaration') {
+              for (const decl of node.declaration.declarations) {
+                if (decl.id.type === 'Identifier' && 
+                    decl.init && 
+                    (decl.init.type === 'FunctionExpression' || decl.init.type === 'ArrowFunctionExpression')) {
+                  const name = decl.id.name;
+                  if (hasServerDirective(decl.init)) {
+                    exportedEntries.push({
+                      localName: name,
+                      exportedName: name,
+                      type: 'function'
+                    });
+                    localNames.add(name);
+                  }
+                }
+              }
+            }
+          }
+          if (node.specifiers) {
+            for (const spec of node.specifiers) {
+              if (spec.type === 'ExportSpecifier') {
+                const localName = spec.local.type === 'Identifier' ? spec.local.name : '';
+                const exportedName = spec.exported.type === 'Identifier' ? spec.exported.name : '';
+                if (localName && exportedName) {
+                  // Find the original declaration to check for directive
+                  const originalDecl = program.body.find(n => 
+                    (n.type === 'FunctionDeclaration' && n.id?.name === localName) ||
+                    (n.type === 'VariableDeclaration' && n.declarations.some(d => 
+                      d.id.type === 'Identifier' && d.id.name === localName &&
+                      d.init && (d.init.type === 'FunctionExpression' || d.init.type === 'ArrowFunctionExpression')
+                    ))
+                  );
+                  if (originalDecl && hasServerDirective(originalDecl)) {
+                    exportedEntries.push({
+                      localName,
+                      exportedName,
+                      type: 'function'
+                    });
+                    localNames.add(localName);
+                  }
+                }
+              }
+            }
+          }
+          break;
+      }
+    }
+
+    // Remove file-level directive if present
+    if (directiveEnd > 0) {
+      newSource = newSource.slice(directiveEnd).trim();
+    }
+
+    // Add import and registrations
+    newSource += '\n\n';
+    newSource += 'import { registerServerReference } from "react-server-dom-esm/server.node";\n';
+
+    // Add registrations for each export
+    for (const entry of exportedEntries) {
+      const moduleIdWithExport = `${moduleId}#${entry.exportedName}`;
+      newSource += `registerServerReference(${entry.localName}, ${JSON.stringify(moduleIdWithExport)}, ${JSON.stringify(entry.exportedName)});\n`;
+    }
+
+    // Add source map
+    const sourceMapBase64 = generateSourceMap(
+      moduleId,
+      source,
+      newSource.split('\n'),
+      line => line.includes('import {') || line.includes('registerServerReference')
+    );
+    return `${newSource}\n//# sourceMappingURL=${sourceMapBase64}`;
+  }
+
+  // For client modules in server environment, replace with client references
+  if (Boolean(isClientComponent)) {
+    const output: string[] = [];
     const registrations: string[] = [];
 
-    // Register each export
+    // Add imports first
+    output.push('import { registerClientReference } from "react-server-dom-esm/server.node";');
+
+    // Register each export (skip default if not a function/class)
     for (const name of exportNames) {
       const exportInfo = exports.get(name);
       if (exportInfo) {
@@ -115,112 +420,30 @@ export function transformModuleWithPreservedFunctions(
           name === "default" && exportInfo.localName
             ? exportInfo.localName
             : name;
-        // Register all exports in server modules
-        registrations.push(
-          `registerServerReference(${exportName}, ${moduleIdLiteral}, ${JSON.stringify(
-            name
-          )});`
-        );
+        // Only register functions and classes
+        if (exportInfo.type === "function" || exportInfo.type === "class") {
+          registrations.push(
+            `registerClientReference(${exportName}, ${moduleIdLiteral}, ${JSON.stringify(name)});`
+          );
+        }
       }
     }
 
-    // Create new source with registrations
-    // First, add the imports at the top
-    const newSource = [...imports, sourceWithoutDirective, ...registrations].join("\n\n");
+    // Add the source code without directives
+    output.push(sourceWithoutDirective);
+    // Add registrations
+    output.push(...registrations);
 
-    // Handle source maps
-    let mappings = "";
-    const createMapping = createMappingsSerializer();
-    let generatedLine = 1;
-
-    // Map the import line to the first line of the original source
-    createMapping(generatedLine, 0, 0, 0, 0, -1);
-    generatedLine++;
-
-    // Map the registration lines to the first line of the original source
-    for (let i = 0; i < registrations.length; i++) {
-      createMapping(generatedLine, 0, 0, 1, 0, -1);
-      generatedLine++;
-    }
-
-    // Map the original source lines, skipping the directive line
-    const sourceLines = source.split("\n");
-    for (let i = 0; i < sourceLines.length; i++) {
-      createMapping(generatedLine, 0, 0, i + 1, 0, -1); // +1 because we skip directive line
-      generatedLine++;
-    }
-
-    // Add source map to the output with original source content
-    const sourceMap = {
-      version: 3,
-      file: moduleId,
-      sources: [moduleId],
-      sourcesContent: [newSource], // Use transformed source content
-      mappings,
-      sourceRoot: "",
-      names: [],
-    };
-
-    return (
-      newSource +
-      "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
-      Buffer.from(JSON.stringify(sourceMap)).toString("base64")
+    const newSource = output.join("\n\n");
+    const sourceMapBase64 = generateSourceMap(
+      moduleId,
+      source,
+      output,
+      line => line.includes('import {') || line.includes('registerClientReference')
     );
-    // end of server module
+    return `${newSource}\n//# sourceMappingURL=${sourceMapBase64}`;
   }
-  if (!!isClientComponent) {
-    // For client modules in server environment, register client references
-    const imports = [
-      'import { registerClientReference } from "react-server-dom-esm/server.node";',
-    ];
-    const declarations: string[] = [];
 
-    for (const name of exportNames) {
-      const errorMessage = createClientReferenceError(name);
-      if (name === "default") {
-        declarations.push(`export default registerClientReference(function() {
-throw new Error("${errorMessage}");
-}, ${moduleIdLiteral}, "default");`);
-      } else {
-        declarations.push(`export const ${name} = registerClientReference(function() {
-throw new Error("${errorMessage}");
-}, ${moduleIdLiteral}, ${JSON.stringify(name)});`);
-      }
-    }
-    // Create new source with declarations
-    const newSource = [...imports, ...declarations].join("\n\n");
-
-    // Handle source maps for client modules
-    let mappings = "";
-    const createMapping = createMappingsSerializer();
-    let generatedLine = 1;
-
-    // Map the import line to the first line of the original source
-    createMapping(generatedLine, 0, 0, 0, 0, -1);
-    generatedLine++;
-
-    // Map the declaration lines to the first line of the original source
-    for (let i = 0; i < declarations.length; i++) {
-      createMapping(generatedLine, 0, 0, 1, 0, -1);
-      generatedLine++;
-    }
-
-    // Add source map to the output with original source content
-    const sourceMap = {
-      version: 3,
-      file: moduleId,
-      sources: [moduleId],
-      sourcesContent: [newSource], // Use transformed source content
-      mappings,
-      sourceRoot: "",
-      names: [],
-    };
-
-    return (
-      newSource +
-      "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
-      Buffer.from(JSON.stringify(sourceMap)).toString("base64")
-    );
-  }
-  throw new Error("Invalid module type");
+  // For non-server, non-client modules, return as is
+  return sourceWithoutDirective;
 }

@@ -53,7 +53,7 @@ describe("Server Action Integration", () => {
 
   afterAll(async () => {
     await server?.close();
-    await rm(testDir, { recursive: true, force: true });
+    // await rm(testDir, { recursive: true, force: true });
   });
 
   it("should have the right headers", async () => {
@@ -109,5 +109,46 @@ export function subtract(a, b) {
       '5:E{"digest":"","name":"Error","message":"Test error"'
     ); // Error marker in RSC format
     expect(errorResponse.result).toContain("Test error");
+  });
+
+  
+  it("should handle server action errors defined at the function level", async () => {
+    // Add a test for error handling by modifying the server action to throw
+    const errorActionPath = resolve(testDir, "src/page/actions.server.ts");
+    const errorActionContent = `
+export function add(a, b) {
+  "use server";
+  const error = new Error('Test error');
+  error.name = 'Error';
+  error.digest = '';
+  throw error;
+}
+
+export function subtract(a, b) {
+  return a - b;
+}`;
+
+    // Write the modified server action file
+    await writeFile(errorActionPath, errorActionContent);
+    await server.moduleGraph.invalidateAll();
+    const errorResponse = await handleRSCStream(pageURL);
+
+    // The error should be caught and handled gracefully
+    const response = await fetch(pageURL.replace("/index.rsc", "#subtract"), {
+      method: "POST",
+      body: JSON.stringify({
+        "id": "subtract",
+        "args": [1, 2]
+      }),
+      headers: {
+        Accept: "text/x-component",
+      },
+    });
+    const result = await response.text();
+    console.log(result);
+    expect(result).toContain(
+      '5:E{"digest":"","name":"Error","message":"Test error"'
+    ); // Error marker in RSC format
+    expect(result).toContain("Test error");
   });
 });

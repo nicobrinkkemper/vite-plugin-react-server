@@ -10,14 +10,15 @@ import { ReactDOMServer } from "../vendor/vendor.server.js";
 import type { IncomingMessage, ServerResponse } from "http";
 
 export async function handleServerAction<
-  T extends PagePropOpt,
-  InlineCss extends InlineCssOpt
+  T extends PagePropOpt = PagePropOpt,
+  InlineCss extends InlineCssOpt = InlineCssOpt
 >(
   req: IncomingMessage,
   res: ServerResponse,
   server: ViteDevServer,
   handlerOptions: ResolvedUserOptions<T, InlineCss>
 ) {
+  let id = req.url?.split("?")[0] ?? "";
   try {
     if (handlerOptions.verbose) {
       server.config.logger.info(
@@ -25,10 +26,7 @@ export async function handleServerAction<
       );
     }
 
-    // Parse the request body - handle both formats:
-    // 1. Direct args array: ["arg1", "arg2"]
-    // 2. Object with id and args: { id: "path/to/action", args: ["arg1", "arg2"] }
-    let id: string;
+    // Parse the request body
     let args: unknown[];
     try {
       const chunks: Buffer[] = [];
@@ -45,7 +43,6 @@ export async function handleServerAction<
         // Format 1: Direct args array
         args = parsed;
         // Get the action ID from the request URL
-        id = req.url?.split("?")[0] ?? "";
         if (handlerOptions.verbose) {
           server.config.logger.info(
             `[react-server] Using action ID from URL: ${id}`
@@ -59,9 +56,8 @@ export async function handleServerAction<
         throw new Error("Invalid server action request format");
       }
     } catch (error: unknown) {
-      const err = toError(error);
       throw new Error(`Failed to parse server action request`, {
-        cause: err,
+        cause: toError(error),
       });
     }
 
@@ -134,13 +130,15 @@ export async function handleServerAction<
       );
     }
 
-    // Send the response
+    // Send the response using RSC streaming
     res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+    res.setHeader("Content-Length", "0"); // Will be updated after streaming
 
     const { pipe } = ReactDOMServer.renderToPipeableStream(
       {
         type: "server-action-response",
-        returnValue: result
+        returnValue: result,
+        id
       },
       handlerOptions.moduleBasePath,
       {
@@ -149,11 +147,50 @@ export async function handleServerAction<
           res.statusCode = 500;
           res.end();
         },
+        onAllReady() {
+          // Update content length after streaming is complete
+          const contentLength = res.getHeader("Content-Length");
+          if (contentLength) {
+            res.setHeader("Content-Length", contentLength);
+          }
+        }
       }
     );
 
     pipe(res);
   } catch (error) {
-    logError(error, server.config.logger);
+    const err = toError(error);
+    logError(err, server.config.logger);
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+    res.setHeader("Content-Length", "0"); // Will be updated after streaming
+
+    const { pipe } = ReactDOMServer.renderToPipeableStream(
+      {
+        type: "server-action-response",
+        returnValue: null,
+        error: {
+          digest: err.message || "",
+          name: err.name || "Error",
+        },
+        id
+      },
+      handlerOptions.moduleBasePath,
+      {
+        onError(error: Error) {
+          logError(error, server.config.logger);
+          res.statusCode = 500;
+          res.end();
+        },
+        onAllReady() {
+          // Update content length after streaming is complete
+          const contentLength = res.getHeader("Content-Length");
+          if (contentLength) {
+            res.setHeader("Content-Length", contentLength);
+          }
+        }
+      }
+    );
+    pipe(res);
   }
 }

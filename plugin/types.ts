@@ -445,7 +445,8 @@ export type PluginEventType = PluginEvent["type"];
 
 export interface StreamPluginOptions<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  As extends AsOpt = AsOpt
 > {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
@@ -503,9 +504,9 @@ export interface StreamPluginOptions<
         // default: /\.rsc$/
         rscPattern?: RegExpOpt;
         // default serverDirective regex
-        isServerFunction?: RegExpOpt;
+        isServerFunctionCode?: (code: string, moduleId?: string) => boolean;
         // default clientDirective regex
-        isClientComponent?: RegExpOpt;
+        isClientComponentCode?: (code: string, moduleId?: string) => boolean;
       }
     | undefined;
   // Manual configuration
@@ -521,7 +522,7 @@ export interface StreamPluginOptions<
   loaderPath?: string;
   pageExportName?: string;
   propsExportName?: string;
-  Html?: React.FC<HtmlProps<T, InlineCSS>>;
+  Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment;
   CssCollector?: CssCollectorBoxedType<T, InlineCSS>;
   build?: BuildConfig;
   css?: CssCollectorOptions<InlineCSS>;
@@ -804,7 +805,6 @@ export type HtmlProps<
   manifest: Manifest;
   CssCollector: CssCollectorBoxedType<T, InlineCSS, As>;
   globalCss: Map<string, CssContent<InlineCSS>>;
-  children?: React.ReactNode;
   as: As;
 };
 

@@ -171,12 +171,12 @@ export function reactServerPlugin<
           const mod = server.moduleGraph.getModuleById(file);
           if (mod) {
             // Invalidate the parent module which will handle both client and SSR
-            server.moduleGraph.invalidateModule(mod);
+            server.moduleGraph.invalidateModule(mod, undefined, undefined, true);
             
             // Force a reload of the module
             const newMod = await server.moduleGraph.ensureEntryFromUrl(file, false);
             if (newMod) {
-              server.moduleGraph.invalidateModule(newMod);
+              server.moduleGraph.invalidateModule(newMod, undefined, undefined, true);
             }
           }
         }

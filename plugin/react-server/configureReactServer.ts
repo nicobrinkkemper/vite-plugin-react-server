@@ -45,7 +45,7 @@ export async function configureReactServer<
     Html: React.Fragment,
     onEvent: createEventHandler(onEvent),
     css: handlerUserOptions.css
-  };
+  } as ResolvedUserOptions<T, InlineCSS>;
 
   // Set environment-specific configuration
   const define = {
