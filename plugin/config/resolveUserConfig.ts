@@ -388,12 +388,7 @@ export function resolveUserConfig<
             : true,
         rollupOptions: {
           ...config.build?.rollupOptions,
-          input: Object.fromEntries(
-            Object.entries(autoDiscoveredFiles.inputs).map(([key, value]) => [
-              key,
-              value.slice(Number(value.startsWith("/"))),
-            ])
-          ),
+          input: autoDiscoveredFiles.inputs,
           preserveEntrySignatures:
             config.build?.rollupOptions?.preserveEntrySignatures ?? "strict",
           output: newOutput,
