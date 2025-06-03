@@ -18,8 +18,7 @@ import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import type { RscWorkerInputMessage } from "../worker/types.js";
 import { Readable } from "node:stream";
 import type { ReadableStream } from "node:stream/web";
-import { PassThrough } from "node:stream";
-import { logError, toError } from "../error/toError.js";
+import { handleWorkerServerAction } from "./handleWorkerServerAction.js";
 
 /**
  * Configures the worker request handler.
@@ -95,93 +94,18 @@ export async function configureWorkerRequestHandler<
 
     // Handle server action requests
     if (info.isServerActionRequest) {
-      try {
-        // Read request body
-        const chunks: Buffer[] = [];
-        for await (const chunk of req) {
-          chunks.push(chunk);
-        }
-        const body = Buffer.concat(chunks).toString();
-        const parsed = JSON.parse(body);
-
-        // Get action ID and args from the request body
-        let id: string;
-        let args: unknown[];
-        if (Array.isArray(parsed)) {
-          // Format 1: Direct args array
-          args = parsed;
-          id = req.url?.split("?")[0] ?? "";
-        } else if (parsed && typeof parsed === "object" && "id" in parsed) {
-          // Format 2: Object with id and args
-          id = parsed.id;
-          args = parsed.args ?? [];
-        } else {
-          throw new Error("Invalid server action request format");
-        }
-
-        // Set up response headers for streaming
-        res.setHeader("Content-Type", "text/x-component; charset=utf-8");
-        res.setHeader("Transfer-Encoding", "chunked");
-        res.setHeader("Connection", "keep-alive");
-
-        if (!currentWorker) {
-          currentWorker = await restartWorker({
-            server,
-            autoDiscoveredFiles,
-            userOptions: serializedUserOptions,
-            hmrChannel,
-          });
-        }
-
-        // Send server action request to worker
-        currentWorker!.postMessage({
-          type: "SERVER_ACTION",
-          id,
-          args,
-        } satisfies RscWorkerInputMessage);
-
-        // Create a pass-through stream for the response
-        const passThrough = new PassThrough();
-        passThrough.pipe(res);
-
-        // Handle worker messages
-        const messageHandler = (message: any) => {
-          if (message.type === "RSC_CHUNK") {
-            passThrough.write(message.chunk);
-          } else if (message.type === "RSC_END") {
-            passThrough.end();
-            currentWorker!.removeListener("message", messageHandler);
-          } else if (message.type === "ERROR") {
-            passThrough.end();
-            currentWorker!.removeListener("message", messageHandler);
-            logError(message.error, server.config.logger);
-          }
-        };
-
-        currentWorker!.on("message", messageHandler);
-
-        // Handle errors
-        passThrough.on("error", (error) => {
-          logError(error, server.config.logger);
-          res.end();
+      if (!currentWorker) {
+        currentWorker = await restartWorker({
+          server,
+          autoDiscoveredFiles,
+          userOptions: serializedUserOptions,
+          hmrChannel,
         });
-
-        return;
-      } catch (error) {
-        const err = toError(error);
-        logError(err, server.config.logger);
-        res.statusCode = 500;
-        res.end(
-          JSON.stringify({
-            type: "server-action-response",
-            returnValue: {
-              success: false,
-              error: err.message,
-            },
-          })
-        );
-        return;
       }
+      if (!currentWorker) {
+        throw new Error("Failed to start worker");
+      }
+      return handleWorkerServerAction(req, res, currentWorker, server.config.logger);
     }
 
     // Handle RSC requests

@@ -67,7 +67,7 @@ export const handlers: Required<StreamHandlers> = {
     const stream = ReactDOMServer.renderToPipeableStream(
       {
         type: "server-action-response",
-        returnValue: result,
+        returnValue: result
       },
       userOptions.moduleBasePath,
       {
@@ -137,7 +137,7 @@ export const handlers: Required<StreamHandlers> = {
       const stream = ReactDOMServer.renderToPipeableStream(
         {
           type: "server-action-response",
-          returnValue: result,
+          returnValue: result
         },
         userOptions.moduleBasePath,
         {
@@ -182,7 +182,7 @@ export const handlers: Required<StreamHandlers> = {
       const stream = ReactDOMServer.renderToPipeableStream(
         {
           type: "server-action-response",
-          returnValue: { success: false, error: errorMessage },
+          returnValue: { success: false, error: errorMessage }
         },
         userOptions.moduleBasePath,
         {
