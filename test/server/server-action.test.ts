@@ -85,12 +85,14 @@ describe("Generic Server Action Build Output", () => {
   });
   it("should register the add server action, but not the subtract server action", async () => {
     const addServerAction = serverBundle["page/add.server.js"].code;
-    expect(addServerAction).toContain("registerServerReference(add, \"/src/page/add.server.ts#add\", \"add\");");
+    expect(addServerAction).toContain("registerServerReference(add, \"/src/page/add.server.ts\", \"add\");");
     expect(addServerAction).not.toContain("registerServerReference(subtract");
   });
   it("should register the subtract server action, but not the add server action", async () => {
     const subtractServerAction = serverBundle["page/subtract.server.js"].code;
-    expect(subtractServerAction).toContain("registerServerReference(subtract, \"/src/page/subtract.server.ts#subtract\", \"subtract\");");
+    expect(subtractServerAction).toContain("registerServerReference(subtract, \"/src/page/subtract.server.ts\", \"subtract\");");
+    // wrench in the system, 2 use server directives but one non use server directive function export
+    expect(subtractServerAction).toContain("registerServerReference(multiply, \"/src/page/subtract.server.ts\", \"multiply\");");
     expect(subtractServerAction).not.toContain("registerServerReference(add");
   });
 });

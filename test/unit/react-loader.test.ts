@@ -444,14 +444,14 @@ export function hello() {
       version: 3,
       file: 'test.js',
       sources: ['test.js'],
-      sourcesContent: expect.arrayContaining([expect.stringContaining('registerServerReference')]),
+      sourcesContent: expect.arrayContaining([expect.stringContaining('"use server"')]),
       mappings: expect.any(String),
       sourceRoot: '',
       names: []
     });
 
     // Verify the transformed code is in the source map content
-    expect(sourceMap.sourcesContent[0]).toContain('registerServerReference');
+    expect(sourceMap.sourcesContent[0]).toContain('"use server"');
     expect(sourceMap.sourcesContent[0]).toContain('hello');
   });
 
@@ -480,14 +480,119 @@ export function hello() {
       version: 3,
       file: 'test.js',
       sources: ['test.js'],
-      sourcesContent: expect.arrayContaining([expect.stringContaining('registerClientReference')]),
+      sourcesContent: expect.arrayContaining([expect.stringContaining('"use client"')]),
       mappings: expect.any(String),
       sourceRoot: '',
       names: []
     });
 
     // Verify the transformed code is in the source map content
-    expect(sourceMap.sourcesContent[0]).toContain('registerClientReference');
+    expect(sourceMap.sourcesContent[0]).toContain('"use client"');
     expect(sourceMap.sourcesContent[0]).toContain('hello');
+  });
+
+  test('should generate correct mappings for server actions with multiple functions', async () => {
+    const source = `"use server";
+export function add(a, b) {
+  return a + b;
+}
+
+export function subtract(a, b) {
+  return a - b;
+}`;
+
+    const result = transformModuleIfNeeded(
+      source,
+      'test.js',
+      source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
+      null,
+      true // isServerEnvironment
+    );
+
+    // Extract source map from the result
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    expect(sourceMapMatch).toBeTruthy();
+    
+    const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
+    
+    // Verify the mappings contain the correct number of segments
+    // We expect:
+    // 1. Import statement
+    // 2. Original source code (2 functions)
+    // 3. Two registerServerReference calls
+    const segments = sourceMap.mappings.split(';').filter(Boolean);
+    expect(segments.length).toBeGreaterThanOrEqual(4);
+
+    // Verify the transformed code contains both registrations
+    expect(result).toContain('registerServerReference(add');
+    expect(result).toContain('registerServerReference(subtract');
+  });
+
+  test('should generate correct mappings for client components with multiple exports', async () => {
+    const source = `"use client";
+export function Button() {
+  return <button>Click me</button>;
+}
+
+export function Input() {
+  return <input />;
+}`;
+
+    const result = transformModuleIfNeeded(
+      source,
+      'test.js',
+      null,
+      source.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective),
+      true // isServerEnvironment
+    );
+
+    // Extract source map from the result
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    expect(sourceMapMatch).toBeTruthy();
+    
+    const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
+    
+    // Verify the mappings contain the correct number of segments
+    // We expect:
+    // 1. Import statement
+    // 2. Two registerClientReference calls
+    const segments = sourceMap.mappings.split(';').filter(Boolean);
+    expect(segments.length).toBeGreaterThanOrEqual(3);
+
+    // Verify the transformed code contains both registrations
+    expect(result).toContain('registerClientReference(function() {throw new Error("Attempted to call Button()');
+    expect(result).toContain('registerClientReference(function() {throw new Error("Attempted to call Input()');
+  });
+
+  test('should preserve line numbers in mappings for nested functions', async () => {
+    const source = `"use server";
+export function outer() {
+  function inner() {
+    return "nested";
+  }
+  return inner();
+}`;
+
+    const result = transformModuleIfNeeded(
+      source,
+      'test.js',
+      source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
+      null,
+      true // isServerEnvironment
+    );
+
+    // Extract source map from the result
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    expect(sourceMapMatch).toBeTruthy();
+    
+    const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
+    
+    // Verify the source content is preserved
+    expect(sourceMap.sourcesContent[0]).toContain('function inner()');
+    expect(sourceMap.sourcesContent[0]).toContain('return "nested"');
+
+    // Verify the transformed code maintains the structure
+    expect(result).toContain('function outer()');
+    expect(result).toContain('function inner()');
   });
 });

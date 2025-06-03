@@ -56,7 +56,6 @@ export function transformModuleIfNeeded(
       isServerFunction,
       isClientComponent
     );
-    console.log("transformModuleIfNeeded", isServerEnvironment, isServerFunction, isClientComponent, result);
     return result;
   } catch (error) {
     // Log the error and rethrow

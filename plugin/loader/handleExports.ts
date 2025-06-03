@@ -4,7 +4,7 @@ import type {
   VariableDeclarator
 } from "acorn";
 
-interface ExportInfo {
+export interface ExportInfo {
   name: string;
   localName?: string;
   type: "function" | "variable" | "class" | "unknown" | "all";
@@ -13,6 +13,7 @@ interface ExportInfo {
   before?: string[];
   after?: string[];
   isAsync?: boolean;
+  loc?: { line: number; column: number };
 }
 
 /**

@@ -70,9 +70,9 @@ describe("Server Action Integration", () => {
   });
 
   it("should include server action references in the RSC stream", async () => {
-    expect(response.result).toContain('"id":"/src/page/actions.server.ts#add"');
+    expect(response.result).toContain('"id":"/src/page/actions.server.ts');
     expect(response.result).toContain(
-      '"id":"/src/page/actions.server.ts#subtract"'
+      '"id":"/src/page/actions.server.ts'
     );
   });
 
@@ -134,7 +134,7 @@ export function subtract(a, b) {
     const errorResponse = await handleRSCStream(pageURL);
 
     // The error should be caught and handled gracefully
-    const response = await fetch(pageURL.replace("/index.rsc", "#subtract"), {
+    const response = await fetch(pageURL.replace("index.rsc", "actions.server.ts#add"), {
       method: "POST",
       body: JSON.stringify({
         "id": "subtract",

@@ -30,32 +30,57 @@ export interface TransformOptions {
   program?: Program;
 }
 
-function createSourceMap(id: string, code: string, mappings: string) {
-  return {
-    version: 3,
-    file: id,
-    sources: [id],
-    sourcesContent: [code],
-    mappings,
-    sourceRoot: "",
-    names: [],
-  };
+// Helper type for mapping info
+interface MappingInfo {
+  generatedLine: number;
+  originalLine: number;
+  originalColumn: number;
 }
 
-function generateSourceMap(moduleId: string, source: string, lines: string[], isImportOrRegistration: (line: string) => boolean) {
+function generateSourceMap(
+  moduleId: string,
+  source: string,
+  lines: string[],
+  mappingInfos: MappingInfo[],
+  originalSourceMap?: any
+) {
   const createMapping = createMappingsSerializer();
-  let generatedLine = 1;
-  let generatedColumn = 0;
+  let mappings = '';
 
+  // Create a mapping for each line
   for (let i = 0; i < lines.length; i++) {
-    const originalLine = isImportOrRegistration(lines[i]) ? 1 : Math.max(1, i - 1);
-    createMapping(generatedLine, generatedColumn, 0, originalLine, 0, -1);
-    generatedLine++;
+    const info = mappingInfos[i] || { generatedLine: i + 1, originalLine: 1, originalColumn: 0 };
+    mappings += createMapping(
+      info.generatedLine,
+      0,
+      0, // sourceIndex
+      info.originalLine,
+      info.originalColumn,
+      -1 // nameIndex
+    );
   }
 
-  const sourceMap = createSourceMap(moduleId, source, createMapping(generatedLine, generatedColumn, 0, lines.length, 0, -1));
-  const sourceMapJson = JSON.stringify(sourceMap);
-  return `data:application/json;charset=utf-8;base64,${Buffer.from(sourceMapJson).toString("base64")}`;
+  // Add a final mapping for the end of the file
+  mappings += createMapping(
+    lines.length + 1,
+    0,
+    0,
+    source.split('\n').length,
+    0,
+    -1
+  );
+
+  const sourceMap = {
+    version: 3,
+    file: moduleId,
+    sources: originalSourceMap?.sources || [moduleId],
+    sourcesContent: originalSourceMap?.sourcesContent || [source],
+    mappings,
+    sourceRoot: originalSourceMap?.sourceRoot || "",
+    names: originalSourceMap?.names || [],
+  };
+
+  return `data:application/json;charset=utf-8;base64,${Buffer.from(JSON.stringify(sourceMap)).toString("base64")}`;
 }
 
 /**
@@ -102,8 +127,36 @@ export function transformModuleWithPreservedFunctions(
   isServerFunction: boolean | RegExpMatchArray | null,
   isClientComponent: boolean | RegExpMatchArray | null
 ): string {
+  // Check for existing source map
+  let sourceMappingURL = null;
+  let sourceMappingStart = 0;
+  let sourceMappingEnd = 0;
+  let sourceMappingLines = 0;
+  let originalSourceMap = null;
+
+  // Look for source map comment
+  const sourceMapMatch = source.match(/\/\/[#@] sourceMappingURL=(.+)$/m);
+  if (sourceMapMatch) {
+    sourceMappingURL = sourceMapMatch[1];
+    sourceMappingStart = sourceMapMatch.index!;
+    sourceMappingEnd = sourceMapMatch.index! + sourceMapMatch[0].length;
+    sourceMappingLines = sourceMapMatch[0].split('\n').length - 1;
+
+    // If it's a data URL, parse it
+    if (sourceMappingURL.startsWith('data:application/json;base64,')) {
+      const base64 = sourceMappingURL.slice('data:application/json;base64,'.length);
+      originalSourceMap = JSON.parse(Buffer.from(base64, 'base64').toString());
+    }
+  }
+
+  // Remove the old source map if present
+  let sourceWithoutMap = source;
+  if (sourceMappingStart > 0) {
+    sourceWithoutMap = source.slice(0, sourceMappingStart) + '\n'.repeat(sourceMappingLines) + source.slice(sourceMappingEnd);
+  }
+
   // Remove directives from source code
-  let sourceWithoutDirective = source;
+  let sourceWithoutDirective = sourceWithoutMap;
   let directiveEnd = 0;
   let hasFileLevelServerDirective = false;
   let hasFileLevelClientDirective = false;
@@ -268,10 +321,66 @@ export function transformModuleWithPreservedFunctions(
     throw new Error(`Module ${moduleId} is marked as a server function but has no exports to transform`);
   }
 
+  // For client modules in server environment, replace with client references
+  if (Boolean(isClientComponent)) {
+    const output: string[] = [];
+    const mappingInfos: MappingInfo[] = [];
+
+    // Add registerClientReference import
+    const clientImport = process.env['NODE_ENV'] === 'production'
+      ? 'import { registerClientReference } from "react-server-dom-esm/server";'
+      : 'import { registerClientReference } from "react-server-dom-esm/server.node";';
+    output.push(clientImport);
+    mappingInfos.push({ generatedLine: 1, originalLine: 1, originalColumn: 0 });
+
+    // Register each export
+    let lineNum = 2;
+    for (const name of exportNames) {
+      const exportInfo = exports.get(name);
+      if (exportInfo) {
+        // For default exports, use the localName if available
+        const exportName =
+          name === "default" && exportInfo.localName
+            ? exportInfo.localName
+            : name;
+        if (name === 'default') {
+          output.push(
+            `export default registerClientReference(function() {` +
+            `throw new Error("Attempted to call the default export of ${moduleIdLiteral} from the server but it's on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");` +
+            `}, ${moduleIdLiteral}, "default");`
+          );
+        } else {
+          output.push(
+            `export const ${exportName} = registerClientReference(function() {` +
+            `throw new Error("Attempted to call ${exportName}() from the server but ${exportName} is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");` +
+            `}, ${moduleIdLiteral}, ${JSON.stringify(name)});`
+          );
+        }
+        // Create a mapping for each registration line
+        mappingInfos.push({ 
+          generatedLine: lineNum, 
+          originalLine: exportInfo.loc?.line || 1, 
+          originalColumn: exportInfo.loc?.column || 0 
+        });
+        lineNum++;
+      }
+    }
+
+    const newClientSource = output.join("\n\n");
+    const sourceMapBase64 = generateSourceMap(
+      moduleId,
+      source,
+      output,
+      mappingInfos,
+      originalSourceMap
+    );
+    return `${newClientSource}\n//# sourceMappingURL=${sourceMapBase64}`;
+  }
+
   // For server modules in client environment, replace with server references
   if (Boolean(isServerFunction)) {
     // First collect all exports that need registration
-    const exportedEntries = [];
+    const exportedEntries: Array<{ localName: string; exportedName: string; type: string; loc?: { line: number; column: number } }> = [];
     const localNames = new Set();
 
     // Helper to check if a function has a "use server" directive
@@ -303,7 +412,7 @@ export function transformModuleWithPreservedFunctions(
         continue;
       }
 
-      // Collect exports that need registration
+      // Collect exports that need registration, with loc
       switch (node.type) {
         case 'ExportDefaultDeclaration':
           if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
@@ -312,10 +421,20 @@ export function transformModuleWithPreservedFunctions(
               exportedEntries.push({
                 localName: name,
                 exportedName: 'default',
-                type: 'function'
+                type: 'function',
+                loc: node.declaration.id.loc?.start || { line: 1, column: 0 }
               });
               localNames.add(name);
             }
+          } else if (node.declaration.type === 'ClassDeclaration' && node.declaration.id) {
+            const name = node.declaration.id.name;
+            exportedEntries.push({
+              localName: name,
+              exportedName: 'default',
+              type: 'class',
+              loc: node.declaration.id.loc?.start || { line: 1, column: 0 }
+            });
+            localNames.add(name);
           }
           break;
         case 'ExportNamedDeclaration':
@@ -326,23 +445,45 @@ export function transformModuleWithPreservedFunctions(
                 exportedEntries.push({
                   localName: name,
                   exportedName: name,
-                  type: 'function'
+                  type: 'function',
+                  loc: node.declaration.id.loc?.start || { line: 1, column: 0 }
                 });
                 localNames.add(name);
               }
+            } else if (node.declaration.type === 'ClassDeclaration' && node.declaration.id) {
+              const name = node.declaration.id.name;
+              exportedEntries.push({
+                localName: name,
+                exportedName: name,
+                type: 'class',
+                loc: node.declaration.id.loc?.start || { line: 1, column: 0 }
+              });
+              localNames.add(name);
             } else if (node.declaration.type === 'VariableDeclaration') {
               for (const decl of node.declaration.declarations) {
-                if (decl.id.type === 'Identifier' && 
-                    decl.init && 
-                    (decl.init.type === 'FunctionExpression' || decl.init.type === 'ArrowFunctionExpression')) {
+                if (decl.id.type === 'Identifier') {
                   const name = decl.id.name;
-                  if (hasServerDirective(decl.init)) {
-                    exportedEntries.push({
-                      localName: name,
-                      exportedName: name,
-                      type: 'function'
-                    });
-                    localNames.add(name);
+                  if (decl.init) {
+                    if (decl.init.type === 'FunctionExpression' || decl.init.type === 'ArrowFunctionExpression') {
+                      if (hasServerDirective(decl.init)) {
+                        exportedEntries.push({
+                          localName: name,
+                          exportedName: name,
+                          type: 'function',
+                          loc: decl.id.loc?.start || { line: 1, column: 0 }
+                        });
+                        localNames.add(name);
+                      }
+                    } else {
+                      // Register non-function values
+                      exportedEntries.push({
+                        localName: name,
+                        exportedName: name,
+                        type: 'value',
+                        loc: decl.id.loc?.start || { line: 1, column: 0 }
+                      });
+                      localNames.add(name);
+                    }
                   }
                 }
               }
@@ -357,18 +498,43 @@ export function transformModuleWithPreservedFunctions(
                   // Find the original declaration to check for directive
                   const originalDecl = program.body.find(n => 
                     (n.type === 'FunctionDeclaration' && n.id?.name === localName) ||
+                    (n.type === 'ClassDeclaration' && n.id?.name === localName) ||
                     (n.type === 'VariableDeclaration' && n.declarations.some(d => 
-                      d.id.type === 'Identifier' && d.id.name === localName &&
-                      d.init && (d.init.type === 'FunctionExpression' || d.init.type === 'ArrowFunctionExpression')
+                      d.id.type === 'Identifier' && d.id.name === localName
                     ))
                   );
-                  if (originalDecl && hasServerDirective(originalDecl)) {
-                    exportedEntries.push({
-                      localName,
-                      exportedName,
-                      type: 'function'
-                    });
-                    localNames.add(localName);
+                  let loc = { line: 1, column: 0 };
+                  if (originalDecl) {
+                    if (originalDecl.type === 'FunctionDeclaration' && hasServerDirective(originalDecl)) {
+                      loc = originalDecl.id?.loc?.start || loc;
+                      exportedEntries.push({
+                        localName,
+                        exportedName,
+                        type: 'function',
+                        loc
+                      });
+                      localNames.add(localName);
+                    } else if (originalDecl.type === 'ClassDeclaration') {
+                      loc = originalDecl.id?.loc?.start || loc;
+                      exportedEntries.push({
+                        localName,
+                        exportedName,
+                        type: 'class',
+                        loc
+                      });
+                      localNames.add(localName);
+                    } else if (originalDecl.type === 'VariableDeclaration') {
+                      // Find the right declaration
+                      const decl = originalDecl.declarations.find(d => d.id.type === 'Identifier' && d.id.name === localName);
+                      loc = decl?.id?.loc?.start || loc;
+                      exportedEntries.push({
+                        localName,
+                        exportedName,
+                        type: 'value',
+                        loc
+                      });
+                      localNames.add(localName);
+                    }
                   }
                 }
               }
@@ -384,66 +550,47 @@ export function transformModuleWithPreservedFunctions(
     }
 
     // Add import and registrations
-    newSource += '\n\n';
-    newSource += 'import { registerServerReference } from "react-server-dom-esm/server.node";\n';
+    const lines: string[] = [];
+    const mappingInfos: MappingInfo[] = [];
+    
+    // Add import statement
+    const serverImport = process.env['NODE_ENV'] === 'production' 
+      ? 'import { registerServerReference } from "react-server-dom-esm/server";'
+      : 'import { registerServerReference } from "react-server-dom-esm/server.node";';
+    lines.push(serverImport);
+    mappingInfos.push({ generatedLine: 1, originalLine: 1, originalColumn: 0 });
 
-    // Add registrations for each export
+    // Add the original source code
+    lines.push(newSource);
+    mappingInfos.push({ generatedLine: 2, originalLine: 1, originalColumn: 0 });
+
+    // Add registrations after the source code
+    let lineNum = lines.length + 1;
     for (const entry of exportedEntries) {
-      const moduleIdWithExport = `${moduleId}#${entry.exportedName}`;
-      newSource += `registerServerReference(${entry.localName}, ${JSON.stringify(moduleIdWithExport)}, ${JSON.stringify(entry.exportedName)});\n`;
-    }
-
-    // Add source map
-    const sourceMapBase64 = generateSourceMap(
-      moduleId,
-      source,
-      newSource.split('\n'),
-      line => line.includes('import {') || line.includes('registerServerReference')
-    );
-    return `${newSource}\n//# sourceMappingURL=${sourceMapBase64}`;
-  }
-
-  // For client modules in server environment, replace with client references
-  if (Boolean(isClientComponent)) {
-    const output: string[] = [];
-    const registrations: string[] = [];
-
-    // Add imports first
-    output.push('import { registerClientReference } from "react-server-dom-esm/server.node";');
-
-    // Register each export (skip default if not a function/class)
-    for (const name of exportNames) {
-      const exportInfo = exports.get(name);
-      if (exportInfo) {
-        // For default exports, use the localName if available
-        const exportName =
-          name === "default" && exportInfo.localName
-            ? exportInfo.localName
-            : name;
-        // Only register functions and classes
-        if (exportInfo.type === "function" || exportInfo.type === "class") {
-          registrations.push(
-            `registerClientReference(${exportName}, ${moduleIdLiteral}, ${JSON.stringify(name)});`
-          );
-        }
+      if (entry.type === 'function') {
+        lines.push(`if (typeof ${entry.localName} === "function") `);
       }
+      lines.push(`registerServerReference(${entry.localName}, ${JSON.stringify(moduleId)}, ${JSON.stringify(entry.exportedName)});`);
+      // Create a mapping for each registration line
+      mappingInfos.push({ 
+        generatedLine: lineNum, 
+        originalLine: entry.loc?.line || 1, 
+        originalColumn: entry.loc?.column || 0 
+      });
+      lineNum++;
     }
 
-    // Add the source code without directives
-    output.push(sourceWithoutDirective);
-    // Add registrations
-    output.push(...registrations);
-
-    const newSource = output.join("\n\n");
+    const newTransformedSource = lines.join('\n');
     const sourceMapBase64 = generateSourceMap(
       moduleId,
       source,
-      output,
-      line => line.includes('import {') || line.includes('registerClientReference')
+      lines,
+      mappingInfos,
+      originalSourceMap
     );
-    return `${newSource}\n//# sourceMappingURL=${sourceMapBase64}`;
+    return `${newTransformedSource}\n//# sourceMappingURL=${sourceMapBase64}`;
   }
 
   // For non-server, non-client modules, return as is
-  return sourceWithoutDirective;
+  return sourceWithoutMap;
 }

@@ -178,8 +178,14 @@ function subtract(a, b) {
  "use server";
   return a - b;
 }
-// export both, but only subtract is a server function
-export { subtract, add};
+
+
+function multiply(a, b) {
+  "use server";
+   return a * b;
+ }
+// export all, but only subtract and multiply are server functions
+export { subtract, add, multiply};
 `
 
   );
@@ -316,7 +322,7 @@ export async function deleteTodo(id: number): Promise<{ success: boolean }> {
   // Create client component for todo list
   await writeFile(
     resolve(testDir, "src/components/TodoList.client.tsx"),
-    `"use client"
+    `"use client";
 
 import React, { useState } from 'react';
 
