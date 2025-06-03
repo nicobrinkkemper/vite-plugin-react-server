@@ -19,6 +19,8 @@ import type {
   ViteDevServer,
 } from "vite";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
+import type { FragmentProps } from "react";
+import type { ExoticComponent } from "react";
 
 export type OnEvent = (event: PluginEvent) => void;
 
@@ -457,7 +459,7 @@ export interface StreamPluginOptions<
   // Auto-discovery (zero-config)
   autoDiscover?:
     | {
-      // default: /\.(m|c)?(j|t)sx?$/
+        // default: /\.(m|c)?(j|t)sx?$/
         moduleExtension?: RegExp;
         // default: /^"use server"[\s;]*\n?/m
         serverDirective?: RegExp;
@@ -567,7 +569,7 @@ export type CreateHandlerOptions<
   | "onMetrics"
   | "projectRoot"
   | "normalizer"
-  | "moduleID"  
+  | "moduleID"
 > & {
   logger: Logger;
   loader: ModuleLoader;
@@ -779,10 +781,9 @@ export type InlineCssOpt = undefined | boolean;
 export type PagePropOpt = Record<string, unknown> | undefined;
 export type RegExpOpt = RegExp | string | ((path: string) => boolean);
 
-export type AsOpt = Exclude<
-  keyof React.JSX.IntrinsicElements,
-  "symbol" | "object"
->;
+export type AsOpt =
+  | ExoticComponent<FragmentProps>
+  | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
 export type PageComponentType<T extends PagePropOpt = PagePropOpt> =
   React.ComponentType<T & React.PropsWithChildren<{}>>;
 

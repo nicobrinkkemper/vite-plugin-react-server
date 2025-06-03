@@ -316,26 +316,5 @@ export async function configureWorkerRequestHandler<
   };
   // attach handler to the server
   server.middlewares.use(handler);
-  let desiredPort = server.config.server.port;
-  let shouldUpdatePublicOrigin = false;
-  if (handlerOptions.publicOrigin.includes(`:${desiredPort}`)) {
-    shouldUpdatePublicOrigin = true;
-  }
-  // Listen for when the server actually starts
-  if (shouldUpdatePublicOrigin) {
-    server.httpServer?.once("listening", () => {
-      const address = server.httpServer?.address();
-      if (address && typeof address !== "string") {
-        const port = address.port;
-        if (port !== desiredPort) {
-          process.env.VITE_PUBLIC_ORIGIN = handlerOptions.publicOrigin;
-          handlerOptions.publicOrigin = handlerOptions.publicOrigin.replace(
-            `:${desiredPort}`,
-            `:${port}`
-          );
-        }
-      }
-    });
-  }
-  // done
+  // port check, should be handled by strictPort
 }

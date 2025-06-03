@@ -82,5 +82,33 @@ export function envPlugin(): Plugin {
       // Clean up environment variables when the bundle is closed
       cleanupEnv?.();
     },
+    configureServer(server) {
+      let envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
+      let publicOrigin = process.env[`${envPrefix}PUBLIC_ORIGIN`] ?? ""
+
+      let desiredPort = server.config.server.port;
+      let shouldUpdatePublicOrigin = false;
+      if (publicOrigin && publicOrigin.includes(`:${desiredPort}`)) {
+        shouldUpdatePublicOrigin = true;
+      }
+      // Listen for when the server actually starts
+      if (shouldUpdatePublicOrigin) {
+        server.httpServer?.once("listening", () => {
+          const address = server.httpServer?.address();
+          if (address && typeof address !== "string") {
+            const port = address.port;
+            if (port !== desiredPort) {
+              let envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
+              const newOrigin = publicOrigin.replace(
+                `:${desiredPort}`,
+                `:${port}`
+              );
+              process.env[`${envPrefix}PUBLIC_ORIGIN`] = newOrigin
+              console.warn("PUBLIC_ORIGIN did not match the port: " + port);
+            }
+          }
+        });
+      }
+    }
   };
 }
