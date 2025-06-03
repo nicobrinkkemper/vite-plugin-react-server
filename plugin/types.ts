@@ -1,6 +1,7 @@
 import type { Readable } from "node:stream";
 import type { Worker } from "node:worker_threads";
 import type React from "react";
+import type { ExoticComponent, FragmentProps } from "react";
 import type {
   NormalizedOutputOptions,
   OutputBundle,
@@ -19,8 +20,6 @@ import type {
   ViteDevServer,
 } from "vite";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
-import type { FragmentProps } from "react";
-import type { ExoticComponent } from "react";
 
 export type OnEvent = (event: PluginEvent) => void;
 

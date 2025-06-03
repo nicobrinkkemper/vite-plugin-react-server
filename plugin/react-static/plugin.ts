@@ -195,10 +195,18 @@ export function reactStaticPlugin<
         const cssFilesByPage = new Map();
 
         // First collect global styles from index.html
-        const globalCssInputs = collectManifestCss(
+        const indexHtmlCssInputs = collectManifestCss(
           autoDiscoveredFiles?.staticManifest ?? {},
-          "index.html"
+          userOptions.clientEntry ?? "index.html"
         );
+        const clientEntryCssInputs = collectManifestCss(
+          autoDiscoveredFiles?.staticManifest ?? {},
+          userOptions.clientEntry
+        );
+        const globalCssInputs = {
+          ...indexHtmlCssInputs,
+          ...clientEntryCssInputs,
+        };
 
         const globalCss: Map<string, CssContent<InlineCSS>> = new Map();
         // Collect CSS files for each page and its props
