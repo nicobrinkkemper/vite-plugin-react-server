@@ -86,9 +86,7 @@ export function resolveUserConfig<
       info.type === "asset" &&
       userOptions.autoDiscover.cssPattern(value)
     ) {
-      const found = entry.css?.find((css) =>
-        css.startsWith(id as string)
-      );
+      const found = entry.css?.find((css) => css.startsWith(id as string));
       if (found) {
         return found;
       } else {
@@ -154,7 +152,9 @@ export function resolveUserConfig<
           }
           stashedReturns[inputId] = r;
         }
-        return stashedReturns[inputId];
+        // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
+        // at the last possible moment as to not confuse the rest of the logic around the basePath
+        return stashedReturns[inputId].slice(Number(stashedReturns[inputId].startsWith("/")));
       }),
     assetFileNames: process.env["VITEST"]
       ? undefined
@@ -171,7 +171,9 @@ export function resolveUserConfig<
             }
             stashedReturns[inputId] = r;
           }
-          return stashedReturns[inputId];
+          // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
+          // at the last possible moment as to not confuse the rest of the logic around the basePath
+          return stashedReturns[inputId].slice(Number(stashedReturns[inputId].startsWith("/")));
         }),
     chunkFileNames:
       userDefinedChunkFileNames ??
@@ -194,7 +196,9 @@ export function resolveUserConfig<
           }
           stashedReturns[inputId] = r;
         }
-        return stashedReturns[inputId];
+        // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
+        // at the last possible moment as to not confuse the rest of the logic around the basePath
+        return stashedReturns[inputId].slice(Number(stashedReturns[inputId].startsWith("/")));
       }),
     format: "esm",
     exports: "named",
@@ -207,7 +211,11 @@ export function resolveUserConfig<
     ? [config.build?.rollupOptions?.output, pluginOutput]
     : pluginOutput;
   const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
-  const mode = config.mode ?? process.env["VITE_MODE"];
+  const mode =
+    config.mode ??
+    process.env[`${vitePrefix}MODE`] ??
+    process.env["NODE_ENV"] ??
+    "production";
   const minify = config.build?.minify;
 
   const srrConfig = {
@@ -229,15 +237,20 @@ export function resolveUserConfig<
     },
   };
   let publicOrigin =
-    userOptions.publicOrigin ?? process.env.VITE_PUBLIC_ORIGIN ?? "";
+    userOptions.publicOrigin ?? process.env[`${vitePrefix}PUBLIC_ORIGIN`] ?? "";
   let PROD = mode === "production";
   let DEV = mode === "development";
+  let port =
+    typeof config.server?.port === "number" ? config.server?.port : 5173;
+  let strictPort = config.server?.strictPort ?? true;
+  let host =
+    typeof config.server?.host === "string" ? config.server?.host : "localhost";
   if (configEnv.command === "serve" && !configEnv.isPreview) {
-    publicOrigin = `http${config.server?.https ? "s" : ""}://${
-      typeof config.server?.host === "string"
-        ? config.server?.host
-        : "localhost"
-    }:${typeof config.server?.port === "number" ? config.server?.port : 5173}`;
+    if (strictPort) {
+      publicOrigin = `http${config.server?.https ? "s" : ""}://${host}:${port}`;
+    } else {
+      publicOrigin = "";
+    }
   }
   const ssrDefine = ssr
     ? {
@@ -257,13 +270,13 @@ export function resolveUserConfig<
   // these will never be cleaned up, because, we are resolving the user config
   // and it's assumed the thread closes after this and we don't want
   // it to change after the config has been resolved
-  if (process.env.VITE_BASE_URL !== userOptions.moduleBaseURL) {
-    process.env.VITE_BASE_URL = userOptions.moduleBaseURL;
+  if (process.env[`${vitePrefix}BASE_URL`] !== userOptions.moduleBaseURL) {
+    process.env[`${vitePrefix}BASE_URL`] = userOptions.moduleBaseURL;
   }
-  if (process.env.VITE_PUBLIC_ORIGIN !== publicOrigin) {
-    process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
+  if (process.env[`${vitePrefix}PUBLIC_ORIGIN`] !== publicOrigin) {
+    process.env[`${vitePrefix}PUBLIC_ORIGIN`] = publicOrigin;
   }
-
+  
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)
     const clientConfig = {
@@ -282,6 +295,15 @@ export function resolveUserConfig<
       },
       define: define,
       ssr: srrConfig,
+      server: {
+        ...config.server,
+        // common default for stricter server operations
+        // and ensures tests that use a server will fail early
+        // also, we can't set the public origin without a port
+        port: port,
+        strictPort: strictPort,
+        host: host,
+      },
       // client build options
       build: {
         ...config.build,
@@ -298,9 +320,12 @@ export function resolveUserConfig<
         minify: minify,
         rollupOptions: {
           ...config.build?.rollupOptions,
-          input: {
-            ...autoDiscoveredFiles.inputs,
-          },
+          input: Object.fromEntries(
+            Object.entries(autoDiscoveredFiles.inputs).map(([key, value]) => [
+              key,
+              value.slice(Number(value.startsWith("/"))),
+            ])
+          ),
           output: newOutput,
           preserveEntrySignatures:
             config.build?.rollupOptions?.preserveEntrySignatures ??
@@ -363,7 +388,12 @@ export function resolveUserConfig<
             : true,
         rollupOptions: {
           ...config.build?.rollupOptions,
-          input: autoDiscoveredFiles.inputs,
+          input: Object.fromEntries(
+            Object.entries(autoDiscoveredFiles.inputs).map(([key, value]) => [
+              key,
+              value.slice(Number(value.startsWith("/"))),
+            ])
+          ),
           preserveEntrySignatures:
             config.build?.rollupOptions?.preserveEntrySignatures ?? "strict",
           output: newOutput,

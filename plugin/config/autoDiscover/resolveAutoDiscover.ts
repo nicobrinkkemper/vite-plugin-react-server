@@ -153,7 +153,6 @@ export async function resolveAutoDiscover<
     ...clientInputs,
     ...clientEntry,
     ...cssInputs,
-    ...jsonInputs,
   };
   // Add inputs based on condition
   const inputs =
@@ -169,6 +168,7 @@ export async function resolveAutoDiscover<
           ...agnosticInputs,
           ...serverActions,
           ...serverEntry,
+          ...jsonInputs,
         };
   return {
     type: "success",

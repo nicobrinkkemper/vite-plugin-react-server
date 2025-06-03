@@ -561,6 +561,7 @@ export type CreateHandlerOptions<
   | "moduleRootPath"
   | "moduleBasePath"
   | "moduleBaseURL"
+  | "publicOrigin"
   | "pipeableStreamOptions"
   | "onEvent"
   | "onMetrics"

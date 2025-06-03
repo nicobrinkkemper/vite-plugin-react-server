@@ -119,7 +119,7 @@ export function requestInfo(
   } else {
     const mimeType = MIME_TYPES[ext];
     if (mimeType) {
-      contentType = mimeType;
+      contentType = mimeType + "; charset=utf-8";
     } else {
       contentType = "application/octet-stream";
     }

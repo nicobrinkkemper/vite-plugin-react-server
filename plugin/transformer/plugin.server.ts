@@ -154,14 +154,12 @@ export function reactTransformPlugin<
         }
       if (!transformed) {
         return {
-          id: finalID,
           code: "",
           map: null,
         };
       }
 
       return {
-        id: finalID,
         code: transformed,
         map: null,
       };

@@ -44,12 +44,20 @@ const cleanupInitialUserConfigEnv = resolveEnv(
  */
 export function envPlugin(): Plugin {
   let cleanupEnv: (() => void) | undefined;
+  let vitePrefix = DEFAULT_CONFIG.ENV_PREFIX as string;
   return {
     name: "vite-plugin-react-server:env",
     enforce: "pre",
     config(config, { mode }) {
+      if(config.envPrefix) {
+        if(typeof config.envPrefix === "string") {
+          vitePrefix = config.envPrefix;
+        } else if(Array.isArray(config.envPrefix)) {
+          vitePrefix = config.envPrefix[0];
+        }
+      }
       const invalidEnv =
-        (mode !== undefined && mode !== process.env.VITE_MODE) ||
+        (mode !== undefined && mode !== process.env[`${vitePrefix}MODE`]) ||
         (config.root !== undefined && config.root !== userProjectRoot);
       if (invalidEnv) {
         cleanupInitialUserConfigEnv();
@@ -57,9 +65,9 @@ export function envPlugin(): Plugin {
       // Clean up any previous env setup
       const cleanupUserConfigEnv = invalidEnv
         ? resolveEnv(
-            mode || process.env.VITE_MODE,
+            mode || process.env[`${vitePrefix}MODE`] || "production",
             config.root ?? userProjectRoot,
-            config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX
+            vitePrefix
           )
         : cleanupInitialUserConfigEnv;
       const cleanupUserConfig = resolveConfigDefine(config);
