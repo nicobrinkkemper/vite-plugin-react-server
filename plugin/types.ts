@@ -1,6 +1,7 @@
 import type { Readable } from "node:stream";
 import type { Worker } from "node:worker_threads";
 import type React from "react";
+import type { ExoticComponent, FragmentProps } from "react";
 import type {
   NormalizedOutputOptions,
   OutputBundle,
@@ -457,7 +458,7 @@ export interface StreamPluginOptions<
   // Auto-discovery (zero-config)
   autoDiscover?:
     | {
-      // default: /\.(m|c)?(j|t)sx?$/
+        // default: /\.(m|c)?(j|t)sx?$/
         moduleExtension?: RegExp;
         // default: /^"use server"[\s;]*\n?/m
         serverDirective?: RegExp;
@@ -561,12 +562,13 @@ export type CreateHandlerOptions<
   | "moduleRootPath"
   | "moduleBasePath"
   | "moduleBaseURL"
+  | "publicOrigin"
   | "pipeableStreamOptions"
   | "onEvent"
   | "onMetrics"
   | "projectRoot"
   | "normalizer"
-  | "moduleID"  
+  | "moduleID"
 > & {
   logger: Logger;
   loader: ModuleLoader;
@@ -778,10 +780,9 @@ export type InlineCssOpt = undefined | boolean;
 export type PagePropOpt = Record<string, unknown> | undefined;
 export type RegExpOpt = RegExp | string | ((path: string) => boolean);
 
-export type AsOpt = Exclude<
-  keyof React.JSX.IntrinsicElements,
-  "symbol" | "object"
->;
+export type AsOpt =
+  | ExoticComponent<FragmentProps>
+  | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
 export type PageComponentType<T extends PagePropOpt = PagePropOpt> =
   React.ComponentType<T & React.PropsWithChildren<{}>>;
 

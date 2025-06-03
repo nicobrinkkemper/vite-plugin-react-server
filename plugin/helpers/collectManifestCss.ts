@@ -27,7 +27,7 @@ export function collectManifestCss(
     // Add CSS files from the css property
     if (fileInfo.css) {
       for (const cssFile of fileInfo.css) {
-        cssInputs[cssFile] = cssFile + '.css';
+        cssInputs[cssFile] = cssFile;
       }
     }
 
@@ -46,7 +46,7 @@ export function collectManifestCss(
         const importedFile = manifest[importPath];
         if (importedFile?.css) {
           for (const cssFile of importedFile.css) {
-            cssInputs[cssFile] = cssFile + '.css';
+            cssInputs[cssFile] = cssFile;
           }
         }
       }

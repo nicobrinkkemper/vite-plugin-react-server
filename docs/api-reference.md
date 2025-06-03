@@ -93,9 +93,11 @@ interface CssContent {
 }
 ```
 
-## Worker Messages
+## Message System Types
 
-### Base Message
+The plugin uses a comprehensive message system for communication between the main process and worker threads. Here are the key types and interfaces:
+
+### Base Message Interface
 
 ```ts
 interface BaseMessage {
@@ -104,83 +106,182 @@ interface BaseMessage {
 }
 ```
 
-### Main Process to Worker Messages
+### Worker Messages
 
-#### ROUTE_READY
+#### HTML Worker Messages
 
 ```ts
-interface RouteReadyMessage extends BaseMessage {
-  type: "ROUTE_READY";
-  id: string; // Route identifier
+type HtmlWorkerInputMessage =
+  | RscChunkInputMessage
+  | RscEndMessage
+  | ShutdownMessage
+  | CleanupMessage
+  | CleanupCompleteMessage
+  | InitializedReactLoaderMessage
+  | InitializedCssLoaderMessage
+  | RouteReadyMessage;
+
+type HtmlWorkerOutputMessage =
+  | HtmlCompleteMessage
+  | ErrorMessage
+  | ShellReadyMessage
+  | ChunkProcessedMessage
+  | ChunkErrorMessage
+  | AllReadyMessage
+  | ShellErrorMessage
+  | HtmlChunkMessage
+  | ShutdownCompleteMessage
+  | HmrAcceptMessage
+  | ReadyMessage
+  | ServerActionMessage
+  | ServerActionResponseMessage
+  | ErrorMessage
+  | CleanupCompleteMessage;
+```
+
+#### RSC Worker Messages
+
+```ts
+type RscWorkerInputMessage =
+  | RscRenderMessage
+  | CssFileMessage
+  | ShutdownMessage
+  | ChunkProcessedMessage
+  | ClientComponentMessage
+  | InitializedReactLoaderMessage
+  | InitializedCssLoaderMessage
+  | ModuleRequestMessage  
+  | InitializedRscWorkerLoaderMessage
+  | InitializedEnvLoaderMessage
+  | HmrUpdateMessage
+  | HmrAcceptMessage
+  | HmrCleanupMessage
+  | CleanupCompleteMessage
+  | ServerActionMessage
+  | ServerActionResponseMessage
+  | ServerModuleMessage;
+
+type RscWorkerOutputMessage =
+  | RscChunkOutputMessage
+  | RscEndMessage
+  | ShellReadyMessage
+  | AllReadyMessage
+  | ErrorMessage
+  | CssFileMessage
+  | CssFileRequestMessage
+  | ClientComponentMessage
+  | ModuleRequestMessage
+  | ModuleResponseMessage
+  | CssProcessedMessage
+  | RscMetricsMessage
+  | HmrAcceptMessage
+  | HmrUpdateMessage
+  | ReadyMessage
+  | ServerActionMessage
+  | ServerActionResponseMessage
+  | ShutdownCompleteMessage
+  | ServerModuleMessage;
+```
+
+### Specialized Message Types
+
+#### Module Loading
+
+```ts
+interface ModuleRequestMessage extends BaseMessage {
+  type: "MODULE_REQUEST";
+  path: string;
+}
+
+interface ModuleResponseMessage extends BaseMessage {
+  type: "MODULE_RESPONSE";
+  module: any;
 }
 ```
 
-#### RSC_CHUNK
+#### Server Actions
 
 ```ts
-interface RscChunkMessage extends BaseMessage {
-  type: "RSC_CHUNK";
-  id: string; // Route identifier
-  chunk: string; // RSC content chunk
+interface ServerActionMessage extends BaseMessage {
+  type: "SERVER_ACTION";
+  args: unknown[];
+}
+
+interface ServerActionResponseMessage extends BaseMessage {
+  type: "SERVER_ACTION_RESPONSE";
+  result: unknown;
+  error?: string;
 }
 ```
 
-#### RSC_END
+#### HMR (Hot Module Replacement)
 
 ```ts
-interface RscEndMessage extends BaseMessage {
-  type: "RSC_END";
-  id: string; // Route identifier
+interface HmrMessage extends BaseMessage {
+  type: "HMR_UPDATE" | "HMR_ACCEPT" | "HMR_CLEANUP";
+  moduleId?: string;
+  accepted?: boolean;
 }
 ```
 
-#### CLEANUP
+#### Loader Messages
 
 ```ts
-interface CleanupMessage extends BaseMessage {
-  type: "CLEANUP";
-  id: string; // Route identifier
+interface LoaderMessage {
+  type: "LOADER_PORTS" | "REGISTER_LOADER";
+  ports?: Record<string, MessagePort>;
+  key?: string;
+  port?: MessagePort;
+  importMap?: string;
 }
 ```
 
-### Html Worker to Main Process Messages
-
-#### HTML_CHUNK
+### Metrics Types
 
 ```ts
-interface HtmlChunkMessage extends BaseMessage {
-  type: "HTML_CHUNK";
-  id: string; // Route identifier
-  chunk: string; // HTML content chunk
+interface StreamMetrics {
+  chunksReceived: number;
+  chunksProcessed: number;
+  totalBytes: number;
+  startTime: number;
+  endTime?: number;
+}
+
+interface RenderMetrics {
+  htmlSize: number;
+  rscSize: number;
+  processingTime: number;
+  chunks: number;
+  chunkRate: number;
 }
 ```
 
-#### HTML_COMPLETE
+### Build Worker Messages
 
 ```ts
-interface HtmlCompleteMessage extends BaseMessage {
-  type: "HTML_COMPLETE";
-  id: string; // Route identifier
-}
-```
-
-#### CLEANUP_COMPLETE
-
-```ts
-interface CleanupCompleteMessage extends BaseMessage {
-  type: "CLEANUP_COMPLETE";
-  id: string; // Route identifier
-}
-```
-
-#### ERROR
-
-```ts
-interface ErrorMessage extends BaseMessage {
-  type: "ERROR";
-  id: string; // Route identifier
-  error: string; // Error message
-}
+type BuildWorkerMessage =
+  | {
+      type: "RUN_BUILD";
+      id: string;
+      options: {
+        root: string;
+        outDir: string;
+        condition: "react-client" | "react-server";
+      };
+    }
+  | {
+      type: "BUILD_RESULT";
+      id: string;
+      result:
+        | {
+            type: "success";
+            manifest: string | undefined;
+          }
+        | {
+            type: "error";
+            error: Error;
+          };
+    };
 ```
 
 ## Metrics

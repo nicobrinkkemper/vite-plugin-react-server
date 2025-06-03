@@ -49,7 +49,6 @@ import {
 } from "../helpers/serializeUserOptions.js";
 import { collectManifestCss } from "../helpers/collectManifestCss.js";
 import { createCssProps } from "../helpers/createCssProps.js";
-import { tryManifest } from "../helpers/tryManifest.js";
 import { performance } from "node:perf_hooks";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { baseURL } from "../utils/envUrls.node.js";
@@ -101,7 +100,7 @@ export function reactStaticPlugin<
       if (config.root && config.root !== userOptions.projectRoot) {
         userOptions.projectRoot = config.root;
       }
-      if(configEnv.command !== "build") {
+      if (configEnv.command !== "build") {
         return;
       }
       // Initialize autoDiscoveredFiles for both server and client builds
@@ -165,35 +164,29 @@ export function reactStaticPlugin<
           bundle,
           normalizer: userOptions.normalizer,
         });
-        if (!("source" in bundleManifest[".vite/manifest.json"])) {
+        const manifestPath =
+          typeof resolvedConfig.build.manifest === "string"
+            ? resolvedConfig.build.manifest
+            : ".vite/manifest.json";
+        if (!("source" in bundleManifest[manifestPath])) {
           throw new Error("Server manifest not found");
         }
 
         serverManifest = JSON.parse(
-          bundleManifest[".vite/manifest.json"].source as string
+          bundleManifest[manifestPath].source as string
         );
 
         if (!serverManifest) {
           throw new Error("Failed to parse server manifest");
         }
-        
-        const clientManifestResult = await tryManifest({
-          root: userOptions.projectRoot,
-          outDir: join(userOptions.build.outDir, userOptions.build.client),
-          ssrManifest: false,
-        });
-        if (clientManifestResult.type === "error") {
-          throw clientManifestResult.error;
-        }
-        const clientManifest = clientManifestResult.manifest;
 
-        buildLoader = await createBuildLoader<T, InlineCSS>(
+        buildLoader = await createBuildLoader(
           {
             userConfig,
-            userOptions: userOptions as ResolvedUserOptions<T, InlineCSS>,
+            userOptions: userOptions,
             serverManifest: serverManifest ?? {},
             staticManifest: autoDiscoveredFiles?.staticManifest ?? {},
-            clientManifest: clientManifest ?? {},
+            clientManifest: {},
           },
           bundle
         );
@@ -202,10 +195,18 @@ export function reactStaticPlugin<
         const cssFilesByPage = new Map();
 
         // First collect global styles from index.html
-        const globalCssInputs = collectManifestCss(
+        const indexHtmlCssInputs = collectManifestCss(
           autoDiscoveredFiles?.staticManifest ?? {},
-          "index.html"
+          userOptions.clientEntry ?? "index.html"
         );
+        const clientEntryCssInputs = collectManifestCss(
+          autoDiscoveredFiles?.staticManifest ?? {},
+          userOptions.clientEntry
+        );
+        const globalCssInputs = {
+          ...indexHtmlCssInputs,
+          ...clientEntryCssInputs,
+        };
 
         const globalCss: Map<string, CssContent<InlineCSS>> = new Map();
         // Collect CSS files for each page and its props
@@ -230,7 +231,6 @@ export function reactStaticPlugin<
             transformedServerManifest,
             props ? [page, props] : page
           );
-
           // Create a map for this page's CSS files
           const pageCssMap: Map<string, CssContent> = new Map();
           // Add global styles if they exist
@@ -240,15 +240,16 @@ export function reactStaticPlugin<
                 String(r.default)
               );
               if (cssContent === "undefined" || !cssContent) {
-                cssContent = await readFile(
-                  join(
-                    userOptions.projectRoot,
-                    userOptions.build.outDir,
-                    userOptions.build.static,
-                    key
-                  ),
-                  "utf-8"
-                ) ?? ""
+                cssContent =
+                  (await readFile(
+                    join(
+                      userOptions.projectRoot,
+                      userOptions.build.outDir,
+                      userOptions.build.static,
+                      key
+                    ),
+                    "utf-8"
+                  )) ?? "";
               }
               if (cssContent) {
                 globalCss.set(

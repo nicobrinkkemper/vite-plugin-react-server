@@ -170,16 +170,4 @@ export async function configureReactServer<
     }
   });
   // Listen for when the server actually starts
-  server.httpServer?.once("listening", () => {
-    const address = server.httpServer?.address();
-    if (address && typeof address !== "string") {
-      const port = address.port;
-      const host = server.config.server.host ?? "localhost";
-      const protocol = server.config.server.https ? "https" : "http";
-      handlerOptions.publicOrigin = `${protocol}://${host}:${port}`;
-      if (handlerOptions.publicOrigin !== process.env.VITE_PUBLIC_ORIGIN) {
-        process.env.VITE_PUBLIC_ORIGIN = handlerOptions.publicOrigin;
-      }
-    }
-  });
 }

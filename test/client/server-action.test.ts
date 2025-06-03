@@ -58,7 +58,7 @@ describe('Client Server Action Build Output', () => {
   });
 
   afterAll(async () => {
-    // await rm(testDir, { recursive: true, force: true });
+    await rm(testDir, { recursive: true, force: true });
   });
 
   it('should output no server action files', () => {

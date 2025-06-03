@@ -51,6 +51,7 @@ export async function collectViteModuleGraphCss<
     | "loader"
     | "normalizer"
     | "moduleID"
+    | "publicOrigin"
   >;
 }): Promise<CollectViteModuleGraphCssResult> {
   const {
@@ -59,6 +60,7 @@ export async function collectViteModuleGraphCss<
     moduleBasePath,
     moduleRootPath,
     projectRoot,
+    publicOrigin,
     css,
     loader,
     normalizer,
@@ -113,6 +115,7 @@ export async function collectViteModuleGraphCss<
           css: css,
           normalizer: normalizer,
           moduleID: moduleID,
+          publicOrigin: publicOrigin,
         },
       });
       cssFiles.set(mod?.url, cssContent);

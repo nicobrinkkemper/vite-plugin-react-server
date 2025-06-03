@@ -39,9 +39,8 @@ export async function configurePreviewServer<
       staticHostDir,
       server.config.logger
     );
-
     // Handle static files including CSS
-    if (filePath) {
+    if (filePath && contentType.includes("text/x-component")) {
       try {
         const stats = await stat(filePath);
         if (stats.isFile()) {

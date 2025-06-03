@@ -19,6 +19,7 @@ import type { RscWorkerInputMessage } from "../worker/types.js";
 import { Readable } from "node:stream";
 import type { ReadableStream } from "node:stream/web";
 import { PassThrough } from "node:stream";
+import { logError, toError } from "../error/toError.js";
 
 /**
  * Configures the worker request handler.
@@ -102,7 +103,7 @@ export async function configureWorkerRequestHandler<
         }
         const body = Buffer.concat(chunks).toString();
         const parsed = JSON.parse(body);
-        
+
         // Get action ID and args from the request body
         let id: string;
         let args: unknown[];
@@ -153,9 +154,7 @@ export async function configureWorkerRequestHandler<
           } else if (message.type === "ERROR") {
             passThrough.end();
             currentWorker!.removeListener("message", messageHandler);
-            server.config.logger.error(message.error.message + (message.error.stack ?? ""), {
-              error: message.error,
-            });
+            logError(message.error, server.config.logger);
           }
         };
 
@@ -163,27 +162,24 @@ export async function configureWorkerRequestHandler<
 
         // Handle errors
         passThrough.on("error", (error) => {
-          server.config.logger.error(error.message + (error.stack ?? ""), {
-            error,
-          });
+          logError(error, server.config.logger);
           res.end();
         });
 
         return;
       } catch (error) {
-        if (error instanceof Error) {
-          server.config.logger.error(error.message + (error.stack ?? ""), {
-            error,
-          });
-        }
+        const err = toError(error);
+        logError(err, server.config.logger);
         res.statusCode = 500;
-        res.end(JSON.stringify({
-          type: "server-action-response",
-          returnValue: {
-            success: false,
-            error: error instanceof Error ? error.message : String(error)
-          }
-        }));
+        res.end(
+          JSON.stringify({
+            type: "server-action-response",
+            returnValue: {
+              success: false,
+              error: err.message,
+            },
+          })
+        );
         return;
       }
     }
@@ -320,5 +316,5 @@ export async function configureWorkerRequestHandler<
   };
   // attach handler to the server
   server.middlewares.use(handler);
-  // done
+  // port check, should be handled by strictPort
 }

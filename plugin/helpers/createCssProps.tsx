@@ -41,6 +41,7 @@ export const createCssProps = <
     | "projectRoot"
     | "normalizer"
     | "moduleID"
+    | "publicOrigin"
   >;
 }): CssContent<InlineCSS> => {
   const { css, moduleRootPath } = userOptions;
@@ -77,15 +78,31 @@ export const createCssProps = <
         : {}),
     } as CssContent<InlineCSS>;
   }
+  const processEnv = process.env || {};
+  const hasEnv= typeof processEnv.VITE_PUBLIC_ORIGIN === "string" &&
+      processEnv.VITE_PUBLIC_ORIGIN !== "";
+  const importMeta = import.meta || {};
+  const hasMetaEnv = 'env' in importMeta && typeof importMeta.env.PUBLIC_ORIGIN === "string" &&
+      importMeta.env.PUBLIC_ORIGIN !== "";
+  // final public origin check
+  if((hasEnv || hasMetaEnv) && userOptions.publicOrigin) {
+    // change the public origin to the one from the env
+    if(hasEnv && userOptions.publicOrigin !== processEnv.VITE_PUBLIC_ORIGIN) {
+      // prefer potentially dynamic process.env
+      userOptions.publicOrigin = processEnv.VITE_PUBLIC_ORIGIN;
+    } else if(hasMetaEnv && userOptions.publicOrigin !== import.meta.env.PUBLIC_ORIGIN) {
+      // static import.meta.env
+      userOptions.publicOrigin = import.meta.env.PUBLIC_ORIGIN;
+    }
+  }
   // Default case
   return {
     id: moduleID,
     as: "link",
     rel: "stylesheet",
     href:
-      typeof process.env.VITE_PUBLIC_ORIGIN === "string" &&
-      process.env.VITE_PUBLIC_ORIGIN !== ""
-        ? new URL(moduleID, process.env.VITE_PUBLIC_ORIGIN).href
+    userOptions.publicOrigin !== ""
+        ? new URL(moduleID, userOptions.publicOrigin).href
         : moduleID,
     precedence: "high",
   } as CssContent<InlineCSS>;
