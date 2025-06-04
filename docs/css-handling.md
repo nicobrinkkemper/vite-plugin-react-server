@@ -189,4 +189,4 @@ export const MmcCssCollector = ({
 
 ```
 
-By moving this logic to the CssCollector itself, we can test out the behavior in development using the react-server condition.
+By moving this logic to the CssCollector itself, we can test out the behavior in development using the react-server condition. We can run a build and then run the preview server to verify that the css is correctly omitted from the static index.html and index.rsc streams.
