@@ -34,7 +34,7 @@ PUBLIC_ORIGIN is introduced for the server to know in order to render favicons a
 ## Made to be removed
 
 The code tries to organize itself into plugins that are purely based on making the thing work. Things like the preserver plugin, is 
-a backwards way to support the use client and use server directives, but, we simply don't care and want to preserve the use client and use server in the build output.
+a backwards way to support the use client and use server directives, but, we simply don't care and want to preserve the use client and use server so that our transformer is able to read them.
 
 ### HTML Component Support
 The plugin treats HTML files as first-class React components, allowing you to use them directly in your React application. This is achieved through:
@@ -143,7 +143,7 @@ The plugins are executed in a specific order to ensure proper transformation and
 5. **Preserver Plugin**
    - Preserves "use client" and "use server" directives in build output
    - Handles file preservation for client/server boundaries
-   - Ensures directives are available at runtime
+   - Ensures directives are available for the transformer
 
 This modular approach allows for easy maintenance and potential future improvements without affecting the entire system. Each plugin and sub-plugin
 can be replaced or modified independently, making it easier to adapt to new requirements or fix issues without touching the entire codebase.
@@ -153,7 +153,7 @@ The transformation pipeline ensures that:
 2. Client and server boundaries are properly set up
 3. Components are transformed correctly for their target environment
 4. Static generation (if enabled) happens after all transformations
-5. Directives are preserved throughout the build process
+5. Directives are preserved throughout the build process up untill the react transformer
 
 It also gives you the ability to override all the above behavior by either composing
 your plugins or developing a entirely new rsc-worker for your application that can then be used during your development process - which gives you full control over the node.js environment including it's loaders, etc.
