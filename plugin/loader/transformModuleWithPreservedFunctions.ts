@@ -567,9 +567,6 @@ export function transformModuleWithPreservedFunctions(
     // Add registrations after the source code
     let lineNum = lines.length + 1;
     for (const entry of exportedEntries) {
-      if (entry.type === 'function') {
-        lines.push(`if (typeof ${entry.localName} === "function") `);
-      }
       lines.push(`registerServerReference(${entry.localName}, ${JSON.stringify(moduleId)}, ${JSON.stringify(entry.exportedName)});`);
       // Create a mapping for each registration line
       mappingInfos.push({ 
