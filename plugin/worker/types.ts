@@ -389,29 +389,6 @@ export interface WorkerRscChunkMessage extends WorkerMessage {
   pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
 }
 
-export type BuildWorkerMessage =
-  | {
-      type: "RUN_BUILD";
-      id: string;
-      options: {
-        root: string;
-        outDir: string;
-        condition: "react-client" | "react-server";
-      };
-    }
-  | {
-      type: "BUILD_RESULT";
-      id: string;
-      result:
-        | {
-            type: "success";
-            manifest: string | undefined;
-          }
-        | {
-            type: "error";
-            error: Error;
-          };
-    };
 
 export interface TransformResult {
   code: string;

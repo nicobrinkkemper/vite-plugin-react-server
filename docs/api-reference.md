@@ -32,7 +32,7 @@ export const config = {
 | `rscWorkerPath` | `string` | Path to custom RSC worker | - |
 | `CssCollector` | `React.ComponentType<CssCollectorProps>` | Component for collecting CSS (handles both inline and non-inline modes) | - |
 | `build` | `BuildOptions` | Build configuration | - |
-| `CSS` | `CssOptions` | CSS handling configuration | - |
+| `css` | `CssOptions` | CSS handling configuration | - |
 
 ### Build Options
 
@@ -52,8 +52,8 @@ export const config = {
 |--------|------|-------------|---------|
 | `inlineCss` | `boolean` | Inline CSS in HTML | `true` |
 | `inlineThreshold` | `number` | Size threshold for inlining (bytes) | `4096` |
-| `inlinePatterns` | `RegExp[]` | Patterns for files to always inline | `[/\.module\.css$/]` |
-| `linkPatterns` | `RegExp[]` | Patterns for files to always link | `[/node_modules/]` |
+| `inlinePatterns` | `RegExp[]` | Patterns for files to always inline | `[]` |
+| `linkPatterns` | `RegExp[]` | Patterns for files to always link | `[]` |
 
 ## Component Props
 
@@ -256,33 +256,6 @@ interface RenderMetrics {
 }
 ```
 
-### Build Worker Messages
-
-```ts
-type BuildWorkerMessage =
-  | {
-      type: "RUN_BUILD";
-      id: string;
-      options: {
-        root: string;
-        outDir: string;
-        condition: "react-client" | "react-server";
-      };
-    }
-  | {
-      type: "BUILD_RESULT";
-      id: string;
-      result:
-        | {
-            type: "success";
-            manifest: string | undefined;
-          }
-        | {
-            type: "error";
-            error: Error;
-          };
-    };
-```
 
 ## Metrics
 
