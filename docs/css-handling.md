@@ -112,165 +112,81 @@ This is useful for optimizing performance by:
 - Inlining small CSS files to reduce HTTP requests
 - Avoiding inlining large CSS files that would bloat the HTML document
 
+## Purging css
 
-## PurgeCSS Feature
+By adding our own own CssCollector, we can have one final say over the cssFiles that we render. We could filter out some of the css files however we wish. Even though it's called a CssCollector, it's essentially your very own Root component and as such can be designed as a Root component.
 
-**Note:** This feature is currently on the roadmap and not yet implemented. The configuration option exists in the type definitions, but the actual functionality will be added in a future release.
-
-When `purgeCss` is enabled:
-
-1. A global class registry tracks used CSS classes
-2. During SSR, used classes are recorded
-3. After rendering, unused CSS files are removed from the output
-
-## CSS Class Tracking
-
-The CSS class tracking system works in conjunction with the RSC stream to capture which CSS classes are actually used during server-side rendering. This is particularly important for the `purgeCss` feature.
-
-### How Class Tracking Works (Example)
-
-Say we have a whitelabel application and we want to make new CSS themes for it easily. We have a file for each theme containing css variables and we have a "barrel file" that exports all our themes.
+Here's an example on how to 
 
 ```tsx
-// themes/A.moduie.css
-.Theme {
-    --color: red;
-} 
-// themes/B.module.css
-.Theme {
-    --color: green;
-} 
-// themes/index.ts
-export A from "A.module.css"
-export B from "B.module.css"
-// props.ts
-export const props = (url)=>{
-  if(url === '/B') return {theme: 'B'}
-  return {theme: 'A'}
-}
-// Page.tsx
-import * as themes from "./css/index.js"
+import React, { type Fragment } from "react";
+import { CssCollectorElements } from "vite-plugin-react-server/components";
+import type { CssCollectorProps } from "vite-plugin-react-server/types";
+import { themes } from "./config/themeConfig.js";
 
-export const Page = ({theme}:{themeX: 'A' | 'B'})=>{
-  <div className={themes[theme]['Theme']}>
-      You are using theme: {theme}
-  </div>
-}
-```
+// imagine semi-structured paths to css
+const removeableCSS = [
+  "/src/css/4ymm.module.css",
+  // but one exception
+  "/src/css/5-6ymm.module.css",
+  "/src/css/7mmc.module.css",
+  "/src/css/8mmc.module.css",
+  "/src/css/9mmc.module.css",
+];
 
-Now this will work fine, but the program will include both themes even though only one is used. Especially when inlining all these files, it becomes counter productive. The `purgeCss` feature counters this by emitting the link tags last, and only if at least one class is used. Since our props are static, and we want to use the static generator, we can go ahead and turn on purgeCss.
-
-```
-{
-  css: {
-    purgeCss: true,
-    inlineThreshold: 4096
+const createFilter = (theme: Theme) => {
+  // handle exception
+  if (theme === "5ymm" || theme === "6ymm") {
+    return [theme, removeableCSS.filter((css) => css.includes("5-6ymm"))];
   }
-}
+  // should not include any of the following
+  return [theme, removeableCSS.filter((css) => css.includes(theme))];
+};
+
+// a map of filters
+const filters = Object.fromEntries(themes.map(createFilter)) as {
+  [key in Theme]: string[];
+};
 
 
-1. **Initial Collection**: CSS files are collected from the bundle manifest and module graph. This may initially contain a lot more than is actually needed as explained in previous example.
-
-
-2. **RSC Stream Processing**: 
-   - The RSC stream is created and processed on the main thread
-   - Components using CSS modules are rendered
-   - Class usage is tracked via the CSS module proxy
-3. **Shell Ready Event**: 
-   - When the worker client-side stream's shell is ready, we emit an event from the worker
-   - The main thread for static rendering determines that all classes by now should be used
-   - The RSC stream continues streaming and ends with all the link tags
-   - The link tags have precedence high and bubble to top
-4. **Final Processing**:
-   - If `purgeCss` is enabled files that have 0 used classes are omitted from the stream
-   - If a file has any usages at all - it will be included
-   - CSS files are either inlined or linked based on configuration threshold
-
-### Integration with PurgeCSS
-
-When `purgeCss` is enabled:
-
-1. The class tracking system captures all used classes during RSC rendering
-2. After the shell is ready, we have a complete picture of which classes are used
-3. The `css.collect` event includes this information
-4. The CSS collector can then use this information to:
-   - Remove unused classes from inlined CSS
-   - Filter out unused CSS files
-   - Optimize the final CSS output
-
-
-### Features of the Advanced Collector
-
-1. **Type Safety**: Handles both inline and non-inline modes
-2. **Flexible Handling**: Different strategies based on file characteristics
-3. **Performance Optimization**: 
-   - Preloads vendor CSS files
-   - Inlines critical CSS when possible
-   - Handles CDN files appropriately
-4. **Module Support**: Special handling for CSS modules
-5. **Fallback Strategy**: Default case for standard CSS files
-
-### Configuration Example
-
-```typescript
-{
-  CssCollector: AdvancedCssCollector,
-  css: {
-    inlineCss: true,
-    inlineThreshold: 4096,
-    inlinePatterns: [/\.module\.css$/, /critical\.css$/],
-    linkPatterns: [/node_modules/, /vendor\.css$/]
-  }
-}
-```
-
-## Configuration Example
-
-
-```typescript
-{
-  CssCollector: MyCssCollector, // import from anywhere
-  css: {
-    inlineCss: true, // default
-    inlineThreshold: 4096,
-  }
-}
-```
-
-By adding our own own CssCollector, we can have one final say over the cssFiles that we render. We could filter out some of the css files however we wish.
-```tsx
-import { CssCollectorElements } from "vite-plugin-react-server/components"
-
-export const MyCssCollector: YourCssCollectorType = ({
-  as: Component = React.Fragment,
-  children,
+export const MmcCssCollector = ({
+  as: Component,
   cssFiles,
   pageProps,
+  Page,
   ...props
-}) => {
-  if (!cssFiles) return children;
-
+}: CssCollectorProps<
+  {
+    pathInfo: { theme: Theme };
+  },
+  boolean,
+  "div" | typeof Fragment
+>) => {
+  if (!cssFiles) return null;
+  if (!pageProps || !("pathInfo" in pageProps)) return null;
+  const theme = pageProps.pathInfo.theme;
   const cssArray = Array.isArray(cssFiles)
     ? cssFiles
     : Array.from(cssFiles?.values() ?? []);
-
   const removeNonCurrentThemeCss = new Map(
     cssArray
       .filter(
+        // remove any file that is "removeable" and does not include our id
         (file) =>
-          !removeableCSS.includes(file.id) ||
-          filters[pageProps.theme].includes(file.id)
+          !removeableCSS.includes(file.id) || filters[theme].includes(file.id)
       )
       .map((file) => [file.id, file])
   );
-
+  // decide when and where to render the Wrapper, Page, CssCollector at the last moment
+  // which can be used during "react-server" dev mode and in static html/rsc files
   return (
     <Component {...props}>
-      {children}
+      <Page {...pageProps} />
       <CssCollectorElements cssFiles={removeNonCurrentThemeCss} />
     </Component>
   );
 };
+
 ```
 
 By moving this logic to the CssCollector itself, we can test out the behavior in development using the react-server condition.
