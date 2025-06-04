@@ -1,5 +1,20 @@
-import type { Program } from "./types.js";
-import type { FunctionDeclaration, VariableDeclaration, VariableDeclarator } from "acorn";
+import type { Program, Node } from "./types.js";
+import type { 
+  FunctionDeclaration,  VariableDeclaration,
+  VariableDeclarator
+} from "acorn";
+
+export interface ExportInfo {
+  name: string;
+  localName?: string;
+  type: "function" | "variable" | "class" | "unknown" | "all";
+  node?: Node;
+  declaration?: string;
+  before?: string[];
+  after?: string[];
+  isAsync?: boolean;
+  loc?: { line: number; column: number };
+}
 
 /**
  * Collects and organizes export information from a module.
@@ -28,39 +43,30 @@ export function handleExports(
   imports: string[];
   declarations: string[];
   exportNames: string[];
-  exports: Map<
-    string,
-    {
-      type: "function" | "class" | "variable" | "default" | "all";
-      declaration?: string;
-      localName?: string;
-      before?: string[];
-      after?: string[];
-      isAsync?: boolean;
-      isServerAction?: boolean;
-    }
-  >;
+  exports: Map<string, ExportInfo>;
 } {
   const imports: string[] = [];
   const declarations: string[] = [];
   const exportNames: string[] = [];
-  // Track exports and their types
-  const exports = new Map<
-    string,
-    {
-      type: "function" | "class" | "variable" | "default" | "all";
-      declaration?: string;
-      localName?: string;
-      before?: string[];
-      after?: string[];
-      isAsync?: boolean;
-      isServerAction?: boolean;
-    }
-  >();
+  const exports = new Map<string, ExportInfo>();
 
   let lastEnd = 0;
   let currentBefore: string[] = [];
   let foundFirstExport = false;
+
+  // Helper function to get function type
+  function getFunctionType(node: Node): "function" | "variable" | "class" | "unknown" {
+    if (node.type === "FunctionDeclaration" || node.type === "FunctionExpression" || node.type === "ArrowFunctionExpression") {
+      return "function";
+    }
+    if (node.type === "ClassDeclaration") {
+      return "class";
+    }
+    if (node.type === "VariableDeclaration") {
+      return "variable";
+    }
+    return "unknown";
+  }
 
   // First pass: collect all exports and code between them
   for (const node of program.body) {
@@ -85,9 +91,9 @@ export function handleExports(
             const importedName = spec.imported.type === "Identifier" ? spec.imported.name : "";
             if (localName && importedName) {
               exports.set(localName, {
+                name: localName,
                 type: "function",
                 localName,
-                isServerAction: true,
                 before: [...currentBefore],
               });
               exportNames.push(localName);
@@ -98,6 +104,7 @@ export function handleExports(
     } else if (node.type === "ExportAllDeclaration") {
       // For export * from './other', just add the * export
       exports.set("*", {
+        name: "*",
         type: "all",
         before: [...currentBefore],
       });
@@ -116,11 +123,11 @@ export function handleExports(
         ) {
           const name = node.declaration.id.name;
           exports.set(name, {
-            type: "function",
+            name,
+            type: getFunctionType(node.declaration),
             declaration: source.slice(node.declaration.start, node.declaration.end),
             before: [...currentBefore],
             isAsync: node.declaration.async,
-            isServerAction: isServerFunction === true,
           });
           exportNames.push(name);
           currentBefore = [];
@@ -130,7 +137,8 @@ export function handleExports(
         ) {
           const name = node.declaration.id.name;
           exports.set(name, {
-            type: "class",
+            name,
+            type: getFunctionType(node.declaration),
             declaration: source.slice(node.declaration.start, node.declaration.end),
             before: [...currentBefore],
           });
@@ -141,7 +149,7 @@ export function handleExports(
             if (decl.id && decl.id.type === "Identifier") {
               const name = decl.id.name;
               const init = decl.init;
-              const isFunction = init && (
+              const isFunction = init != null && (
                 init.type === "FunctionExpression" ||
                 init.type === "ArrowFunctionExpression"
               );
@@ -150,11 +158,11 @@ export function handleExports(
                 (init.type === "ArrowFunctionExpression" && init.async === true)
               );
               exports.set(name, {
+                name,
                 type: isFunction ? "function" : "variable",
                 declaration: source.slice(decl.start, decl.end),
                 before: [...currentBefore],
                 isAsync: isAsync || false,
-                isServerAction: isFunction  != null && isServerFunction === true,
               });
               exportNames.push(name);
               currentBefore = [];
@@ -177,12 +185,12 @@ export function handleExports(
 
               if (functionDecl) {
                 exports.set(exportedName, {
-                  type: "function",
+                  name: exportedName,
+                  type: getFunctionType(functionDecl),
                   localName,
                   declaration: source.slice(functionDecl.start, functionDecl.end),
                   before: [...currentBefore],
                   isAsync: functionDecl.async,
-                  isServerAction: isServerFunction === true,
                 });
                 exportNames.push(exportedName);
               } else {
@@ -208,17 +216,18 @@ export function handleExports(
                     const isAsync = decl.init.type === "FunctionExpression" ? decl.init.async :
                                   decl.init.type === "ArrowFunctionExpression" ? decl.init.async : false;
                     exports.set(exportedName, {
+                      name: exportedName,
                       type: "function",
                       localName,
                       declaration: source.slice(decl.start, decl.end),
                       before: [...currentBefore],
                       isAsync,
-                      isServerAction: isServerFunction === true,
                     });
                     exportNames.push(exportedName);
                   }
                 } else {
                   exports.set(exportedName, {
+                    name: exportedName,
                     type: "variable",
                     localName,
                     before: [...currentBefore],
@@ -233,14 +242,15 @@ export function handleExports(
     } else if (node.type === "ExportDefaultDeclaration") {
       if (node.declaration && node.declaration.type === "FunctionDeclaration" && node.declaration.id) {
         exports.set("default", {
-          type: "default",
-          before: [...currentBefore],
+          name: "default",
+          type: getFunctionType(node.declaration),
           localName: node.declaration.id.name, // Capture the function name
-          isAsync: node.declaration.async
+          isAsync: node.declaration.async,
         });
       } else {
         exports.set("default", {
-          type: "default",
+          name: "default",
+          type: "unknown",
           before: [...currentBefore]
         });
       }

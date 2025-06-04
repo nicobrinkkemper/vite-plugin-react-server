@@ -122,7 +122,7 @@ export const DEFAULT_CONFIG = {
     /**
      * /^"use server"[\s;]*\n?/m
      */
-    serverDirective: /^"use server"[\s;]*\n?/m,
+    serverDirective: /"use server"[\s;]*\n?/m,
     /**
      * /^"use client"[\s;]*\n?/m
      */
@@ -132,7 +132,10 @@ export const DEFAULT_CONFIG = {
       code.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective) !== null || 
       (moduleId && DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions(moduleId)) || 
       false,
-    isClientComponentCode: (code: string) => code.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective) !== null,
+    isClientComponentCode: (code: string, moduleId?: string) => 
+      code.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective) !== null || 
+      (moduleId && DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents(moduleId)) || 
+      false,
     jsExtension: ".js",
     cssExtension: ".css",
     jsonExtension: ".json",

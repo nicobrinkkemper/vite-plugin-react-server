@@ -130,7 +130,11 @@ const Shell: React.FC<{
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");
 
-const intitalData = createReactFetcher();
+const intitalData = createReactFetcher({
+  url: window.location.pathname,
+  moduleBaseURL: import.meta.env.BASE_URL,
+  publicOrigin: import.meta.env.PUBLIC_ORIGIN,
+});
 
 createRoot(rootElement).render(<Shell data={intitalData} />);
 ```
@@ -200,9 +204,9 @@ We can also make a static build for these pages, which will render them to index
   Page: "src/page.tsx",
   props: "src/props.ts"
   // define the routes we want to render
-  build: [
+  build: {
     pages: ['/', '/404']
-  ]
+  }
 };
 ```
 

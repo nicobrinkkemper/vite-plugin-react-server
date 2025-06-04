@@ -104,7 +104,7 @@ export const resolveOptions = <
     typeof options.moduleBasePath === "string"
       ? options.moduleBasePath
       : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_PATH;
-
+  
   const moduleBaseURL =
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
@@ -234,24 +234,23 @@ export const resolveOptions = <
   );
 
   const isServerFunctionCode = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.isServerFunction,
+    options.autoDiscover?.isServerFunctionCode,
     options.autoDiscover?.serverDirective
       ? (code: string, moduleId?: string) =>
           code.match(options.autoDiscover?.serverDirective!) != null ||
           (moduleId && serverFunctions(moduleId)) ||
           false
-      : (code: string, moduleId?: string) =>
-          code.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective) != null ||
-          (moduleId && serverFunctions(moduleId)) ||
-          false
+      : DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode
   );
 
   const isClientComponentCode = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.isClientComponent,
+    options.autoDiscover?.isClientComponentCode,
     options.autoDiscover?.clientDirective
-      ? (code: string) =>
-          code.match(options.autoDiscover?.clientDirective!) != null
-      : DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective
+      ? (code: string, moduleId?: string) =>
+          code.match(options.autoDiscover?.clientDirective!) != null ||
+          (moduleId && clientComponents(moduleId)) ||
+          false
+      : DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode
   );
 
   const hashOption =

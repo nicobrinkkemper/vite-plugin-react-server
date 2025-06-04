@@ -152,11 +152,50 @@ export function subtract(a, b) {
 }`
   );
 
+  await writeFile(
+    resolve(testDir, "src/page/add.server.ts"),
+    `
+// only add is a server function, test must verify that only one is registered in client and BOTH are defined in server, but only one is registered.    
+export function add(a, b) {
+ "use server";
+  return a + b;
+}
+
+export function subtract(a, b) {
+  return a - b;
+}`
+  );
+
+  
+  await writeFile(
+    resolve(testDir, "src/page/subtract.server.ts"),
+    `
+function add(a, b) {
+  return a + b;
+}
+
+function subtract(a, b) {
+ "use server";
+  return a - b;
+}
+
+
+function multiply(a, b) {
+  "use server";
+   return a * b;
+ }
+// export all, but only subtract and multiply are server functions
+export { subtract, add, multiply};
+`
+
+  );
+
   // Create a client component that uses the actions
   await writeFile(
     resolve(testDir, "src/page/ClientComponent.client.tsx"),
     `"use client"
-import React, { useState } from 'react';
+import React from 'react';
+const { useState } = React;
 
 export function ClientComponent({add, subtract}) {
   const [result, setResult] = useState<number | null>(null);
@@ -283,7 +322,7 @@ export async function deleteTodo(id: number): Promise<{ success: boolean }> {
   // Create client component for todo list
   await writeFile(
     resolve(testDir, "src/components/TodoList.client.tsx"),
-    `"use client"
+    `"use client";
 
 import React, { useState } from 'react';
 
