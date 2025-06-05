@@ -1,6 +1,9 @@
 import { mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
 
+// Add React Server Components environment setup
+process.env.NODE_OPTIONS = '--conditions=react-server';
+
 export async function setupIndexHTML(testDir: string) {
   await writeFile(
     resolve(testDir, "index.html"),

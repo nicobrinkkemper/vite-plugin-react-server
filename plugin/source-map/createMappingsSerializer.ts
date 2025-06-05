@@ -6,7 +6,6 @@ export function createMappingsSerializer() {
     let originalLine = 1;
     let originalColumn = 0;
     let nameIndex = 0;
-    let mappings = "";
   
     return function serializeMapping(
       newGeneratedLine: number,
@@ -16,14 +15,13 @@ export function createMappingsSerializer() {
       newOriginalColumn: number,
       newNameIndex: number
     ) {
+      let segment = '';
       if (newGeneratedLine !== generatedLine) {
         generatedLine = newGeneratedLine;
-        generatedColumn = newGeneratedColumn;
-        if (mappings) {
-          mappings += ";";
-        }
-      } else if (mappings) {
-        mappings += ",";
+        generatedColumn = 0;
+        segment += ";";
+      } else if (generatedLine !== 1 || generatedColumn !== 0) {
+        segment += ",";
       }
   
       // Encode the generated column.
@@ -43,7 +41,7 @@ export function createMappingsSerializer() {
         if (value > 0) {
           digit = digit | 64;
         }
-        mappings += String.fromCharCode(
+        segment += String.fromCharCode(
           digit < 26
             ? digit + 65
             : digit < 52
@@ -73,7 +71,7 @@ export function createMappingsSerializer() {
         if (value > 0) {
           digit = digit | 64;
         }
-        mappings += String.fromCharCode(
+        segment += String.fromCharCode(
           digit < 26
             ? digit + 65
             : digit < 52
@@ -103,7 +101,7 @@ export function createMappingsSerializer() {
         if (value > 0) {
           digit = digit | 64;
         }
-        mappings += String.fromCharCode(
+        segment += String.fromCharCode(
           digit < 26
             ? digit + 65
             : digit < 52
@@ -133,7 +131,7 @@ export function createMappingsSerializer() {
         if (value > 0) {
           digit = digit | 64;
         }
-        mappings += String.fromCharCode(
+        segment += String.fromCharCode(
           digit < 26
             ? digit + 65
             : digit < 52
@@ -163,7 +161,7 @@ export function createMappingsSerializer() {
         if (value > 0) {
           digit = digit | 64;
         }
-        mappings += String.fromCharCode(
+        segment += String.fromCharCode(
           digit < 26
             ? digit + 65
             : digit < 52
@@ -176,6 +174,6 @@ export function createMappingsSerializer() {
         );
       }
   
-      return mappings;
+      return segment;
     };
   }

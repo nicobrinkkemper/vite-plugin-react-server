@@ -949,3 +949,89 @@ declare global {
     cssModules?: Record<string, Record<string, string>>;
   }
 }
+
+export interface VendorInteropConfig {
+  react: string;            // e.g. "react"
+  reactDOMServer: string;   // e.g. "react-dom/server"
+}
+
+// Client Browser exports:
+// - createFromFetch
+// - createFromReadableStream
+// - createServerReference
+// - createTemporaryReferenceSet
+// - encodeReply
+// - registerServerReference
+export interface RSCClientBrowserInteropConfig {
+  createFromFetch: string;
+  createFromReadableStream: string;
+  createServerReference: string;
+  createTemporaryReferenceSet: string;
+  encodeReply: string;
+  registerServerReference: string;
+}
+
+// Client Node exports:
+// - createFromNodeStream
+// - createServerReference
+// - registerServerReference
+export interface RSCClientNodeInteropConfig {
+  createFromNodeStream: string;
+  createServerReference: string;
+  registerServerReference: string;
+}
+
+// Server Node exports:
+// - createTemporaryReferenceSet
+// - decodeAction
+// - decodeFormState
+// - decodeReply
+// - decodeReplyFromBusboy
+// - registerClientReference
+// - registerServerReference
+// - renderToPipeableStream
+// - unstable_prerenderToNodeStream
+export interface RSCServerInteropConfig {
+  createTemporaryReferenceSet: string;
+  decodeAction: string;
+  decodeFormState: string;
+  decodeReply: string;
+  decodeReplyFromBusboy: string;
+  registerClientReference: string;
+  registerServerReference: string;
+  renderToPipeableStream: string;
+  unstable_prerenderToNodeStream: string;
+}
+
+export interface RSCInteropConfig {
+  client: {
+    browser: {
+      production: string;    // e.g. "react-server-dom-esm/client.browser"
+      development: string;   // e.g. "react-server-dom-esm/client.browser"
+      test: string;         // e.g. "react-server-dom-esm/client.browser"
+      exports: RSCClientBrowserInteropConfig;
+    };
+    node: {
+      production: string;    // e.g. "react-server-dom-esm/client"
+      development: string;   // e.g. "react-server-dom-esm/client.node"
+      test: string;         // e.g. "react-server-dom-esm/client.node"
+      exports: RSCClientNodeInteropConfig;
+    };
+  };
+  server: {
+    production: string;    // e.g. "react-server-dom-esm/server"
+    development: string;   // e.g. "react-server-dom-esm/server.node"
+    test: string;         // e.g. "react-server-dom-esm/server.node"
+    exports: RSCServerInteropConfig;
+  };
+}
+
+export type FlightTarget = 'default' | 'webpack' | 'nextjs' | 'react-server-dom-esm' | 'react-server-dom-webpack' | 'react-server-dom-parcel';
+
+export interface FlightConfig {
+  rsc: RSCInteropConfig;
+  vendor: VendorInteropConfig;
+}
+
+// Import configuration from separate file
+export { createFlightBindings, defaultFlightBindings } from './config/flightBindings.js';

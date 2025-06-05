@@ -75,10 +75,13 @@ describe("Generic Server Action Build Output", () => {
     let found = false;
     for (const file of serverFiles) {
       const content = serverBundle[file].code;
-      if(!content || !content.includes('registerClientReference')) {
-        continue;
+      if(file.includes(".client.")) {
+        expect(content).toContain('function() { throw new Error("Attempted to call');
+        expect(content).toContain("import { registerClientReference } from \"react-server-dom-esm/server.node\"");
       }
-      expect(content).toContain("import { registerClientReference } from \"react-server-dom-esm/server.node\"");
+      if(file.includes(".server.")) {
+        expect(content).toContain("import { registerServerReference } from \"react-server-dom-esm/server.node\"");
+      }
       found = true;
     } 
     expect(found).toBe(true);

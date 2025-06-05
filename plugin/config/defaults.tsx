@@ -50,6 +50,27 @@ export const DEFAULT_CONFIG = {
     linkPatterns: [] as RegExp[], // Always link node_modules CSS
   },
   MODULE_BASE_EXCEPTIONS: [] as string[],
+  DIRECTIVE_HANDLING: {
+    preserveDirectives: true,
+    customDirectives: [],
+    validateFileLevel: (_node: any, index: number, program: any) => {
+      // File-level directives must be at the top, before any non-directive statement
+      for (let i = 0; i < index; i++) {
+        const prev = program.body[i];
+        if (prev.type !== "ExpressionStatement" || !("directive" in prev || (prev.expression && prev.expression.type === "Literal" && typeof prev.expression.value === "string"))) {
+          return false;
+        }
+      }
+      return true;
+    },
+    validateFunctionLevel: (node: any) => {
+      // Function-level directives must be at the start of the function body
+      if (!node || !node.body || !Array.isArray(node.body)) return false;
+      const firstStmt = node.body[0];
+      return firstStmt && firstStmt.type === "ExpressionStatement" && 
+        ("directive" in firstStmt || (firstStmt.expression && firstStmt.expression.type === "Literal" && typeof firstStmt.expression.value === "string"));
+    }
+  },
   AUTO_DISCOVER: {
     // All REGEX tricks used here are based on the following:
     // $ = endsWith
@@ -120,20 +141,28 @@ export const DEFAULT_CONFIG = {
      */
     moduleExtension: /\.(m|c)?(j|t)sx?$/,
     /**
-     * /^"use server"[\s;]*\n?/m
+     * Matches "use server" or 'use server' with optional semicolon and newline
      */
-    serverDirective: /"use server"[\s;]*\n?/m,
+    serverDirective: /(\"use server\"|\'use server\')[\s;]?/m,
     /**
-     * /^"use client"[\s;]*\n?/m
+     * Matches "use client" or 'use client' with optional semicolon and newline
+     * Must be at start of file
      */
-    clientDirective: /^"use client"[\s;]*\n?/m,
-
+    clientDirective: /(\"use client\"|\'use client\')[\s;]?/m,
+    /**
+     * Custom directive patterns
+     */
+    customDirectives: [] as Array<{
+      name: string;
+      pattern: RegExp;
+      validate?: (code: string, moduleId?: string) => boolean;
+    }>,
     isServerFunctionCode: (code: string, moduleId?: string) => 
-      code.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective) !== null || 
+      code.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective) != null || 
       (moduleId && DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions(moduleId)) || 
       false,
     isClientComponentCode: (code: string, moduleId?: string) => 
-      code.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective) !== null || 
+      code.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective) != null || 
       (moduleId && DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents(moduleId)) || 
       false,
     jsExtension: ".js",
@@ -145,4 +174,10 @@ export const DEFAULT_CONFIG = {
   },
   MODULE_ID: (id: string) => id,
   VERBOSE: false,
+  // Centralized loader config for RSC boundaries
+  RSC_LOADER: {
+    importPath: "react-server-dom-esm/server" as string,
+    registerClientReferenceName: "registerClientReference",
+    registerServerReferenceName: "registerServerReference"
+  }
 } as const;

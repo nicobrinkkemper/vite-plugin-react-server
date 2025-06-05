@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer } from "vite";
-import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
+import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { setupTestServerActionJS } from "../setup.js";
 import { handleRSCStream, RSCStreamResponse } from "../rsc-stream.js";
 
@@ -114,30 +114,16 @@ export function subtract(a, b) {
   
   it("should handle server action errors defined at the function level", async () => {
     // Add a test for error handling by modifying the server action to throw
-    const errorActionPath = resolve(testDir, "src/page/actions.server.ts");
-    const errorActionContent = `
-export function add(a, b) {
-  "use server";
-  const error = new Error('Test error');
-  error.name = 'Error';
-  error.digest = '';
-  throw error;
-}
-
-export function subtract(a, b) {
-  return a - b;
-}`;
-
-    // Write the modified server action file
-    await writeFile(errorActionPath, errorActionContent);
+    const errorActionPath = resolve(testDir, "src/page/add.server.ts");
+    
     await server.moduleGraph.invalidateAll();
     const errorResponse = await handleRSCStream(pageURL);
 
     // The error should be caught and handled gracefully
-    const response = await fetch(pageURL.replace("index.rsc", "actions.server.ts#add"), {
+    const response = await fetch(pageURL.replace("index.rsc", "add.server.ts#add"), {
       method: "POST",
       body: JSON.stringify({
-        "id": "subtract",
+        "id": "add",
         "args": [1, 2]
       }),
       headers: {
@@ -145,7 +131,9 @@ export function subtract(a, b) {
       },
     });
     const result = await response.text();
-    console.log(result);
+
+
+    expect(errorResponse.result).toContain("Test error"); 
     expect(result).toContain(
       '5:E{"digest":"","name":"Error","message":"Test error"'
     ); // Error marker in RSC format

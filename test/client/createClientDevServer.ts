@@ -1,5 +1,5 @@
 import { createServer } from "vite";
-import { vitePluginReactClient } from "../../dist/client";
+import { vitePluginReactClient } from "vite-plugin-react-server/client";
 import { testUserOptions } from "../test-config";
 import type { ViteDevServer } from "vite";
 

@@ -52,14 +52,19 @@ export function reactTransformPlugin<
   let staticManifest: Manifest = {};
   let isBuild = true;
   let isSSR = false;
-
+  let mode = 'production';
+  let verbose =  true;
   return {
     name: "vite:react-server-transform",
     enforce: "post", // Run after Vite's transforms
+    async config(config, configEnv) {
+      isBuild = configEnv.command === "build";
+      isSSR = config.build?.ssr === true || configEnv.isSsrBuild === true;
+    },
     async configResolved(config) {
       isBuild = config.command === "build";
       isSSR = config.build?.ssr === true;
-
+      mode = config.mode;
       if (isBuild && isSSR) {
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
@@ -124,13 +129,18 @@ export function reactTransformPlugin<
         }
       }
       let finalID = userOptions.moduleID(moduleID);
+      console.log('mode', mode);
       // Always transform in server context
       const transformed = transformModuleIfNeeded(
         code,
         finalID,
         isServerFunctionCode,
         isClientComponentCode,
-        true
+        true, // always force server environment for .server plugin
+        `react-server-dom-esm/server.node`,
+        "registerClientReference",
+        "registerServerReference",
+        verbose
       );
       if (userOptions.verbose)
         if (transformed !== code) {

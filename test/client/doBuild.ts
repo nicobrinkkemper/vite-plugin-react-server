@@ -1,5 +1,5 @@
 import { build } from "vite";
-import { vitePluginReactServer } from "../../dist/plugin/plugin.client";
+import { vitePluginReactClient } from "vite-plugin-react-server/client";
 import { PluginEvent, StreamPluginOptions, PagePropOpt, InlineCssOpt } from "../../plugin/types";
 import { testUserOptions } from "../test-config";
 import { inspect } from "node:util";
@@ -47,14 +47,14 @@ export async function doBuild<
 
   // Do the builds
   await build({
-    plugins: [vitePluginReactServer(options)],
+    plugins: [vitePluginReactClient(options)],
     build: {
       ssr: false,
     },
   });
 
   await build({
-    plugins: [vitePluginReactServer(options)],
+    plugins: [vitePluginReactClient(options)],
     build: {
       ssr: true,
     },

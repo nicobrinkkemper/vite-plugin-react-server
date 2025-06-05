@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import * as esbuild from "esbuild";
 import type { LoaderContext } from "../types.js";
 import { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
-import { createMappingsSerializer } from "../source-map/createMappingsSerializer.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 export interface LoaderResult {
   source: string;
@@ -11,6 +11,10 @@ export interface LoaderResult {
 
 export interface Loader {
   (id: string, context?: LoaderContext, nextLoad?: any): LoaderResult;
+}
+
+function isTransformedObject(obj: any): obj is { source: string; map?: any } {
+  return obj && typeof obj === 'object' && typeof obj.source === 'string';
 }
 
 /**
@@ -27,45 +31,16 @@ export function createDefaultLoader(source?: string): Loader {
         sourcemap: true,
         sourcefile: id,
       });
-
-      // Transform the code for RSC boundaries
-      const transformed = transformModuleIfNeeded(
-        result.code,
-        id,
-        null, // isServerFunction
-        null, // isClientComponent
-        true // isServerEnvironment
-      );
-
-      // Create a new source map with proper mappings
-      const map = result.map ? {
-        version: 3,
-        sources: [id],
-        sourcesContent: [transformed],
-        mappings: (() => {
-          const serializer = createMappingsSerializer();
-          let mappings = '';
-          
-          // Map each line of the transformed code to its corresponding line in the original source
-          const transformedLines = transformed.split('\n');
-          for (let i = 0; i < transformedLines.length; i++) {
-            if (i > 0) mappings += ';';
-            // For the import and registration lines, map to the first line of the original source
-            if (transformedLines[i].includes('import {') || transformedLines[i].includes('registerServerReference')) {
-              mappings += serializer(i + 1, 0, 0, 1, 0, 0);
-            } else {
-              // For the actual code, map to the corresponding line in the original source
-              const originalLine = Math.max(1, i - 1); // Adjust for the import line
-              mappings += serializer(i + 1, 0, 0, originalLine, 0, 0);
-            }
-          }
-
-          return mappings;
-        })()
-      } : null;
-
+      let map = result.map;
+      if (typeof map === 'string') {
+        try {
+          map = JSON.parse(map);
+        } catch (e) {
+          // leave as is if parsing fails
+        }
+      }
       return {
-        source: transformed,
+        source: result.code,
         map
       };
     };
@@ -93,40 +68,23 @@ export function createDefaultLoader(source?: string): Loader {
           id,
           null, // isServerFunction
           null, // isClientComponent
-          true // isServerEnvironment
+          true, // isServerEnvironment
+          DEFAULT_CONFIG.RSC_LOADER.importPath,
+          DEFAULT_CONFIG.RSC_LOADER.registerClientReferenceName,
+          DEFAULT_CONFIG.RSC_LOADER.registerServerReferenceName
         );
 
-        // Create a new source map with proper mappings
-        const map = result.map ? {
-          version: 3,
-          sources: [id],
-          sourcesContent: [transformed],
-          mappings: (() => {
-            const serializer = createMappingsSerializer();
-            let mappings = '';
-            
-            // Map each line of the transformed code to its corresponding line in the original source
-            const transformedLines = transformed.split('\n');
-            for (let i = 0; i < transformedLines.length; i++) {
-              if (i > 0) mappings += ';';
-              // For the import and registration lines, map to the first line of the original source
-              if (transformedLines[i].includes('import {') || transformedLines[i].includes('registerServerReference')) {
-                mappings += serializer(i + 1, 0, 0, 1, 0, 0);
-              } else {
-                // For the actual code, map to the corresponding line in the original source
-                const originalLine = Math.max(1, i - 1); // Adjust for the import line
-                mappings += serializer(i + 1, 0, 0, originalLine, 0, 0);
-              }
-            }
-
-            return mappings;
-          })()
-        } : null;
-
-        return {
-          source: transformed,
-          map
-        };
+        if (isTransformedObject(transformed)) {
+          return {
+            source: transformed.source,
+            map: 'map' in transformed ? transformed.map : null
+          };
+        } else {
+          return {
+            source: transformed as string,
+            map: null
+          };
+        }
       };
     }
     const result = nextLoad(id, context);

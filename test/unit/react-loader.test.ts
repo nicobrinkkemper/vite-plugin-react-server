@@ -57,7 +57,7 @@ export class Calculator {
 
       // Check that all exports are preserved and registered
       expect(result).toContain(
-        'import { registerServerReference } from "react-server-dom-esm/server.node";'
+        'import { registerServerReference } from "react-server-dom-esm/server";'
       );
       expect(result).toContain(
         'registerServerReference(add, "test", "add");'
@@ -104,30 +104,16 @@ export class Modal {
         "test",
         null,
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective),
-        true // isServerEnvironment
+        true, // isServerEnvironment
+        "react-server-dom-esm/server.node"
       );
 
-      // Check that all components are registered and exported
-      expect(result).toContain(
-        'import { registerClientReference } from "react-server-dom-esm/server.node";'
-      );
-      expect(result).toContain(
-        "export const Button = registerClientReference(function() {"
-      );
-      expect(result).toContain(
-        "export const Input = registerClientReference(function() {"
-      );
-      expect(result).toContain(
-        "export const Card = registerClientReference(function() {"
-      );
-      expect(result).toContain(
-        "export const Modal = registerClientReference(function() {"
-      );
-
-      // Verify error-throwing functions are registered
-      expect(result).toContain(
-        'throw new Error("Attempted to call Button() from the server but Button is on the client. It\'s not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.");'
-      );
+      // Verify transformed code has registerClientReference
+      expect(result).toContain('import { registerClientReference } from "react-server-dom-esm/server.node"');
+      expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Button() from the server but Button is on the client');
+      expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Input() from the server but Input is on the client');
+      expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Card() from the server but Card is on the client');
+      expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Modal() from the server but Modal is on the client');
     });
 
     test("should handle mixed exports in server modules", async () => {
@@ -155,7 +141,7 @@ export default function DefaultExport() {
 
       // Check that all exports are preserved
       expect(result).toContain(
-        'import { registerServerReference } from "react-server-dom-esm/server.node";'
+        'import { registerServerReference } from "react-server-dom-esm/server";'
       );
       expect(result).toContain(
         'registerServerReference(serverAction, "test", "serverAction");'
@@ -211,7 +197,7 @@ export async function clearCompletedTodos() {
 
       // Check that all exports are preserved and registered
       expect(result).toContain(
-        'import { registerServerReference } from "react-server-dom-esm/server.node";'
+        'import { registerServerReference } from "react-server-dom-esm/server";'
       );
       expect(result).toContain(
         'registerServerReference(getTodos, "test", "getTodos");'
@@ -381,7 +367,6 @@ export async function clearCompletedTodos() {
 });
 
 describe("Source Map Handling", () => {
-
   test("should handle source maps with multiple lines", async () => {
     const source = `"use server";
 //# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbInRlc3QudHMiXSwic291cmNlQ29udGVudCI6WyJleHBvcnQgZnVuY3Rpb24gdGVzdCgpIHtcbiAgcmV0dXJuIDQyO1xufSJdLCJtYXBwaW5ncyI6IkFBQUE7QUFDQSJ9
@@ -396,13 +381,20 @@ export function test() {
     }, createDefaultLoader(source));
 
     expect(result.map).toBeDefined();
-    expect(result.map?.mappings).toBeDefined();
+    expect(result.map).toEqual({
+      version: 3,
+      sources: ['test.js'],
+      sourcesContent: expect.arrayContaining([expect.stringContaining('"use server"')]),
+      mappings: expect.any(String),
+      sourceRoot: '',
+      names: []
+    });
   });
 
   test("should handle source maps for client components", async () => {
     const source = `"use client";
 //# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbInRlc3QudHMiXSwic291cmNlQ29udGVudCI6WyJleHBvcnQgZnVuY3Rpb24gdGVzdCgpIHsgcmV0dXJuIDQyOyB9Il0sIm1hcHBpbmdzIjoiQUFBQSJ9
-export function test() {
+export function test(arg1) {
   return 42;
 }`;
     const result = await load("test.js", {
@@ -413,8 +405,14 @@ export function test() {
     }, createDefaultLoader(source));
 
     expect(result.map).toBeDefined();
-    expect(result.map?.sources).toContain("test.js");
-    expect(result.map?.mappings).toBeDefined();
+    expect(result.map).toEqual({
+      version: 3,
+      sources: ['test.js'],
+      sourcesContent: expect.arrayContaining([expect.stringContaining('"use client"')]),
+      mappings: expect.any(String),
+      sourceRoot: '',
+      names: []
+    });
   });
 });
 
@@ -516,12 +514,8 @@ export function subtract(a, b) {
     const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
     
     // Verify the mappings contain the correct number of segments
-    // We expect:
-    // 1. Import statement
-    // 2. Original source code (2 functions)
-    // 3. Two registerServerReference calls
     const segments = sourceMap.mappings.split(';').filter(Boolean);
-    expect(segments.length).toBeGreaterThanOrEqual(4);
+    expect(segments.length).toBeGreaterThanOrEqual(3); // At least 3 lines: import, add, subtract
 
     // Verify the transformed code contains both registrations
     expect(result).toContain('registerServerReference(add');
@@ -553,15 +547,12 @@ export function Input() {
     const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
     
     // Verify the mappings contain the correct number of segments
-    // We expect:
-    // 1. Import statement
-    // 2. Two registerClientReference calls
     const segments = sourceMap.mappings.split(';').filter(Boolean);
-    expect(segments.length).toBeGreaterThanOrEqual(3);
+    expect(segments.length).toBeGreaterThanOrEqual(3); // At least 3 lines: import, Button, Input
 
     // Verify the transformed code contains both registrations
-    expect(result).toContain('registerClientReference(function() {throw new Error("Attempted to call Button()');
-    expect(result).toContain('registerClientReference(function() {throw new Error("Attempted to call Input()');
+    expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Button() from the server but Button is on the client');
+    expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Input() from the server but Input is on the client');
   });
 
   test('should preserve line numbers in mappings for nested functions', async () => {

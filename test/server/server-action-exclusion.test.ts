@@ -80,10 +80,12 @@ describe("Server Action Build Exclusion", () => {
     }
   });
 
-  it("should not include client-only files in server build", async () => {
+  it("should not include directives in server build", async () => {
     // Check that client-only files are not in the server bundles
     for (const bundle of serverBundles) {
       expect(bundle.code).not.toContain("use client");
+      expect(bundle.code).not.toContain("use server");
+      expect(bundle.code).not.toContain("useState");
     }
   });
 

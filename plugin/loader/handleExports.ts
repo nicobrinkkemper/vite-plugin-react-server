@@ -68,6 +68,15 @@ export function handleExports(
     return "unknown";
   }
 
+  // Helper function to convert SourceLocation to our format
+  function convertLocation(loc: { start: { line: number; column: number } } | null | undefined): { line: number; column: number } | undefined {
+    if (!loc?.start) return undefined;
+    return {
+      line: loc.start.line,
+      column: loc.start.column
+    };
+  }
+
   // First pass: collect all exports and code between them
   for (const node of program.body) {
     // Add any code before this node
@@ -95,6 +104,7 @@ export function handleExports(
                 type: "function",
                 localName,
                 before: [...currentBefore],
+                loc: convertLocation(spec.local.loc)
               });
               exportNames.push(localName);
             }
@@ -128,6 +138,7 @@ export function handleExports(
             declaration: source.slice(node.declaration.start, node.declaration.end),
             before: [...currentBefore],
             isAsync: node.declaration.async,
+            loc: convertLocation(node.declaration.id.loc)
           });
           exportNames.push(name);
           currentBefore = [];
@@ -141,6 +152,7 @@ export function handleExports(
             type: getFunctionType(node.declaration),
             declaration: source.slice(node.declaration.start, node.declaration.end),
             before: [...currentBefore],
+            loc: convertLocation(node.declaration.id.loc)
           });
           exportNames.push(name);
           currentBefore = [];
@@ -163,6 +175,7 @@ export function handleExports(
                 declaration: source.slice(decl.start, decl.end),
                 before: [...currentBefore],
                 isAsync: isAsync || false,
+                loc: convertLocation(decl.id.loc)
               });
               exportNames.push(name);
               currentBefore = [];
@@ -191,6 +204,7 @@ export function handleExports(
                   declaration: source.slice(functionDecl.start, functionDecl.end),
                   before: [...currentBefore],
                   isAsync: functionDecl.async,
+                  loc: convertLocation(functionDecl.id.loc)
                 });
                 exportNames.push(exportedName);
               } else {
@@ -222,6 +236,7 @@ export function handleExports(
                       declaration: source.slice(decl.start, decl.end),
                       before: [...currentBefore],
                       isAsync,
+                      loc: convertLocation(decl.id.loc)
                     });
                     exportNames.push(exportedName);
                   }
@@ -231,6 +246,7 @@ export function handleExports(
                     type: "variable",
                     localName,
                     before: [...currentBefore],
+                    loc: convertLocation(spec.local.loc)
                   });
                   exportNames.push(exportedName);
                 }
@@ -246,6 +262,7 @@ export function handleExports(
           type: getFunctionType(node.declaration),
           localName: node.declaration.id.name, // Capture the function name
           isAsync: node.declaration.async,
+          loc: convertLocation(node.declaration.id.loc)
         });
       } else {
         exports.set("default", {

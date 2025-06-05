@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { hydrateUserOptions } from "../helpers/index.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 export interface LoaderOptions {
   id: string;
@@ -51,6 +52,9 @@ export async function initialize(data: {
   } satisfies InitializedReactLoaderMessage);
 }
 
+const isServerFunction = userOptions?.autoDiscover?.isServerFunctionCode ?? DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode;
+const isClientComponent = userOptions?.autoDiscover?.isClientComponentCode ?? DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode;
+
 export async function load(url: string, context: LoaderContext, nextLoad: any) {
   if (userOptions?.verbose) {
     console.log("[react-loader] Attempting to load:", url);
@@ -81,8 +85,8 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
         ? new TextDecoder().decode(result.source)
         : String(result.source);
 
-    const isServer = userOptions?.autoDiscover?.isServerFunctionCode(source);
-    const isClient = userOptions?.autoDiscover?.isClientComponentCode(source);
+    const isServer = isServerFunction(source);
+    const isClient = isClientComponent(source);
     if (userOptions?.verbose) {
       console.log("[react-loader] Module analysis:", {
         url,
@@ -147,13 +151,28 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
     }
 
     // If we have a source map, update it to point to the transformed source
-    const map = result.map
-      ? {
-          ...result.map,
-          sourcesContent: [transformed],
-          mappings: result.map.mappings,
-        }
-      : null;
+    let map = result.map;
+    if (typeof map === 'string') {
+      try {
+        map = JSON.parse(map);
+      } catch (e) {
+        // leave as is if parsing fails
+      }
+    }
+    if (map) {
+      let originalSource = result.source;
+      if (typeof originalSource !== 'string') {
+        originalSource = '';
+      }
+      map = {
+        ...map,
+        sourcesContent: [originalSource],
+        mappings: map.mappings,
+        sourceRoot: '',
+      };
+    } else {
+      map = null;
+    }
 
     return {
       ...result,

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer } from "vite";
-import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
+import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";

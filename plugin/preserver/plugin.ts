@@ -160,7 +160,7 @@ export function reactPreservePlugin<
             .join("\n") + "\n";
 
         const newCode = directivesCode + code;
-
+        console.log({ preserve: newCode });
         // Create source map for the prepended directives
         const lineCount = countLines(directivesCode);
         const mappings = "AAAA" + ";AACA".repeat(lineCount - 1);

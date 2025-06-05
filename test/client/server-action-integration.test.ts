@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer } from 'vite';
-import { vitePluginReactServer } from '../../dist/plugin/plugin.client.js';
+import { vitePluginReactClient } from 'vite-plugin-react-server/client';
 import { testUserOptions } from '../test-config.js';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { mkdir, rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { setupTodoTestProject } from '../setup.js';
 import { handleRSCStream, RSCStreamResponse } from '../rsc-stream.js';
 
@@ -25,7 +25,7 @@ describe('Client Server Action Integration', () => {
       server = await createServer({
         root: testDir,
         plugins: [
-          vitePluginReactServer({
+          vitePluginReactClient({
             ...testUserOptions,
             projectRoot: testDir,
             Page: 'src/page/page.tsx',

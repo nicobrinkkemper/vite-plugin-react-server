@@ -1,7 +1,7 @@
 import { build } from "vite";
-import { vitePluginReactClient } from "../../dist/client";
-import { vitePluginReactServer } from "../../dist/plugin/plugin.server";
-import { PluginEvent, StreamPluginOptions, PagePropOpt, InlineCssOpt } from "../../plugin/types";
+import { vitePluginReactClient } from "vite-plugin-react-server/client";
+import { vitePluginReactServer } from "vite-plugin-react-server/server";
+import { PluginEvent, StreamPluginOptions, PagePropOpt, InlineCssOpt } from "vite-plugin-react-server/types";
 import { testUserOptions } from "../test-config";
 import { inspect } from "node:util";
 import { rm } from "fs/promises";

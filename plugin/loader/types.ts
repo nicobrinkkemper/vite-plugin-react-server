@@ -15,4 +15,11 @@ export interface ExportInfo {
   node?: Node;
 }
 
-export type Program = AcornProgram;
+export type Program = AcornProgram & {
+  comments?: Array<{
+    type: 'Block' | 'Line';
+    value: string;
+    start: number;
+    end: number;
+  }>;
+};

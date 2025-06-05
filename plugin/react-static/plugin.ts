@@ -197,7 +197,7 @@ export function reactStaticPlugin<
         // First collect global styles from index.html
         const indexHtmlCssInputs = collectManifestCss(
           autoDiscoveredFiles?.staticManifest ?? {},
-          userOptions.clientEntry ?? "index.html"
+          "index.html"
         );
         const clientEntryCssInputs = collectManifestCss(
           autoDiscoveredFiles?.staticManifest ?? {},
