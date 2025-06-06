@@ -1,96 +1,76 @@
-import { readFileSync } from "fs";
-import * as esbuild from "esbuild";
 import type { LoaderContext } from "../types.js";
-import { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { createSourceMap, addSourceMap } from "./sourceMap.js";
+import { transformWithAcornLoose } from "./transformWithAcornLoose.js";
+import type { RawSourceMap } from 'source-map';
 
 export interface LoaderResult {
   source: string;
-  map: any | null;
+  map: RawSourceMap | null;
 }
 
 export interface Loader {
   (id: string, context?: LoaderContext, nextLoad?: any): LoaderResult;
 }
 
-function isTransformedObject(obj: any): obj is { source: string; map?: any } {
-  return obj && typeof obj === 'object' && typeof obj.source === 'string';
-}
-
 /**
- * Creates a default loader function that either uses provided source or reads from file
+ * Creates a loader function that transforms modules and handles source maps.
+ * This function can be used in two ways:
+ * 
+ * 1. As a direct transformer:
+ *    - Takes source code and returns transformed code with source map attached
+ *    - Used by transformModuleIfNeeded
+ * 
+ * 2. As a loader factory:
+ *    - Returns a loader function that takes a module ID and returns a LoaderResult
+ *    - Used by the plugin to create loaders for different environments
  */
-export function createDefaultLoader(source?: string): Loader {
-  if (typeof source === "string") {
-    return function load(id: string): LoaderResult {
-      // Use esbuild to transform the code
-      const result = esbuild.transformSync(source, {
-        loader: "tsx",
-        format: "esm",
-        target: "esnext",
-        sourcemap: true,
-        sourcefile: id,
-      });
-      let map = result.map;
-      if (typeof map === 'string') {
-        try {
-          map = JSON.parse(map);
-        } catch (e) {
-          // leave as is if parsing fails
-        }
-      }
+export function createDefaultLoader(
+  sourceOrModuleId: string,
+  defaultIdOrSource?: string,
+  isServerFunction?: boolean | RegExpMatchArray | null,
+  isClientComponent?: boolean | RegExpMatchArray | null,
+  importPath = DEFAULT_CONFIG.RSC_LOADER.importPath as string,
+  registerClientReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerClientReferenceName,
+  registerServerReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerServerReferenceName,
+  isServerEnvironment = true,
+  verbose = false
+): string | ((moduleId: string) => Promise<{ source: string; map: RawSourceMap | null }>) {
+  if (defaultIdOrSource) {
+    // Loader factory mode
+    return async (moduleId: string) => {
+      const { code, map } = transformWithAcornLoose(
+        sourceOrModuleId,
+        moduleId,
+        isServerFunction,
+        isClientComponent,
+        importPath,
+        registerClientReferenceName,
+        registerServerReferenceName,
+        isServerEnvironment,
+        verbose
+      );
+      // Use the map from the transformer, or create one if missing
+      const sourceMap = map || createSourceMap(code, sourceOrModuleId, moduleId);
       return {
-        source: result.code,
-        map
+        source: code,
+        map: sourceMap
       };
     };
   }
-  return function load(
-    id: string,
-    context?: LoaderContext,
-    nextLoad?: any
-  ): LoaderResult {
-    if (!nextLoad) {
-      nextLoad = (id: string) => {
-        const source = readFileSync(id, "utf-8");
-        // Use esbuild to transform the code
-        const result = esbuild.transformSync(source, {
-          loader: "tsx",
-          format: "esm",
-          target: "esnext",
-          sourcemap: true,
-          sourcefile: id,
-        });
 
-        // Transform the code for RSC boundaries
-        const transformed = transformModuleIfNeeded(
-          result.code,
-          id,
-          null, // isServerFunction
-          null, // isClientComponent
-          true, // isServerEnvironment
-          DEFAULT_CONFIG.RSC_LOADER.importPath,
-          DEFAULT_CONFIG.RSC_LOADER.registerClientReferenceName,
-          DEFAULT_CONFIG.RSC_LOADER.registerServerReferenceName
-        );
-
-        if (isTransformedObject(transformed)) {
-          return {
-            source: transformed.source,
-            map: 'map' in transformed ? transformed.map : null
-          };
-        } else {
-          return {
-            source: transformed as string,
-            map: null
-          };
-        }
-      };
-    }
-    const result = nextLoad(id, context);
-    return {
-      ...result,
-      map: "map" in result ? result.map : null,
-    };
-  };
+  // Direct transformer mode
+  const { code, map } = transformWithAcornLoose(
+    sourceOrModuleId,
+    defaultIdOrSource || sourceOrModuleId,
+    isServerFunction,
+    isClientComponent,
+    importPath,
+    registerClientReferenceName,
+    registerServerReferenceName,
+    isServerEnvironment,
+    verbose
+  );
+  const sourceMap = map || createSourceMap(code, sourceOrModuleId, defaultIdOrSource || sourceOrModuleId);
+  return addSourceMap(code, sourceMap);
 }

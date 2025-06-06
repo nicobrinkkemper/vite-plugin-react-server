@@ -161,12 +161,28 @@ export function findDirectives(program: Program, source: string): DirectiveInfo 
         if (end < source.length && source.slice(end, end + 1) === '\n') {
           end++;
         }
-        // Update both the directive range and the function level directive range
-        directiveInfo.directiveRanges[directiveInfo.directiveRanges.length - 1].end = end;
+        // Update all directive ranges with the extended end position
+        const lastRange = directiveInfo.directiveRanges[directiveInfo.directiveRanges.length - 1];
+        if (lastRange) {
+          lastRange.end = end;
+        }
         if (scope.type === 'function') {
-          const funcDirective = directiveInfo.functionLevelServerDirectives.find(d => d.name === scope.name);
-          if (funcDirective) {
-            funcDirective.end = end;
+          if (directiveNode.directive === 'use server') {
+            const funcDirective = directiveInfo.functionLevelServerDirectives.find(d => d.name === scope.name);
+            if (funcDirective) {
+              funcDirective.end = end;
+            }
+          } else if (directiveNode.directive === 'use client') {
+            const funcDirective = directiveInfo.functionLevelClientDirectives.find(d => d.name === scope.name);
+            if (funcDirective) {
+              funcDirective.end = end;
+            }
+          }
+        } else {
+          if (directiveNode.directive === 'use server' && directiveInfo.fileLevelServerDirective) {
+            directiveInfo.fileLevelServerDirective.end = end;
+          } else if (directiveNode.directive === 'use client' && directiveInfo.fileLevelClientDirective) {
+            directiveInfo.fileLevelClientDirective.end = end;
           }
         }
       }

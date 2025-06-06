@@ -12,12 +12,10 @@
  *
  * This ensures that implementation details are never leaked across boundaries and errors are easy to debug.
  */
-import type { Program } from './types.js';
-import type { DirectiveInfo } from './findDirectives.js';
-import { createSourceMap, stripSourceMap } from './sourceMap.js';
-import { handleExports } from './handleExports.js';
-import { removeDirectives } from './removeDirectives.js';
-import { getCondition } from '../config/getCondition.js';
+import type { Program } from "./types.js";
+import type { DirectiveInfo } from "./findDirectives.js";
+import { handleExports } from "./handleExports.js";
+import { getCondition } from "../config/getCondition.js";
 
 export interface TransformOptions {
   source: string;
@@ -25,12 +23,13 @@ export interface TransformOptions {
   program?: Program;
 }
 
+type ExportReturnValue = ReturnType<typeof handleExports>;
+
 export function transformModuleWithPreservedFunctions(
   source: string,
   moduleId: string,
-  program: Program,
   directives: DirectiveInfo,
-  sourceMapInfo: { url: string | null; start: number; end: number; lines: number; originalSourceMap?: any },
+  { exportNames, exports }: Pick<ExportReturnValue, "exportNames" | "exports">,
   isServerFunction: boolean | RegExpMatchArray | null,
   isClientComponent: boolean | RegExpMatchArray | null,
   isServerEnvironment: boolean = getCondition() === "react-server",
@@ -38,75 +37,30 @@ export function transformModuleWithPreservedFunctions(
   registerClientReferenceName: string,
   registerServerReferenceName: string,
   verbose: boolean = false
-): string {
-  // Remove the old source map if present
-  let sourceWithoutMap = source;
-  if (sourceMapInfo && sourceMapInfo.start > 0) {
-    sourceWithoutMap = stripSourceMap(source);
-  }
-
-  // Get export names and create module ID literal
-  const { exportNames, exports } = handleExports(
-    sourceWithoutMap,
-    program,
-    isServerFunction,
-    isClientComponent
-  );
+) {
   const moduleIdLiteral = JSON.stringify(moduleId);
 
   if (verbose) {
     console.log(`[transformModuleWithPreservedFunctions] Module: ${moduleId}`);
-    console.log(`[transformModuleWithPreservedFunctions] Directives:`, directives);
-    console.log(`[transformModuleWithPreservedFunctions] isServerFunction:`, isServerFunction, `isClientComponent:`, isClientComponent);
+    console.log(
+      `[transformModuleWithPreservedFunctions] Directives:`,
+      directives
+    );
+    console.log(
+      `[transformModuleWithPreservedFunctions] isServerFunction:`,
+      isServerFunction,
+      `isClientComponent:`,
+      isClientComponent
+    );
   }
 
   // Only apply transformation for server or client
   if (isServerFunction || isClientComponent) {
-    const regName = isServerFunction ? registerServerReferenceName : registerClientReferenceName;
+    const regName = isServerFunction
+      ? registerServerReferenceName
+      : registerClientReferenceName;
     const isServer = !!isServerFunction;
     const isClient = !!isClientComponent;
-
-    // Collect all directive ranges to remove
-    const allDirectiveRanges = [
-      ...directives.directiveRanges,
-      ...(isServer ? directives.functionLevelServerDirectives.filter(d => 
-        !directives.directiveRanges.some(r => r.start === d.start && r.end === d.end)
-      ) : []),
-      ...(isClient ? directives.functionLevelClientDirectives.filter(d => 
-        !directives.directiveRanges.some(r => r.start === d.start && r.end === d.end)
-      ) : [])
-    ];
-
-    // Debug: Log the ranges and code slices being removed
-    if (verbose) {
-      console.log('[transformModuleWithPreservedFunctions] Ranges to remove:');
-      for (const range of allDirectiveRanges) {
-        const slice = sourceWithoutMap.slice(range.start, range.end);
-        console.log(`  Range [${range.start}, ${range.end}):`, JSON.stringify(slice));
-      }
-    }
-
-    // Remove all directives using helper
-    const codeWithoutDirectives = removeDirectives(sourceWithoutMap, allDirectiveRanges);
-
-    // Throw if any illegal directive remains as a directive (not just as a string literal)
-    // We'll use a regex to check for directive statements at the start of a line (optionally with whitespace)
-    const illegalDirectiveRegex = /^\s*"use (server|client)";?/mg;
-    const matches = [...codeWithoutDirectives.matchAll(illegalDirectiveRegex)];
-    if (matches.length > 0) {
-      console.error(`[transformModuleWithPreservedFunctions] WARNING: Found remaining directives after supposed removal in module: ${moduleId}`);
-      matches.forEach((match, idx) => {
-        const start = match.index;
-        const end = start !== undefined ? start + match[0].length : undefined;
-        console.error(`  [${idx}] Directive: '${match[0]}' at position ${start} to ${end}`);
-        const endNum = (typeof end === 'number') ? end : (typeof start === 'number' ? start : 0);
-        if (start !== undefined) {
-          const context = codeWithoutDirectives.slice(Math.max(0, start - 20), Math.min(codeWithoutDirectives.length, endNum + 20));
-          console.error(`      Context: ...${context}...`);
-        }
-      });
-      // Don't throw, just log a warning
-    }
 
     // Determine which exports to register
     let actionsToRegister = [];
@@ -115,7 +69,11 @@ export function transformModuleWithPreservedFunctions(
       if (directives.fileLevelServerDirective) {
         for (const name of exportNames) {
           const exportInfo = exports.get(name);
-          if (exportInfo?.type === 'function' || exportInfo?.type === 'variable' || exportInfo?.type === 'class') {
+          if (
+            exportInfo?.type === "function" ||
+            exportInfo?.type === "variable" ||
+            exportInfo?.type === "class"
+          ) {
             actionsToRegister.push({ name, exportInfo });
           }
         }
@@ -127,7 +85,11 @@ export function transformModuleWithPreservedFunctions(
           continue;
         }
         const exportInfo = exports.get(d.name);
-        if (exportInfo?.type === 'function' || exportInfo?.type === 'variable' || exportInfo?.type === 'class') {
+        if (
+          exportInfo?.type === "function" ||
+          exportInfo?.type === "variable" ||
+          exportInfo?.type === "class"
+        ) {
           actionsToRegister.push({ name: d.name, exportInfo });
         }
       }
@@ -135,7 +97,11 @@ export function transformModuleWithPreservedFunctions(
       if (directives.fileLevelClientDirective) {
         for (const name of exportNames) {
           const exportInfo = exports.get(name);
-          if (exportInfo?.type === 'function' || exportInfo?.type === 'variable' || exportInfo?.type === 'class') {
+          if (
+            exportInfo?.type === "function" ||
+            exportInfo?.type === "variable" ||
+            exportInfo?.type === "class"
+          ) {
             actionsToRegister.push({ name, exportInfo });
           }
         }
@@ -146,13 +112,19 @@ export function transformModuleWithPreservedFunctions(
           continue;
         }
         const exportInfo = exports.get(d.name);
-        if (exportInfo?.type === 'function' || exportInfo?.type === 'variable' || exportInfo?.type === 'class') {
+        if (
+          exportInfo?.type === "function" ||
+          exportInfo?.type === "variable" ||
+          exportInfo?.type === "class"
+        ) {
           actionsToRegister.push({ name: d.name, exportInfo });
         }
       }
     }
     // Remove duplicates
-    actionsToRegister = actionsToRegister.filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i);
+    actionsToRegister = actionsToRegister.filter(
+      (v, i, arr) => arr.findIndex((x) => x.name === v.name) === i
+    );
 
     // If this is a client component in server environment, we need to completely rebuild the source
     // to avoid any client-side imports or code
@@ -161,14 +133,18 @@ export function transformModuleWithPreservedFunctions(
       output.push(`import { ${regName} } from "${importPath}";`);
       for (const { name, exportInfo: _ } of actionsToRegister) {
         const registrationName = name === "default" ? "default" : name;
-        output.push(`export const ${registrationName} = ${regName}(function() { throw new Error("Attempted to call ${registrationName}() from the server but ${registrationName} is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component."); }, ${moduleIdLiteral}, ${JSON.stringify(registrationName)});`);
+        output.push(
+          `export const ${registrationName} = ${regName}(function() { throw new Error("Attempted to call ${registrationName}() from the server but ${registrationName} is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component."); }, ${moduleIdLiteral}, ${JSON.stringify(
+            registrationName
+          )});`
+        );
       }
-      return createSourceMap(output.join("\n"), sourceWithoutMap, moduleId);
+      return output.join("\n");
     }
 
     // If not in server environment, just remove directives and return code
     if (!isServerEnvironment) {
-      return createSourceMap(codeWithoutDirectives, sourceWithoutMap, moduleId);
+      return source;
     }
 
     // For server components/actions in server environment
@@ -177,16 +153,25 @@ export function transformModuleWithPreservedFunctions(
       output.unshift(`import { ${regName} } from "${importPath}";`);
     }
     // Ensure we output the code without directives first
-    output.push(codeWithoutDirectives);
+    output.push(source);
     // Then register the server functions
     for (const { name, exportInfo } of actionsToRegister) {
       const registrationName = name === "default" ? "default" : name;
-      const exportName = name === "default" && exportInfo?.localName ? exportInfo.localName : name;
-      output.push(`${regName}(${exportName}, ${moduleIdLiteral}, ${JSON.stringify(registrationName)});`);
+      const exportName =
+        name === "default" && exportInfo?.localName
+          ? exportInfo.localName
+          : name;
+      output.push(
+        `${regName}(${exportName}, ${moduleIdLiteral}, ${JSON.stringify(
+          registrationName
+        )});`
+      );
     }
 
-    const transformedCode = output.join('\n');
-    return createSourceMap(transformedCode, sourceWithoutMap, moduleId);
+    const transformedCode = output.join("\n");
+    return transformedCode;
   }
-  throw new Error(`[transformModuleWithPreservedFunctions] Unexpected module: ${moduleId}`);
+  throw new Error(
+    `[transformModuleWithPreservedFunctions] Unexpected module: ${moduleId}`
+  );
 }

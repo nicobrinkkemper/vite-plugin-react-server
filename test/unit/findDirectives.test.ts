@@ -11,7 +11,7 @@ describe('findDirectives', () => {
     expect(directives.useClient).toBe(true);
     expect(directives.fileLevelClientDirective).toBeDefined();
     expect(directives.fileLevelClientDirective?.start).toBe(0);
-    expect(directives.fileLevelClientDirective?.end).toBe(13);
+    expect(directives.fileLevelClientDirective?.end).toBe(14);
     expect(directives.functionLevelClientDirectives).toHaveLength(0);
   });
 
@@ -23,7 +23,7 @@ describe('findDirectives', () => {
     expect(directives.useServer).toBe(true);
     expect(directives.fileLevelServerDirective).toBeDefined();
     expect(directives.fileLevelServerDirective?.start).toBe(0);
-    expect(directives.fileLevelServerDirective?.end).toBe(13);
+    expect(directives.fileLevelServerDirective?.end).toBe(14);
     expect(directives.functionLevelServerDirectives).toHaveLength(0);
   });
 

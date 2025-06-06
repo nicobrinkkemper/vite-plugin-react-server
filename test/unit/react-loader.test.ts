@@ -397,16 +397,19 @@ export function test() {
       conditions: ["react-server"],
       importAttributes: {},
       url: "test.js"
-    }, createDefaultLoader(source));
+    }, createDefaultLoader(source, "test.js"));
 
     expect(result.map).toBeDefined();
     expect(result.map).toEqual({
       version: 3,
+      file: 'test.js',
       sources: ['test.js'],
-      sourcesContent: expect.arrayContaining([expect.stringContaining('"use server"')]),
+      names: [],
       mappings: expect.any(String),
       sourceRoot: '',
-      names: []
+      sourcesContent: expect.arrayContaining([
+        expect.stringContaining('"use server"')
+      ])
     });
   });
 
@@ -421,16 +424,19 @@ export function test(arg1) {
       conditions: ["react-server"],
       importAttributes: {},
       url: "test.js"
-    }, createDefaultLoader(source));
+    }, createDefaultLoader(source, "test.js"));
 
     expect(result.map).toBeDefined();
     expect(result.map).toEqual({
       version: 3,
+      file: 'test.js',
       sources: ['test.js'],
-      sourcesContent: expect.arrayContaining([expect.stringContaining('"use client"')]),
+      names: [],
       mappings: expect.any(String),
       sourceRoot: '',
-      names: []
+      sourcesContent: expect.arrayContaining([
+        expect.stringContaining('"use client"')
+      ])
     });
   });
 });
@@ -451,9 +457,8 @@ export function hello() {
     );
 
     // Extract source map from the result
-    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([A-Za-z0-9+/=]+)$/m);
     expect(sourceMapMatch).toBeTruthy();
-    
     const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
     
     // Verify source map structure
@@ -487,9 +492,8 @@ export function hello() {
     );
 
     // Extract source map from the result
-    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([A-Za-z0-9+/=]+)$/m);
     expect(sourceMapMatch).toBeTruthy();
-    
     const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
     
     // Verify source map structure
@@ -527,9 +531,8 @@ export function subtract(a, b) {
     );
 
     // Extract source map from the result
-    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([A-Za-z0-9+/=]+)$/m);
     expect(sourceMapMatch).toBeTruthy();
-    
     const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
     
     // Verify the mappings contain the correct number of segments
@@ -560,9 +563,8 @@ export function Input() {
     );
 
     // Extract source map from the result
-    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([A-Za-z0-9+/=]+)$/m);
     expect(sourceMapMatch).toBeTruthy();
-    
     const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
     
     // Verify the mappings contain the correct number of segments
@@ -592,9 +594,8 @@ export function outer() {
     );
 
     // Extract source map from the result
-    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([^"\n]+)/);
+    const sourceMapMatch = result.match(/\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([A-Za-z0-9+/=]+)$/m);
     expect(sourceMapMatch).toBeTruthy();
-    
     const sourceMap = JSON.parse(Buffer.from(sourceMapMatch![1], 'base64').toString());
     
     // Verify the source content is preserved

@@ -1,6 +1,9 @@
 import { getCondition } from "../config/getCondition.js";
 import { transformWithAcornLoose } from "./transformWithAcornLoose.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { addSourceMap, createSourceMap } from "./sourceMap.js";
+import type { RawSourceMap } from 'source-map';
+
 
 // --- React RSC Directive Handling ---
 //
@@ -32,6 +35,12 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 //    - Do not allow on client, only use client is allowed on client.
 //    - No special registration or transformation.
 
+/**
+ * Transforms a module and returns the transformed code with source map attached.
+ * This is used by the loader to transform modules and attach source maps.
+ * 
+ * @returns The transformed code with source map attached as a URL comment
+ */
 export function transformModuleIfNeeded(
   source: string,
   moduleId: string,
@@ -42,40 +51,15 @@ export function transformModuleIfNeeded(
   registerClientReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerClientReferenceName,
   registerServerReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerServerReferenceName,
   verbose = false
-) {
-  // Handle environment-specific cases
-  if (isServerEnvironment) {
-    // In server environment:
-    // - Server functions need transformation
-    // - Client components need transformation
-    // - Other modules can pass through
-    if (!isServerFunction && !isClientComponent) {
-      if(verbose) {
-        console.log("[transformModuleIfNeeded] Skipping transformation for module:", moduleId, "because it is not a server function or client component");
-      }
-      return source;
-    }
-  } else {
-    // In client environment:
-    // - Only client components should pass through
-    // - Server functions should be transformed
-    if (isClientComponent) {
-      if(verbose) {
-        console.log("[transformModuleIfNeeded] Skipping transformation for module:", moduleId, "because it is a client component on a non-server environment");
-      }
-      return source;
-    }
-  }
-
-  // Strict RSC: cannot be both server and client
-  if (isServerFunction && isClientComponent) {
-    throw new Error(
-      `Module ${moduleId} cannot be both a server function and a client component.`
-    );
-  }
-
+): string {
   try {
-    const result = transformWithAcornLoose(
+    // If no directives are present, return the original code unchanged
+    if (!isServerFunction && !isClientComponent) {
+      return source;
+    }
+
+    // Get transformed code and source map from acorn-loose transformer
+    const { code, map } = transformWithAcornLoose(
       source,
       moduleId,
       isServerFunction,
@@ -86,10 +70,16 @@ export function transformModuleIfNeeded(
       isServerEnvironment,
       verbose
     );
+
     if(verbose) {
-      console.log("[transformModuleIfNeeded] Transformed module:", result);
+      console.log("[transformModuleIfNeeded] Transformed module:", { code, map });
     }
-    return result;
+
+    // Create a source map that maps the transformed code back to the original source
+    const sourceMap: RawSourceMap = map || createSourceMap(code, source, moduleId);
+
+    // Return the transformed code with source map attached as a URL comment
+    return addSourceMap(code, sourceMap);
   } catch (error) {
     // Log the error and rethrow
     console.error(`[transformModuleIfNeeded] Error transforming module ${moduleId}:`, error);
