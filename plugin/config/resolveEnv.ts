@@ -1,6 +1,7 @@
 import { loadEnv, type ResolvedConfig } from "vite";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getCondition } from "./getCondition.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 type NestedEnv = {
   [key: string]: unknown | NestedEnv;
@@ -66,10 +67,7 @@ export function resolveEnv(
         console.warn(
           `NODE_ENV is not ${inferredMode} but VITE_MODE is ${inferredMode}, NODE_ENV takes precedence`
         );
-        mergedEnv["VITE_MODE"] =
-          process.env["NODE_ENV"] === "production"
-            ? "production"
-            : "development";
+        mergedEnv["VITE_MODE"] = getNodeEnv();
       } else if (
         inferredMode === "development" &&
         process.env["NODE_ENV"] !== "development"
@@ -85,10 +83,7 @@ export function resolveEnv(
           console.warn(
             `NODE_ENV is not ${inferredMode} but VITE_MODE is ${mode}, NODE_ENV takes precedence`
           );
-          mergedEnv["VITE_MODE"] =
-            process.env["NODE_ENV"] === "development"
-              ? "development"
-              : "production";
+          mergedEnv["VITE_MODE"] = getNodeEnv();
         }
       } else {
         mergedEnv["VITE_MODE"] = inferredMode;

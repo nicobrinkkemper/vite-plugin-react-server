@@ -11,6 +11,8 @@ import { join } from "node:path";
 import { setStashedResolve } from "../helpers/moduleResolver.js";
 import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
 import { logError } from "../error/toError.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
 
 /**
  * Plugin for transforming React Client Components.
@@ -52,8 +54,9 @@ export function reactTransformPlugin<
   let staticManifest: Manifest = {};
   let isBuild = true;
   let isSSR = false;
-  let mode = 'production';
-  let verbose =  true;
+  let nodeEnv = getNodeEnv();
+  let mode = nodeEnv;
+  let verbose =  options.verbose;
   return {
     name: "vite:react-server-transform",
     enforce: "post", // Run after Vite's transforms
@@ -64,7 +67,10 @@ export function reactTransformPlugin<
     async configResolved(config) {
       isBuild = config.command === "build";
       isSSR = config.build?.ssr === true;
-      mode = config.mode;
+      if(isValidEnv(config.mode) && config.mode !== nodeEnv) {
+        console.warn(`Mode ${config.mode} must be equal to NODE_ENV ${nodeEnv}.`);
+        mode = nodeEnv;
+      }
       if (isBuild && isSSR) {
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
@@ -129,7 +135,6 @@ export function reactTransformPlugin<
         }
       }
       let finalID = userOptions.moduleID(moduleID);
-      console.log('mode', mode);
       // Always transform in server context
       const transformed = transformModuleIfNeeded(
         code,
@@ -137,9 +142,7 @@ export function reactTransformPlugin<
         isServerFunctionCode,
         isClientComponentCode,
         true, // always force server environment for .server plugin
-        `react-server-dom-esm/server.node`,
-        "registerClientReference",
-        "registerServerReference",
+        DEFAULT_CONFIG.RSC_LOADER[mode],
         verbose
       );
       if (userOptions.verbose)

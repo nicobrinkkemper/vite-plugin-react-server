@@ -24,6 +24,7 @@ describe("RSC Server", () => {
     try {
       // Start the server
       server = await createServer({
+        mode: "test",
         root: testDir,
         plugins: [
           vitePluginReactServer({
@@ -44,8 +45,8 @@ describe("RSC Server", () => {
         },
       });
 
-      await server.listen();
-      if (server.config?.server?.port) {
+      await server?.listen();
+      if (server?.config?.server?.port) {
         port = server.config.server.port;
       }
       pageURL = `http://localhost:${port}/index.rsc`;

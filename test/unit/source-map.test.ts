@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { transformWithAcornLoose } from '../../plugin/loader/transformWithAcornLoose';
-import { parse } from '../../plugin/loader/parse';
+import { DEFAULT_CONFIG } from '../../plugin/config/defaults';
 
 // Helper function to decode VLQ mappings
 function decodeMappings(mappings: string) {
@@ -28,9 +28,7 @@ export function add(a, b) {
       '/test/actions.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -66,9 +64,7 @@ export function ClientComponent() {
       '/test/ClientComponent.client.tsx',
       false,
       true,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -104,9 +100,7 @@ export function add(a, b) {
       '/test/mixed.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -140,10 +134,8 @@ export function add(a, b) {
       source,
       '/test/actions.server.ts',
       true,
-      false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      false,  
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -175,9 +167,7 @@ export function add(a, b) {
       '/test/multi.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -206,9 +196,7 @@ export function add(a, b) {
       '/test/commented.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -237,9 +225,7 @@ export function add(a, b) {
       '/test/misplaced.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -268,9 +254,7 @@ export function add(a, b) {
       '/test/nonDirective.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -299,9 +283,7 @@ export function add(a, b) {
       '/test/arrow.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -330,9 +312,7 @@ export function add(a, b) {
       '/test/nonexported.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -362,9 +342,7 @@ export function add(a, b) {
       '/test/nested.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -393,9 +371,7 @@ export function add(a, b) {
       '/test/class.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -428,9 +404,7 @@ export function add(a, b) {
       '/test/actions.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -459,9 +433,7 @@ export function add(a, b) {
       '/test/actions.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -494,9 +466,7 @@ export function add(a, b) {
       '/test/actions.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );
@@ -525,9 +495,7 @@ export function add(a, b) {
       '/test/actions.server.ts',
       true,
       false,
-      "react-server-dom-esm/server",
-      "registerClientReference",
-      "registerServerReference",
+      DEFAULT_CONFIG.RSC_LOADER['test'],
       true,
       false
     );

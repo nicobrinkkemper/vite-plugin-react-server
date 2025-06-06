@@ -47,7 +47,8 @@ export async function doBuild<
   await rm(distDir, { recursive: true, force: true });
 
   // Do the builds
-  await build({
+  await build({  
+    mode: "test",
     plugins: [vitePluginReactClient(options)],
     build: {
       ssr: false,
@@ -55,6 +56,7 @@ export async function doBuild<
   });
 
   await build({
+    mode: "test",
     plugins: [vitePluginReactClient(options)],
     build: {
       ssr: true,
@@ -62,6 +64,7 @@ export async function doBuild<
   });
 
   await build({
+    mode: "test",
     plugins: [vitePluginReactServer(options)],
   });
 

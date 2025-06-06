@@ -1,11 +1,12 @@
 import { parse, type ParseResult } from "./parse.js";
 import { transformModuleWithPreservedFunctions } from "./transformModuleWithPreservedFunctions.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
-import { getCondition } from "../config/getCondition.js";
+import { isReactServerCondition } from "../config/getCondition.js";
 import { stripSourceMap, createSourceMap } from "./sourceMap.js";
 import { handleExports } from "./handleExports.js";
 import type { RawSourceMap } from 'source-map';
 import { removeDirectives } from "./removeDirectives.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 /**
  * Transforms a module using acorn-loose for parsing.
@@ -16,10 +17,8 @@ export function transformWithAcornLoose(
   moduleId: string,
   isServerFunction: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode(source, moduleId),
   isClientComponent: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode(source, moduleId),
-  importPath = DEFAULT_CONFIG.RSC_LOADER.importPath,
-  registerClientReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerClientReferenceName,
-  registerServerReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerServerReferenceName,
-  isServerEnvironment = getCondition() === "react-server",
+  rscLoader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
+  isServerEnvironment = isReactServerCondition(),
   verbose: boolean = false
 ): { code: string; map: RawSourceMap | null } {
   const parseResult: ParseResult = parse(source, verbose);
@@ -222,9 +221,7 @@ export function transformWithAcornLoose(
     isServerFunction,
     isClientComponent,
     isServerEnvironment,
-    importPath,
-    registerClientReferenceName,
-    registerServerReferenceName,
+    rscLoader,
     verbose
   );
 

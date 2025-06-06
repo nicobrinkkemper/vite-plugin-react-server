@@ -9,6 +9,7 @@ import type {
 import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
@@ -211,11 +212,19 @@ export function resolveUserConfig<
     ? [config.build?.rollupOptions?.output, pluginOutput]
     : pluginOutput;
   const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
-  const mode =
+  const nodeEnv = getNodeEnv();
+  let mode =
     config.mode ??
     process.env[`${vitePrefix}MODE`] ??
     process.env["NODE_ENV"] ??
-    "production";
+    nodeEnv;
+
+  if(mode !== nodeEnv) {
+    if(typeof config.mode === "string" && nodeEnv !== "production") {
+      throw new Error(`Mode ${mode} must be equal to NODE_ENV ${nodeEnv}.`);
+    }
+    mode = nodeEnv;
+  }
   const minify = config.build?.minify;
 
   const srrConfig = {

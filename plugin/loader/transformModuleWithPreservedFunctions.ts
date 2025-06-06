@@ -15,7 +15,11 @@
 import type { Program } from "./types.js";
 import type { DirectiveInfo } from "./findDirectives.js";
 import { handleExports } from "./handleExports.js";
-import { getCondition } from "../config/getCondition.js";
+import {
+  isReactServerCondition,
+} from "../config/getCondition.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 export interface TransformOptions {
   source: string;
@@ -32,10 +36,12 @@ export function transformModuleWithPreservedFunctions(
   { exportNames, exports }: Pick<ExportReturnValue, "exportNames" | "exports">,
   isServerFunction: boolean | RegExpMatchArray | null,
   isClientComponent: boolean | RegExpMatchArray | null,
-  isServerEnvironment: boolean = getCondition() === "react-server",
-  importPath: string,
-  registerClientReferenceName: string,
-  registerServerReferenceName: string,
+  isServerEnvironment: boolean = isReactServerCondition(),
+  {
+    importPath,
+    registerClientReferenceName,
+    registerServerReferenceName,
+  } = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   verbose: boolean = false
 ) {
   const moduleIdLiteral = JSON.stringify(moduleId);

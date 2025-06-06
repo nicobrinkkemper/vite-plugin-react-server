@@ -176,8 +176,20 @@ export const DEFAULT_CONFIG = {
   VERBOSE: false,
   // Centralized loader config for RSC boundaries
   RSC_LOADER: {
-    importPath: "react-server-dom-esm/server" as string,
-    registerClientReferenceName: "registerClientReference",
-    registerServerReferenceName: "registerServerReference"
+    development: {
+      importPath: "react-server-dom-esm/server.node" as string,
+      registerClientReferenceName: "registerClientReference" as string,
+      registerServerReferenceName: "registerServerReference" as string
+    },
+    test: {
+      importPath: "react-server-dom-esm/server.node" as string,
+      registerClientReferenceName: "registerClientReference" as string,
+      registerServerReferenceName: "registerServerReference" as string
+    },
+    production: {
+      importPath: "react-server-dom-esm/server" as string,
+      registerClientReferenceName: "registerClientReference" as string,
+      registerServerReferenceName: "registerServerReference" as string
+    }
   }
 } as const;

@@ -23,12 +23,10 @@ describe("RSC Server", () => {
       // Start the server
       server = await createServer({
         root: testDir,
-        plugins: [
-          vitePluginReactServer({
+        plugins: vitePluginReactServer({
             ...testUserOptions,
             projectRoot: testDir,
           }),
-        ],
         server: {
           port: port,
         },
@@ -45,12 +43,15 @@ describe("RSC Server", () => {
   });
 
   afterAll(async () => {
-    await server.close();
+    await server?.close();
     await rm(testDir, { recursive: true, force: true });
   });
 
   it("Should have the right headers", async () => {
-    expect(response.ok).toBe(true);
+    if(!response) {
+      throw new Error("Response is not defined");
+    }
+    expect(response?.ok).toBe(true);
     expect(response.statusCode).toBe(200);
     const contentLength = response.responseHeaders.get("content-length");
     if (contentLength != null && !isNaN(Number(contentLength))) {

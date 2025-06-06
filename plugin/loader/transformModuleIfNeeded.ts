@@ -1,8 +1,9 @@
-import { getCondition } from "../config/getCondition.js";
+import { isReactServerCondition } from "../config/getCondition.js";
 import { transformWithAcornLoose } from "./transformWithAcornLoose.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { addSourceMap, createSourceMap } from "./sourceMap.js";
 import type { RawSourceMap } from 'source-map';
+import { getNodeEnv } from "../getNodeEnv.js";
 
 
 // --- React RSC Directive Handling ---
@@ -46,10 +47,8 @@ export function transformModuleIfNeeded(
   moduleId: string,
   isServerFunction: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode(source, moduleId),
   isClientComponent: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode(source, moduleId),
-  isServerEnvironment = getCondition() === "react-server",
-  importPath = DEFAULT_CONFIG.RSC_LOADER.importPath as string,
-  registerClientReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerClientReferenceName,
-  registerServerReferenceName = DEFAULT_CONFIG.RSC_LOADER.registerServerReferenceName,
+  isServerEnvironment = isReactServerCondition(),
+  rscLoader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   verbose = false
 ): string {
   try {
@@ -64,9 +63,7 @@ export function transformModuleIfNeeded(
       moduleId,
       isServerFunction,
       isClientComponent,
-      importPath,
-      registerClientReferenceName,
-      registerServerReferenceName,  
+      rscLoader,
       isServerEnvironment,
       verbose
     );

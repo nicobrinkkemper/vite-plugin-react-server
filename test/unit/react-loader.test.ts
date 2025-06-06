@@ -6,6 +6,7 @@ import { describe, test, expect } from "vitest";
 import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
 import { load } from "../../plugin/loader/react-loader.server.js";
 import { createDefaultLoader } from "../../plugin/loader/createDefaultLoader";
+import { getNodeEnv } from "../../plugin/getNodeEnv.js";
 
 describe("Loader Core Functionality", () => {
   describe("transformModuleIfNeeded", () => {
@@ -20,7 +21,8 @@ describe("Loader Core Functionality", () => {
         "test",
         null, // no directives
         null,
-        true // isServerEnvironment
+        true, // isServerEnvironment
+        DEFAULT_CONFIG.RSC_LOADER['production']
       );
       // esbuild transforms exports into a more explicit format
       expect(result).toBe(`
@@ -52,7 +54,8 @@ export class Calculator {
         "test",
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
         null,
-        true // isServerEnvironment
+        true, // isServerEnvironment
+        DEFAULT_CONFIG.RSC_LOADER['production']
       );
 
       // Check that all exports are preserved and registered
@@ -105,11 +108,11 @@ export class Modal {
         null,
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective),
         true, // isServerEnvironment
-        "react-server-dom-esm/server.node"
+        DEFAULT_CONFIG.RSC_LOADER['production']
       );
 
       // Verify transformed code has registerClientReference
-      expect(result).toContain('import { registerClientReference } from "react-server-dom-esm/server.node"');
+      expect(result).toContain('import { registerClientReference } from "react-server-dom-esm/server"');
       expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Button() from the server but Button is on the client');
       expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Input() from the server but Input is on the client');
       expect(result).toContain('registerClientReference(function() { throw new Error("Attempted to call Card() from the server but Card is on the client');
@@ -136,7 +139,8 @@ export default function DefaultExport() {
         "test",
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
         null,
-        true // isServerEnvironment
+        true, // isServerEnvironment
+        DEFAULT_CONFIG.RSC_LOADER['production']
       );
 
       // Check that all exports are preserved
@@ -192,7 +196,8 @@ export async function clearCompletedTodos() {
         "test",
         source.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective),
         null,
-        true // isServerEnvironment
+        true, // isServerEnvironment
+        DEFAULT_CONFIG.RSC_LOADER['production']
       );
 
       // Check that all exports are preserved and registered
@@ -236,7 +241,8 @@ export async function clearCompletedTodos() {
         "test",
         true, // isServerFunction
         false, // isClientComponent
-        true // isServerEnvironment
+        true, // isServerEnvironment
+        DEFAULT_CONFIG.RSC_LOADER['production']
       );
       expect(result).toContain('function multiply(a, b) {');
       expect(result).toContain('return a * b;');
