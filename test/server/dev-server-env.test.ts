@@ -22,6 +22,7 @@ describe("RSC Server", () => {
     try {
       // Start the server
       server = await createServer({
+        mode: "test",
         root: testDir,
         plugins: vitePluginReactServer({
             ...testUserOptions,

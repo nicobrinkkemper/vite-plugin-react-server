@@ -2,6 +2,7 @@ import * as acorn from "acorn-loose";
 import type { Program } from "./types.js";
 import { findDirectives } from "./findDirectives.js";
 import type { DirectiveInfo } from "./findDirectives.js";
+import { parseSourceMapUrl } from "./sourceMap.js";
 
 export interface ParseResult {
   program: Program;
@@ -46,9 +47,10 @@ export function parse(source: string, verbose: boolean = false): ParseResult {
         end
       });
 
-      // Check for source map URL in comments
-      if (text.startsWith('# sourceMappingURL=') || text.startsWith('@ sourceMappingURL=')) {
-        sourceMapInfo.url = text.slice(19);
+      // Use parseSourceMapUrl to check for source map URL in comments
+      const sourceMapUrl = parseSourceMapUrl(text);
+      if (sourceMapUrl) {
+        sourceMapInfo.url = sourceMapUrl;
         sourceMapInfo.start = start;
         sourceMapInfo.end = end;
         if (startLoc && endLoc) {

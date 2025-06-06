@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { resolve } from "path";
-import { mkdir,  rm } from "fs/promises";
+import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type {
   PluginEvent,
@@ -16,42 +16,50 @@ describe("Plugin build test", () => {
   let htmlContent: string;
   let rscContent: string;
   beforeAll(async () => {
-    await mkdir(testDir, { recursive: true });
-    await setupTestProject(testDir);
-    events = await doBuild({
-      projectRoot: testDir,
-      onMetrics: (m) => {
-        metrics.push(m);
-      },
-    });
-    
-    // Get HTML content from file.write.done event
-    const htmlDoneEvent = events.find(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "html" &&
-        e.data.route === '/'
-    ) as FileWriteDoneEvent;
-    
-    if (htmlDoneEvent) {
-      htmlContent = htmlDoneEvent.data.content;
-    }
+    try {
+      await mkdir(testDir, { recursive: true });
+      await setupTestProject(testDir);
+      events = await doBuild({
+        projectRoot: testDir,
+        onMetrics: (m) => {
+          metrics.push(m);
+        },
+      });
 
-    // Get RSC content from file.write.done event
-    const rscDoneEvent = events.find(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "rsc" &&
-        e.data.route === '/'
-    ) as FileWriteDoneEvent;
-    
-    if (rscDoneEvent) {
-      rscContent = rscDoneEvent.data.content;
+      // Get HTML content from file.write.done event
+      const htmlDoneEvent = events.find(
+        (e) =>
+          e.type === "file.write.done" &&
+          e.data.fileType === "html" &&
+          e.data.route === "/"
+      ) as FileWriteDoneEvent;
+
+      if (htmlDoneEvent) {
+        htmlContent = htmlDoneEvent.data.content;
+      }
+
+      // Get RSC content from file.write.done event
+      const rscDoneEvent = events.find(
+        (e) =>
+          e.type === "file.write.done" &&
+          e.data.fileType === "rsc" &&
+          e.data.route === "/"
+      ) as FileWriteDoneEvent;
+
+      if (rscDoneEvent) {
+        rscContent = rscDoneEvent.data.content;
+      }
+    } catch (error) {
+      console.error("Error building project", error);
     }
   });
 
   afterAll(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch (error) {
+      console.error("Error removing test directory", error);
+    }
   });
 
   it("emits build events in order", async () => {

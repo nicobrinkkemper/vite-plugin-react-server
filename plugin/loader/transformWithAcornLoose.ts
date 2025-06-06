@@ -4,7 +4,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { isReactServerCondition } from "../config/getCondition.js";
 import { stripSourceMap, createSourceMap } from "./sourceMap.js";
 import { handleExports } from "./handleExports.js";
-import type { RawSourceMap } from 'source-map';
+import type { RawSourceMap } from "source-map";
 import { removeDirectives } from "./removeDirectives.js";
 import { getNodeEnv } from "../getNodeEnv.js";
 
@@ -15,8 +15,20 @@ import { getNodeEnv } from "../getNodeEnv.js";
 export function transformWithAcornLoose(
   source: string,
   moduleId: string,
-  isServerFunction: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode(source, moduleId),
-  isClientComponent: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode(source, moduleId),
+  isServerFunction:
+    | boolean
+    | RegExpMatchArray
+    | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode(
+    source,
+    moduleId
+  ),
+  isClientComponent:
+    | boolean
+    | RegExpMatchArray
+    | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode(
+    source,
+    moduleId
+  ),
   rscLoader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   isServerEnvironment = isReactServerCondition(),
   verbose: boolean = false
@@ -47,25 +59,7 @@ export function transformWithAcornLoose(
   }
 
   // Collect all directive ranges to remove
-  const allDirectiveRanges = [
-    ...directives.directiveRanges,
-    ...(isServer
-      ? directives.functionLevelServerDirectives.filter(
-          (d) =>
-            !directives.directiveRanges.some(
-              (r) => r.start === d.start && r.end === d.end
-            )
-        )
-      : []),
-    ...(isClient
-      ? directives.functionLevelClientDirectives.filter(
-          (d) =>
-            !directives.directiveRanges.some(
-              (r) => r.start === d.start && r.end === d.end
-            )
-        )
-      : []),
-  ];
+  const allDirectiveRanges = directives.directiveRanges;
 
   // Debug: Log the ranges and code slices being removed
   if (verbose) {
@@ -107,26 +101,30 @@ export function transformWithAcornLoose(
     sourceWithoutDirectives.matchAll(illegalDirectiveRegex)
   );
   if (matches.length > 0) {
-    console.error(
-      `[transformModuleWithPreservedFunctions] WARNING: Found remaining directives after supposed removal in module: ${moduleId}`
-    );
-    matches.forEach((match, idx) => {
-      const start = match.index;
-      const end = start !== undefined ? start + match[0].length : undefined;
+    if (getNodeEnv() !== "production") {
+      // Don't throw, just log a warning
       console.error(
-        `  [${idx}] Directive: '${match[0]}' at position ${start} to ${end}`
+        `[react-transform] WARNING: Found remaining directives after supposed removal in module: ${moduleId}`
       );
-      const endNum =
-        typeof end === "number" ? end : typeof start === "number" ? start : 0;
-      if (start !== undefined) {
-        const context = sourceWithoutDirectives.slice(
-          Math.max(0, start - 20),
-          Math.min(sourceWithoutDirectives.length, endNum + 20)
+      matches.forEach((match, idx) => {
+        const start = match.index;
+        const end = start !== undefined ? start + match[0].length : undefined;
+        console.error(
+          `  [${idx}] Directive: '${match[0]}' at position ${start} to ${end}`
         );
-        console.error(`      Context: ...${context}...`);
-      }
-    });
-    // Don't throw, just log a warning
+        const endNum =
+          typeof end === "number" ? end : typeof start === "number" ? start : 0;
+        if (start !== undefined) {
+          const context = sourceWithoutDirectives.slice(
+            Math.max(0, start - 20),
+            Math.min(sourceWithoutDirectives.length, endNum + 20)
+          );
+          console.error(`      Context: ...${context}...`);
+        }
+      });
+    } else {
+      // ignore it
+    }
   }
 
   // Handle environment-specific cases

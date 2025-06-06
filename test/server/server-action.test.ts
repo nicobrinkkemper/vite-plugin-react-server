@@ -4,7 +4,7 @@ import { doBuild } from "./doBuild.js";
 import { testUserOptions } from "../test-config.js";
 import { readdir, readFile, mkdir, rm, writeFile } from "fs/promises";
 import { resolve, join } from "path";
-import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
+import { getNodeEnv } from "../../plugin/getNodeEnv.js";
 const testDir = resolve(__dirname, "../fixtures/server-action.test");
 describe("Generic Server Action Build Output", () => {
   let events: any[];

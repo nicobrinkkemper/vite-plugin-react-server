@@ -1,4 +1,4 @@
-import { SourceMapHandler } from "./sourceMap.js";
+import { removeRanges } from "./removeRanges.js";
 
 export function removeDirectives(source: string, directiveRanges: { start: number, end: number }[]): string {
   // Sort ranges by start position
@@ -10,5 +10,5 @@ export function removeDirectives(source: string, directiveRanges: { start: numbe
   }
 
   // Remove directives from source using the provided ranges
-  return SourceMapHandler.removeRanges(source, sortedRanges);
+  return removeRanges(source, sortedRanges);
 }

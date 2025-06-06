@@ -25,6 +25,7 @@ describe("Server Action Integration", () => {
     try {
       // Start the server
       server = await createServer({
+        mode: 'test',
         root: testDir,
         plugins: [
           vitePluginReactServer({
