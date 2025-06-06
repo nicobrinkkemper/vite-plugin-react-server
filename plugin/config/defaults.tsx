@@ -51,7 +51,7 @@ export const DEFAULT_CONFIG = {
   },
   MODULE_BASE_EXCEPTIONS: [] as string[],
   DIRECTIVE_HANDLING: {
-    preserveDirectives: true,
+    preserveDirectives: false,
     customDirectives: [],
     validateFileLevel: (_node: any, index: number, program: any) => {
       // File-level directives must be at the top, before any non-directive statement

@@ -22,6 +22,10 @@ function createSourceMap(id: string, code: string, mappings: string) {
   };
 }
 
+function countLines(str: string): number {
+  return str.split("\n").length;
+}
+
 function removeRanges(
   code: string,
   ranges: Array<{ start: number; end: number }>
@@ -36,14 +40,6 @@ function removeRanges(
   return result;
 }
 
-function countLines(str: string): number {
-  let count = 1;
-  for (let i = 0; i < str.length; i++) {
-    if (str[i] === "\n") count++;
-  }
-  return count;
-}
-
 export function reactPreservePlugin<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt
@@ -53,6 +49,8 @@ export function reactPreservePlugin<
   const moduleExtension = resolveAutoDiscoverMatcher(options.autoDiscover?.moduleExtension, DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension);
   const vendorPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.vendorPattern, DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern);
   const virtualPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.virtualPattern, DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern);
+  const preserveDirectives = options.directiveHandling?.preserveDirectives ?? DEFAULT_CONFIG.DIRECTIVE_HANDLING.preserveDirectives;
+
   return {
     name: "vite-plugin-react-server:preserve-directives",
     enforce: "post",
@@ -60,6 +58,10 @@ export function reactPreservePlugin<
     transform: {
       order: "post", // Ensure this runs last in transform phase
       handler(code: string, id: string) {
+        // Skip if directives should not be preserved
+        // we need to preserve the directives, because other wise the plugin chain won't
+        // know about it.
+
         // Skip node_modules and vite files
         if (
           vendorPattern(id) ||
@@ -140,10 +142,15 @@ export function reactPreservePlugin<
             directives: Array.from(meta[id] || []),
           },
         };
-      },
+      }
     },
 
     renderChunk(code, chunk) {
+      // Skip if directives should not be preserved
+      if (!preserveDirectives) {
+        return null;
+      }
+
       const chunkDirectives = new Set<string>();
 
       // Collect directives from all modules in chunk
@@ -173,6 +180,6 @@ export function reactPreservePlugin<
       }
 
       return null;
-    },
+    }
   };
 }

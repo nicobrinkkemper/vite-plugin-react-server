@@ -66,7 +66,7 @@ export function parse(source: string, verbose: boolean = false): ParseResult {
   }
 
   // Use the shared directive detection function
-  const directives = findDirectives(program);
+  const directives = findDirectives(program, source);
 
   if (verbose) {
     console.log('[parse] Directives:', directives);

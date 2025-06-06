@@ -69,9 +69,22 @@ export function transformModuleWithPreservedFunctions(
     // Collect all directive ranges to remove
     const allDirectiveRanges = [
       ...directives.directiveRanges,
-      ...(isServer ? directives.functionLevelServerDirectives : []),
-      ...(isClient ? directives.functionLevelClientDirectives : [])
+      ...(isServer ? directives.functionLevelServerDirectives.filter(d => 
+        !directives.directiveRanges.some(r => r.start === d.start && r.end === d.end)
+      ) : []),
+      ...(isClient ? directives.functionLevelClientDirectives.filter(d => 
+        !directives.directiveRanges.some(r => r.start === d.start && r.end === d.end)
+      ) : [])
     ];
+
+    // Debug: Log the ranges and code slices being removed
+    if (verbose) {
+      console.log('[transformModuleWithPreservedFunctions] Ranges to remove:');
+      for (const range of allDirectiveRanges) {
+        const slice = sourceWithoutMap.slice(range.start, range.end);
+        console.log(`  Range [${range.start}, ${range.end}):`, JSON.stringify(slice));
+      }
+    }
 
     // Remove all directives using helper
     const codeWithoutDirectives = removeDirectives(sourceWithoutMap, allDirectiveRanges);
@@ -163,7 +176,9 @@ export function transformModuleWithPreservedFunctions(
     if (actionsToRegister.length > 0) {
       output.unshift(`import { ${regName} } from "${importPath}";`);
     }
+    // Ensure we output the code without directives first
     output.push(codeWithoutDirectives);
+    // Then register the server functions
     for (const { name, exportInfo } of actionsToRegister) {
       const registrationName = name === "default" ? "default" : name;
       const exportName = name === "default" && exportInfo?.localName ? exportInfo.localName : name;

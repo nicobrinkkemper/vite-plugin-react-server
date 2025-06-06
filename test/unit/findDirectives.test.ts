@@ -6,7 +6,7 @@ describe('findDirectives', () => {
   it('should detect file-level client directive', () => {
     const source = '"use client";\nexport function Component() {}';
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useClient).toBe(true);
     expect(directives.fileLevelClientDirective).toBeDefined();
@@ -18,7 +18,7 @@ describe('findDirectives', () => {
   it('should detect file-level server directive', () => {
     const source = '"use server";\nexport function action() {}';
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(true);
     expect(directives.fileLevelServerDirective).toBeDefined();
@@ -35,7 +35,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(true);
     expect(directives.fileLevelServerDirective).toBeUndefined();
@@ -55,7 +55,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(true);
     expect(directives.functionLevelServerDirectives).toHaveLength(2);
@@ -70,7 +70,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(true);
     expect(directives.functionLevelServerDirectives).toHaveLength(1);
@@ -86,7 +86,7 @@ describe('findDirectives', () => {
       export { action };
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(true);
     expect(directives.functionLevelServerDirectives).toHaveLength(1);
@@ -101,7 +101,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(false);
     expect(directives.functionLevelServerDirectives).toHaveLength(0);
@@ -116,7 +116,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useClient).toBe(true);
     expect(directives.useServer).toBe(true);
@@ -132,7 +132,7 @@ describe('findDirectives', () => {
       export function action() {}
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(false);
     expect(directives.fileLevelServerDirective).toBeUndefined();
@@ -148,7 +148,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(false);
     expect(directives.functionLevelServerDirectives).toHaveLength(0);
@@ -161,7 +161,7 @@ describe('findDirectives', () => {
       export function Component() {}
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useClient).toBe(true);
     expect(directives.useServer).toBe(true);
@@ -177,7 +177,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(true);
     expect(directives.functionLevelServerDirectives).toHaveLength(1);
@@ -192,7 +192,7 @@ describe('findDirectives', () => {
       }
     `;
     const { program } = parse(source);
-    const directives = findDirectives(program);
+    const directives = findDirectives(program, source);
 
     expect(directives.useServer).toBe(true);
     expect(directives.functionLevelServerDirectives).toHaveLength(1);

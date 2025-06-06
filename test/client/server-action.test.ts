@@ -96,8 +96,8 @@ describe('Client Server Action Build Output', () => {
     }
 
     expect(foundTodoList).toBe(true);
-    expect(foundDirective).toBe(true);
     // NOT
+    expect(foundDirective).toBe(false);
     expect(esmImport).toBe(false);
     expect(foundClientReference).toBe(false);
   });

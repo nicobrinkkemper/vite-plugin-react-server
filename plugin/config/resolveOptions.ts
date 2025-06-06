@@ -477,7 +477,7 @@ export const resolveOptions = <
     rscPattern: testRsc,
     isServerFunctionCode: isServerFunctionCode,
     isClientComponentCode: isClientComponentCode,
-  };
+  } as const;
   const mapExtension = extMap(autoDiscover);
   const pipeableStreamOptions = options.pipeableStreamOptions
     ? options.pipeableStreamOptions
@@ -520,9 +520,9 @@ export const resolveOptions = <
         loaderPath: loaderPath,
         clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
         serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
-        //   moduleBaseExceptions: options.moduleBaseExceptions ?? [],
         autoDiscover: autoDiscover,
         pipeableStreamOptions,
+        directiveHandling: options.directiveHandling ?? DEFAULT_CONFIG.DIRECTIVE_HANDLING,
       } as ResolvedUserOptions<T, InlineCSS>,
     };
   } catch (error) {

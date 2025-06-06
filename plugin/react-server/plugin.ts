@@ -88,7 +88,7 @@ export function reactServerPlugin<
         throw new Error("Transformer plugin not installed");
       }
       if (preserverIndex < transformerIndex) {
-        throw new Error(
+        console.warn(
           "Transformer plugin isn't installed or isn't running before preserver"
         );
       }

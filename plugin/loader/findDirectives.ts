@@ -80,7 +80,7 @@ function getDirectiveScope(node: NodeWithParent): { type: 'file' | 'function'; n
   return { type: 'file' };
 }
 
-export function findDirectives(program: Program): DirectiveInfo {
+export function findDirectives(program: Program, source: string): DirectiveInfo {
   const directiveInfo: DirectiveInfo = {
     useClient: false,
     useServer: false,
@@ -149,6 +149,27 @@ export function findDirectives(program: Program): DirectiveInfo {
         end: directiveNode.end!,
         directive: directiveNode.directive
       });
+
+      // Check for semicolon and newline in the correct order
+      let end = directiveNode.end!;
+      if (end < source.length) {
+        // Check for semicolon
+        if (source.slice(end, end + 1) === ';') {
+          end++;
+        }
+        // Then check for newline
+        if (end < source.length && source.slice(end, end + 1) === '\n') {
+          end++;
+        }
+        // Update both the directive range and the function level directive range
+        directiveInfo.directiveRanges[directiveInfo.directiveRanges.length - 1].end = end;
+        if (scope.type === 'function') {
+          const funcDirective = directiveInfo.functionLevelServerDirectives.find(d => d.name === scope.name);
+          if (funcDirective) {
+            funcDirective.end = end;
+          }
+        }
+      }
     }
     // Visit child nodes
     for (const key in node) {

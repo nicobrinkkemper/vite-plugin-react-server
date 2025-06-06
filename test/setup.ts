@@ -173,6 +173,7 @@ export function subtract(a, b) {
   await writeFile(
     resolve(testDir, "src/page/subtract.server.ts"),
     `
+    
 function add(a, b) {
   return a + b;
 }

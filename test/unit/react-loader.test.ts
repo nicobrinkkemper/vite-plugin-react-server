@@ -223,6 +223,25 @@ export async function clearCompletedTodos() {
       expect(result).toContain("async function addTodo(title) {");
       expect(result).toContain("async function toggleTodo(id) {");
     });
+
+    test("should preserve function bodies after directive removal", async () => {
+      const source = `
+        export function multiply(a, b) {
+          "use server";
+          return a * b;
+        }
+      `;
+      const result = transformModuleIfNeeded(
+        source,
+        "test",
+        true, // isServerFunction
+        false, // isClientComponent
+        true // isServerEnvironment
+      );
+      expect(result).toContain('function multiply(a, b) {');
+      expect(result).toContain('return a * b;');
+      expect(result).not.toContain('"use server"');
+    });
   });
 
   describe("handleExports", () => {
