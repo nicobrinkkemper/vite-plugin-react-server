@@ -20,7 +20,7 @@ Here are some reason why this plugin requires `NODE_OPTIONS='--conditions react-
 - out-of-the-box vitest support
 
 You can still run client builds from within a server-environment, but not the other way around. This 
-is done by directly imported the environments' plugin:
+is done by directly importing the environments' plugin:
 
 ```typescript
 import { build } from "vite";
