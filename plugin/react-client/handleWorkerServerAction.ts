@@ -1,7 +1,7 @@
 import type { ViteDevServer } from "vite";
 import type { Worker } from "node:worker_threads";
 import type { RscWorkerInputMessage } from "../worker/types.js";
-import { logError } from "../error/toError.js";
+import { logError } from "../error/logError.js";
 import {
   parseServerActionRequest,
   setupServerActionHeaders,

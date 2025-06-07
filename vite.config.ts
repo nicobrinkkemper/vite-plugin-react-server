@@ -18,9 +18,9 @@ export default defineConfig({
         client: resolve(__dirname, "client.ts"),
         server: resolve(__dirname, "server.ts"),
         index: resolve(__dirname, "index.ts"),
-        "plugin/react-client/plugin": resolve(
+        "plugin/react-client/index": resolve(
           __dirname,
-          "plugin/react-client/plugin.ts"
+          "plugin/react-client/index.ts"
         ),
         "plugin/react-server/plugin": resolve(
           __dirname,
@@ -60,6 +60,7 @@ export default defineConfig({
         "plugin/env": resolve(__dirname, "plugin/env/plugin.ts"),
         "plugin/vendor": resolve(__dirname, "plugin/vendor/index.ts"),
         "plugin/config": resolve(__dirname, "plugin/config/index.ts"),
+        "plugin/error": resolve(__dirname, "plugin/error/index.ts"),
         "plugin/helpers": resolve(__dirname, "plugin/helpers/index.ts"),
         "plugin/file-preserver": resolve(
           __dirname,

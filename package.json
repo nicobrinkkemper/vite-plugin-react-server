@@ -31,6 +31,7 @@
     "./metrics": "./dist/plugin/metrics/index.js",
     "./env": "./dist/plugin/env/plugin.js",
     "./config": "./dist/plugin/config/index.js",
+    "./error": "./dist/plugin/error/index.js",
     "./vendor": "./dist/plugin/vendor/index.js",
     "./file-preserver": "./dist/plugin/file-preserver/plugin.js"
   },
@@ -40,7 +41,7 @@
         "./dist/plugin/index.d.ts"
       ],
       "client": [
-        "./dist/plugin/react-client/plugin.d.ts"
+        "./dist/plugin/react-client/index.d.ts"
       ],
       "server": [
         "./dist/plugin/react-server/plugin.d.ts"
@@ -68,6 +69,9 @@
       ],
       "vendor": [
         "./dist/plugin/vendor/index.d.ts"
+      ],
+      "error": [
+        "./dist/plugin/error/index.d.ts"
       ],
       "file-preserver": [
         "./dist/plugin/file-preserver/plugin.d.ts"

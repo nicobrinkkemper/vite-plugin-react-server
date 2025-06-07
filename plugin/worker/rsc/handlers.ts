@@ -65,10 +65,7 @@ export const handlers: Required<StreamHandlers> = {
   },
   onServerActionResponse: (id, result) => {
     const stream = ReactDOMServer.renderToPipeableStream(
-      {
-        type: "server-action-response",
-        returnValue: result
-      },
+      result,
       userOptions.moduleBasePath,
       {
         onError(error: Error) {

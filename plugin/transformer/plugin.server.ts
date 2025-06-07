@@ -10,7 +10,7 @@ import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
 import { setStashedResolve } from "../helpers/moduleResolver.js";
 import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
-import { logError } from "../error/toError.js";
+import { logError } from "../error/logError.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
 

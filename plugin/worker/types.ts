@@ -104,7 +104,7 @@ export type RscRenderMessage<T extends PagePropOpt = PagePropOpt> = WorkerMessag
     | "autoDiscover"
   > & {
     build: Omit<
-      CreateHandlerOptions<T>,
+      CreateHandlerOptions<T>['build'],
       "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
     > & {pages: string[]};
   };
@@ -118,7 +118,7 @@ export type RscChunkInputMessage = WorkerMessage &{
 export type RscChunkOutputMessage = WorkerMessage & {
   type: "RSC_CHUNK";
   id: string;
-  chunk: Buffer;
+  chunk: Uint8Array;
 };
 
 export interface RscEndMessage extends WorkerMessage {

@@ -4,7 +4,7 @@ import type {
   PagePropOpt,
   ResolvedUserOptions,
 } from "../types.js";
-import { logError, toError } from "../error/toError.js";
+import { logError, toError } from "../error/index.js";
 import { join } from "path";
 import { ReactDOMServer } from "../vendor/vendor.server.js";
 import type { IncomingMessage, ServerResponse } from "http";

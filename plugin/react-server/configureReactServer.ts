@@ -13,7 +13,7 @@ import { createHandler } from "../helpers/createHandler.js";
 import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { logError } from "../error/toError.js";
+import { logError } from "../error/logError.js";
 import { handleServerAction } from "./handleServerAction.js";
 
 export async function configureReactServer<
