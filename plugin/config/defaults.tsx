@@ -41,6 +41,7 @@ export const DEFAULT_CONFIG = {
     rscOutputPath: "index.rsc",
     htmlOutputPath: "index.html",
     preserveModulesRoot: true,
+    preserveDirectives: false,
   },
   CSS: {
     inlineCss: false,
@@ -50,27 +51,7 @@ export const DEFAULT_CONFIG = {
     linkPatterns: [] as RegExp[], // Always link node_modules CSS
   },
   MODULE_BASE_EXCEPTIONS: [] as string[],
-  DIRECTIVE_HANDLING: {
-    preserveDirectives: false,
-    customDirectives: [],
-    validateFileLevel: (_node: any, index: number, program: any) => {
-      // File-level directives must be at the top, before any non-directive statement
-      for (let i = 0; i < index; i++) {
-        const prev = program.body[i];
-        if (prev.type !== "ExpressionStatement" || !("directive" in prev || (prev.expression && prev.expression.type === "Literal" && typeof prev.expression.value === "string"))) {
-          return false;
-        }
-      }
-      return true;
-    },
-    validateFunctionLevel: (node: any) => {
-      // Function-level directives must be at the start of the function body
-      if (!node || !node.body || !Array.isArray(node.body)) return false;
-      const firstStmt = node.body[0];
-      return firstStmt && firstStmt.type === "ExpressionStatement" && 
-        ("directive" in firstStmt || (firstStmt.expression && firstStmt.expression.type === "Literal" && typeof firstStmt.expression.value === "string"));
-    }
-  },
+
   AUTO_DISCOVER: {
     // All REGEX tricks used here are based on the following:
     // $ = endsWith

@@ -431,6 +431,7 @@ export const resolveOptions = <
     preserveModulesRoot,
     rscOutputPath,
     htmlOutputPath,
+    preserveDirectives: options.build?.preserveDirectives ?? DEFAULT_CONFIG.BUILD.preserveDirectives,
     entryFile:
       typeof options.build?.entryFile === "function"
         ? options.build.entryFile
@@ -522,7 +523,6 @@ export const resolveOptions = <
         serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
         autoDiscover: autoDiscover,
         pipeableStreamOptions,
-        directiveHandling: options.directiveHandling ?? DEFAULT_CONFIG.DIRECTIVE_HANDLING,
       } as ResolvedUserOptions<T, InlineCSS>,
     };
   } catch (error) {

@@ -49,7 +49,7 @@ export function reactPreservePlugin<
   const moduleExtension = resolveAutoDiscoverMatcher(options.autoDiscover?.moduleExtension, DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension);
   const vendorPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.vendorPattern, DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern);
   const virtualPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.virtualPattern, DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern);
-  const preserveDirectives = options.directiveHandling?.preserveDirectives ?? DEFAULT_CONFIG.DIRECTIVE_HANDLING.preserveDirectives;
+  const preserveDirectives = options.build?.preserveDirectives ?? DEFAULT_CONFIG.BUILD.preserveDirectives;
 
   return {
     name: "vite-plugin-react-server:preserve-directives",

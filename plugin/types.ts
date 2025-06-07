@@ -509,20 +509,6 @@ export interface StreamPluginOptions<
         isClientComponentCode?: (code: string, moduleId?: string) => boolean;
       }
     | undefined;
-  // Directive handling
-  directiveHandling?: {
-    // Whether to preserve directives in the output
-    preserveDirectives?: boolean;
-    // Custom directives to handle
-    customDirectives?: Array<{
-      name: string;
-      validate?: (node: any) => boolean;
-    }>;
-    // Validate file-level directives
-    validateFileLevel?: (node: any, index: number, program: any) => boolean;
-    // Validate function-level directives
-    validateFunctionLevel?: (node: any) => boolean;
-  };
   // Manual configuration
   Page: string | ((url: string) => string) | ((url: string) => Promise<string>);
   props?:
@@ -676,6 +662,7 @@ export interface BuildConfig {
   api?: string; // Output directory for API files
   outDir?: string;
   hash?: string;
+  preserveDirectives?: boolean;
   preserveModulesRoot?: boolean;
   rscOutputPath?: string; // defaults: `index.rsc`
   htmlOutputPath?: string; // defaults: `index.html`
