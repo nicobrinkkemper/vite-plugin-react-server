@@ -86,7 +86,6 @@ describe('Client Server Action Build Output', () => {
       }
       if (content.includes('registerClientReference')) {
         foundClientReference = true;
-        console.warn(file);
       }
       if (content.includes('\"use client\"')) {
         foundDirective = true;
