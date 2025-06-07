@@ -2,7 +2,7 @@ import type { Logger } from "vite";
 import type {
   RscWorkerOutputMessage,
   RscRenderMessage,
-} from "../worker/types.js";
+} from "../worker/rsc/types.js";
 import type { StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";

@@ -20,8 +20,8 @@
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",
     "./static": "./dist/static.js",
-    "./html-worker": "./dist/plugin/worker/html-worker.js",
-    "./rsc-worker": "./dist/plugin/worker/rsc-worker.js",
+    "./html-worker": "./dist/plugin/worker/html/index.js",
+    "./rsc-worker": "./dist/plugin/worker/rsc/index.js",
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
@@ -75,6 +75,12 @@
       ],
       "file-preserver": [
         "./dist/plugin/file-preserver/plugin.d.ts"
+      ],
+      "rsc-worker": [
+        "./dist/plugin/worker/rsc/index.d.ts"
+      ],
+      "html-worker": [
+        "./dist/plugin/worker/html/index.d.ts"
       ]
     }
   },

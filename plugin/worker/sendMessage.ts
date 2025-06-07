@@ -1,8 +1,8 @@
 import { cleanObject } from "../helpers/cleanObject.js";
 import type {
-  HtmlWorkerOutputMessage,
   RscWorkerOutputMessage,
-} from "./types.js";
+} from "./rsc/types.js";
+import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import { parentPort } from "node:worker_threads";
 
 export function sendMessage(
@@ -56,12 +56,3 @@ export function sendMessage(
     }
   }
 }
-
-export const sendRscWorkerMessage = sendMessage as (
-  msg: RscWorkerOutputMessage,
-  port?: MessagePort
-) => void;
-export const sendHtmlWorkerMessage = sendMessage as (
-  msg: HtmlWorkerOutputMessage,
-  port?: MessagePort
-) => void;

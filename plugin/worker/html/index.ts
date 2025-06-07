@@ -3,3 +3,5 @@ await (
     ? import('./html-worker.production.js') 
     : import('./html-worker.development.js')
 );
+
+export * from './types.js';

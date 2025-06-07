@@ -10,8 +10,8 @@ import { pluginRoot } from "../root.js";
 import * as React from "react";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { createLogger, type Logger } from "vite";
-import type { HtmlWorkerOutputMessage } from "./types.js";
-import type { RscWorkerOutputMessage } from "./types.js";
+import type { HtmlWorkerOutputMessage } from "./html/types.js";
+import type { RscWorkerOutputMessage } from "./rsc/types.js";
 import { toError } from "../error/toError.js";
 
 export type CreateWorkerOptions = {

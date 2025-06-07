@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createWorkerStream } from 'vite-plugin-react-server/client';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
-import type { RscWorkerOutputMessage } from '../../dist/plugin/worker/types';
+import type { RscWorkerOutputMessage } from 'vite-plugin-react-server/rsc-worker';
 import { createInputNormalizer } from '../../dist/plugin/helpers/inputNormalizer.js';
 
 describe('createWorkerStream', () => {

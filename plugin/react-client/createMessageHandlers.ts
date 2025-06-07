@@ -1,4 +1,4 @@
-import type { RscWorkerOutputMessage } from "../worker/types.js";
+import type { RscWorkerOutputMessage } from "../worker/rsc/types.js";
 import type { Logger } from "vite";
 import type { StreamHandlers } from "../worker/types.js";
 

@@ -1,12 +1,4 @@
-import type { RenderToPipeableStreamOptions } from "react-dom/server";
-import type {
-  CreateHandlerOptions,
-  CssContent,
-  InlineCssOpt,
-  PagePropOpt,
-  StreamMetrics,
-} from "../types.js";
-import type { MessagePort } from "node:worker_threads";
+import type { CssContent } from "../types.js";
 
 // Base message types
 export interface WorkerMessage {
@@ -14,122 +6,33 @@ export interface WorkerMessage {
   id: string;
 }
 
-// React Server DOM ESM specific options
-export interface ReactServerDomEsmOptions {
-  identifierPrefix?: string;
-  namespaceURI?: string;
-  nonce?: string;
-  bootstrapScriptContent?: string;
-  bootstrapScripts?: string[];
-  bootstrapModules?: string[];
-  progressiveChunkSize?: number;
-  temporaryReferences?: WeakMap<any, any>;
-  moduleBaseURL?: string;
-  importMap?: {
-    imports?: Record<string, string>;
-  };
-  onError?: (error: Error, errorInfo?: any) => void;
-  onPostpone?: (reason: string) => void;
-}
-
-// Combined options type that includes both React DOM and React Server DOM ESM options
-export type SerializeableRenderToPipeableStreamOptions = Omit<RenderToPipeableStreamOptions, "onShellReady" | "onShellError" | "onAllReady" | "onError" | "onPostpone">;
-
-export interface RscRenderState {
-  id: string;
-  outDir: string;
-  moduleRootPath: string;
-  moduleBaseURL: string;
-  rscOutputPath: string;
-  componentImport: string;
-  propsImport: string;
-  pipeableStreamOptions: ReactServerDomEsmOptions;
-}
-
-// Common Messages
-export interface ShutdownMessage extends WorkerMessage {
-  type: "SHUTDOWN";
-}
-
+// Common message types used across workers
 export interface ErrorMessage extends WorkerMessage {
   type: "ERROR";
   errorInfo?: any;
   error: string | {
     message: string;
-    stack?: string |  undefined;
+    stack?: string | undefined;
     name: string;
     cause?: any;
   };
   id: string;
 }
 
-export interface ChunkProcessedMessage extends WorkerMessage {
-  type: "CHUNK_PROCESSED";
-  success: boolean;
-  sequence?: number;
+export interface ReadyMessage {
+  type: "READY";
+  id: string;
+  env?: string;
+  pid?: number;
 }
 
-export interface ChunkErrorMessage extends WorkerMessage {
-  type: "CHUNK_ERROR";
-  error: string;
-  sequence?: number;
+export interface ShutdownMessage extends WorkerMessage {
+  type: "SHUTDOWN";
 }
 
-export type StreamHandlers =  {
-  onError: (id: string, error: any, errorInfo?: any) => void;
-  onData: (id: string, data: any) => void;
-  onEnd: (id: string) => void;
-  onMetrics: (id: string, metrics: any) => void;
-  onHmrAccept: (id: string, routes?: string[]) => void;
-  onHmrUpdate: (id: string, routes?: string[]) => void;
-  onServerAction?: (id: string, args: unknown[]) => void;
-  onServerActionResponse?: (id: string, result?: unknown, error?: string) => void;
-  onServerModule?: (id: string, url: string, source: string) => void;
-  onShutdown?: (id: string) => void;
-  onCssFile?: (id: string, code: string) => void;
-};
-
-// RSC Messages
-export type RscRenderMessage<T extends PagePropOpt = PagePropOpt> = WorkerMessage & {
-  type: "RSC_RENDER";
-} & Omit<
-    CreateHandlerOptions,
-    | "onEvent"
-    | "onMetrics"
-    | "loader"
-    | "Html"
-    | "CssCollector"
-    | "logger"
-    | "build"
-    | "autoDiscover"
-  > & {
-    build: Omit<
-      CreateHandlerOptions<T>['build'],
-      "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
-    > & {pages: string[]};
-  };
-
-export type RscChunkInputMessage = WorkerMessage &{
-    type: "RSC_CHUNK";
-    chunk: Buffer;
-    sequence: number;
-  };
-
-export type RscChunkOutputMessage = WorkerMessage & {
-  type: "RSC_CHUNK";
+export interface ShutdownCompleteMessage {
+  type: "SHUTDOWN_COMPLETE";
   id: string;
-  chunk: Uint8Array;
-};
-
-export interface RscEndMessage extends WorkerMessage {
-  type: "RSC_END";
-  id: string;
-}
-
-export interface RscMetricsMessage extends WorkerMessage {
-  type: "RSC_METRICS";
-  id: string;
-  metrics: StreamMetrics;
 }
 
 export interface ShellReadyMessage extends WorkerMessage {
@@ -152,184 +55,20 @@ export interface ShellErrorMessage extends WorkerMessage {
   };
 }
 
-export interface CssFileMessage {
-  type: "CSS_FILE";
-  id: string;
-  content: string;
-  moduleClasses?: Record<string, string>;
-  originalClasses?: Record<string, string>;
-  usedClasses?: string[];
-}
-
-// Extend the imported CssContent type
-export type ExtendedCssContent = CssContent & {
-  usedClasses?: string[];
-};
-
-export type CleanupMessage = {
-  type: "CLEANUP";
-  id: string;
-}
-
-export type CleanupCompleteMessage = {
-  type: "CLEANUP_COMPLETE";
-  id: string;
-}
-
-export type RouteReadyMessage<InlineCss extends InlineCssOpt = InlineCssOpt> = {
-  type: "ROUTE_READY";
-  id: string;
-  moduleRootPath: string;
-  moduleBaseURL: string;
-  projectRoot: string;
-  cssFiles:  Map<string, CssContent<InlineCss>>;
-  pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
-}
-
-// HTML Worker Messages
-export type HtmlWorkerInputMessage =
-  | RscChunkInputMessage
-  | RscEndMessage
-  | ShutdownMessage
-  | CleanupMessage
-  | CleanupCompleteMessage
-  | InitializedReactLoaderMessage
-  | InitializedCssLoaderMessage
-  | RouteReadyMessage
-
-export type HtmlChunkMessage = {
-  type: "HTML_CHUNK";
-  id: string;
-  chunk: string;
-  encoding: string;
-}
-
-export type HtmlCompleteMessage = {
-  type: "HTML_COMPLETE";
-  id: string;
+export interface ChunkProcessedMessage extends WorkerMessage {
+  type: "CHUNK_PROCESSED";
   success: boolean;
-  html?: string;
-  chunks?: string[];
-  metrics?: StreamMetrics;
+  sequence?: number;
 }
 
-export type HtmlWorkerOutputMessage =
-  | HtmlCompleteMessage
-  | ErrorMessage
-  | ShellReadyMessage
-  | ChunkProcessedMessage
-  | ChunkErrorMessage
-  | AllReadyMessage
-  | ShellErrorMessage
-  | HtmlChunkMessage
-  | ShutdownCompleteMessage
-  | HmrAcceptMessage
-  | ReadyMessage
-  | ServerActionMessage
-  | ServerActionResponseMessage
-  | ErrorMessage
-  | CleanupCompleteMessage
-
-export type InitializedReactLoaderMessage = {
-  type: "INITIALIZED_REACT_LOADER";
-  id: string;
-}
-export type InitializedCssLoaderMessage = {
-  type: "INITIALIZED_CSS_LOADER";
-  id: string;
+export interface ChunkErrorMessage extends WorkerMessage {
+  type: "CHUNK_ERROR";
+  error: string;
+  sequence?: number;
 }
 
-export type InitializedRscWorkerLoaderMessage = {
-  type: "INITIALIZED_RSC_WORKER_LOADER";
-  id: string;
-}
-
-export type InitializedEnvLoaderMessage = {
-  type: "INITIALIZED_ENV_LOADER";
-  id: string;
-  env: Record<string, string>;
-}
-
-// HMR Messages
-export type HmrMessage = {
-  id: string;
-}
-
-export type HmrUpdateMessage = HmrMessage & {
-  type: "HMR_UPDATE";
-  routes?: string[];
-  timestamp?: number;
-}
-
-export type HmrCleanupMessage = HmrMessage & {
-  type: "HMR_CLEANUP";
-  routes?: string[];
-  timestamp?: number;
-}
-
-export type HmrAcceptMessage = HmrMessage & {
-  type: "HMR_ACCEPT";
-  routes?: string[];
-}
-
-// RSC Worker Messages
-export type RscWorkerInputMessage =
-  | RscRenderMessage
-  | CssFileMessage
-  | ShutdownMessage
-  | ChunkProcessedMessage
-  | ClientComponentMessage
-  | InitializedReactLoaderMessage
-  | InitializedCssLoaderMessage
-  | ModuleRequestMessage  
-  | InitializedRscWorkerLoaderMessage
-  | InitializedEnvLoaderMessage
-  | HmrUpdateMessage
-  | HmrAcceptMessage
-  | HmrCleanupMessage
-  | CleanupCompleteMessage
-  | ServerActionMessage
-  | ServerActionResponseMessage
-  | ServerModuleMessage;
-
-export interface CssFileRequestMessage extends WorkerMessage {
-  type: "CSS_FILE_REQUEST";
-  id: string;
-  path: string;
-}
-
-export interface ClientComponentMessage extends WorkerMessage {
-  type: "CLIENT_COMPONENT";
-  url: string;
-  source: string;
-}
-
-export interface ModuleRequestMessage extends WorkerMessage {
-  type: "MODULE_REQUEST";
-  id: string;
-  path: string;
-}
-
-export interface ModuleResponseMessage extends WorkerMessage {
-  type: "MODULE_RESPONSE";
-  id: string;
-  module: any;
-}
-
-export interface CssProcessedMessage extends WorkerMessage {
-  type: "CSS_PROCESSED";
-  id: string;
-}
-
-export type ReadyMessage = {
-  type: "READY";
-  id: string;
-  env?: string;
-  pid?: number;
-}
-
-export type ShutdownCompleteMessage = {
-  type: "SHUTDOWN_COMPLETE";
+export interface CleanupCompleteMessage extends WorkerMessage {
+  type: "CLEANUP_COMPLETE";
   id: string;
 }
 
@@ -345,72 +84,63 @@ export interface ServerActionResponseMessage extends WorkerMessage {
   error?: string;
 }
 
-export type RscWorkerOutputMessage =
-  | RscChunkOutputMessage
-  | RscEndMessage
-  | ShellReadyMessage
-  | AllReadyMessage
-  | ErrorMessage
-  | CssFileMessage
-  | CssFileRequestMessage
-  | ClientComponentMessage
-  | ModuleRequestMessage
-  | ModuleResponseMessage
-  | CssProcessedMessage
-  | RscMetricsMessage
-  | HmrAcceptMessage
-  | HmrUpdateMessage
-  | ReadyMessage
-  | ServerActionMessage
-  | ServerActionResponseMessage
-  | ShutdownCompleteMessage
-  | ServerModuleMessage;
-
-export interface ClientReferenceMessage extends WorkerMessage {
-  type: "CLIENT_REFERENCE";
-  location: string;
-  key: string;
-  ref: unknown;
+export interface HmrAcceptMessage extends WorkerMessage {
+  type: "HMR_ACCEPT";
+  routes?: string[];
 }
 
-export interface ServerReferenceMessage extends WorkerMessage {
-  type: "SERVER_REFERENCE";
-  location: string;
-  key: string;
-  ref: unknown;
-}
-
-// HTML Messages
-export interface WorkerRscChunkMessage extends WorkerMessage {
+export interface RscChunkMessage extends WorkerMessage {
   type: "RSC_CHUNK";
-  chunk: ArrayBufferLike;
+  chunk: Uint8Array;
+  sequence?: number;
+}
+
+export interface RscEndMessage extends WorkerMessage {
+  type: "RSC_END";
+}
+
+export interface RouteReadyMessage extends WorkerMessage {
+  type: "ROUTE_READY";
   moduleRootPath: string;
   moduleBaseURL: string;
-  pipeableStreamOptions: Omit<ReactServerDomEsmOptions, "onError" | "onPostpone">;
+  cssFiles: Map<string, CssContent>;
+  pipeableStreamOptions: any;
+  projectRoot: string;
 }
 
-
-export interface TransformResult {
-  code: string;
-  map?: any;
-  modules?: {
-    [key: string]: {
-      locals: Record<string, string>;
-      exports: Record<string, string>;
-    };
-  };
+export interface CleanupMessage extends WorkerMessage {
+  type: "CLEANUP";
 }
 
-export type LoaderMessage = {
-  type: "LOADER_PORTS" | "REGISTER_LOADER";
-  ports?: Record<string, MessagePort>;
-  key?: string;
-  port?: MessagePort;
-  importMap?: string;
+// Common handlers
+export type StreamHandlers = {
+  onError: (id: string, error: any, errorInfo?: any) => void;
+  onData: (id: string, data: any) => void;
+  onEnd: (id: string) => void;
+  onMetrics: (id: string, metrics: any) => void;
+  onHmrAccept: (id: string, routes?: string[]) => void;
+  onHmrUpdate: (id: string, routes?: string[]) => void;
+  onServerAction?: (id: string, args: unknown[]) => void;
+  onServerActionResponse?: (id: string, result?: unknown, error?: string) => void;
+  onServerModule?: (id: string, url: string, source: string) => void;
+  onShutdown?: (id: string) => void;
+  onCssFile?: (id: string, code: string) => void;
 };
 
-export interface ServerModuleMessage extends WorkerMessage {
-  type: "SERVER_MODULE";
-  url: string;
-  source: string;
+// Common options
+export interface ReactServerDomEsmOptions {
+  identifierPrefix?: string;
+  namespaceURI?: string;
+  nonce?: string;
+  bootstrapScriptContent?: string;
+  bootstrapScripts?: string[];
+  bootstrapModules?: string[];
+  progressiveChunkSize?: number;
+  temporaryReferences?: WeakMap<any, any>;
+  moduleBaseURL?: string;
+  importMap?: {
+    imports?: Record<string, string>;
+  };
+  onError?: (error: Error, errorInfo?: any) => void;
+  onPostpone?: (reason: string) => void;
 }

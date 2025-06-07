@@ -1,19 +1,13 @@
 import { parentPort } from "node:worker_threads";
-import {
-  activeStreams,
-  hmrState,
-} from "./state.js";
+import { activeStreams, hmrState } from "./state.js";
 import { handleRender } from "./handleRender.js";
-import type {
-  RscWorkerInputMessage,
-} from "../types.js";
+import type { RscWorkerInputMessage } from "./types.js";
 import { toError } from "../../error/toError.js";
 import { handlers } from "./handlers.js";
 
 // In test mode, we want errors to propagate up immediately
 const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 const isDevEnv = process.env["NODE_ENV"] !== "production";
-
 
 export async function messageHandler(
   msg: RscWorkerInputMessage,

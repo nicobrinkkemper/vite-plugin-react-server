@@ -6,7 +6,7 @@ import { preprocessCSS } from "vite";
 import type { ResolvedConfig } from "vite";
 import { readFile } from "node:fs/promises";
 import { env } from "../utils/env.js";
-import type { InitializedCssLoaderMessage } from "../worker/types.js";
+import type { InitializedCssLoaderMessage } from "../worker/rsc/types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { hydrateUserOptions } from "../helpers/index.js";
 

@@ -3,3 +3,5 @@ await(
     ? import("./rsc-worker.production.js")
     : import("./rsc-worker.development.js")
 );
+
+export * from './types.js';

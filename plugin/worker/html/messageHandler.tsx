@@ -1,9 +1,5 @@
 import { parentPort } from "node:worker_threads";
-import type {
-  HtmlWorkerInputMessage,
-  HtmlWorkerOutputMessage,
-} from "../types.js";
-import type { HtmlWorkerRenderState } from "./types.js";
+import type { HtmlWorkerInputMessage, HtmlWorkerRenderState, HtmlWorkerOutputMessage } from "../html/types.js";
 import { createHtmlWorkerRenderState } from "./createHtmlWorkerRenderState.js";
 import { toError } from "../../error/toError.js";
 

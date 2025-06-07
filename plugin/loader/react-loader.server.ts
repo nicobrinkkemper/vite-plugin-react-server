@@ -9,7 +9,7 @@ import type { MessagePort } from "node:worker_threads";
 import type {
   InitializedReactLoaderMessage,
   ServerModuleMessage,
-} from "../worker/types.js";
+} from "../worker/rsc/types.js";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { resolveOptions } from "../config/resolveOptions.js";

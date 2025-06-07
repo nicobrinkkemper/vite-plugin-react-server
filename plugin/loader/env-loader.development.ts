@@ -2,7 +2,7 @@ import type { LoadHookContext } from "node:module";
 import type { LoaderContext } from "../types.js";
 import type { MessagePort } from "node:worker_threads";
 import type { ResolvedConfig } from "vite";
-import type { RscWorkerInputMessage } from "../worker/types.js";
+import type { RscWorkerInputMessage } from "../worker/rsc/types.js";
 
 export let loaderPort: MessagePort | undefined;
 let resolvedConfig: ResolvedConfig | undefined;

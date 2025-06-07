@@ -6,9 +6,9 @@ import { join } from "node:path";
 import { pluginRoot } from "../../root.js";
 import type {
   HmrAcceptMessage,
-  HmrUpdateMessage,
   ReadyMessage,
 } from "../types.js";
+import type { HmrUpdateMessage } from "./types.js";
 import { toError } from "../../error/toError.js";
 
 // Initialize worker

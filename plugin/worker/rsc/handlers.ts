@@ -1,4 +1,4 @@
-import { sendRscWorkerMessage } from "../sendMessage.js";
+import { sendRscWorkerMessage } from "./sendRscWorkerMessage.js";
 import type { StreamHandlers } from "../types.js";
 import { toError } from "../../error/toError.js";
 import { userOptions } from "./userOptions.js";

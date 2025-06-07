@@ -1,10 +1,10 @@
 import type { HtmlWorkerRenderState } from "./types.js";
 import { PassThrough } from "stream";
 import { workerData, parentPort } from "node:worker_threads";
-import type { SerializeableRenderToPipeableStreamOptions } from "../types.js";
+import type { SerializeableRenderToPipeableStreamOptions } from "../rsc/types.js";
 import { type ErrorInfo } from "react";
 import { Transform } from "node:stream";
-import type { HtmlWorkerOutputMessage } from "../types.js";
+import type { HtmlWorkerOutputMessage } from "./types.js";
 import { join } from "node:path";
 import type { StreamMetrics } from "../../types.js";
 import { ReactDOMServer, ReactDOMClient } from "../../vendor/vendor.client.js";

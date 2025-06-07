@@ -1,5 +1,6 @@
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
-import type { RscRenderMessage, StreamHandlers } from "../types.js";
+import type { RscRenderMessage } from "./types.js";
+import type { StreamHandlers } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
 import { createRscStream } from "../../helpers/createRscStream.js";
 import { CssCollector } from "../../components/css-collector.js";

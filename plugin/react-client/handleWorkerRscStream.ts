@@ -1,5 +1,6 @@
 import type { Logger } from "vite";
-import type { RscRenderMessage, StreamHandlers } from "../worker/types.js";
+import type { RscRenderMessage } from "../worker/rsc/types.js";
+import type { StreamHandlers } from "../worker/types.js";
 import { createWorkerStream } from "./createWorkerStream.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 /**

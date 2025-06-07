@@ -11,12 +11,10 @@
  */
 
 import { Transform } from "node:stream";
-import type {
-  HtmlWorkerInputMessage,
-} from "../worker/types.js";
 import type { CreateHandlerOptions } from "../types.js";
 import type { Worker } from "node:worker_threads";
 import type { ViteDevServer } from "vite";
+import type { RouteReadyMessage, RscChunkMessage, RscEndMessage } from "../worker/types.js";
 
 export type RscToHtmlOptions = Pick<
   CreateHandlerOptions,
@@ -50,7 +48,7 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
           id: options.route,
           chunk,
           sequence: sequence++,
-        } satisfies HtmlWorkerInputMessage);
+        } satisfies RscChunkMessage);
         callback();
       } catch (error) {
         callback(error as Error);
@@ -61,7 +59,7 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
         worker.postMessage({
           type: "RSC_END",
           id: options.route,
-        } satisfies HtmlWorkerInputMessage);
+        } satisfies RscEndMessage);
         callback();
       } catch (error) {
         callback(error as Error);
@@ -79,7 +77,7 @@ export function createRscToHtmlStream(options: RscToHtmlOptions): Transform {
     cssFiles: options.cssFiles,
     pipeableStreamOptions: options.pipeableStreamOptions,
     projectRoot: options.projectRoot,
-  } satisfies HtmlWorkerInputMessage);
+  } satisfies RouteReadyMessage);
 
   return stream;
 }
