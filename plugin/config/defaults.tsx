@@ -29,6 +29,7 @@ export const DEFAULT_CONFIG = {
   DEV_HOST: "localhost",
   PREVIEW_HOST: "localhost",
   ENV_PREFIX: "VITE_",
+  REACT_DIRECTIVES: new Set(["use client", "use server"]),
   BUILD: {
     pages: [],
     client: "client",

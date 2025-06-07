@@ -8,7 +8,6 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { basename } from "path";
 import { resolveAutoDiscoverMatcher } from "../config/resolveAutoDiscoverMatcher.js";
 
-const REACT_DIRECTIVES = new Set(["use client", "use server"]);
 
 function createSourceMap(id: string, code: string, mappings: string) {
   return {
@@ -58,7 +57,6 @@ export function reactPreservePlugin<
     transform: {
       order: "post", // Ensure this runs last in transform phase
       handler(code: string, id: string) {
-        // Skip if directives should not be preserved
         // we need to preserve the directives, because other wise the plugin chain won't
         // know about it.
 
@@ -103,7 +101,7 @@ export function reactPreservePlugin<
           } else if (
             node.expression.type === "Literal" &&
             typeof node.expression.value === "string" &&
-            REACT_DIRECTIVES.has(node.expression.value)
+            DEFAULT_CONFIG.REACT_DIRECTIVES.has(node.expression.value)
           ) {
             directive = node.expression.value;
           }
@@ -167,7 +165,6 @@ export function reactPreservePlugin<
             .join("\n") + "\n";
 
         const newCode = directivesCode + code;
-        console.log({ preserve: newCode });
         // Create source map for the prepended directives
         const lineCount = countLines(directivesCode);
         const mappings = "AAAA" + ";AACA".repeat(lineCount - 1);
