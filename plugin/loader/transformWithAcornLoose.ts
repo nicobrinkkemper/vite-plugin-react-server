@@ -156,7 +156,7 @@ export function transformWithAcornLoose(
   } else {
     // In client environment:
     // - Only client components should pass through
-    // - Server functions should be transformed
+    // - Server functions should not be there (already handled by the server environment)
     if (isClientComponent) {
       if (verbose) {
         console.log(
