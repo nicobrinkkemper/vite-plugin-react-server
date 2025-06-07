@@ -286,7 +286,7 @@ The plugin treats HTML files as first-class React components, allowing you to us
    - Directory requests default to HTML content type
 
 5. **Auto-Discovery System**:
-   - Automatically detects and processes HTML files as React components
+   - Automatically detects and processes HTML file as React Client boundary
    - Handles various file patterns (`.html`, `.jsx`, `.tsx`, etc.)
    - Supports CSS modules and other asset types
 
@@ -319,26 +319,10 @@ The plugins are executed in a specific order to ensure proper transformation and
      - Pipes react response to dev x-component/index.rsc requests (already react-server)
 
 3. **Transformer Plugin**
-   - Client Transformer:
-     - Detects and transforms "use client" directives into client references
-     - Maintains module IDs for RSC boundaries using a static manifest
-     - Handles server action transformations for client components
-     - Processes CSS modules for client components
-     - Key transformations:
-       - Converts client components into RSC-compatible references
-       - Preserves class/function behavior while adding client metadata
-       - Ensures proper module resolution in both development and production
-   - Server Transformer:
-     - Detects and transforms "use server" directives
-     - Transforms server components for RSC compatibility
-     - Handles RSC boundary transformations
-     - Processes CSS modules for server components
-     - Key transformations:
-       - Converts server components into RSC-compatible format
-       - Maintains module IDs for proper RSC streaming
-       - Ensures proper server action handling
+   - Detects and transforms "use client" directives into client references
+   - Detects and transforms "use server" directives
    - Common Features:
-     - Both transformers run in "post" enforcement to handle transformations at the last moment
+     - Transformers run in "post" enforcement to handle transformations at the last moment
      - Use a static manifest to maintain module IDs across builds
      - Support both development and production builds
      - Handle CSS module transformations consistently
