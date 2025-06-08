@@ -1,8 +1,4 @@
-import type {
-  LoaderContext,
-  ResolvedUserOptions,
-  SerializedUserOptions,
-} from "../types.js";
+import type { ResolvedUserOptions, SerializedUserOptions } from "../types.js";
 import type { ModuleInfo } from "rollup";
 import { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
 import type { MessagePort } from "node:worker_threads";
@@ -14,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { hydrateUserOptions } from "../helpers/index.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
-import type { ResolveHook } from "node:module";
+import type { LoadHook, ResolveHook } from "node:module";
 
 export type LoaderOptions = {
   id: string;
@@ -24,7 +20,7 @@ export type LoaderOptions = {
   importAssertions?: Record<string, unknown>;
   importAttributes?: Record<string, unknown>;
   source: string;
-}
+};
 
 export type LoaderFunction = (options: LoaderOptions) => Promise<ModuleInfo>;
 
@@ -38,7 +34,7 @@ export async function initialize(data: {
   if (userOptions?.verbose) {
     console.log("[react-loader] Initializing with options:", data.id);
   }
-  const resolvedUserOptions = hydrateUserOptions(data.userOptions)
+  const resolvedUserOptions = hydrateUserOptions(data.userOptions);
   if (resolvedUserOptions.type === "error") {
     throw new Error(resolvedUserOptions.error.message);
   }
@@ -50,10 +46,14 @@ export async function initialize(data: {
   } satisfies InitializedReactLoaderMessage);
 }
 
-const isServerFunction = userOptions?.autoDiscover?.isServerFunctionCode ?? DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode;
-const isClientComponent = userOptions?.autoDiscover?.isClientComponentCode ?? DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode;
+const isServerFunction =
+  userOptions?.autoDiscover?.isServerFunctionCode ??
+  DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode;
+const isClientComponent =
+  userOptions?.autoDiscover?.isClientComponentCode ??
+  DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode;
 
-export async function load(url: string, context: LoaderContext, nextLoad: any) {
+export const load: LoadHook = async (url, context, nextLoad) => {
   if (userOptions?.verbose) {
     console.log("[react-loader] Attempting to load:", url);
     console.log("[react-loader] Context:", {
@@ -97,7 +97,10 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
 
     if (!isServer && !isClient) {
       if (userOptions?.verbose) {
-        console.log("[react-loader] Skipping non-server/non-client module:", url);
+        console.log(
+          "[react-loader] Skipping non-server/non-client module:",
+          url
+        );
       }
       return result;
     }
@@ -130,8 +133,8 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
 
     if (userOptions?.verbose) {
       console.log("[react-loader] Transformation result:", {
-      originalLength: source.length,
-      transformedLength: transformed.length,
+        originalLength: source.length,
+        transformedLength: transformed.length,
         wasTransformed: source !== transformed,
       });
     }
@@ -147,49 +150,50 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
         source: transformed,
       } satisfies ServerModuleMessage);
     }
-
-    // If we have a source map, update it to point to the transformed source
-    let map = result.map;
-    if (typeof map === 'string') {
-      try {
-        map = JSON.parse(map);
-      } catch {
-        // leave as is if parsing fails
-      }
-    }
-    if (map) {
-      let originalSource = result.source;
-      if (typeof originalSource !== 'string') {
-        originalSource = '';
-      }
-      map = {
-        ...map,
-        sourcesContent: [originalSource],
-        mappings: map.mappings,
-        sourceRoot: '',
-      };
-    } else {
-      map = null;
-    }
-
     return {
       ...result,
       source: transformed,
-      map,
     };
   }
+
+  // If we have a source map, update it to point to the transformed source
+  //   let map = result.map;
+  //   if (typeof map === 'string') {
+  //     try {
+  //       map = JSON.parse(map);
+  //     } catch {
+  //       // leave as is if parsing fails
+  //     }
+  //   }
+  //   if (map) {
+  //     let originalSource = result.source;
+  //     if (typeof originalSource !== 'string') {
+  //       originalSource = '';
+  //     }
+  //     map = {
+  //       ...map,
+  //       sourcesContent: [originalSource],
+  //       mappings: map.mappings,
+  //       sourceRoot: '',
+  //     };
+  //   } else {
+  //     map = null;
+  //   }
+
+  //   return {
+  //     ...result,
+  //     source: transformed,
+  //     map,
+  //   };
+  // }
 
   if (userOptions?.verbose) {
     console.log("[react-loader] Skipping non-module format:", format);
   }
   return nextLoad(url, context);
-}
+};
 
-export const resolve: ResolveHook = async (
-  specifier,
-  context,
-  nextResolve
-) => {
+export const resolve: ResolveHook = async (specifier, context, nextResolve) => {
   if (userOptions?.verbose) {
     console.log("[react-loader] Resolving:", specifier);
     console.log("[react-loader] Resolve context:", context);
@@ -199,4 +203,4 @@ export const resolve: ResolveHook = async (
     console.log("[react-loader] Resolve result:", result);
   }
   return result;
-}
+};

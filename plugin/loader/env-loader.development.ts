@@ -1,5 +1,4 @@
-import type { LoadHookContext } from "node:module";
-import type { LoaderContext } from "../types.js";
+import type { LoadHook } from "node:module";
 import type { MessagePort } from "node:worker_threads";
 import type { ResolvedConfig } from "vite";
 import type { RscWorkerInputMessage } from "../worker/rsc/types.js";
@@ -23,11 +22,11 @@ export async function initialize(data: {
 }
 
 // Load hook
-export async function load(
-  url: string,
-  context: LoadHookContext & LoaderContext,
-  nextLoad: any
-) {
+export const load: LoadHook = async (
+  url,
+  context,
+  nextLoad
+) => {
   const result = await nextLoad(url, context);
 
   // Skip if not a module
@@ -90,18 +89,4 @@ export async function load(
     ...result,
     source: newSource,
   };
-}
-
-// Transform hook
-export async function transformSource(
-  source: string,
-  context: any,
-  defaultTransformSource: any
-) {
-  const transformed = await defaultTransformSource(
-    source,
-    context,
-    defaultTransformSource
-  );
-  return transformed;
 }

@@ -28,5 +28,12 @@ export default defineConfig([
       "prefer-const": "error",  // Enforce const for variables that aren't reassigned
       "no-useless-catch": "error"  // Prevent unnecessary try/catch wrappers
     }
+  },
+  {
+    "settings": {
+      "react": {
+        "version": "detect"  // This will automatically detect your React version
+      }
+    }
   }
 ]);

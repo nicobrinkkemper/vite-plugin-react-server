@@ -1,4 +1,4 @@
-import type { Node, Program, ExpressionStatement, FunctionDeclaration, FunctionExpression, ArrowFunctionExpression, VariableDeclarator } from 'acorn';
+import type { Node, Program, ExpressionStatement, FunctionDeclaration, FunctionExpression, ArrowFunctionExpression, VariableDeclarator, MethodDefinition } from 'acorn';
 
 type NodeWithParent = Node & {
   parent?: Node;
@@ -71,15 +71,17 @@ function getDirectiveScope(node: NodeWithParent): { type: 'file' | 'function'; n
       }
       // Check if this function is a class method
       if (current.parent.parent && current.parent.parent.type === 'MethodDefinition') {
-        const method = current.parent.parent as any;
-        return { type: 'function', name: method.key?.name };
+        const method = current.parent.parent as MethodDefinition;
+        const keyName = typeof method.key === 'object' && 'name' in method.key ? method.key.name : undefined;
+        return { type: 'function', name: keyName };
       }
       return { type: 'function' };
     }
     // NEW: Check for class method (MethodDefinition)
     if (current.parent.type === 'MethodDefinition') {
-      const method = current.parent as any;
-      return { type: 'function', name: method.key?.name };
+      const method = current.parent as MethodDefinition;
+      const keyName = typeof method.key === 'object' && 'name' in method.key ? method.key.name : undefined;
+      return { type: 'function', name: keyName };
     }
     current = current.parent;
   }
