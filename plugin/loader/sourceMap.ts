@@ -17,7 +17,6 @@ export function createSourceMap(
   const lines = code.split("\n");
 
   // Track current positions in both original and transformed code
-  let currentLine = 0;
   let currentColumn = 0;
   let sourceLine = 0;
   let sourceColumn = 0;
@@ -55,7 +54,6 @@ export function createSourceMap(
     mappings.push(mapping);
 
     // Update positions
-    currentLine++;
     currentColumn = 0;
     sourceLine++;
     sourceColumn = 0;

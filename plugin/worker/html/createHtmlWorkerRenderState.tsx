@@ -58,7 +58,7 @@ export function createHtmlWorkerRenderState(
       console.log('[html-worker] callServer', id, args);
       // Wait for response
       return new Promise((resolve, reject) => {
-        const handler = (msg: any) => {
+        const handler = (msg: HtmlWorkerOutputMessage) => {
           if (msg.type === "SERVER_ACTION_RESPONSE" && msg.id === id) {
             parentPort?.removeListener("message", handler);
             if (msg.error) {
@@ -111,7 +111,10 @@ export function createHtmlWorkerRenderState(
         type: "ERROR",
         id,
         error: error instanceof Error ? error : new Error(String(error)),
-        errorInfo: errorInfo,
+        errorInfo: {
+          componentStack: errorInfo.componentStack,
+          digest: errorInfo.digest,
+        },
       });
     },
     onShellReady: () => {

@@ -1,13 +1,22 @@
 import { type MessagePort } from "node:worker_threads";
-import type { LoadHookContext } from "node:module";
-import type { LoaderContext, ResolvedUserOptions, SerializedUserConfig, SerializedUserOptions } from "../types.js";
+import type {
+  LoadHook,
+  ResolveHook,
+  ModuleFormat,
+} from "node:module";
+import type {
+  InlineCssOpt,
+  PagePropOpt,
+  ResolvedUserConfig,
+  ResolvedUserOptions,
+  SerializedResolvedConfig,
+  SerializedUserOptions,
+} from "../types.js";
 import { fileURLToPath } from "node:url";
-import { preprocessCSS } from "vite";
-import type { ResolvedConfig } from "vite";
+import { preprocessCSS, type ResolvedConfig } from "vite";
 import { readFile } from "node:fs/promises";
 import { env } from "../utils/env.js";
 import type { InitializedCssLoaderMessage } from "../worker/rsc/types.js";
-import { resolveOptions } from "../config/resolveOptions.js";
 import { hydrateUserOptions } from "../helpers/index.js";
 
 /**
@@ -16,8 +25,8 @@ import { hydrateUserOptions } from "../helpers/index.js";
  */
 export let loaderPort: MessagePort | undefined;
 
-let resolvedConfig: ResolvedConfig | undefined;
-let userOptions: ResolvedUserOptions | undefined; 
+let resolvedConfig: ResolvedUserConfig | undefined;
+let userOptions: ResolvedUserOptions | undefined;
 
 /**
  * Initializes the CSS loader with the necessary communication channels.
@@ -26,18 +35,25 @@ let userOptions: ResolvedUserOptions | undefined;
  * @param data - Configuration data for the CSS loader
  * @param data.port - The message port for communication
  */
-export async function initialize(data: { id: string, port: MessagePort, resolvedConfig: SerializedUserConfig, userOptions: SerializedUserOptions }) {
+export async function initialize(data: {
+  id: string;
+  port: MessagePort;
+  resolvedConfig: SerializedResolvedConfig;
+  userOptions: SerializedUserOptions<PagePropOpt, InlineCssOpt, "Page", "props">;
+}) {
   loaderPort = data.port;
   resolvedConfig = data.resolvedConfig;
-  const resolvedUserOptions = resolveOptions(hydrateUserOptions(data.userOptions));
-  if(resolvedUserOptions.type === "error") {
+  const resolvedUserOptions = 
+    hydrateUserOptions(data.userOptions)
+  if (resolvedUserOptions.type === "error") {
     throw new Error(resolvedUserOptions.error.message);
   }
   userOptions = resolvedUserOptions.userOptions;
-  data.port.postMessage({ type: "INITIALIZED_CSS_LOADER", id: data.id } satisfies InitializedCssLoaderMessage);
+  data.port.postMessage({
+    type: "INITIALIZED_CSS_LOADER",
+    id: data.id,
+  } satisfies InitializedCssLoaderMessage);
 }
-
-
 
 /**
  * Processes a CSS file request.
@@ -49,9 +65,9 @@ export async function initialize(data: { id: string, port: MessagePort, resolved
  */
 async function processCssFile(
   filePath: string,
-  config: ResolvedConfig,
+  config: ResolvedUserConfig,
   inline: boolean
-): Promise<{ format: string; source: string; shortCircuit: boolean }> {
+): Promise<{ format: ModuleFormat; source: string; shortCircuit: boolean }> {
   try {
     // Convert file URL to path if needed
     const path = filePath.startsWith("file://")
@@ -61,13 +77,13 @@ async function processCssFile(
     // Process CSS using Vite's preprocessCSS
     const source = await readFile(path, "utf-8");
     let moduleID = path;
-    if(userOptions?.normalizer) {
-      let [,value] = userOptions.normalizer(path);
+    if (userOptions?.normalizer) {
+      const [, value] = userOptions.normalizer(path);
       moduleID = userOptions.moduleID(value || path);
     }
     const processed = await preprocessCSS(source, path, {
-      ...config,
-      env: env
+      ...(config as unknown as ResolvedConfig),
+      env: env,
     });
 
     // If we're processing CSS for a specific page, notify the message handler
@@ -75,7 +91,7 @@ async function processCssFile(
       loaderPort.postMessage({
         type: "CSS_FILE",
         id: moduleID,
-        content: processed.code
+        content: processed.code,
       });
     }
 
@@ -108,18 +124,14 @@ async function processCssFile(
  * @param defaultLoad - The default load function
  * @returns A promise that resolves to the module content
  */
-export async function load(
-  url: string,
-  context: LoadHookContext & LoaderContext & { resolvedConfig: SerializedUserConfig },
-  defaultLoad: any
-) {
+export const load: LoadHook = async (url, context, defaultLoad) => {
   const [name, query] = url.split("?");
   if (name.endsWith(".css")) {
-    return processCssFile(url, resolvedConfig as ResolvedConfig, query === "inline");
+    return processCssFile(url, resolvedConfig!, query === "inline");
   }
 
-  return defaultLoad(url, context, defaultLoad);
-}
+  return defaultLoad(url, context);
+};
 
 /**
  * Vite's resolve hook implementation.
@@ -130,6 +142,6 @@ export async function load(
  * @param defaultResolve - The default resolve function
  * @returns A promise that resolves to the resolved module
  */
-export function resolve(specifier: string, context: any, defaultResolve: any) {
-  return defaultResolve(specifier, context, defaultResolve);
-}
+export const resolve: ResolveHook = (specifier, context, defaultResolve) => {
+  return defaultResolve(specifier, context);
+};

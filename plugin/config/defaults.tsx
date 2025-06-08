@@ -125,12 +125,12 @@ export const DEFAULT_CONFIG = {
     /**
      * Matches "use server" or 'use server' with optional semicolon and newline
      */
-    serverDirective: /(\"use server\"|\'use server\')[\s;]?/m,
+    serverDirective: /("use server"|'use server')[\s;]?/m,
     /**
      * Matches "use client" or 'use client' with optional semicolon and newline
      * Must be at start of file
      */
-    clientDirective: /(\"use client\"|\'use client\')[\s;]?/m,
+    clientDirective: /("use client"|'use client')[\s;]?/m,
     /**
      * Custom directive patterns
      */

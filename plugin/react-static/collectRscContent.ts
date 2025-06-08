@@ -9,7 +9,8 @@
  * 3. Provides a clean interface for RSC handling
  */
 
-import { PassThrough, Transform } from "node:stream";
+import type { PassThrough} from "node:stream";
+import { Transform } from "node:stream";
 import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import type {
@@ -30,10 +31,14 @@ import { fileWriter } from "./fileWriter.js";
  */
 export async function collectRscContent<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props",
+  ID1 extends string = string,
+  ID2 extends string | undefined = ID1,
 >(
   rscStream: PassThrough,
-  handlerOptions: CreateHandlerOptions<T, InlineCSS>
+  handlerOptions: CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   const metrics = createStreamMetrics();
   const startTime = performance.now();

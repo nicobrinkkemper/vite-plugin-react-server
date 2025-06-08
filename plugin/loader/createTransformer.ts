@@ -53,10 +53,10 @@ export function createTransformer({
     const parseResult: ParseResult = parseFn(source, verbose);
     const { directives, program, sourceMap: parsedSourceMap } = parseResult;
 
-    let isClient =
+    const isClient =
       directives.fileLevelClientDirective ||
       directives.functionLevelClientDirectives.length > 0;
-    let isServer =
+    const isServer =
       directives.fileLevelServerDirective ||
       directives.functionLevelServerDirectives.length > 0 ||
       directives.useServer;

@@ -3,10 +3,21 @@ import type {
   CreateHandlerOptions,
   StreamMetrics,
   PagePropOpt,
+  InlineCssOpt,
 } from "../types.js";
 import { performance } from "node:perf_hooks";
+import type { PassThrough } from "node:stream";
+import type { ErrorInfo } from "react";
+import { toError } from "../error/toError.js";
 
-export function createRscStream<T extends PagePropOpt = PagePropOpt>({
+export function createRscStream<
+  T extends PagePropOpt = PagePropOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props",
+  ID1 extends string = string,
+  ID2 extends string | undefined = ID1,
+  InlineCss extends InlineCssOpt = InlineCssOpt
+>({
   Html = React.Fragment,
   PageComponent,
   pageProps,
@@ -22,8 +33,9 @@ export function createRscStream<T extends PagePropOpt = PagePropOpt>({
   manifest,
   onEvent,
   projectRoot,
+  verbose,
 }: Pick<
-  CreateHandlerOptions<T>,
+  CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCss>,
   | "Html"
   | "PageComponent"
   | "pageProps"
@@ -38,10 +50,22 @@ export function createRscStream<T extends PagePropOpt = PagePropOpt>({
   | "globalCss"
   | "manifest"
   | "projectRoot"
+  | "verbose"
 > & {
-  onEvent?: (event: "error" | "postpone", data: any) => void;
+  onEvent?: (
+    event: "error" | "postpone",
+    data: {
+      route: string;
+      error?: Error | null;
+      errorInfo?: {
+        componentStack?: string | null;
+        digest?: string | null;
+      };
+      reason?: string | null;
+    }
+  ) => void;
 }):
-  | { type: "success"; stream: any; metrics: StreamMetrics }
+  | { type: "success"; stream: PassThrough; metrics: StreamMetrics }
   | { type: "error"; error: Error; metrics: StreamMetrics } {
   let errorCount = 0;
   let streamError: Error | null = null;
@@ -98,14 +122,32 @@ export function createRscStream<T extends PagePropOpt = PagePropOpt>({
       {
         ...pipeableStreamOptions,
         moduleBaseURL: moduleBaseURL,
-        onError(error: Error, errorInfo: any) {
-          const err = error instanceof Error ? error : new Error(String(error));
+        onError(error: Error, errorInfo: ErrorInfo) {
+          const err = toError(error);
           streamError = err;
           onEvent?.("error", { route, error: err, errorInfo });
           errorCount++;
         },
         onPostpone(reason: string) {
           onEvent?.("postpone", { route, reason });
+        },
+        onAllReady() {
+          // Stream is ready to be consumed
+          if (verbose) {
+            console.log(`[react-server] Stream ready for route: ${route}`);
+          }
+        },
+        onShellError(error: Error) {
+          const err = toError(error);
+          streamError = err;
+          onEvent?.("error", { route, error: err });
+          errorCount++;
+        },
+        onShellReady() {
+          // Shell is ready, but we still need to wait for onAllReady
+          if (verbose) {
+            console.log(`[react-server] Shell ready for route: ${route}`);
+          }
         },
       }
     );

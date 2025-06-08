@@ -7,7 +7,7 @@ export type Directive = Statement & {
 
 export type Node = AcornNode;
 
-export interface ExportInfo {
+export type ExportInfo = {
   name: string;
   localName?: string;
   type: "function" | "variable" | "class" | "unknown";

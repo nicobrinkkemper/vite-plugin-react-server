@@ -1,8 +1,5 @@
 import type { FileWriteEvent } from "../types.js";
 
-export type ReactStaticPluginOptions = {
-  
-};
 
 export type ReactStaticEvent = FileWriteEvent | {
   type: 'build.start';

@@ -15,7 +15,7 @@
  */
 
 import { join } from "node:path";
-import { Worker } from "node:worker_threads";
+import type { Worker } from "node:worker_threads";
 import {
   type Manifest,
   type ResolvedConfig,
@@ -29,7 +29,6 @@ import type {
   BuildTiming,
   ReactStreamPluginMeta,
   ResolvedUserConfig,
-  ResolvedUserOptions,
   PluginEvent,
   RenderPagesResult,
   AutoDiscoveredFiles,
@@ -53,6 +52,9 @@ import { performance } from "node:perf_hooks";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { baseURL } from "../utils/envUrls.node.js";
 import { readFile } from "node:fs/promises";
+import { logError } from "../error/logError.js";
+import { toError } from "../error/toError.js";
+import type { ShutdownCompleteMessage } from "../worker/types.js";
 
 if (getCondition() !== "react-server") {
   throw new Error(
@@ -63,16 +65,17 @@ if (getCondition() !== "react-server") {
 
 export function reactStaticPlugin<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >(
-  options: StreamPluginOptions<T, InlineCSS>
+  options: StreamPluginOptions<T, InlineCSS, 'div',N1, N2>
 ): VitePlugin<{
   meta: ReactStreamPluginMeta;
 }> {
   let worker: Worker;
   let userConfig: ResolvedUserConfig;
   let resolvedConfig: ResolvedConfig;
-  let userOptions: ResolvedUserOptions<T, InlineCSS>;
   let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
   let serverManifest: Manifest | undefined = undefined;
   let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
@@ -87,7 +90,7 @@ export function reactStaticPlugin<
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
-  userOptions = resolvedOptions.userOptions;
+  const userOptions = resolvedOptions.userOptions;
 
   return {
     name: "vite:plugin-react-server/static",
@@ -236,9 +239,7 @@ export function reactStaticPlugin<
           // Add global styles if they exist
           if (Object.keys(globalCssInputs).length > 0) {
             for (const [key, value] of Object.entries(globalCssInputs)) {
-              let cssContent = await buildLoader(value + "?inline").then((r) =>
-                String(r.default)
-              );
+              let cssContent = await buildLoader(`${value}?inline`).then((r) =>String(r.default));
               if (cssContent === "undefined" || !cssContent) {
                 cssContent =
                   (await readFile(
@@ -267,10 +268,8 @@ export function reactStaticPlugin<
           // Add page-specific styles
           for (const [key, value] of Object.entries(cssInputs)) {
             try {
-              const { default: cssContent } = await buildLoader(
-                value + "?inline"
-              );
-              if (typeof cssContent !== "string") {
+              const cssContent = await buildLoader(`${value}?inline`).then((r) => String(r.default));
+              if (typeof cssContent !== "string" || cssContent === "undefined") {
                 continue;
               }
               if (cssContent) {
@@ -316,7 +315,7 @@ export function reactStaticPlugin<
               : DEFAULT_CONFIG.ENV_PREFIX;
           const routeCount = autoDiscoveredFiles?.urlMap.size ?? 0;
           const maxListeners = routeCount + 1;
-          const workerResult = await createWorker({
+          const workerResult = await createWorker<T, InlineCSS, N1, N2>({
             projectRoot: userOptions.projectRoot,
             workerPath: userOptions.htmlWorkerPath,
             currentCondition: "react-server",
@@ -326,9 +325,7 @@ export function reactStaticPlugin<
             logger: this.environment.logger,
             workerData: {
               resolvedConfig: serializeResolvedConfig(resolvedConfig),
-              userOptions: {
-                ...serializedUserOptions,
-              },
+              userOptions: serializedUserOptions,
             },
           });
           if (workerResult.type === "error") {
@@ -352,8 +349,8 @@ export function reactStaticPlugin<
             worker: worker,
             logger: createLogger(),
             onEvent: async (event: PluginEvent) => {
-              if (userOptions.onEvent) {
-                userOptions.onEvent(event);
+              if (onEvent) {
+                onEvent(event);
               }
               // Add file write completion event
               if (event.type === "file.write") {
@@ -374,7 +371,7 @@ export function reactStaticPlugin<
             globalCss: globalCss,
             css: {
               ...handlerOptions.css,
-              inlineCss: handlerOptions.css?.inlineCss ?? true,
+              inlineCss: handlerOptions.css?.inlineCss ?? true as InlineCSS,
             },
           },
           cssFilesByPage
@@ -408,30 +405,32 @@ export function reactStaticPlugin<
         // Update timing
         timing.render = Date.now() - (timing.renderStart ?? timing.start);
       } catch (error) {
-        throw error;
-      }
-
-      // Cleanup
-      try {
-        worker.postMessage({ type: "SHUTDOWN", id: "*" });
-        await new Promise<void>((resolve, reject) => {
-          const shutdownHandler = (msg: any) => {
-            if (msg.type === "SHUTDOWN_COMPLETE") {
-              worker.removeListener("message", shutdownHandler);
-              worker
-                .terminate()
-                .then((code) =>
-                  code === 1
-                    ? resolve()
-                    : reject(new Error(`Worker terminated with code ${code}`))
-                )
-                .catch(reject);
-            }
-          };
-          worker.on("message", shutdownHandler);
-        });
-      } catch (error) {
-        throw error;
+        logError(toError(error), this.environment.logger);
+      } finally {
+        // Cleanup
+        try {
+          worker.postMessage({ type: "SHUTDOWN", id: "*" });
+          await new Promise<void>((resolve, reject) => {
+            const shutdownHandler = (msg: ShutdownCompleteMessage) => {
+              if (msg.type === "SHUTDOWN_COMPLETE") {
+                worker.removeListener("message", shutdownHandler);
+                worker
+                  .terminate()
+                  .then((code) =>
+                    code === 1
+                      ? resolve()
+                      : reject(new Error(`Worker terminated with code ${code}`))
+                  )
+                  .catch(reject);
+              }
+            };
+            worker.on("message", shutdownHandler);
+          });
+        } catch (error) {
+          logError(toError(error), this.environment.logger);
+        } finally {
+          worker.postMessage({ type: "SHUTDOWN", id: "*" });
+        }
       }
     },
   } as const;

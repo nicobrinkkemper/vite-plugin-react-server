@@ -1,6 +1,14 @@
-let stashedResolve: any = null;
+import type { ResolveHookContext } from "node:module";
 
-export function setStashedResolve(resolve: any) {
+type ResolveFunction = (
+  specifier: string,
+  context: ResolveHookContext,
+  nextResolve?: ResolveFunction
+) => Promise<{ url: string; shortCircuit: boolean }>;
+
+let stashedResolve: ResolveFunction | null = null;
+
+export function setStashedResolve(resolve: ResolveFunction) {
   stashedResolve = resolve;
 }
 
@@ -19,16 +27,12 @@ export async function resolveClientImport(specifier: string, parentURL: string) 
       {
         conditions,
         parentURL,
+        importAttributes: {}
       },
       stashedResolve
     );
 
-    if (!result) {
-      console.warn(`Failed to resolve import: ${specifier}`);
-      return null;
-    }
-
-    return result;
+    return result.url;
   } catch (error) {
     console.error(`Error resolving import ${specifier}:`, error);
     return null;

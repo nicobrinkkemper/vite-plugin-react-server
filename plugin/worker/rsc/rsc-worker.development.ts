@@ -8,7 +8,7 @@ import type {
   HmrAcceptMessage,
   ReadyMessage,
 } from "../types.js";
-import type { HmrUpdateMessage } from "./types.js";
+import type { CssFileMessage, HmrUpdateMessage, InitializedEnvLoaderMessage, InitializedReactLoaderMessage, RscWorkerInputMessage } from "./types.js";
 import { toError } from "../../error/toError.js";
 
 // Initialize worker
@@ -21,11 +21,10 @@ const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 const isDevEnv = process.env["NODE_ENV"] !== "production";
 const verbose = workerData.verbose;
 
-const developmentMessageHandler = (msg: any) => {
+const developmentMessageHandler = (msg: RscWorkerInputMessage) => {
   if (verbose) {
-    if ("chunk" in msg) {
-      let preview = Buffer.from(msg.chunk).toString("utf-8");
-      console.log(`[rsc-worker:${msg.type}] ${preview}`);
+    if (msg.type === "RSC_RENDER") {
+      console.log(`[rsc-worker:${msg.type}] Render ${msg.pagePath}}`);
     } else {
       console.log(`[rsc-worker:${msg.type}] ${JSON.stringify(msg)}`);
     }
@@ -33,21 +32,21 @@ const developmentMessageHandler = (msg: any) => {
   messageHandler(msg);
 };
 
-const developmentCssLoaderMessageHandler = (msg: any) => {
+const developmentCssLoaderMessageHandler = (msg: CssFileMessage) => {
   if (verbose) {
     console.log(`[css-loader:${msg.type}] ${JSON.stringify(msg)}`);
   }
   messageHandler(msg);
 };
 
-const developmentEnvLoaderMessageHandler = (msg: any) => {
+const developmentEnvLoaderMessageHandler = (msg: InitializedEnvLoaderMessage) => {
   if (verbose) {
     console.log(`[env-loader:${msg.type}] ${JSON.stringify(msg)}`);
   }
   messageHandler(msg);
 };
 
-const developmentReactLoaderMessageHandler = (msg: any) => {
+const developmentReactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
   if (verbose) {
     console.log(`[react-loader:${msg.type}] ${JSON.stringify(msg)}`);
   }
@@ -117,7 +116,7 @@ try {
     hmrPort.start();
 
     // Listen for HMR messages
-    hmrPort.on("message", (message: any) => {
+    hmrPort.on("message", (message: RscWorkerInputMessage) => {
       if (message.type === "HMR_UPDATE") {
         // Invalidate the module in the worker
         parentPort!.postMessage({

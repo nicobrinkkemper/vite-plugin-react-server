@@ -1,4 +1,4 @@
-import type { EnvironmentModuleGraph, ModuleGraph } from "vite";
+import type { EnvironmentModuleGraph, EnvironmentModuleNode, ModuleGraph, ModuleNode } from "vite";
 import type { CreateHandlerOptions, CssContent,  InlineCssOpt,  PagePropOpt } from "../types.js";
 import { createCssProps } from "./createCssProps.js";
 
@@ -30,7 +30,11 @@ type CollectViteModuleGraphCssResult =
 
 export async function collectViteModuleGraphCss<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props",
+  ID1 extends string = string,
+  ID2 extends string | undefined = ID1,
 >({
   moduleGraph,
   onCss,
@@ -41,7 +45,7 @@ export async function collectViteModuleGraphCss<
   onCss?: (cssContent: CssContent, parentUrl: string) => void;
   parentUrl?: string;
   handlerOptions: Pick<
-    CreateHandlerOptions<T, InlineCSS>,
+    CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>,
     | "pagePath"
     | "moduleBaseURL"
     | "moduleBasePath"
@@ -77,7 +81,7 @@ export async function collectViteModuleGraphCss<
   const seen = new Set<string>();
   const processing = new Set<string>();
 
-  const walkModule = async (mod: any) => {
+  const walkModule = async (mod: ModuleNode | EnvironmentModuleNode) => {
     if (!mod?.id) {
       // Module has no id
       return;
@@ -96,7 +100,7 @@ export async function collectViteModuleGraphCss<
     processing.add(mod.id);
     // Processing module
     if (mod.id.endsWith(".css")) {
-      const string = await loader(mod.id + "?inline").then(
+      const string = await loader(`${mod.id}?inline`).then(
         (m) => m?.["default"] ?? ""
       );
       if (typeof string !== "string") {
@@ -124,7 +128,7 @@ export async function collectViteModuleGraphCss<
 
     if (mod.importedModules) {
       // Processing imports for module
-      const importedModules = Array.from(mod.importedModules);
+      const importedModules = Array.from(mod.importedModules?.values() as Iterable<ModuleNode | EnvironmentModuleNode>);
       // Found imported modules
       for (const importedMod of importedModules) {
         if (typeof importedMod === "object" && importedMod != null) {

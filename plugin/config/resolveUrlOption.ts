@@ -17,7 +17,7 @@ export async function resolveUrlOption<T extends "Page" | "props">(
 > {
   try {
     switch (typeof options[optionName]) {
-      case "function":
+      case "function": {
         const result = options[optionName](
           url
         );
@@ -35,6 +35,7 @@ export async function resolveUrlOption<T extends "Page" | "props">(
           }
         }
         break;
+      }
       case "string":
         return { type: "success", [optionName]: options[optionName] };
       default:

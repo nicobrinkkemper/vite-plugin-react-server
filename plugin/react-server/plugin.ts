@@ -12,7 +12,6 @@ import type {
   AutoDiscoveredFiles,
   BuildTiming,
   ReactStreamPluginMeta,
-  ResolvedUserOptions,
   PagePropOpt,
   InlineCssOpt,
 } from "../types.js";
@@ -44,14 +43,13 @@ export function reactServerPlugin<
   };
 
   let autoDiscoveredFiles: AutoDiscoveredFiles;
-  let userOptions: ResolvedUserOptions<T, InlineCSS>;
   let serverManifest: Manifest = {};
 
   const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
-  userOptions = resolvedOptions.userOptions;
+  const userOptions = resolvedOptions.userOptions;
   
 
   return {
@@ -164,19 +162,19 @@ export function reactServerPlugin<
         normalizer: userOptions.normalizer,
       });
     },
-    async handleHotUpdate({ file, server, read, timestamp, ...ctx }) {
+    async handleHotUpdate({ file, server, timestamp, ...ctx }) {
       try {
         // Invalidate the module in Vite's cache for both client and SSR
         if (server.moduleGraph) {
           const mod = server.moduleGraph.getModuleById(file);
           if (mod) {
             // Invalidate the parent module which will handle both client and SSR
-            server.moduleGraph.invalidateModule(mod, undefined, undefined, true);
+            server.moduleGraph.invalidateModule(mod, undefined, timestamp, true);
             
             // Force a reload of the module
             const newMod = await server.moduleGraph.ensureEntryFromUrl(file, false);
             if (newMod) {
-              server.moduleGraph.invalidateModule(newMod, undefined, undefined, true);
+              server.moduleGraph.invalidateModule(newMod, undefined, timestamp, true);
             }
           }
         }

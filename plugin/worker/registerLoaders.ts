@@ -24,11 +24,11 @@ export function registerLoaders(loaders: LoaderRegistration[]) {
           parentURL: import.meta.url,
           data: { 
             port,
-            resolve: (specifier: string, context: any, nextResolve: any) => {
+            resolve: (specifier: string, context: unknown, nextResolve?: (specifier: string, context: unknown) => unknown) => {
               if (Object.hasOwn(imports, specifier)) {
-                return nextResolve(imports[specifier], context);
+                return nextResolve?.(imports[specifier], context);
               }
-              return nextResolve(specifier, context);
+              return nextResolve?.(specifier, context);
             }
           },
           transferList: [port]

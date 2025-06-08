@@ -3,7 +3,7 @@ import type {
   RscWorkerOutputMessage,
   RscRenderMessage,
 } from "../worker/rsc/types.js";
-import type { StreamMetrics } from "../types.js";
+import type { InlineCssOpt, PagePropOpt, StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
@@ -19,7 +19,12 @@ import { logError } from "../error/logError.js";
  * @param rscWorkerLoaderPort - Optional loader port for module loading
  * @returns An async generator that yields RSC chunks
  */
-export async function* createWorkerStream({
+export async function* createWorkerStream<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+>({
   worker,
   message,
   logger,
@@ -37,8 +42,12 @@ export async function* createWorkerStream({
   verbose = false,
 }: {
   worker: NodeWorker;
-  message: Omit<RscRenderMessage, "type" | "id"> &
-    Partial<Pick<RscRenderMessage, "id">> & { type?: "RSC_RENDER" };
+  message: Omit<RscRenderMessage<T, InlineCSS, N1, N2>, "type" | "id"> &
+    Partial<Pick<RscRenderMessage<T, InlineCSS, N1, N2>, "id">> & {
+      type?: "RSC_RENDER";
+    } & Partial<Pick<RscRenderMessage<T, InlineCSS, N1, N2>, "id">> & {
+      type?: "RSC_RENDER";
+    };
   logger: Logger;
   handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> &
     Partial<

@@ -10,9 +10,9 @@ import { stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { requestInfo } from "../helpers/requestInfo.js";
 
-interface StreamError extends Error {
+type StreamError = {
   code?: string;
-}
+} & Error
 
 export async function configurePreviewServer<
   T extends PagePropOpt = PagePropOpt,

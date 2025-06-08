@@ -1,4 +1,4 @@
-import type { Node, Program, ExpressionStatement, FunctionDeclaration, FunctionExpression, ArrowFunctionExpression } from 'acorn';
+import type { Node, Program, ExpressionStatement, FunctionDeclaration, FunctionExpression, ArrowFunctionExpression, VariableDeclarator } from 'acorn';
 
 type NodeWithParent = Node & {
   parent?: Node;
@@ -32,9 +32,9 @@ export interface DirectiveConfig {
   serverDirective?: string;
   customDirectives?: Array<{
     name: string;
-    validate?: (node: any) => boolean;
+    validate?: (node: Node) => boolean;
   }>;
-  validateFileLevel?: (node: any, index: number, program: Program) => boolean;
+  validateFileLevel?: (node: Node, index: number, program: Program) => boolean;
 }
 
 
@@ -58,10 +58,16 @@ function getDirectiveScope(node: NodeWithParent): { type: 'file' | 'function'; n
     }
     if (isFunctionExpression(current.parent) || isArrowFunctionExpression(current.parent)) {
       // Check if this function is assigned to a variable
-      let maybeVarDecl = current.parent.parent;
+      const maybeVarDecl = current.parent.parent;
       if (maybeVarDecl && maybeVarDecl.type === 'VariableDeclarator') {
-        const varDecl = maybeVarDecl as any;
-        return { type: 'function', name: varDecl.id?.name };
+        const varDecl = maybeVarDecl as VariableDeclarator & NodeWithParent;
+        if('name' in varDecl.id) {
+          console.log('TYPE HERE', varDecl.id.type)
+          return { type: 'function', name: varDecl.id.name };
+        } else {
+          console.log('NO NAME!!', varDecl.id.type)
+          return { type: 'function' };
+        }
       }
       // Check if this function is a class method
       if (current.parent.parent && current.parent.parent.type === 'MethodDefinition') {
@@ -190,7 +196,7 @@ export function findDirectives(program: Program, source: string): DirectiveInfo 
     // Visit child nodes
     for (const key in node) {
       if (key === 'parent') continue; // Prevent infinite recursion
-      const child = (node as any)[key];
+      const child = node[key as keyof Node];
       if (child && typeof child === 'object') {
         if (Array.isArray(child)) {
           child.forEach(grandChild => {
@@ -198,8 +204,8 @@ export function findDirectives(program: Program, source: string): DirectiveInfo 
               visit(grandChild as NodeWithParent, node);
             }
           });
-        } else if (typeof child === 'object' && child.type) {
-          visit(child as NodeWithParent, node);
+        } else if (typeof child === 'object' && 'type' in child) {
+          visit(child as unknown as NodeWithParent, node);
         }
       }
     }

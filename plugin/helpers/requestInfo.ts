@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import type { ResolvedUserOptions } from "../types.js";
 import { createLogger, type Connect, type Logger } from "vite";
 import { MIME_TYPES } from "../config/mimeTypes.js";
+import { requestToRoute } from "./requestToRoute.js";
 
 /**
  * # Request info
@@ -17,7 +18,12 @@ export function requestInfo(
   req: Connect.IncomingMessage,
   userOptions: Pick<
     ResolvedUserOptions,
-    "normalizer" | "build" | "autoDiscover" | "verbose"
+    | "normalizer"
+    | "build"
+    | "autoDiscover"
+    | "verbose"
+    | "moduleBasePath"
+    | "moduleBaseURL"
   >,
   hostDir: string,
   logger: Logger = createLogger()
@@ -46,7 +52,7 @@ export function requestInfo(
     req.headers["content-type"]?.includes(
       "application/x-www-form-urlencoded"
     ) || !!req.headers["content-type"]?.includes("multipart/form-data");
-  
+
   // Server action detection
   const hasServerActionHeaders =
     req.method === "POST" &&
@@ -55,18 +61,23 @@ export function requestInfo(
     req.headers["sec-fetch-mode"] === "cors";
   const isServerActionRequest = hasServerActionHeaders;
 
-  const isFormActionRequest = !isServerActionRequest && (
-    req.method === "POST" ||
-    (isFormContentType &&
-      req.headers["sec-fetch-dest"] === "document" &&
-      req.headers["sec-fetch-mode"] === "navigate")
-  );
+  const isFormActionRequest =
+    !isServerActionRequest &&
+    (req.method === "POST" ||
+      (isFormContentType &&
+        req.headers["sec-fetch-dest"] === "document" &&
+        req.headers["sec-fetch-mode"] === "navigate"));
 
   const isJsRequest =
-    !isFormActionRequest && !isJson && !isHtml && !isCss && !isRsc && (isJS || hasJsHeader);
+    !isFormActionRequest &&
+    !isJson &&
+    !isHtml &&
+    !isCss &&
+    !isRsc &&
+    (isJS || hasJsHeader);
   const isJsonRequest = isJson || (hasJsonHeader && !isJsRequest);
   // Form action detection
-  
+
   const isHtmlRequest =
     isHtml ||
     hasHtmlHeader ||
@@ -124,46 +135,41 @@ export function requestInfo(
       contentType = "application/octet-stream";
     }
   }
-  const route = value
-    .replace(userOptions.build.rscOutputPath, "")
-    .replace(userOptions.build.htmlOutputPath, "");
-
-  const routeWithoutTrailingSlash =
-    route === "" || route === "/"
-      ? "/"
-      : route.endsWith("/")
-      ? route.slice(0, -1)
-      : route;
-
-  const routeWithLeadingSlash = !routeWithoutTrailingSlash
-    ? "/"
-    : routeWithoutTrailingSlash.startsWith("/")
-    ? routeWithoutTrailingSlash
-    : `/${routeWithoutTrailingSlash}`;
+  const route = requestToRoute(req, {
+    moduleBasePath: userOptions.moduleBasePath,
+    moduleBaseURL: userOptions.moduleBaseURL,
+    build: userOptions.build,
+  });
+  if (!route) {
+    return {
+      route: "/",
+      ext,
+    };
+  }
 
   if (userOptions.verbose) {
     if (isFormActionRequest) {
-      logger.info(`[react-dev-server] (form-action) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (form-action) ${route}`);
     } else if (isServerActionRequest) {
       logger.info(
-        `[react-dev-server] (server-action) ${routeWithLeadingSlash}`
+        `[react-dev-server] (server-action) ${route}`
       );
     } else if (isHtmlRequest) {
-      logger.info(`[react-dev-server] (html) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (html) ${route}`);
     } else if (isRscRequest) {
-      logger.info(`[react-dev-server] (rsc) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (rsc) ${route}`);
     } else if (isCssRequest) {
-      logger.info(`[react-dev-server] (css) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (css) ${route}`);
     } else if (isJsRequest) {
-      logger.info(`[react-dev-server] (js) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (js) ${route}`);
     } else if (isJsonRequest) {
-      logger.info(`[react-dev-server] (json) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (json) ${route}`);
     } else {
-      logger.info(`[react-dev-server] (other) ${routeWithLeadingSlash}`);
+      logger.info(`[react-dev-server] (other) ${route}`);
     }
   }
   return {
-    route: routeWithLeadingSlash,
+    route,
     ext,
     isHtmlRequest,
     isRscRequest,

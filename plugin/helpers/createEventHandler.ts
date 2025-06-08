@@ -8,7 +8,7 @@ import type { PluginEvent } from "../types.js";
  * @param options Options for the event handler
  * @returns A function that handles both React stream events and plugin events
  */
-export interface EventHandlerOptions {
+export type EventHandlerOptions = {
   onEvent?: (event: PluginEvent) => void | Promise<void>;
 }
 

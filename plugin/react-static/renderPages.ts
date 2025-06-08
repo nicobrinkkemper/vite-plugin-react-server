@@ -11,7 +11,7 @@
  */
 import { createRenderMetrics } from "../helpers/metrics.js";
 import { renderPage } from "./renderPage.js";
-import { PassThrough } from "node:stream";
+import type { PassThrough } from "node:stream";
 import type {
   StreamMetrics,
   RenderPagesResult,
@@ -24,10 +24,12 @@ import type {
 
 export async function* renderPages<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >(
   autoDiscoveredFiles: AutoDiscoveredFiles,
-  handlerOptions: MultiPageHandlerOptions<T>,
+  handlerOptions: MultiPageHandlerOptions<T, InlineCSS, N1, N2>,
   cssFilesByPage: Map<string, Map<string, CssContent<InlineCSS>>>
 ): AsyncGenerator<RenderPagesResult, RenderPagesResult, unknown> {
   const routes = Array.from(autoDiscoveredFiles.urlMap.keys());

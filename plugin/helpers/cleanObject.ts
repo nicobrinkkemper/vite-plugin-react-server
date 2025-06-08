@@ -63,7 +63,7 @@ export function cleanObject<T>(
   if (obj instanceof RegExp)
     return serializeRegExp(obj) as unknown as Extract<SerializableRecord, T>;
 
-  const result: Record<string, any> = {};
+  const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     const fullPath = currentPath ? `${currentPath}.${key}` : key;
     const normalizedPath = fullPath.replace(/\[\d+\]/g, "[]");

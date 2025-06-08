@@ -50,8 +50,8 @@ export const extMap = (
     if (lastDotIndex === -1) {
       return id + jsExtension;
     }
-    let ext = id.slice(lastDotIndex);
-    let withoutExt = id.slice(0, lastDotIndex);
+    const ext = id.slice(lastDotIndex);
+    const withoutExt = id.slice(0, lastDotIndex);
     if (ext in map) {
       return withoutExt + map[ext as keyof typeof map];
     }

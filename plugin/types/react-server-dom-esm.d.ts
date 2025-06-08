@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'react-server-dom-esm/client' {
-  export interface Options {
+  export type Options = {
     callServer?: (id: string, args: any[]) => Promise<any>;
     moduleBaseURL?: string;
     temporaryReferences?: Map<any, any>;
@@ -38,7 +39,7 @@ declare module 'react-server-dom-esm/client' {
 }
 
 declare module 'react-server-dom-esm/server' {
-  export interface Options {
+  export type Options = {
     callServer?: (id: string, args: any[]) => Promise<any>;
     moduleBasePath?: string;
   }
@@ -126,11 +127,11 @@ declare module 'react-server-dom-esm/client.browser' {
 }
 
 declare module 'react-server-dom-esm/server.node' {
-  import { ReactElement } from 'react';
+  import type { ReactElement } from 'react';
 
   export function createTemporaryReferenceSet(): Set;
 
-  export interface ReactServerDomEsmRenderToPipeableStreamOptions {
+  export type ReactServerDomEsmRenderToPipeableStreamOptions = {
     onError?: (error: Error, errorInfo: any) => void;
     identifierPrefix?: string;
     onPostpone?: (reason: string) => void;
@@ -189,10 +190,8 @@ declare module 'react-server-dom-esm/server.node' {
 }
 
 declare module 'react-server-dom-esm/client.node' {
-  import { ReactElement } from 'react';
-  import { Writable } from 'stream';
   
-  export interface CreateFromNodeStreamOptions {
+  export type CreateFromNodeStreamOptions = {
     nonce?: string;
     encodeFormAction?: (id: string, boundPromise: Promise<unknown>) => string;
     callServer?: (id: string, args: unknown[]) => Promise<unknown>;

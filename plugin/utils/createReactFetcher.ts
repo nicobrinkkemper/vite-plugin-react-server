@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-// @ts-ignore
 import { createFromFetch } from "react-server-dom-esm/client.browser";
 import { createCallServer } from "./createCallServer.js";
 import { env } from "./env.js";

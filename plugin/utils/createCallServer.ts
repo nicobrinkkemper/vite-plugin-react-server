@@ -3,7 +3,7 @@ import {
   encodeReply,
 } from "react-server-dom-esm/client.browser";
 
-interface ServerActionResponse {
+type ServerActionResponse = {
   returnValue: unknown;
   type: 'server-action-response';
   error?: string;

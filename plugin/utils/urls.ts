@@ -30,7 +30,7 @@ export const createAbsoluteURL = (
     const pathWithBaseURL = baseURL(path);
     try {
       return new URL(pathWithBaseURL, withPublicOrigin).toString();
-    } catch (error) {
+    } catch {
       return withPublicOrigin + pathWithBaseURL;
     }
   };

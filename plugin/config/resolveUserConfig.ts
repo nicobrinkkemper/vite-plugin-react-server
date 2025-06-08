@@ -11,16 +11,18 @@ import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "../getNodeEnv.js";
 
-let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
+const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
 export type ResolveUserConfigProps<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 > = {
   condition: "react-client" | "react-server";
   config: UserConfig;
   configEnv: ConfigEnv;
-  userOptions: ResolvedUserOptions<T, InlineCSS>;
+  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>;
   autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "inputs" | "staticManifest">;
 };
 
@@ -30,14 +32,16 @@ export type ResolveUserConfigReturn =
 
 export function resolveUserConfig<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >({
   condition,
   config,
   configEnv,
   userOptions,
   autoDiscoveredFiles,
-}: ResolveUserConfigProps<T, InlineCSS>): ResolveUserConfigReturn {
+}: ResolveUserConfigProps<T, InlineCSS, N1, N2>): ResolveUserConfigReturn {
   const ssr =
     typeof config.build?.ssr === "boolean"
       ? config.build?.ssr
@@ -77,7 +81,9 @@ export function resolveUserConfig<
     if (!ssr || !input) {
       return fallback(info, false);
     }
-    let [id, value] = userOptions.normalizer(input);
+    const normalized = userOptions.normalizer(input);
+    const id = normalized[0];
+    let value = normalized[1];
     if (value.startsWith(userOptions.moduleBasePath)) {
       value = value.slice(userOptions.moduleBasePath.length);
     }
@@ -129,7 +135,7 @@ export function resolveUserConfig<
       : undefined
     : undefined;
 
-  let stashedReturns: Record<string, string> = {};
+  const stashedReturns: Record<string, string> = {};
   const pluginOutput = {
     preserveModulesRoot: userOptions.build.preserveModulesRoot
       ? userOptions.moduleBase
@@ -155,7 +161,9 @@ export function resolveUserConfig<
         }
         // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
         // at the last possible moment as to not confuse the rest of the logic around the basePath
-        return stashedReturns[inputId].slice(Number(stashedReturns[inputId].startsWith("/")));
+        return stashedReturns[inputId].slice(
+          Number(stashedReturns[inputId].startsWith("/"))
+        );
       }),
     assetFileNames: process.env["VITEST"]
       ? undefined
@@ -174,7 +182,9 @@ export function resolveUserConfig<
           }
           // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
           // at the last possible moment as to not confuse the rest of the logic around the basePath
-          return stashedReturns[inputId].slice(Number(stashedReturns[inputId].startsWith("/")));
+          return stashedReturns[inputId].slice(
+            Number(stashedReturns[inputId].startsWith("/"))
+          );
         }),
     chunkFileNames:
       userDefinedChunkFileNames ??
@@ -199,14 +209,16 @@ export function resolveUserConfig<
         }
         // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
         // at the last possible moment as to not confuse the rest of the logic around the basePath
-        return stashedReturns[inputId].slice(Number(stashedReturns[inputId].startsWith("/")));
+        return stashedReturns[inputId].slice(
+          Number(stashedReturns[inputId].startsWith("/"))
+        );
       }),
     format: "esm",
     exports: "named",
   } satisfies OutputOptions;
 
-  let newOutput = Array.isArray(config.build?.rollupOptions?.output)
-    ? [...config.build?.rollupOptions?.output, pluginOutput]
+  const newOutput = Array.isArray(config.build?.rollupOptions?.output)
+    ? [...(config.build?.rollupOptions?.output || null), pluginOutput]
     : typeof config.build?.rollupOptions?.output === "object" &&
       config.build?.rollupOptions?.output !== null
     ? [config.build?.rollupOptions?.output, pluginOutput]
@@ -219,8 +231,8 @@ export function resolveUserConfig<
     process.env["NODE_ENV"] ??
     nodeEnv;
 
-  if(mode !== nodeEnv) {
-    if(typeof config.mode === "string" && nodeEnv !== "production") {
+  if (mode !== nodeEnv) {
+    if (typeof config.mode === "string" && nodeEnv !== "production") {
       throw new Error(`Mode ${mode} must be equal to NODE_ENV ${nodeEnv}.`);
     }
     mode = nodeEnv;
@@ -247,12 +259,12 @@ export function resolveUserConfig<
   };
   let publicOrigin =
     userOptions.publicOrigin ?? process.env[`${vitePrefix}PUBLIC_ORIGIN`] ?? "";
-  let PROD = mode === "production";
-  let DEV = mode === "development";
-  let port =
+  const PROD = mode === "production";
+  const DEV = mode === "development";
+  const port =
     typeof config.server?.port === "number" ? config.server?.port : 5173;
-  let strictPort = config.server?.strictPort ?? true;
-  let host =
+  const strictPort = config.server?.strictPort ?? true;
+  const host =
     typeof config.server?.host === "string" ? config.server?.host : "localhost";
   if (configEnv.command === "serve" && !configEnv.isPreview) {
     if (strictPort) {
@@ -285,7 +297,7 @@ export function resolveUserConfig<
   if (process.env[`${vitePrefix}PUBLIC_ORIGIN`] !== publicOrigin) {
     process.env[`${vitePrefix}PUBLIC_ORIGIN`] = publicOrigin;
   }
-  
+
   if (condition === "react-client") {
     // client plugin build options (client plugin still outputs server files)
     const clientConfig = {

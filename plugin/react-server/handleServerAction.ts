@@ -11,12 +11,14 @@ import type { IncomingMessage, ServerResponse } from "http";
 
 export async function handleServerAction<
   T extends PagePropOpt = PagePropOpt,
-  InlineCss extends InlineCssOpt = InlineCssOpt
+  InlineCss extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >(
   req: IncomingMessage,
   res: ServerResponse,
   server: ViteDevServer,
-  handlerOptions: ResolvedUserOptions<T, InlineCss>
+  handlerOptions: ResolvedUserOptions<T, InlineCss, N1, N2>
 ) {
   let id = req.url?.split("?")[0] ?? "";
   try {

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type {
   InlineCssOpt,
+  ModuleLoader,
   PagePropOpt,
   ResolvedUserConfig,
   ResolvedUserOptions,
@@ -11,12 +12,14 @@ import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";
 import { toError } from "../error/toError.js";
 
-export interface BuildLoaderOptions<
+export type BuildLoaderOptions<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
-> {
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+> = {
   userConfig: ResolvedUserConfig;
-  userOptions: ResolvedUserOptions<T, InlineCSS>;
+  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>;
   serverManifest: Manifest;
   clientManifest: Manifest;
   staticManifest: Manifest;
@@ -30,16 +33,18 @@ export interface BuildLoaderOptions<
  *  - For server components: Use server manifest and server.js
  *  - For static assets: Use static manifest
  */
-export async function createBuildLoader<
+export function createBuildLoader<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >(
   {
     userOptions,
     serverManifest,
     clientManifest,
     staticManifest,
-  }: BuildLoaderOptions<T, InlineCSS>,
+  }: BuildLoaderOptions<T, InlineCSS, N1, N2>,
   bundle: OutputBundle
 ) {
   const manifestKeys = Object.keys(serverManifest);
@@ -47,10 +52,11 @@ export async function createBuildLoader<
     throw new Error("Server manifest is empty");
   }
 
-  return async function buildLoader(id: string) {
+  return async function buildLoader(id) {
     const [withoutQuery, query] = id.split("?", 2);
+    const [moduleId, exportName] = withoutQuery.split("#", 2);
     const [normalizedKey, normalizedValue] =
-      userOptions.normalizer(withoutQuery);
+      userOptions.normalizer(moduleId);
     const moduleRef = getModuleRef(id);
 
     // Check if we have a temporary reference (cached module)
@@ -59,7 +65,7 @@ export async function createBuildLoader<
       if (typeof mod === "object" && mod !== null && "error" in mod) {
         // ignore it
       } else {
-        return mod;
+        return mod
       }
     }
 
@@ -149,6 +155,10 @@ export async function createBuildLoader<
               )
             );
             temporaryReferences?.set(moduleRef, module);
+            // If we have an export name, return just that export
+            if (exportName) {
+              return { [exportName]: module[exportName] };
+            }
             return module;
           } catch (error) {
             const err = toError(error);
@@ -172,6 +182,10 @@ export async function createBuildLoader<
             )
           );
           temporaryReferences?.set(moduleRef, module);
+          // If we have an export name, return just that export
+          if (exportName) {
+            return { [exportName]: module[exportName] };
+          }
           return module;
         } catch (error) {
           const err = toError(error);
@@ -190,5 +204,5 @@ export async function createBuildLoader<
       temporaryReferences?.delete(moduleRef);
       return emptyExports;
     }
-  };
+  } as ModuleLoader<T, N1, N2>;
 }

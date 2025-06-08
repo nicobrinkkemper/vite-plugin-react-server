@@ -54,11 +54,13 @@ const registerPath = (
 
 export const resolveOptions = <
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >(
-  options: StreamPluginOptions<T, InlineCSS>
+  options: StreamPluginOptions<T, InlineCSS, 'div', N1, N2>
 ):
-  | { type: "success"; userOptions: ResolvedUserOptions<T, InlineCSS> }
+  | { type: "success"; userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2> }
   | { type: "error"; error: Error } => {
   // Module path configuration
   const moduleBase =
@@ -80,8 +82,8 @@ export const resolveOptions = <
   const prodModuleBase = isProd && preserveModulesRoot ? moduleBase : undefined;
 
   const {
-    pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-    propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+    pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME as N1,
+    propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME as N2,
   } = options;
 
   // Build configuration
@@ -92,8 +94,8 @@ export const resolveOptions = <
       ? options.build.pages
       : DEFAULT_CONFIG.BUILD.pages;
 
-  let client = options.build?.client ?? DEFAULT_CONFIG.BUILD.client;
-  let server = options.build?.server ?? DEFAULT_CONFIG.BUILD.server;
+  const client = options.build?.client ?? DEFAULT_CONFIG.BUILD.client;
+  const server = options.build?.server ?? DEFAULT_CONFIG.BUILD.server;
   const api = options.build?.api ?? DEFAULT_CONFIG.BUILD.api;
   const staticBuild = options.build?.static ?? DEFAULT_CONFIG.BUILD.static;
   const outDir = options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir;
@@ -237,7 +239,7 @@ export const resolveOptions = <
     options.autoDiscover?.isServerFunctionCode,
     options.autoDiscover?.serverDirective
       ? (code: string, moduleId?: string) =>
-          code.match(options.autoDiscover?.serverDirective!) != null ||
+          code.match(options.autoDiscover!.serverDirective!) != null ||
           (moduleId && serverFunctions(moduleId)) ||
           false
       : DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode
@@ -247,7 +249,7 @@ export const resolveOptions = <
     options.autoDiscover?.isClientComponentCode,
     options.autoDiscover?.clientDirective
       ? (code: string, moduleId?: string) =>
-          code.match(options.autoDiscover?.clientDirective!) != null ||
+          code.match(options.autoDiscover!.clientDirective!) != null ||
           (moduleId && clientComponents(moduleId)) ||
           false
       : DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode
@@ -431,7 +433,7 @@ export const resolveOptions = <
     preserveModulesRoot,
     rscOutputPath,
     htmlOutputPath,
-    preserveDirectives: options.build?.preserveDirectives ?? DEFAULT_CONFIG.BUILD.preserveDirectives,
+    preserveDirectives: options.build?.preserveDirectives || DEFAULT_CONFIG.BUILD.preserveDirectives,
     entryFile:
       typeof options.build?.entryFile === "function"
         ? options.build.entryFile
@@ -523,7 +525,7 @@ export const resolveOptions = <
         serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
         autoDiscover: autoDiscover,
         pipeableStreamOptions,
-      } as ResolvedUserOptions<T, InlineCSS>,
+      } as ResolvedUserOptions<T, InlineCSS, N1, N2>,
     };
   } catch (error) {
     return {

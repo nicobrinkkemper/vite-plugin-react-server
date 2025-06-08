@@ -2,7 +2,6 @@ import { resolveOptions } from "../config/resolveOptions.js";
 import type {
   InlineCssOpt,
   PagePropOpt,
-  ResolvedUserOptions,
   StreamPluginOptions,
 } from "../types.js";
 import type { Manifest, Plugin } from "vite";
@@ -43,20 +42,18 @@ export function reactTransformPlugin<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt
 >(options: StreamPluginOptions<T, InlineCSS>): Plugin {
-  let userOptions: ResolvedUserOptions<T, InlineCSS>;
-
   const resolvedOptionsResult = resolveOptions(options);
 
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
 
-  userOptions = resolvedOptionsResult.userOptions;
+  const { userOptions } = resolvedOptionsResult;
 
   let staticManifest: Manifest = {};
   let isBuild = true;
   let isSSR = false;
-  let nodeEnv = getNodeEnv();
+  const nodeEnv = getNodeEnv();
   let mode = nodeEnv;
-  let verbose =  options.verbose;
+  const verbose = options.verbose;
   return {
     name: "vite:react-server-transform",
     enforce: "post", // Run after Vite's transforms
@@ -67,8 +64,10 @@ export function reactTransformPlugin<
     async configResolved(config) {
       isBuild = config.command === "build";
       isSSR = config.build?.ssr === true;
-      if(isValidEnv(config.mode) && config.mode !== nodeEnv) {
-        console.warn(`Mode ${config.mode} must be equal to NODE_ENV ${nodeEnv}.`);
+      if (isValidEnv(config.mode) && config.mode !== nodeEnv) {
+        console.warn(
+          `Mode ${config.mode} must be equal to NODE_ENV ${nodeEnv}.`
+        );
         mode = nodeEnv;
       }
       if (isBuild && isSSR) {
@@ -92,7 +91,7 @@ export function reactTransformPlugin<
       importer: string | undefined,
       options: {
         attributes: Record<string, string>;
-        custom?: any;
+        custom?: Record<string, unknown>;
         ssr?: boolean;
         isEntry: boolean;
       }
@@ -101,16 +100,16 @@ export function reactTransformPlugin<
         return null;
       }
       // Set stashedResolve before any transform operations
-      setStashedResolve(async (specifier: string) => {
+      setStashedResolve(async (specifier: string): Promise<{ url: string; shortCircuit: boolean }> => {
         try {
           const resolved = await this.resolve(specifier, importer, {
             custom: { conditions: ["react-server"] },
           });
-          if (!resolved) return null;
-          return { id: resolved.id };
+          if (!resolved) return { url: specifier, shortCircuit: false };
+          return { url: resolved.id, shortCircuit: true };
         } catch (error) {
           logError(error, this.environment.logger);
-          return null;
+          return { url: specifier, shortCircuit: false };
         }
       });
       return null; // Let Vite handle the resolution
@@ -119,9 +118,11 @@ export function reactTransformPlugin<
       if (!options?.ssr || !userOptions.autoDiscover.modulePattern(id)) {
         return null;
       }
-      const isServerFunctionCode = userOptions.autoDiscover.isServerFunctionCode(code);
-      const isClientComponentCode = userOptions.autoDiscover.isClientComponentCode(code);
-      if(!isServerFunctionCode && !isClientComponentCode) {
+      const isServerFunctionCode =
+        userOptions.autoDiscover.isServerFunctionCode(code);
+      const isClientComponentCode =
+        userOptions.autoDiscover.isClientComponentCode(code);
+      if (!isServerFunctionCode && !isClientComponentCode) {
         return null;
       }
       let [, moduleID] = userOptions.normalizer(id);
@@ -134,7 +135,7 @@ export function reactTransformPlugin<
           throw new Error(`Static manifest not found during dev build.`);
         }
       }
-      let finalID = userOptions.moduleID(moduleID);
+      const finalID = userOptions.moduleID(moduleID);
       // Always transform in server context
       const transformed = transformModuleIfNeeded(
         code,

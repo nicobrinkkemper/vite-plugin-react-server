@@ -8,7 +8,8 @@ import type {
   ResolvedUserOptions,
   StreamMetrics,
 } from "../types.js";
-import { MessageChannel, type Worker } from "node:worker_threads";
+import type { MessageChannel} from "node:worker_threads";
+import { type Worker } from "node:worker_threads";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { performance } from "node:perf_hooks";
@@ -28,7 +29,9 @@ import { handleWorkerServerAction } from "./handleWorkerServerAction.js";
  */
 export async function configureWorkerRequestHandler<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >({
   server,
   autoDiscoveredFiles,
@@ -38,11 +41,11 @@ export async function configureWorkerRequestHandler<
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions<T, InlineCSS>;
+  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>;
   hmrChannel: MessageChannel;
   onMetrics?: (metrics: RenderMetrics) => void;
 }) {
-  let {
+  const {
     // remove these
     projectRoot: _projectRoot,
     moduleBaseURL: _moduleBaseURL,
@@ -87,7 +90,7 @@ export async function configureWorkerRequestHandler<
     const info = requestInfo(req, handlerOptions, "", server.config.logger);
 
     // Serialize user options for worker
-    const serializedUserOptions = serializedOptions<T, InlineCSS>(
+    const serializedUserOptions = serializedOptions<T, N1, N2, InlineCSS>(
       handlerOptions,
       autoDiscoveredFiles
     );

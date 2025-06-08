@@ -4,7 +4,7 @@ import { findDirectives } from "./findDirectives.js";
 import type { DirectiveInfo } from "./findDirectives.js";
 import { parseSourceMapUrl } from "./sourceMap.js";
 
-export interface ParseResult {
+export type ParseResult = {
   program: Program;
   directives: DirectiveInfo;
   sourceMap: {

@@ -12,17 +12,17 @@ import type {
 } from "../worker/rsc/types.js";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { resolveOptions } from "../config/resolveOptions.js";
 import { hydrateUserOptions } from "../helpers/index.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import type { ResolveHook } from "node:module";
 
-export interface LoaderOptions {
+export type LoaderOptions = {
   id: string;
   resolveDependencies?: boolean;
   format?: string;
   conditions?: string[];
-  importAssertions?: Record<string, any>;
-  importAttributes?: Record<string, any>;
+  importAssertions?: Record<string, unknown>;
+  importAttributes?: Record<string, unknown>;
   source: string;
 }
 
@@ -38,9 +38,7 @@ export async function initialize(data: {
   if (userOptions?.verbose) {
     console.log("[react-loader] Initializing with options:", data.id);
   }
-  const resolvedUserOptions = resolveOptions(
-    hydrateUserOptions(data.userOptions)
-  );
+  const resolvedUserOptions = hydrateUserOptions(data.userOptions)
   if (resolvedUserOptions.type === "error") {
     throw new Error(resolvedUserOptions.error.message);
   }
@@ -155,7 +153,7 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
     if (typeof map === 'string') {
       try {
         map = JSON.parse(map);
-      } catch (e) {
+      } catch {
         // leave as is if parsing fails
       }
     }
@@ -187,11 +185,11 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
   return nextLoad(url, context);
 }
 
-export async function resolve(
-  specifier: string,
-  context: any,
-  nextResolve: any
-) {
+export const resolve: ResolveHook = async (
+  specifier,
+  context,
+  nextResolve
+) => {
   if (userOptions?.verbose) {
     console.log("[react-loader] Resolving:", specifier);
     console.log("[react-loader] Resolve context:", context);

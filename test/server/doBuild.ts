@@ -15,8 +15,10 @@ import { resolve } from "path";
  */
 export async function doBuild<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->(optionOverrides: Partial<StreamPluginOptions<T, InlineCSS>>) {
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+>(optionOverrides: Partial<StreamPluginOptions<T, InlineCSS, 'div', N1, N2>>) {
   const events: PluginEvent[] = [];
   // check directory
   const options = {

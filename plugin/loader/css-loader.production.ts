@@ -1,6 +1,5 @@
 import type { MessagePort } from "node:worker_threads";
-import type { LoadHookContext } from "node:module";
-import type { LoaderContext } from "../types.js";
+import type { LoadHook, ModuleFormat } from "node:module";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 
@@ -10,7 +9,7 @@ import { readFile } from "node:fs/promises";
  */
 export let loaderPort: MessagePort | undefined;
 
-let stashedCssFiles = new Map();
+const stashedCssFiles = new Map();
 
 /**
  * Initializes the CSS loader with the necessary communication channels.
@@ -33,30 +32,26 @@ export async function initialize(data: { id: string, port: MessagePort }) {
  */
 async function processCssFile(
   filePath: string
-): Promise<{ format: string; source: string; shortCircuit: boolean }> {
-  try {
-    // Convert file URL to path if needed
-    const path = filePath.startsWith("file://")
-      ? fileURLToPath(filePath)
-      : filePath;
-    if (stashedCssFiles.has(filePath)) {
-      return {
-        format: "module",
-        source: stashedCssFiles.get(filePath),
-        shortCircuit: true,
-      };
-    }
-    // Process CSS using Vite's preprocessCSS
-    const source = await readFile(path, "utf-8");
-    stashedCssFiles.set(path, source);
+): Promise<{ format: ModuleFormat; source: string; shortCircuit: boolean }> {
+  // Convert file URL to path if needed
+  const path = filePath.startsWith("file://")
+    ? fileURLToPath(filePath)
+    : filePath;
+  if (stashedCssFiles.has(filePath)) {
     return {
       format: "module",
-      source: source,
+      source: stashedCssFiles.get(filePath),
       shortCircuit: true,
     };
-  } catch (error) {
-    throw error;
   }
+  // Process CSS using Vite's preprocessCSS
+  const source = await readFile(path, "utf-8");
+  stashedCssFiles.set(path, source);
+  return {
+    format: "module",
+    source: source,
+    shortCircuit: true,
+  };
 }
 
 /**
@@ -69,16 +64,16 @@ async function processCssFile(
  * @param defaultLoad - The default load function
  * @returns A promise that resolves to the module content
  */
-export async function load(
-  url: string,
-  context: LoadHookContext & LoaderContext,
-  defaultLoad: any
-) {
+export const load: LoadHook = async (
+  url,
+  context,
+  defaultLoad
+) => {
   // Handle CSS files
   const [name] = url.split("?");
   if (name.endsWith(".css")) {
     return processCssFile(url);
   }
 
-  return defaultLoad(url, context, defaultLoad);
+  return defaultLoad(url, context);
 }

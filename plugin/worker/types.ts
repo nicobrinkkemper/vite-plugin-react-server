@@ -1,134 +1,168 @@
-import type { CssContent } from "../types.js";
+import type { CssContent, StreamMetrics } from "../types.js";
 
 // Base message types
-export interface WorkerMessage {
+export type WorkerMessage = {
   type: string;
   id: string;
 }
 
 // Common message types used across workers
-export interface ErrorMessage extends WorkerMessage {
+export type ErrorMessage = {
   type: "ERROR";
-  errorInfo?: any;
-  error: string | {
-    message: string;
-    stack?: string | undefined;
-    name: string;
-    cause?: any;
+  errorInfo?: {
+    componentStack?: string | null;
+    digest?: string | null;
   };
+  error:
+    | string
+    | {
+        message: string;
+        stack?: string | undefined;
+        name: string;
+        cause?: unknown;
+      };
   id: string;
-}
+} & WorkerMessage
 
-export interface ReadyMessage {
+export type ReadyMessage = {
   type: "READY";
   id: string;
   env?: string;
   pid?: number;
 }
 
-export interface ShutdownMessage extends WorkerMessage {
+export type ShutdownMessage = {
   type: "SHUTDOWN";
-}
+} & WorkerMessage
 
-export interface ShutdownCompleteMessage {
+export type ShutdownCompleteMessage = {
   type: "SHUTDOWN_COMPLETE";
   id: string;
 }
 
-export interface ShellReadyMessage extends WorkerMessage {
+export type ShellReadyMessage = {
   type: "SHELL_READY";
-}
+} & WorkerMessage
 
-export interface AllReadyMessage extends WorkerMessage {
+export type AllReadyMessage = {
   type: "ALL_READY";
   id: string;
-}
+} & WorkerMessage
 
-export interface ShellErrorMessage extends WorkerMessage {
+export type ShellErrorMessage = {
   type: "SHELL_ERROR";
   id: string;
   error: {
     message: string;
     stack?: string | undefined;
     name: string;
-    cause?: any;
+    cause?: unknown;
   };
-}
+} & WorkerMessage
 
-export interface ChunkProcessedMessage extends WorkerMessage {
+export type ChunkProcessedMessage = {
   type: "CHUNK_PROCESSED";
   success: boolean;
   sequence?: number;
-}
+} & WorkerMessage
 
-export interface ChunkErrorMessage extends WorkerMessage {
+export type ChunkErrorMessage = {
   type: "CHUNK_ERROR";
   error: string;
   sequence?: number;
-}
+} & WorkerMessage
 
-export interface CleanupCompleteMessage extends WorkerMessage {
+export type CleanupCompleteMessage = {
   type: "CLEANUP_COMPLETE";
   id: string;
-}
+} & WorkerMessage
 
-export interface ServerActionMessage extends WorkerMessage {
+export type ServerActionMessage = {
   type: "SERVER_ACTION";
   args: unknown[];
-}
+} & WorkerMessage
 
-export interface ServerActionResponseMessage extends WorkerMessage {
+export type ServerActionResponseMessage = {
   type: "SERVER_ACTION_RESPONSE";
   id: string;
   result?: unknown;
   error?: string;
-}
+} & WorkerMessage
 
-export interface HmrAcceptMessage extends WorkerMessage {
+export type HmrAcceptMessage = {
   type: "HMR_ACCEPT";
   routes?: string[];
-}
+} & WorkerMessage
 
-export interface RscChunkMessage extends WorkerMessage {
+export type RscChunkMessage = {
   type: "RSC_CHUNK";
   chunk: Uint8Array;
   sequence?: number;
-}
+} & WorkerMessage
 
-export interface RscEndMessage extends WorkerMessage {
+export type RscEndMessage = {
   type: "RSC_END";
-}
+} & WorkerMessage
 
-export interface RouteReadyMessage extends WorkerMessage {
+export type RouteReadyMessage = {
   type: "ROUTE_READY";
   moduleRootPath: string;
   moduleBaseURL: string;
   cssFiles: Map<string, CssContent>;
-  pipeableStreamOptions: any;
+  pipeableStreamOptions: {
+    identifierPrefix?: string;
+    namespaceURI?: string;
+    nonce?: string;
+    bootstrapScriptContent?: string;
+    bootstrapScripts?: Array<
+      | string
+      | {
+          src: string;
+          integrity?: string | undefined;
+          crossOrigin?: string | undefined;
+        }
+    >;
+    bootstrapModules?: Array<
+      | string
+      | {
+          src: string;
+          integrity?: string | undefined;
+          crossOrigin?: string | undefined;
+        }
+    >;
+    progressiveChunkSize?: number;
+  };
   projectRoot: string;
-}
+} & WorkerMessage
 
-export interface CleanupMessage extends WorkerMessage {
+export type CleanupMessage = {
   type: "CLEANUP";
-}
+} & WorkerMessage
 
 // Common handlers
 export type StreamHandlers = {
-  onError: (id: string, error: any, errorInfo?: any) => void;
-  onData: (id: string, data: any) => void;
+  onError: (id: string, error: unknown, errorInfo?: {
+    componentStack?: string | null;
+    digest?: string | null;
+  } | Record<string, unknown>) => void;
+  onData: (id: string, data: Uint8Array) => void;
   onEnd: (id: string) => void;
-  onMetrics: (id: string, metrics: any) => void;
+  onMetrics: (id: string, metrics: StreamMetrics) => void;
   onHmrAccept: (id: string, routes?: string[]) => void;
   onHmrUpdate: (id: string, routes?: string[]) => void;
   onServerAction?: (id: string, args: unknown[]) => void;
-  onServerActionResponse?: (id: string, result?: unknown, error?: string) => void;
+  onServerActionResponse?: (
+    id: string,
+    result?: unknown,
+    error?: string
+  ) => void;
   onServerModule?: (id: string, url: string, source: string) => void;
   onShutdown?: (id: string) => void;
   onCssFile?: (id: string, code: string) => void;
 };
 
 // Common options
-export interface ReactServerDomEsmOptions {
+export type ReactServerDomEsmOptions = {
   identifierPrefix?: string;
   namespaceURI?: string;
   nonce?: string;
@@ -136,11 +170,15 @@ export interface ReactServerDomEsmOptions {
   bootstrapScripts?: string[];
   bootstrapModules?: string[];
   progressiveChunkSize?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   temporaryReferences?: WeakMap<any, any>;
   moduleBaseURL?: string;
   importMap?: {
     imports?: Record<string, string>;
   };
-  onError?: (error: Error, errorInfo?: any) => void;
+  onError?: (error: Error, errorInfo?: {
+    componentStack?: string | null;
+    digest?: string | null;
+  }) => void;
   onPostpone?: (reason: string) => void;
 }

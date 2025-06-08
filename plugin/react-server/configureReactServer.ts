@@ -3,6 +3,7 @@ import type { ServerResponse } from "http";
 import type {
   AutoDiscoveredFiles,
   InlineCssOpt,
+  ModuleLoader,
   PagePropOpt,
   ResolvedUserOptions,
 } from "../types.js";
@@ -15,10 +16,13 @@ import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { logError } from "../error/logError.js";
 import { handleServerAction } from "./handleServerAction.js";
+import { ReactDOMServer } from "../vendor/vendor.server.js";
 
 export async function configureReactServer<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 >({
   server,
   autoDiscoveredFiles,
@@ -27,14 +31,13 @@ export async function configureReactServer<
 }: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions<T, InlineCSS>;
+  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>;
   serverManifest: Manifest;
 }) {
   const activeStreams = new Set<ServerResponse>();
   const {
     Html: _UserHtmlComponent,
     onEvent,
-    // remove these
     ...handlerUserOptions
   } = _userOptions;
   const handlerOptions = {
@@ -44,8 +47,8 @@ export async function configureReactServer<
     projectRoot: server.config.root,
     Html: React.Fragment,
     onEvent: createEventHandler(onEvent),
-    css: handlerUserOptions.css
-  } as ResolvedUserOptions<T, InlineCSS>;
+    css: handlerUserOptions.css,
+  } as ResolvedUserOptions<T, InlineCSS, N1, N2>;
 
   // Set environment-specific configuration
   const define = {
@@ -78,13 +81,23 @@ export async function configureReactServer<
     }
     activeStreams.clear();
   });
+  const loader = (async (id) => {
+    const [moduleID, exportName] = id.split("#");
+    const result = await server.ssrLoadModule(moduleID);
+    if (!result) {
+      return {};
+    }
+    if (exportName && !(exportName in result)) {
+      throw new Error(`Module ${moduleID} does not have export ${exportName}`);
+    }
+    return result;
+  }) as ModuleLoader<T, N1, N2>;
 
   server.middlewares.use(async (req, res, next) => {
     if (!req.url) {
       return next();
     }
     const info = requestInfo(req, handlerOptions, "", server.config.logger);
-
 
     // Handle server actions
     if (info.isServerActionRequest) {
@@ -104,14 +117,14 @@ export async function configureReactServer<
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
 
-      // first load the page and props
+      // First load the page and props
       const pageAndPropsResult = await resolvePageAndProps({
         pagePath,
         propsPath,
         route: info.route,
-        loader: server.ssrLoadModule,
-        pageExportName: handlerOptions.pageExportName ?? "default",
-        propsExportName: handlerOptions.propsExportName ?? "default",
+        loader: loader,
+        pageExportName: handlerOptions.pageExportName ?? "Page",
+        propsExportName: handlerOptions.propsExportName ?? "props",
       });
       if (pageAndPropsResult.type === "error") {
         throw pageAndPropsResult.error;
@@ -122,12 +135,11 @@ export async function configureReactServer<
 
       const eventHandler = createEventHandler(onEvent);
       const cssFilesResult = await collectViteModuleGraphCss({
-        moduleGraph: server.moduleGraph, // by having loaded the page and props, we can get them from the module graph
+        moduleGraph: server.moduleGraph,
         parentUrl: pagePath,
         handlerOptions: {
           pagePath,
-          loader: server.ssrLoadModule,
-          // explicitly set for development server
+          loader: loader,
           ...handlerOptions,
         },
       });
@@ -138,13 +150,13 @@ export async function configureReactServer<
         throw cssFilesResult.error;
       }
       const { PageComponent, pageProps } = pageAndPropsResult;
-      // Create the headless RSC stream directly;
+      // Create the headless RSC stream directly
       const rscResult = createHandler({
         ...handlerOptions,
         PageComponent: PageComponent,
         pageProps: pageProps,
-        logger: server.config.logger,
-        loader: server.ssrLoadModule,
+        logger: server.config.logger, 
+        loader: loader,
         Html: React.Fragment,
         onEvent: eventHandler,
         manifest: serverManifest,
@@ -155,19 +167,48 @@ export async function configureReactServer<
         cssFiles: cssFilesResult.cssFiles ?? new Map(),
         globalCss: new Map(),
       });
+
       if (rscResult.type === "success") {
         // set headers
         res.setHeader("Content-Type", "text/x-component; charset=utf-8");
         rscResult.stream!.pipe(res);
       }
+      console.log("CREATED HANDLER");
       activeStreams.add(res);
       res.on("close", () => {
         activeStreams.delete(res);
       });
     } catch (error) {
       logError(error, server.config.logger);
-      res.end();
+      res.statusCode = 500;
+      res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+      res.setHeader("Content-Length", "0"); // Will be updated after streaming
+
+      const { pipe } = ReactDOMServer.renderToPipeableStream(
+        {
+          type: "error",
+          error: {
+            digest: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : "Error",
+          },
+        },
+        handlerOptions.moduleBasePath,
+        {
+          onError(error: Error) {
+            logError(error, server.config.logger);
+            res.statusCode = 500;
+            res.end();
+          },
+          onAllReady() {
+            // Update content length after streaming is complete
+            const contentLength = res.getHeader("Content-Length");
+            if (contentLength) {
+              res.setHeader("Content-Length", contentLength);
+            }
+          },
+        }
+      );
+      pipe(res);
     }
   });
-  // Listen for when the server actually starts
 }

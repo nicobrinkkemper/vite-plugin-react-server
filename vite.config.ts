@@ -13,6 +13,7 @@ export default defineConfig({
     // you need to fight it to not try and externalize things for the browser)
     emptyOutDir: false,
     ssr: true,
+    sourcemap: 'inline',
     lib: {
       entry: {
         client: resolve(__dirname, "client.ts"),
@@ -132,7 +133,6 @@ export default defineConfig({
           "/**\n * vite-plugin-react-server\n * Copyright (c) Nico Brinkkemper\n * MIT License\n */",
       },
     },
-    sourcemap: true,
     // Preserve module structure for proper tree-shaking
     modulePreload: false,
   },

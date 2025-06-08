@@ -4,6 +4,7 @@ import { reactTransformPlugin } from "./transformer/plugin.server.js";
 import type { StreamPluginOptions, PagePropOpt, InlineCssOpt } from "./types.js";
 import { reactServerPlugin } from "./react-server/plugin.js";
 import { envPlugin } from "./env/plugin.js";
+import type { Plugin } from "vite";
 
 
 export function vitePluginReactServer<
@@ -11,7 +12,7 @@ export function vitePluginReactServer<
   InlineCSS extends InlineCssOpt = InlineCssOpt
 >(
   options = {} as StreamPluginOptions<T, InlineCSS>
-): import("vite").Plugin[] {
+): Plugin[] {
   if(!options.build?.pages || (Array.isArray(options.build.pages) && options.build.pages.length === 0)) {
     // in this case we do not need the static plugin at all
     return [

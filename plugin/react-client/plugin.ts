@@ -4,7 +4,6 @@ import type {
   InlineCssOpt,
   PagePropOpt,
   ResolvedUserConfig,
-  ResolvedUserOptions,
   StreamPluginOptions,
 } from "../types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
@@ -18,7 +17,6 @@ export function reactClientPlugin<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt
 >(options: StreamPluginOptions<T, InlineCSS>): Plugin {
-  let userOptions: ResolvedUserOptions<T, InlineCSS>;
   let userConfig: ResolvedUserConfig;
   let configEnv: ConfigEnv;
   let root: string;
@@ -29,7 +27,7 @@ export function reactClientPlugin<
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
-  userOptions = resolvedOptions.userOptions;
+  const userOptions = resolvedOptions.userOptions;
   root = userOptions.projectRoot;
 
   return {
@@ -106,7 +104,7 @@ export function reactClientPlugin<
       });
     },
 
-    async handleHotUpdate({ file, server, read, timestamp, ...ctx }) {
+    async handleHotUpdate({ file, server, timestamp, ...ctx }) {
       try {
         // Check if the file is a page or props file
         const isPageFile = userOptions.autoDiscover.modulePattern(file);

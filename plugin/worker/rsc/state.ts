@@ -90,7 +90,7 @@ export function clearHmrState(path: string): void {
 // Helper to get all invalidated modules
 export function getInvalidatedModules(): string[] {
   return Array.from(hmrState.entries())
-    .filter(([_, state]) => state.invalidated)
+    .filter(([, state]) => state.invalidated)
     .map(([path]) => path);
 }
 

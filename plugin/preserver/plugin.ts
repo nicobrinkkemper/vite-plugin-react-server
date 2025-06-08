@@ -7,6 +7,7 @@ import type {
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { basename } from "path";
 import { resolveAutoDiscoverMatcher } from "../config/resolveAutoDiscoverMatcher.js";
+import type { Plugin } from "vite";
 
 
 function createSourceMap(id: string, code: string, mappings: string) {
@@ -42,7 +43,7 @@ function removeRanges(
 export function reactPreservePlugin<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt
->(options: StreamPluginOptions<T, InlineCSS>): import("vite").Plugin {
+>(options: StreamPluginOptions<T, InlineCSS>): Plugin {
   const meta: Record<string, Set<string>> = {};
   // saves us from transforming all the options
   const moduleExtension = resolveAutoDiscoverMatcher(options.autoDiscover?.moduleExtension, DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension);
@@ -86,7 +87,6 @@ export function reactPreservePlugin<
 
         const rangesToRemove: Array<{ start: number; end: number }> = [];
         let hasChanged = false;
-        let lineCount = 1;
         let mappings = "AAAA"; // Initial mapping for first line
 
         // Only look at top-level directives
@@ -121,7 +121,6 @@ export function reactPreservePlugin<
                 .length - 1;
             for (let i = 0; i < removedLines; i++) {
               mappings += ";AACA";
-              lineCount++;
             }
           }
         }

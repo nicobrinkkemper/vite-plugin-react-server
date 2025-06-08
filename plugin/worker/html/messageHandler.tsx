@@ -52,7 +52,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         break;
       }
       case "RSC_CHUNK": {
-        let renderState = activeRenders.get(id);
+        const renderState = activeRenders.get(id);
         if (!renderState) {
           throw new Error(`No render state found for id: ${id}`);
         }
@@ -65,11 +65,12 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
             id,
             success: true,
           });
-        } catch (error: any) {
+        } catch (error) {
+          const err = toError(error);
           sendMessage({
             type: "ERROR",
             id,
-            error: `Error writing chunk: ${error.message}`,
+            error: err,
           });
           cleanup(id);
         }
@@ -81,7 +82,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
           sendMessage({
             type: "ERROR",
             id,
-            error: "No render state found",
+            error: new Error("No render state found"),
           });
           return;
         }

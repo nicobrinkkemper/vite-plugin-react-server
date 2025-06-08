@@ -1,17 +1,22 @@
-import type { ResolvedUserOptions } from "../../types.js";
+import type { PagePropOpt, InlineCssOpt, SerializedUserOptions } from "../../types.js";
 
 import type { ViteDevServer } from "vite";
 import type { AutoDiscoveredFiles } from "../../types.js";
 import { createWorker } from "../worker/createWorker.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
-import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import React from "react";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
 
-export async function restartWorker({
+export async function restartWorker< 
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+>({
     server,
     autoDiscoveredFiles,
     userOptions,
@@ -19,7 +24,7 @@ export async function restartWorker({
   } :{
     server: ViteDevServer,
     autoDiscoveredFiles: AutoDiscoveredFiles,
-    userOptions: ResolvedUserOptions,
+    userOptions: SerializedUserOptions<T, InlineCSS, N1, N2>,
     hmrChannel: MessageChannel,
   }) {
     if (isRestarting) {
@@ -59,10 +64,10 @@ export async function restartWorker({
             ? server.config.envPrefix[0]
             : DEFAULT_CONFIG.ENV_PREFIX,
         workerData: {
-          hmrPort: workerHmrChannel.port2,
+          userOptions: userOptions,
           resolvedConfig: serializedDevServerConfig(server.config),
-          userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
-          serverActions: autoDiscoveredFiles.serverActions,
+          reactVersion: React.version,
+          id: "worker/rsc",
         },
         transferList: [workerHmrChannel.port2],
       });

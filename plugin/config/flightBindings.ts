@@ -1,6 +1,8 @@
 import type { FlightConfig, FlightTarget } from '../types.js';
 
 // Base configuration with default exports
+// most of these are probably wrong, but in the future we might be able to target 
+// other targets than -esm, for example for use in nextjs.
 const baseConfig: FlightConfig = {
   rsc: {
     client: {

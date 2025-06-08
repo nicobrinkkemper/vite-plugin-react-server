@@ -83,10 +83,10 @@ export function envPlugin(): Plugin {
       cleanupEnv?.();
     },
     configureServer(server) {
-      let envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
-      let publicOrigin = process.env[`${envPrefix}PUBLIC_ORIGIN`] ?? ""
+      const envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
+      const publicOrigin = process.env[`${envPrefix}PUBLIC_ORIGIN`] ?? ""
 
-      let desiredPort = server.config.server.port;
+      const desiredPort = server.config.server.port;
       let shouldUpdatePublicOrigin = false;
       if (publicOrigin && publicOrigin.includes(`:${desiredPort}`)) {
         shouldUpdatePublicOrigin = true;
@@ -98,7 +98,7 @@ export function envPlugin(): Plugin {
           if (address && typeof address !== "string") {
             const port = address.port;
             if (port !== desiredPort) {
-              let envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
+              const envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
               const newOrigin = publicOrigin.replace(
                 `:${desiredPort}`,
                 `:${port}`

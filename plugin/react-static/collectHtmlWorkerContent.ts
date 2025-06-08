@@ -9,7 +9,8 @@
  * 3. Provides a clean interface for HTML handling
  */
 
-import { PassThrough, Transform } from "node:stream";
+import type { PassThrough } from "node:stream";
+import { Transform } from "node:stream";
 import type {
   CreateHandlerOptions,
   StreamMetrics,
@@ -19,6 +20,7 @@ import type {
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { createRscToHtmlStream } from "./rscToHtmlStream.js";
 import { fileWriter } from "./fileWriter.js";
+import type { HtmlWorkerOutputMessage } from "../worker/html/types.js";
 
 /**
  * Collects RSC content from the rscFull stream
@@ -28,10 +30,14 @@ import { fileWriter } from "./fileWriter.js";
  */
 export async function collectHtmlWorkerContent<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props",
+  ID1 extends string = string,
+  ID2 extends string | undefined = ID1,
 >(
   rscStream: PassThrough,
-  handlerOptions: CreateHandlerOptions<T, InlineCSS>
+  handlerOptions: CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>
 ): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
   if (!handlerOptions.worker) {
     throw new Error("Worker is not a valid worker");
@@ -70,7 +76,7 @@ export async function collectHtmlWorkerContent<
     if (!handlerOptions.worker) {
       throw new Error("Worker is not a valid worker");
     }
-    const messageHandler = (msg: any) => {
+    const messageHandler = (msg: HtmlWorkerOutputMessage) => {
       if (!handlerOptions.worker) {
         throw new Error("Worker is not a valid worker");
       }

@@ -29,7 +29,7 @@ export type HtmlWorkerStreamMetrics = {
 };
 
 // HTML worker state
-export interface HtmlWorkerRenderState {
+export type HtmlWorkerRenderState = {
   rscStream: PassThrough;
   metrics: StreamMetrics;
   isReady: boolean;

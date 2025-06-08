@@ -1,11 +1,12 @@
 import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import type {
   CreateHandlerOptions,
+  InlineCssOpt,
   PagePropOpt,
   StreamMetrics,
 } from "../../types.js";
-import type { 
-  WorkerMessage, 
+import type {
+  WorkerMessage,
   ReactServerDomEsmOptions,
   ErrorMessage,
   ShellReadyMessage,
@@ -16,13 +17,16 @@ import type {
   ServerActionMessage,
   ServerActionResponseMessage,
   CleanupCompleteMessage,
-  ShutdownMessage
-} from '../types.js';
+  ShutdownMessage,
+} from "../types.js";
 
 // Combined options type that includes both React DOM and React Server DOM ESM options
-export type SerializeableRenderToPipeableStreamOptions = Omit<RenderToPipeableStreamOptions, "onShellReady" | "onShellError" | "onAllReady" | "onError" | "onPostpone">;
+export type SerializeableRenderToPipeableStreamOptions = Omit<
+  RenderToPipeableStreamOptions,
+  "onShellReady" | "onShellError" | "onAllReady" | "onError" | "onPostpone"
+>;
 
-export interface RscRenderState {
+export type RscRenderState = {
   id: string;
   outDir: string;
   moduleRootPath: string;
@@ -31,7 +35,7 @@ export interface RscRenderState {
   componentImport: string;
   propsImport: string;
   pipeableStreamOptions: ReactServerDomEsmOptions;
-}
+};
 
 // RSC-specific messages
 export type RscChunkOutputMessage = WorkerMessage & {
@@ -41,25 +45,25 @@ export type RscChunkOutputMessage = WorkerMessage & {
   sequence?: number;
 };
 
-export interface RscEndMessage extends WorkerMessage {
+export type RscEndMessage = {
   type: "RSC_END";
   id: string;
-}
+} & WorkerMessage;
 
-export interface RscMetricsMessage extends WorkerMessage {
+export type RscMetricsMessage = {
   type: "RSC_METRICS";
   id: string;
   metrics: StreamMetrics;
-}
+} & WorkerMessage;
 
-export interface CssFileMessage {
+export type CssFileMessage = {
   type: "CSS_FILE";
   id: string;
   content: string;
   moduleClasses?: Record<string, string>;
   originalClasses?: Record<string, string>;
   usedClasses?: string[];
-}
+};
 
 export type RscWorkerOutputMessage =
   | RscChunkOutputMessage
@@ -77,12 +81,19 @@ export type RscWorkerOutputMessage =
   | CleanupCompleteMessage
   | ServerModuleMessage
   | HmrUpdateMessage
-  | HmrCleanupMessage
+  | HmrCleanupMessage;
 
-export type RscRenderMessage<T extends PagePropOpt = PagePropOpt> = WorkerMessage & {
+export type RscRenderMessage<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props",
+  ID1 extends string = string,
+  ID2 extends string | undefined = ID1,
+> = WorkerMessage & {
   type: "RSC_RENDER";
 } & Omit<
-    CreateHandlerOptions,
+    CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>,
     | "onEvent"
     | "onMetrics"
     | "loader"
@@ -91,69 +102,71 @@ export type RscRenderMessage<T extends PagePropOpt = PagePropOpt> = WorkerMessag
     | "logger"
     | "build"
     | "autoDiscover"
+    | "normalizer"
+    | "moduleID"
   > & {
     build: Omit<
-      CreateHandlerOptions<T>['build'],
+      CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>["build"],
       "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
-    > & {pages: string[]};
+    > & { pages: string[] };
   };
 
-export interface ChunkProcessedMessage extends WorkerMessage {
+export type ChunkProcessedMessage = {
   type: "CHUNK_PROCESSED";
   success: boolean;
   sequence?: number;
-}
+} & WorkerMessage;
 
-export interface ClientComponentMessage extends WorkerMessage {
+export type ClientComponentMessage = {
   type: "CLIENT_COMPONENT";
   url: string;
   source: string;
-}
+} & WorkerMessage;
 
-export interface InitializedReactLoaderMessage extends WorkerMessage {
+export type InitializedReactLoaderMessage = {
   type: "INITIALIZED_REACT_LOADER";
   id: string;
-}
+} & WorkerMessage;
 
-export interface InitializedCssLoaderMessage extends WorkerMessage {
+export type InitializedCssLoaderMessage = {
   type: "INITIALIZED_CSS_LOADER";
   id: string;
-}
+} & WorkerMessage;
 
-export interface ModuleRequestMessage extends WorkerMessage {
+export type ModuleRequestMessage = {
   type: "MODULE_REQUEST";
   id: string;
   path: string;
-}
+} & WorkerMessage;
 
-export interface InitializedRscWorkerLoaderMessage extends WorkerMessage {
+export type InitializedRscWorkerLoaderMessage = {
   type: "INITIALIZED_RSC_WORKER_LOADER";
   id: string;
-}
+} & WorkerMessage;
 
-export interface InitializedEnvLoaderMessage extends WorkerMessage {
+export type InitializedEnvLoaderMessage = {
   type: "INITIALIZED_ENV_LOADER";
   id: string;
   env: Record<string, string>;
-}
+} & WorkerMessage;
 
-export interface HmrUpdateMessage extends WorkerMessage {
+export type HmrUpdateMessage = {
   type: "HMR_UPDATE";
   routes?: string[];
   timestamp?: number;
-}
+} & WorkerMessage;
 
-export interface HmrCleanupMessage extends WorkerMessage {
+export type HmrCleanupMessage = {
   type: "HMR_CLEANUP";
   routes?: string[];
   timestamp?: number;
-}
+} & WorkerMessage;
 
-export interface ServerModuleMessage extends WorkerMessage {
+export type ServerModuleMessage = {
   type: "SERVER_MODULE";
   url: string;
   source: string;
-}
+} & WorkerMessage;
 
 export type RscWorkerInputMessage =
   | RscRenderMessage
@@ -163,7 +176,7 @@ export type RscWorkerInputMessage =
   | ClientComponentMessage
   | InitializedReactLoaderMessage
   | InitializedCssLoaderMessage
-  | ModuleRequestMessage  
+  | ModuleRequestMessage
   | InitializedRscWorkerLoaderMessage
   | InitializedEnvLoaderMessage
   | HmrUpdateMessage

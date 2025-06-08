@@ -1,13 +1,25 @@
 import { toError } from "../error/toError.js";
+import type { PagePropOpt } from "../types.js";
+import type React from "react";
 
-type ResolvePageOptions<N extends string> = {
-  id: string;
+type ResolvePageOptions<
+  T extends PagePropOpt = PagePropOpt,
+  ID extends string = string,
+  N extends string = 'Page'
+> = {
+  id: ID;
   exportName: N;
-  loader: (id: string) => Promise<any>;
+  loader: <M extends N>(
+    exportName: `${ID}#${M}`
+  ) => Promise<{ [key in M]: React.ComponentType<T> }>;
 };
 
-type ResolvePageResult<T, N extends string> =
-  | { type: "success"; Page: T; module: { [key in N]: T } }
+type ResolvePageResult<T extends PagePropOpt, N extends string> =
+  | {
+      type: "success";
+      Page: React.ComponentType<T>;
+      module: { [key in N]: React.ComponentType<T> };
+    }
   | { type: "error"; error: Error }
   | { type: "skip" };
 
@@ -27,21 +39,29 @@ type ResolvePageResult<T, N extends string> =
  *   - Page: The resolved page component if successful
  *   - error: Error message if failed
  */
-export const resolvePage = async <T, N extends string>({
+export const resolvePage = async <
+  T extends PagePropOpt = PagePropOpt,
+  ID extends string = string,
+  N extends string = string
+>({
   id,
   exportName,
   loader,
-}: ResolvePageOptions<N>): Promise<ResolvePageResult<T, N>> => {
+}: ResolvePageOptions<T, ID, N>): Promise<ResolvePageResult<T, N>> => {
   // Check if this is a stashed page that needs special handling
   const pageLoadResult = await (async (): Promise<
-    | { type: "success"; key: string; module: { [key in N]: T } }
+    | {
+        type: "success";
+        key: string;
+        module: { [key in N]: React.ComponentType<T> };
+      }
     | { type: "error"; error: Error; module?: never }
   > => {
     try {
       return {
         type: "success",
         key: id,
-        module: await loader(id),
+        module: await loader(`${id}#${exportName}` as `${ID}#${N}`),
       };
     } catch (error) {
       return {
@@ -93,6 +113,6 @@ export const resolvePage = async <T, N extends string>({
   return {
     type: "success",
     Page,
-    module: module as { [key in N]: T },
+    module: module as { [key in N]: React.ComponentType<T> },
   };
 };

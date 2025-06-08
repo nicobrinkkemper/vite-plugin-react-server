@@ -14,14 +14,14 @@
  */
 import type { Program } from "./types.js";
 import type { DirectiveInfo } from "./findDirectives.js";
-import { handleExports } from "./handleExports.js";
+import type { handleExports } from "./handleExports.js";
 import {
   isReactServerCondition,
 } from "../config/getCondition.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { getNodeEnv } from "../getNodeEnv.js";
 
-export interface TransformOptions {
+export type TransformOptions = {
   source: string;
   moduleId: string;
   program?: Program;

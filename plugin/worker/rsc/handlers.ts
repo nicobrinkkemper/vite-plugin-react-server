@@ -20,20 +20,20 @@ export const handlers: Required<StreamHandlers> = {
       id: id,
     });
   },
-  onData: (id, data: any) => {
+  onData: (id, data) => {
     sendRscWorkerMessage({
       type: "RSC_CHUNK",
       id: id,
       chunk: data,
     });
   },
-  onEnd: (id: string) => {
+  onEnd: (id) => {
     sendRscWorkerMessage({
       type: "RSC_END",
       id: id,
     });
   },
-  onMetrics: (id: string, metrics: any) => {
+  onMetrics: (id, metrics) => {
     sendRscWorkerMessage({
       type: "RSC_METRICS",
       id: id,
@@ -65,7 +65,12 @@ export const handlers: Required<StreamHandlers> = {
   },
   onServerActionResponse: (id, result) => {
     const stream = ReactDOMServer.renderToPipeableStream(
-      result,
+      result && typeof result === "object" && "returnValue" in result
+        ? result
+        : {
+            type: "server-action-response",
+            returnValue: result,
+          },
       userOptions.moduleBasePath,
       {
         onError(error: Error) {
@@ -134,7 +139,7 @@ export const handlers: Required<StreamHandlers> = {
       const stream = ReactDOMServer.renderToPipeableStream(
         {
           type: "server-action-response",
-          returnValue: result
+          returnValue: result,
         },
         userOptions.moduleBasePath,
         {
@@ -179,7 +184,7 @@ export const handlers: Required<StreamHandlers> = {
       const stream = ReactDOMServer.renderToPipeableStream(
         {
           type: "server-action-response",
-          returnValue: { success: false, error: errorMessage }
+          returnValue: { success: false, error: errorMessage },
         },
         userOptions.moduleBasePath,
         {

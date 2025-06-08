@@ -10,19 +10,24 @@ import { workerData } from "node:worker_threads";
 import { React } from "../../vendor/vendor.server.js";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
-import type { PagePropOpt } from "../../types.js";
+import type { InlineCssOpt, ModuleLoader, PagePropOpt } from "../../types.js";
 
 export async function handleRender<
-  T extends PagePropOpt = PagePropOpt
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props",
+  ID1 extends string = string,
+  ID2 extends string | undefined = ID1,
 >(
-  msg: RscRenderMessage<T>,
+  msg: RscRenderMessage<T, InlineCSS, N1, N2, ID1, ID2>,
   handlers: StreamHandlers
 ) {
-  let {
-    id = workerData.id,
-    route = workerData.route,
-    pagePath = workerData.pagePath,
-    propsPath = workerData.propsPath,
+  const {
+    id,
+    route,
+    pagePath,
+    propsPath,
     pageExportName = workerData.userOptions.pageExportName,
     propsExportName = workerData.userOptions.propsExportName,
     projectRoot = workerData.userOptions.projectRoot,
@@ -32,7 +37,8 @@ export async function handleRender<
     moduleBase = workerData.userOptions.moduleBase,
     pipeableStreamOptions = workerData.userOptions.pipeableStreamOptions,
     cssFiles: messageCssFiles,
-    globalCss = workerData.globalCss,
+    globalCss,
+    verbose = workerData.userOptions.verbose,
   } = msg;
   try {
     // Load modules
@@ -42,18 +48,21 @@ export async function handleRender<
       pageExportName,
       propsExportName,
       route,
-      loader: (id: string) => {
-        try {
-          if (hmrState.get(id)?.invalidated) {
-            // Clear the HMR state for this module
-            hmrState.delete(id);
-            return import(join(projectRoot, id) + `?t=${Date.now()}`);
-          }
-          return import(join(projectRoot, id));
-        } catch (error) {
-          return Promise.reject(error);
+      loader: (async (moduleID) => {
+        // Handle #Page/#props suffixes
+        const [id, exportName] = moduleID.split('#');
+        if (hmrState.get(id)?.invalidated) {
+          hmrState.delete(id);
+          const res = await import(join(projectRoot, id) + `?t=${Date.now()}`)
+          if(!exportName) return res;
+          if(exportName in res) return { [exportName]: res[exportName] };
+          return res;
         }
-      },
+        const res = await import(join(projectRoot, id))
+        if(!exportName) return res;
+        if(exportName in res) return { [exportName]: res[exportName] };
+        return res;
+      }) as ModuleLoader<T, N1, N2>, 
     });
     if (pageAndPropsResult.type !== "success") {
       const { error, ...rest } = pageAndPropsResult;
@@ -62,7 +71,13 @@ export async function handleRender<
 
     const { PageComponent, pageProps } = pageAndPropsResult;
 
-    const adaptedOnEvent = (event: "error" | "postpone", data: any) => {
+    const adaptedOnEvent = (event: "error" | "postpone", data: {
+      error?: Error | null;
+      errorInfo?: {
+        componentStack?: string | null;
+        digest?: string | null;
+      };
+    }) => {
       if (event === "error") {
         handlers.onError(id, data.error, data.errorInfo);
       }
@@ -93,6 +108,7 @@ export async function handleRender<
       globalCss,
       onEvent: adaptedOnEvent,
       pipeableStreamOptions: pipeableStreamOptions,
+      verbose,
     });
 
     if (streamResult.type !== "success") {

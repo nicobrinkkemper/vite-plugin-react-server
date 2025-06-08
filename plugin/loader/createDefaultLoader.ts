@@ -5,13 +5,13 @@ import { transformWithAcornLoose } from "./transformWithAcornLoose.js";
 import type { RawSourceMap } from "source-map";
 import { getNodeEnv } from "../getNodeEnv.js";
 
-export interface LoaderResult {
+export type LoaderResult = {
   source: string;
   map: RawSourceMap | null;
 }
 
-export interface Loader {
-  (id: string, context?: LoaderContext, nextLoad?: any): LoaderResult;
+export type Loader = {
+  (id: string, context?: LoaderContext, nextLoad?: (id: string) => Promise<LoaderResult>): LoaderResult;
 }
 
 /**

@@ -32,6 +32,7 @@ describe("RSC Server", () => {
           port: port,
         },
       });
+      console.log("server", server);
 
       await server.listen();
       if (server.config?.server?.port) {

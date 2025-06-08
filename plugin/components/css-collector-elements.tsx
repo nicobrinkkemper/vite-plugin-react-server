@@ -29,13 +29,13 @@ export const CssCollectorElements = ({
       // style tag
       // since we can't bubble up the style tags, we need to be creative
       return (
-        <As {...rest} type={type ?? "text/css"} key={cssFile.id}>
+        <As {...rest} type={type ?? "text/css"} key={id}>
           {children ?? null}
         </As>
       );
     }
     // link tag
-    return <As {...rest} key={cssFile.id} precedence={precedence} />;
+    return <As {...rest} key={id} precedence={precedence} />;
   });
   if (!arr.length) return null;
   return arr;

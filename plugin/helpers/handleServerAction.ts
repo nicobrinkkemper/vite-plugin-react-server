@@ -1,13 +1,14 @@
 import type { Logger } from "vite";
 import { toError } from "../error/toError.js";
 import { PassThrough } from "node:stream";
+import type { ServerResponse } from "node:http";
 
-export interface ServerActionRequest {
+export type ServerActionRequest = {
   id: string;
   args: unknown[];
 }
 
-export interface ServerActionResponse {
+export type ServerActionResponse = {
   type: "server-action-response";
   returnValue: unknown;
 }
@@ -53,7 +54,7 @@ export function createServerActionResponse(result?: unknown, error?: string): Se
 /**
  * Handles errors in server action processing.
  */
-export function handleServerActionError(error: unknown, res: any, logger: Logger) {
+export function handleServerActionError(error: unknown, res: ServerResponse, logger: Logger) {
   const err = toError(error);
   logger.error(err.message + (err.stack ?? ""), { error: err });
   res.statusCode = 500;
@@ -63,7 +64,7 @@ export function handleServerActionError(error: unknown, res: any, logger: Logger
 /**
  * Sets up common response headers for server actions.
  */
-export function setupServerActionHeaders(res: any) {
+export function setupServerActionHeaders(res: ServerResponse) {
   res.setHeader("Content-Type", "text/x-component; charset=utf-8");
   res.setHeader("Transfer-Encoding", "chunked");
   res.setHeader("Connection", "keep-alive");
@@ -72,8 +73,11 @@ export function setupServerActionHeaders(res: any) {
 /**
  * Creates a pass-through stream for server action responses.
  */
-export function createServerActionStream(res: any): PassThrough {
+export function createServerActionStream(res: ServerResponse): PassThrough {
   const passThrough = new PassThrough();
-  passThrough.pipe(res);
+  passThrough.pipe(res, { end: true });
+  passThrough.on('end', () => {
+    res.end();
+  });
   return passThrough;
 } 

@@ -13,7 +13,12 @@ export const CssCollector: CssCollectorBoxedType = ({
   Page,
   ...props
 }) => (
-  <As {...(As != React.Fragment ? (props as any) : null)}>
+  <As
+    {...(As != React.Fragment
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (props as any)
+      : null)}
+  >
     <Page {...pageProps!} />
     <CssCollectorElements cssFiles={cssFiles!} />
   </As>

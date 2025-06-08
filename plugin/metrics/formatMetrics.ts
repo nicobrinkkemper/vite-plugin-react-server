@@ -41,8 +41,8 @@ export function metricWatcher({
 }: {
   maxTime?: number;
   warnOnly?: boolean;
-  warn?: (...args: any[]) => void;
-  info?: (...args: any[]) => void;
+  warn?: (...args: unknown[]) => void;
+  info?: (...args: unknown[]) => void;
 }) {
   return (metrics: RenderMetrics) => {
     if (metrics.processingTime > maxTime) {

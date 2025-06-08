@@ -13,8 +13,19 @@ import { createLogger, type Logger } from "vite";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import type { RscWorkerOutputMessage } from "./rsc/types.js";
 import { toError } from "../error/toError.js";
+import type {
+  InlineCssOpt,
+  PagePropOpt,
+  SerializedResolvedConfig,
+  SerializedUserOptions,
+} from "../types.js";
 
-export type CreateWorkerOptions = {
+export type CreateWorkerOptions<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+> = {
   projectRoot?: string;
   currentCondition?: "react-server" | "react-client";
   nodePath?: string;
@@ -27,7 +38,12 @@ export type CreateWorkerOptions = {
   resourceLimits?: ResourceLimits;
   typescript?: boolean;
   htmlChunkSize?: number; // Size of HTML chunks in bytes
-  workerData?: any;
+  workerData: {
+    userOptions: SerializedUserOptions<T, InlineCSS, N1, N2>;
+    resolvedConfig: SerializedResolvedConfig;
+    reactVersion?: string;
+    id?: string;
+  };
   transferList?: TransferListItem[];
   logger?: Logger;
   verbose?: boolean;
@@ -51,8 +67,13 @@ type CreateWorkerSkip = {
   workerPath: string;
 };
 
-export async function createWorker(
-  options: CreateWorkerOptions
+export async function createWorker<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+>(
+  options: CreateWorkerOptions<T, InlineCSS, N1, N2>
 ): Promise<CreateWorkerSuccess | CreateWorkerError | CreateWorkerSkip> {
   const {
     projectRoot = process.cwd(),
@@ -85,9 +106,10 @@ export async function createWorker(
   }
   // Ensure worker uses the same React version
   const workerData = {
-    ...options.workerData,
-    reactVersion: React.version,
-    id: id,
+    userOptions: options.workerData.userOptions,
+    resolvedConfig: options.workerData.resolvedConfig,
+    reactVersion: options.workerData.reactVersion ?? React.version,
+    id: options.workerData.id ?? id,
   };
 
   try {
@@ -101,9 +123,8 @@ export async function createWorker(
       [envPrefix + "MODE"]: mode,
       [envPrefix + "PROD"]: mode === "production" ? "1" : "0",
       [envPrefix + "SSR"]: "true",
-      [envPrefix + "BASE_URL"]: options.workerData.userOptions.moduleBaseURL,
-      [envPrefix + "PUBLIC_ORIGIN"]:
-        options.workerData.userOptions.publicOrigin,
+      [envPrefix + "BASE_URL"]: workerData.userOptions.moduleBaseURL ?? "",
+      [envPrefix + "PUBLIC_ORIGIN"]: workerData.userOptions.publicOrigin ?? "",
       NODE_ENV: nodeEnv,
       NODE_PATH: nodePath,
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
@@ -157,14 +178,17 @@ export async function createWorker(
         const messageHandler = (
           msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage
         ) => {
-          if (verbose) logger.info(`[create:${id}] Initial worker message ${msg.type}`);
+          if (verbose)
+            logger.info(`[create:${id}] Initial worker message ${msg.type}`);
           if (msg.type === "READY") {
-            if (verbose) logger.info(`[create:${id}] Worker running for ${msg.env}`);
+            if (verbose)
+              logger.info(`[create:${id}] Worker running for ${msg.env}`);
             clearTimeout(timeout);
             worker.removeListener("message", messageHandler);
             worker.removeListener("exit", exitHandler);
             if (msg.env !== nodeEnv) {
-              if (verbose) logger.info(`[create:${id}] Worker environment mismatch.`);
+              if (verbose)
+                logger.info(`[create:${id}] Worker environment mismatch.`);
               reject({
                 type: "error",
                 error: new Error(

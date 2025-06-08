@@ -150,9 +150,9 @@ export function resolveConfigDefine(
     if (typeof define[key] === "string") {
       const path = withoutPrefix.split(".");
       setNestedEnv(addedEnv, path, define[key] as string);
-      if (!process.env[path[0]]) process.env[path[0]] = {} as any;
+      if (!process.env[path[0]]) process.env[path[0]] = {} as never;
       setNestedEnv(
-        process.env[path[0]] as any,
+        process.env[path[0]] as never,
         path.slice(1),
         define[key] as string
       );

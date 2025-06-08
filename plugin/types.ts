@@ -1,5 +1,8 @@
 import type { Readable } from "node:stream";
-import type { Worker } from "node:worker_threads";
+import type {
+  Worker,
+  Serializable as WorkerSerializable,
+} from "node:worker_threads";
 import type React from "react";
 import type { ExoticComponent, FragmentProps } from "react";
 import type {
@@ -20,8 +23,20 @@ import type {
   ViteDevServer,
 } from "vite";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
-
+import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
+import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
+import type {
+  serializedOptions,
+  serializeResolvedConfig,
+  serializeResolvedUserConfig,
+} from "./helpers/serializeUserOptions.js";
 export type OnEvent = (event: PluginEvent) => void;
+
+export type MessageHandler<
+  T extends HtmlWorkerOutputMessage | RscChunkOutputMessage =
+    | HtmlWorkerOutputMessage
+    | RscChunkOutputMessage
+> = (message: T) => void | Promise<unknown>;
 
 export type CreateInputNormalizerProps = {
   root: string;
@@ -30,15 +45,11 @@ export type CreateInputNormalizerProps = {
   moduleBasePath: string | undefined;
 };
 export type Serializable =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
+  | WorkerSerializable
   | Serializable[]
   | SerializableRecord;
 export type SerializableRecord = {
-  [key: string]: Serializable | SerializableRecord;
+  [key: string]: Serializable;
 };
 
 // Track HMR state
@@ -84,13 +95,13 @@ export type NormalizerInput = unknown;
 
 export type InputNormalizer = (input: NormalizerInput) => [string, string];
 
-export interface HtmlContent {
+export type HtmlContent = {
   raw: string;
   transformed?: string;
   assets?: string[];
-}
+};
 
-export interface PartialPageData {
+export type PartialPageData = {
   route: string;
   html?: {
     raw: string;
@@ -98,10 +109,10 @@ export interface PartialPageData {
     assets?: string[];
   };
   rsc?: {
-    modules: any[];
+    modules: unknown[];
     content: string;
   };
-}
+};
 
 export type InputNormalizerWorker = (
   input: NormalizerInput
@@ -141,18 +152,23 @@ export type ResolvedUserConfig = Required<
       >;
   };
 
-export type SerializedUserConfig = Extract<
-  ResolvedUserConfig,
-  SerializableRecord
->;
+export type SerializedUserConfig<
+  T extends ResolvedUserConfig = ResolvedUserConfig
+> = ReturnType<typeof serializeResolvedUserConfig<T>>;
 
-export type SerializedUserOptions = Extract<
-  ResolvedUserOptions,
-  SerializableRecord
+export type SerializedUserOptions<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+> = ReturnType<typeof serializedOptions<T, N1, N2, InlineCSS>>;
+
+export type SerializedResolvedConfig = ReturnType<
+  typeof serializeResolvedConfig
 >;
 
 // Client plugin options
-export interface StreamPluginOptionsClient {
+export type StreamPluginOptionsClient = {
   outDir?: string;
   build?: BuildConfig;
   assetsDir?: string;
@@ -162,14 +178,16 @@ export interface StreamPluginOptionsClient {
   moduleBaseURL?: string;
   clientComponents?: AliasOptions;
   cssFiles?: AliasOptions;
-}
+};
 
 export type ResolvedUserOptions<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 > = Required<
   Pick<
-    StreamPluginOptions<T, InlineCSS>,
+    StreamPluginOptions<T, InlineCSS, "div", N1, N2>,
     | "moduleBase"
     | "moduleBasePath"
     | "moduleBaseURL"
@@ -228,13 +246,18 @@ export type ResolvedUserOptions<
     vendorPattern: (path: string) => boolean;
     nodeOnly: (path: string) => boolean;
     dotFiles: (path: string) => boolean;
+    /**
+     * Check if path is like /@
+     * @param path
+     * @returns
+     */
     virtualPattern: (path: string) => boolean;
     isServerFunctionCode: (code: string) => boolean;
     isClientComponentCode: (code: string) => boolean;
   };
 };
 
-export interface StreamMetrics {
+export type StreamMetrics = {
   chunks: number;
   bytes: number;
   backpressureCount: number;
@@ -242,9 +265,10 @@ export interface StreamMetrics {
   errorCount: number;
   duration: number;
   startTime: number;
-}
+  route?: string;
+};
 
-export interface RenderMetrics {
+export type RenderMetrics = {
   route: string;
   htmlSize: number;
   rscSize: number;
@@ -255,16 +279,15 @@ export interface RenderMetrics {
   streamMetrics: StreamMetrics;
   htmlSizes: Map<string, number>;
   rscSizes: Map<string, number>;
-}
+};
 
-export interface CssCollectorOptions<
-  InlineCSS extends InlineCssOpt = InlineCssOpt
-> {
-  inlineCss?: InlineCSS;
-  inlineThreshold?: number;
-  inlinePatterns?: RegExp[];
-  linkPatterns?: RegExp[];
-}
+export type CssCollectorOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> =
+  {
+    inlineCss?: InlineCSS;
+    inlineThreshold?: number;
+    inlinePatterns?: RegExp[];
+    linkPatterns?: RegExp[];
+  };
 
 export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
   InlineCSS extends true
@@ -354,7 +377,7 @@ export type RouteErrorEvent = {
   type: "route.error";
   data: {
     route: string;
-    error: any;
+    error?: Error | null;
   };
 };
 
@@ -362,7 +385,7 @@ export type RoutePostponeEvent = {
   type: "route.postpone";
   data: {
     route: string;
-    reason: string;
+    reason?: string | null;
   };
 };
 
@@ -371,7 +394,7 @@ export type PropsLoadEvent = {
   data: {
     route: string;
     propsPath: string;
-    props: any;
+    props: unknown;
   };
 };
 
@@ -443,11 +466,13 @@ export type PluginEvent =
 
 export type PluginEventType = PluginEvent["type"];
 
-export interface StreamPluginOptions<
+export type StreamPluginOptions<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt
-> {
+  As extends AsOpt = AsOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
+> = {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
   moduleBasePath?: string; // defaults to '/'
@@ -520,8 +545,8 @@ export interface StreamPluginOptions<
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
   loaderPath?: string;
-  pageExportName?: string;
-  propsExportName?: string;
+  pageExportName?: N1;
+  propsExportName?: N2;
   Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment;
   CssCollector?: CssCollectorBoxedType<T, InlineCSS>;
   build?: BuildConfig;
@@ -533,13 +558,15 @@ export interface StreamPluginOptions<
   normalizer?: InputNormalizer;
   moduleID?: (id: string) => string;
   verbose?: boolean;
-}
+};
 
 export type MultiPageHandlerOptions<
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props"
 > = Omit<
-  CreateHandlerOptions<T, InlineCSS>,
+  CreateHandlerOptions<T, N1, N2, string, string, InlineCSS>,
   | "pagePath"
   | "route"
   | "cssFiles"
@@ -550,9 +577,13 @@ export type MultiPageHandlerOptions<
 
 export type CreateHandlerOptions<
   T extends PagePropOpt = PagePropOpt,
+  N1 extends string = "Page",
+  N2 extends string = "props",
+  ID1 extends string = string,
+  ID2 extends string | undefined = ID1,
   InlineCSS extends InlineCssOpt = InlineCssOpt
 > = Pick<
-  ResolvedUserOptions<T, InlineCSS>,
+  ResolvedUserOptions<T, InlineCSS, N1, N2>,
   | "autoDiscover"
   | "css"
   | "pageExportName"
@@ -570,11 +601,12 @@ export type CreateHandlerOptions<
   | "projectRoot"
   | "normalizer"
   | "moduleID"
+  | "verbose"
 > & {
   logger: Logger;
-  loader: ModuleLoader;
-  pagePath: string;
-  propsPath?: string;
+  loader: ModuleLoader<T, N1, N2>;
+  pagePath: ID1;
+  propsPath?: ID2;
   pageProps?: T;
   PageComponent?: PageComponentType<T>;
   route: string;
@@ -596,36 +628,48 @@ export type CreateHandlerOptions<
   >;
 };
 
-export interface ResolvePageOptions {
+export type ResolvePageOptions = {
   pagePath: string;
   pageExportName: string;
   url: string;
-}
+};
 
-export interface ResolvePropsOptions {
+export type ResolvePropsOptions = {
   propsPath: string;
   propsExportName: string;
   url: string;
-}
+};
 
-export type ModuleLoader = (
-  url: string,
-  context?: any,
-  defaultLoad?: any
-) => Promise<Record<string, any>>;
+export type ModuleLoader<
+  T extends PagePropOpt = PagePropOpt,
+  PageNames extends string = "Page",
+  PropNames extends string = "props"
+> = <ID extends string, Special extends "?" | "#" | "", Extra extends string>(
+  moduleID: `${ID}${Special}${Extra}`
+) => Special extends "?"
+  ? Extra extends "inline"
+    ? Promise<{ default: string }>
+    : never
+  : Special extends "#"
+  ? Extra extends PageNames
+    ? Promise<Record<Extra, React.ComponentType<T>>>
+    : Extra extends PropNames
+    ? Promise<Record<Extra, T>>
+    : never
+  : Promise<Record<never, never>>;
 
-export interface BaseProps {
-  manifest: import("vite").Manifest;
+export type BaseProps = {
+  manifest: Manifest;
   children?: React.ReactNode;
   assets?: {
     css?: string[];
   };
-}
+};
 
 export type StreamResult =
   | {
       type: "success";
-      stream: any;
+      stream: PassThrough;
       assets?: {
         css?: string[];
       };
@@ -633,7 +677,7 @@ export type StreamResult =
   | { type: "error"; error: unknown }
   | { type: "skip" };
 
-export interface RouteConfig {
+export type RouteConfig = {
   path: string;
   // Define page/props paths using patterns
   pattern?: {
@@ -645,15 +689,15 @@ export interface RouteConfig {
     page: string; // e.g. "page/home/page"
     props: string; // e.g. "page/home/props"
   };
-}
+};
 
-export interface BuildOutput {
+export type BuildOutput = {
   dir?: string;
   rsc?: string;
   ext?: string;
-}
+};
 
-export interface BuildConfig {
+export type BuildConfig = {
   pages: string[] | (() => Promise<string[]> | string[]) | Promise<string[]>;
   assetsDir?: string;
   client?: string; // Output directory for client files
@@ -669,46 +713,11 @@ export interface BuildConfig {
   entryFile?: (n: PreRenderedChunk, ssr: boolean) => string;
   chunkFile?: (n: PreRenderedChunk, ssr: boolean) => string;
   assetFile?: (n: PreRenderedAsset, ssr: boolean) => string;
-}
-
-export interface RscResolver {
-  /**
-   * Get RSC data for static generation
-   * @param path - Route path (e.g. "/", "/about")
-   */
-  getRscData: (path: string) => Promise<{
-    Page: React.ComponentType;
-    props: any;
-  }>;
-}
+};
 
 export type RequestHandler = Connect.NextHandleFunction;
 
-export interface SsrStreamOptions {
-  url: string;
-  controller: AbortController;
-  loader: (id: string) => Promise<any>;
-  Html: any;
-  options: StreamPluginOptions;
-  pageExportName: string;
-  propsExportName: string;
-  moduleGraph: any;
-  bootstrapModules?: string[];
-  importMap?: Record<string, string[]>;
-  clientComponents?: boolean;
-  onlyClientComponents?: boolean;
-}
-
-export type RscServerConfig = {
-  /** How to get RSC data (e.g. HTTP, direct import, etc) */
-  getRscComponent: (url: string) => React.Usable<React.ReactNode>;
-  /** Base URL for client assets */
-  clientBase?: string;
-  /** SSR stream rendering options */
-  ssrOptions?: SsrStreamOptions;
-};
-
-export interface RscServerModule {
+export type RscServerModule = {
   /**
    * Get RSC data for a route
    * @param path - Route path (e.g. "/", "/about")
@@ -718,23 +727,23 @@ export interface RscServerModule {
     /** Page component to render */
     Page: React.ComponentType;
     /** Props to pass to the page */
-    props: any;
+    props: unknown;
   }>;
-}
+};
 
-export interface RegisterComponentMessage {
+export type RegisterComponentMessage = {
   type: "REGISTER_COMPONENT";
   id: string;
   code: string;
-}
+};
 
 export type RscBuildResult = string[];
 
-export interface ReactStreamPluginMeta {
+export type ReactStreamPluginMeta = {
   timing: BuildTiming;
-}
+};
 
-export interface BuildTiming {
+export type BuildTiming = {
   start: number;
   configResolved?: number;
   buildStart?: number;
@@ -744,7 +753,7 @@ export interface BuildTiming {
   closeBundle?: number;
   render?: number;
   total?: number;
-}
+};
 
 export type ResolvedBuildPages = {
   propsMap: Map<string, string>;
@@ -786,7 +795,7 @@ export type AsOpt =
   | ExoticComponent<FragmentProps>
   | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
 export type PageComponentType<T extends PagePropOpt = PagePropOpt> =
-  React.ComponentType<T & React.PropsWithChildren<{}>>;
+  React.ComponentType<T>;
 
 export type HtmlProps<
   T extends PagePropOpt = PagePropOpt,
@@ -809,11 +818,11 @@ export type HtmlProps<
   as: As;
 };
 
-export interface PageAsset {
+export type PageAsset = {
   type: "css" | "js";
   path: string;
   parentUrl: string;
-}
+};
 
 type BaseCssProps = {
   as: string;
@@ -845,7 +854,7 @@ export type CssCollectorElementsProps<
   cssFiles: Map<string, CssContent<InlineCSS>>;
 };
 
-export interface HtmlRenderState {
+export type HtmlRenderState = {
   id: string;
   rscStream: PassThrough;
   htmlStream: PassThrough;
@@ -857,7 +866,7 @@ export interface HtmlRenderState {
     "onError" | "onPostpone"
   >;
   streamState: StreamMetrics;
-}
+};
 
 export type RenderPagesResult =
   | {
@@ -911,7 +920,7 @@ export type CreateHandlerResult<InlineCSS extends InlineCssOpt = InlineCssOpt> =
     | {
         type: "success";
         controller: AbortController;
-        stream: any;
+        stream: PassThrough;
         assets: {
           css: CssContent<InlineCSS>[];
           js: string[];
@@ -934,7 +943,7 @@ export type ReactStaticEvent =
     };
 
 // Define LoaderContext interface locally
-export interface LoaderContext {
+export type LoaderContext = {
   format?: string;
   importAttributes?: Record<string, string>;
   conditions?: string[];
@@ -942,8 +951,8 @@ export interface LoaderContext {
     targetEnvironment?: "client" | "server" | "browser";
   };
   url: string;
-  userOptions?: any; // Add userOptions to the context
-}
+  userOptions?: SerializedUserOptions; // Add userOptions to the context
+};
 // Add type declaration for import.meta.cssModules
 declare global {
   interface ImportMeta {
@@ -951,10 +960,10 @@ declare global {
   }
 }
 
-export interface VendorInteropConfig {
-  react: string;            // e.g. "react"
-  reactDOMServer: string;   // e.g. "react-dom/server"
-}
+export type VendorInteropConfig = {
+  react: string; // e.g. "react"
+  reactDOMServer: string; // e.g. "react-dom/server"
+};
 
 // Client Browser exports:
 // - createFromFetch
@@ -963,24 +972,24 @@ export interface VendorInteropConfig {
 // - createTemporaryReferenceSet
 // - encodeReply
 // - registerServerReference
-export interface RSCClientBrowserInteropConfig {
+export type RSCClientBrowserInteropConfig = {
   createFromFetch: string;
   createFromReadableStream: string;
   createServerReference: string;
   createTemporaryReferenceSet: string;
   encodeReply: string;
   registerServerReference: string;
-}
+};
 
 // Client Node exports:
 // - createFromNodeStream
 // - createServerReference
 // - registerServerReference
-export interface RSCClientNodeInteropConfig {
+export type RSCClientNodeInteropConfig = {
   createFromNodeStream: string;
   createServerReference: string;
   registerServerReference: string;
-}
+};
 
 // Server Node exports:
 // - createTemporaryReferenceSet
@@ -992,7 +1001,7 @@ export interface RSCClientNodeInteropConfig {
 // - registerServerReference
 // - renderToPipeableStream
 // - unstable_prerenderToNodeStream
-export interface RSCServerInteropConfig {
+export type RSCServerInteropConfig = {
   createTemporaryReferenceSet: string;
   decodeAction: string;
   decodeFormState: string;
@@ -1002,37 +1011,46 @@ export interface RSCServerInteropConfig {
   registerServerReference: string;
   renderToPipeableStream: string;
   unstable_prerenderToNodeStream: string;
-}
+};
 
-export interface RSCInteropConfig {
+export type RSCInteropConfig = {
   client: {
     browser: {
-      production: string;    // e.g. "react-server-dom-esm/client.browser"
-      development: string;   // e.g. "react-server-dom-esm/client.browser"
-      test: string;         // e.g. "react-server-dom-esm/client.browser"
+      production: string; // e.g. "react-server-dom-esm/client.browser"
+      development: string; // e.g. "react-server-dom-esm/client.browser"
+      test: string; // e.g. "react-server-dom-esm/client.browser"
       exports: RSCClientBrowserInteropConfig;
     };
     node: {
-      production: string;    // e.g. "react-server-dom-esm/client"
-      development: string;   // e.g. "react-server-dom-esm/client.node"
-      test: string;         // e.g. "react-server-dom-esm/client.node"
+      production: string; // e.g. "react-server-dom-esm/client"
+      development: string; // e.g. "react-server-dom-esm/client.node"
+      test: string; // e.g. "react-server-dom-esm/client.node"
       exports: RSCClientNodeInteropConfig;
     };
   };
   server: {
-    production: string;    // e.g. "react-server-dom-esm/server"
-    development: string;   // e.g. "react-server-dom-esm/server.node"
-    test: string;         // e.g. "react-server-dom-esm/server.node"
+    production: string; // e.g. "react-server-dom-esm/server"
+    development: string; // e.g. "react-server-dom-esm/server.node"
+    test: string; // e.g. "react-server-dom-esm/server.node"
     exports: RSCServerInteropConfig;
   };
-}
+};
 
-export type FlightTarget = 'default' | 'webpack' | 'nextjs' | 'react-server-dom-esm' | 'react-server-dom-webpack' | 'react-server-dom-parcel';
+export type FlightTarget =
+  | "default"
+  | "webpack"
+  | "nextjs"
+  | "react-server-dom-esm"
+  | "react-server-dom-webpack"
+  | "react-server-dom-parcel";
 
-export interface FlightConfig {
+export type FlightConfig = {
   rsc: RSCInteropConfig;
   vendor: VendorInteropConfig;
-}
+};
 
 // Import configuration from separate file
-export { createFlightBindings, defaultFlightBindings } from './config/flightBindings.js';
+export {
+  createFlightBindings,
+  defaultFlightBindings,
+} from "./config/flightBindings.js";
