@@ -22,19 +22,60 @@
  * ```
  */
 export function parsePattern(pattern: string): RegExp {
-  // Extract flags if present (e.g. "*.js/i" -> ["*.js", "i"])
-  const [patternStr, flags] = pattern.split("/").reverse();
+  // STEP 1: Extract regex flags from the end of the pattern
+  // 
+  // We need to check if the pattern ends with "/flags" where flags are valid regex flags.
+  // Valid regex flags are: g (global), i (case-insensitive), m (multiline), s (dotAll), u (unicode), y (sticky)
+  //
+  // Examples:
+  // - "*.js/i"    -> patternStr = "*.js", flags = "i"
+  // - "src/*.js"  -> patternStr = "src/*.js", flags = undefined (no flags)
+  // - "*.js/gi"   -> patternStr = "*.js", flags = "gi"
+  //
+  // The regex /^(.+)\/([gimsuy]+)$/ breaks down as:
+  // - ^(.+)       -> Capture everything from start, but at least one character
+  // - \/          -> Match a literal forward slash
+  // - ([gimsuy]+) -> Capture one or more valid regex flags
+  // - $           -> Must be at the end of the string
+  const flagMatch = pattern.match(/^(.+)\/([gimsuy]+)$/);
+  let patternStr: string;
+  let flags: string | undefined;
+  
+  if (flagMatch) {
+    // Pattern has flags: "*.js/i" -> flagMatch[1] = "*.js", flagMatch[2] = "i"
+    patternStr = flagMatch[1];
+    flags = flagMatch[2];
+  } else {
+    // Pattern has no flags: "*.js" -> use the whole pattern
+    patternStr = pattern;
+  }
 
-  // Convert glob-like patterns to regex
+  // STEP 2: Convert glob-like patterns to regex patterns
+  //
+  // We need to convert user-friendly glob patterns into proper regex patterns:
+  // - "*.js"      -> ".*\.js$"     (any characters, then .js at the end)
+  // - "*.{js,ts}" -> ".*\.(js|ts)$" (any characters, then .js OR .ts at the end)
+  // - "src/*.js"  -> "^src/.*\.js$" (starts with src/, then any characters, then .js at the end)
   let regexStr = patternStr
-    // Escape special regex chars except for * and {}
-    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
-    // Convert * to .*
-    .replace(/\*/g, ".*")
-    // Convert {a,b} to (a|b)
-    .replace(/\{([^}]+)\}/g, "($1)")
-    // Ensure pattern matches the whole string
-    .replace(/^.*$/, "^$&$");
+    // Convert glob brace expansion {a,b} to regex alternation (a|b) FIRST
+    .replace(/\{([^}]+)\}/g, (match, contents) => {
+      const alternatives = contents.split(',').map((s: string) => s.trim());
+      return `(${alternatives.join('|')})`;
+    })
+    // Escape special regex characters except for ( ) | and /
+    .replace(/[.+?^${}\[\]\\]/g, "\\$&")
+    // Convert glob wildcards (*) to regex wildcards (.*)
+    .replace(/\*/g, ".*");
 
+  // STEP 3: Ensure the pattern matches the entire string from start to end
+  // Add ^ at the beginning and $ at the end if not already present
+  if (!regexStr.startsWith('^')) {
+    regexStr = '^' + regexStr;
+  }
+  if (!regexStr.endsWith('$')) {
+    regexStr = regexStr + '$';
+  }
+
+  // STEP 4: Create and return the RegExp object
   return new RegExp(regexStr, flags);
-}
+} 

@@ -79,7 +79,7 @@
     "index.ts",
     "server.ts",
     "client.ts",
-    "types.ts", "test/unit/resolveAutoDiscoverMatcher.test.ts",
+    "types.ts"
   ],
   "exclude": [
     "dist",

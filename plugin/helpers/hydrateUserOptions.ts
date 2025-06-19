@@ -10,28 +10,36 @@ function deserializeRegExp(pattern: { source: string; flags: string; __isRegExp:
   return undefined;
 }
 
+function isSerializedRegExp(obj: any): obj is { source: string; flags: string; __isRegExp: boolean } {
+  return (
+    obj &&
+    typeof obj === "object" &&
+    obj !== null &&
+    obj.__isRegExp === true &&
+    typeof obj.source === "string" &&
+    typeof obj.flags === "string"
+  );
+}
+
 export function hydrateUserOptions<T extends SerializedUserOptions>(
   options: T
 ): { type: "success"; userOptions: ResolvedUserOptions } | { type: "error"; error: Error } {
   try {
-    // Deserialize RegExp patterns in autoDiscover
-    const autoDiscover = {
-      ...options.autoDiscover,
-      modulePattern: deserializeRegExp(options.autoDiscover?.modulePattern),
-      serverPattern: deserializeRegExp(options.autoDiscover?.serverPattern),
-      clientPattern: deserializeRegExp(options.autoDiscover?.clientPattern),
-      ...Object.fromEntries(
-        Object.entries(options.autoDiscover ?? {})
-          .filter(([key]) => !['modulePattern', 'serverPattern', 'clientPattern'].includes(key))
-          .map(([key, value]) => [key, deserializeRegExp(value)])
-      ),
-    };
+    // Deserialize RegExp patterns in autoDiscover (all keys)
+    const autoDiscover = Object.fromEntries(
+      Object.entries(options.autoDiscover ?? {}).map(([key, value]) => [key, deserializeRegExp(value) ?? value])
+    );
 
-    // Deserialize RegExp patterns in loader
+    // Deserialize RegExp patterns in loader (main RegExp fields)
+    const directivePatternValue = options.loader?.directivePattern;
     const loader = {
       ...options.loader,
-      serverDirective: deserializeRegExp(options.loader?.serverDirective),
-      clientDirective: deserializeRegExp(options.loader?.clientDirective),
+      serverDirective: deserializeRegExp(options.loader?.serverDirective) ?? DEFAULT_LOADER_CONFIG.serverDirective,
+      clientDirective: deserializeRegExp(options.loader?.clientDirective) ?? DEFAULT_LOADER_CONFIG.clientDirective,
+      directivePattern:
+        (directivePatternValue instanceof RegExp || isSerializedRegExp(directivePatternValue))
+          ? deserializeRegExp(directivePatternValue)
+          : DEFAULT_LOADER_CONFIG.directivePattern,
       isServerFunctionCode: DEFAULT_LOADER_CONFIG.isServerFunctionCode,
       isClientComponentCode: DEFAULT_LOADER_CONFIG.isClientComponentCode,
       allowedDirectives: DEFAULT_LOADER_CONFIG.allowedDirectives,

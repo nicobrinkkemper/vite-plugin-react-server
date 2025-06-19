@@ -43,6 +43,8 @@ describe("RSC Server", () => {
         server: {
           port: port,
         },
+        // Use a unique cache directory to prevent race conditions
+        cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
       });
 
       await server?.listen();

@@ -171,7 +171,11 @@ describe('handleWorkerRscStream', () => {
 
     // Verify error was logged and handler was called
     expect(mockLogger.error).toHaveBeenCalled();
-    expect(mockHandlers.onError).toHaveBeenCalledWith(route, error, undefined);
+    expect(mockHandlers.onError).toHaveBeenCalledWith(route, {
+      message: "Test error",
+      name: "Error",
+      stack: expect.stringContaining("Error: Test error")
+    }, undefined);
   });
 
   it('should handle metrics correctly', async () => {

@@ -3,7 +3,7 @@ import { createServer } from 'vite';
 import { vitePluginReactClient } from 'vite-plugin-react-server/client';
 import { testUserOptions } from '../test-config.js';
 import { mkdir, rm } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
 import { setupTodoTestProject } from '../setup.js';
 import { handleRSCStream, RSCStreamResponse } from '../rsc-stream.js';
 
@@ -37,6 +37,8 @@ describe('Client Server Action Integration', () => {
         server: {
           port: port,
         },
+        // Use a unique cache directory to prevent race conditions
+        cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
       });
 
       await server.listen();

@@ -273,7 +273,11 @@ describe('createWorkerStream', () => {
       errorInfo: { componentStack: 'Test stack' }
     });
 
-    expect(mockHandlers.onError).toHaveBeenCalledWith('/test', error, { componentStack: 'Test stack' });
+    expect(mockHandlers.onError).toHaveBeenCalledWith('/test', {
+      message: "Test error",
+      name: "Error",
+      stack: expect.stringContaining("Error: Test error")
+    }, { componentStack: 'Test stack' });
   });
 
   it('should handle metrics correctly', async () => {

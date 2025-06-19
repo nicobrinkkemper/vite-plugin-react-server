@@ -12,16 +12,16 @@ import { parsePattern } from "./parsePattern.js";
  * @example
  * ```ts
  * // String patterns
- * resolveAutoDiscoverMatcher("*.js").test("file.js")     // true
- * resolveAutoDiscoverMatcher("*.{js,ts}").test("file.ts") // true
+ * resolveDirectiveMatcher("*.js").test("file.js")     // true
+ * resolveDirectiveMatcher("*.{js,ts}").test("file.ts") // true
  *
  * // RegExp patterns
- * resolveAutoDiscoverMatcher(/\.js$/).test("file.js")    // true
- * resolveAutoDiscoverMatcher(/\.js$/i).test("file.JS")   // true
+ * resolveDirectiveMatcher(/\.js$/).test("file.js")    // true
+ * resolveDirectiveMatcher(/\.js$/i).test("file.JS")   // true
  *
  * // Default patterns
- * resolveAutoDiscoverMatcher(undefined, "*.js").test("file.js")     // true
- * resolveAutoDiscoverMatcher(undefined, /\.js$/).test("file.js")    // true
+ * resolveDirectiveMatcher(undefined, "*.js").test("file.js")     // true
+ * resolveDirectiveMatcher(undefined, /\.js$/).test("file.js")    // true
  * ```
  */
 export function resolveDirectiveMatcher(
@@ -31,9 +31,11 @@ export function resolveDirectiveMatcher(
   if (typeof pattern === "function") {
     return pattern;
   } else if (typeof pattern === "string") {
-    return parsePattern(pattern)?.test.bind(null) ?? (() => false);
+    const regex = parsePattern(pattern);
+    return (source: string, moduleId?: string) => regex.test(source);
   } else if (typeof defaultPattern === "string") {
-    return parsePattern(defaultPattern)?.test.bind(null) ?? (() => false);
+    const regex = parsePattern(defaultPattern);
+    return (source: string, moduleId?: string) => regex.test(source);
   } else if (
     typeof defaultPattern === "object" &&
     defaultPattern != null &&

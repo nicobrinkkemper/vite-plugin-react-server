@@ -1,5 +1,5 @@
 import { createServer } from "vite";
-import { vitePluginReactClient } from "vite-plugin-react-server/client";
+import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
 import { testUserOptions } from "../test-config";
 import type { ViteDevServer } from "vite";
 import { join } from "node:path";
@@ -7,11 +7,14 @@ import { join } from "node:path";
 /**
  * Starts a dev server with the test config and given options
  * @param optionOverrides - Optional overrides for the options
+ * @param port - Port to use for the server
  * @returns The Vite dev server instance
  */
-export async function createClientDevServer(optionOverrides: any = {}, port = 5175) {
+export async function createServerDevServer(optionOverrides: any = {}, port = 5175) {
+  
   const server: ViteDevServer = await createServer({
-    plugins: [vitePluginReactClient({
+    root: optionOverrides.projectRoot,
+    plugins: [vitePluginReactServer({
       ...testUserOptions,
       ...optionOverrides,
     })],
@@ -24,5 +27,5 @@ export async function createClientDevServer(optionOverrides: any = {}, port = 51
   });
   
   await server.listen();
-  return server
+  return server;
 } 

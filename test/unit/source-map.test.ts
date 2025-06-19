@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { transformWithAcornLoose } from '../../plugin/loader/transformWithAcornLoose.js';
-import { DEFAULT_CONFIG } from '../../plugin/config/defaults.js';
+import { createTransformer } from '../../plugin/loader/createTransformer.js';
+import { DEFAULT_LOADER_CONFIG } from '../../plugin/config/defaults.js';
+
+// Create a complete loader config for testing
+const TEST_LOADER_CONFIG = {
+  ...DEFAULT_LOADER_CONFIG,
+  mode: 'test' as const,
+  importServerPath: "react-server-dom-esm/server.node",
+  importClientPath: "react-server-dom-esm/server.node",
+  registerClientReferenceName: "registerClientReference",
+  registerServerReferenceName: "registerServerReference",
+};
 
 // Helper function to decode VLQ mappings
 function decodeMappings(mappings: string) {
@@ -23,15 +33,17 @@ export async function add(a, b) {
   return a + b;
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/actions.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: true,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/actions.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -56,18 +68,20 @@ export async function add(a, b) {
     const source = `"use client";
 import React from "react";
 export function ClientComponent() {
-  return <div>Client Component</div>;
+  return "Client Component";
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/ClientComponent.client.tsx',
-      false,
-      true,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: false,
+      forceClientComponent: true,
+      isServerEnvironment: false,
+    });
+
+    const result = await transformer(source, '/test/ClientComponent.client.tsx');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -95,15 +109,17 @@ export async function add(a, b) {
   return a + b;
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/mixed.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/mixed.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -130,15 +146,17 @@ export async function add(a, b) {
   return a + b;
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/actions.server.ts',
-      true,
-      false,  
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/actions.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -162,15 +180,18 @@ export async function add(a, b) {
 
   it('should handle multiple function-level directives', async () => {
     const source = `export async function add(a, b) {\n  \"use server\";\n  return a + b;\n}\nexport function sub(a, b) {\n  \"use server\";\n  return a - b;\n}`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/multi.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/multi.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -191,15 +212,18 @@ export async function add(a, b) {
 
   it('should ignore directives with comments or whitespace', async () => {
     const source = `// comment\n  \n\"use server\";\nexport function add(a, b) {\n  // another comment\n  \"use server\";\n  return a + b;\n}`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/commented.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/commented.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -220,15 +244,18 @@ export async function add(a, b) {
 
   it('should not treat misplaced directives as directives', async () => {
     const source = `const x = 1;\n\"use server\";\nexport function add(a, b) {\n  return a + b;\n}`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/misplaced.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/misplaced.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -249,15 +276,18 @@ export async function add(a, b) {
 
   it('should not remove non-directive string literals', async () => {
     const source = `const str = \"use server\";\nexport function add(a, b) {\n  return a + b;\n}`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/nonDirective.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/nonDirective.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -278,15 +308,18 @@ export async function add(a, b) {
 
   it('should handle arrow functions with block and concise bodies', async () => {
     const source = `export const add = (a, b) => { \"use server\"; return a + b; };\nexport const mul = (a, b) => a * b;`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/arrow.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/arrow.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -307,15 +340,18 @@ export async function add(a, b) {
 
   it('should not register non-exported functions', async () => {
     const source = `async function add(a, b) { \"use server\"; return a + b; }\nexport async function sub(a, b) { \"use server\"; return a - b; }`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/nonexported.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: true,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/nonexported.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -337,15 +373,18 @@ export async function add(a, b) {
 
   it('should handle nested functions with directives', async () => {
     const source = `export function outer() {\n  function inner() { \"use server\"; return 1; }\n  return inner();\n}`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/nested.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/nested.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -366,15 +405,18 @@ export async function add(a, b) {
 
   it('should handle class methods with directives', async () => {
     const source = `export class Calculator {\n  add(a, b) { \"use server\"; return a + b; }\n  sub(a, b) { \"use server\"; return a - b; }\n}`;
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/class.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: true,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/class.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -399,15 +441,17 @@ export async function add(a, b) {
   return a + b;
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/actions.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: true,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/actions.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -428,15 +472,17 @@ export async function add(a, b) {
   return a + b + "特殊文字"; // Special characters
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/actions.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/actions.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -461,15 +507,17 @@ export async function add(a, b) {
   return a + b;
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/actions.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: false,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/actions.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
@@ -490,15 +538,17 @@ export async function add(a, b) {
   return helper(a + b);
 }`;
 
-    const result = await transformWithAcornLoose(
-      source,
-      '/test/actions.server.ts',
-      true,
-      false,
-      DEFAULT_CONFIG.RSC_LOADER['test'],
-      true,
-      false
-    );
+    const transformer = createTransformer({
+      options: {
+        loader: TEST_LOADER_CONFIG,
+        verbose: true,
+      },
+      forceServerFunction: true,
+      forceClientComponent: false,
+      isServerEnvironment: true,
+    });
+
+    const result = await transformer(source, '/test/actions.server.ts');
 
     // Verify source map exists
     expect(result.map).toBeTruthy();
