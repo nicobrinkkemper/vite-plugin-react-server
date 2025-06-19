@@ -33,15 +33,12 @@ import type {
   RenderPagesResult,
   AutoDiscoveredFiles,
   CssContent,
-  PagePropOpt,
-  InlineCssOpt,
+  ReactStreamPluginFn,
 } from "../types.js";
-import { type StreamPluginOptions } from "../types.js";
 import { renderPages } from "./renderPages.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
-import { getCondition } from "../config/getCondition.js";
 import {
   serializedOptions,
   serializeResolvedConfig,
@@ -56,29 +53,18 @@ import { logError } from "../error/logError.js";
 import { toError } from "../error/toError.js";
 import type { ShutdownCompleteMessage } from "../worker/types.js";
 
-if (getCondition() !== "react-server") {
-  throw new Error(
-    "Condition mismatch, should be react-server but got " +
-      process.env["NODE_OPTIONS"]
-  );
-}
-
-export function reactStaticPlugin<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->(
-  options: StreamPluginOptions<T, InlineCSS, 'div',N1, N2>
-): VitePlugin<{
+export type ReactStaticPluginFn = ReactStreamPluginFn<{
   meta: ReactStreamPluginMeta;
-}> {
+}>
+
+export const reactStaticPlugin: ReactStaticPluginFn = function _reactStaticPlugin(
+  options
+) {
   let worker: Worker;
   let userConfig: ResolvedUserConfig;
   let resolvedConfig: ResolvedConfig;
   let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
   let serverManifest: Manifest | undefined = undefined;
-  let buildLoader: Awaited<ReturnType<typeof createBuildLoader>> | undefined;
   const timing: BuildTiming = {
     start: Date.now(),
     configResolved: 0,
@@ -183,7 +169,7 @@ export function reactStaticPlugin<
           throw new Error("Failed to parse server manifest");
         }
 
-        buildLoader = await createBuildLoader(
+        const buildLoader = createBuildLoader(
           {
             userConfig,
             userOptions: userOptions,
@@ -211,7 +197,7 @@ export function reactStaticPlugin<
           ...clientEntryCssInputs,
         };
 
-        const globalCss: Map<string, CssContent<InlineCSS>> = new Map();
+        const globalCss = new Map();
         // Collect CSS files for each page and its props
         for (const [url, { page, props }] of autoDiscoveredFiles?.urlMap ??
           []) {
@@ -239,7 +225,7 @@ export function reactStaticPlugin<
           // Add global styles if they exist
           if (Object.keys(globalCssInputs).length > 0) {
             for (const [key, value] of Object.entries(globalCssInputs)) {
-              let cssContent = await buildLoader(`${value}?inline`).then((r) =>String(r.default));
+              let cssContent = await buildLoader(`${value}?inline`).then((r) =>r.default);
               if (cssContent === "undefined" || !cssContent) {
                 cssContent =
                   (await readFile(
@@ -255,7 +241,7 @@ export function reactStaticPlugin<
               if (cssContent) {
                 globalCss.set(
                   key,
-                  createCssProps<T, InlineCSS>({
+                  createCssProps({
                     id: key,
                     code: cssContent,
                     userOptions: userOptions,
@@ -315,7 +301,7 @@ export function reactStaticPlugin<
               : DEFAULT_CONFIG.ENV_PREFIX;
           const routeCount = autoDiscoveredFiles?.urlMap.size ?? 0;
           const maxListeners = routeCount + 1;
-          const workerResult = await createWorker<T, InlineCSS, N1, N2>({
+          const workerResult = await createWorker({
             projectRoot: userOptions.projectRoot,
             workerPath: userOptions.htmlWorkerPath,
             currentCondition: "react-server",
@@ -371,7 +357,7 @@ export function reactStaticPlugin<
             globalCss: globalCss,
             css: {
               ...handlerOptions.css,
-              inlineCss: handlerOptions.css?.inlineCss ?? true as InlineCSS,
+              inlineCss: handlerOptions.css.inlineCss,
             },
           },
           cssFilesByPage

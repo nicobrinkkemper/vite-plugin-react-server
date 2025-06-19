@@ -1,25 +1,48 @@
-import type { Program as AcornProgram, Statement, Node as AcornNode } from "acorn";
+import type { RawSourceMap } from "source-map";
+import type { ResolvedUserOptions } from "../types.js";
+import type { DirectiveMatches, DirectiveWarning, ParseResult } from "./directives/types.js";
 
-// Directive is a special type in Acorn that extends ExpressionStatement
-export type Directive = Statement & {
-  directive: string;
+export type Loader = (
+  url: string,
+  context: any,
+  defaultLoad: any
+) => Promise<{
+  format: string;
+  source: string;
+  map?: any;
+}>;
+
+export type RscLoader = Pick<ResolvedUserOptions['loader'], 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
+
+export type TransformOptions = {
+  forceServerFunction: boolean;
+  forceClientComponent: boolean;
+  isServerEnvironment: boolean;
+  loader: ResolvedUserOptions['loader'];
+  directiveWarnings: DirectiveWarning[];
+  // based on warning, remove warning directive index to avoid warning in development
+  removeDirectives?: number[];
+  // based on warning, add warning directive index to avoid warning in development
+  addDirectives?: number[];
+  verbose: boolean;
 };
 
-export type Node = AcornNode;
-
-export type ExportInfo = {
-  name: string;
-  localName?: string;
-  type: "function" | "variable" | "class" | "unknown";
-  isServerAction?: boolean;
-  node?: Node;
-}
-
-export type Program = AcornProgram & {
-  comments?: Array<{
-    type: 'Block' | 'Line';
-    value: string;
-    start: number;
-    end: number;
-  }>;
+export type TransformResult = {
+  code: string;
+  map: RawSourceMap | null;
 };
+
+export type TransformFunction = (
+  source: string,
+  moduleId: string,
+  parseResult: ParseResult,
+  options: TransformOptions
+) => Promise<TransformResult>;
+
+export type TransformerFactory = (options: {
+  parseFn?: (source: string, verbose?: boolean) => Promise<{ ast: any; code: string; map?: any | null }>;
+  options: Pick<ResolvedUserOptions, 'verbose' | 'loader'>;
+  forceServerFunction?: boolean | undefined;
+  forceClientComponent?: boolean | undefined;
+  isServerEnvironment?: boolean;
+}) => (source: string, moduleId: string) => Promise<TransformResult>;

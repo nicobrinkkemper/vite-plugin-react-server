@@ -16,19 +16,19 @@ export function toError(error: unknown): {
     ? error
     : typeof error === "object" && error !== null
     ? {
-        name: "name" in error ? String(error.name) : "Unknown Error",
+        name: "name" in error ? String(error.name) : "Unknown React Stream Error",
         message:
           "message" in error
             ? typeof error.message === "string"
               ? error.message
               : JSON.stringify(error.message)
-            : "Unknown Error",
+            : "Unknown React StreamError",
         stack: "stack" in error ? String(error.stack) : undefined,
-        cause: "cause" in error ? toError(error.cause) : error,
+        cause: "cause" in error ? error.cause : error,
       }
     : {
-        name: "Unknown Error",
-        message: typeof error === "string" ? error : "Unknown Error",
+        name: "Unknown React Stream Error",
+        message: typeof error === "string" ? error : "Unknown Read Stream Error",
         stack: undefined,
         cause: error,
       };

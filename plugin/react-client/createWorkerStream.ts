@@ -3,11 +3,33 @@ import type {
   RscWorkerOutputMessage,
   RscRenderMessage,
 } from "../worker/rsc/types.js";
-import type { InlineCssOpt, PagePropOpt, StreamMetrics } from "../types.js";
+import type { AsOpt, InlineCssOpt, PageName, PagePropOpt, PropsName, StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
 import { logError } from "../error/logError.js";
+
+export type CreateWorkerStreamFn = (props: {
+  worker: NodeWorker;
+  message: Omit<RscRenderMessage, "type" | "id"> &
+    Partial<Pick<RscRenderMessage, "id">> & {
+      type?: "RSC_RENDER";
+    };
+  logger: Logger;
+  handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> & 
+    Partial<
+      Pick<
+        StreamHandlers,
+        | "onError"
+        | "onData"
+        | "onEnd"
+        | "onServerAction"
+        | "onServerActionResponse"
+        | "onCssFile"
+      >
+    >;
+  verbose?: boolean;
+}) => AsyncGenerator<Uint8Array>;
 
 /**
  * Creates an async generator that yields RSC chunks from the worker.
@@ -19,12 +41,7 @@ import { logError } from "../error/logError.js";
  * @param rscWorkerLoaderPort - Optional loader port for module loading
  * @returns An async generator that yields RSC chunks
  */
-export async function* createWorkerStream<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->({
+export const createWorkerStream: CreateWorkerStreamFn = async function* _createWorkerStream({
   worker,
   message,
   logger,
@@ -40,48 +57,28 @@ export async function* createWorkerStream<
     onCssFile,
   },
   verbose = false,
-}: {
-  worker: NodeWorker;
-  message: Omit<RscRenderMessage<T, InlineCSS, N1, N2>, "type" | "id"> &
-    Partial<Pick<RscRenderMessage<T, InlineCSS, N1, N2>, "id">> & {
-      type?: "RSC_RENDER";
-    } & Partial<Pick<RscRenderMessage<T, InlineCSS, N1, N2>, "id">> & {
-      type?: "RSC_RENDER";
-    };
-  logger: Logger;
-  handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> &
-    Partial<
-      Pick<
-        StreamHandlers,
-        | "onError"
-        | "onData"
-        | "onEnd"
-        | "onServerAction"
-        | "onServerActionResponse"
-        | "onCssFile"
-      >
-    >;
-  verbose?: boolean;
-}): AsyncGenerator<Uint8Array> {
+}) {
   if (!worker) {
     throw new Error("Worker is not running");
   }
   let messageHandler:
     | ((message: RscWorkerOutputMessage | undefined) => void)
     | null = null;
-  let currentResolve: ((chunk: Uint8Array) => void) | null = null;
+  let currentResolve: ((chunk: Uint8Array | null) => void) | null = null;
+  let isStreamClosed = false;
   const handlers: StreamHandlers = {
     onError: (id, error, errorInfo) => {
       logError(error, logger);
       if (errorInfo) {
         logError(errorInfo.componentStack, logger);
       }
+      isStreamClosed = true;
       if (typeof onError === "function") {
         onError(id, error, errorInfo);
       }
     },
     onData: (id: string, chunk: Uint8Array) => {
-      if (currentResolve) {
+      if (currentResolve && !isStreamClosed) {
         currentResolve(chunk);
         currentResolve = null;
       }
@@ -97,7 +94,11 @@ export async function* createWorkerStream<
       }
     },
     onEnd: (id: string) => {
-      currentResolve?.(new Uint8Array());
+      if (currentResolve) {
+        currentResolve(null);
+        currentResolve = null;
+      }
+      isStreamClosed = true;
       if (verbose) logger.info(`[react-client] received end`);
       if (messageHandler) {
         worker.removeListener("message", messageHandler);
@@ -164,12 +165,14 @@ export async function* createWorkerStream<
 
     if (verbose) logger.info(`[react-client] waiting for message handler`);
     let workerTimeout: NodeJS.Timeout | null = null;
-    yield await new Promise<Uint8Array>((resolve) => {
+    const initialChunk = await new Promise<Uint8Array | null>((resolve) => {
       workerTimeout = setTimeout(() => {
         if (verbose) logger.info(`worker timeout`);
         worker.terminate();
       }, 5000);
-      currentResolve = resolve;
+      currentResolve = (chunk: Uint8Array | null) => {
+        resolve(chunk);
+      };
       messageHandler = createMessageHandler({
         handlers,
         logger,
@@ -181,8 +184,14 @@ export async function* createWorkerStream<
       clearTimeout(workerTimeout);
     }
     if (verbose) logger.info(`[react-client] received message handler`);
+    
+    // Only yield the initial chunk if it's not null
+    if (initialChunk !== null) {
+      yield initialChunk;
+    }
+    
     while (true) {
-      const chunk = await new Promise<Uint8Array>((resolve) => {
+      const chunk = await new Promise<Uint8Array | null>((resolve) => {
         currentResolve = resolve;
         // Create new message handler for each iteration
         if (messageHandler) {
@@ -196,8 +205,8 @@ export async function* createWorkerStream<
         worker.on("message", messageHandler);
       });
 
-      if (chunk.length === 0) {
-        break;
+      if (chunk === null) {
+        break; // End of stream
       }
 
       yield chunk;

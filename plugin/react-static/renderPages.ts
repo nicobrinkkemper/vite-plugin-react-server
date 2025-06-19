@@ -20,18 +20,26 @@ import type {
   MultiPageHandlerOptions,
   PagePropOpt,
   InlineCssOpt,
+  AsOpt,
+  PageName,
+  PropsName,
 } from "../types.js";
 
-export async function* renderPages<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
+export type RenderPagesReturn = AsyncGenerator<RenderPagesResult, RenderPagesResult, unknown>;
+
+export type RenderPagesFn = <
+  Opt extends MultiPageHandlerOptions = MultiPageHandlerOptions
 >(
-  autoDiscoveredFiles: AutoDiscoveredFiles,
-  handlerOptions: MultiPageHandlerOptions<T, InlineCSS, N1, N2>,
-  cssFilesByPage: Map<string, Map<string, CssContent<InlineCSS>>>
-): AsyncGenerator<RenderPagesResult, RenderPagesResult, unknown> {
+  autoDiscoveredFiles: AutoDiscoveredFiles, 
+  handlerOptions: Opt,
+  cssFilesByPage: Map<string, Map<string, CssContent<boolean>>>
+) => RenderPagesReturn;
+
+export const renderPages: RenderPagesFn = async function* _renderPages(
+  autoDiscoveredFiles,
+  handlerOptions,
+  cssFilesByPage
+) {
   const routes = Array.from(autoDiscoveredFiles.urlMap.keys());
   const completedRoutes = new Set<string>();
   const failedRoutes = new Set<string>();
@@ -61,8 +69,8 @@ export async function* renderPages<
       const pageRenderer = renderPage({
         ...handlerOptions,
         route,
-        pagePath: page,
-        propsPath: props,
+        pagePath: page as string,
+        propsPath: props as string,
         cssFiles: cssFilesByPage.get(route) ?? new Map(),
       });
 

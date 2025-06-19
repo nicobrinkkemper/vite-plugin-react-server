@@ -4,7 +4,7 @@ import type {
   InputNormalizer,
   NormalizerInput,
 } from "../types.js";
-import path, { join, sep } from "path";
+import path, { join, relative, resolve, sep } from "path";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 let stashedNormalizer: InputNormalizer | null = null;
@@ -72,7 +72,7 @@ const resolveRootOption = (
 
 const createKeyNormalizer =
   ({
-    root: normalizedRoot,
+    root,
     preserveModulesRoot,
     handleExtension,
     moduleBasePath,
@@ -93,11 +93,11 @@ const createKeyNormalizer =
 
     let moduleId = normalizePath(actualKey);
 
-    // Normalize root path to handle both absolute and relative paths
-    const normalizedRootPath = normalizePath(normalizedRoot);
-    if (moduleId.startsWith(normalizedRootPath)) {
-      moduleId = moduleId.slice(normalizedRootPath.length);
-    }
+    if(moduleId.startsWith("/")) {
+      moduleId = relative(root, moduleId);
+    } else if (moduleId.startsWith(".")) {
+      moduleId = resolve(root, moduleId);
+    } 
     if (
       typeof moduleBasePath === "string" &&
       moduleBasePath !== "" &&
@@ -114,10 +114,7 @@ const createKeyNormalizer =
     }
 
     moduleId = handleExtension(moduleId);
-    while (moduleId.startsWith("/") || moduleId.startsWith(".")) {
-      moduleId = moduleId.slice(1);
-    }
-    while (moduleId.endsWith("/")) {
+    while (moduleId.endsWith("/") || moduleId.startsWith(".")) {
       moduleId = moduleId.slice(0, -1);
     }
     if (typeof preserveModulesRoot === "string" && preserveModulesRoot !== "") {
@@ -148,8 +145,11 @@ const createPathNormalizer =
       path = path.split("?")[0];
     }
     let normalPath = normalizePath(path);
-    if (normalPath.startsWith(root)) {
-      normalPath = normalPath.slice(root.length);
+    
+    if(normalPath.startsWith("/")) {
+      normalPath = relative(root, normalPath);
+    } else if (normalPath.startsWith(".")) {
+      normalPath = relative(root, normalPath);
     }
     if (
       typeof moduleBasePath === "string" &&
@@ -186,7 +186,7 @@ export function createInputNormalizer({
   root,
   moduleBasePath = DEFAULT_CONFIG.MODULE_BASE_PATH,
   preserveModulesRoot = undefined,
-  removeExtension = DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
+  removeExtension = DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern,
 }: CreateInputNormalizerProps): InputNormalizer {
   if (stashedNormalizer) {
     return stashedNormalizer;

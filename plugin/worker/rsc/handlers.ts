@@ -9,15 +9,27 @@ import { PassThrough } from "node:stream";
 
 export const handlers: Required<StreamHandlers> = {
   onError: (id, error, errorInfo) => {
+    // Format error for React Server Components
+    const formattedError = typeof error === 'string'
+      ? {
+          message: error,
+          reason: error,
+          stack: undefined,
+          name: 'Error'
+        }
+      : {
+          message: (error as Error)?.message || 'Unknown error',
+          reason: (error as Error)?.message || 'Unknown error',
+          name: (error as Error)?.name || 'Error',
+          stack: (error as Error)?.stack,
+          ...(error && typeof error === 'object' ? error : {})
+        };
+
     sendRscWorkerMessage({
       type: "ERROR",
       id: id,
       errorInfo,
-      error: toError(error),
-    });
-    sendRscWorkerMessage({
-      type: "RSC_END",
-      id: id,
+      error: formattedError,
     });
   },
   onData: (id, data) => {

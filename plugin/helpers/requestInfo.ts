@@ -32,13 +32,13 @@ export function requestInfo(
   const dotIndex = value.lastIndexOf(".");
   const ext = dotIndex === -1 ? "" : value.slice(dotIndex);
   // handle index.html
-  const isVendor = userOptions.autoDiscover.vendorPattern(value);
-  const isVirtual = userOptions.autoDiscover.virtualPattern(value);
-  const isJS = userOptions.autoDiscover.modulePattern(value);
-  const isHtml = userOptions.autoDiscover.htmlPattern(value);
-  const isCss = userOptions.autoDiscover.cssPattern(value);
-  const isJson = userOptions.autoDiscover.jsonPattern(value);
-  const isRsc = userOptions.autoDiscover.rscPattern(value);
+  const isVendor = userOptions.autoDiscover.vendorPattern.test(value);
+  const isVirtual = userOptions.autoDiscover.virtualPattern.test(value);
+  const isJS = userOptions.autoDiscover.modulePattern.test(value);
+  const isHtml = userOptions.autoDiscover.htmlPattern.test(value);
+  const isCss = userOptions.autoDiscover.cssPattern.test(value);
+  const isJson = userOptions.autoDiscover.jsonPattern.test(value);
+  const isRsc = userOptions.autoDiscover.rscPattern.test(value);
   const hasJsHeader =
     req.headers["sec-fetch-dest"] === "script" ||
     req.headers["accept"]?.includes("*/*") ||

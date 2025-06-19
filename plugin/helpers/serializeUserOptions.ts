@@ -7,6 +7,9 @@ import type {
   SerializableRecord,
   ResolvedUserConfig,
   SerializedUserOptions,
+  AsOpt,
+  PageName,
+  PropsName,
 } from "../types.js";
 import { cleanObject } from "./cleanObject.js";
 import { resolveOptions } from "../config/resolveOptions.js";
@@ -224,12 +227,9 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
 
 // For your own options (if you need custom non-serializable functions)
 export const serializedOptions = <
-  T extends PagePropOpt = PagePropOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+  Opt extends ResolvedUserOptions = ResolvedUserOptions
 >(
-  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>,
+  userOptions: Opt,
   autoDiscoveredFiles: AutoDiscoveredFiles,
   customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS
 ) => {
@@ -242,6 +242,7 @@ export const serializedOptions = <
     onEvent: _onEvent,
     onMetrics: _onMetrics,
     build: _build,
+    loader: _loader,
     autoDiscover: autoDiscover,
     propsExportName: propsExportName,
     pageExportName: pageExportName,
@@ -255,26 +256,27 @@ export const serializedOptions = <
     ...buildOptions
   } = _build ?? {};
   const {
+    isServerFunctionCode: _isServerFunctionCode,
+    isClientComponentCode: _isClientComponentCode,
+    getDirectiveType: _getDirectiveType,
+    allowedDirectives: allowedDirectives,
+    ...loaderOptions
+  } = _loader ?? {};
+  const {
     modulePattern: _modulePattern,
     cssPattern: _cssPattern,
     jsonPattern: _jsonPattern,
-    clientComponents: _clientComponents,
+    clientPattern: _clientPattern,
     propsPattern: _propsPattern,
     pagePattern: _pagePattern,
     htmlPattern: _htmlPattern,
     rscPattern: _rscPattern,
-    serverFunctions: _serverFunctions,
+    serverPattern: _serverPattern,
     cssModulePattern: _cssModulePattern,
     vendorPattern: _vendorPattern,
-    nodeOnly: _nodeOnly,
-    dotFiles: _dotFiles,
+    nodePattern: _nodePattern,
+    dotPattern: _dotPattern,
     virtualPattern: _virtualPattern,
-    isServerFunctionCode: _isServerFunctionCode,
-    isClientComponentCode: _isClientComponentCode,
-    // known regexp
-    moduleExtension: moduleExtension,
-    serverDirective: serverDirective,
-    clientDirective: clientDirective,
     ...serializedAutoDiscover
   } = autoDiscover;
   const result = {
@@ -287,10 +289,30 @@ export const serializedOptions = <
         ? Array.from(autoDiscoveredFiles.urlMap.keys())
         : [],
     },
+    loader: {
+      directivePattern: {
+        config: {
+          validate: undefined,
+          ...allowedDirectives,
+        },
+      },
+      ...loaderOptions,
+    },
     autoDiscover: {
-      moduleDirective: serializeRegExp(moduleExtension),
-      serverDirective: serializeRegExp(serverDirective),
-      clientDirective: serializeRegExp(clientDirective),
+      modulePattern: serializeRegExp(_modulePattern),
+      serverPattern: serializeRegExp(_serverPattern),
+      clientPattern: serializeRegExp(_clientPattern),
+      pagePattern: serializeRegExp(_pagePattern),
+      propsPattern: serializeRegExp(_propsPattern),
+      cssPattern: serializeRegExp(_cssPattern),
+      jsonPattern: serializeRegExp(_jsonPattern),
+      htmlPattern: serializeRegExp(_htmlPattern),
+      cssModulePattern: serializeRegExp(_cssModulePattern),
+      vendorPattern: serializeRegExp(_vendorPattern),
+      nodePattern: serializeRegExp(_nodePattern),
+      dotPattern: serializeRegExp(_dotPattern),
+      virtualPattern: serializeRegExp(_virtualPattern),
+      rscPattern: serializeRegExp(_rscPattern),
       ...serializedAutoDiscover,
     },
   };
@@ -302,13 +324,20 @@ export const serializedOptions = <
 };
 
 export function hydrateUserOptions<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
+  Opt extends ResolvedUserOptions = ResolvedUserOptions
 >(
-  userOptions: SerializedUserOptions<T, InlineCSS, N1, N2>
-) {
+  userOptions: SerializedUserOptions<Opt>
+):
+  | {
+      type: "error";
+      error: Error;
+      userOptions?: never;
+    }
+  | {
+      type: "success";
+      userOptions: Opt;
+      error?: never;
+    } {
   if (!userOptions) {
     return userOptions;
   }
@@ -316,17 +345,12 @@ export function hydrateUserOptions<
   // Restore RegExp objects
   if (typeof userOptions === "object" && "autoDiscover" in userOptions) {
     const { autoDiscover } = userOptions;
-    const { moduleDirective, serverDirective, clientDirective } = autoDiscover;
-    if (moduleDirective) {
-      userOptions.autoDiscover.moduleDirective = deserializeRegExp(moduleDirective);
-    }
-    if (serverDirective) {
-      userOptions.autoDiscover.serverDirective = deserializeRegExp(serverDirective);
-    }
-    if (clientDirective) {
-      userOptions.autoDiscover.clientDirective = deserializeRegExp(clientDirective);
+    const { modulePattern } = autoDiscover;
+    if (modulePattern) {
+      userOptions.autoDiscover.modulePattern = deserializeRegExp(modulePattern);
     }
   }
 
-  return resolveOptions(deserializeRegExp(userOptions) as never)
+  const result = resolveOptions(deserializeRegExp(userOptions as never));
+  return result as never;  
 }

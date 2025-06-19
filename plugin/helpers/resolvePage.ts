@@ -1,27 +1,28 @@
 import { toError } from "../error/toError.js";
-import type { PagePropOpt } from "../types.js";
+import type { PageName, PagePropOpt } from "../types.js";
 import type React from "react";
 
-type ResolvePageOptions<
+type ResolvePageResult<
   T extends PagePropOpt = PagePropOpt,
-  ID extends string = string,
-  N extends string = 'Page'
-> = {
-  id: ID;
-  exportName: N;
-  loader: <M extends N>(
-    exportName: `${ID}#${M}`
-  ) => Promise<{ [key in M]: React.ComponentType<T> }>;
-};
-
-type ResolvePageResult<T extends PagePropOpt, N extends string> =
+  N extends string = PageName
+> =
   | {
       type: "success";
-      Page: React.ComponentType<T>;
       module: { [key in N]: React.ComponentType<T> };
+      error?: never;
     }
-  | { type: "error"; error: Error }
-  | { type: "skip" };
+  | { type: "error"; error: Error; Page?: never; module?: never }
+  | { type: "skip"; error?: never; Page?: never; module?: never };
+
+type ResolvePageFn = <
+  T extends PagePropOpt = PagePropOpt,
+  ID extends string = string,
+  N extends string = PageName
+>(options: {
+  id: ID;
+  exportName: N;
+  loader: (id: `${ID}#${N}`) => Promise<{ [key in N]: React.ComponentType<T> }>;
+}) => Promise<ResolvePageResult<T, N>>;
 
 /**
  * Resolves a page component from a module.
@@ -39,33 +40,22 @@ type ResolvePageResult<T extends PagePropOpt, N extends string> =
  *   - Page: The resolved page component if successful
  *   - error: Error message if failed
  */
-export const resolvePage = async <
-  T extends PagePropOpt = PagePropOpt,
-  ID extends string = string,
-  N extends string = string
->({
+export const resolvePage: ResolvePageFn = async function _resolvePage({
   id,
   exportName,
   loader,
-}: ResolvePageOptions<T, ID, N>): Promise<ResolvePageResult<T, N>> => {
+}) {
   // Check if this is a stashed page that needs special handling
-  const pageLoadResult = await (async (): Promise<
-    | {
-        type: "success";
-        key: string;
-        module: { [key in N]: React.ComponentType<T> };
-      }
-    | { type: "error"; error: Error; module?: never }
-  > => {
+  const pageLoadResult = await (async () => {
     try {
       return {
-        type: "success",
+        type: "success" as const,
         key: id,
-        module: await loader(`${id}#${exportName}` as `${ID}#${N}`),
+        module: await loader(`${id}#${exportName}`),
       };
     } catch (error) {
       return {
-        type: "error",
+        type: "error" as const,
         error: error instanceof Error ? error : new Error(String(error)),
       };
     }
@@ -75,10 +65,16 @@ export const resolvePage = async <
     return pageLoadResult;
   }
   const { module } = pageLoadResult;
-  const Page = module[exportName as N];
+  if (module == null) {
+    return {
+      type: "error" as const,
+      error: new Error(`Module ${id} not found`),
+    };
+  }
+  const Page = module[exportName];
   if (module instanceof Error) {
     return {
-      type: "error",
+      type: "error" as const,
       error: {
         name: module.name,
         message: module.message,
@@ -88,31 +84,29 @@ export const resolvePage = async <
   } else if (!(exportName in module)) {
     if ("error" in module) {
       return {
-        type: "error",
+        type: "error" as const,
         error: toError(module.error),
       };
     }
-    console.log({ module });
     return {
-      type: "error",
+      type: "error" as const,
       error: new Error(`Export "${exportName}" not found in module ${id}.`),
     };
   } else if (!Page) {
     return {
-      type: "error",
+      type: "error" as const,
       error: new Error(
         `Export "${exportName}" is null or undefined in module ${id}.`
       ),
     };
   } else if (Page instanceof Error) {
     return {
-      type: "error",
+      type: "error" as const,
       error: Page,
     };
   }
   return {
-    type: "success",
-    Page,
-    module: module as { [key in N]: React.ComponentType<T> },
+    type: "success" as const,
+    module: module,
   };
 };

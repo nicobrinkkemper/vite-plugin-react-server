@@ -1,5 +1,18 @@
-import type { EnvironmentModuleGraph, EnvironmentModuleNode, ModuleGraph, ModuleNode } from "vite";
-import type { CreateHandlerOptions, CssContent,  InlineCssOpt,  PagePropOpt } from "../types.js";
+import type {
+  EnvironmentModuleGraph,
+  EnvironmentModuleNode,
+  ModuleGraph,
+  ModuleNode,
+} from "vite";
+import type {
+  AsOpt,
+  CreateHandlerOptions,
+  CssContent,
+  InlineCssOpt,
+  PageName,
+  PagePropOpt,
+  PropsName,
+} from "../types.js";
 import { createCssProps } from "./createCssProps.js";
 
 type CollectViteModuleGraphCssResult =
@@ -28,147 +41,155 @@ type CollectViteModuleGraphCssResult =
       metrics?: never;
     };
 
-export async function collectViteModuleGraphCss<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
->({
-  moduleGraph,
-  onCss,
-  parentUrl,
-  handlerOptions,
-}: {
+export type CollectViteModuleGraphCssOptions = Pick<
+  CreateHandlerOptions,
+  | "pagePath"
+  | "moduleBaseURL"
+  | "moduleBasePath"
+  | "moduleRootPath"
+  | "projectRoot"
+  | "css"
+  | "loader"
+  | "normalizer"
+  | "moduleID"
+  | "publicOrigin"
+>;
+
+export type CollectViteModuleGraphCssFn = <
+  Opt extends CollectViteModuleGraphCssOptions = CollectViteModuleGraphCssOptions
+>(options: {
   moduleGraph: ModuleGraph | EnvironmentModuleGraph;
   onCss?: (cssContent: CssContent, parentUrl: string) => void;
   parentUrl?: string;
-  handlerOptions: Pick<
-    CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>,
-    | "pagePath"
-    | "moduleBaseURL"
-    | "moduleBasePath"
-    | "moduleRootPath"
-    | "projectRoot"
-    | "css"
-    | "loader"
-    | "normalizer"
-    | "moduleID"
-    | "publicOrigin"
-  >;
-}): Promise<CollectViteModuleGraphCssResult> {
-  const {
-    pagePath,
-    moduleBaseURL,
-    moduleBasePath,
-    moduleRootPath,
-    projectRoot,
-    publicOrigin,
-    css,
-    loader,
-    normalizer,
-    moduleID,
-  } = handlerOptions;
-  if (!pagePath) return { type: "skip" };
+  handlerOptions: Opt;
+}) => Promise<CollectViteModuleGraphCssResult>;
 
-  const cssFiles = new Map<string, CssContent>();
-  const pageModule = await moduleGraph.getModuleByUrl(pagePath, true);
-  if (!pageModule) {
-    return { type: "skip" };
-  }
+export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
+  async function _collectViteModuleGraphCss({
+    moduleGraph,
+    onCss,
+    parentUrl,
+    handlerOptions,
+  }) {
+    const {
+      pagePath,
+      moduleBaseURL,
+      moduleBasePath,
+      moduleRootPath,
+      projectRoot,
+      publicOrigin,
+      css,
+      loader,
+      normalizer,
+      moduleID,
+    } = handlerOptions;
+    if (!pagePath) return { type: "skip" };
 
-  const seen = new Set<string>();
-  const processing = new Set<string>();
-
-  const walkModule = async (mod: ModuleNode | EnvironmentModuleNode) => {
-    if (!mod?.id) {
-      // Module has no id
-      return;
+    const cssFiles = new Map<string, CssContent>();
+    const pageModule = await moduleGraph.getModuleByUrl(pagePath, true);
+    if (!pageModule) {
+      return { type: "skip" };
     }
 
-    if (seen.has(mod.id)) {
-      // Already processed module
-      return;
-    }
+    const seen = new Set<string>();
+    const processing = new Set<string>();
 
-    if (processing.has(mod.id)) {
-      // Circular dependency detected for module
-      return;
-    }
-
-    processing.add(mod.id);
-    // Processing module
-    if (mod.id.endsWith(".css")) {
-      const string = await loader(`${mod.id}?inline`).then(
-        (m) => m?.["default"] ?? ""
-      );
-      if (typeof string !== "string") {
-        throw new Error(`CSS module ${mod.id}?inline did not return a string`);
-      } else if (string === "") {
-        throw new Error(`CSS module ${mod.id}?inline returned an empty string`);
+    const walkModule = async (mod: ModuleNode | EnvironmentModuleNode) => {
+      if (!mod?.id) {
+        // Module has no id
+        return;
       }
-      const cssContent = createCssProps({
-        id: mod?.url,
-        code: string,
-        userOptions: {
-          moduleBaseURL: moduleBaseURL,
-          moduleBasePath: moduleBasePath,
-          moduleRootPath: moduleRootPath,
-          projectRoot: projectRoot,
-          css: css,
-          normalizer: normalizer,
-          moduleID: moduleID,
-          publicOrigin: publicOrigin,
-        },
-      });
-      cssFiles.set(mod?.url, cssContent);
-      onCss?.(cssContent, parentUrl ?? pagePath);
-    }
 
-    if (mod.importedModules) {
-      // Processing imports for module
-      const importedModules = Array.from(mod.importedModules?.values() as Iterable<ModuleNode | EnvironmentModuleNode>);
-      // Found imported modules
-      for (const importedMod of importedModules) {
-        if (typeof importedMod === "object" && importedMod != null) {
-          if (
-            "id" in importedMod &&
-            importedMod.id &&
-            typeof importedMod.id === "string"
-          ) {
-            await walkModule(importedMod);
+      if (seen.has(mod.id)) {
+        // Already processed module
+        return;
+      }
+
+      if (processing.has(mod.id)) {
+        // Circular dependency detected for module
+        return;
+      }
+
+      processing.add(mod.id);
+      // Processing module
+      if (mod.id.endsWith(".css")) {
+        const string = await loader(`${mod.id}?inline`).then(
+          (m) => m?.["default"] ?? ""
+        );
+        if (typeof string !== "string") {
+          throw new Error(
+            `CSS module ${mod.id}?inline did not return a string`
+          );
+        } else if (string === "") {
+          throw new Error(
+            `CSS module ${mod.id}?inline returned an empty string`
+          );
+        }
+        const cssContent = createCssProps({
+          id: mod?.url,
+          code: string,
+          userOptions: {
+            moduleBaseURL: moduleBaseURL,
+            moduleBasePath: moduleBasePath,
+            moduleRootPath: moduleRootPath,
+            projectRoot: projectRoot,
+            css: css,
+            normalizer: normalizer,
+            moduleID: moduleID,
+            publicOrigin: publicOrigin,
+          },
+        });
+        cssFiles.set(mod?.url, cssContent);
+        onCss?.(cssContent, parentUrl ?? pagePath);
+      }
+
+      if (mod.importedModules) {
+        // Processing imports for module
+        const importedModules = Array.from(
+          mod.importedModules?.values() as Iterable<
+            ModuleNode | EnvironmentModuleNode
+          >
+        );
+        // Found imported modules
+        for (const importedMod of importedModules) {
+          if (typeof importedMod === "object" && importedMod != null) {
+            if (
+              "id" in importedMod &&
+              importedMod.id &&
+              typeof importedMod.id === "string"
+            ) {
+              await walkModule(importedMod);
+            } else {
+              throw new Error(`Imported module has no id`);
+            }
           } else {
-            throw new Error(`Imported module has no id`);
+            throw new Error(`Imported module is not an object`);
           }
-        } else {
-          throw new Error(`Imported module is not an object`);
         }
       }
+
+      processing.delete(mod.id);
+      seen.add(mod.id);
+    };
+
+    try {
+      await walkModule(pageModule);
+    } catch (error) {
+      return {
+        type: "error",
+        error: error as Error,
+        metrics: {
+          cssFiles: cssFiles.size,
+          processing: processing.size,
+        },
+      };
     }
-
-    processing.delete(mod.id);
-    seen.add(mod.id);
-  };
-
-  try {
-    await walkModule(pageModule);
-  } catch (error) {
     return {
-      type: "error",
-      error: error as Error,
+      type: "success",
+      cssFiles,
       metrics: {
         cssFiles: cssFiles.size,
         processing: processing.size,
       },
     };
-  }
-  return {
-    type: "success",
-    cssFiles,
-    metrics: {
-      cssFiles: cssFiles.size,
-      processing: processing.size,
-    },
   };
-}

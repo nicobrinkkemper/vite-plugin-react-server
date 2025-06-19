@@ -35,7 +35,7 @@ export async function setupServerTSX(testDir: string) {
     resolve(testDir, "src/server.tsx"),
     `"use server"
   import React from 'react'
-  export function TestServerAction() {
+  export async function TestServerAction() {
     return <div>Server</div>
   }
   `
@@ -143,11 +143,11 @@ export async function setupTestServerActionJS(testDir: string) {
     resolve(testDir, "src/page/actions.server.ts"),
     `"use server";
 
-export function add(a, b) {
+export async function add(a, b) {
   return a + b;
 }
 
-export function subtract(a, b) {
+export async function subtract(a, b) {
   return a - b;
 }`
   );
@@ -156,12 +156,12 @@ export function subtract(a, b) {
     resolve(testDir, "src/page/add.server.ts"),
     `
 // only add is a server function, test must verify that only one is registered in client and BOTH are defined in server, but only one is registered.    
-export function add(a, b) {
+export async function add(a, b) {
  "use server";
   return a + b;
 }
 
-export function subtract(a, b) {
+export async function subtract(a, b) {
   return a - b;
 }`
   );
@@ -170,23 +170,22 @@ export function subtract(a, b) {
   await writeFile(
     resolve(testDir, "src/page/subtract.server.ts"),
     `
-    
-function add(a, b) {
+export async function add(a, b) {
   return a + b;
-}
+} 
 
-function subtract(a, b) {
+async function subtract(a, b) {
  "use server";
   return a - b;
 }
 
 
-function multiply(a, b) {
+async function multiply(a, b) {
   "use server";
    return a * b;
  }
 // export all, but only subtract and multiply are server functions
-export { subtract, add, multiply};
+export { subtract, multiply};
 `
 
   );

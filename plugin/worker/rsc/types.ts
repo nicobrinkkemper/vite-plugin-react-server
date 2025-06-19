@@ -1,8 +1,13 @@
 import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import type {
+  AsOpt,
   CreateHandlerOptions,
   InlineCssOpt,
+  PageName,
   PagePropOpt,
+  PropsName,
+  ResolvedUserOptions,
+  StreamPluginOptions,
   StreamMetrics,
 } from "../../types.js";
 import type {
@@ -84,16 +89,11 @@ export type RscWorkerOutputMessage =
   | HmrCleanupMessage;
 
 export type RscRenderMessage<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
+  Opt extends ResolvedUserOptions = ResolvedUserOptions
 > = WorkerMessage & {
   type: "RSC_RENDER";
 } & Omit<
-    CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>,
+      CreateHandlerOptions<Opt>,
     | "onEvent"
     | "onMetrics"
     | "loader"
@@ -106,7 +106,7 @@ export type RscRenderMessage<
     | "moduleID"
   > & {
     build: Omit<
-      CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>["build"],
+      CreateHandlerOptions<Opt>["build"],
       "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
     > & { pages: string[] };
   };

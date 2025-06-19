@@ -1,9 +1,6 @@
-import { isReactServerCondition } from "../config/getCondition.js";
 import { transformWithAcornLoose } from "./transformWithAcornLoose.js";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
-import { addSourceMap, createSourceMap } from "./sourceMap.js";
-import type { RawSourceMap } from 'source-map';
-import { getNodeEnv } from "../getNodeEnv.js";
+import type { RawSourceMap } from "source-map";
+import type { TransformOptions } from "./types.js";
 
 
 // --- React RSC Directive Handling ---
@@ -42,41 +39,24 @@ import { getNodeEnv } from "../getNodeEnv.js";
  * 
  * @returns The transformed code with source map attached as a URL comment
  */
-export function transformModuleIfNeeded(
+export async function transformModuleIfNeeded(
   source: string,
   moduleId: string,
-  isServerFunction: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode(source, moduleId),
-  isClientComponent: boolean | RegExpMatchArray | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode(source, moduleId),
-  isServerEnvironment = isReactServerCondition(),
-  rscLoader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
-  verbose = false
-): string {
+  options: TransformOptions
+): Promise<{ code: string; map: RawSourceMap | null }> {
   try {
-    // If no directives are present, return the original code unchanged
-    if (!isServerFunction && !isClientComponent) {
-      return source;
-    }
-
     // Get transformed code and source map from acorn-loose transformer
-    const { code, map } = transformWithAcornLoose(
+    const result = await transformWithAcornLoose(
       source,
       moduleId,
-      isServerFunction,
-      isClientComponent,
-      rscLoader,
-      isServerEnvironment,
-      verbose
+      options
     );
 
-    if(verbose) {
-      console.log("[transformModuleIfNeeded] Transformed module:", { code, map });
+    if(options.verbose) {
+      console.log("[transformModuleIfNeeded] Transformed module:", { code: result.code, map: result.map });
     }
-
-    // Create a source map that maps the transformed code back to the original source
-    const sourceMap: RawSourceMap = map || createSourceMap(code, source, moduleId);
-
     // Return the transformed code with source map attached as a URL comment
-    return addSourceMap(code, sourceMap);
+    return result;
   } catch (error) {
     // Log the error and rethrow
     console.error(`[transformModuleIfNeeded] Error transforming module ${moduleId}:`, error);

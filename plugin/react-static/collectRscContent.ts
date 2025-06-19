@@ -9,7 +9,7 @@
  * 3. Provides a clean interface for RSC handling
  */
 
-import type { PassThrough} from "node:stream";
+import type { PassThrough } from "node:stream";
 import { Transform } from "node:stream";
 import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
@@ -18,9 +18,22 @@ import type {
   StreamMetrics,
   PagePropOpt,
   InlineCssOpt,
+  AsOpt,
+  PageName,
+  PropsName,
 } from "../types.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { fileWriter } from "./fileWriter.js";
+
+export type CollectRscContentReturn = Promise<{
+  stream: PassThrough;
+  metrics: StreamMetrics;
+}>;
+
+export type CollectRscContentFn = (
+  rscStream: PassThrough,
+  handlerOptions: CreateHandlerOptions
+) => CollectRscContentReturn;
 
 /**
  * Collects RSC content from the rscHeadless stream
@@ -29,62 +42,53 @@ import { fileWriter } from "./fileWriter.js";
  * @param handlerOptions The options for the handler
  * @returns A promise that resolves with the complete RSC content and metrics
  */
-export async function collectRscContent<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
->(
-  rscStream: PassThrough,
-  handlerOptions: CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>
-): Promise<{ stream: PassThrough; metrics: StreamMetrics }> {
-  const metrics = createStreamMetrics();
-  const startTime = performance.now();
+export const collectRscContent: CollectRscContentFn =
+  async function _collectRscContent(rscStream, handlerOptions) {
+    const metrics = createStreamMetrics();
+    const startTime = performance.now();
 
-  const outputPath = join(
-    handlerOptions.build.outDir,
-    handlerOptions.build.static,
-    handlerOptions.route,
-    handlerOptions.build.rscOutputPath
-  );
+    const outputPath = join(
+      handlerOptions.build.outDir,
+      handlerOptions.build.static,
+      handlerOptions.route,
+      handlerOptions.build.rscOutputPath
+    );
 
-  const dir = dirname(outputPath);
-  // Ensure directory exists
-  await mkdir(join(handlerOptions.projectRoot, dir), { recursive: true });
+    const dir = dirname(outputPath);
+    // Ensure directory exists
+    await mkdir(join(handlerOptions.projectRoot, dir), { recursive: true });
 
-  // Create transform to track metrics
-  const metricsTransform = new Transform({
-    transform(chunk, _encoding, callback) {
-      metrics.chunks++;
-      metrics.bytes += chunk.length;
-      callback(null, chunk);
-    },
-    flush(callback) {
-      metrics.duration = performance.now() - startTime;
-      callback();
-    },
-  });
-
-  try {
-    // Pipe RSC stream through metrics tracking
-    rscStream.pipe(metricsTransform);
-
-    // Set up file writing using fileWriter
-    const writePromise = fileWriter(metricsTransform, "rsc", handlerOptions);
-
-    // Wait for stream to complete
-    await new Promise<void>((resolve) => {
-      metricsTransform.on("end", resolve);
+    // Create transform to track metrics
+    const metricsTransform = new Transform({
+      transform(chunk, _encoding, callback) {
+        metrics.chunks++;
+        metrics.bytes += chunk.length;
+        callback(null, chunk);
+      },
+      flush(callback) {
+        metrics.duration = performance.now() - startTime;
+        callback();
+      },
     });
 
-    // Wait for file writing to complete
-    await writePromise;
+    try {
+      // Pipe RSC stream through metrics tracking
+      rscStream.pipe(metricsTransform);
 
-    return { stream: rscStream, metrics };
-  } catch (error) {
-    metricsTransform.destroy();
-    throw error;
-  }
-}
+      // Set up file writing using fileWriter
+      const writePromise = fileWriter(metricsTransform, "rsc", handlerOptions);
+
+      // Wait for stream to complete
+      await new Promise<void>((resolve) => {
+        metricsTransform.on("end", resolve);
+      });
+
+      // Wait for file writing to complete
+      await writePromise;
+
+      return { stream: rscStream, metrics };
+    } catch (error) {
+      metricsTransform.destroy();
+      throw error;
+    }
+  };

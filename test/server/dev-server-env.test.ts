@@ -76,7 +76,7 @@ describe("RSC Server", () => {
       "/* @__PURE__ */ __vite_ssr_import_0__.default.createElement"
     );
     expect(response.result).toContain(
-      `["Public: ","http://localhost:${port}"]`
+      `["Public Origin: ","http://localhost:${port}"]`
     );
     expect(response.result).toContain(`{"children":["URL: ","/"]}`);
     expect(response.result).toContain(`["Dev: ",true]`);

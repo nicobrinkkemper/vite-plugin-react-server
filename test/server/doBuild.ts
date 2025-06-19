@@ -71,5 +71,5 @@ export async function doBuild<
   });
 
   process.chdir(originalCwd);
-  return events;
+  return events ?? [];
 }

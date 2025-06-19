@@ -2,6 +2,7 @@ import type { ResolvedUserOptions, CssContent } from "../types.js";
 import type { InlineCssOpt, PagePropOpt } from "../../server.js";
 import { join } from "node:path";
 import { deserializeRegExp } from "./serializeUserOptions.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 /**
  * Creates a CssContent object for a given path and css options
@@ -22,10 +23,7 @@ import { deserializeRegExp } from "./serializeUserOptions.js";
  * @param css - The css options
  * @returns A CssContent object
  */
-export const createCssProps = <
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->({
+export const createCssProps = ({
   id,
   code,
   userOptions,
@@ -33,7 +31,7 @@ export const createCssProps = <
   id: string;
   code: string;
   userOptions: Pick<
-    ResolvedUserOptions<T, InlineCSS>,
+    ResolvedUserOptions,
     | "css"
     | "moduleBaseURL"
     | "moduleBasePath"
@@ -43,10 +41,10 @@ export const createCssProps = <
     | "moduleID"
     | "publicOrigin"
   >;
-}): CssContent<InlineCSS> => {
+}): CssContent<boolean> => {
   const { css, moduleRootPath } = userOptions;
   // If we don't have a bundle entry, create a linked CSS file
-  let inline = typeof code === "string" && code.length > css.inlineThreshold;
+  let inline = css?.inlineCss !== false && typeof code === "string" && code.length > (css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold);
   // Normalize the ID to be relative to src/
   const [, value] = userOptions.normalizer(id);
   const moduleID = userOptions.moduleID(value);
@@ -76,7 +74,7 @@ export const createCssProps = <
             "data-vite-dev-id": join(moduleRootPath, moduleID),
           }
         : {}),
-    } as CssContent<InlineCSS>;
+    } as CssContent<boolean>;
   }
   const processEnv = process.env || {};
   const hasEnv= typeof processEnv.VITE_PUBLIC_ORIGIN === "string" &&
@@ -104,6 +102,6 @@ export const createCssProps = <
     userOptions.publicOrigin !== ""
         ? new URL(moduleID, userOptions.publicOrigin).href
         : moduleID,
-    precedence: "high",
-  } as CssContent<InlineCSS>;
+    precedence: "high", 
+  } as CssContent<boolean>;
 };

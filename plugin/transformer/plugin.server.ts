@@ -1,17 +1,20 @@
 import { resolveOptions } from "../config/resolveOptions.js";
-import type {
-  InlineCssOpt,
-  PagePropOpt,
-  StreamPluginOptions,
-} from "../types.js";
-import type { Manifest, Plugin } from "vite";
+import type { Manifest } from "vite";
 import { tryManifest } from "../helpers/tryManifest.js";
-import { join } from "node:path";
-import { setStashedResolve } from "../helpers/moduleResolver.js";
-import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
-import { logError } from "../error/logError.js";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
+import { createTransformer } from "../loader/createTransformer.js";
+import { parse } from "../loader/parse.js";
+import type { ReactStreamPluginFn, ReactStreamPluginMeta } from "../types.js";
+import { analyzeDirectives } from "../loader/directives/analyzeDirectives.js";
+import { findDirectiveMatches } from "../loader/directives/findDirectiveMatches.js";
+import type { DirectiveInfo, DirectiveMatch } from "../loader/directives/types.js";
+import type { Program } from "acorn";
+import { join } from "node:path";
+
+
+export type ReactTransformPluginFn = ReactStreamPluginFn<{
+  meta: ReactStreamPluginMeta;
+}>
 
 /**
  * Plugin for transforming React Client Components.
@@ -37,11 +40,7 @@ import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
  * });
  * ```
  */
-
-export function reactTransformPlugin<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->(options: StreamPluginOptions<T, InlineCSS>): Plugin {
+export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
   const resolvedOptionsResult = resolveOptions(options);
 
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
@@ -53,78 +52,35 @@ export function reactTransformPlugin<
   let isSSR = false;
   const nodeEnv = getNodeEnv();
   let mode = nodeEnv;
-  const verbose = options.verbose;
-  return {
-    name: "vite:react-server-transform",
-    enforce: "post", // Run after Vite's transforms
-    async config(config, configEnv) {
-      isBuild = configEnv.command === "build";
-      isSSR = config.build?.ssr === true || configEnv.isSsrBuild === true;
-    },
-    async configResolved(config) {
-      isBuild = config.command === "build";
-      isSSR = config.build?.ssr === true;
-      if (isValidEnv(config.mode) && config.mode !== nodeEnv) {
-        console.warn(
-          `Mode ${config.mode} must be equal to NODE_ENV ${nodeEnv}.`
-        );
-        mode = nodeEnv;
-      }
-      if (isBuild && isSSR) {
-        const staticManifestResult = await tryManifest({
-          root: userOptions.projectRoot,
-          ssrManifest: false,
-          outDir: join(userOptions.build.outDir, userOptions.build.static),
-          manifestPath: config.build.manifest,
-        });
 
-        if (staticManifestResult.type === "error") {
-          throw staticManifestResult.error;
-        }
-        if (staticManifestResult.type === "success") {
-          staticManifest = staticManifestResult.manifest;
-        }
+  return {
+    name: "vite-plugin-react-server:transform",
+    enforce: "post",
+    configResolved(config) {
+      isBuild = config.command === "build";
+      isSSR = Boolean(config.build.ssr);
+      mode = config.mode as "development" | "production" | "test";
+      if (!isValidEnv(mode)) {
+        throw new Error(`Invalid mode: ${mode}`);
       }
     },
-    async resolveId(
-      _id: string,
-      importer: string | undefined,
-      options: {
-        attributes: Record<string, string>;
-        custom?: Record<string, unknown>;
-        ssr?: boolean;
-        isEntry: boolean;
-      }
-    ) {
-      if (!options?.ssr) {
-        return null;
-      }
-      // Set stashedResolve before any transform operations
-      setStashedResolve(async (specifier: string): Promise<{ url: string; shortCircuit: boolean }> => {
-        try {
-          const resolved = await this.resolve(specifier, importer, {
-            custom: { conditions: ["react-server"] },
-          });
-          if (!resolved) return { url: specifier, shortCircuit: false };
-          return { url: resolved.id, shortCircuit: true };
-        } catch (error) {
-          logError(error, this.environment.logger);
-          return { url: specifier, shortCircuit: false };
+    async buildStart() {
+      if (isBuild) {
+        const manifestResult = await tryManifest({
+          root: userOptions.projectRoot,
+          outDir: join(userOptions.build.outDir, userOptions.build.static),
+          ssrManifest: false
+        });
+        if (manifestResult.type === "success") {
+          staticManifest = manifestResult.manifest;
         }
-      });
-      return null; // Let Vite handle the resolution
+      }
     },
     async transform(code, id, options) {
-      if (!options?.ssr || !userOptions.autoDiscover.modulePattern(id)) {
+      if (!options?.ssr || !userOptions.autoDiscover.modulePattern.test(id)) {
         return null;
       }
-      const isServerFunctionCode =
-        userOptions.autoDiscover.isServerFunctionCode(code);
-      const isClientComponentCode =
-        userOptions.autoDiscover.isClientComponentCode(code);
-      if (!isServerFunctionCode && !isClientComponentCode) {
-        return null;
-      }
+
       let [, moduleID] = userOptions.normalizer(id);
       if (isBuild) {
         if (staticManifest) {
@@ -135,16 +91,30 @@ export function reactTransformPlugin<
           throw new Error(`Static manifest not found during dev build.`);
         }
       }
+      console.log("staticManifest", isBuild, moduleID, staticManifest);
       const finalID = userOptions.moduleID(moduleID);
+
+
+      // Create a new transformer with the computed values
+      const transformer = createTransformer({
+        parseFn: async (source, verbose) => {
+          const ast = this.parse(source) as Program;
+          return {
+            ast,
+            code: source,
+            map: null
+          };
+        },
+        options: {
+          loader: userOptions.loader,
+          verbose: userOptions.verbose
+        },
+        isServerEnvironment: true,
+      });
       // Always transform in server context
-      const transformed = transformModuleIfNeeded(
+      const {code: transformed, map} = await transformer(
         code,
-        finalID,
-        isServerFunctionCode,
-        isClientComponentCode,
-        true, // always force server environment for .server plugin
-        DEFAULT_CONFIG.RSC_LOADER[mode],
-        verbose
+        finalID
       );
       if (userOptions.verbose)
         if (transformed !== code) {
@@ -166,17 +136,10 @@ export function reactTransformPlugin<
             "[react-server-transform] " + transformed
           );
         }
-      if (!transformed) {
-        return {
-          code: "",
-          map: null,
-        };
-      }
-
       return {
         code: transformed,
-        map: null,
+        map: map,
       };
-    },
+    }
   };
 }

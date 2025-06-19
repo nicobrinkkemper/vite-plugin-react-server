@@ -4,6 +4,12 @@ import type { RawSourceMap } from "source-map";
  * Source map handling utilities
  */
 
+interface RangeToRemove {
+  start: number;
+  end: number;
+  lineShift: number;
+}
+
 /**
  * Creates a source map for the given source code
  */
@@ -11,47 +17,74 @@ export function createSourceMap(
   code: string,
   originalSource: string,
   moduleId: string,
-  rangesToRemove: { start: number; end: number }[] = []
+  rangesToRemove: RangeToRemove[] = []
 ): RawSourceMap {
   // Split code into lines for line-by-line mapping
-  const lines = code.split("\n");
+  const codeLines = code.split("\n");
+  const originalLines = originalSource.split("\n");
 
   // Track current positions in both original and transformed code
   let currentColumn = 0;
   let sourceLine = 0;
   let sourceColumn = 0;
+  let lastSourceIndex = 0;
+  let lastNameIndex = -1;
 
   // Generate mappings line by line
   const mappings: string[] = [];
+  const createMapping = createMappingsSerializer();
 
-  for (let i = 0; i < lines.length; i++) {
+  // First, create a mapping for each line in the original source
+  for (let i = 0; i < originalLines.length; i++) {
+    const mapping = createMapping(
+      i + 1, // generated line
+      0, // generated column
+      0, // source index
+      i + 1, // original line
+      0, // original column
+      -1 // name index
+    );
+    mappings.push(mapping);
+  }
+
+  // Then, create mappings for the transformed code
+  for (let i = 0; i < codeLines.length; i++) {
     // Check if this line contains any ranges to remove
     const lineRanges = rangesToRemove.filter((range) => {
-      const rangeStartLine =
-        originalSource.slice(0, range.start).split("\n").length - 1;
-      const rangeEndLine =
-        originalSource.slice(0, range.end).split("\n").length - 1;
+      const rangeStartLine = originalSource.slice(0, range.start).split("\n").length - 1;
+      const rangeEndLine = originalSource.slice(0, range.end).split("\n").length - 1;
       return rangeStartLine <= sourceLine && rangeEndLine >= sourceLine;
     });
 
     if (lineRanges.length > 0) {
-      // Skip this line in the source map as it's being removed
-      sourceLine++;
-      // Add an empty mapping for this line
-      mappings.push("");
-      continue;
+      // For lines with directives, map to the original line including the directive
+      // but skip the directive range in the generated code
+      const mapping = createMapping(
+        i + 1, // generated line
+        currentColumn, // generated column
+        lastSourceIndex, // source index
+        sourceLine + 1 + (lineRanges[0].lineShift || 0), // original line with shift
+        sourceColumn, // original column
+        lastNameIndex // name index
+      );
+      mappings.push(mapping);
+
+      // Skip the directive range in the generated code
+      const directiveRange = lineRanges[0];
+      const directiveLength = directiveRange.end - directiveRange.start;
+      currentColumn += directiveLength;
+    } else {
+      // For regular lines, map to the original line
+      const mapping = createMapping(
+        i + 1, // generated line
+        currentColumn, // generated column
+        lastSourceIndex, // source index
+        sourceLine + 1, // original line
+        sourceColumn, // original column
+        lastNameIndex // name index
+      );
+      mappings.push(mapping);
     }
-
-    // Generate mapping for this line
-    // Format: [generatedColumn, sourceIndex, sourceLine, sourceColumn]
-    const mapping = [
-      encodeVLQ([currentColumn]), // generated column
-      encodeVLQ([0]), // source index (always 0 for now)
-      encodeVLQ([sourceLine]), // source line
-      encodeVLQ([sourceColumn]), // source column
-    ].join("");
-
-    mappings.push(mapping);
 
     // Update positions
     currentColumn = 0;
@@ -69,7 +102,30 @@ export function createSourceMap(
     names: [],
     mappings: mappingsString,
     sourceRoot: "",
-    sourcesContent: [originalSource],
+    sourcesContent: [originalSource], // Keep the original source with directives
+  };
+}
+
+/**
+ * Creates a function that generates VLQ mappings for source maps
+ */
+function createMappingsSerializer() {
+  return function createMapping(
+    generatedLine: number,
+    generatedColumn: number,
+    sourceIndex: number,
+    originalLine: number,
+    originalColumn: number,
+    nameIndex: number
+  ): string {
+    const values = [
+      generatedColumn,
+      sourceIndex,
+      originalLine,
+      originalColumn,
+      nameIndex,
+    ];
+    return encodeVLQ(values);
   };
 }
 

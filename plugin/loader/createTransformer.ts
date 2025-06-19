@@ -1,226 +1,188 @@
-import { parse, type ParseResult } from "./parse.js";
-import { transformModuleWithPreservedFunctions } from "./transformModuleWithPreservedFunctions.js";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
-import { isReactServerCondition } from "../config/getCondition.js";
-import { stripSourceMap, createSourceMap } from "./sourceMap.js";
-import { handleExports } from "./handleExports.js";
-import type { RawSourceMap } from "source-map";
-import { removeDirectives } from "./removeDirectives.js";
+import type { Loader } from "./types.js";
+import { transformModule } from "./transformModule.js";
+import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import { getNodeEnv } from "../getNodeEnv.js";
+import { isReactServerCondition } from "../config/getCondition.js";
+import { parse } from "./directives/parse.js";
+import type {
+  ParseResult,
+  Program,
+  DirectiveInfo,
+  DirectiveWarning,
+  DirectiveMatch,
+} from "./directives/types.js";
+import { analyzeDirectives } from "./directives/analyzeDirectives.js";
+import { getExports } from "./directives/getExports.js";
+import { findDirectiveMatches } from "./directives/findDirectiveMatches.js";
+import type { ResolvedUserOptions } from "../types.js";
+import type { TransformerFactory, TransformResult } from "./types.js";
 
 /**
- * Transforms a module using acorn-loose for parsing.
- * @returns Object containing the transformed code and its source map
+ * Creates a transformer that handles React Server Components (RSC) boundaries.
  */
-export function createTransformer({
+export const createTransformer: TransformerFactory = ({
   parseFn = parse,
-  rscLoader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
+  options,
+  forceServerFunction = undefined,
+  forceClientComponent = undefined,
   isServerEnvironment = isReactServerCondition(),
-  verbose = false,
-}: {
-  parseFn?: (source: string, verbose?: boolean) => ParseResult;
-  rscLoader?: {
-    importPath: string;
-    registerClientReferenceName: string;
-    registerServerReferenceName: string;
-  };
-  isServerEnvironment?: boolean;
-  verbose?: boolean;
-}): (
-  source: string,
-  moduleId: string,
-  isServerFunction: boolean | RegExpMatchArray | null,
-  isClientComponent: boolean | RegExpMatchArray | null
-) => { code: string; map: RawSourceMap | null } {
-  return (
-    source: string,
-    moduleId: string,
-    isServerFunction:
-      | boolean
-      | RegExpMatchArray
-      | null = DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode(
-      source,
-      moduleId
-    ),
-    isClientComponent:
-      | boolean
-      | RegExpMatchArray
-      | null = DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode(
-      source,
-      moduleId
-    )
-  ) => {
-    const parseResult: ParseResult = parseFn(source, verbose);
-    const { directives, program, sourceMap: parsedSourceMap } = parseResult;
-
-    const isClient =
-      directives.fileLevelClientDirective ||
-      directives.functionLevelClientDirectives.length > 0;
-    const isServer =
-      directives.fileLevelServerDirective ||
-      directives.functionLevelServerDirectives.length > 0 ||
-      directives.useServer;
-    if (isServer && !isServerFunction) {
-      throw new Error(
-        `Module ${moduleId} is expected to be a server function, but no 'use server' directive was found.`
-      );
+}) => {
+  return async (source: string, moduleId: string): Promise<TransformResult> => {
+    if (options.verbose) {
+      console.log(`[createTransformer] Loading: ${moduleId}`);
     }
-    if (isClient && !isClientComponent) {
-      throw new Error(
-        `Module ${moduleId} is expected to be a client component, but no 'use client' directive was found.`
-      );
+    // Fast-path: skip parsing and transformation if no directives are present
+    const matches = await findDirectiveMatches(source);
+
+    // Validate flags against matches
+    const hasServerDirective = matches.matches.some((m: DirectiveMatch) => m.type === "server");
+    const hasClientDirective = matches.matches.some((m: DirectiveMatch) => m.type === "client");
+
+    if (hasClientDirective === false && hasServerDirective === false) {
+      return { code: source, map: null };
+    }
+    let initialLineShift = 0;
+    let warnings: DirectiveWarning[] = [];
+    let removeClient = undefined as boolean | undefined;
+    let removeServer = undefined as boolean | undefined;
+    let appendClient = undefined as boolean | undefined;
+    let appendServer = undefined as boolean | undefined;
+    // Server function
+    if (forceServerFunction === true && hasServerDirective === false) {
+      appendServer = true;
+    } else if (forceServerFunction === false && hasServerDirective === true) {
+      removeServer = true;
+    } else if (
+      forceServerFunction === undefined &&
+      hasServerDirective === true
+    ) {
+      forceServerFunction = true;
+      if (hasClientDirective === true) {
+        removeClient = true;
+      }
+    }
+    // Client component
+    if (forceClientComponent === true && hasClientDirective === false) {
+      appendClient = true;
+    } else if (forceClientComponent === false && hasClientDirective === true) {
+      removeClient = true;
+    } else if (
+      forceClientComponent === undefined &&
+      hasClientDirective === true
+    ) {
+      forceClientComponent = true;
+      if (hasServerDirective === true) {
+        removeServer = true;
+      }
     }
 
-    let sourceWithoutMap = source;
-    if (parsedSourceMap && parsedSourceMap.start > 0) {
-      sourceWithoutMap = stripSourceMap(source);
-    }
+    // Parse the module to get AST, code, and map
+    const { ast, code, map } = await parseFn(source, options.verbose);
+    const exports = await getExports(ast);
+    const directiveInfo = analyzeDirectives(ast, source, {
+      loader: options.loader,
+      verbose: options.verbose
+    }, moduleId);
 
-    const sourceWithoutDirectives = removeDirectives(
-      sourceWithoutMap,
-      directives.directiveRanges
-    );
+    // Handle directive removal
+    let transformedSource = source;
+    if (removeServer || removeClient) {
+      const serverMatches = matches.matches.filter((m: DirectiveMatch) => m.type === "server");
+      const clientMatches = matches.matches.filter((m: DirectiveMatch) => m.type === "client");
 
-    // Get export names and create module ID literal
-    const { exportNames, exports } = handleExports(
-      sourceWithoutMap,
-      program,
-      isServerFunction,
-      isClientComponent
-    );
-
-    // Create source map with ranges to remove
-    const generatedSourceMap = createSourceMap(
-      sourceWithoutDirectives,
-      sourceWithoutMap,
-      moduleId,
-      directives.directiveRanges
-    );
-
-    // Throw if any illegal directive remains as a directive (not just as a string literal)
-    // We'll use a regex to check for directive statements at the start of a line (optionally with whitespace)
-    const illegalDirectiveRegex = /^\s*['"]use (server|client)['"]?/gm;
-    const matches = Array.from(
-      sourceWithoutDirectives.matchAll(illegalDirectiveRegex)
-    );
-    if (matches.length > 0) {
-      matches.forEach((match, idx) => {
-        const start = match.index;
-        const end = start !== undefined ? start + match[0].length : undefined;
-        console.error(
-          `  [${idx}] Directive: '${match[0]}' at position ${start} to ${end}`
-        );
-        const endNum =
-          typeof end === "number" ? end : typeof start === "number" ? start : 0;
-        if (start !== undefined) {
-          const context = sourceWithoutDirectives.slice(
-            Math.max(0, start - 20),
-            Math.min(sourceWithoutDirectives.length, endNum + 20)
-          );
-          console.error(`      Context: ...${context}...`);
+      // Remove directives in reverse order to maintain correct indices
+      if (removeServer) {
+        for (const match of serverMatches.reverse()) {
+          transformedSource =
+            transformedSource.slice(0, match.range[0]) +
+            transformedSource.slice(match.range[1]);
+          warnings.push({
+            type: "server",
+            message: "Server directive removed",
+            range: [match.range[0], match.range[1]],
+          });
         }
+      }
+      if (removeClient) {
+        for (const match of clientMatches.reverse()) {
+          transformedSource =
+            transformedSource.slice(0, match.range[0]) +
+            transformedSource.slice(match.range[1]);
+          warnings.push({
+            type: "client",
+            message: "Client directive removed",
+            range: [match.range[0], match.range[1]],
+          });
+        }
+      }
+    }
+
+    // Handle directive appending
+    if (appendServer) {
+      transformedSource = '"use server";\n' + transformedSource;
+      warnings.push({
+        type: "server",
+        message: "Server directive added",
+        range: [0, 0],
       });
-      // Don't throw, just log a warning
     }
-
-    // Handle environment-specific cases
-    if (isServerEnvironment) {
-      if (!exportNames.length && !exports.size) {
-        if (verbose) {
-          console.log(
-            "[transformWithAcornLoose] Skipping transformation for module:",
-            moduleId,
-            "because it has no exports"
-          );
+    if (appendClient) {
+      transformedSource = '"use client";\n' + transformedSource;
+      warnings.push({
+        type: "client",
+        message: "Client directive added",
+        range: [0, 0],
+      });
+    }
+    const needsHelpers =
+      (appendServer || appendClient || removeServer || removeClient);
+    const developmentHelpers = needsHelpers && getNodeEnv() !== "production"
+      ? {
+          directiveWarnings: warnings,
+          addDirectives: appendServer
+            ? (matches).matches.filter((m: DirectiveMatch) => m.type === "server").map((_: DirectiveMatch, i: number) => i)
+            : appendClient
+            ? (matches).matches.filter((m: DirectiveMatch) => m.type === "client").map((_: DirectiveMatch, i: number) => i)
+            : undefined,
+          removeDirectives: removeServer
+            ? (matches).matches.filter((m: DirectiveMatch) => m.type === "server").map((_: DirectiveMatch, i: number) => i)
+            : removeClient
+            ? (matches).matches.filter((m: DirectiveMatch) => m.type === "client").map((_: DirectiveMatch, i: number) => i)
+            : [],
         }
-        return { code: sourceWithoutDirectives, map: generatedSourceMap };
-      }
-      // In server environment:
-      // - Server functions need transformation
-      //   - Top Level: all exported functions & remove directives
-      //   - Function Level: has directive & is exported = register & remove directives
-      // - Client components need transformation
-      // - Other modules can pass through
-      if (!isServerFunction && !isClientComponent) {
-        if (verbose) {
-          console.log(
-            "[transformModuleIfNeeded] Skipping transformation for module:",
-            moduleId,
-            "because it is not a server function or client component"
-          );
-        }
-        return { code: sourceWithoutDirectives, map: generatedSourceMap };
-      }
-    } else {
-      // In client environment:
-      // - Only client components should pass through
-      // - Server functions should not be there (already handled by the server environment)
-      if (isClientComponent) {
-        if (verbose) {
-          console.log(
-            "[transformModuleIfNeeded] Skipping transformation for module:",
-            moduleId,
-            "because it is a client component on a non-server environment"
-          );
-        }
-        return { code: sourceWithoutDirectives, map: generatedSourceMap };
-      }
-    }
-
-    // Strict RSC: cannot be both server and client
-    if (isServerFunction && isClientComponent) {
-      throw new Error(
-        `Module ${moduleId} cannot be both a server function and a client component.`
-      );
-    }
-    if (verbose) {
-      console.log(
-        "[transformWithAcornLoose] functionLevelServerDirectives:",
-        directives.functionLevelServerDirectives
-      );
-    }
-
-    // Strict RSC rules
-    if (isServerFunction && isClientComponent) {
-      throw new Error(
-        `Module ${moduleId} cannot be both a server function and a client component.`
-      );
-    }
-    if (!isServerFunction && directives.useServer) {
-      throw new Error(
-        `Module ${moduleId} contains a 'use server' directive, but it wasn't specified as a server component.`
-      );
-    }
-    if (!isClientComponent && directives.useClient) {
-      throw new Error(
-        `Module ${moduleId} contains a 'use client' directive, but it wasn't specified as a client component.`
-      );
-    }
-
-    if (isClientComponent) {
-      if (
-        directives.functionLevelClientDirectives &&
-        directives.functionLevelClientDirectives.length > 0
-      ) {
-        throw new Error(
-          `Module ${moduleId} is a client component but contains function-level 'use client' directives.`
-        );
-      }
+      : null;
+    if(warnings.length > 0) {
+      // throw first warning as error
+      const error = new Error(warnings[0].message);
+      Error.captureStackTrace(error, createTransformer);
+      throw error;
     }
 
     // Transform the module
-    const transformedCode = transformModuleWithPreservedFunctions(
-      sourceWithoutDirectives,
+    const transformedCode = await transformModule(
+      transformedSource,
       moduleId,
-      directives,
-      { exportNames, exports },
-      isServerFunction,
-      isClientComponent,
-      isServerEnvironment,
-      rscLoader,
-      verbose
+      {
+        type: "success",
+        ast,
+        code,
+        map,
+        exports,
+        directiveInfo,
+      },
+      {
+        forceServerFunction: forceServerFunction ?? hasServerDirective,
+        forceClientComponent: forceClientComponent ?? hasClientDirective,
+        isServerEnvironment,
+        loader: options.loader,
+        directiveWarnings: warnings,
+        verbose: options.verbose || false,
+        ...developmentHelpers,
+      }
     );
-
-    return { code: transformedCode, map: generatedSourceMap };
+    return {
+      code: transformedCode.code,
+      map: transformedCode.map || null,
+    };
   };
-}
+};

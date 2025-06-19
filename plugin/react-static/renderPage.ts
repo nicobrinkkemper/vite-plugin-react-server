@@ -1,26 +1,20 @@
 import { createRenderMetrics } from "../helpers/metrics.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import type {
-  CreateHandlerOptions,
   RenderPageResult,
-  PagePropOpt,
-  InlineCssOpt,
-  ModuleLoader,
+  ReactStreamHandlerFn,
 } from "../types.js";
 import { renderStreams } from "./renderStreams.js";
 import { collectHtmlWorkerContent } from "./collectHtmlWorkerContent.js";
 import { collectRscContent } from "./collectRscContent.js";
 
-export async function* renderPage<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
->(
-  handlerOptions: CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>
-): AsyncGenerator<RenderPageResult, void, unknown> {
+export type RenderPageReturn = AsyncGenerator<RenderPageResult, void, unknown>;
+
+export type RenderPageFn = ReactStreamHandlerFn<RenderPageReturn>
+
+export const renderPage: RenderPageFn = async function* _renderPage(
+  handlerOptions
+) {
   if (!handlerOptions.pagePath) {
     yield {
       type: "skip",
@@ -37,8 +31,9 @@ export async function* renderPage<
       propsPath: handlerOptions.propsPath,
       propsExportName: handlerOptions.propsExportName,
       route: handlerOptions.route,
-      loader: handlerOptions.loader as ModuleLoader<T, N1, N2>,
+      loader: handlerOptions.loader,
     });
+    console.log("pageAndPropsResult", pageAndPropsResult);
 
     if (pageAndPropsResult.type === "error") {
       yield {
@@ -59,9 +54,9 @@ export async function* renderPage<
 
     const newHandlerOptions = {
       ...handlerOptions,
-      PageComponent,
-      pageProps,
-    } as CreateHandlerOptions<T>;
+      PageComponent: PageComponent as never,
+      pageProps: pageProps as never,
+    };
     // Create streams with CSS files
     const [rscFull, rscHeadless] = await renderStreams(newHandlerOptions);
     // Handle stream creation errors

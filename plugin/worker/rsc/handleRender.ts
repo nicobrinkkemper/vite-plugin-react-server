@@ -10,18 +10,16 @@ import { workerData } from "node:worker_threads";
 import { React } from "../../vendor/vendor.server.js";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
-import type { InlineCssOpt, ModuleLoader, PagePropOpt } from "../../types.js";
+import type { AsOpt, InlineCssOpt, BuildModuleLoader, PageName, PagePropOpt, PropsName, ResolvedUserOptions, StreamPluginOptions } from "../../types.js";
 
-export async function handleRender<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
->(
-  msg: RscRenderMessage<T, InlineCSS, N1, N2, ID1, ID2>,
+export type HandleRenderFn = <Msg extends RscRenderMessage = RscRenderMessage>(
+  msg: Msg,
   handlers: StreamHandlers
+) => Promise<void>;
+
+export const handleRender: HandleRenderFn = async function _handleRender(
+  msg,
+  handlers
 ) {
   const {
     id,
@@ -62,7 +60,7 @@ export async function handleRender<
         if(!exportName) return res;
         if(exportName in res) return { [exportName]: res[exportName] };
         return res;
-      }) as ModuleLoader<T, N1, N2>, 
+      }) as BuildModuleLoader<ResolvedUserOptions>, 
     });
     if (pageAndPropsResult.type !== "success") {
       const { error, ...rest } = pageAndPropsResult;

@@ -88,7 +88,7 @@ describe("Server Action Integration", () => {
     const errorActionPath = resolve(testDir, "src/page/actions.server.ts");
     const errorActionContent = `"use server";
 
-export function add(a, b) {
+export async function add(a, b) {
   const error = new Error('Test error');
   error.name = 'Error';
   error.digest = '';

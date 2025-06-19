@@ -6,10 +6,47 @@ type ResolveFunction = (
   nextResolve?: ResolveFunction
 ) => Promise<{ url: string; shortCircuit: boolean }>;
 
+type GetSourceHookContext = {
+  format: string;
+  url: string;
+};
+
+type GetSourceFunction = (
+  url: string,
+  context: GetSourceHookContext,
+  defaultGetSource: GetSourceFunction
+) => Promise<{ source: string | ArrayBuffer | SharedArrayBuffer | Uint8Array }>;
+
 let stashedResolve: ResolveFunction | null = null;
+let stashedGetSource: GetSourceFunction | null = null;
 
 export function setStashedResolve(resolve: ResolveFunction) {
   stashedResolve = resolve;
+}
+
+export function setStashedGetSource(getSource: GetSourceFunction) {
+  stashedGetSource = getSource;
+}
+
+export async function resolve(specifier: string, context: ResolveHookContext, defaultResolve: ResolveFunction) {
+  // We stash this in case we end up needing to resolve export * statements later.
+  stashedResolve = defaultResolve;
+  
+  // Add react-server condition if not present
+  if (!context.conditions.includes('react-server')) {
+    context = {
+      ...context,
+      conditions: [...context.conditions, 'react-server']
+    };
+  }
+  
+  return await defaultResolve(specifier, context, defaultResolve);
+}
+
+export async function getSource(url: string, context: GetSourceHookContext, defaultGetSource: GetSourceFunction) {
+  // We stash this in case we end up needing to resolve export * statements later.
+  stashedGetSource = defaultGetSource;
+  return defaultGetSource(url, context, defaultGetSource);
 }
 
 export async function resolveClientImport(specifier: string, parentURL: string) {

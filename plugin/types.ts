@@ -18,6 +18,7 @@ import type {
   Connect,
   Logger,
   Manifest,
+  Plugin,
   ResolveOptions,
   UserConfig,
   ViteDevServer,
@@ -30,6 +31,15 @@ import type {
   serializeResolvedConfig,
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
+
+export type ReactStreamPluginFn<R extends Record<string, unknown> = {
+  meta: ReactStreamPluginMeta;
+}> = <
+  Opt extends StreamPluginOptions = StreamPluginOptions
+>(
+  options: Opt
+) => Plugin<R>;
+
 export type OnEvent = (event: PluginEvent) => void;
 
 export type MessageHandler<
@@ -157,11 +167,8 @@ export type SerializedUserConfig<
 > = ReturnType<typeof serializeResolvedUserConfig<T>>;
 
 export type SerializedUserOptions<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
-> = ReturnType<typeof serializedOptions<T, N1, N2, InlineCSS>>;
+  Opt extends ResolvedUserOptions = ResolvedUserOptions
+> = ReturnType<typeof serializedOptions<Opt>>;
 
 export type SerializedResolvedConfig = ReturnType<
   typeof serializeResolvedConfig
@@ -180,80 +187,148 @@ export type StreamPluginOptionsClient = {
   cssFiles?: AliasOptions;
 };
 
-export type ResolvedUserOptions<
+type BaseKeys =
+  | "moduleBase"
+  | "moduleBasePath"
+  | "moduleBaseURL"
+  | "moduleRootPath"
+  | "projectRoot"
+  | "pageExportName"
+  | "propsExportName"
+  | "htmlWorkerPath"
+  | "rscWorkerPath"
+  | "loaderPath"
+  | "clientEntry"
+  | "serverEntry"
+  | "publicOrigin"
+  | "verbose";
+
+export type NestedConfigKeys =
+  | "build"
+  | "autoDiscover"
+  | "loader"
+  | "css"
+  | "pipeableStreamOptions";
+
+export type EventKeys = "onMetrics" | "onEvent";
+
+export type NormalizerKeys = "normalizer" | "moduleID";
+
+export type ComponentKeys = "Html" | "CssCollector";
+
+export type SourceURLKeys = "Page" | "props";
+
+export type AutoDiscoverConfig = {
+  modulePattern: RegExp;
+  serverPattern: RegExp;
+  clientPattern: RegExp;
+  pagePattern: RegExp;
+  propsPattern: RegExp;
+  cssPattern: RegExp;
+  jsonPattern: RegExp;
+  htmlPattern: RegExp;
+  cssModulePattern: RegExp;
+  vendorPattern: RegExp;
+  nodePattern: RegExp;
+  dotPattern: RegExp;
+  virtualPattern: RegExp;
+  rscPattern: RegExp;
+};
+
+export type TransformResult = {
+  source: string;
+  isServer: boolean;
+  isClient: boolean;
+  isServerEnvironment: boolean;
+};
+
+export type LoaderConfig = {
+  serverDirective: RegExp;
+  clientDirective: RegExp;
+  allowedDirectives: AllowedDirectives;
+  getDirectiveType: (
+    directive: string,
+    moduleId?: string
+  ) => "client" | "server" | undefined;
+  mode: "development" | "production" | "test";
+  importServerPath: string;
+  importClientPath: string;
+  registerClientReferenceName: string;
+  registerServerReferenceName: string;
+  isServerFunctionCode: (code: string, moduleId?: string) => boolean;
+  isClientComponentCode: (code: string, moduleId?: string) => boolean;
+};
+
+export type GenericModuleLoader = (
+  id: string
+) => Promise<Record<string, unknown>>;
+
+export type BuildModuleLoader<
+  Opt extends Pick<ResolvedUserOptions, "pageExportName" | "propsExportName"> = Pick<ResolvedUserOptions, "pageExportName" | "propsExportName">,
   T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
-> = Required<
-  Pick<
-    StreamPluginOptions<T, InlineCSS, "div", N1, N2>,
-    | "moduleBase"
-    | "moduleBasePath"
-    | "moduleBaseURL"
-    | "moduleRootPath"
-    | "projectRoot"
-    | "build"
-    | "Page"
-    | "Html"
-    | "CssCollector"
-    | "pageExportName"
-    | "propsExportName"
-    | "htmlWorkerPath"
-    | "rscWorkerPath"
-    | "loaderPath"
-    | "clientEntry"
-    | "serverEntry"
-    // | "moduleBaseExceptions"
-    | "pipeableStreamOptions"
-    | "onMetrics"
-    | "onEvent"
-    | "css"
-    | "normalizer"
-    | "moduleID"
-    | "publicOrigin"
-    | "verbose"
-  >
+> = <
+  STR extends string,
+  ID extends string = STR extends `${infer I extends string}${string}${string}`
+    ? I
+    : never,
+  Special extends "?" | "#" | "" = STR extends `${string}${infer X extends
+    | "?"
+    | "#"}${string}`
+    ? X
+    : "",
+  Extra extends string = STR extends `${string}${string}${infer Y extends string}`
+    ? Y
+    : ""
+>(
+  moduleId: STR
+) => Promise<
+  STR extends `${ID}${Special}${Extra}`
+    ? `${Special}${Extra}` extends "?inline"
+      ? { default: string }
+      : Extra extends Opt["pageExportName"]
+      ? {
+          [k in Extra]: (props: T) => any;
+        }
+      : Extra extends Opt["propsExportName"]
+      ? {
+          [k in Extra]: T;
+        }
+      : Extra extends string
+      ? Special extends "#"
+        ? { [k in Extra]: unknown }
+        : Record<string, unknown>
+      : Record<string, unknown>
+    : Record<string, unknown>
+>;
+
+export type StreamError = {
+  code?: string;
+} & Error;
+
+export type ResolvedUserOptions<
+  R extends StreamPluginOptions = StreamPluginOptions
+> = Pick<
+  Required<{
+    [K in keyof R]-?: NonNullable<R[K]>;
+  }>,
+  BaseKeys | ComponentKeys | SourceURLKeys | EventKeys | NormalizerKeys
 > & {
-  props:
-    | undefined
-    | string
-    | ((url: string) => string)
-    | ((url: string) => Promise<string>);
-  build: NonNullable<Required<StreamPluginOptions<T, InlineCSS>["build"]>>;
-  css: NonNullable<Required<StreamPluginOptions<T, InlineCSS>["css"]>> & {
-    inlineCss: InlineCSS;
-  };
-  autoDiscover: {
-    moduleExtension: RegExp;
-    serverDirective: RegExp;
-    clientDirective: RegExp;
-    cssExtension: string;
-    jsonExtension: string;
-    htmlExtension: string;
-    rscExtension: string;
-    jsExtension: string;
-    modulePattern: (path: string) => boolean;
-    cssPattern: (path: string) => boolean;
-    jsonPattern: (path: string) => boolean;
-    clientComponents: (path: string) => boolean;
-    propsPattern: (path: string) => boolean;
-    pagePattern: (path: string) => boolean;
-    htmlPattern: (path: string) => boolean;
-    rscPattern: (path: string) => boolean;
-    serverFunctions: (path: string) => boolean;
-    cssModulePattern: (path: string) => boolean;
-    vendorPattern: (path: string) => boolean;
-    nodeOnly: (path: string) => boolean;
-    dotFiles: (path: string) => boolean;
-    /**
-     * Check if path is like /@
-     * @param path
-     * @returns
-     */
-    virtualPattern: (path: string) => boolean;
-    isServerFunctionCode: (code: string) => boolean;
-    isClientComponentCode: (code: string) => boolean;
+  pipeableStreamOptions: Required<ReactServerDomEsmOptions>;
+  autoDiscover: Required<AutoDiscoverConfig>;
+  loader: Required<LoaderConfig>;
+  build: Required<BuildConfig>;
+  css: CssCollectorOptions<boolean>;
+};
+
+export type DirectiveOptions<R extends ResolvedUserOptions = ResolvedUserOptions> = Pick<
+  R,
+  "verbose"
+> & {
+  loader: Pick<
+    R["loader"],
+    "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType"
+  > & {
+    allowedDirectives: AllowedDirectives;
   };
 };
 
@@ -301,16 +376,8 @@ export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
 /**
  * Boxed component type for the CssCollector
  */
-export type CssCollectorBoxedType<
-  _T extends PagePropOpt = PagePropOpt,
-  _InlineCSS extends InlineCssOpt = InlineCssOpt,
-  _As extends AsOpt = AsOpt
-> = <
-  T extends _T = _T,
-  InlineCSS extends _InlineCSS = _InlineCSS,
-  As extends _As = _As
->(
-  props: CssCollectorProps<T, InlineCSS, As>
+export type CssCollectorFn = (
+  props: CssCollectorProps
 ) => React.ReactElement;
 
 export type CssCollectorProps<
@@ -323,7 +390,7 @@ export type CssCollectorProps<
   pageProps?: T;
   Page: PageComponentType<T>;
   id?: string;
-} & React.ComponentPropsWithoutRef<As>;
+} & Omit<React.ComponentPropsWithoutRef<As>, "children">;
 
 export type CssCollectorComponent = (
   props: CssCollectorProps
@@ -470,8 +537,8 @@ export type StreamPluginOptions<
   T extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
   As extends AsOpt = AsOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
+  N1 extends string = PageName,
+  N2 extends string = PropsName
 > = {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
@@ -480,58 +547,195 @@ export type StreamPluginOptions<
   moduleRootPath?: string; // defaults to client's dist folder
   publicOrigin?: string; // defaults to window.location.origin in client & http://localhost:port in development
   clientEntry?: string;
-  serverEntry?: string;
+  serverEntry?: string; // Loader configuration
+  loader?: {
+    importServerPath?: string;
+    importClientPath?: string;
+    registerClientReferenceName?: string;
+    registerServerReferenceName?: string;
+    serverDirective?: RegExpOpt;
+    clientDirective?: RegExpOpt;
+    directivePattern?: RegExpOpt;
+    isServerFunctionCode?: (code: string, moduleId?: string) => boolean;
+    isClientComponentCode?: (code: string, moduleId?: string) => boolean;
+    allowedDirectives?: string[] | AllowedDirectives;
+    mode?: "development" | "production" | "test";
+    getDirectiveType?: (
+      directive: string,
+      moduleId?: string
+    ) => "client" | "server" | undefined;
+  };
   // Auto-discovery (zero-config)
   autoDiscover?:
     | {
-        // default: /\.(m|c)?(j|t)sx?$/
-        moduleExtension?: RegExp;
-        // default: /^"use server"[\s;]*\n?/m
-        serverDirective?: RegExp;
-        // default: /^"use client"[\s;]*\n?/m
-        clientDirective?: RegExp;
-        // css extension
-        cssExtension?: string;
-        // json extension
-        jsonExtension?: string;
-        // html extension
-        htmlExtension?: string;
-        // rsc extension
-        rscExtension?: string;
-        // .js extension
-        jsExtension?: string;
-        // default: /\.(m|c)?(j|t)sx?$/
-        modulePattern?: RegExpOpt;
-        // default: [Pp]age.tsx
-        pagePattern?: RegExpOpt;
-        // default: [Pp]rops.ts
-        propsPattern?: RegExpOpt;
-        // default: "use client" and .client./\.(m|c)?(j|t)sx?$/
-        clientComponents?: RegExpOpt;
-        // default: "use server" and .server./\.(m|c)?(j|t)sx?$/
-        serverFunctions?: RegExpOpt;
-        // default: /\.css$/
+        // CSS related
+        /**
+         * Pattern to match CSS files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   cssPattern: ".css$",
+         *   // Or RegExp pattern
+         *   cssPattern: /\.css$/
+         * }
+         */
         cssPattern?: RegExpOpt;
-        // default: /\.json$/
-        jsonPattern?: RegExpOpt;
-        // default: /\.html$/
-        htmlPattern?: RegExpOpt;
-        // default: /\.css\.js/
+        /**
+         * Pattern to match CSS module files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   cssModulePattern: ".css\\.js$",
+         *   // Or RegExp pattern
+         *   cssModulePattern: /\.css\.js$/
+         * }
+         */
         cssModulePattern?: RegExpOpt;
-        // default: /node_modules|(_virtual)/
-        vendorPattern?: RegExpOpt;
-        // default: /\.node\.js$/
-        nodeOnly?: RegExpOpt;
-        // default: /\.node\.js$/
-        dotFiles?: RegExpOpt;
-        // default: /\.node\.js$/
-        virtualPattern?: RegExpOpt;
-        // default: /\.rsc$/
+
+        // Client/Server related
+        /**
+         * Pattern to match client component files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   clientPattern: ".client\\.(js|ts|jsx|tsx)$",
+         *   // Or RegExp pattern
+         *   clientPattern: /\.client\.(js|ts|jsx|tsx)$/
+         * }
+         */
+        clientPattern?: RegExpOpt;
+        /**
+         * Pattern to match server function files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   serverPattern: ".server\\.(js|ts|jsx|tsx)$",
+         *   // Or RegExp pattern
+         *   serverPattern: /\.server\.(js|ts|jsx|tsx)$/
+         * }
+         */
+        serverPattern?: RegExpOpt;
+
+        // HTML related
+        /**
+         * Pattern to match HTML files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   htmlPattern: ".html$",
+         *   // Or RegExp pattern
+         *   htmlPattern: /\.html$/
+         * }
+         */
+        htmlPattern?: RegExpOpt;
+
+        // JSON related
+        /**
+         * Pattern to match JSON files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   jsonPattern: ".json$",
+         *   // Or RegExp pattern
+         *   jsonPattern: /\.json$/
+         * }
+         */
+        jsonPattern?: RegExpOpt;
+
+        // JS/Module related
+
+        /**
+         * Pattern to match module files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   modulePattern: "\\.(js|ts|jsx|tsx)$",
+         *   // Or RegExp pattern
+         *   modulePattern: /\.(js|ts|jsx|tsx)$/
+         * }
+         */
+        modulePattern?: RegExpOpt;
+
+        // RSC related
+        /**
+         * Pattern to match RSC files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   rscPattern: ".rsc$",
+         *   // Or RegExp pattern
+         *   rscPattern: /\.rsc$/
+         * }
+         */
         rscPattern?: RegExpOpt;
-        // default: isServerFunctionCode
-        isServerFunctionCode?: (code: string, moduleId?: string) => boolean;
-        // default: isClientComponentCode
-        isClientComponentCode?: (code: string, moduleId?: string) => boolean;
+
+        // Page/Props related
+        /**
+         * Pattern to match page files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   pagePattern: "[Pp]age\\.(js|ts|jsx|tsx)$",
+         *   // Or RegExp pattern
+         *   pagePattern: /[Pp]age\.(js|ts|jsx|tsx)$/
+         * }
+         */
+        pagePattern?: RegExpOpt;
+        /**
+         * Pattern to match props files. If not provided, uses default pattern.
+         * Provide either a string pattern or RegExp.
+         * @example ```ts
+         * autoDiscover: {
+         *   // String pattern
+         *   propsPattern: "[Pp]rops\\.(js|ts|jsx|tsx)$",
+         *   // Or RegExp pattern
+         *   propsPattern: /[Pp]rops\.(js|ts|jsx|tsx)$/
+         * }
+         */
+        propsPattern?: RegExpOpt;
+
+        // Special patterns
+        /**
+         * Pattern to match dot files. No interpolation support.
+         * @example ```ts
+         * autoDiscover: {
+         *   dotFiles: /^\.[^/]+$/
+         * }
+         */
+        dotPattern?: RegExpOpt;
+        /**
+         * Pattern to match Node.js native modules. No interpolation support.
+         * @example ```ts
+         * autoDiscover: {
+         *   nodePattern: /.node/
+         * }
+         */
+        nodePattern?: RegExpOpt;
+        /**
+         * Pattern to match vendor files. No interpolation support.
+         * @example ```ts
+         * autoDiscover: {
+         *   vendorPattern: /node_modules|_virtual/
+         * }
+         */
+        vendorPattern?: RegExpOpt;
+        /**
+         * Pattern to match virtual files. No interpolation support.
+         * @example ```ts
+         * autoDiscover: {
+         *   virtualPattern: /^virtual:/
+         * }
+         */
+        virtualPattern?: RegExpOpt;
       }
     | undefined;
   // Manual configuration
@@ -548,7 +752,7 @@ export type StreamPluginOptions<
   pageExportName?: N1;
   propsExportName?: N2;
   Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment;
-  CssCollector?: CssCollectorBoxedType<T, InlineCSS>;
+  CssCollector?: CssCollectorFn;
   build?: BuildConfig;
   css?: CssCollectorOptions<InlineCSS>;
   // moduleBaseExceptions?: string[];
@@ -560,13 +764,8 @@ export type StreamPluginOptions<
   verbose?: boolean;
 };
 
-export type MultiPageHandlerOptions<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
-> = Omit<
-  CreateHandlerOptions<T, N1, N2, string, string, InlineCSS>,
+export type MultiPageHandlerOptions<Opt extends ResolvedUserOptions = ResolvedUserOptions> = Omit<
+  CreateHandlerOptions<Opt>,
   | "pagePath"
   | "route"
   | "cssFiles"
@@ -575,15 +774,8 @@ export type MultiPageHandlerOptions<
   | "PageComponent"
 >;
 
-export type CreateHandlerOptions<
-  T extends PagePropOpt = PagePropOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
-> = Pick<
-  ResolvedUserOptions<T, InlineCSS, N1, N2>,
+export type CreateHandlerOptions<Opt extends ResolvedUserOptions = ResolvedUserOptions> = Pick<
+  Opt,
   | "autoDiscover"
   | "css"
   | "pageExportName"
@@ -595,7 +787,6 @@ export type CreateHandlerOptions<
   | "moduleBasePath"
   | "moduleBaseURL"
   | "publicOrigin"
-  | "pipeableStreamOptions"
   | "onEvent"
   | "onMetrics"
   | "projectRoot"
@@ -604,20 +795,22 @@ export type CreateHandlerOptions<
   | "verbose"
 > & {
   logger: Logger;
-  loader: ModuleLoader<T, N1, N2>;
-  pagePath: ID1;
-  propsPath?: ID2;
-  pageProps?: T;
-  PageComponent?: PageComponentType<T>;
+  loader: BuildModuleLoader | GenericModuleLoader;
+  pagePath: string;
+  propsPath?: string;
+  pageProps?: PagePropOpt;
+  PageComponent?: PageComponentType<PagePropOpt>;
+  RootComponent?: AsOpt;
   route: string;
   manifest: Manifest;
   worker?: Worker;
   server?: ViteDevServer;
   importedCss?: Set<string>;
-  cssFiles: Map<string, CssContent<InlineCSS>>;
-  globalCss: Map<string, CssContent<InlineCSS>>;
+  cssFiles: Map<string, CssContent<InlineCssOpt>>;
+  globalCss: Map<string, CssContent<InlineCssOpt>>;
+  pipeableStreamOptions: ReactServerDomEsmOptions;
   build: Pick<
-    ResolvedUserOptions<T, InlineCSS>["build"],
+    ResolvedUserOptions["build"],
     | "outDir"
     | "pages"
     | "server"
@@ -639,24 +832,6 @@ export type ResolvePropsOptions = {
   propsExportName: string;
   url: string;
 };
-
-export type ModuleLoader<
-  T extends PagePropOpt = PagePropOpt,
-  PageNames extends string = "Page",
-  PropNames extends string = "props"
-> = <ID extends string, Special extends "?" | "#" | "", Extra extends string>(
-  moduleID: `${ID}${Special}${Extra}`
-) => Special extends "?"
-  ? Extra extends "inline"
-    ? Promise<{ default: string }>
-    : never
-  : Special extends "#"
-  ? Extra extends PageNames
-    ? Promise<Record<Extra, React.ComponentType<T>>>
-    : Extra extends PropNames
-    ? Promise<Record<Extra, T>>
-    : never
-  : Promise<Record<never, never>>;
 
 export type BaseProps = {
   manifest: Manifest;
@@ -713,6 +888,15 @@ export type BuildConfig = {
   entryFile?: (n: PreRenderedChunk, ssr: boolean) => string;
   chunkFile?: (n: PreRenderedChunk, ssr: boolean) => string;
   assetFile?: (n: PreRenderedAsset, ssr: boolean) => string;
+  extensionMap?: Record<string, string>;
+  moduleExtension?: string;
+  jsExtension?: string;
+  cssExtension?: string;
+  htmlExtension?: string;
+  jsonExtension?: string;
+  rscExtension?: string;
+  cssModuleExtension?: string;
+  nodeExtension?: string;
 };
 
 export type RequestHandler = Connect.NextHandleFunction;
@@ -789,7 +973,15 @@ export type PagePath = string & { readonly __brand: unique symbol };
 
 export type InlineCssOpt = undefined | boolean;
 export type PagePropOpt = Record<string, unknown> | undefined;
-export type RegExpOpt = RegExp | string | ((path: string) => boolean);
+export interface DeserializedRegExp {
+  source: string;
+  flags: string;
+  __isRegExp: boolean;
+}
+
+export type RegExpOpt = RegExp | string | DeserializedRegExp;
+export type PageName = "Page";
+export type PropsName = "props";
 
 export type AsOpt =
   | ExoticComponent<FragmentProps>
@@ -813,9 +1005,9 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  CssCollector: CssCollectorBoxedType<T, InlineCSS, As>;
+  CssCollector: CssCollectorFn;
   globalCss: Map<string, CssContent<InlineCSS>>;
-  as: As;
+  as?: As;
 };
 
 export type PageAsset = {
@@ -1054,3 +1246,72 @@ export {
   createFlightBindings,
   defaultFlightBindings,
 } from "./config/flightBindings.js";
+
+export type DirectiveConfig = {
+  /**
+   * Whether this directive is allowed at function level
+   */
+  functionLevel: boolean;
+  /**
+   * Whether this directive targets client or server components
+   */
+  target: "client" | "server";
+  /**
+   * Optional validation function to check if the directive is valid in its context
+   */
+  validate?: (params: {
+    code: string;
+    moduleId?: string;
+    index: number;
+    match: RegExpExecArray;
+  }) => boolean;
+  /**
+   * Optional warning message to show when this directive is used incorrectly
+   */
+  warning?: string;
+};
+
+export type AllowedDirectives = Record<string, DirectiveConfig>;
+
+export type AllowedDirectiveInput =
+  | string
+  | [string, "client" | "server"]
+  | AllowedDirectives
+  | undefined;
+
+export type DirectiveMatch = {
+  type: "server" | "client";
+  range: [number, number];
+  name?: string;
+  exportName?: string;
+  message?: string;
+  directive: string; // The actual directive that was matched
+  config: DirectiveConfig; // The configuration for this directive
+};
+
+export type ReactStreamOptionsFn<ReturnType = void> = <
+  PageProp extends PagePropOpt = PagePropOpt,
+  As extends AsOpt = AsOpt,
+  N1 extends string = PageName,
+  N2 extends string = PropsName,
+  Input extends StreamPluginOptions<
+    PageProp,
+    InlineCssOpt,
+    As,
+    N1,
+    N2
+  > = StreamPluginOptions<PageProp, InlineCssOpt, As, N1, N2>,
+  Output extends ReturnType = ReturnType
+>(
+  options: Input
+) => Output;
+
+export type ReactStreamHandlerFn<ReturnType> = <
+  Opt extends CreateHandlerOptions = CreateHandlerOptions
+>(
+  options: Opt
+) => ReturnType;
+
+export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
+  options: ResolvedUserOptions
+) => ReturnType;

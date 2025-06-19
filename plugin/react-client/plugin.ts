@@ -3,8 +3,9 @@ import type {
   AutoDiscoveredFiles,
   InlineCssOpt,
   PagePropOpt,
+  ReactStreamPluginFn,
+  ReactStreamPluginMeta,
   ResolvedUserConfig,
-  StreamPluginOptions,
 } from "../types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -13,10 +14,11 @@ import { configureWorkerRequestHandler } from "./configureWorkerRequestHandler.j
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { MessageChannel } from "node:worker_threads";
 
-export function reactClientPlugin<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->(options: StreamPluginOptions<T, InlineCSS>): Plugin {
+export type ReactClientPluginFn = ReactStreamPluginFn<{
+  meta: ReactStreamPluginMeta;
+}>
+
+export const reactClientPlugin:ReactClientPluginFn = function _reactClientPlugin(options) {
   let userConfig: ResolvedUserConfig;
   let configEnv: ConfigEnv;
   let root: string;
@@ -56,7 +58,7 @@ export function reactClientPlugin<
       }
       autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
 
-      const resolvedConfig = resolveUserConfig<T, InlineCSS>({
+      const resolvedConfig = resolveUserConfig({
         condition: "react-client",
         config,
         configEnv,
@@ -72,7 +74,7 @@ export function reactClientPlugin<
       return userConfig;
     },
     async configurePreviewServer(server) {
-      await configurePreviewServer<T, InlineCSS>({
+      await configurePreviewServer({
         server,
         userOptions,
       });
@@ -95,7 +97,7 @@ export function reactClientPlugin<
     async configureServer(server) {
       // Create HMR message channel
       hmrChannel = new MessageChannel();
-      await configureWorkerRequestHandler<T, InlineCSS>({
+      await configureWorkerRequestHandler({
         server,
         autoDiscoveredFiles,
         userOptions,
@@ -107,7 +109,7 @@ export function reactClientPlugin<
     async handleHotUpdate({ file, server, timestamp, ...ctx }) {
       try {
         // Check if the file is a page or props file
-        const isPageFile = userOptions.autoDiscover.modulePattern(file);
+        const isPageFile = userOptions.autoDiscover.modulePattern.test(file);
         if (!isPageFile) return;
 
         // Get the route for this file

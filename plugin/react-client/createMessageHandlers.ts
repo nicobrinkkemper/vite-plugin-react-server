@@ -24,7 +24,20 @@ export function createMessageHandler({
         if(verbose) logger.info("[react-client] Worker is ready");
         break;
       case "ERROR":
-        handlers.onError(message.id, message.error, message.errorInfo);
+        const error = typeof message.error === 'string' 
+          ? { 
+              message: message.error,
+              reason: message.error,
+              stack: undefined,
+              name: 'Error'
+            }
+          : { 
+              ...message.error,
+              reason: message.error?.message || 'Unknown error',
+              name: message.error?.name || 'Error',
+              stack: message.error?.stack
+            };
+        handlers.onError(message.id, error, message.errorInfo);
         break;
       case "RSC_CHUNK":
         handlers.onData(message.id, message.chunk);

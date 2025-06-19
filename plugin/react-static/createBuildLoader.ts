@@ -1,10 +1,13 @@
 import { join } from "node:path";
 import type {
   InlineCssOpt,
-  ModuleLoader,
+  BuildModuleLoader,
+  PageName,
   PagePropOpt,
+  PropsName,
   ResolvedUserConfig,
   ResolvedUserOptions,
+  AsOpt,
 } from "../../server.js";
 import type { Manifest } from "vite";
 import { getModuleRef } from "../helpers/moduleRefs.js";
@@ -12,18 +15,13 @@ import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";
 import { toError } from "../error/toError.js";
 
-export type BuildLoaderOptions<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
-> = {
+export type CreateBuildLoaderFn = (props: {
   userConfig: ResolvedUserConfig;
-  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>;
+  userOptions: ResolvedUserOptions;
   serverManifest: Manifest;
   clientManifest: Manifest;
   staticManifest: Manifest;
-}
+}, bundle: OutputBundle) => BuildModuleLoader;
 
 /**
  * Creates a loader function for handling module resolution during build.
@@ -33,19 +31,14 @@ export type BuildLoaderOptions<
  *  - For server components: Use server manifest and server.js
  *  - For static assets: Use static manifest
  */
-export function createBuildLoader<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->(
+export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoader(
   {
     userOptions,
     serverManifest,
     clientManifest,
     staticManifest,
-  }: BuildLoaderOptions<T, InlineCSS, N1, N2>,
-  bundle: OutputBundle
+  },
+  bundle
 ) {
   const manifestKeys = Object.keys(serverManifest);
   if (!manifestKeys.length) {
@@ -53,10 +46,12 @@ export function createBuildLoader<
   }
 
   return async function buildLoader(id) {
+    if(userOptions.verbose) {
+      console.log("buildLoader", id);
+    }
     const [withoutQuery, query] = id.split("?", 2);
     const [moduleId, exportName] = withoutQuery.split("#", 2);
-    const [normalizedKey, normalizedValue] =
-      userOptions.normalizer(moduleId);
+    const [normalizedKey, normalizedValue] = userOptions.normalizer(moduleId);
     const moduleRef = getModuleRef(id);
 
     // Check if we have a temporary reference (cached module)
@@ -65,7 +60,7 @@ export function createBuildLoader<
       if (typeof mod === "object" && mod !== null && "error" in mod) {
         // ignore it
       } else {
-        return mod
+        return mod;
       }
     }
 
@@ -89,12 +84,14 @@ export function createBuildLoader<
         if (serverChunk) {
           if (serverChunk.type === "asset") {
             // For CSS files, ensure we're in the React Server environment
-            if (userOptions.autoDiscover.jsonPattern(normalizedValue)) {
+            if (userOptions.autoDiscover.jsonPattern.test(normalizedValue)) {
               const jsonContent = serverChunk.source;
               if (typeof jsonContent === "string") {
                 return { default: JSON.parse(jsonContent) };
               }
-            } else if (userOptions.autoDiscover.cssPattern(normalizedValue)) {
+            } else if (
+              userOptions.autoDiscover.cssPattern.test(normalizedValue)
+            ) {
               const cssContent = serverChunk.source;
               if (typeof cssContent === "string") {
                 return { default: cssContent };
@@ -111,15 +108,19 @@ export function createBuildLoader<
 
       // Determine if this is a client component
       const isClientComponent =
-        userOptions.autoDiscover.clientComponents(normalizedValue);
+        userOptions.autoDiscover.clientPattern.test(normalizedValue);
       const isServerAction =
-        userOptions.autoDiscover.serverFunctions(normalizedValue);
-      const isPage = userOptions.autoDiscover.pagePattern(normalizedValue);
-      const isProps = userOptions.autoDiscover.propsPattern(normalizedValue);
+        userOptions.autoDiscover.serverPattern.test(normalizedValue);
+      const isPage = userOptions.autoDiscover.pagePattern.test(normalizedValue);
+      const isProps =
+        userOptions.autoDiscover.propsPattern.test(normalizedValue);
 
       // For client components, use client manifest
       if (isClientComponent) {
         const clientEntry = clientManifest[normalizedValue];
+        if(userOptions.verbose) {
+          console.log("clientEntry", clientEntry);
+        }
         if (clientEntry) {
           try {
             const module = await import(
@@ -155,9 +156,9 @@ export function createBuildLoader<
               )
             );
             temporaryReferences?.set(moduleRef, module);
-            // If we have an export name, return just that export
-            if (exportName) {
-              return { [exportName]: module[exportName] };
+            // If we have an export name, make sure it's a key
+            if(exportName && !(exportName in module)) {
+              throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
             }
             return module;
           } catch (error) {
@@ -182,9 +183,9 @@ export function createBuildLoader<
             )
           );
           temporaryReferences?.set(moduleRef, module);
-          // If we have an export name, return just that export
-          if (exportName) {
-            return { [exportName]: module[exportName] };
+          // If we have an export name, make sure it's a key
+          if(exportName && !(exportName in module)) {
+            throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
           }
           return module;
         } catch (error) {
@@ -204,5 +205,6 @@ export function createBuildLoader<
       temporaryReferences?.delete(moduleRef);
       return emptyExports;
     }
-  } as ModuleLoader<T, N1, N2>;
+  };
 }
+

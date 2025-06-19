@@ -5,11 +5,11 @@ Example of how a server action is transformed from original:
 ```typescript
 "use server";
 
-export function add(a, b) {
+export async function add(a, b) {
   return a + b;
 }
 
-export function subtract(a, b) {
+export async function subtract(a, b) {
   return a - b;
 }
 ```

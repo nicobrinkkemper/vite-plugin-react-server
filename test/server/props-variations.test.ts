@@ -88,7 +88,7 @@ describe("RSC Server", () => {
       "/* @__PURE__ */ __vite_ssr_import_0__.default.createElement"
     );
     expect(response.result).toContain(
-      `{"children":["Public: ","http://localhost:${port}"]}`
+      `{"children":["Public Origin: ","http://localhost:${port}"]}`
     );
     expect(response.result).toContain(`{"children":["URL: ","/"]}`);
     expect(response.result).toContain(`["Dev: ",true]`);
@@ -102,7 +102,7 @@ describe("RSC Server", () => {
     expect(response2.ok).toBe(true);
     expect(response2.statusCode).toBe(200);
     expect(response.result).toContain(
-      `{"children":["Public: ","http://localhost:${port}"]}`
+      `{"children":["Public Origin: ","http://localhost:${port}"]}`
     );
     expect(response2.result).toContain(`{"children":["URL: ","/"]}`);
     expect(response2.result).toContain(`["Dev: ",true]`);

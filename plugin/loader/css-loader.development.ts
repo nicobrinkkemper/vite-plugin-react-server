@@ -5,8 +5,6 @@ import type {
   ModuleFormat,
 } from "node:module";
 import type {
-  InlineCssOpt,
-  PagePropOpt,
   ResolvedUserConfig,
   ResolvedUserOptions,
   SerializedResolvedConfig,
@@ -39,7 +37,7 @@ export async function initialize(data: {
   id: string;
   port: MessagePort;
   resolvedConfig: SerializedResolvedConfig;
-  userOptions: SerializedUserOptions<PagePropOpt, InlineCssOpt, "Page", "props">;
+  userOptions: SerializedUserOptions;
 }) {
   loaderPort = data.port;
   resolvedConfig = data.resolvedConfig;

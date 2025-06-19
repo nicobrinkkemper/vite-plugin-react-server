@@ -14,18 +14,45 @@ import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import type { RscWorkerOutputMessage } from "./rsc/types.js";
 import { toError } from "../error/toError.js";
 import type {
+  AsOpt,
   InlineCssOpt,
+  PageName,
   PagePropOpt,
+  PropsName,
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";
 
-export type CreateWorkerOptions<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
-> = {
+type CreateWorkerSuccess = {
+  type: "success";
+  workerPath: string;
+  reason?: never;
+  error?: never;
+  worker: Worker;
+};
+
+type CreateWorkerError = {
+  type: "error";
+  workerPath: string;
+  error: Error;
+  worker?: never;
+  reason?: never;
+};
+
+type CreateWorkerSkip = {
+  type: "skip";
+  reason: string;
+  workerPath: string;
+  worker?: never;
+  error?: never;
+};
+
+export type CreateWorkerReturn =
+  | CreateWorkerSuccess
+  | CreateWorkerError
+  | CreateWorkerSkip;
+
+export type CreateWorkerOptions = {
   projectRoot?: string;
   currentCondition?: "react-server" | "react-client";
   nodePath?: string;
@@ -39,7 +66,7 @@ export type CreateWorkerOptions<
   typescript?: boolean;
   htmlChunkSize?: number; // Size of HTML chunks in bytes
   workerData: {
-    userOptions: SerializedUserOptions<T, InlineCSS, N1, N2>;
+    userOptions: SerializedUserOptions;
     resolvedConfig: SerializedResolvedConfig;
     reactVersion?: string;
     id?: string;
@@ -49,32 +76,13 @@ export type CreateWorkerOptions<
   verbose?: boolean;
 };
 
-type CreateWorkerSuccess = {
-  type: "success";
-  workerPath: string;
-  worker: Worker;
-};
+export type CreateWorkerFn = (
+  options: CreateWorkerOptions
+) => Promise<CreateWorkerReturn>;
 
-type CreateWorkerError = {
-  type: "error";
-  workerPath: string;
-  error: Error;
-};
-
-type CreateWorkerSkip = {
-  type: "skip";
-  reason: string;
-  workerPath: string;
-};
-
-export async function createWorker<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->(
-  options: CreateWorkerOptions<T, InlineCSS, N1, N2>
-): Promise<CreateWorkerSuccess | CreateWorkerError | CreateWorkerSkip> {
+export const createWorker: CreateWorkerFn = async function _createWorker(
+  options
+) {
   const {
     projectRoot = process.cwd(),
     nodePath = getNodePath(projectRoot),
@@ -215,4 +223,4 @@ export async function createWorker<
       workerPath: workerPathWithDefault,
     };
   }
-}
+};

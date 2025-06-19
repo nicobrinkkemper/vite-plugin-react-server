@@ -1,6 +1,6 @@
 import { removeRanges } from "./removeRanges.js";
 
-export function removeDirectives(source: string, directiveRanges: { start: number, end: number }[]): string {
+export function removeDirectives(source: string, directiveRanges: Array<{ start: number; end: number }>): string {
   // Sort ranges by start position
   const sortedRanges = directiveRanges.toSorted((a, b) => a.start - b.start);
 

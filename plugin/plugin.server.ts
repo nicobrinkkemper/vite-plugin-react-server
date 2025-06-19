@@ -1,32 +1,54 @@
 import { reactPreservePlugin } from "./preserver/plugin.js";
 import { reactStaticPlugin } from "./react-static/plugin.js";
 import { reactTransformPlugin } from "./transformer/plugin.server.js";
-import type { StreamPluginOptions, PagePropOpt, InlineCssOpt } from "./types.js";
+import type {
+  StreamPluginOptions,
+  PagePropOpt,
+  InlineCssOpt,
+} from "./types.js";
 import { reactServerPlugin } from "./react-server/plugin.js";
 import { envPlugin } from "./env/plugin.js";
 import type { Plugin } from "vite";
 
-
-export function vitePluginReactServer<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
+export type VitePluginReactServerFn = <
+  Opt extends StreamPluginOptions = StreamPluginOptions
 >(
-  options = {} as StreamPluginOptions<T, InlineCSS>
-): Plugin[] {
-  if(!options.build?.pages || (Array.isArray(options.build.pages) && options.build.pages.length === 0)) {
-    // in this case we do not need the static plugin at all
+  options: Opt
+) => Plugin[];
+
+/**
+ * Vite plugin for the React server, use same name to support dynamic import.
+ * Includes:
+ * - envPlugin
+ * - reactTransformPlugin
+ * - reactServerPlugin
+ * - reactStaticPlugin (if build.pages is not empty)
+ * - reactPreservePlugin 
+ */
+export const vitePluginReactServer: VitePluginReactServerFn =
+  function _vitePluginReactServer(
+    options
+  ) {
+    if(options == null) {
+      throw new Error("options is required");
+    }
+    if (
+      !options.build?.pages ||
+      (Array.isArray(options.build.pages) && options.build.pages.length === 0)
+    ) {
+      // in this case we do not need the static plugin at all
+      return [
+        envPlugin(),
+        reactTransformPlugin(options),
+        reactServerPlugin(options),
+        reactPreservePlugin(options),
+      ];
+    }
     return [
       envPlugin(),
       reactTransformPlugin(options),
       reactServerPlugin(options),
+      reactStaticPlugin(options),
       reactPreservePlugin(options),
     ];
-  }
-  return [
-    envPlugin(),
-    reactTransformPlugin(options),
-    reactServerPlugin(options),
-    reactStaticPlugin(options),
-    reactPreservePlugin(options),
-  ];
-}
+  };

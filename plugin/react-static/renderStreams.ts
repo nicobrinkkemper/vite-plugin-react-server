@@ -15,22 +15,20 @@
  * 4. Returns streams for renderPages to process
  */
 import { createHandler } from "../helpers/createHandler.js";
-import type {
-  CreateHandlerOptions,
-  PagePropOpt
-} from "../types.js";
+import type { CreateHandlerFn } from "../helpers/createHandler.js";
 import React from "react";
+import type { ReactStreamHandlerFn } from "../types.js";
+
+// The return type for the function
+export type RenderStreamsReturn = Promise<[ReturnType<CreateHandlerFn>, ReturnType<CreateHandlerFn>]>;
+
+// The function signature type
+export type RenderStreamsFn = ReactStreamHandlerFn<RenderStreamsReturn>
 
 /**
  * Creates handlers for both document and RSC streams
- *
- * @param handler The handler options for creating streams
- * @param options The render options
- * @returns A tuple containing the document worker result and RSC direct result
  */
-export function renderStreams<
-  T extends PagePropOpt = PagePropOpt
->(handler: CreateHandlerOptions<T>) {
+export const renderStreams = ((handler) => {
   return Promise.all([
     /**
      * This stream goes to the document worker for client side rendering with full HTML structure,
@@ -46,4 +44,4 @@ export function renderStreams<
      */
     createHandler({ ...handler, Html: React.Fragment }),
   ]);
-}
+}) satisfies RenderStreamsFn;

@@ -65,6 +65,7 @@ export const load: LoadHook = async (
     PROD: resolvedConfig?.isProduction ? true : false,
     DEV: resolvedConfig?.isProduction ? false : true,
     SSR: true,
+    PUBLIC_ORIGIN: "",
     ...Object.fromEntries(
       Object.entries(define)
         .filter(([key]) => key.startsWith("import.meta.env."))

@@ -4,22 +4,63 @@ import type {
   StreamMetrics,
   PagePropOpt,
   InlineCssOpt,
+  PageName,
+  PropsName,
+  AsOpt,
+  ResolvedUserOptions,
 } from "../types.js";
 import { performance } from "node:perf_hooks";
 import type { PassThrough } from "node:stream";
 import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";
 
-export function createRscStream<
-  T extends PagePropOpt = PagePropOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
-  InlineCss extends InlineCssOpt = InlineCssOpt
->({
-  Html = React.Fragment,
+export type CreateRscStreamOptions = Pick<
+CreateHandlerOptions<ResolvedUserOptions>,
+| "Html"
+| "PageComponent"
+| "RootComponent"
+| "pageProps"
+| "moduleBase"
+| "moduleRootPath"
+| "moduleBasePath"
+| "moduleBaseURL"
+| "cssFiles"
+| "route"
+| "pipeableStreamOptions"
+| "CssCollector"
+| "globalCss"
+| "manifest"
+| "projectRoot"
+| "verbose"
+> & {
+onEvent?: (
+  event: "error" | "postpone",
+  data: {
+    route: string;
+    error?: Error | null;
+    errorInfo?: {
+      componentStack?: string | null;
+      digest?: string | null;
+    };
+    reason?: string | null;
+  }
+) => void;
+}
+
+export type CreateRscStreamReturn = 
+  | { type: "success"; stream: PassThrough; metrics: StreamMetrics }
+  | { type: "error"; error: Error; metrics: StreamMetrics };
+
+export type CreateRscStreamFn = <
+  Opt extends CreateRscStreamOptions = CreateRscStreamOptions
+>(
+  options: Opt
+) => CreateRscStreamReturn   
+
+export const createRscStream: CreateRscStreamFn = function _createRscStream({
+  Html,
   PageComponent,
+  RootComponent,
   pageProps,
   moduleBase,
   moduleRootPath,
@@ -34,39 +75,7 @@ export function createRscStream<
   onEvent,
   projectRoot,
   verbose,
-}: Pick<
-  CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCss>,
-  | "Html"
-  | "PageComponent"
-  | "pageProps"
-  | "moduleBase"
-  | "moduleRootPath"
-  | "moduleBasePath"
-  | "moduleBaseURL"
-  | "cssFiles"
-  | "route"
-  | "pipeableStreamOptions"
-  | "CssCollector"
-  | "globalCss"
-  | "manifest"
-  | "projectRoot"
-  | "verbose"
-> & {
-  onEvent?: (
-    event: "error" | "postpone",
-    data: {
-      route: string;
-      error?: Error | null;
-      errorInfo?: {
-        componentStack?: string | null;
-        digest?: string | null;
-      };
-      reason?: string | null;
-    }
-  ) => void;
-}):
-  | { type: "success"; stream: PassThrough; metrics: StreamMetrics }
-  | { type: "error"; error: Error; metrics: StreamMetrics } {
+}) {
   let errorCount = 0;
   let streamError: Error | null = null;
   const startTime = performance.now();
@@ -113,7 +122,7 @@ export function createRscStream<
         CssCollector={CssCollector}
         manifest={manifest}
         Page={PageComponent}
-        as={"div"}
+        as={RootComponent}
       />
     );
     const stream = ReactDOMServer.renderToPipeableStream(
@@ -198,4 +207,4 @@ export function createRscStream<
       },
     };
   }
-}
+};

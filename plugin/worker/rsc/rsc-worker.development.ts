@@ -4,11 +4,14 @@ import { register } from "node:module";
 import { register as registerTsx } from "tsx/esm/api";
 import { join } from "node:path";
 import { pluginRoot } from "../../root.js";
+import type { HmrAcceptMessage, ReadyMessage } from "../types.js";
 import type {
-  HmrAcceptMessage,
-  ReadyMessage,
-} from "../types.js";
-import type { CssFileMessage, HmrUpdateMessage, InitializedEnvLoaderMessage, InitializedReactLoaderMessage, RscWorkerInputMessage } from "./types.js";
+  CssFileMessage,
+  HmrUpdateMessage,
+  InitializedEnvLoaderMessage,
+  InitializedReactLoaderMessage,
+  RscWorkerInputMessage,
+} from "./types.js";
 import { toError } from "../../error/toError.js";
 
 // Initialize worker
@@ -39,14 +42,18 @@ const developmentCssLoaderMessageHandler = (msg: CssFileMessage) => {
   messageHandler(msg);
 };
 
-const developmentEnvLoaderMessageHandler = (msg: InitializedEnvLoaderMessage) => {
+const developmentEnvLoaderMessageHandler = (
+  msg: InitializedEnvLoaderMessage
+) => {
   if (verbose) {
     console.log(`[env-loader:${msg.type}] ${JSON.stringify(msg)}`);
   }
   messageHandler(msg);
 };
 
-const developmentReactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
+const developmentReactLoaderMessageHandler = (
+  msg: InitializedReactLoaderMessage
+) => {
   if (verbose) {
     console.log(`[react-loader:${msg.type}] ${JSON.stringify(msg)}`);
   }
@@ -65,11 +72,20 @@ try {
   envLoaderChannel.port2.on("message", developmentEnvLoaderMessageHandler);
 
   const reactLoaderPath =
-    "file://" + join(pluginRoot, "loader/react-loader.server.js");
+    "file://" +
+    (workerData.userOptions.reactLoaderPath
+      ? join(workerData.resolvedConfig.root, workerData.userOptions.reactLoaderPath)
+      : join(pluginRoot, "loader/react-loader.server.js"));
   const cssLoaderPath =
-    "file://" + join(pluginRoot, "loader/css-loader.development.js");
+    "file://" +
+    (workerData.userOptions.cssLoaderPath
+      ? join(workerData.resolvedConfig.root, workerData.userOptions.cssLoaderPath)
+      : join(pluginRoot, "loader/css-loader.development.js"));
   const envLoaderPath =
-    "file://" + join(pluginRoot, "loader/env-loader.development.js");
+    "file://" +
+    (workerData.userOptions.envLoaderPath
+      ? join(workerData.resolvedConfig.root, workerData.userOptions.envLoaderPath)
+      : join(pluginRoot, "loader/env-loader.development.js"));
 
   register(cssLoaderPath, {
     parentURL: pluginRoot,

@@ -11,33 +11,24 @@ import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import type {
   AutoDiscoveredFiles,
   BuildTiming,
+  ReactStreamPluginFn,
   ReactStreamPluginMeta,
-  PagePropOpt,
-  InlineCssOpt,
 } from "../types.js";
 import { type StreamPluginOptions } from "../types.js";
 import {
   resolveAutoDiscover
 } from "../config/autoDiscover/resolveAutoDiscover.js";
-import { getCondition } from "../config/getCondition.js";
 import { configureReactServer } from "./configureReactServer.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 
-if (getCondition() !== "react-server") {
-  throw new Error(
-    "Condition mismatch, should be react-server but got " +
-      process.env["NODE_OPTIONS"]
-  );
-}
-export function reactServerPlugin<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->(options: StreamPluginOptions<T, InlineCSS>): VitePlugin<{
+export type ReactServerPluginFn = ReactStreamPluginFn<{
   meta: ReactStreamPluginMeta;
-}> {
+}>
+
+export const reactServerPlugin:ReactServerPluginFn = function _reactServerPlugin(options) {
   const timing: BuildTiming = {
     start: performance.now(),
   };
@@ -76,10 +67,10 @@ export function reactServerPlugin<
       // Verify transformer runs first, preserver runs last
       const plugins = resolvedConfig.plugins;
       const transformerIndex = plugins.findIndex(
-        (p) => p.name === "vite:react-server-transform"
+        (p) => p.name.includes("vite-plugin-react-server:transform")
       );
       const preserverIndex = plugins.findIndex(
-        (p) => p.name === "vite-plugin-react-server:preserve-directives"
+        (p) => p.name.includes("vite-plugin-react-server:preserve-directives")
       );
 
       if (transformerIndex === -1) {

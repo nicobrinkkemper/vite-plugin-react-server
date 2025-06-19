@@ -2,11 +2,14 @@ import type { ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   InlineCssOpt,
+  PageName,
   PagePropOpt,
+  PropsName,
   RenderMetrics,
   RequestHandler,
   ResolvedUserOptions,
   StreamMetrics,
+  AsOpt,
 } from "../types.js";
 import type { MessageChannel} from "node:worker_threads";
 import { type Worker } from "node:worker_threads";
@@ -21,29 +24,26 @@ import { Readable } from "node:stream";
 import type { ReadableStream } from "node:stream/web";
 import { handleWorkerServerAction } from "./handleWorkerServerAction.js";
 
+export type ConfigureWorkerRequestHandlerFn = (props: {
+  server: ViteDevServer;
+  autoDiscoveredFiles: AutoDiscoveredFiles;
+  userOptions: ResolvedUserOptions;
+  hmrChannel: MessageChannel;
+  onMetrics?: (metrics: RenderMetrics) => void;
+}) => void;
+
 /**
  * Configures the worker request handler.
  * @param server - The Vite dev server
  * @param autoDiscoveredFiles - The auto discovered files
  * @param userOptions - The user options
  */
-export async function configureWorkerRequestHandler<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->({
+export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn = async function _configureWorkerRequestHandler({
   server,
   autoDiscoveredFiles,
   userOptions: _userOptions,
   hmrChannel,
   onMetrics,
-}: {
-  server: ViteDevServer;
-  autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>;
-  hmrChannel: MessageChannel;
-  onMetrics?: (metrics: RenderMetrics) => void;
 }) {
   const {
     // remove these
@@ -90,7 +90,7 @@ export async function configureWorkerRequestHandler<
     const info = requestInfo(req, handlerOptions, "", server.config.logger);
 
     // Serialize user options for worker
-    const serializedUserOptions = serializedOptions<T, N1, N2, InlineCSS>(
+    const serializedUserOptions = serializedOptions(
       handlerOptions,
       autoDiscoveredFiles
     );

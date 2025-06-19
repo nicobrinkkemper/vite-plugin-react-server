@@ -76,7 +76,7 @@ describe("Generic Server Action Build Output", () => {
     for (const file of serverFiles) {
       const content = serverBundle[file].code;
       if(file.includes(".client.")) {
-        expect(content).toContain('function() { throw new Error("Attempted to call');
+        expect(content).toContain('throw new Error("Attempted to call');
         expect(content).toContain("import { registerClientReference } from \"react-server-dom-esm/server.node\"");
       }
       if(file.includes(".server.")) {

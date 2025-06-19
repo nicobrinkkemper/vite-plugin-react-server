@@ -1,5 +1,99 @@
 import { CssCollector } from "../components/css-collector.js";
 import { Html } from "../components/html.js";
+import { interpolatePattern } from "./interpolatePattern.js";
+
+// Directive patterns - matching the logic in findDirectiveMatches.ts
+const DIRECTIVE_PATTERNS = {
+  // Client directive must be at start of file
+  CLIENT: /^\s*(?:"use client"|'use client')\s*(?:\n|;|$)/,
+  // Server directive can be anywhere but must be properly terminated
+  SERVER: /(?:"use server"|'use server')\s*(?:\n|;|$)/,
+  // Generic pattern for both directives
+  ANY: /(?:"use\s+(?:client|server)"|'use\s+(?:client|server)')\s*(?:\n|;|$)/g
+} as const;
+
+// Directive configurations
+export const DIRECTIVE_CONFIGS = {
+  client: {
+    functionLevel: false,
+    target: 'client' as const,
+    validate: (params: { 
+      code: string, 
+      moduleId?: string,
+      index: number,
+      match: RegExpExecArray 
+    }) => {
+      // Client directive must be at very start of file
+      return params.index === 0;
+    },
+    warning: "'use client' directive is only allowed at the top of a file"
+  },
+  server: {
+    functionLevel: true,
+    target: 'server' as const,
+    validate: (params: { 
+      code: string, 
+      moduleId?: string,
+      index: number,
+      match: RegExpExecArray 
+    }) => {
+      // Check if directive is at start of file or after newline
+      const before = params.code.slice(0, params.index).trim();
+      return before === '' || before.endsWith('\n');
+    },
+    warning: "File-level directives must be at the top of the file, before any other code"
+  }
+} as const;
+
+// Helper to get directive type from string
+export const getDirectiveType = (directive: string): 'client' | 'server' | undefined => {
+  if (directive.includes('client')) return 'client';
+  if (directive.includes('server')) return 'server';
+  return undefined;
+};
+
+// Helper to normalize directive strings
+const normalizeDirective = (directive: string) => directive.replace(/\s+/g, '').toLowerCase();
+
+// Default loader configuration
+export const DEFAULT_LOADER_CONFIG = {
+  serverDirective: DIRECTIVE_PATTERNS.SERVER,
+  clientDirective: DIRECTIVE_PATTERNS.CLIENT,
+  directivePattern: DIRECTIVE_PATTERNS.ANY,
+  isServerFunctionCode: (code: string, moduleId?: string) => 
+    code.match(DIRECTIVE_PATTERNS.SERVER) != null || 
+    (moduleId && /(\.|\/)?server(\.|\/)?/.test(moduleId.toLowerCase())) || 
+    false,
+  isClientComponentCode: (code: string, moduleId?: string) => 
+    code.match(DIRECTIVE_PATTERNS.CLIENT) != null || 
+    (moduleId && /(\.|\/)?client(\.|\/)?/.test(moduleId.toLowerCase())) || 
+    false,
+  allowedDirectives: DIRECTIVE_CONFIGS,
+  getDirectiveType
+} as const;
+
+// Define base patterns that can be reused
+export const BASE_PATTERNS = {
+  MODULE: "\\.(m|c)?(j|t)sx?$",
+  SERVER: "(?:\\.|\\/)?server(?:\\.(m|c)?(j|t)sx?)?$",
+  CLIENT: "(?:\\.|\\/)?client(?:\\.(m|c)?(j|t)sx?)?$",
+  PAGE: "(?:\\.|\\/)?(P|p)age(?:\\.(m|c)?(j|t)sx?)?$",
+  PROPS: "(?:\\.|\\/)?props(?:\\.(m|c)?(j|t)sx?)?$",
+  DIRECTIVE: "^\"use (client|server)\"[\\s;]*\\n?/m",
+  VENDOR: "node_modules|@",
+  VIRTUAL: "@",
+  DOT_FILES: "\\.",
+  EXT: {
+    JS: ".js",
+    CSS: ".css",
+    CSS_MODULE: ".css.js",
+    JSON: ".json",
+    HTML: ".html",
+    RSC: ".rsc",
+    NODE: ".node",
+  },
+} as const;
+
 export const DEFAULT_CONFIG = {
   CLIENT_ASSETS_DIR: "assets",
   RSC_DIR: "rsc",
@@ -38,11 +132,35 @@ export const DEFAULT_CONFIG = {
     api: "api",
     outDir: "dist",
     assetsDir: "assets",
-    hash: "hash",
+    hash: "",
+    preserveModulesRoot: false,
+    preserveDirectives: false,
     rscOutputPath: "index.rsc",
     htmlOutputPath: "index.html",
-    preserveModulesRoot: true,
-    preserveDirectives: false,
+    extensionMap: {
+      // Module patterns
+      [BASE_PATTERNS.MODULE]: BASE_PATTERNS.EXT.JS,
+      // Client/Server patterns
+      [BASE_PATTERNS.CLIENT]: BASE_PATTERNS.EXT.JS,
+      [BASE_PATTERNS.SERVER]: BASE_PATTERNS.EXT.JS,
+      // File extensions
+      [BASE_PATTERNS.EXT.CSS]: BASE_PATTERNS.EXT.CSS,
+      [BASE_PATTERNS.EXT.JSON]: BASE_PATTERNS.EXT.JSON,
+      [BASE_PATTERNS.EXT.HTML]: BASE_PATTERNS.EXT.HTML,
+      [BASE_PATTERNS.EXT.RSC]: BASE_PATTERNS.EXT.RSC,
+      [BASE_PATTERNS.EXT.NODE]: BASE_PATTERNS.EXT.NODE,
+      // Special cases
+      ".client": ".client" + BASE_PATTERNS.EXT.JS,
+      ".server": ".server" + BASE_PATTERNS.EXT.JS,
+    },
+    moduleExtension: BASE_PATTERNS.EXT.JS,
+    jsExtension: BASE_PATTERNS.EXT.JS,
+    cssExtension: BASE_PATTERNS.EXT.CSS,
+    htmlExtension: BASE_PATTERNS.EXT.HTML,
+    jsonExtension: BASE_PATTERNS.EXT.JSON,
+    rscExtension: BASE_PATTERNS.EXT.RSC,
+    cssModuleExtension: BASE_PATTERNS.EXT.JS,
+    nodeExtension: BASE_PATTERNS.EXT.NODE,
   },
   CSS: {
     inlineCss: false,
@@ -54,124 +172,45 @@ export const DEFAULT_CONFIG = {
   MODULE_BASE_EXCEPTIONS: [] as string[],
 
   AUTO_DISCOVER: {
-    // All REGEX tricks used here are based on the following:
-    // $ = endsWith
-    // ^ = startsWith
-    // . = includes
-    // \ = escape
-    // ? = optional
-    // () = group
-    // | = or
-    /**
-     * /\.(m|c)?(j|t)sx?$/ and .lowerCase()
-     */
-    modulePattern: (n: string) => /\.(m|c)?(j|t)sx?$/.test(n.toLowerCase()),
-    /**
-     * /\.?page(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
-     */
-    pagePattern: (n: string) => /\.?page(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()),
-    /**
-     * /\.?props(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
-     */
-    propsPattern: (n: string) => /\.?props(\.(m|c)?(j|t)sx?)$/.test(n.toLowerCase()), 
-    /**
-     * /(\.|\/)?client(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
-     */
-    clientComponents: (n: string) => /(\.|\/)?client(\.(m|c)?(j|t)sx?)?$/.test(n.toLowerCase()),
-    /**
-     * /(\.|\/)?server(\.(m|c)?(j|t)sx?)$/ and .lowerCase()
-     */
-    serverFunctions: (n: string) => /(\.|\/)?server(\.(m|c)?(j|t)sx?)?$/.test(n.toLowerCase()),
-    /**
-     * /\.css$/
-     */
-    cssPattern: /\.css$/,
-    /**
-     * /\.css\.js$/
-     */
-    cssModulePattern: /\.css\.js$/,
-    /**
-     * /^\/@\//
-     */
-    virtualPattern: /^\/@\//,
-    /**
-     * /^\/node_modules\//
-     */
-    vendorPattern: /^\/node_modules\//,
-    /**
-     * /\.html$/
-     */
-    htmlPattern: /\.html$/,
-    /**
-     * /\.json$/
-     */
-    jsonPattern: /\.json$/,
-    /**
-     * /\.node(\.js)?$/
-     */
-    nodeOnly: /\.node(\.js)?$/,
-    /**
-     * /\.node(\.js)?$/
-     */
-    dotFiles: (n: string) => n.split('/').some(p => p.startsWith('.')), 
-    /**
-     * /\.rsc$/
-     */
-    rscPattern: /\.rsc$/,  
-    /**
-     * /\.(m|c)?(j|t)sx?$/
-     */
-    moduleExtension: /\.(m|c)?(j|t)sx?$/,
-    /**
-     * Matches "use server" or 'use server' with optional semicolon and newline
-     */
-    serverDirective: /("use server"|'use server')[\s;]?/m,
-    /**
-     * Matches "use client" or 'use client' with optional semicolon and newline
-     * Must be at start of file
-     */
-    clientDirective: /("use client"|'use client')[\s;]?/m,
-    /**
-     * Custom directive patterns
-     */
-    customDirectives: [] as Array<{
-      name: string;
-      pattern: RegExp;
-      validate?: (code: string, moduleId?: string) => boolean;
-    }>,
-    isServerFunctionCode: (code: string, moduleId?: string) => 
-      code.match(DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective) != null || 
-      (moduleId && DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions(moduleId)) || 
-      false,
-    isClientComponentCode: (code: string, moduleId?: string) => 
-      code.match(DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective) != null || 
-      (moduleId && DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents(moduleId)) || 
-      false,
-    jsExtension: ".js",
-    cssExtension: ".css",
-    jsonExtension: ".json",
-    htmlExtension: ".html",
-    rscExtension: ".rsc",
+    // Pattern matchers
+    modulePattern: new RegExp(BASE_PATTERNS.MODULE),
+    serverPattern: new RegExp(BASE_PATTERNS.SERVER),
+    clientPattern: new RegExp(BASE_PATTERNS.CLIENT),
+    pagePattern: new RegExp(BASE_PATTERNS.PAGE),
+    propsPattern: new RegExp(BASE_PATTERNS.PROPS),
     
+    // File patterns
+    cssPattern: new RegExp(`${BASE_PATTERNS.EXT.CSS}$`),
+    jsonPattern: new RegExp(`${BASE_PATTERNS.EXT.JSON}$`),
+    htmlPattern: new RegExp(`${BASE_PATTERNS.EXT.HTML}$`),
+    rscPattern: new RegExp(`${BASE_PATTERNS.EXT.RSC}$`),
+    nodeOnly: new RegExp(`${BASE_PATTERNS.EXT.NODE}$`),
+    cssModulePattern: new RegExp(`${BASE_PATTERNS.EXT.CSS_MODULE}$`),
+    vendorPattern: /^\/node_modules\//,
+    virtualPattern: /^\/@\//,
+    dotFiles: new RegExp(`${BASE_PATTERNS.DOT_FILES}`),
   },
   MODULE_ID: (id: string) => id,
   VERBOSE: false,
   // Centralized loader config for RSC boundaries
   RSC_LOADER: {
     development: {
-      importPath: "react-server-dom-esm/server.node" as string,
+      importServerPath: "react-server-dom-esm/server.node" as string,
+      importClientPath: "react-server-dom-esm/server.node" as string,
       registerClientReferenceName: "registerClientReference" as string,
       registerServerReferenceName: "registerServerReference" as string
     },
     test: {
-      importPath: "react-server-dom-esm/server.node" as string,
+      importServerPath: "react-server-dom-esm/server.node" as string,
+      importClientPath: "react-server-dom-esm/server.node" as string,
       registerClientReferenceName: "registerClientReference" as string,
       registerServerReferenceName: "registerServerReference" as string
     },
     production: {
-      importPath: "react-server-dom-esm/server" as string,
+      importServerPath: "react-server-dom-esm/server" as string,
+      importClientPath: "react-server-dom-esm/server" as string,
       registerClientReferenceName: "registerClientReference" as string,
       registerServerReferenceName: "registerServerReference" as string
     }
   }
-} as const;
+};

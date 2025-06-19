@@ -51,9 +51,9 @@ export default defineConfig({
           __dirname,
           "plugin/loader/css-loader.development.ts"
         ),
-        "plugin/loader/react-loader": resolve(
+        "plugin/loader/index": resolve(
           __dirname,
-          "plugin/loader/react-loader.ts"
+          "plugin/loader/index.ts"
         ),
         "plugin/components": resolve(__dirname, "plugin/components/index.ts"),
         "plugin/utils": resolve(__dirname, "plugin/utils/index.ts"),

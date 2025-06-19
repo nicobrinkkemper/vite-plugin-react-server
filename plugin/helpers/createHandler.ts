@@ -1,26 +1,44 @@
-import type { CreateHandlerOptions, InlineCssOpt } from "../types.js";
+import type {
+  AsOpt,
+  CreateHandlerOptions,
+  InlineCssOpt,
+  PageName,
+  PropsName,
+  ReactStreamHandlerFn,
+} from "../types.js";
 import type { PagePropOpt } from "../../server.js";
 import { createRscStream } from "./createRscStream.js";
 import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";
+import type { PassThrough } from "node:stream";
 
-export function createHandler<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props",
-  ID1 extends string = string,
-  ID2 extends string | undefined = ID1,
->(handlerOptions: CreateHandlerOptions<T, N1, N2, ID1, ID2, InlineCSS>) {
+export type CreateHandlerReturn =
+  | {
+      type: "success";
+      stream: PassThrough;
+      error?: never;
+    }
+  | {
+      type: "error";
+      error: Error;
+      stream?: never;
+    };
+
+export type CreateHandlerFn = ReactStreamHandlerFn<CreateHandlerReturn>
+
+export const createHandler: CreateHandlerFn = ((handlerOptions) => {
   if (!handlerOptions.PageComponent) {
     throw new Error("PageComponent is required");
   }
   try {
-    const adaptedOnEvent = (event: "error" | "postpone", data: {
-      error?: Error | null;
-      errorInfo?: ErrorInfo;
-      reason?: string | null;
-    }) => {
+    const adaptedOnEvent = (
+      event: "error" | "postpone",
+      data: {
+        error?: Error | null;
+        errorInfo?: ErrorInfo;
+        reason?: string | null;
+      }
+    ) => {
       if (event === "error") {
         handlerOptions.onEvent?.({
           type: "route.error",
@@ -78,4 +96,4 @@ export function createHandler<
       error: err,
     };
   }
-}
+})

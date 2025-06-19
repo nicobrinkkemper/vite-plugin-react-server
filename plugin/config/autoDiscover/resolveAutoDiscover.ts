@@ -1,9 +1,10 @@
 import type { ConfigEnv, UserConfig } from "vite";
 import type {
-  ResolvedUserOptions,
   AutoDiscoveredFiles,
   PagePropOpt,
   InlineCssOpt,
+  AsOpt,
+  ResolvedUserOptions,
 } from "../../types.js";
 import { join } from "path";
 import { resolveBuildPages } from "./resolveBuildPages.js";
@@ -19,15 +20,23 @@ const serverFiles = createGlobAutoDiscover("**/*.server.*");
 const cssFiles = createGlobAutoDiscover("**/*.css");
 const jsonFiles = createGlobAutoDiscover("**/*.json");
 
-type ResolveAutoDiscoverProps<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
-> = {
+type ResolveAutoDiscoverProps = {
   config: UserConfig;
   configEnv: ConfigEnv;
-  userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2>;
+  userOptions: Pick<
+    ResolvedUserOptions,
+    | "build"
+    | "normalizer"
+    | "serverEntry"
+    | "clientEntry"
+    | "projectRoot"
+    | "moduleBase"
+    | "moduleBasePath"
+    | "Page"
+    | "props"
+    | "htmlWorkerPath"
+    | "rscWorkerPath"
+  >;
   condition: "react-server" | "react-client";
 };
 
@@ -45,146 +54,146 @@ type ResolveAutoDiscoverReturn =
       autoDiscoveredFiles?: never;
     };
 
-export async function resolveAutoDiscover<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->({
-  config,
-  configEnv,
-  userOptions,
-  condition,
-}: ResolveAutoDiscoverProps<T, InlineCSS, N1, N2>): Promise<ResolveAutoDiscoverReturn> {
-  const ssr = configEnv.isSsrBuild || condition === "react-server";
-  const envDir =
-    condition === "react-server"
-      ? userOptions.build.server
-      : ssr
-      ? userOptions.build.client
-      : userOptions.build.static;
-  const envId = `${envDir}${ssr ? "-ssr" : ""}`;
-  const configInputRecord = {} as Record<string, string>;
-  if (typeof config.build?.rollupOptions?.input === "string") {
-    configInputRecord[
-      userOptions.normalizer(config.build?.rollupOptions?.input)[0]
-    ] = config.build?.rollupOptions?.input;
-  } else if (typeof config.build?.rollupOptions?.input === "object") {
-    for (const [, value] of Object.entries(
-      config.build?.rollupOptions?.input
-    )) {
-      configInputRecord[userOptions.normalizer(value)[0]] = value;
-    }
-  }
+export type ResolveAutoDiscoverFn = (
+  props: ResolveAutoDiscoverProps
+) => Promise<ResolveAutoDiscoverReturn>;
 
-  const serverEntry =
-    typeof userOptions.serverEntry === "string"
-      ? Object.fromEntries([userOptions.normalizer(userOptions.serverEntry)])
-      : null;
-
-  const indexHtmlInputs = { index: "index.html" };
-
-  const clientEntry =
-    typeof userOptions.clientEntry === "string"
-      ? Object.fromEntries([userOptions.normalizer(userOptions.clientEntry)])
-      : {};
-
-  const { type, error, pages } = await resolvePages(userOptions.build.pages);
-
-  if (type === "error") {
-    return {
-      type: "error",
-      error,
-      id: envId,
-    };
-  }
-
-  const files = await resolveBuildPages({
-    pages,
+export const resolveAutoDiscover: ResolveAutoDiscoverFn =
+  async function _resolveAutoDiscover({
+    config,
+    configEnv,
     userOptions,
-  });
-
-  // Load static manifest for client build
-  let staticManifest: Manifest = {};
-  if (ssr && configEnv.command === "build") {
-    const staticManifestResult = await tryManifest({
-      root: userOptions.projectRoot,
-      ssrManifest: false,
-      outDir: join(userOptions.build.outDir, userOptions.build.static),
-    });
-    if (staticManifestResult.type === "success") {
-      staticManifest = staticManifestResult.manifest;
-    } else if (configEnv.command === "build") {
-      // in dev mode the static manifest is not needed
-      // without ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
-      if (staticManifestResult.type === "error") {
-        console.error(staticManifestResult.error);
+    condition,
+  }) {
+    const ssr = configEnv.isSsrBuild || condition === "react-server";
+    const envDir =
+      condition === "react-server"
+        ? userOptions.build.server
+        : ssr
+        ? userOptions.build.client
+        : userOptions.build.static;
+    const envId = `${envDir}${ssr ? "-ssr" : ""}`;
+    const configInputRecord = {} as Record<string, string>;
+    if (typeof config.build?.rollupOptions?.input === "string") {
+      configInputRecord[
+        userOptions.normalizer(config.build?.rollupOptions?.input)[0]
+      ] = config.build?.rollupOptions?.input;
+    } else if (typeof config.build?.rollupOptions?.input === "object") {
+      for (const [, value] of Object.entries(
+        config.build?.rollupOptions?.input
+      )) {
+        configInputRecord[userOptions.normalizer(value)[0]] = value;
       }
-      console.warn("Continuing without static manifest");
-      // this can still work, but, it won't be able to look up any client-side assets
     }
-  }
 
-  const customWorkerInputs = customWorkerFiles({
-    inputs: {},
-    userOptions,
-  });
-  const clientInputs = await clientFiles({
-    inputs: {},
-    userOptions,
-  });
-  const serverActions = await serverFiles({
-    inputs: {},
-    userOptions,
-  });
+    const serverEntry =
+      typeof userOptions.serverEntry === "string"
+        ? Object.fromEntries([userOptions.normalizer(userOptions.serverEntry)])
+        : null;
 
-  const pageAndPropInputs = pageAndPropFiles({
-    files,
-    inputs: {},
-  });
+    const indexHtmlInputs = { index: "index.html" };
 
-  const cssInputs = await cssFiles({
-    inputs: {},
-    userOptions,
-  });
+    const clientEntry =
+      typeof userOptions.clientEntry === "string"
+        ? Object.fromEntries([userOptions.normalizer(userOptions.clientEntry)])
+        : {};
 
-  const jsonInputs = await jsonFiles({
-    inputs: {},
-    userOptions,
-  });
-  const agnosticInputs = {
-    ...configInputRecord,
-    ...clientInputs,
-    ...clientEntry,
-    ...cssInputs,
-  };
-  // Add inputs based on condition
-  const inputs =
-    condition === "react-client"
-      ? {
-          ...indexHtmlInputs,
-          ...agnosticInputs,
+    const { type, error, pages } = await resolvePages(userOptions.build.pages);
+
+    if (type === "error") {
+      return {
+        type: "error",
+        error,
+        id: envId,
+      };
+    }
+
+    const files = await resolveBuildPages({
+      pages,
+      userOptions,
+    });
+
+    // Load static manifest for client build
+    let staticManifest: Manifest = {};
+    if (ssr && configEnv.command === "build") {
+      const staticManifestResult = await tryManifest({
+        root: userOptions.projectRoot,
+        ssrManifest: false,
+        outDir: join(userOptions.build.outDir, userOptions.build.static),
+      });
+      if (staticManifestResult.type === "success") {
+        staticManifest = staticManifestResult.manifest;
+      } else if (configEnv.command === "build") {
+        // in dev mode the static manifest is not needed
+        // without ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
+        if (staticManifestResult.type === "error") {
+          console.error(staticManifestResult.error);
         }
-      : {
-          ...configInputRecord,
-          ...customWorkerInputs,
-          ...pageAndPropInputs,
-          ...agnosticInputs,
-          ...serverActions,
-          ...serverEntry,
-          ...jsonInputs,
-        };
-  return {
-    type: "success",
-    id: envId,
-    autoDiscoveredFiles: {
-      ...files,
-      workerPaths: customWorkerInputs,
-      serverEntry,
-      clientEntry,
-      staticManifest,
-      inputs,
-      serverActions,
-    },
+        console.warn("Continuing without static manifest");
+        // this can still work, but, it won't be able to look up any client-side assets
+      }
+    }
+
+    const customWorkerInputs = customWorkerFiles({
+      inputs: {},
+      userOptions,
+    });
+    const clientInputs = await clientFiles({
+      inputs: {},
+      userOptions,
+    });
+    const serverActions = await serverFiles({
+      inputs: {},
+      userOptions,
+    });
+
+    const pageAndPropInputs = pageAndPropFiles({
+      files,
+      inputs: {},
+    });
+
+    const cssInputs = await cssFiles({
+      inputs: {},
+      userOptions,
+    });
+
+    const jsonInputs = await jsonFiles({
+      inputs: {},
+      userOptions,
+    });
+    const agnosticInputs = {
+      ...configInputRecord,
+      ...clientInputs,
+      ...clientEntry,
+      ...cssInputs,
+    };
+    // Add inputs based on condition
+    const inputs =
+      condition === "react-client"
+        ? {
+            ...indexHtmlInputs,
+            ...agnosticInputs,
+          }
+        : {
+            ...configInputRecord,
+            ...customWorkerInputs,
+            ...pageAndPropInputs,
+            ...agnosticInputs,
+            ...serverActions,
+            ...serverEntry,
+            ...jsonInputs,
+          };
+    return {
+      type: "success",
+      id: envId,
+      autoDiscoveredFiles: {
+        ...files,
+        workerPaths: customWorkerInputs,
+        serverEntry,
+        clientEntry,
+        staticManifest,
+        inputs,
+        serverActions,
+      },
+    };
   };
-}

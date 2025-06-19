@@ -1,18 +1,33 @@
 import type { PreRenderedAsset } from "rollup";
 import type { PreRenderedChunk } from "rollup";
-import type {
-  StreamPluginOptions,
-  ResolvedUserOptions,
-  PagePropOpt,
-  InlineCssOpt,
-} from "../types.js";
-import { DEFAULT_CONFIG } from "./defaults.js";
+import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
+import {
+  BASE_PATTERNS,
+  DEFAULT_CONFIG,
+  DEFAULT_LOADER_CONFIG,
+} from "./defaults.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 import { CssCollector } from "../components/css-collector.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
-import { resolveAutoDiscoverMatcher } from "./resolveAutoDiscoverMatcher.js";
-import { extMap } from "./extMap.js";
+import { getNodeEnv } from "../getNodeEnv.js";
+import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
+import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
+import { resolveRegExp } from "./resolveRegExp.js";
+import { createDefaultModuleID } from "./createModuleID.js";
+
+export type ResolveOptionsReturn<R extends StreamPluginOptions> =
+  | {
+      type: "success";
+      userOptions: ResolvedUserOptions<R>;
+      error?: never;
+    }
+  | { type: "error"; error: Error; userOptions?: never };
+
+export type ResolveOptionsFn = <R extends StreamPluginOptions>(
+  options: R
+) => ResolveOptionsReturn<R>;
+
 // /**
 //  * Ensures a path ends with .js extension
 //  */
@@ -31,18 +46,23 @@ const handleSearchQuery = (path: string) => {
   if (!searchQuery) return path;
   const folder = path.split("/").slice(0, -1).join("/");
   const filename = path.split("/").pop();
-  return `${folder}/${filename}?${searchQuery}`;
+  const fileNameExtIndex = filename?.lastIndexOf(".");
+  const fileNameWithoutExt = filename?.slice(0, fileNameExtIndex);
+  const extension = filename?.slice(fileNameExtIndex);
+  return `${folder}/${fileNameWithoutExt}.${searchQuery}.${extension}`;
 };
 
 /**
- * Applies pattern matching to file paths
+ * Registers a path with an optional pattern matcher and extension.
+ * If a pattern matches and the path doesn't end with the extension, the extension is appended.
+ *
+ * @param path - The path to register
+ * @param pattern - Optional pattern matcher function that returns true if the path matches
+ * @param ext - Optional extension to append if pattern matches and path doesn't already end with it
  */
-const registerPath = (
-  path: string,
-  _pattern?: string | RegExp | ((path: string) => boolean) | undefined,
-  ext?: string | undefined
-) => {
-  if (ext && !path.endsWith(ext)) {
+const registerPath = (path: string, pattern?: RegExp, ext?: string) => {
+  // If we have a pattern and it doesn't match, or we have an extension and the path doesn't end with it, append the extension
+  if ((pattern && !pattern.test(path)) || (ext && !path.endsWith(ext))) {
     return path + ext;
   }
   return path;
@@ -52,16 +72,28 @@ const registerPath = (
 // Main Options Resolver
 // ============================================================================
 
-export const resolveOptions = <
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->(
-  options: StreamPluginOptions<T, InlineCSS, 'div', N1, N2>
-):
-  | { type: "success"; userOptions: ResolvedUserOptions<T, InlineCSS, N1, N2> }
-  | { type: "error"; error: Error } => {
+const stashedUserOptions: Record<string, ResolvedUserOptions<any> | null> = {};
+
+/**
+ * Resolves the user options for the plugin.
+ *
+ * @param options - The user options to resolve.
+ * @returns The resolved options.
+ */
+export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
+  options
+) {
+  const envId = process.env.NODE_ENV ?? "development";
+
+  // Return stashed options if available
+  if (stashedUserOptions[envId]) {
+    return {
+      type: "success",
+      userOptions: stashedUserOptions[envId] as never,
+    };
+  }
+
+  const loaderMode = options.loader?.mode ?? getNodeEnv();
   // Module path configuration
   const moduleBase =
     typeof options.moduleBase === "string"
@@ -82,31 +114,18 @@ export const resolveOptions = <
   const prodModuleBase = isProd && preserveModulesRoot ? moduleBase : undefined;
 
   const {
-    pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME as N1,
-    propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME as N2,
+    pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME,
+    propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME,
   } = options;
 
-  // Build configuration
-  const pages =
-    typeof options.build?.pages === "function"
-      ? options.build.pages
-      : Array.isArray(options.build?.pages)
-      ? options.build.pages
-      : DEFAULT_CONFIG.BUILD.pages;
-
   const client = options.build?.client ?? DEFAULT_CONFIG.BUILD.client;
-  const server = options.build?.server ?? DEFAULT_CONFIG.BUILD.server;
-  const api = options.build?.api ?? DEFAULT_CONFIG.BUILD.api;
-  const staticBuild = options.build?.static ?? DEFAULT_CONFIG.BUILD.static;
   const outDir = options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir;
-  const assetsDir =
-    options.build?.assetsDir ?? `${DEFAULT_CONFIG.CLIENT_ASSETS_DIR}`;
 
   const moduleBasePath =
     typeof options.moduleBasePath === "string"
       ? options.moduleBasePath
       : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_PATH;
-  
+
   const moduleBaseURL =
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
@@ -146,113 +165,91 @@ export const resolveOptions = <
     process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
   }
 
-  const moduleExtension = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.moduleExtension,
-    DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension
-  );
-  // Auto-discovery pattern matchers
-  const modulePattern = resolveAutoDiscoverMatcher(
+  const modulePattern = resolveRegExp(
     options.autoDiscover?.modulePattern,
-    options.autoDiscover?.moduleExtension
-      ? (id: string) => moduleExtension(id.toLowerCase())
-      : DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern
+    DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern
   );
 
-  const jsonPattern = resolveAutoDiscoverMatcher(
+  const jsonPattern = resolveRegExp(
     options.autoDiscover?.jsonPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.jsonPattern
   );
 
-  const cssPattern = resolveAutoDiscoverMatcher(
+  const cssPattern = resolveRegExp(
     options.autoDiscover?.cssPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.cssPattern
   );
 
-  const testHtml = resolveAutoDiscoverMatcher(
+  const htmlPattern = resolveRegExp(
     options.autoDiscover?.htmlPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.htmlPattern
   );
 
-  const testRsc = resolveAutoDiscoverMatcher(
+  const rscPattern = resolveRegExp(
     options.autoDiscover?.rscPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.rscPattern
   );
 
-  const clientComponents = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.clientComponents,
-    options.autoDiscover?.moduleExtension
-      ? (id: string) => /(\.|\/)?client(\.|\/)?/.test(id.toLowerCase())
-      : DEFAULT_CONFIG.AUTO_DISCOVER.clientComponents
+  const clientPattern = resolveRegExp(
+    options.autoDiscover?.clientPattern,
+    DEFAULT_CONFIG.AUTO_DISCOVER.clientPattern
   );
 
-  const serverFunctions = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.serverFunctions,
-    options.autoDiscover?.moduleExtension
-      ? (id: string) => /(\.|\/)?server(\.|\/)?/.test(id.toLowerCase())
-      : DEFAULT_CONFIG.AUTO_DISCOVER.serverFunctions
+  const serverPattern = resolveRegExp(
+    options.autoDiscover?.serverPattern,
+    DEFAULT_CONFIG.AUTO_DISCOVER.serverPattern
   );
 
-  const nodeOnly = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.nodeOnly,
+  const nodePattern = resolveRegExp(
+    options.autoDiscover?.nodePattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.nodeOnly
   );
 
-  const propsPattern = resolveAutoDiscoverMatcher(
+  const propsPattern = resolveRegExp(
     options.autoDiscover?.propsPattern,
-    options.autoDiscover?.moduleExtension
-      ? (id: string) =>
-          moduleExtension(id.toLowerCase()) &&
-          /(\.|\/)?props(\.|\/)/.test(id.toLowerCase())
-      : DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
+    DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
   );
 
-  const pagePattern = resolveAutoDiscoverMatcher(
+  const pagePattern = resolveRegExp(
     options.autoDiscover?.pagePattern,
-    options.autoDiscover?.moduleExtension
-      ? (id: string) =>
-          moduleExtension(id.toLowerCase()) &&
-          /(\.|\/)?page(\.|\/)/.test(id.toLowerCase())
-      : DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
+    DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
   );
 
-  const cssModulePattern = resolveAutoDiscoverMatcher(
+  const cssModulePattern = resolveRegExp(
     options.autoDiscover?.cssModulePattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.cssModulePattern
   );
 
-  const vendorPattern = resolveAutoDiscoverMatcher(
+  const vendorPattern = resolveRegExp(
     options.autoDiscover?.vendorPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern
   );
 
-  const virtualPattern = resolveAutoDiscoverMatcher(
+  const virtualPattern = resolveRegExp(
     options.autoDiscover?.virtualPattern,
     DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern
   );
 
-  const dotFiles = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.dotFiles,
-    DEFAULT_CONFIG.AUTO_DISCOVER.dotFiles
+  const dotPattern = resolveRegExp(
+    options.autoDiscover?.dotPattern,
+    BASE_PATTERNS.DOT_FILES
   );
 
-  const isServerFunctionCode = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.isServerFunctionCode,
-    options.autoDiscover?.serverDirective
-      ? (code: string, moduleId?: string) =>
-          code.match(options.autoDiscover!.serverDirective!) != null ||
-          (moduleId && serverFunctions(moduleId)) ||
-          false
-      : DEFAULT_CONFIG.AUTO_DISCOVER.isServerFunctionCode
+  /** Loader options */
+  const isServerFunctionCode = resolveDirectiveMatcher(
+    options.loader?.serverDirective,
+    (code: string, moduleId?: string) =>
+      code.match(resolveRegExp(options.loader!.serverDirective!)) != null ||
+      (typeof moduleId === "string" && serverPattern.test(moduleId)) ||
+      false
   );
 
-  const isClientComponentCode = resolveAutoDiscoverMatcher(
-    options.autoDiscover?.isClientComponentCode,
-    options.autoDiscover?.clientDirective
-      ? (code: string, moduleId?: string) =>
-          code.match(options.autoDiscover!.clientDirective!) != null ||
-          (moduleId && clientComponents(moduleId)) ||
-          false
-      : DEFAULT_CONFIG.AUTO_DISCOVER.isClientComponentCode
+  const isClientComponentCode = resolveDirectiveMatcher(
+    options.loader?.clientDirective,
+    (code: string, moduleId?: string) =>
+      code.match(resolveRegExp(options.loader!.clientDirective!)) != null ||
+      (typeof moduleId === "string" && clientPattern.test(moduleId)) ||
+      false
   );
 
   const hashOption =
@@ -274,7 +271,7 @@ export const resolveOptions = <
   const hash = (n: string | null, ssr: boolean) => {
     if (!n) return "";
     if (ssr) return n;
-    if (hashString === "" || autoDiscover.nodeOnly(n)) {
+    if (hashString === "" || new RegExp(BASE_PATTERNS.EXT.NODE).test(n)) {
       return n;
     }
     const extensionIndex = n.lastIndexOf(".");
@@ -286,12 +283,19 @@ export const resolveOptions = <
       return n + hashString;
     }
   };
-  const jsExtension = options.autoDiscover?.jsExtension ?? ".js";
-  const cssExtension = options.autoDiscover?.cssExtension ?? ".css";
-  const htmlExtension = options.autoDiscover?.htmlExtension ?? ".html";
-  const jsonExtension = options.autoDiscover?.jsonExtension ?? ".json";
-  const rscExtension = options.autoDiscover?.rscExtension ?? ".rsc";
-
+  const jsExtension =
+    options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension;
+  const cssExtension =
+    options.build?.cssExtension ?? DEFAULT_CONFIG.BUILD.cssExtension;
+  const cssModuleExtension =
+    options.build?.cssModuleExtension ??
+    DEFAULT_CONFIG.BUILD.cssModuleExtension;
+  const htmlExtension =
+    options.build?.htmlExtension ?? DEFAULT_CONFIG.BUILD.htmlExtension;
+  const jsonExtension =
+    options.build?.jsonExtension ?? DEFAULT_CONFIG.BUILD.jsonExtension;
+  const rscExtension =
+    options.build?.rscExtension ?? DEFAULT_CONFIG.BUILD.rscExtension;
   // Output path resolution
   const getOutputPath = (n: string | null) => {
     if (!n) return "";
@@ -300,59 +304,27 @@ export const resolveOptions = <
       ? path.slice(moduleBase.length + moduleBasePath.length)
       : path;
 
-    if (vendorPattern(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.vendorPattern,
-        jsExtension
-      );
-    if (cssModulePattern(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.cssModulePattern,
-        cssExtension + jsExtension
-      );
-    if (cssPattern(path))
-      return registerPath(path, options.autoDiscover?.cssPattern, cssExtension);
-    if (clientComponents(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.clientComponents,
-        jsExtension
-      );
-    if (testHtml(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.htmlPattern,
-        htmlExtension
-      );
-    if (jsonPattern(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.jsonPattern,
-        jsonExtension
-      );
-    if (propsPattern(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.propsPattern,
-        jsExtension
-      );
-    if (pagePattern(path))
-      return registerPath(path, options.autoDiscover?.pagePattern, jsExtension);
-    if (serverFunctions(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.serverFunctions,
-        jsExtension
-      );
-    if (modulePattern(path))
-      return registerPath(
-        path,
-        options.autoDiscover?.modulePattern,
-        jsExtension
-      );
-    return registerPath(path, options.autoDiscover?.modulePattern, jsExtension);
+    if (vendorPattern.test(path))
+      return registerPath(path, vendorPattern, jsExtension);
+    if (cssModulePattern.test(path))
+      return registerPath(path, cssModulePattern, cssModuleExtension);
+    if (cssPattern.test(path))
+      return registerPath(path, cssPattern, cssExtension);
+    if (clientPattern.test(path))
+      return registerPath(path, clientPattern, jsExtension);
+    if (htmlPattern.test(path))
+      return registerPath(path, htmlPattern, htmlExtension);
+    if (jsonPattern.test(path))
+      return registerPath(path, jsonPattern, jsonExtension);
+    if (propsPattern.test(path))
+      return registerPath(path, propsPattern, jsExtension);
+    if (pagePattern.test(path))
+      return registerPath(path, pagePattern, jsExtension);
+    if (serverPattern.test(path))
+      return registerPath(path, serverPattern, jsExtension);
+    if (modulePattern.test(path))
+      return registerPath(path, modulePattern, jsExtension);
+    return registerPath(path, modulePattern, jsExtension);
   };
 
   const normalizer =
@@ -365,14 +337,6 @@ export const resolveOptions = <
     });
   // File naming functions
   const entryFile = (n: PreRenderedChunk, ssr: boolean) => {
-    if (vendorPattern(n.name)) {
-      const search = n.facadeModuleId?.split("?")[1];
-      if (search) {
-        return hash(`${n.name}.${search}${jsExtension}`, ssr);
-      } else {
-        return hash(`${n.name}${jsExtension}`, ssr);
-      }
-    }
     return hash(getOutputPath(normalizer(n.name)[0]), ssr);
   };
 
@@ -381,151 +345,210 @@ export const resolveOptions = <
   };
 
   const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
+    if(n.names.length > 1) {
+      return n.names.map(name => hash(getOutputPath(name), ssr)).join(",");
+    }
     const firstName = n.names[0];
-    const extIndex = firstName.lastIndexOf(".");
-    const nameWithoutExtension = firstName.slice(0, extIndex);
-    const extension = firstName.slice(extIndex);
-    const assetName = normalizer(nameWithoutExtension)[0] + extension;
-    return hash(getOutputPath(assetName), ssr);
+    return hash(getOutputPath(firstName), ssr);
   };
-  const moduleID =
-    typeof options.moduleID === "function"
-      ? options.moduleID
-      : (id: string) => {
-          if (prodModuleBase && id.startsWith(prodModuleBase)) {
-            id = id.slice(prodModuleBase.length);
-          }
-          if (!id.startsWith(moduleBasePath)) {
-            id = join(moduleBasePath, id);
-          }
-          // in the case the moduleBase comes after the base path, remove it
-          if (prodModuleBase && id.startsWith("/" + prodModuleBase)) {
-            id = id.slice(prodModuleBase.length + 1);
-          }
-          // these paths will generally start with a /, simply ensure they always do
-          if (!id.startsWith("/")) {
-            id = "/" + id;
-          }
-          if (isProd) {
-            // generally it will work if we just use the .js extension for modules
-            return mapExtension(id);
-          }
-          // but for extra good development workflow, we keep the path intact
-          // not even stripping the moduleBase or ts extensions
-          return id;
-        };
 
-  const rscOutputPath =
-    options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath;
-  const htmlOutputPath =
-    options.build?.htmlOutputPath ?? DEFAULT_CONFIG.BUILD.htmlOutputPath;
-
-  // Build configuration object
+  /**
+   * pages
+   * assetsDir
+   * client
+   * server
+   * static
+   * api
+   * outDir
+   * hash
+   * preserveDirectives
+   * preserveModulesRoot
+   * rscOutputPath
+   * htmlOutputPath
+   * entryFile
+   * chunkFile
+   * assetFile
+   * extensionMap
+   * moduleExtension
+   * jsExtension
+   * cssExtension
+   * htmlExtension
+   * jsonExtension
+   * rscExtension
+   * cssModuleExtension
+   * nodeExtension
+   */
   const build = {
-    pages,
-    client,
-    server,
-    static: staticBuild,
-    outDir,
-    assetsDir,
-    api,
-    hash: hashOption,
-    preserveModulesRoot,
-    rscOutputPath,
-    htmlOutputPath,
-    preserveDirectives: options.build?.preserveDirectives || DEFAULT_CONFIG.BUILD.preserveDirectives,
-    entryFile:
-      typeof options.build?.entryFile === "function"
-        ? options.build.entryFile
-        : entryFile,
-    chunkFile:
-      typeof options.build?.chunkFile === "function"
-        ? options.build.chunkFile
-        : chunkFile,
-    assetFile:
-      typeof options.build?.assetFile === "function"
-        ? options.build.assetFile
-        : assetFile,
-  };
+    pages: options.build?.pages ?? DEFAULT_CONFIG.BUILD.pages,
+    assetsDir: options.build?.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir,
+    client: options.build?.client ?? DEFAULT_CONFIG.BUILD.client,
+    server: options.build?.server ?? DEFAULT_CONFIG.BUILD.server,
+    static: options.build?.static ?? DEFAULT_CONFIG.BUILD.static,
+    api: options.build?.api ?? DEFAULT_CONFIG.BUILD.api,
+    preserveModulesRoot:
+      options.build?.preserveModulesRoot ??
+      DEFAULT_CONFIG.BUILD.preserveModulesRoot,
+    outDir: options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir,
+    hash: options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash,
+    extensionMap: {
+      // Extension mappings
+      [BASE_PATTERNS.MODULE]:
+        options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension,
+      [BASE_PATTERNS.EXT.CSS]:
+        options.build?.cssExtension ?? DEFAULT_CONFIG.BUILD.cssExtension,
+      [BASE_PATTERNS.EXT.JSON]:
+        options.build?.jsonExtension ?? DEFAULT_CONFIG.BUILD.jsonExtension,
+      [BASE_PATTERNS.EXT.HTML]:
+        options.build?.htmlExtension ?? DEFAULT_CONFIG.BUILD.htmlExtension,
+      [BASE_PATTERNS.EXT.RSC]:
+        options.build?.rscExtension ?? DEFAULT_CONFIG.BUILD.rscExtension,
+      // Special case for .node files
+      [BASE_PATTERNS.EXT.NODE]:
+        BASE_PATTERNS.EXT.NODE +
+        (options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension),
+      ...options.build?.extensionMap,
+    },
+    entryFile,
+    chunkFile,
+    assetFile,
+    preserveDirectives:
+      options.build?.preserveDirectives ??
+      DEFAULT_CONFIG.BUILD.preserveDirectives,
+    rscOutputPath:
+      options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath,
+    htmlOutputPath:
+      options.build?.htmlOutputPath ?? DEFAULT_CONFIG.BUILD.htmlOutputPath,
+    moduleExtension:
+      options.build?.moduleExtension ?? DEFAULT_CONFIG.BUILD.moduleExtension,
+    jsExtension: options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension,
+    cssExtension:
+      options.build?.cssExtension ?? DEFAULT_CONFIG.BUILD.cssExtension,
+    htmlExtension:
+      options.build?.htmlExtension ?? DEFAULT_CONFIG.BUILD.htmlExtension,
+    jsonExtension:
+      options.build?.jsonExtension ?? DEFAULT_CONFIG.BUILD.jsonExtension,
+    rscExtension:
+      options.build?.rscExtension ?? DEFAULT_CONFIG.BUILD.rscExtension,
+    cssModuleExtension:
+      options.build?.cssModuleExtension ??
+      DEFAULT_CONFIG.BUILD.cssModuleExtension,
+    nodeExtension:
+      options.build?.nodeExtension ?? DEFAULT_CONFIG.BUILD.nodeExtension,
+  } satisfies ResolvedUserOptions<typeof options>["build"];
 
   // Auto-discovery configuration
   const autoDiscover = {
-    jsExtension: jsExtension,
-    cssExtension: cssExtension,
-    htmlExtension: htmlExtension,
-    jsonExtension: jsonExtension,
-    rscExtension: rscExtension,
-    moduleExtension:
-      options.autoDiscover?.moduleExtension ??
-      DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
-    serverDirective:
-      options.autoDiscover?.serverDirective ??
-      DEFAULT_CONFIG.AUTO_DISCOVER.serverDirective,
-    clientDirective:
-      options.autoDiscover?.clientDirective ??
-      DEFAULT_CONFIG.AUTO_DISCOVER.clientDirective,
-    modulePattern: modulePattern,
-    cssPattern: cssPattern,
-    jsonPattern: jsonPattern,
-    clientComponents: clientComponents,
-    serverFunctions: serverFunctions,
-    nodeOnly: nodeOnly,
-    propsPattern: propsPattern,
-    pagePattern: pagePattern,
-    cssModulePattern: cssModulePattern,
-    vendorPattern: vendorPattern,
-    dotFiles: dotFiles,
-    virtualPattern: virtualPattern,
-    htmlPattern: testHtml,
-    rscPattern: testRsc,
-    isServerFunctionCode: isServerFunctionCode,
-    isClientComponentCode: isClientComponentCode,
-  } as const;
-  const mapExtension = extMap(autoDiscover);
+    modulePattern,
+    jsonPattern,
+    cssPattern,
+    htmlPattern,
+    rscPattern,
+    clientPattern,
+    serverPattern,
+    nodePattern,
+    propsPattern,
+    pagePattern,
+    cssModulePattern,
+    vendorPattern,
+    virtualPattern,
+    dotPattern,
+  } satisfies ResolvedUserOptions<typeof options>["autoDiscover"];
+
+  const allowedDirectives = resolveAllowedDirectives(
+    options.loader?.allowedDirectives ?? DEFAULT_LOADER_CONFIG.allowedDirectives
+  );
+
+  const moduleID =
+    typeof options.moduleID === "function"
+      ? options.moduleID
+      : createDefaultModuleID({
+          moduleBase,
+          moduleBasePath,
+          build: build,
+          autoDiscover: autoDiscover,
+        });
+
+  // Create loader configuration
+  const loader = {
+    serverDirective: resolveRegExp(
+      options.loader?.serverDirective,
+      DEFAULT_LOADER_CONFIG.serverDirective
+    ),
+    clientDirective: resolveRegExp(
+      options.loader?.clientDirective,
+      DEFAULT_LOADER_CONFIG.clientDirective
+    ),
+    allowedDirectives: allowedDirectives,
+    getDirectiveType:
+      options.loader?.getDirectiveType ??
+      DEFAULT_LOADER_CONFIG.getDirectiveType,
+    mode: loaderMode,
+    importServerPath:
+      options.loader?.importServerPath ??
+      DEFAULT_CONFIG.RSC_LOADER[loaderMode].importServerPath,
+    importClientPath:
+      options.loader?.importClientPath ??
+      DEFAULT_CONFIG.RSC_LOADER[loaderMode].importClientPath,
+    registerClientReferenceName:
+      options.loader?.registerClientReferenceName ??
+      DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerClientReferenceName,
+    registerServerReferenceName:
+      options.loader?.registerServerReferenceName ??
+      DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerServerReferenceName,
+    isServerFunctionCode,
+    isClientComponentCode,
+  } satisfies ResolvedUserOptions["loader"];
+
   const pipeableStreamOptions = options.pipeableStreamOptions
     ? options.pipeableStreamOptions
     : {};
 
   // Return resolved options
   try {
+    const userOptions = {
+      projectRoot,
+      moduleBase,
+      moduleBasePath,
+      moduleBaseURL,
+      moduleRootPath,
+      publicOrigin,
+      build: build,
+      verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
+      onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
+      onEvent: options.onEvent,
+      Page: options.Page ?? undefined,
+      props: options.props ?? undefined,
+      Html: options.Html ?? DEFAULT_CONFIG.HTML,
+      CssCollector: options.CssCollector ?? CssCollector,
+      normalizer: normalizer,
+      moduleID: moduleID,
+      pageExportName: pageExportName,
+      propsExportName: propsExportName,
+      css: {
+        inlineCss: options.css?.inlineCss ?? DEFAULT_CONFIG.CSS.inlineCss,
+        inlineThreshold:
+          options.css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold,
+        inlinePatterns:
+          options.css?.inlinePatterns ?? DEFAULT_CONFIG.CSS.inlinePatterns,
+        linkPatterns:
+          options.css?.linkPatterns ?? DEFAULT_CONFIG.CSS.linkPatterns,
+      },
+      htmlWorkerPath: htmlWorkerPath,
+      rscWorkerPath: rscWorkerPath,
+      loaderPath: loaderPath,
+      clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
+      serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
+      autoDiscover: autoDiscover,
+      loader: loader,
+      pipeableStreamOptions,
+    } as ResolvedUserOptions<typeof options>;
+
+    // Stash the resolved options
+    stashedUserOptions[envId] = userOptions;
+
     return {
       type: "success",
-      userOptions: {
-        projectRoot,
-        moduleBase,
-        moduleBasePath,
-        moduleBaseURL,
-        moduleRootPath,
-        publicOrigin,
-        build: build,
-        verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
-        onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
-        onEvent: options.onEvent,
-        Page: options.Page ?? undefined,
-        props: options.props ?? undefined,
-        Html: options.Html ?? DEFAULT_CONFIG.HTML,
-        CssCollector: options.CssCollector ?? CssCollector,
-        normalizer: normalizer,
-        moduleID: moduleID,
-        pageExportName: pageExportName,
-        propsExportName: propsExportName,
-        css: {
-          inlineCss: options.css?.inlineCss ?? DEFAULT_CONFIG.CSS.inlineCss,
-          inlineThreshold:
-            options.css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold,
-          inlinePatterns:
-            options.css?.inlinePatterns ?? DEFAULT_CONFIG.CSS.inlinePatterns,
-          linkPatterns:
-            options.css?.linkPatterns ?? DEFAULT_CONFIG.CSS.linkPatterns,
-        },
-        htmlWorkerPath: htmlWorkerPath,
-        rscWorkerPath: rscWorkerPath,
-        loaderPath: loaderPath,
-        clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
-        serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
-        autoDiscover: autoDiscover,
-        pipeableStreamOptions,
-      } as ResolvedUserOptions<T, InlineCSS, N1, N2>,
+      userOptions,
     };
   } catch (error) {
     return {
@@ -535,4 +558,3 @@ export const resolveOptions = <
     };
   }
 };
-

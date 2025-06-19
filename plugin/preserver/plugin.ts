@@ -6,8 +6,8 @@ import type {
 } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { basename } from "path";
-import { resolveAutoDiscoverMatcher } from "../config/resolveAutoDiscoverMatcher.js";
 import type { Plugin } from "vite";
+import { resolveRegExp } from "../config/resolveRegExp.js";
 
 
 function createSourceMap(id: string, code: string, mappings: string) {
@@ -46,9 +46,9 @@ export function reactPreservePlugin<
 >(options: StreamPluginOptions<T, InlineCSS>): Plugin {
   const meta: Record<string, Set<string>> = {};
   // saves us from transforming all the options
-  const moduleExtension = resolveAutoDiscoverMatcher(options.autoDiscover?.moduleExtension, DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension);
-  const vendorPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.vendorPattern, DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern);
-  const virtualPattern = resolveAutoDiscoverMatcher(options.autoDiscover?.virtualPattern, DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern);
+  const moduleExtension = resolveRegExp(options.autoDiscover?.modulePattern, DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern);
+  const vendorPattern = resolveRegExp(options.autoDiscover?.vendorPattern, DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern);
+  const virtualPattern = resolveRegExp(options.autoDiscover?.virtualPattern, DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern);
   const preserveDirectives = options.build?.preserveDirectives ?? DEFAULT_CONFIG.BUILD.preserveDirectives;
 
   return {
@@ -63,9 +63,9 @@ export function reactPreservePlugin<
 
         // Skip node_modules and vite files
         if (
-          vendorPattern(id) ||
-          virtualPattern(id) ||
-          !moduleExtension(id)
+          vendorPattern.test(id) ||
+          virtualPattern.test(id) ||
+          !moduleExtension.test(id)
         ) {
           return null;
         }
