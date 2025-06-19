@@ -2,6 +2,8 @@ import type { ParseResult, ExportInfo } from "./directives/types.js";
 import type { ResolvedUserOptions } from "../types.js";
 import { createSourceMap } from "./sourceMap.js";
 import type { TransformResult } from "./types.js";
+import { getNodeEnv } from "../getNodeEnv.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 /**
  * Transforms a client module by:
@@ -12,15 +14,23 @@ export async function transformClientModule(
   source: string,
   moduleId: string,
   parseResult: ParseResult,
-  loader: ResolvedUserOptions['loader'],
+  loader: Pick<
+    ResolvedUserOptions["loader"],
+    "registerClientReferenceName" | "importClientPath"
+  > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   verbose = false
 ): Promise<TransformResult> {
-  if (parseResult.type !== 'success') {
-    return { code: '', map: null };
+  if (!loader) {
+    loader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()];
+  }
+  if (parseResult.type !== "success") {
+    return { code: "", map: null };
   }
 
   if (verbose) {
-    console.log(`[transformClientModule] Transforming client module: ${moduleId}`);
+    console.log(
+      `[transformClientModule] Transforming client module: ${moduleId}`
+    );
     console.log("Found exports:", parseResult.exports);
   }
 
@@ -38,8 +48,10 @@ export async function transformClientModule(
   }
 
   const finalCode = `
-    import { ${loader.registerClientReferenceName} } from "${loader.importClientPath}";
-    ${registrations.join('\n')}
+    import { ${loader.registerClientReferenceName} } from "${
+    loader.importClientPath
+  }";
+    ${registrations.join("\n")}
   `;
 
   // Create source map
@@ -47,6 +59,6 @@ export async function transformClientModule(
 
   return {
     code: finalCode,
-    map
+    map,
   };
-} 
+}

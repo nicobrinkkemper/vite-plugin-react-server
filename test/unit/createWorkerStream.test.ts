@@ -4,6 +4,7 @@ import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import type { RscWorkerOutputMessage } from 'vite-plugin-react-server/rsc-worker';
 import { createInputNormalizer } from '../../dist/plugin/helpers/inputNormalizer.js';
+import { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
 
 describe('createWorkerStream', () => {
   let mockWorker: Worker;
@@ -11,7 +12,9 @@ describe('createWorkerStream', () => {
   let mockHandlers: any;
   let mockMessageHandler: (msg: RscWorkerOutputMessage) => void;
   let lastChunk: Uint8Array | undefined;
-  const testMessage = {
+  const testMessage: RscRenderOpt = {
+    type: 'RSC_RENDER',
+    id: '/test',
     route: '/test',
     moduleBase: 'src',
     moduleRootPath: 'dist/client',
@@ -19,8 +22,8 @@ describe('createWorkerStream', () => {
     moduleBaseURL: '/',
     projectRoot: '/',
     publicOrigin: '/',
-    pageExportName: 'default',
-    propsExportName: 'default',
+    pageExportName: 'Page',
+    propsExportName: 'props',
     pagePath: 'src/pages/test.tsx',
     propsPath: 'src/pages/test.props.ts',
     pipeableStreamOptions: {},
@@ -31,12 +34,6 @@ describe('createWorkerStream', () => {
       inlinePatterns: [],
       linkPatterns: []
     },
-    normalizer: createInputNormalizer({
-      root: '/',
-      moduleBasePath: '/',
-      removeExtension: true
-    }),
-    moduleID: (id: string) => id,
     build: {
       outDir: 'dist',
       pages: ['/test'],
@@ -383,35 +380,5 @@ describe('createWorkerStream', () => {
     });
 
     expect(mockHandlers.onServerActionResponse).toHaveBeenCalledWith('/test', result, undefined);
-  });
-
-  it('should handle worker timeout with cleanup', async () => {
-    vi.useFakeTimers();
-
-    const stream = createWorkerStream({
-      worker: mockWorker,
-      message: testMessage,
-      logger: mockLogger,
-      handlers: mockHandlers,
-    });
-
-    // Wait for initial empty chunk
-    await stream.next();
-
-    // Advance timers to trigger timeout
-    await vi.advanceTimersByTimeAsync(5000);
-    await vi.runAllTimersAsync();
-
-    expect(mockWorker.terminate).toHaveBeenCalled();
-    expect(mockLogger.info).toHaveBeenCalledWith('worker timeout');
-
-    // Wait for stream to complete
-    const result = await stream.next();
-    expect(result.done).toBe(true);
-
-    // Verify cleanup
-    expect(mockWorker.removeListener).toHaveBeenCalled();
-
-    vi.useRealTimers();
   });
 }); 

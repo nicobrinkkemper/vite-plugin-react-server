@@ -3,6 +3,7 @@ import { handleWorkerRscStream } from '../../dist/plugin/react-client/handleWork
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import type { StreamHandlers } from '../../dist/plugin/worker/types.js';
+import { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
 
 describe('handleWorkerRscStream', () => {
   let mockWorker: Worker;
@@ -57,7 +58,7 @@ describe('handleWorkerRscStream', () => {
     vi.clearAllMocks();
   });
 
-  const createMessage = (route: string) => ({
+  const createMessage = (route: string): RscRenderOpt => ({
     route,
     moduleBase: 'src',
     moduleRootPath: 'dist/client',
@@ -65,8 +66,8 @@ describe('handleWorkerRscStream', () => {
     moduleBaseURL: '/',
     projectRoot: '/',
     publicOrigin: '/',
-    pageExportName: 'default',
-    propsExportName: 'default',
+    pageExportName: 'Page',
+    propsExportName: 'props',
     pagePath: 'src/pages/test.tsx',
     propsPath: 'src/pages/test.props.ts',
     pipeableStreamOptions: {},
@@ -86,11 +87,11 @@ describe('handleWorkerRscStream', () => {
       inlinePatterns: [],
       linkPatterns: []
     },
-    normalizer: (input: any): [string, string] => ['', ''],
-    moduleID: (id: string) => id,
     manifest: {},
     cssFiles: new Map(),
-    globalCss: new Map()
+    globalCss: new Map(),
+    type: 'RSC_RENDER',
+    id: route,
   });
 
   it('should handle RSC stream correctly', async () => {
@@ -106,11 +107,7 @@ describe('handleWorkerRscStream', () => {
     });
 
     // Verify worker message was sent
-    expect(mockWorker.postMessage).toHaveBeenCalledWith({
-      type: 'RSC_RENDER',
-      id: route,
-      ...message,
-    });
+    expect(mockWorker.postMessage).toHaveBeenCalledWith(message);
 
     // Verify message handler was set up
     expect(mockWorker.on).toHaveBeenCalledWith('message', expect.any(Function));

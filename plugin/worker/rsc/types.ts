@@ -88,28 +88,30 @@ export type RscWorkerOutputMessage =
   | HmrUpdateMessage
   | HmrCleanupMessage;
 
-export type RscRenderMessage<
-  Opt extends ResolvedUserOptions = ResolvedUserOptions
-> = WorkerMessage & {
+export type RscRenderOpt = WorkerMessage & {
   type: "RSC_RENDER";
 } & Omit<
-      CreateHandlerOptions<Opt>,
-    | "onEvent"
-    | "onMetrics"
-    | "loader"
-    | "Html"
-    | "CssCollector"
-    | "logger"
-    | "build"
-    | "autoDiscover"
-    | "normalizer"
-    | "moduleID"
-  > & {
-    build: Omit<
-      CreateHandlerOptions<Opt>["build"],
-      "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
-    > & { pages: string[] };
-  };
+  CreateHandlerOptions<ResolvedUserOptions>,
+  | "onEvent"
+  | "onMetrics"
+  | "loader"
+  | "Html"
+  | "CssCollector"
+  | "logger"
+  | "build"
+  | "autoDiscover"
+  | "normalizer"
+  | "moduleID"
+> & {
+  build: Omit<
+    CreateHandlerOptions<ResolvedUserOptions>["build"],
+    "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
+  > & { pages: string[] };
+};
+
+export type RscRenderMessage<
+  Opt extends RscRenderOpt = RscRenderOpt
+> = Opt;
 
 export type ChunkProcessedMessage = {
   type: "CHUNK_PROCESSED";

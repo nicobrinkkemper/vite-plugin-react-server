@@ -33,7 +33,7 @@ export function createMessageHandler({
             }
           : { 
               ...message.error,
-              reason: message.error?.message || 'Unknown error',
+              message: message.error?.message || 'Unknown error',
               name: message.error?.name || 'Error',
               stack: message.error?.stack
             };

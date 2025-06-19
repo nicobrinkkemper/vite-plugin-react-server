@@ -345,8 +345,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   };
 
   const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
-    if(n.names.length > 1) {
-      return n.names.map(name => hash(getOutputPath(name), ssr)).join(",");
+    if (n.names.length > 1) {
+      return n.names.map((name) => hash(getOutputPath(name), ssr)).join(",");
     }
     const firstName = n.names[0];
     return hash(getOutputPath(firstName), ssr);

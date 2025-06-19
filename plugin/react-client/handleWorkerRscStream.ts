@@ -3,16 +3,9 @@ import type { RscRenderMessage } from "../worker/rsc/types.js";
 import type { StreamHandlers } from "../worker/types.js";
 import { createWorkerStream } from "./createWorkerStream.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
-import type { AsOpt, InlineCssOpt, PageName, PagePropOpt, PropsName } from "../types.js";
 import { toError } from "../error/toError.js";
 
-export type HandleWorkerRscStreamFn = <
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt,
-  N1 extends string = PageName,
-  N2 extends string = PropsName
->(props: { 
+export type HandleWorkerRscStreamFn = (props: { 
   worker: NodeWorker;
   message: Omit<RscRenderMessage, "type" | "id"> &
     Partial<Pick<RscRenderMessage, "id">> & {

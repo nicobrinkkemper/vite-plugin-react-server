@@ -185,8 +185,8 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         forceServerFunction: isServer,
         forceClientComponent: isClient,
         isServerEnvironment: true,
-        loader: userOptions.loader,
-        verbose: userOptions.verbose,
+        loader: userOptions?.loader,
+        verbose: userOptions?.verbose,
         directiveWarnings: [],
       }
     );

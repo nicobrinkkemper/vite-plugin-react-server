@@ -13,13 +13,11 @@ export const handlers: Required<StreamHandlers> = {
     const formattedError = typeof error === 'string'
       ? {
           message: error,
-          reason: error,
           stack: undefined,
           name: 'Error'
         }
       : {
           message: (error as Error)?.message || 'Unknown error',
-          reason: (error as Error)?.message || 'Unknown error',
           name: (error as Error)?.name || 'Error',
           stack: (error as Error)?.stack,
           ...(error && typeof error === 'object' ? error : {})
