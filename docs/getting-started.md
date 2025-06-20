@@ -77,6 +77,9 @@ export const config = {
 } satisfies StreamPluginOptions;
 ```
 
+Because we are using the `.tsx` extension for this file, we can simply define the React server components.
+This does not work for the `vite.config.ts` file because vite does not support this name.
+
 ### 2. Create Client Configuration
 
 Create `vite.config.ts` for client-side rendering:
