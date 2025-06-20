@@ -41,7 +41,7 @@ This ensures the patch is applied after every `npm install`. If errors arise rel
 
 ### 1. Create Configuration Files
 
-Create a shared configuration file (let's call it `vite.react.config.ts`):
+Create a shared configuration file (let's call it `vite.react.config.tsx`):
 
 ```ts
 import type { StreamPluginOptions } from "vite-plugin-react-server/types";
@@ -78,19 +78,43 @@ export const config = {
 ```
 
 Because we are using the `.tsx` extension for this file, we can simply define the React server components.
-This does not work for the `vite.config.ts` file because vite does not support this name.
+This does not work for the `vite.config.ts` file, because vite does not support this extension.
 
-### 2. Create Client Configuration
+### 2. Create Configuration
 
-Create `vite.config.ts` for client-side rendering:
+Create `vite.config.ts`:
 
 ```ts
 import { defineConfig } from "vite";
-import { vitePluginReactClient } from "vite-plugin-react-server/client";
+import { vitePluginReactServer } from "vite-plugin-react-server";
 import { config } from "./vite.react.config";
 
 export default defineConfig({
-  plugins: vitePluginReactClient(config),
+  plugins: vitePluginReactServer(config),
+});
+```
+
+For client-only config files (optional)
+
+```ts
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server/client";
+import { config } from "./vite.react.config";
+
+export default defineConfig({
+  plugins: vitePluginReactServer(config),
+});
+```
+
+For server-only config files (optional)
+
+```ts
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server/server";
+import { config } from "./vite.react.config";
+
+export default defineConfig({
+  plugins: vitePluginReactServer(config),
 });
 ```
 
@@ -135,8 +159,8 @@ export const props = ({url})=>({
 # Run server-side rendering
 npm run dev
 
-# Run client-side development
-npm run dev:client
+# Run server-side development using rsc-worker
+npm run start
 ```
 
 ### Building for Production
