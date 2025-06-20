@@ -24,7 +24,6 @@ export async function test() {
 }`,
       "test.server.js"
     );
-    console.log(result);
     expect(result.source).toBeDefined();
     expect(result.source).not.toContain("use server");
     expect(result.source).toContain("registerServerReference(test");
@@ -127,7 +126,6 @@ export async function test2() {
 }`,
       "test.server.js"
     );
-    console.log(result);
     expect(result.source).toBeDefined();
     expect(result.source).not.toContain("use server");
     expect(result.source).toContain("registerServerReference(test");

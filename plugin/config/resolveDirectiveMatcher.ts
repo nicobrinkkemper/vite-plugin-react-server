@@ -30,8 +30,18 @@ export function resolveDirectiveMatcher(
 ): (source: string, moduleId?: string) => boolean {
   if (typeof pattern === "function") {
     return pattern;
+  } else if (pattern instanceof RegExp) {
+    return (source: string, moduleId?: string) => pattern.test(source);
   } else if (typeof pattern === "string") {
     const regex = parsePattern(pattern);
+    return (source: string, moduleId?: string) => regex.test(source);
+  } else if (
+    typeof pattern === "object" &&
+    pattern != null &&
+    "__isRegExp" in pattern
+  ) {
+    const deserialized = pattern as DeserializedRegExp;
+    const regex = new RegExp(deserialized.source, deserialized.flags);
     return (source: string, moduleId?: string) => regex.test(source);
   } else if (typeof defaultPattern === "string") {
     const regex = parsePattern(defaultPattern);

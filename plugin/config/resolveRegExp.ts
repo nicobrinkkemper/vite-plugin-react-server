@@ -85,5 +85,5 @@ export function resolveRegExp(
   
   // Fallback: convert anything else to string and try to create a RegExp
   // This is mainly for backward compatibility
-  return new RegExp(String(defaultPattern));
+  return new RegExp(String(defaultPattern || ""));
 }

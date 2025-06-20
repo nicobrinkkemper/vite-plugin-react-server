@@ -143,56 +143,56 @@ describe("resolvePatternWithValues", () => {
 
 describe("resolveRegExp", () => {
   it("should handle string patterns", () => {
-    const test = resolveRegExp("*.js").test;
-    expect(test("file.js")).toBe(true);
-    expect(test("file.ts")).toBe(false);
+    const regex = resolveRegExp("*.js");
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.ts")).toBe(false);
   });
 
   it("should handle multiple extensions", () => {
-    const test = resolveRegExp("*.{js,ts}").test;
-    expect(test("file.js")).toBe(true);
-    expect(test("file.ts")).toBe(true);
-    expect(test("file.css")).toBe(false);
+    const regex = resolveRegExp("*.{js,ts}");
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.ts")).toBe(true);
+    expect(regex.test("file.css")).toBe(false);
   });
 
   it("should handle paths", () => {
-    const test = resolveRegExp("src/*.js").test;
-    expect(test("src/file.js")).toBe(true);
-    expect(test("file.js")).toBe(false);
+    const regex = resolveRegExp("src/*.js");
+    expect(regex.test("src/file.js")).toBe(true);
+    expect(regex.test("file.js")).toBe(false);
   });
 
   it("should handle case sensitivity", () => {
-    const test = resolveRegExp("*.js").test;
-    expect(test("file.js")).toBe(true);
-    expect(test("file.JS")).toBe(false);
+    const regex = resolveRegExp("*.js");
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.JS")).toBe(false);
 
-    const caseInsensitive = resolveRegExp("*.js/i").test;
-    expect(caseInsensitive("file.js")).toBe(true);
-    expect(caseInsensitive("file.JS")).toBe(true);
+    const caseInsensitive = resolveRegExp("*.js/i");
+    expect(caseInsensitive.test("file.js")).toBe(true);
+    expect(caseInsensitive.test("file.JS")).toBe(true);
   });
 
   it("should handle RegExp objects", () => {
-    const test = resolveRegExp(/\.js$/).test;
-    expect(test("file.js")).toBe(true);
-    expect(test("file.ts")).toBe(false);
+    const regex = resolveRegExp(/\.js$/);
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.ts")).toBe(false);
   });
 
   it("should handle RegExp flags", () => {
-    const test = resolveRegExp(/\.js$/i).test;
-    expect(test("file.js")).toBe(true);
-    expect(test("file.JS")).toBe(true);
+    const regex = resolveRegExp(/\.js$/i);
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.JS")).toBe(true);
   });
 
   it("should handle default patterns", () => {
-    const test = resolveRegExp(undefined, "*.js").test;      
-    expect(test("file.js")).toBe(true);
-    expect(test("file.ts")).toBe(false);
+    const regex = resolveRegExp(undefined, "*.js");      
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.ts")).toBe(false);
   });
 
   it("should handle default RegExp patterns", () => {
-    const test = resolveRegExp(undefined, /\.js$/).test;
-    expect(test("file.js")).toBe(true);
-    expect(test("file.ts")).toBe(false);
+    const regex = resolveRegExp(undefined, /\.js$/);
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.ts")).toBe(false);
   });
 
   it("should handle deserialized RegExp objects", () => {
@@ -201,9 +201,9 @@ describe("resolveRegExp", () => {
       flags: "i",
       __isRegExp: true
     };
-    const test = resolveRegExp(deserialized).test;
-    expect(test("file.js")).toBe(true);
-    expect(test("file.JS")).toBe(true);
+    const regex = resolveRegExp(deserialized);
+    expect(regex.test("file.js")).toBe(true);
+    expect(regex.test("file.JS")).toBe(true);
   });
 });
 
@@ -228,8 +228,18 @@ describe("parsePattern", () => {
   it("should convert 'src/*.js' to a regex that matches .js files in src/", () => {
     const regex = parsePattern("src/*.js");
     expect(regex).toBeInstanceOf(RegExp);
-    expect(regex.source).toBe("^src/.*\\.js$");
+    expect(regex.source).toBe("^src\\/.*\\.js$");
     expect(regex.test("src/file.js")).toBe(true);
     expect(regex.test("file.js")).toBe(false);
+  });
+});
+
+describe('rsolveRegExp direct output', () => {
+  it('should return a RegExp object for directory patterns', () => {
+    const regex = resolveRegExp('src/*.js');
+    expect(regex).toBeInstanceOf(RegExp);
+    expect(typeof regex.test).toBe('function');
+    expect(regex.test('src/file.js')).toBe(true);
+    expect(regex.test('file.js')).toBe(false);
   });
 }); 

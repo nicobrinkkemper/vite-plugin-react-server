@@ -71,7 +71,7 @@ describe('handleWorkerRscStream', () => {
     pagePath: 'src/pages/test.tsx',
     propsPath: 'src/pages/test.props.ts',
     pipeableStreamOptions: {},
-    verbose: true,
+    verbose: false,
     build: {
       pages: ['/test'],
       outDir: 'dist',
@@ -103,7 +103,7 @@ describe('handleWorkerRscStream', () => {
       message,
       logger: mockLogger,
       handlers: mockHandlers,
-      verbose: true
+      verbose: false
     });
 
     // Verify worker message was sent
@@ -122,7 +122,7 @@ describe('handleWorkerRscStream', () => {
       message,
       logger: mockLogger,
       handlers: mockHandlers,
-      verbose: true
+      verbose: false
     });
 
     // Simulate RSC chunk message
@@ -142,7 +142,7 @@ describe('handleWorkerRscStream', () => {
       message,
       logger: mockLogger,
       handlers: mockHandlers,
-      verbose: true
+      verbose: false
     });
 
     // Simulate RSC end message
@@ -162,7 +162,7 @@ describe('handleWorkerRscStream', () => {
       message,
       logger: mockLogger,
       handlers: mockHandlers,
-      verbose: true
+      verbose: false
     });
 
     // Simulate error message
@@ -187,7 +187,7 @@ describe('handleWorkerRscStream', () => {
       message,
       logger: mockLogger,
       handlers: mockHandlers,
-      verbose: true
+      verbose: false
     });
 
     // Simulate metrics message
@@ -207,7 +207,7 @@ describe('handleWorkerRscStream', () => {
       message,
       logger: mockLogger,
       handlers: mockHandlers,
-      verbose: true
+      verbose: false
     });
 
     // Simulate HMR update message
@@ -227,7 +227,7 @@ describe('handleWorkerRscStream', () => {
       message,
       logger: mockLogger,
       handlers: mockHandlers,
-      verbose: true
+      verbose: false
     });
 
     // Simulate CSS file message

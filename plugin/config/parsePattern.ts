@@ -55,7 +55,7 @@ export function parsePattern(pattern: string): RegExp {
   // We need to convert user-friendly glob patterns into proper regex patterns:
   // - "*.js"      -> ".*\.js$"     (any characters, then .js at the end)
   // - "*.{js,ts}" -> ".*\.(js|ts)$" (any characters, then .js OR .ts at the end)
-  // - "src/*.js"  -> "^src/.*\.js$" (starts with src/, then any characters, then .js at the end)
+  // - "src/*.js"  -> "^src\/.*\.js$" (starts with src/, then any characters, then .js at the end)
   let regexStr = patternStr
     // Convert glob brace expansion {a,b} to regex alternation (a|b) FIRST
     .replace(/\{([^}]+)\}/g, (match, contents) => {

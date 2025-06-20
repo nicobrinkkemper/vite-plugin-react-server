@@ -2,8 +2,8 @@ import { resolveOptions } from "../../../plugin/config/resolveOptions.js";
 
 export const testLoaderConfig = resolveOptions({
   moduleBase: "src",
-  Page: "src/pages/Page.js",
-  verbose: true,
+  Page: "src/pages/Page.tsx",
+  verbose: false,
   loader: {
     mode: "test" as const,
     importServerPath: "react-server-dom/server",

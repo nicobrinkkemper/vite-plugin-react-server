@@ -55,7 +55,6 @@ export function test() {
     if(!result.exports) {
       throw new Error("Exports is undefined");
     }
-    console.log('result.exports', result.exports);
     expect(result.exports.exportNames).toHaveLength(1);
     expect(result.exports.exports.size).toBe(1);
     expect(result.exports.exports.get("ErrorBoundary")?.type).toBe("class");
@@ -76,7 +75,6 @@ export function test() {
     if(!result.exports) {
       throw new Error("Exports is undefined");
     }
-    console.log('result.exports', result.exports);
     expect(result.exports.exportNames).toHaveLength(1);
     expect(result.exports.exports.size).toBe(1);
     expect(result.exports.exports.get("Link")?.type).toBe("function");

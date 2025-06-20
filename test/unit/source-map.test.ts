@@ -36,7 +36,7 @@ export async function add(a, b) {
     const transformer = createTransformer({
       options: {
         loader: TEST_LOADER_CONFIG,
-        verbose: true,
+        verbose: false,
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -344,7 +344,7 @@ export async function add(a, b) {
     const transformer = createTransformer({
       options: {
         loader: TEST_LOADER_CONFIG,
-        verbose: true,
+        verbose: false,
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -409,7 +409,7 @@ export async function add(a, b) {
     const transformer = createTransformer({
       options: {
         loader: TEST_LOADER_CONFIG,
-        verbose: true,
+        verbose: false,
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -444,7 +444,7 @@ export async function add(a, b) {
     const transformer = createTransformer({
       options: {
         loader: TEST_LOADER_CONFIG,
-        verbose: true,
+        verbose: false,
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -541,7 +541,7 @@ export async function add(a, b) {
     const transformer = createTransformer({
       options: {
         loader: TEST_LOADER_CONFIG,
-        verbose: true,
+        verbose: false,
       },
       forceServerFunction: true,
       forceClientComponent: false,

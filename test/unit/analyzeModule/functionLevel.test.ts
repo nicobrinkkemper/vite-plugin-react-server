@@ -97,7 +97,6 @@ async function test() {
     }
   `;
     const result = await analyzeModule(source, "test.js", testLoaderConfig);
-    console.log(result);
     expect(result.directiveInfo?.functionLevel.length).toBe(2);
     expect(result.directiveInfo?.functionLevel[0]?.name).toBe("test1");
     expect(result.directiveInfo?.functionLevel[1]?.name).toBe("test3");
