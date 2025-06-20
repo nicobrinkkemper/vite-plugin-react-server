@@ -10,11 +10,13 @@ function deserializeRegExp(pattern: { source: string; flags: string; __isRegExp:
   return undefined;
 }
 
-function isSerializedRegExp(obj: any): obj is { source: string; flags: string; __isRegExp: boolean } {
+function isSerializedRegExp(obj: unknown): obj is { source: string; flags: string; __isRegExp: boolean } {
   return (
-    obj &&
+    obj != null &&
     typeof obj === "object" &&
-    obj !== null &&
+    '__isRegExp' in obj &&
+    'source' in obj &&
+    'flags' in obj &&
     obj.__isRegExp === true &&
     typeof obj.source === "string" &&
     typeof obj.flags === "string"

@@ -1,10 +1,6 @@
 import type {
-  InlineCssOpt,
-  AsOpt,
-  ResolvedUserOptions,
+  ResolvedUserOptions,    
   SerializedUserOptions,
-  PageName,
-  PropsName,
 } from "../types.js";
 import type { ModuleInfo } from "rollup";
 import { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
@@ -16,16 +12,9 @@ import type {
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { hydrateUserOptions } from "../helpers/index.js";
-import { DEFAULT_CONFIG, DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
+import {  DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import type { LoadHook, ResolveHook } from "node:module";
-import { readFile } from "node:fs/promises";
 import { createTransformer } from "./createTransformer.js";
-import type {
-  BuildModuleLoader,
-  PagePropOpt,
-  TransformResult,
-  LoaderConfig,
-} from "../types.js";
 
 export type LoaderOptions = {
   id: string;

@@ -87,7 +87,7 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
         );
       }
     },
-    onEnd: (id: string) => {
+    onEnd: () => {
       // Handle generator flow - resolve with null to signal end
       if (currentResolve) {
         currentResolve(null);

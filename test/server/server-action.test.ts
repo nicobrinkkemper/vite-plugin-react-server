@@ -2,17 +2,17 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { setupTestServerActionJS } from "../setup.js";
 import { doBuild } from "./doBuild.js";
 import { testUserOptions } from "../test-config.js";
-import { readdir, readFile, mkdir, rm, writeFile } from "fs/promises";
-import { resolve, join } from "path";
-import { getNodeEnv } from "../../plugin/getNodeEnv.js";
+import {  mkdir } from "fs/promises";
+import { resolve } from "path";
+import type { PluginEvent } from "../../dist/types.js";
+import type { OutputBundle } from "rollup";
 const testDir = resolve(__dirname, "../fixtures/server-action.test");
 describe("Generic Server Action Build Output", () => {
-  let events: any[];
+  let events: PluginEvent[];
   let serverFiles: string[];
   let clientFiles: string[];
-  let distDir: string;
-  let serverBundle: Record<string, any>;
-  let clientBundle: Record<string, any>;
+  let serverBundle: OutputBundle; 
+  let clientBundle: OutputBundle;
   beforeAll(async () => {
     await mkdir(testDir, { recursive: true });
     await setupTestServerActionJS(testDir);
@@ -29,11 +29,12 @@ describe("Generic Server Action Build Output", () => {
       });
 
       // get the new server action files
-      serverBundle = events.find((e) => e.type === "build.writeBundle.server")?.data.bundle;
+      serverBundle = events.find((e) => e.type === "build.writeBundle.server")!.data.bundle;
       serverFiles = Object.keys(serverBundle).filter(
         (f) => !f.endsWith(".map")
       )
-      clientBundle = events.find((e) => e.type === "build.writeBundle.client")?.data.bundle;
+      clientBundle = events.find((e) => e.type === "build.writeBundle.client")!.data.bundle;
+
       clientFiles = Object.keys(clientBundle).filter(
         (f) => !f.endsWith(".map")
       ) 
@@ -62,7 +63,11 @@ describe("Generic Server Action Build Output", () => {
   it("should register the add server action using import from react-server-dom-esm/server.node", async () => {
     let found = false;
     for (const file of serverFiles) {
-      const content = serverBundle[file].code;
+      const entry = serverBundle[file];
+      if(entry.type === "asset") {
+        continue;
+      }
+      const content = entry.code;
       if(!content || !content.includes('registerServerReference')) {
         continue;
       }
@@ -73,8 +78,12 @@ describe("Generic Server Action Build Output", () => {
   });
   it("should register the client component using import from react-server-dom-esm/server.node", async () => {
     let found = false;
-    for (const file of serverFiles) {
-      const content = serverBundle[file].code;
+    for (const file of serverFiles) { 
+      const entry = serverBundle[file];
+      if(entry.type === "asset") {
+        continue;
+      }
+      const content = entry.code;
       if(file.includes(".client.")) {
         expect(content).toContain('throw new Error("Attempted to call');
         expect(content).toContain("import { registerClientReference } from \"react-server-dom-esm/server.node\"");
@@ -87,12 +96,20 @@ describe("Generic Server Action Build Output", () => {
     expect(found).toBe(true);
   });
   it("should register the add server action, but not the subtract server action", async () => {
-    const addServerAction = serverBundle["page/add.server.js"].code;
+    const entry = serverBundle["page/add.server.js"];
+    if(entry.type === "asset") {
+      throw new Error("Add server action is an asset");
+    }
+    const addServerAction = entry.code;
     expect(addServerAction).toContain("registerServerReference(add, \"/src/page/add.server.ts\", \"add\");");
     expect(addServerAction).not.toContain("registerServerReference(subtract");
   });
   it("should register the subtract server action, but not the add server action", async () => {
-    const subtractServerAction = serverBundle["page/subtract.server.js"].code;
+    const entry = serverBundle["page/subtract.server.js"];
+    if(entry.type === "asset") {
+      throw new Error("Subtract server action is an asset");
+    }
+    const subtractServerAction = entry.code;
     expect(subtractServerAction).toContain("registerServerReference(subtract, \"/src/page/subtract.server.ts\", \"subtract\");");
     // wrench in the system, 2 use server directives but one non use server directive function export
     expect(subtractServerAction).toContain("registerServerReference(multiply, \"/src/page/subtract.server.ts\", \"multiply\");");

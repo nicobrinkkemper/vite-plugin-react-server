@@ -18,8 +18,7 @@ import { join } from "node:path";
 import type { Worker } from "node:worker_threads";
 import {
   type Manifest,
-  type ResolvedConfig,
-  type Plugin as VitePlugin,
+  type ResolvedConfig,  
   createLogger,
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";

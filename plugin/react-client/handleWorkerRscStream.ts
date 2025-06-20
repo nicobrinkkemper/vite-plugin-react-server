@@ -62,7 +62,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWo
           isClosed = true;
           try {
             controller.close();
-          } catch (e) {
+          } catch {
             // Ignore errors from trying to close an already closed controller
           }
         }

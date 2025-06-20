@@ -1,10 +1,7 @@
 import type { PreviewServer } from "vite";
 import type {
   ResolvedUserOptions,
-  PagePropOpt,
-  InlineCssOpt,
   StreamError,
-  StreamPluginOptions,
 } from "../types.js";
 import { join } from "node:path";
 import { createReadStream } from "node:fs";

@@ -2,14 +2,9 @@ import type { ResolvedConfig, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   ResolvedUserOptions,
-  PagePropOpt,
-  InlineCssOpt,
   SerializableRecord,
   ResolvedUserConfig,
   SerializedUserOptions,
-  AsOpt,
-  PageName,
-  PropsName,
 } from "../types.js";
 import { cleanObject } from "./cleanObject.js";
 import { resolveOptions } from "../config/resolveOptions.js";

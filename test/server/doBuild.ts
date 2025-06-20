@@ -1,7 +1,7 @@
 import { build } from "vite";
 import { vitePluginReactClient } from "vite-plugin-react-server/client";
 import { vitePluginReactServer } from "vite-plugin-react-server/server";
-import { PluginEvent, StreamPluginOptions } from "vite-plugin-react-server/types";
+import type { PluginEvent, StreamPluginOptions } from "vite-plugin-react-server/types";
 import { testUserOptions } from "../test-config";
 import { inspect } from "node:util";
 import { rm } from "fs/promises";
@@ -36,7 +36,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
   } as StreamPluginOptions;
 
   // Change to test directory
-  let originalCwd = process.cwd();
+  const originalCwd = process.cwd();
   process.chdir(options.projectRoot ?? "");
 
   // Clean output directory only at the start

@@ -72,7 +72,7 @@ const registerPath = (path: string, pattern?: RegExp, ext?: string) => {
 // Main Options Resolver
 // ============================================================================
 
-const stashedUserOptions: Record<string, ResolvedUserOptions<any> | null> = {};
+const stashedUserOptions: Record<string, ResolvedUserOptions | null> = {};
 
 /**
  * Resolves the user options for the plugin.
@@ -118,8 +118,15 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME,
   } = options;
 
-  const client = options.build?.client ?? DEFAULT_CONFIG.BUILD.client;
-  const outDir = options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir;
+  const client =
+    typeof options.build?.client === "string"
+      ? options.build.client
+      : DEFAULT_CONFIG.BUILD.client;
+
+  const outDir =
+    typeof options.build?.outDir === "string"
+      ? options.build.outDir
+      : DEFAULT_CONFIG.BUILD.outDir;
 
   const moduleBasePath =
     typeof options.moduleBasePath === "string"
@@ -156,6 +163,46 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     typeof options.loaderPath === "string"
       ? join(projectRoot, options.loaderPath)
       : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
+
+  const preserveDirectives =
+    typeof options.build?.preserveDirectives === "boolean"
+      ? options.build.preserveDirectives
+      : DEFAULT_CONFIG.BUILD.preserveDirectives;
+
+  const jsExtension =
+    typeof options.build?.jsExtension === "string"
+      ? options.build.jsExtension
+      : DEFAULT_CONFIG.BUILD.jsExtension;
+  const cssExtension =
+    typeof options.build?.cssExtension === "string"
+      ? options.build.cssExtension
+      : DEFAULT_CONFIG.BUILD.cssExtension;
+  const cssModuleExtension =
+    typeof options.build?.cssModuleExtension === "string"
+      ? options.build.cssModuleExtension
+      : DEFAULT_CONFIG.BUILD.cssModuleExtension;
+  const htmlExtension =
+    typeof options.build?.htmlExtension === "string"
+      ? options.build.htmlExtension
+      : DEFAULT_CONFIG.BUILD.htmlExtension;
+  const jsonExtension =
+    typeof options.build?.jsonExtension === "string"
+      ? options.build.jsonExtension
+      : DEFAULT_CONFIG.BUILD.jsonExtension;
+  const rscExtension =
+    typeof options.build?.rscExtension === "string"
+      ? options.build.rscExtension
+      : DEFAULT_CONFIG.BUILD.rscExtension;
+
+  const rscOutputPath =
+    typeof options.build?.rscOutputPath === "string"
+      ? options.build.rscOutputPath
+      : DEFAULT_CONFIG.BUILD.rscOutputPath;
+  const htmlOutputPath =
+    typeof options.build?.htmlOutputPath === "string"
+      ? options.build.htmlOutputPath
+      : DEFAULT_CONFIG.BUILD.htmlOutputPath;
+
   // these will never be cleaned up, because, we are resolving the user options
   // and it's assumed they are relevant until the process stops
   if (process.env.VITE_BASE_URL !== moduleBaseURL) {
@@ -283,19 +330,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return n + hashString;
     }
   };
-  const jsExtension =
-    options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension;
-  const cssExtension =
-    options.build?.cssExtension ?? DEFAULT_CONFIG.BUILD.cssExtension;
-  const cssModuleExtension =
-    options.build?.cssModuleExtension ??
-    DEFAULT_CONFIG.BUILD.cssModuleExtension;
-  const htmlExtension =
-    options.build?.htmlExtension ?? DEFAULT_CONFIG.BUILD.htmlExtension;
-  const jsonExtension =
-    options.build?.jsonExtension ?? DEFAULT_CONFIG.BUILD.jsonExtension;
-  const rscExtension =
-    options.build?.rscExtension ?? DEFAULT_CONFIG.BUILD.rscExtension;
+
   // Output path resolution
   const getOutputPath = (n: string | null) => {
     if (!n) return "";
@@ -392,16 +427,11 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     hash: options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash,
     extensionMap: {
       // Extension mappings
-      [BASE_PATTERNS.MODULE]:
-        options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension,
-      [BASE_PATTERNS.EXT.CSS]:
-        options.build?.cssExtension ?? DEFAULT_CONFIG.BUILD.cssExtension,
-      [BASE_PATTERNS.EXT.JSON]:
-        options.build?.jsonExtension ?? DEFAULT_CONFIG.BUILD.jsonExtension,
-      [BASE_PATTERNS.EXT.HTML]:
-        options.build?.htmlExtension ?? DEFAULT_CONFIG.BUILD.htmlExtension,
-      [BASE_PATTERNS.EXT.RSC]:
-        options.build?.rscExtension ?? DEFAULT_CONFIG.BUILD.rscExtension,
+      [BASE_PATTERNS.MODULE]: jsExtension,
+      [BASE_PATTERNS.EXT.CSS]: cssExtension,
+      [BASE_PATTERNS.EXT.JSON]: jsonExtension,
+      [BASE_PATTERNS.EXT.HTML]: htmlExtension,
+      [BASE_PATTERNS.EXT.RSC]: rscExtension,
       // Special case for .node files
       [BASE_PATTERNS.EXT.NODE]:
         BASE_PATTERNS.EXT.NODE +
@@ -411,29 +441,17 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     entryFile,
     chunkFile,
     assetFile,
-    preserveDirectives:
-      options.build?.preserveDirectives ??
-      DEFAULT_CONFIG.BUILD.preserveDirectives,
-    rscOutputPath:
-      options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath,
-    htmlOutputPath:
-      options.build?.htmlOutputPath ?? DEFAULT_CONFIG.BUILD.htmlOutputPath,
-    moduleExtension:
-      options.build?.moduleExtension ?? DEFAULT_CONFIG.BUILD.moduleExtension,
-    jsExtension: options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension,
-    cssExtension:
-      options.build?.cssExtension ?? DEFAULT_CONFIG.BUILD.cssExtension,
-    htmlExtension:
-      options.build?.htmlExtension ?? DEFAULT_CONFIG.BUILD.htmlExtension,
-    jsonExtension:
-      options.build?.jsonExtension ?? DEFAULT_CONFIG.BUILD.jsonExtension,
-    rscExtension:
-      options.build?.rscExtension ?? DEFAULT_CONFIG.BUILD.rscExtension,
-    cssModuleExtension:
-      options.build?.cssModuleExtension ??
-      DEFAULT_CONFIG.BUILD.cssModuleExtension,
-    nodeExtension:
-      options.build?.nodeExtension ?? DEFAULT_CONFIG.BUILD.nodeExtension,
+    preserveDirectives: preserveDirectives,
+    rscOutputPath: rscOutputPath,
+    htmlOutputPath: htmlOutputPath,
+    moduleExtension: jsExtension,
+    jsExtension: jsExtension,
+    cssExtension: cssExtension,
+    htmlExtension: htmlExtension,
+    jsonExtension: jsonExtension,
+    rscExtension: rscExtension,
+    cssModuleExtension: cssModuleExtension,
+    nodeExtension: DEFAULT_CONFIG.BUILD.nodeExtension,
   } satisfies ResolvedUserOptions<typeof options>["build"];
 
   // Auto-discovery configuration

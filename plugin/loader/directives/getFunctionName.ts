@@ -1,17 +1,13 @@
 import type { Node } from "acorn";
-import { getFunctionLikeName } from "./getFunctionLikeName.js";
 import { getQualifiedName } from "./getQualifiedName.js";
 import { 
   isNodeWithParent, 
-  isVariableDeclarator, 
+  isVariableDeclarator,   
   isIdentifier,
-  isExportNamedDeclaration,
-  isExportDefaultDeclaration,
   isMethodDefinition,
   isArrowFunctionExpression,
   isFunctionExpression,
   isFunctionDeclaration,
-  isFunctionNode,
   isProperty
 } from "./typeGuards.js";
 

@@ -1,13 +1,8 @@
 import { join } from "node:path";
 import type {
-  InlineCssOpt,
   BuildModuleLoader,
-  PageName,
-  PagePropOpt,
-  PropsName,
   ResolvedUserConfig,
   ResolvedUserOptions,
-  AsOpt,
 } from "../../server.js";
 import type { Manifest } from "vite";
 import { getModuleRef } from "../helpers/moduleRefs.js";

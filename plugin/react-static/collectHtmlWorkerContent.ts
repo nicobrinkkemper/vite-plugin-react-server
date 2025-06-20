@@ -13,13 +13,7 @@ import type { PassThrough } from "node:stream";
 import { Transform } from "node:stream";
 import type {
   CreateHandlerOptions,
-  StreamMetrics,
-  PagePropOpt,
-  InlineCssOpt,
-  AsOpt,
-  PageName,
-  PropsName,
-  ResolvedUserOptions,
+  StreamMetrics,  
 } from "../types.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { createRscToHtmlStream } from "./rscToHtmlStream.js";

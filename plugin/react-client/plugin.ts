@@ -1,8 +1,6 @@
-import { type ConfigEnv, type Plugin } from "vite";
+import { type ConfigEnv } from "vite";
 import type {
   AutoDiscoveredFiles,
-  InlineCssOpt,
-  PagePropOpt,
   ReactStreamPluginFn,
   ReactStreamPluginMeta,
   ResolvedUserConfig,
@@ -16,9 +14,11 @@ import { MessageChannel } from "node:worker_threads";
 
 export type ReactClientPluginFn = ReactStreamPluginFn<{
   meta: ReactStreamPluginMeta;
-}>
+}>;
 
-export const reactClientPlugin:ReactClientPluginFn = function _reactClientPlugin(options) {
+export const reactClientPlugin: ReactClientPluginFn = function _reactClientPlugin(
+  options
+) {
   let userConfig: ResolvedUserConfig;
   let configEnv: ConfigEnv;
   let root: string;

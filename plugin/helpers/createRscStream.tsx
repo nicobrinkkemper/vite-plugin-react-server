@@ -2,11 +2,6 @@ import { React, ReactDOMServer } from "../vendor/vendor.server.js";
 import type {
   CreateHandlerOptions,
   StreamMetrics,
-  PagePropOpt,
-  InlineCssOpt,
-  PageName,
-  PropsName,
-  AsOpt,
   ResolvedUserOptions,
 } from "../types.js";
 import { performance } from "node:perf_hooks";

@@ -2,13 +2,7 @@ import type { Manifest, ViteDevServer } from "vite";
 import type { ServerResponse } from "http";
 import type {
   AutoDiscoveredFiles,
-  InlineCssOpt,
-  BuildModuleLoader,
-  PagePropOpt,
-  PropsName,
   ResolvedUserOptions,
-  AsOpt,
-  PageName,
 } from "../types.js";
 import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";

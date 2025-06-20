@@ -4,7 +4,12 @@ import type { Program } from "./types.js";
 /**
  * Parses a module and returns { ast, code, map } to match Rollup's this.parse API.
  */
-export async function parse(source: string, verbose = false): Promise<{ ast: Program, code: string, map?: any | null }> {
+export async function parse(source: string, verbose = false): Promise<{ ast: Program, code: string, map?: {
+  url: string;
+  start: number;
+  end: number;
+  lines: number;
+} | null }> {
   let sourceMappingURL: string | null = null;
   let sourceMappingStart = 0;
   let sourceMappingEnd = 0;
@@ -14,7 +19,7 @@ export async function parse(source: string, verbose = false): Promise<{ ast: Pro
     ecmaVersion: 'latest',
     sourceType: 'module',
     locations: true,
-    onComment(block, text, start, end, startLoc, endLoc) {
+    onComment(_block, text, start, end, startLoc, endLoc) {
       if (text.startsWith('# sourceMappingURL=') || text.startsWith('@ sourceMappingURL=')) {
         sourceMappingURL = text.slice(19);
         sourceMappingStart = start;

@@ -3,9 +3,6 @@ import type {
   ResolvedUserConfig,
   ResolvedUserOptions,
   AutoDiscoveredFiles,
-  PagePropOpt,
-  InlineCssOpt,
-  AsOpt,
 } from "../types.js";
 import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";

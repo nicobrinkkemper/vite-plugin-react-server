@@ -52,7 +52,9 @@ vi.mock('../../dist/plugin/error/logError.js', () => ({
 describe('handleWorkerServerAction', () => {
   let mockWorker: Worker;
   let mockLogger: Logger;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockReq: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockRes: any;
   let mockPassThrough: PassThrough;
 
@@ -71,6 +73,7 @@ describe('handleWorkerServerAction', () => {
       stderr: null,
       threadId: 1,
       resourceLimits: {},
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       performance: {} as any,
       terminate: vi.fn(),
       ref: vi.fn(),
@@ -164,6 +167,7 @@ describe('handleWorkerServerAction', () => {
 
   it('should handle RSC chunks correctly', async () => {
     const messageHandler = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (mockWorker.on as any).mockImplementation((event, handler) => {
       if (event === 'message') {
         messageHandler(handler);
@@ -182,6 +186,7 @@ describe('handleWorkerServerAction', () => {
 
   it('should handle RSC end correctly', async () => {
     const messageHandler = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (mockWorker.on as any).mockImplementation((event, handler) => {
       if (event === 'message') {
         messageHandler(handler);
@@ -202,7 +207,8 @@ describe('handleWorkerServerAction', () => {
   });
 
   it('should handle errors correctly', async () => {
-    const messageHandler = vi.fn();
+    const messageHandler = vi.fn(); 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (mockWorker.on as any).mockImplementation((event, handler) => {
       if (event === 'message') {
         messageHandler(handler);
@@ -226,6 +232,7 @@ describe('handleWorkerServerAction', () => {
 
   it('should handle stream errors correctly', async () => {
     const messageHandler = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (mockWorker.on as any).mockImplementation((event, handler) => {
       if (event === 'message') {
         messageHandler(handler);

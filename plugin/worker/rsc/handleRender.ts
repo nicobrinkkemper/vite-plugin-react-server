@@ -10,7 +10,7 @@ import { workerData } from "node:worker_threads";
 import { React } from "../../vendor/vendor.server.js";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
-import type { AsOpt, InlineCssOpt, BuildModuleLoader, PageName, PagePropOpt, PropsName, ResolvedUserOptions, StreamPluginOptions } from "../../types.js";
+import type { BuildModuleLoader, ResolvedUserOptions } from "../../types.js";
 
 export type HandleRenderFn = <Msg extends RscRenderMessage = RscRenderMessage>(
   msg: Msg,

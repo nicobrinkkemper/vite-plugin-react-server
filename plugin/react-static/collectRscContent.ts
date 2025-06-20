@@ -16,11 +16,6 @@ import { mkdir } from "node:fs/promises";
 import type {
   CreateHandlerOptions,
   StreamMetrics,
-  PagePropOpt,
-  InlineCssOpt,
-  AsOpt,
-  PageName,
-  PropsName,
 } from "../types.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { fileWriter } from "./fileWriter.js";

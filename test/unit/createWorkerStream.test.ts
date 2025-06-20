@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createWorkerStream } from 'vite-plugin-react-server/client';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
-import { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
+import type { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
+import type { StreamHandlers } from '../../plugin/worker/types.js';
 
 describe('createWorkerStream', () => {
   let mockWorker: Worker;
   let mockLogger: Logger;
-  let mockHandlers: any;
+  let mockHandlers: StreamHandlers;
   const testMessage: RscRenderOpt = {
     type: 'RSC_RENDER',
     id: '/test',
@@ -67,6 +68,11 @@ describe('createWorkerStream', () => {
       onHmrAccept: vi.fn(),
       onHmrUpdate: vi.fn(),
       onMetrics: vi.fn(),
+      onData: vi.fn(),
+      onEnd: vi.fn(),
+      onServerAction: vi.fn(),
+      onServerActionResponse: vi.fn(),
+      onCssFile: vi.fn(),
     };
   });
 
@@ -171,7 +177,7 @@ describe('createWorkerStream', () => {
     });
 
     // Start the stream and wait for error
-    const result = await stream.next();
+    await stream.next();
     
     // Verify error handler was called
     expect(mockHandlers.onError).toHaveBeenCalledWith(

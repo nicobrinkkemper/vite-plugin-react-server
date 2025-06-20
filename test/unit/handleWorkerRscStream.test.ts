@@ -3,14 +3,13 @@ import { handleWorkerRscStream } from '../../dist/plugin/react-client/handleWork
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import type { StreamHandlers } from '../../dist/plugin/worker/types.js';
-import { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
+import type { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
 
 describe('handleWorkerRscStream', () => {
   let mockWorker: Worker;
   let mockLogger: Logger;
   let mockHandlers: StreamHandlers;
-  let mockMessageHandler: (msg: any) => void;
-  let mockRes: any;
+  let mockMessageHandler: (msg: unknown) => void;
 
   beforeEach(() => {
     mockMessageHandler = vi.fn();
@@ -44,13 +43,6 @@ describe('handleWorkerRscStream', () => {
       onServerAction: vi.fn(),
       onServerActionResponse: vi.fn(),
       onCssFile: vi.fn(),
-    };
-
-    mockRes = {
-      setHeader: vi.fn(),
-      write: vi.fn(),
-      end: vi.fn(),
-      on: vi.fn(),
     };
   });
 
@@ -98,7 +90,7 @@ describe('handleWorkerRscStream', () => {
     const route = '/test';
     const message = createMessage(route);
 
-    const stream = handleWorkerRscStream({
+    handleWorkerRscStream({
       worker: mockWorker,
       message,
       logger: mockLogger,
@@ -117,7 +109,7 @@ describe('handleWorkerRscStream', () => {
     const route = '/test';
     const message = createMessage(route);
 
-    const stream = handleWorkerRscStream({
+    handleWorkerRscStream({
       worker: mockWorker,
       message,
       logger: mockLogger,
@@ -138,7 +130,7 @@ describe('handleWorkerRscStream', () => {
     const route = '/test';
     const message = createMessage(route);
 
-    const stream = handleWorkerRscStream({
+    handleWorkerRscStream({
       worker: mockWorker,
       message,
       logger: mockLogger,
@@ -158,7 +150,7 @@ describe('handleWorkerRscStream', () => {
     const route = '/test';
     const message = createMessage(route);
 
-    const stream = handleWorkerRscStream({
+    handleWorkerRscStream({
       worker: mockWorker,
       message,
       logger: mockLogger,
@@ -183,7 +175,7 @@ describe('handleWorkerRscStream', () => {
     const route = '/test';
     const message = createMessage(route);
 
-    const stream = handleWorkerRscStream({
+    handleWorkerRscStream({
       worker: mockWorker,
       message,
       logger: mockLogger,
@@ -203,7 +195,7 @@ describe('handleWorkerRscStream', () => {
     const route = '/test';
     const message = createMessage(route);
 
-    const stream = handleWorkerRscStream({
+    handleWorkerRscStream({
       worker: mockWorker,
       message,
       logger: mockLogger,
@@ -223,7 +215,7 @@ describe('handleWorkerRscStream', () => {
     const route = '/test';
     const message = createMessage(route);
 
-    const stream = handleWorkerRscStream({
+    handleWorkerRscStream({
       worker: mockWorker,
       message,
       logger: mockLogger,

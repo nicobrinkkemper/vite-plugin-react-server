@@ -5,11 +5,12 @@ import { testUserOptions } from "../test-config.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { setupTestServerActionJS } from "../setup.js";
-import { handleRSCStream, RSCStreamResponse } from "../rsc-stream.js";
+import type { RSCStreamResponse } from "../rsc-stream.js";
+import { handleRSCStream } from "../rsc-stream.js";
 
 let server,
   port = 3008;
-let pageURL = `http://localhost:${port}/index.rsc`;
+const pageURL = `http://localhost:${port}/index.rsc`;
 let response: RSCStreamResponse;
 const testDir = resolve(
   __dirname,
@@ -22,36 +23,33 @@ describe("Server Action Integration", () => {
     await rm(testDir, { recursive: true, force: true });
     await mkdir(testDir, { recursive: true });
     await setupTestServerActionJS(testDir);
-    try {
-      // Start the server
-      server = await createServer({
-        mode: 'test',
-        root: testDir,
-        plugins: [
-          vitePluginReactServer({
-            ...testUserOptions,
-            projectRoot: testDir,
-            Page: "src/page/page.tsx",
-            build: {
-              pages: ["/"],
-            },
-          }),
-        ],
-        server: {
-          port: port,
-        },
-        // Use a unique cache directory to prevent race conditions
-        cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
-      });
 
-      await server.listen();
-      if (server.config?.server?.port) {
-        port = server.config.server.port;
-      }
-      response = await handleRSCStream(pageURL);
-    } catch (error) {
-      throw error;
+    // Start the server
+    server = await createServer({
+      mode: "test",
+      root: testDir,
+      plugins: [
+        vitePluginReactServer({
+          ...testUserOptions,
+          projectRoot: testDir,
+          Page: "src/page/page.tsx",
+          build: {
+            pages: ["/"],
+          },
+        }),
+      ],
+      server: {
+        port: port,
+      },
+      // Use a unique cache directory to prevent race conditions
+      cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
+    });
+
+    await server.listen();
+    if (server.config?.server?.port) {
+      port = server.config.server.port;
     }
+    response = await handleRSCStream(pageURL);
   });
 
   afterAll(async () => {
@@ -74,9 +72,7 @@ describe("Server Action Integration", () => {
 
   it("should include server action references in the RSC stream", async () => {
     expect(response.result).toContain('"id":"/src/page/actions.server.ts');
-    expect(response.result).toContain(
-      '"id":"/src/page/actions.server.ts'
-    );
+    expect(response.result).toContain('"id":"/src/page/actions.server.ts');
   });
 
   it("should execute server actions and return results", async () => {
@@ -114,29 +110,29 @@ export function subtract(a, b) {
     expect(errorResponse.result).toContain("Test error");
   });
 
-  
   it("should handle server action errors defined at the function level", async () => {
     // Add a test for error handling by modifying the server action to throw
-    const errorActionPath = resolve(testDir, "src/page/add.server.ts");
-    
+
     await server.moduleGraph.invalidateAll();
     const errorResponse = await handleRSCStream(pageURL);
 
     // The error should be caught and handled gracefully
-    const response = await fetch(pageURL.replace("index.rsc", "add.server.ts#add"), {
-      method: "POST",
-      body: JSON.stringify({
-        "id": "add",
-        "args": [1, 2]
-      }),
-      headers: {
-        Accept: "text/x-component",
-      },
-    });
+    const response = await fetch(
+      pageURL.replace("index.rsc", "add.server.ts#add"),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          id: "add",
+          args: [1, 2],
+        }),
+        headers: {
+          Accept: "text/x-component",
+        },
+      }
+    );
     const result = await response.text();
 
-
-    expect(errorResponse.result).toContain("Test error"); 
+    expect(errorResponse.result).toContain("Test error");
     expect(result).toContain(
       '5:E{"digest":"","name":"Error","message":"Test error"'
     ); // Error marker in RSC format

@@ -1,12 +1,6 @@
 import type {
-  AsOpt,
-  CreateHandlerOptions,
-  InlineCssOpt,
-  PageName,
-  PropsName,
   ReactStreamHandlerFn,
 } from "../types.js";
-import type { PagePropOpt } from "../../server.js";
 import { createRscStream } from "./createRscStream.js";
 import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";

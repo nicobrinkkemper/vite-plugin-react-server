@@ -1,11 +1,12 @@
-import type { ParseResult, ExportInfo } from "./directives/types.js";
-import type { LoaderConfig, ResolvedUserOptions } from "../types.js";
+import type { ParseResult, Program } from "./directives/types.js";
+import type {  ResolvedUserOptions } from "../types.js";
 import { createSourceMap } from "./sourceMap.js";
 import type { TransformResult } from "./types.js";
 import { removeDirectives } from "./removeDirectives.js";
 import * as acorn from "acorn";
 import { getNodeEnv } from "../getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import type { ArrowFunctionExpression, FunctionDeclaration, FunctionExpression } from "acorn";
 
 /**
  * Transforms a server module by:
@@ -56,7 +57,7 @@ export async function transformServerModule(
   }
 
   // Function-level: walk all functions and check first statement in body
-  function walkFunctionDirectives(node: any) {
+  function walkFunctionDirectives(node: FunctionDeclaration | FunctionExpression | ArrowFunctionExpression | Program) {
     if (
       (node.type === "FunctionDeclaration" ||
         node.type === "FunctionExpression" ||
@@ -76,12 +77,15 @@ export async function transformServerModule(
     }
     // Recurse into child nodes
     for (const key in node) {
-      if (node[key] && typeof node[key] === "object") {
-        if (Array.isArray(node[key])) {
-          node[key].forEach(walkFunctionDirectives);
-        } else {
-          walkFunctionDirectives(node[key]);
-        }
+      const value = node[key as keyof typeof node];
+      if (Array.isArray(value)) {
+        value.forEach((item) => {
+          if (item && typeof item === 'object' && 'type' in item) {
+            walkFunctionDirectives(item as any);
+          }
+        });
+      } else if (value && typeof value === 'object' && 'type' in value) {
+        walkFunctionDirectives(value as any);
       }
     }
   }

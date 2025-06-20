@@ -3,6 +3,7 @@ import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
 import { testUserOptions } from "../test-config";
 import type { ViteDevServer } from "vite";
 import { join } from "node:path";
+import type { StreamPluginOptions } from "../../dist/types.js";
 
 /**
  * Starts a dev server with the test config and given options
@@ -10,7 +11,7 @@ import { join } from "node:path";
  * @param port - Port to use for the server
  * @returns The Vite dev server instance
  */
-export async function createServerDevServer(optionOverrides: any = {}, port = 5175) {
+export async function createServerDevServer(optionOverrides: Partial<StreamPluginOptions> = {}, port = 5175) {
   
   const server: ViteDevServer = await createServer({
     root: optionOverrides.projectRoot,

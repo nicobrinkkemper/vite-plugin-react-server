@@ -1,16 +1,7 @@
 import type { RawSourceMap } from "source-map";
 import type { ResolvedUserOptions } from "../types.js";
-import type { DirectiveMatches, DirectiveWarning, ParseResult } from "./directives/types.js";
+import type { DirectiveWarning, ParseResult, Program } from "./directives/types.js";
 
-export type Loader = (
-  url: string,
-  context: any,
-  defaultLoad: any
-) => Promise<{
-  format: string;
-  source: string;
-  map?: any;
-}>;
 
 export type RscLoader = Pick<ResolvedUserOptions['loader'], 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
 
@@ -40,7 +31,12 @@ export type TransformFunction = (
 ) => Promise<TransformResult>;
 
 export type TransformerFactory = (options: {
-  parseFn?: (source: string, verbose?: boolean) => Promise<{ ast: any; code: string; map?: any | null }>;
+  parseFn?: (source: string, verbose?: boolean) => Promise<{ ast: Program; code: string; map?: {
+    url: string;
+    start: number;
+    end: number;
+    lines: number;
+  } | null }>;
   options: Pick<ResolvedUserOptions, 'verbose' | 'loader'>;
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;

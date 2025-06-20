@@ -8,8 +8,8 @@ import { resolve } from "path";
 const testDir = resolve(__dirname, "../fixtures/server-action-exclusion.test");
 
 describe("Server Action Build Exclusion", () => {
-  let serverBundles: { id: string; code: string }[] = [];
-  let clientBundles: { id: string; code: string }[] = [];
+  const serverBundles: { id: string; code: string }[] = [];
+  const clientBundles: { id: string; code: string }[] = [];
 
   beforeAll(async () => {
     await mkdir(testDir, { recursive: true });
@@ -24,49 +24,45 @@ describe("Server Action Build Exclusion", () => {
     );
 
     // Run build
-    try {
-      await doBuild({
-        ...testUserOptions,
-        projectRoot: testDir,
-        Page: "src/page/page.tsx",
-        build: {
-          pages: ["/"],
-        },
-        onEvent: (event) => {
-          if (
-            event.type === "build.writeBundle.server" ||
-            event.type === "build.writeBundle.static-server"
-          ) {
-            // Get all JS files from the server bundle
-            Object.entries(event.data.bundle).forEach(([id, chunk]) => {
-              if (
-                id.endsWith(".js") &&
-                !id.endsWith(".map") &&
-                "code" in chunk
-              ) {
-                serverBundles.push({ id, code: chunk.code });
-              }
-            });
-          } else if (
-            event.type === "build.writeBundle.client" ||
-            event.type === "build.writeBundle.static-client"
-          ) {
-            // Get all JS files from the client bundle
-            Object.entries(event.data.bundle).forEach(([id, chunk]) => {
-              if (
-                id.endsWith(".js") &&
-                !id.endsWith(".map") &&
-                "code" in chunk
-              ) {
-                clientBundles.push({ id, code: chunk.code });
-              }
-            });
-          }
-        },
-      });
-    } catch (error) {
-      throw error;
-    }
+    await doBuild({
+      ...testUserOptions,
+      projectRoot: testDir,
+      Page: "src/page/page.tsx",
+      build: {
+        pages: ["/"],
+      },
+      onEvent: (event) => {
+        if (
+          event.type === "build.writeBundle.server" ||
+          event.type === "build.writeBundle.static-server"
+        ) {
+          // Get all JS files from the server bundle
+          Object.entries(event.data.bundle).forEach(([id, chunk]) => {
+            if (
+              id.endsWith(".js") &&
+              !id.endsWith(".map") &&
+              "code" in chunk
+            ) {
+              serverBundles.push({ id, code: chunk.code });
+            }
+          });
+        } else if (
+          event.type === "build.writeBundle.client" ||
+          event.type === "build.writeBundle.static-client"
+        ) {
+          // Get all JS files from the client bundle
+          Object.entries(event.data.bundle).forEach(([id, chunk]) => {
+            if (
+              id.endsWith(".js") &&
+              !id.endsWith(".map") &&
+              "code" in chunk
+            ) {
+              clientBundles.push({ id, code: chunk.code });
+            }
+          });
+        }
+      },
+    });
   });
 
   afterAll(async () => {

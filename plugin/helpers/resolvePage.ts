@@ -1,28 +1,20 @@
 import { toError } from "../error/toError.js";
-import type { PageName, PagePropOpt } from "../types.js";
-import type React from "react";
+import type { GenericModuleLoader } from "../types.js";
 
-type ResolvePageResult<
-  T extends PagePropOpt = PagePropOpt,
-  N extends string = PageName
-> =
+type ResolvePageResult =
   | {
       type: "success";
-      module: { [key in N]: React.ComponentType<T> };
+      module:  Record<string, unknown>;
       error?: never;
     }
   | { type: "error"; error: Error; Page?: never; module?: never }
   | { type: "skip"; error?: never; Page?: never; module?: never };
 
-type ResolvePageFn = <
-  T extends PagePropOpt = PagePropOpt,
-  ID extends string = string,
-  N extends string = PageName
->(options: {
-  id: ID;
-  exportName: N;
-  loader: (id: `${ID}#${N}`) => Promise<{ [key in N]: React.ComponentType<T> }>;
-}) => Promise<ResolvePageResult<T, N>>;
+type ResolvePageFn = (options: {
+  id: string;
+  exportName: string;
+  loader: GenericModuleLoader
+}) => Promise<ResolvePageResult>;
 
 /**
  * Resolves a page component from a module.
@@ -85,7 +77,7 @@ export const resolvePage: ResolvePageFn = async function _resolvePage({
     if ("error" in module) {
       return {
         type: "error" as const,
-        error: toError(module.error),
+        error: toError(module["error"]),
       };
     }
     return {

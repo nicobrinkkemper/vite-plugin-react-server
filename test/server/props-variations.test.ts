@@ -5,7 +5,8 @@ import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setupTestProjectPropsVariations } from "../setup.js";
-import { handleRSCStream, RSCStreamResponse } from "../rsc-stream.js";
+import type { RSCStreamResponse } from "../rsc-stream.js";
+import { handleRSCStream } from "../rsc-stream.js";
 
 let server,
   port = 3103,
@@ -21,43 +22,39 @@ describe("RSC Server", () => {
     await rm(testDir, { recursive: true, force: true });
     await mkdir(testDir, { recursive: true });
     await setupTestProjectPropsVariations(testDir);
-    try {
-      // Start the server
-      server = await createServer({
-        mode: "test",
-        root: testDir,
-        plugins: [
-          vitePluginReactServer({
-            ...testUserOptions,
-            projectRoot: testDir,
-            Page: (id) =>
-              id === "/"
-                ? join("src", "page", "page.tsx")
-                : join("src", "page2", "page.tsx"),
-            props: undefined, // no props
-            build: {
-              pages: ["/", "/page2"],
-            },
-          }),
-        ],
-        server: {
-          port: port,
-        },
-        // Use a unique cache directory to prevent race conditions
-        cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
-      });
+    // Start the server
+    server = await createServer({
+      mode: "test",
+      root: testDir,
+      plugins: [
+        vitePluginReactServer({
+          ...testUserOptions,
+          projectRoot: testDir,
+          Page: (id) =>
+            id === "/"
+              ? join("src", "page", "page.tsx")
+              : join("src", "page2", "page.tsx"),
+          props: undefined, // no props
+          build: {
+            pages: ["/", "/page2"],
+          },
+        }),
+      ],
+      server: {
+        port: port,
+      },
+      // Use a unique cache directory to prevent race conditions
+      cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
+    });
 
-      await server?.listen();
-      if (server?.config?.server?.port) {
-        port = server.config.server.port;
-      }
-      pageURL = `http://localhost:${port}/index.rsc`;
-      pageURL2 = `http://localhost:${port}/page2/index.rsc`;
-      response = await handleRSCStream(pageURL);
-      response2 = await handleRSCStream(pageURL2);
-    } catch (error) {
-      throw error;
+    await server?.listen();
+    if (server?.config?.server?.port) {
+      port = server.config.server.port;
     }
+    pageURL = `http://localhost:${port}/index.rsc`;
+    pageURL2 = `http://localhost:${port}/page2/index.rsc`;
+    response = await handleRSCStream(pageURL);
+    response2 = await handleRSCStream(pageURL2);
   });
 
   afterAll(async () => {

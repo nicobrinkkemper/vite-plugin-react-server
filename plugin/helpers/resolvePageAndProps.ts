@@ -4,12 +4,6 @@ import type {
   CreateHandlerOptions,
   PageComponentType,
   PagePropOpt,
-  AsOpt,
-  PageName,
-  PropsName,
-  ReactStreamHandlerFn,
-  InlineCssOpt,
-  GenericModuleLoader,
 } from "../types.js";
 import { resolvePage } from "./resolvePage.js";
 import { resolveProps } from "./resolveProps.js";
@@ -53,7 +47,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
         exportName: handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-        loader: handlerOptions.loader as any,
+        loader: handlerOptions.loader,
       });
       const resolvePropsPromise = resolveProps({
         url: handlerOptions.route,

@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { setupTestProjectEnv } from "../setup.js";
 import { handleRSCStream } from "../rsc-stream.js";
 
-let server: ViteDevServer,
-  port = 1337, // use ports to avoid conflicts
-  pageURL,
-  testDir = join(process.cwd(), "test/client/fixtures/rsc-worker-env.test");
+let server: ViteDevServer;
+let port = 1337; // use ports to avoid conflicts
+let pageURL;
+const testDir = join(process.cwd(), "test/client/fixtures/rsc-worker-env.test");
 
 describe("RSC Worker (Client)", () => {
   beforeAll(async () => {

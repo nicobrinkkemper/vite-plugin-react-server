@@ -1,10 +1,9 @@
 import type { LoaderContext } from "../types.js";
 import type { RawSourceMap } from "source-map";
 import type { LoadFnOutput, LoadHookContext } from "node:module";
-import type { ResolveHook, LoadHook } from "node:module";
+import type { LoadHook } from "node:module";
 import { transformWithEsbuild } from "vite";
 import { readFile } from "node:fs/promises";
-import { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
 
 export type LoaderResult = {
   source: string;
@@ -19,11 +18,8 @@ export type Loader = {
   ): LoaderResult;
 };
 
-// Stash the resolve and getSource functions for later use
-const stashedResolve: ResolveHook | null = null;
-const stashedGetSource: LoadHook | null = null;
 
-const defaultNextLoad: Parameters<LoadHook>[2] = async (url, context) => {
+const defaultNextLoad: Parameters<LoadHook>[2] = async (url) => {
   const result = await transformWithEsbuild(await readFile(url, "utf-8"), url, {
     loader: "tsx",
     format: "esm",
@@ -140,6 +136,3 @@ export function createDefaultLoader(
     return nextLoad(url, context);
   };
 }
-
-// Export the stashed functions for use in other parts of the codebase
-export { stashedResolve, stashedGetSource };

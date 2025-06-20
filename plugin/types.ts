@@ -287,7 +287,7 @@ export type BuildModuleLoader<
       ? { default: string }
       : Extra extends Opt["pageExportName"]
       ? {
-          [k in Extra]: (props: T) => any;
+          [k in Extra]: (props: T) => unknown;
         }
       : Extra extends Opt["propsExportName"]
       ? {

@@ -1,10 +1,5 @@
 import type {
-  PagePropOpt,
-  InlineCssOpt,
   SerializedUserOptions,
-  AsOpt,
-  PageName,
-  PropsName,
 } from "../../types.js";
 
 import type { ViteDevServer } from "vite";

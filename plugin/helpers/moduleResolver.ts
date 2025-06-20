@@ -74,4 +74,28 @@ export async function resolveClientImport(specifier: string, parentURL: string) 
     console.error(`Error resolving import ${specifier}:`, error);
     return null;
   }
+}
+
+export async function loadClientSource(url: string) {
+  if (stashedGetSource === null) {
+    throw new Error(
+      "Expected getSource to have been called before loadClientSource"
+    );
+  }
+
+  try {
+    const result = await stashedGetSource(
+      url,
+      {
+        format: "module",
+        url
+      },
+      stashedGetSource
+    );
+
+    return result.source;
+  } catch (error) {
+    console.error(`Error loading source for ${url}:`, error);
+    return null;
+  }
 } 

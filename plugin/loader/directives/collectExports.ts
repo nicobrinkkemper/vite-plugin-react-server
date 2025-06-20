@@ -1,4 +1,13 @@
-import type { Program } from "acorn";
+import type {
+  AnonymousClassDeclaration,
+  AnonymousFunctionDeclaration,
+  ClassDeclaration,
+  Declaration,
+  ExportSpecifier,
+  Expression,
+  FunctionDeclaration,
+  Program,
+} from "acorn";
 import type { ExportInfo } from "./types.js";
 import {
   isArrowFunctionExpression,
@@ -21,67 +30,43 @@ function createExportInfo(
   };
 }
 
-function handleFunctionExport(
+function handleTypedExport(
   id: { name: string } | null,
   exportName: string,
+  type: "function" | "class",
   range: [number, number]
 ): ExportInfo {
   return createExportInfo(
     id?.name || "anonymous",
     exportName,
-    "function",
-    range
-  );
-}
-
-function handleClassExport(
-  id: { name: string } | null,
-  exportName: string,
-  range: [number, number]
-): ExportInfo {
-  return createExportInfo(
-    id?.name || "anonymous",
-    exportName,
-    "class",
+    type,
     range
   );
 }
 
 function handleDefaultExport(
-  declaration: any,
+  declaration:
+    | AnonymousFunctionDeclaration
+    | FunctionDeclaration
+    | AnonymousClassDeclaration
+    | ClassDeclaration
+    | Expression,
   range: [number, number]
 ): ExportInfo | null {
   if (declaration.type === "Identifier") {
-    return createExportInfo(
-      declaration.name,
-      "default",
-      null,
-      range
-    );
+    return createExportInfo(declaration.name, "default", null, range);
   } else if (declaration.type === "FunctionDeclaration") {
-    return handleFunctionExport(
-      declaration.id,
-      "default",
-      range
-    );
+    return handleTypedExport(declaration.id, "default", "function", range);
   } else if (declaration.type === "ClassDeclaration") {
-    return handleClassExport(
-      declaration.id,
-      "default",
-      range
-    );
+    return handleTypedExport(declaration.id, "default", "class", range);
   } else if (declaration.type === "ArrowFunctionExpression") {
-    return handleFunctionExport(
-      null,
-      "default",
-      range
-    );
+    return handleTypedExport(null, "default", "function", range);
   }
   return null;
 }
 
 function handleNamedExport(
-  declaration: any,
+  declaration: Declaration | Expression,
   range: [number, number]
 ): ExportInfo[] {
   const exports: ExportInfo[] = [];
@@ -89,13 +74,12 @@ function handleNamedExport(
   if (declaration.type === "VariableDeclaration") {
     for (const decl of declaration.declarations) {
       if (decl.init) {
-        if (isArrowFunctionExpression(decl.init) || isFunctionExpression(decl.init)) {
+        if (
+          isArrowFunctionExpression(decl.init) ||
+          isFunctionExpression(decl.init)
+        ) {
           if (decl.id.type === "Identifier") {
-            exports.push(handleFunctionExport(
-              decl.id,
-              decl.id.name,
-              range
-            ));
+            exports.push(handleTypedExport(decl.id, decl.id.name, "function", range));
           }
         } else {
           addLocalExportedNames(exports, decl.id, range);
@@ -105,24 +89,18 @@ function handleNamedExport(
       }
     }
   } else if (declaration.type === "FunctionDeclaration" && declaration.id) {
-    exports.push(handleFunctionExport(
-      declaration.id,
-      declaration.id.name,
-      range
-    ));
+    exports.push(
+      handleTypedExport(declaration.id, declaration.id.name, "function", range)
+    );
   } else if (declaration.type === "ClassDeclaration" && declaration.id) {
-    exports.push(handleClassExport(
-      declaration.id,
-      declaration.id.name,
-      range
-    ));
+    exports.push(handleTypedExport(declaration.id, declaration.id.name, "class", range));
   }
 
   return exports;
 }
 
 function handleReExports(
-  specifiers: any[],
+  specifiers: ExportSpecifier[],
   range: [number, number]
 ): ExportInfo[] {
   const exports: ExportInfo[] = [];
@@ -132,12 +110,14 @@ function handleReExports(
       specifier.local.type === "Identifier" &&
       specifier.exported.type === "Identifier"
     ) {
-      exports.push(createExportInfo(
-        specifier.local.name,
-        specifier.exported.name,
-        "function",
-        range
-      ));
+      exports.push(
+        createExportInfo(
+          specifier.local.name,
+          specifier.exported.name,
+          "function",
+          range
+        )
+      );
     }
   }
 
@@ -153,13 +133,16 @@ function handleReExports(
  * - Class method exports
  * - Export * declarations
  */
-export async function collectExports(program: Program, loader?: any): Promise<ExportInfo[]> {
+export async function collectExports(program: Program): Promise<ExportInfo[]> {
   const exports: ExportInfo[] = [];
 
   for (const node of program.body) {
     switch (node.type) {
       case "ExportDefaultDeclaration": {
-        const exportInfo = handleDefaultExport(node.declaration, [node.start, node.end]);
+        const exportInfo = handleDefaultExport(node.declaration, [
+          node.start,
+          node.end,
+        ]);
         if (exportInfo) {
           exports.push(exportInfo);
         }
@@ -167,22 +150,29 @@ export async function collectExports(program: Program, loader?: any): Promise<Ex
       }
 
       case "ExportAllDeclaration":
-        if (typeof node.source.value === 'string' && loader) {
+        if (typeof node.source.value === "string") {
           try {
-            const reExports = await collectExportsFromModule(node.source.value, loader);
+            const reExports = await collectExportsFromModule(node.source.value);
             exports.push(...reExports);
           } catch (error) {
-            console.warn(`Failed to collect exports from ${node.source.value}:`, error);
+            console.warn(
+              `Failed to collect exports from ${node.source.value}:`,
+              error
+            );
           }
         }
         break;
 
       case "ExportNamedDeclaration":
         if (node.declaration) {
-          exports.push(...handleNamedExport(node.declaration, [node.start, node.end]));
+          exports.push(
+            ...handleNamedExport(node.declaration, [node.start, node.end])
+          );
         }
         if (node.specifiers) {
-          exports.push(...handleReExports(node.specifiers, [node.start, node.end]));
+          exports.push(
+            ...handleReExports(node.specifiers, [node.start, node.end])
+          );
         }
         break;
     }

@@ -3,11 +3,7 @@ import type { Manifest } from "vite";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
 import { createTransformer } from "../loader/createTransformer.js";
-import { parse } from "../loader/parse.js";
 import type { ReactStreamPluginFn, ReactStreamPluginMeta } from "../types.js";
-import { analyzeDirectives } from "../loader/directives/analyzeDirectives.js";
-import { findDirectiveMatches } from "../loader/directives/findDirectiveMatches.js";
-import type { DirectiveInfo, DirectiveMatch } from "../loader/directives/types.js";
 import type { Program } from "acorn";
 import { join } from "node:path";
 
@@ -49,7 +45,7 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
 
   let staticManifest: Manifest = {};
   let isBuild = true;
-  let isSSR = false;
+  let isSSR = true;
   const nodeEnv = getNodeEnv();
   let mode = nodeEnv;
 
@@ -65,7 +61,7 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
       }
     },
     async buildStart() {
-      if (isBuild) {
+      if (isBuild && isSSR) {
         const manifestResult = await tryManifest({
           root: userOptions.projectRoot,
           outDir: join(userOptions.build.outDir, userOptions.build.static),
@@ -97,7 +93,7 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
 
       // Create a new transformer with the computed values
       const transformer = createTransformer({
-        parseFn: async (source, verbose) => {
+        parseFn: async (source) => {
           const ast = this.parse(source) as Program;
           return {
             ast,

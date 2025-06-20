@@ -1,15 +1,10 @@
 import type { ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
-  InlineCssOpt,
-  PageName,
-  PagePropOpt,
-  PropsName,
-  RenderMetrics,
+  RenderMetrics,  
   RequestHandler,
   ResolvedUserOptions,
   StreamMetrics,
-  AsOpt,
 } from "../types.js";
 import type { MessageChannel} from "node:worker_threads";
 import { type Worker } from "node:worker_threads";

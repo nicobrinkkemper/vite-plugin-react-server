@@ -8,7 +8,6 @@ import { resolve, join } from 'path';
 const testDir = resolve(__dirname, '../fixtures/client-server-action.test');
 
 describe('Client Server Action Build Output', () => {
-  let events: any[];
   let serverActionFiles: string[];
   let clientComponentFiles: string[];
   let distDir: string;
@@ -19,7 +18,7 @@ describe('Client Server Action Build Output', () => {
 
     // Run build once
     try {
-      events = await doBuild({
+      await doBuild({
         ...testUserOptions,
         projectRoot: testDir,
         Page: 'src/page/page.tsx',
@@ -87,7 +86,7 @@ describe('Client Server Action Build Output', () => {
       if (content.includes('registerClientReference')) {
         foundClientReference = true;
       }
-      if (content.includes('\"use client\"')) {
+      if (content.includes('"use client"')) {
         foundDirective = true;
       }
     }

@@ -14,11 +14,6 @@ import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import type { RscWorkerOutputMessage } from "./rsc/types.js";
 import { toError } from "../error/toError.js";
 import type {
-  AsOpt,
-  InlineCssOpt,
-  PageName,
-  PagePropOpt,
-  PropsName,
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";

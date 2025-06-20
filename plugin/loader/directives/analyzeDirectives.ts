@@ -1,13 +1,12 @@
 import { findDirectiveMatches } from "./findDirectiveMatches.js";
-import { checkDirectives } from "./checkDirectives.js";
 import { traverseNode } from "./traverseNode.js";
-import { isAsyncFunction, isFunctionNode } from "./typeGuards.js";
+import { isFunctionNode } from "./typeGuards.js";
 import { getFunctionBody } from "./getFunctionBody.js";
 import { getFunctionName } from "./getFunctionName.js";
 import { getExportedName } from "./getExportedName.js";
 import { processFunctionNode } from "./processFunctionNode.js";
 import type { DirectiveInfo, DirectiveMatch, DirectiveMatches } from "./types.js";
-import type { Node, FunctionDeclaration, FunctionExpression, ArrowFunctionExpression, MethodDefinition, Property, Program, ExpressionStatement } from "acorn";
+import type { Node, Program } from "acorn";
 import type { DirectiveOptions } from "../../types.js";
 
 /**
@@ -17,24 +16,19 @@ export function analyzeDirectives(
   ast: Program, 
   source: string,
   matches: DirectiveMatches,
-  options: DirectiveOptions,
-  moduleId: string
 ): DirectiveInfo;
 export function analyzeDirectives(
   ast: Program, 
   source: string,
   options: DirectiveOptions,
-  moduleId: string
 ): DirectiveInfo;
 export function analyzeDirectives(
   ast: Program, 
   source: string,
-  sourceOrMatches: DirectiveMatches | DirectiveOptions,
-  optionsOrModuleId?: DirectiveOptions | string,
-  moduleId?: string
+  optionsOrMatches: DirectiveMatches | DirectiveOptions,
 ): DirectiveInfo {
-  const directiveMatches = typeof sourceOrMatches === 'object' && 'matches' in sourceOrMatches
-    ? sourceOrMatches
+  const directiveMatches = typeof optionsOrMatches === 'object' && 'matches' in optionsOrMatches
+    ? optionsOrMatches
     : findDirectiveMatches(source);
 
   const directiveInfo: DirectiveInfo = {
@@ -46,7 +40,6 @@ export function analyzeDirectives(
   // Find file-level directives by checking AST
   let foundNonDirective = false;
   let firstDirective: DirectiveMatch | null = null;
-  let hasMultipleDirectives = false;
 
   for (const node of ast.body) {
     // Check if this node is after any comments
@@ -75,7 +68,6 @@ export function analyzeDirectives(
         if (!firstDirective) {
           firstDirective = { type, range: [node.start!, node.end!] };
         } else {
-          hasMultipleDirectives = true;
           directiveInfo.warnings.push({
             message: "Cannot have both 'use client' and 'use server' directives in the same file",
             range: [0, 0],

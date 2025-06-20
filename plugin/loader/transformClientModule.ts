@@ -1,4 +1,4 @@
-import type { ParseResult, ExportInfo } from "./directives/types.js";
+import type { ParseResult } from "./directives/types.js";   
 import type { ResolvedUserOptions } from "../types.js";
 import { createSourceMap } from "./sourceMap.js";
 import type { TransformResult } from "./types.js";

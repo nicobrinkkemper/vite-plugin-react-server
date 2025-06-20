@@ -1,4 +1,4 @@
-import type { Program, Node } from "acorn";
+import type { Program } from "acorn";
 import { 
   isFunctionDeclaration,
   isVariableDeclaration,

@@ -1,15 +1,9 @@
 import type { ViteDevServer } from "vite";
 import type {
-  InlineCssOpt,
-  PageName,
-  PagePropOpt,
-  PropsName,
-  ResolvedUserOptions,
-  AsOpt,
   CreateHandlerOptions,
 } from "../types.js";
 import { logError, toError } from "../error/index.js";
-import { join } from "path";
+import { join } from "node:path";
 import { ReactDOMServer } from "../vendor/vendor.server.js";
 import type { IncomingMessage, ServerResponse } from "http";
 

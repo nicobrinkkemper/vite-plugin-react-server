@@ -1,17 +1,14 @@
-import type { Program, Node } from "acorn";
+import type { Node } from "acorn";
 import type { ExportInfo } from "./types.js";
 import { 
   isFunctionNode, 
   isArrowFunctionExpression, 
-  isObjectExpression, 
   isProperty,
   isIdentifier,
   isLiteral,
   isMethodDefinition,
   isFunctionDeclaration,
   isFunctionExpression,
-  isVariableDeclaration,
-  isVariableDeclarator
 } from "./typeGuards.js";
 
 

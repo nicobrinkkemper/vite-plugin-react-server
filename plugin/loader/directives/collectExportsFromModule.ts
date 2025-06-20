@@ -1,22 +1,20 @@
 import { parse } from "./parse.js";
 import type { ExportInfo } from "./types.js";
 import { getExports } from "./getExports.js";
+import { loadClientSource } from "../../helpers/moduleResolver.js";
 
 /**
  * Recursively collects exports from a module that uses export *
  */
-export async function collectExportsFromModule(moduleId: string, loader: any): Promise<ExportInfo[]> {
-    const result = await loader(moduleId, {
-      format: 'module',
-      conditions: ['react-server'],
-    }, loader);
+export async function collectExportsFromModule(moduleId: string): Promise<ExportInfo[]> {
+    const source = await loadClientSource(moduleId);
   
-    if (typeof result.source !== 'string') {
+    if (typeof source !== 'string') {
       throw new Error('Expected source to be a string');
     }
   
     // Use our existing parse function
-    const { ast } = await parse(result.source);
+    const { ast } = await parse(source);
     const exports = await getExports(ast);
     return Array.from(exports.exports.values());
   }

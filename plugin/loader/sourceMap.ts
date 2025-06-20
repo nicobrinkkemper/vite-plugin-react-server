@@ -111,7 +111,7 @@ export function createSourceMap(
  */
 function createMappingsSerializer() {
   return function createMapping(
-    generatedLine: number,
+    _generatedLine: number,
     generatedColumn: number,
     sourceIndex: number,
     originalLine: number,

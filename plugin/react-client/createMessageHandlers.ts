@@ -23,7 +23,7 @@ export function createMessageHandler({
       case "READY":
         if(verbose) logger.info("[react-client] Worker is ready");
         break;
-      case "ERROR":
+      case "ERROR": {
         const error = typeof message.error === 'string' 
           ? { 
               message: message.error,
@@ -39,6 +39,7 @@ export function createMessageHandler({
             };
         handlers.onError(message.id, error, message.errorInfo);
         break;
+      }
       case "RSC_CHUNK":
         handlers.onData(message.id, message.chunk);
         break;

@@ -1,5 +1,4 @@
 import type { ResolvedUserOptions, CssContent } from "../types.js";
-import type { InlineCssOpt, PagePropOpt } from "../../server.js";
 import { join } from "node:path";
 import { deserializeRegExp } from "./serializeUserOptions.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";

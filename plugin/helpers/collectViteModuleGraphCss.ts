@@ -5,13 +5,8 @@ import type {
   ModuleNode,
 } from "vite";
 import type {
-  AsOpt,
   CreateHandlerOptions,
   CssContent,
-  InlineCssOpt,
-  PageName,
-  PagePropOpt,
-  PropsName,
 } from "../types.js";
 import { createCssProps } from "./createCssProps.js";
 

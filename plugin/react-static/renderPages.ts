@@ -18,11 +18,6 @@ import type {
   AutoDiscoveredFiles,
   CssContent,
   MultiPageHandlerOptions,
-  PagePropOpt,
-  InlineCssOpt,
-  AsOpt,
-  PageName,
-  PropsName,
 } from "../types.js";
 
 export type RenderPagesReturn = AsyncGenerator<RenderPagesResult, RenderPagesResult, unknown>;

@@ -34,7 +34,7 @@ filesToFix.forEach((unusedImports, filePath) => {
   console.log(`Fixing ${filePath.replace(process.cwd() + '/', '')}`);
   console.log(`  Removing: ${unusedImports.join(', ')}`);
   
-  let content = readFileSync(filePath, 'utf8');
+  const content = readFileSync(filePath, 'utf8');
   const lines = content.split('\n');
   
   // Remove import lines that only contain unused imports

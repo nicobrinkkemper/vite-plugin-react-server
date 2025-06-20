@@ -4,7 +4,6 @@ import {
   type UserConfig,
   type ViteDevServer,
   type Manifest,
-  type Plugin as VitePlugin,
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -14,7 +13,6 @@ import type {
   ReactStreamPluginFn,
   ReactStreamPluginMeta,
 } from "../types.js";
-import { type StreamPluginOptions } from "../types.js";
 import {
   resolveAutoDiscover
 } from "../config/autoDiscover/resolveAutoDiscover.js";

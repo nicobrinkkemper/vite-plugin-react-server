@@ -3,8 +3,6 @@ import { reactStaticPlugin } from "./react-static/plugin.js";
 import { reactTransformPlugin } from "./transformer/plugin.server.js";
 import type {
   StreamPluginOptions,
-  PagePropOpt,
-  InlineCssOpt,
 } from "./types.js";
 import { reactServerPlugin } from "./react-server/plugin.js";
 import { envPlugin } from "./env/plugin.js";

@@ -179,7 +179,7 @@ export async function add(a, b) {
   });
 
   it('should handle multiple function-level directives', async () => {
-    const source = `export async function add(a, b) {\n  \"use server\";\n  return a + b;\n}\nexport function sub(a, b) {\n  \"use server\";\n  return a - b;\n}`;
+    const source = `export async function add(a, b) {\n  "use server";\n  return a + b;\n}\nexport function sub(a, b) {\n  "use server";\n  return a - b;\n}`;
     
     const transformer = createTransformer({
       options: {
@@ -211,7 +211,7 @@ export async function add(a, b) {
   });
 
   it('should ignore directives with comments or whitespace', async () => {
-    const source = `// comment\n  \n\"use server\";\nexport function add(a, b) {\n  // another comment\n  \"use server\";\n  return a + b;\n}`;
+    const source = `// comment\n  \n"use server";\nexport function add(a, b) {\n  // another comment\n  "use server";\n  return a + b;\n}`;
     
     const transformer = createTransformer({
       options: {
@@ -243,7 +243,7 @@ export async function add(a, b) {
   });
 
   it('should not treat misplaced directives as directives', async () => {
-    const source = `const x = 1;\n\"use server\";\nexport function add(a, b) {\n  return a + b;\n}`;
+    const source = `const x = 1;\n"use server";\nexport function add(a, b) {\n  return a + b;\n}`;
     
     const transformer = createTransformer({
       options: {
@@ -275,7 +275,7 @@ export async function add(a, b) {
   });
 
   it('should not remove non-directive string literals', async () => {
-    const source = `const str = \"use server\";\nexport function add(a, b) {\n  return a + b;\n}`;
+    const source = `const str = "use server";\nexport function add(a, b) {\n  return a + b;\n}`;
     
     const transformer = createTransformer({
       options: {
@@ -307,7 +307,7 @@ export async function add(a, b) {
   });
 
   it('should handle arrow functions with block and concise bodies', async () => {
-    const source = `export const add = (a, b) => { \"use server\"; return a + b; };\nexport const mul = (a, b) => a * b;`;
+    const source = `export const add = (a, b) => { "use server"; return a + b; };\nexport const mul = (a, b) => a * b;`;
     
     const transformer = createTransformer({
       options: {
@@ -339,7 +339,7 @@ export async function add(a, b) {
   });
 
   it('should not register non-exported functions', async () => {
-    const source = `async function add(a, b) { \"use server\"; return a + b; }\nexport async function sub(a, b) { \"use server\"; return a - b; }`;
+    const source = `async function add(a, b) { "use server"; return a + b; }\nexport async function sub(a, b) { "use server"; return a - b; }`;
     
     const transformer = createTransformer({
       options: {
@@ -359,8 +359,8 @@ export async function add(a, b) {
     
     // Verify both functions are preserved in source map
     expect(sourceMap.sourcesContent).toBeTruthy();
-    expect(sourceMap.sourcesContent![0]).toContain('async function add(a, b) { \"use server\";');
-    expect(sourceMap.sourcesContent![0]).toContain('async function sub(a, b) { \"use server\";');
+    expect(sourceMap.sourcesContent![0]).toContain('async function add(a, b) { "use server";');
+    expect(sourceMap.sourcesContent![0]).toContain('async function sub(a, b) { "use server";');
     
     // Verify mappings exist and have correct format
     expect(sourceMap.mappings).toBeTruthy();
@@ -372,7 +372,7 @@ export async function add(a, b) {
   });
 
   it('should handle nested functions with directives', async () => {
-    const source = `export function outer() {\n  function inner() { \"use server\"; return 1; }\n  return inner();\n}`;
+    const source = `export function outer() {\n  function inner() { "use server"; return 1; }\n  return inner();\n}`;
     
     const transformer = createTransformer({
       options: {
@@ -404,7 +404,7 @@ export async function add(a, b) {
   });
 
   it('should handle class methods with directives', async () => {
-    const source = `export class Calculator {\n  add(a, b) { \"use server\"; return a + b; }\n  sub(a, b) { \"use server\"; return a - b; }\n}`;
+    const source = `export class Calculator {\n  add(a, b) { "use server"; return a + b; }\n  sub(a, b) { "use server"; return a - b; }\n}`;
     
     const transformer = createTransformer({
       options: {

@@ -20,7 +20,7 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
 
     const decoder = new TextDecoder();
     let result = "";
-    let responseHeaders = response.headers;
+    const responseHeaders = response.headers;
 
     try {
       while (true) {
