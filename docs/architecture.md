@@ -38,10 +38,7 @@ import { resolve } from "path";
  * @param optionOverrides - Optional overrides for the options
  * @returns The events from the build
  */
-export async function doBuild<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->(optionOverrides: Partial<StreamPluginOptions<T, InlineCSS>>) {
+export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
   const events: PluginEvent[] = [];
   // check directory
   const options = {
