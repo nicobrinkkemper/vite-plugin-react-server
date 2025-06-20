@@ -76,21 +76,19 @@ describe('Client Server Action Build Output', () => {
     for (const file of clientComponentFiles) {
       const content = await readFile(file, 'utf-8');
       if (content.includes('react-server-dom-esm/server')) {
-        console.warn(file);
+        console.warn('ESM import found in', file);
         esmImport = true;
       }
       if (content.includes('TodoList')) {
         foundTodoList = true;
       } else {
-        console.warn(file);
+        console.warn('TodoList not found in', file);
       }
       if (content.includes('registerClientReference')) {
         foundClientReference = true;
       }
       if (content.includes('\"use client\"')) {
         foundDirective = true;
-      } else {
-        console.warn(file);
       }
     }
 

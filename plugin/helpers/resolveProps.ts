@@ -102,7 +102,6 @@ export const resolveProps = async <
   }
   const { module } = propsLoadResult;
   const props = module[exportName as N];
-  console.log("props",exportName, props, module);
   // handle different props use-cases
   if (module instanceof Error) {
     return {
@@ -131,7 +130,6 @@ export const resolveProps = async <
   } else if (typeof props === "function") {
     // Handle both class constructors and regular functions
     try {
-      console.log("Calling props function with URL:", url);
       let propsResult;
       if (props.prototype && props.prototype.constructor) {
         // Class constructor case
