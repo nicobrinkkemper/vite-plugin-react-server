@@ -5,7 +5,7 @@
 ### moduleBase
 
 ```ts
-import type { StreamPluginOptions } from "vite-plugin-react-server";
+import type { StreamPluginOptions } from "vite-plugin-react-server/types";
 
 const config = {
   moduleBase: "src", // source prefix
@@ -108,14 +108,16 @@ Example `package.json` setup:
   "build": "build:client && build:server",
   "dev": "NODE_OPTIONS='--conditions react-server' vite",
   "dev:client": "vite",
-  "build:server": "NODE_OPTIONS='--conditions react-server' vite",
-  "build:client": "vite"
+  "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
+  "build:client": "vite build"
 }
 ```
 
 ### ./src/my-page.tsx
 
 ```tsx
+import React from "react";
+
 export const Page = ({ name }) => {
   return <div>Hello {name}</div>;
 };
@@ -153,12 +155,12 @@ export const config = {
 ### ./vite.config.ts
 
 ```ts
-import { vitePluginReactClient } from "vite-plugin-react-server/client";
+import { vitePluginReactServer } from "vite-plugin-react-server";
 import { config } from "./my-react-config.js";
 import { defineConfig } from "vite";
 export default defineConfig(() => {
   return {
-    plugins: vitePluginReactClient(config),
+    plugins: vitePluginReactServer(config),
   };
 });
 ```
@@ -177,7 +179,7 @@ It requires nodejs version 23.7.0 or higher.
 ## Server plugin dev mode
 
 When running the server plugin in dev mode, it will pipe the react stream directly to the response. This will use
-vite's `ssrLoadModule` to load modules and therefor support anything that vite supports. Hot-reloading
+vite's `ssrLoadModule` to load modules and therefor support anything that vite supports.  Hot-reloading
 is supported for defined route files, hot module replacement is only supported for client-side modules.
 
 ```sh
