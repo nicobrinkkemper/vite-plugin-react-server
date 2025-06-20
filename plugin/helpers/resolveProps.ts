@@ -140,7 +140,6 @@ export const resolveProps = async <
         // Regular function case
         propsResult = props(url);
       }
-      console.log("Props function result:", propsResult);
 
       // Handle recursive props validation
       if (propsResult instanceof Promise) {

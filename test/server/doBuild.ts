@@ -1,7 +1,7 @@
 import { build } from "vite";
 import { vitePluginReactClient } from "vite-plugin-react-server/client";
 import { vitePluginReactServer } from "vite-plugin-react-server/server";
-import { PluginEvent, StreamPluginOptions, PagePropOpt, InlineCssOpt } from "vite-plugin-react-server/types";
+import { PluginEvent, StreamPluginOptions } from "vite-plugin-react-server/types";
 import { testUserOptions } from "../test-config";
 import { inspect } from "node:util";
 import { rm } from "fs/promises";
@@ -13,12 +13,7 @@ import { resolve } from "path";
  * @param optionOverrides - Optional overrides for the options
  * @returns The events from the build
  */
-export async function doBuild<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  N1 extends string = "Page",
-  N2 extends string = "props"
->(optionOverrides: Partial<StreamPluginOptions<T, InlineCSS, 'div', N1, N2>>) {
+export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
   const events: PluginEvent[] = [];
   // check directory
   const options = {
@@ -38,7 +33,7 @@ export async function doBuild<
       ...testUserOptions.build,
       ...optionOverrides?.build,
     },
-  } as StreamPluginOptions<T, InlineCSS>;
+  } as StreamPluginOptions;
 
   // Change to test directory
   let originalCwd = process.cwd();

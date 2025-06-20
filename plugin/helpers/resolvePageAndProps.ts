@@ -1,3 +1,4 @@
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { toError } from "../error/toError.js";
 import type {
   CreateHandlerOptions,
@@ -51,14 +52,13 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       // Load the page component
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
-        exportName: handlerOptions.pageExportName ?? "Page",
+        exportName: handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
         loader: handlerOptions.loader as any,
       });
-      console.log("resolvePagePromise", handlerOptions);
       const resolvePropsPromise = resolveProps({
         url: handlerOptions.route,
         id: handlerOptions.propsPath || handlerOptions.pagePath,
-        exportName: handlerOptions.propsExportName ?? "props",
+        exportName: handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
         loader: async () => {
           const resolvePageResult = await resolvePagePromise;
           if (resolvePageResult.type === "error") {
