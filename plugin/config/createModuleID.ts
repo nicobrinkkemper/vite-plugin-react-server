@@ -1,12 +1,6 @@
 import { join } from "node:path";
 import type {
-  AsOpt,
-  InlineCssOpt,
-  PageName,
-  PagePropOpt,
-  PropsName,
   ResolvedUserOptions,
-  StreamPluginOptions,
 } from "../types.js";
 import { replaceExtension } from "./extMap.js";
 import { getNodeEnv } from "../getNodeEnv.js";

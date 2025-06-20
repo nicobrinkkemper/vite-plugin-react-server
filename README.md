@@ -271,12 +271,39 @@ build:{
   pages: async ()=>await import('my-pages')
 }
 ```
+
+### Server and client entries
+
+You can use the pattern `.server.` or `.client.` to indicate server or client entries. 
+
+Use vite's `index.html` for the development wrapper and entry point for client files & global css.
+
+Additional client and server entry can also be configured through the user options:
+```ts
+clientEntry: `src/client.tsx`
+serverEntry: `src/server.ts`
+```
+
+Any imported file that is not a client entry or not imported by a client entry, will be a server entry.
+
+### Server function and client component registrations
+
+The directive `"use server"` and `"use client"` can be used to indicate a react boundary. This will transform the server modules accordingly for the server and client side code. For an example of this, you can inspect the build result directly. 
+
+Please see the official React reference on how to use the directives: 
+- [use server](https://react.dev/reference/rsc/use-server)
+- [use client](https://react.dev/reference/rsc/use-client)
+
+
 ### Built-in React Server Components
 
-This plugin built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
+This plugin has built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
 
-- Html - used as the wrapper for production pages (use vite's `index.html` for the development wrapper and entry point for client files & global css)
+- Html - used as the wrapper for production pages 
+  - used during static build
 - CssCollector - used to emit `<link>` and `<style>` tags based on `css` config
+  - use during `react-server` mode
+  - used during static build 
 
 Defining your custom Html React server component will affect the final production output.
 
@@ -456,17 +483,24 @@ All of the below are valid
 export const props = {
   name: "John Doe",
 };
-export const props = (url)=>{
+export const props = (url)=>({
   name: "John Doe",
-};
-export const props = async (url)=>{
+});
+export const props = async (url)=>({
   name: "John Doe",
-}
+})
 // enum bonus
 export const props = ['key']; // -> {key: "key"}
 // Object.fromEntries()
 export const props = [['key',{value: 'some value'}]]
 ```
+
+## Environment managment
+
+You can use React as a "first class citizen" through-out your code base, including the confiuration step.
+For this to work, we must make sure that all environments where React is used have their NODE_ENV aligned. It's for this
+reason that this plugin automatically assignes the current NODE_ENV as the mode, and it will warn whenever 
+the NODE_ENV do not align.  
 
 ## Contributions
 

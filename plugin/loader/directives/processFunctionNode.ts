@@ -15,7 +15,7 @@ export function processFunctionNode(
 
   let body: BlockStatement | undefined;
   let actualName = name;
-  let actualExportName = exportName;
+  const actualExportName = exportName;
 
   if (isMethodDefinition(node)) {
     const methodNode = node as MethodDefinition;

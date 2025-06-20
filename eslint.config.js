@@ -19,14 +19,22 @@ export default defineConfig([
   {
     files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
     rules: {
-      "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+      "@typescript-eslint/no-unused-vars": [
+        "error", 
+        { 
+          "argsIgnorePattern": "^_", 
+          "varsIgnorePattern": "^_",
+          "ignoreRestSiblings": true
+        }
+      ],
       "@typescript-eslint/prefer-namespace-keyword": "off",  // Disable namespace preference rule
       "@typescript-eslint/no-namespace": "off",  // Disable namespace rule since we use it for type augmentation
       "@typescript-eslint/consistent-type-imports": ["error", { "prefer": "type-imports" }],  // Prefer type imports
       "@typescript-eslint/no-explicit-any": "warn",  // Warn about any usage instead of error
       "@typescript-eslint/no-empty-object-type": "error",  // Prevent empty object types
       "prefer-const": "error",  // Enforce const for variables that aren't reassigned
-      "no-useless-catch": "error"  // Prevent unnecessary try/catch wrappers
+      "no-useless-catch": "error",  // Prevent unnecessary try/catch wrappers
+      "no-unused-vars": "off"  // Turn off the base rule as it can report incorrect errors
     }
   },
   {

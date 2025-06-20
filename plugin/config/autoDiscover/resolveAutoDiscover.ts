@@ -1,9 +1,6 @@
 import type { ConfigEnv, UserConfig } from "vite";
 import type {
   AutoDiscoveredFiles,
-  PagePropOpt,
-  InlineCssOpt,
-  AsOpt,
   ResolvedUserOptions,
 } from "../../types.js";
 import { join } from "path";

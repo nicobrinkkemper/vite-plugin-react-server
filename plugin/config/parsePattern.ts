@@ -63,7 +63,7 @@ export function parsePattern(pattern: string): RegExp {
       return `(${alternatives.join('|')})`;
     })
     // Escape special regex characters except for ( ) | and /
-    .replace(/[.+?^${}\[\]\\]/g, "\\$&")
+    .replace(/[.+?^${}[\]\\]/g, "\\$&")
     // Convert glob wildcards (*) to regex wildcards (.*)
     .replace(/\*/g, ".*");
 

@@ -31,10 +31,10 @@ export function resolveDirectiveMatcher(
   if (typeof pattern === "function") {
     return pattern;
   } else if (pattern instanceof RegExp) {
-    return (source: string, moduleId?: string) => pattern.test(source);
+    return (source: string, _moduleId?: string) => pattern.test(source);
   } else if (typeof pattern === "string") {
     const regex = parsePattern(pattern);
-    return (source: string, moduleId?: string) => regex.test(source);
+    return (source: string, _moduleId?: string) => regex.test(source);
   } else if (
     typeof pattern === "object" &&
     pattern != null &&
@@ -42,27 +42,16 @@ export function resolveDirectiveMatcher(
   ) {
     const deserialized = pattern as DeserializedRegExp;
     const regex = new RegExp(deserialized.source, deserialized.flags);
-    return (source: string, moduleId?: string) => regex.test(source);
+    return (source: string, _moduleId?: string) => regex.test(source);
+  } else if (typeof defaultPattern === "function") {
+    return defaultPattern;
+  } else if (defaultPattern instanceof RegExp) {
+    return (source: string, _moduleId?: string) => defaultPattern.test(source);
   } else if (typeof defaultPattern === "string") {
     const regex = parsePattern(defaultPattern);
-    return (source: string, moduleId?: string) => regex.test(source);
-  } else if (
-    typeof defaultPattern === "object" &&
-    defaultPattern != null &&
-    (defaultPattern instanceof RegExp || "test" in defaultPattern)
-  ) {
-    return (source: string, moduleId?: string) => {
-      if (defaultPattern instanceof RegExp) {
-        return defaultPattern.test(source);
-      }
-      if ("__isRegExp" in defaultPattern) {
-        const deserialized = defaultPattern as DeserializedRegExp;
-        return new RegExp(deserialized.source, deserialized.flags).test(source);
-      }
-      return false;
-    };
+    return (source: string, _moduleId?: string) => regex.test(source);
   } else {
-    return defaultPattern as (source: string, moduleId?: string) => boolean;
+    return () => false;
   }
 }
 

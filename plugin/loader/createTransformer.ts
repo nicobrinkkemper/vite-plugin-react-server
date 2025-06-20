@@ -41,8 +41,8 @@ export const createTransformer: TransformerFactory = ({
     if (hasClientDirective === false && hasServerDirective === false) {
       return { code: source, map: null };
     }
-    let initialLineShift = 0;
-    let warnings: DirectiveWarning[] = [];
+    const initialLineShift = 0;
+    const warnings: DirectiveWarning[] = [];
     let removeClient = undefined as boolean | undefined;
     let removeServer = undefined as boolean | undefined;
     let appendClient = undefined as boolean | undefined;

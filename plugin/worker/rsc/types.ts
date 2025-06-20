@@ -1,13 +1,7 @@
 import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import type {
-  AsOpt,
   CreateHandlerOptions,
-  InlineCssOpt,
-  PageName,
-  PagePropOpt,
-  PropsName,
   ResolvedUserOptions,
-  StreamPluginOptions,
   StreamMetrics,
 } from "../../types.js";
 import type {

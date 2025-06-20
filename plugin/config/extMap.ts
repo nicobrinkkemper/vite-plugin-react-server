@@ -1,4 +1,4 @@
-import type { ResolvedUserOptions } from "../types.js";
+
 import { DEFAULT_CONFIG, BASE_PATTERNS } from "./defaults.js";
 
 export const jsExtension = ".js";

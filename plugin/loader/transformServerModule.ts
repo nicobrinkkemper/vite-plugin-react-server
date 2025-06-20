@@ -92,7 +92,7 @@ export async function transformServerModule(
   }
 
   // Remove directives from the source code using the shared utility
-  let transformedCode = removeDirectives(source, rangesToRemove);
+  const transformedCode = removeDirectives(source, rangesToRemove);
 
   // Register all exports as server references
   const registrations = [];
@@ -107,7 +107,7 @@ export async function transformServerModule(
       parseResult.directiveInfo.fileLevel?.type === "server"
     ) {
       registrations.push(
-        `${loader?.registerServerReferenceName}(${exp.localName}, \"${moduleId}\", "${exp.exportName}");`
+        `${loader?.registerServerReferenceName}(${exp.localName}, "${moduleId}", "${exp.exportName}");`
       );
     }
   }

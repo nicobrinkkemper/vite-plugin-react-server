@@ -3,7 +3,7 @@ import type {
   RscWorkerOutputMessage,
   RscRenderMessage,
 } from "../worker/rsc/types.js";
-import type { AsOpt, InlineCssOpt, PageName, PagePropOpt, PropsName, StreamMetrics } from "../types.js";
+import type { StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
@@ -21,8 +21,6 @@ export type CreateWorkerStreamFn = (props: {
       Pick<
         StreamHandlers,
         | "onError"
-        | "onData"
-        | "onEnd"
         | "onServerAction"
         | "onServerActionResponse"
         | "onCssFile"
@@ -50,8 +48,6 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
     onHmrUpdate,
     onMetrics,
     onError,
-    onData,
-    onEnd,
     onServerAction,
     onServerActionResponse,
     onCssFile,
@@ -78,6 +74,7 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
       }
     },
     onData: (id: string, chunk: Uint8Array) => {
+      // Handle generator flow - resolve the current promise with the chunk
       if (currentResolve && !isStreamClosed) {
         currentResolve(chunk);
         currentResolve = null;
@@ -89,11 +86,9 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
           } bytes`
         );
       }
-      if (typeof onData === "function") {
-        onData(id, chunk);
-      }
     },
     onEnd: (id: string) => {
+      // Handle generator flow - resolve with null to signal end
       if (currentResolve) {
         currentResolve(null);
         currentResolve = null;
@@ -103,9 +98,6 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
       if (messageHandler) {
         worker.removeListener("message", messageHandler);
         messageHandler = null;
-      }
-      if (typeof onEnd === "function") {
-        onEnd(id);
       }
     },
     onMetrics: (id: string, metrics: StreamMetrics) => {

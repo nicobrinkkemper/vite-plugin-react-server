@@ -2,16 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createWorkerStream } from 'vite-plugin-react-server/client';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
-import type { RscWorkerOutputMessage } from 'vite-plugin-react-server/rsc-worker';
-import { createInputNormalizer } from '../../dist/plugin/helpers/inputNormalizer.js';
 import { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
 
 describe('createWorkerStream', () => {
   let mockWorker: Worker;
   let mockLogger: Logger;
   let mockHandlers: any;
-  let mockMessageHandler: (msg: RscWorkerOutputMessage) => void;
-  let lastChunk: Uint8Array | undefined;
   const testMessage: RscRenderOpt = {
     type: 'RSC_RENDER',
     id: '/test',
@@ -49,8 +45,6 @@ describe('createWorkerStream', () => {
   };
 
   beforeEach(() => {
-    mockMessageHandler = vi.fn();
-    
     mockWorker = {
       postMessage: vi.fn(),
       on: vi.fn(),
@@ -70,20 +64,14 @@ describe('createWorkerStream', () => {
 
     mockHandlers = {
       onError: vi.fn(),
-      onData: vi.fn(),
-      onEnd: vi.fn(),
-      onMetrics: vi.fn(),
       onHmrAccept: vi.fn(),
       onHmrUpdate: vi.fn(),
-      onServerAction: vi.fn(),
-      onServerActionResponse: vi.fn(),
-      onCssFile: vi.fn(),
+      onMetrics: vi.fn(),
     };
   });
 
   afterEach(() => {
     vi.clearAllMocks();
-    lastChunk = undefined;
   });
 
   it('should throw error if worker is not running', async () => {

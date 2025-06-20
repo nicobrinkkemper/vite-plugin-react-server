@@ -1,6 +1,5 @@
 import { CssCollector } from "../components/css-collector.js";
 import { Html } from "../components/html.js";
-import { interpolatePattern } from "./interpolatePattern.js";
 
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
@@ -53,7 +52,7 @@ export const getDirectiveType = (directive: string): 'client' | 'server' | undef
 };
 
 // Helper to normalize directive strings
-const normalizeDirective = (directive: string) => directive.replace(/\s+/g, '').toLowerCase();
+// const normalizeDirective = (directive: string) => directive.replace(/\s+/g, '').toLowerCase();
 
 // Default loader configuration
 export const DEFAULT_LOADER_CONFIG = {

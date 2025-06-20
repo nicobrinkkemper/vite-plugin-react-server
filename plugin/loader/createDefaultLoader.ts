@@ -20,8 +20,8 @@ export type Loader = {
 };
 
 // Stash the resolve and getSource functions for later use
-let stashedResolve: ResolveHook | null = null;
-let stashedGetSource: LoadHook | null = null;
+const stashedResolve: ResolveHook | null = null;
+const stashedGetSource: LoadHook | null = null;
 
 const defaultNextLoad: Parameters<LoadHook>[2] = async (url, context) => {
   const result = await transformWithEsbuild(await readFile(url, "utf-8"), url, {

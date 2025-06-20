@@ -51,16 +51,12 @@ export async function messageHandler(
         handlers.onServerModule(msg.id, msg.url, msg.source);
         return;
       case "MODULE_REQUEST": {
-        // Handle module requests for client components
         const { id, path } = msg;
         try {
-          // Load the module
           const module = await import(join(workerData.userOptions.projectRoot, path));
-          // Send the module back to the main thread
           handlers.onServerModule(id, path, module);
         } catch (error) {
-          // If the module is not found, send an error instead of a malformed postponed chunk
-          handlers.onError(id, new Error(`Module not found: ${path}`));
+          handlers.onError(id, toError(error));
         }
         return;
       }

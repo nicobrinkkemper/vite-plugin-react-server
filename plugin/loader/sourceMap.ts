@@ -27,8 +27,8 @@ export function createSourceMap(
   let currentColumn = 0;
   let sourceLine = 0;
   let sourceColumn = 0;
-  let lastSourceIndex = 0;
-  let lastNameIndex = -1;
+  const lastSourceIndex = 0;
+  const lastNameIndex = -1;
 
   // Generate mappings line by line
   const mappings: string[] = [];

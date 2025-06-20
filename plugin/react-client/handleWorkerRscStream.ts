@@ -21,6 +21,7 @@ export type HandleWorkerRscStreamFn = (props: {
         | "onEnd"
         | "onServerAction"
         | "onServerActionResponse"
+        | "onCssFile"
       >
     >;
   verbose?: boolean;
@@ -69,64 +70,20 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWo
 
       try {
         if (verbose) logger.info("[react-client] Starting stream");
+        
+        // Pure generator approach - process chunks directly
         for await (const chunk of createWorkerStream({
           worker,
           message,
           logger,
           handlers: {
-            ...handlers,
-            onServerAction: (id: string, args: unknown[]) => {
-              if (verbose)
-                logger.info(
-                  `[react-client] Forwarding server action ${id} to worker`
-                );
-              if(handlers.onServerAction) {
-                handlers.onServerAction(id, args);
-              }
-            },
-            onServerActionResponse: (
-              id: string,
-              result?: unknown,
-              error?: string
-            ) => {
-              if (verbose)
-                logger.info(
-                  `[react-client] Forwarding server action response ${id} from worker`
-                );
-              if (typeof handlers.onServerActionResponse === "function") {
-                // Ensure consistent response format
-                const response = {
-                  type: "server-action-response",
-                  returnValue: error ? { success: false, error } : result,
-                };
-                handlers.onServerActionResponse(id, response);
-              }
-            },
-            onData: (id: string, chunk: Uint8Array) => {
-              if (!isFlowing) {
-                isFlowing = true;
-                if (verbose) logger.info("[react-client] Stream is flowing");
-              }
-              if (!isClosed && !hasError) {
-                controller.enqueue(chunk);
-              }
-              if(handlers.onData) {
-                handlers.onData(id, chunk);
-              }
-            },
-            onEnd: (id: string) => {
-              if (isFlowing) {
-                isFlowing = false;
-                if (verbose) logger.info("[react-client] Stream closing");
-              }
-              if (!isClosed && !hasError) {
-                isClosed = true;
-                controller.close();
-              }
-              if(handlers.onEnd) {
-                handlers.onEnd(id);
-              }
-            },
+            // Only keep non-data handlers for side effects
+            onMetrics: handlers.onMetrics,
+            onHmrAccept: handlers.onHmrAccept,
+            onHmrUpdate: handlers.onHmrUpdate,
+            onServerAction: handlers.onServerAction,
+            onServerActionResponse: handlers.onServerActionResponse,
+            onCssFile: handlers.onCssFile,
             onError: (id: string, error: unknown, errorInfo?: Record<string, unknown>) => {
               handleError(error, errorInfo);
               if(handlers.onError) {
@@ -136,12 +93,23 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWo
           },
           verbose,
         })) {
-          // The chunks are already handled in the onData handler above
-          // No need to process them again here
+          // Process chunks directly from generator
+          if (!isFlowing) {
+            isFlowing = true;
+            if (verbose) logger.info("[react-client] Stream is flowing");
+          }
+          
+          if (!isClosed && !hasError) {
+            controller.enqueue(chunk);
+          }
+          
+          // Call onData handler if provided
+          if (handlers.onData) {
+            handlers.onData(message?.id ?? message.route, chunk);
+          }
         }
-      } catch (error) {
-        handleError(error);
-      } finally {
+        
+        // Stream ended naturally
         if (isFlowing) {
           isFlowing = false;
           if (verbose) logger.info("[react-client] Stream closing");
@@ -150,6 +118,14 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWo
           isClosed = true;
           controller.close();
         }
+        
+        // Call onEnd handler if provided
+        if (handlers.onEnd) {
+          handlers.onEnd(message?.id ?? message.route);
+        }
+        
+      } catch (error) {
+        handleError(error);
       }
     },
   });
