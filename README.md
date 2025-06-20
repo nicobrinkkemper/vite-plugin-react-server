@@ -297,7 +297,9 @@ Please see the official React reference on how to use the directives:
 
 ### Built-in React Server Components
 
-This plugin has built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads.
+This plugin has built-in React Component that can be configured through the options to be your own component. Direct server component config inputs are not yet supported through worker threads. This means that the rsc-worker can not support the `CssCollector` Root component and always
+uses the default one. The `html-worker` *does* use the `Html` component, but by the time that component reaches the worker it should already
+be serialized.
 
 - Html - used as the wrapper for production pages 
   - used during static build
