@@ -294,6 +294,11 @@ Please see the official React reference on how to use the directives:
 - [use server](https://react.dev/reference/rsc/use-server)
 - [use client](https://react.dev/reference/rsc/use-client)
 
+The transformation works like this:
+ - "use server" appends (async) functions to registrations
+ - "use client" appends registrations and rewrites the components to hide the implementation
+
+The transformation should only be applied to the `dist/server` folder and the directives will be removed.
 
 ### Built-in React Server Components
 
