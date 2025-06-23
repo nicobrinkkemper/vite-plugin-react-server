@@ -5,3 +5,4 @@ export * from './resolveUserConfig.js';
 export * from './resolveOptions.js';
 export * from './resolvePages.js';
 export * from './autoDiscover/index.js';
+export * from './extMap.js';

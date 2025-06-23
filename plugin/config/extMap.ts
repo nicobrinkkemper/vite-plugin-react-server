@@ -1,4 +1,3 @@
-
 import { DEFAULT_CONFIG, BASE_PATTERNS } from "./defaults.js";
 
 export const jsExtension = ".js";
@@ -16,18 +15,18 @@ export const replaceExtension = (id: string, options: {
     return id.replace(new RegExp(`${BASE_PATTERNS.EXT.NODE}(?:\\.[^.]+)?$`), BASE_PATTERNS.EXT.NODE + jsExtension);
   }
 
-  // Handle standard module extensions
-  if (new RegExp(BASE_PATTERNS.MODULE).test(id)) {
-    return id.replace(new RegExp(BASE_PATTERNS.MODULE), jsExtension);
-  }
-
-  // Try extension mapping
+  // Try extension mapping first (custom mappings should take precedence)
   if (extensionMap) {
     for (const [pattern, ext] of Object.entries(extensionMap)) {
       if (new RegExp(pattern).test(id)) {
         return id.replace(new RegExp(pattern), ext);
       }
     }
+  }
+
+  // Handle standard module extensions as fallback
+  if (new RegExp(BASE_PATTERNS.MODULE).test(id)) {
+    return id.replace(new RegExp(BASE_PATTERNS.MODULE), jsExtension);
   }
 
   return id;
