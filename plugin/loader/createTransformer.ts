@@ -1,6 +1,6 @@
 import { transformModule } from "./transformModule.js";
 import { isReactServerCondition } from "../config/getCondition.js";
-import { parse } from "./directives/parse.js";
+import { parse } from "./parse.js";
 import type {
   DirectiveWarning,
   DirectiveMatch,
@@ -25,7 +25,7 @@ export const createTransformer: TransformerFactory = ({
       console.log(`[createTransformer] Loading: ${moduleId}`);
     }
     // Fast-path: skip parsing and transformation if no directives are present
-    const matches = await findDirectiveMatches(source);
+    const matches = findDirectiveMatches(source);
 
     // Validate flags against matches
     const hasServerDirective = matches.matches.some((m: DirectiveMatch) => m.type === "server");
@@ -33,6 +33,9 @@ export const createTransformer: TransformerFactory = ({
 
     if (hasClientDirective === false && hasServerDirective === false) {
       return { code: source, map: null };
+    }
+    if(isServerEnvironment === false && hasServerDirective) {
+      console.warn('You likely don\'t want to use createTransformer in the client environment.');
     }
     const warnings: DirectiveWarning[] = [];
 

@@ -151,7 +151,7 @@ The loader uses two main registration functions:
 1. `registerServerReference` - For server functions and classes
 2. `registerClientReference` - For client components
 
-These functions ensure proper serialization and boundary enforcement between server and client code. The loader is designed to be flexible with its "flight bindings" - while it defaults to using react-dom-server-esm, you can configure it to use different bindings. This allows your bundled server code to run on different platforms like NextJS, Parcel, or plain webpack applications.
+These functions ensure proper serialization and boundary enforcement between server and client code. The loader is designed to be flexible with its "flight bindings" - while it defaults to using react-server-dom-esm, you can configure it to use different bindings. This allows your bundled server code to run on different platforms like NextJS, Parcel, or plain webpack applications.
 
 ### Configuration
 

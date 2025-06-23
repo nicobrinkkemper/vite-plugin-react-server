@@ -15,6 +15,7 @@ import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
 import { createDefaultModuleID } from "./createModuleID.js";
+import { parse } from "../loader/parse.js";
 
 export type ResolveOptionsReturn<R extends StreamPluginOptions> =
   | {
@@ -283,18 +284,26 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   );
 
   /** Loader options */
-  const isServerFunctionCode = resolveDirectiveMatcher(
+  const serverDirective = resolveRegExp(
     options.loader?.serverDirective,
+    DEFAULT_LOADER_CONFIG.serverDirective
+  );
+  const clientDirective = resolveRegExp(
+    options.loader?.clientDirective,
+    DEFAULT_LOADER_CONFIG.clientDirective
+  );
+  const isServerFunctionCode = resolveDirectiveMatcher(
+    serverDirective,
     (code: string, moduleId?: string) =>
-      code.match(resolveRegExp(options.loader!.serverDirective!)) != null ||
+      code.match(serverDirective) != null ||
       (typeof moduleId === "string" && serverPattern.test(moduleId)) ||
       false
   );
 
   const isClientComponentCode = resolveDirectiveMatcher(
-    options.loader?.clientDirective,
+    clientDirective,
     (code: string, moduleId?: string) =>
-      code.match(resolveRegExp(options.loader!.clientDirective!)) != null ||
+      code.match(clientDirective) != null ||
       (typeof moduleId === "string" && clientPattern.test(moduleId)) ||
       false
   );
@@ -515,6 +524,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerServerReferenceName,
     isServerFunctionCode,
     isClientComponentCode,
+    parse: parse,
   } satisfies ResolvedUserOptions["loader"];
 
   const pipeableStreamOptions = options.pipeableStreamOptions

@@ -1,4 +1,4 @@
-import { parse } from "./parse.js";
+import { parse } from "../parse.js";
 import type { ExportInfo } from "./types.js";
 import { getExports } from "./getExports.js";
 import { loadClientSource } from "../../helpers/moduleResolver.js";

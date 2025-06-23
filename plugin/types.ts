@@ -32,6 +32,7 @@ import type {
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
 import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
+import type { Program } from "./loader/directives/types.js";
 
 export type ReactStreamPluginFn<R extends Record<string, unknown> = {
   meta: ReactStreamPluginMeta;
@@ -262,6 +263,7 @@ export type LoaderConfig = {
   registerServerReferenceName: string;
   isServerFunctionCode: (code: string, moduleId?: string) => boolean;
   isClientComponentCode: (code: string, moduleId?: string) => boolean;
+  parse: (source: string) => Promise<{ ast: Program; code: string; map?: { url: string; start: number; end: number; lines: number; } | null }>;
 };
 
 export type GenericModuleLoader = (
@@ -372,7 +374,7 @@ export type CssCollectorProps<
   pageProps?: T;
   Page: PageComponentType<T>;
   id?: string;
-} & Omit<React.ComponentPropsWithoutRef<As>, "children">;
+} & Omit<React.ComponentProps<As>, "children">;
 
 export type CssCollectorComponent = (
   props: CssCollectorProps
@@ -546,6 +548,7 @@ export type StreamPluginOptions<
       directive: string,
       moduleId?: string
     ) => "client" | "server" | undefined;
+    parse?: (source: string) => Promise<{ ast: Program; code: string; map?: { url: string; start: number; end: number; lines: number; } | null }>;
   };
   // Auto-discovery (zero-config)
   autoDiscover?:
@@ -972,7 +975,7 @@ export type AsOpt =
   | ExoticComponent<FragmentProps>
   | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
 export type PageComponentType<T extends PagePropOpt = PagePropOpt> =
-  React.ComponentType<T>;
+  React.FC<T>;
 
 export type HtmlProps<
   T extends PagePropOpt = PagePropOpt,
@@ -990,7 +993,7 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  CssCollector: CssCollectorFn;
+  CssCollector: (props: CssCollectorProps) => React.ReactElement;
   globalCss: Map<string, CssContent<InlineCSS>>;
   as?: As;
 };

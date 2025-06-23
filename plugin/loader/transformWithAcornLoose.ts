@@ -21,14 +21,7 @@ export const transformWithAcornLoose: TransformWithAcornLooseFn =
   ): Promise<{ code: string; map: RawSourceMap | null }> {
     const transformer = createTransformer({
       parseFn: parse,
-      options: {
-        loader: options.loader,
-        verbose: options.verbose,
-      },
-      forceServerFunction: options.forceServerFunction,
-      forceClientComponent: options.forceClientComponent,
-      isServerEnvironment: options.isServerEnvironment,
+      options,
     });
-
     return transformer(source, moduleId);
   };

@@ -2,7 +2,6 @@ import type { RawSourceMap } from "source-map";
 import type { ResolvedUserOptions } from "../types.js";
 import type { DirectiveWarning, ParseResult, Program } from "./directives/types.js";
 
-
 export type RscLoader = Pick<ResolvedUserOptions['loader'], 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
 
 export type TransformOptions = {
@@ -42,3 +41,5 @@ export type TransformerFactory = (options: {
   forceClientComponent?: boolean | undefined;
   isServerEnvironment?: boolean;
 }) => (source: string, moduleId: string) => Promise<TransformResult>;
+
+export type { Program };

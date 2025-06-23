@@ -75,7 +75,7 @@ try {
     "file://" +
     (workerData.userOptions.reactLoaderPath
       ? join(workerData.resolvedConfig.root, workerData.userOptions.reactLoaderPath)
-      : join(pluginRoot, "loader/react-loader.server.js"));
+      : join(pluginRoot, "loader/react-loader.js"));
   const cssLoaderPath =
     "file://" +
     (workerData.userOptions.cssLoaderPath

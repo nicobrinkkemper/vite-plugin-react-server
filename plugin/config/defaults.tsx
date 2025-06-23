@@ -1,5 +1,6 @@
 import { CssCollector } from "../components/css-collector.js";
 import { Html } from "../components/html.js";
+import { parse } from "../loader/parse.js";
 
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
@@ -68,7 +69,12 @@ export const DEFAULT_LOADER_CONFIG = {
     (moduleId && /(\.|\/)?client(\.|\/)?/.test(moduleId.toLowerCase())) || 
     false,
   allowedDirectives: DIRECTIVE_CONFIGS,
-  getDirectiveType
+  importServerPath: "react-server-dom-esm/server",
+  importClientPath: "react-server-dom-esm/server",
+  registerClientReferenceName: "registerClientReference",
+  registerServerReferenceName: "registerServerReference",
+  getDirectiveType,
+  parse: parse
 } as const;
 
 // Define base patterns that can be reused

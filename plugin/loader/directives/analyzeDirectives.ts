@@ -15,17 +15,17 @@ import type { DirectiveOptions } from "../../types.js";
 export function analyzeDirectives(
   ast: Program, 
   source: string,
-  matches: DirectiveMatches,
+  matches?: DirectiveMatches,
 ): DirectiveInfo;
 export function analyzeDirectives(
   ast: Program, 
   source: string,
-  options: DirectiveOptions,
+  options?: DirectiveOptions,
 ): DirectiveInfo;
 export function analyzeDirectives(
   ast: Program, 
   source: string,
-  optionsOrMatches: DirectiveMatches | DirectiveOptions,
+  optionsOrMatches?: DirectiveMatches | DirectiveOptions,
 ): DirectiveInfo {
   const directiveMatches = typeof optionsOrMatches === 'object' && 'matches' in optionsOrMatches
     ? optionsOrMatches

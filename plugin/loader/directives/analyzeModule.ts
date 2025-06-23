@@ -1,7 +1,7 @@
-export { parse } from "./parse.js";
+export { parse } from "../parse.js";
 export { analyzeDirectives } from "./analyzeDirectives.js";
 
-import { parse } from "./parse.js";
+import { parse } from "../parse.js";
 import { analyzeDirectives } from "./analyzeDirectives.js";
 import { getExports } from "./getExports.js";
 import type { ParseResult } from "./types.js";
@@ -12,12 +12,12 @@ import type { DirectiveOptions } from "../../types.js";
  */
 export async function analyzeModule(
   source: string,
-  options: DirectiveOptions
+  options?: DirectiveOptions
 ): Promise<ParseResult> {
   const { ast, code } = await parse(source);
 
   const directiveInfo = analyzeDirectives(ast, source, options);
-  if(options.verbose) {
+  if(options?.verbose) {
     console.log(directiveInfo);
   }
 

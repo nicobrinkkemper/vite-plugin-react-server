@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { analyzeModule } from "../../../dist/plugin/loader/directives/analyzeModule.js";
-import { testLoaderConfig } from "./testLoaderConfig.js";
 
 describe("analyzeModule - function-level directives", () => {
   it("should detect function-level use server directive", async () => {
@@ -8,7 +7,7 @@ describe("analyzeModule - function-level directives", () => {
   "use server";
   return 42;
 }`;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.functionLevel).toHaveLength(1);
     expect(result.directiveInfo?.functionLevel[0]).toEqual({
       type: "server",
@@ -41,7 +40,7 @@ async function test4() {
   
 export {test1, test2, test3, test4};
 `;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.functionLevel).toHaveLength(4);
     expect(result.directiveInfo?.functionLevel[0].name).toBe("test1");
     expect(result.directiveInfo?.functionLevel[1].name).toBe("test2");
@@ -56,7 +55,7 @@ async function test() {
   "use server";
   return 42;
 }`;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.fileLevel?.type).toBe("server");
     expect(result.directiveInfo?.functionLevel).toHaveLength(0);
   });
@@ -66,7 +65,7 @@ async function test() {
   "use server";
   return 42;
 }`;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.functionLevel).toHaveLength(1);
     expect(result.directiveInfo?.functionLevel[0].name).toBe("anonymous");
   });
@@ -76,7 +75,7 @@ async function test() {
   "use server";
   return 42;
 }`;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.functionLevel).toHaveLength(1);
     expect(result.directiveInfo?.functionLevel[0].name).toBe("anonymous");
   });
@@ -88,15 +87,18 @@ async function test() {
     }
 
     export async function test2() {
+      // this is *not* a 'use server' directive function, tests should expect it not to be registered as a function-level directive
       return 2;
     }
 
-    export async function test3() {
+    async function test3() {
       "use server";
       return 3;
     }
+
+    export { test3 }
   `;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.functionLevel.length).toBe(2);
     expect(result.directiveInfo?.functionLevel[0]?.name).toBe("test1");
     expect(result.directiveInfo?.functionLevel[1]?.name).toBe("test3");
@@ -109,7 +111,7 @@ async function test() {
       "use server";
       return 42;
     }`;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.functionLevel).toHaveLength(1);
     expect(result.directiveInfo?.functionLevel[0].name).toBe("anonymous");
     expect(result.exports?.exports.get("test")?.type).toBe("function");

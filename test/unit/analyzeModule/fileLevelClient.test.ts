@@ -1,6 +1,5 @@
 import { analyzeModule } from "../../../dist/plugin/loader/directives/analyzeModule.js";
 import { describe, test, expect } from "vitest";
-import { testLoaderConfig } from "./testLoaderConfig.js";
 
 describe("analyzeModule - file-level client directives", () => {
   test("should detect file-level use client directive", async () => {
@@ -8,9 +7,7 @@ describe("analyzeModule - file-level client directives", () => {
       `"use client";
 export function test() {
   return 42;
-}`,
-      "test.js",
-     testLoaderConfig
+}`
     );
     expect(result.directiveInfo?.fileLevel?.type).toBe("client");
   });
@@ -20,9 +17,7 @@ export function test() {
       `'use client';
 export function test() {
   return 42;
-}`,
-      "test.js",
-     testLoaderConfig
+}`
     );
     expect(result.directiveInfo?.fileLevel?.type).toBe("client");
   });
@@ -34,7 +29,7 @@ export function test() {
 export function test() {
   return 42;
 }`;
-    const result = await analyzeModule(source, "test.js",testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.fileLevel?.type).toBe("client");
   });
 
@@ -46,7 +41,7 @@ export function test() {
         return 1;
       }
     }`;
-    const result = await analyzeModule(source, "test.js",testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.fileLevel?.type).toBe("client");
     expect(result.directiveInfo?.fileLevel?.name).toBe(undefined);
     expect(result.directiveInfo?.functionLevel).toHaveLength(0);
@@ -66,7 +61,7 @@ export function test() {
     export const Link = () => {
       return "a";
     }`;
-    const result = await analyzeModule(source, "test.js", testLoaderConfig);
+    const result = await analyzeModule(source);
     expect(result.directiveInfo?.fileLevel?.type).toBe("client");
     expect(result.directiveInfo?.fileLevel?.name).toBe(undefined);
     expect(result.directiveInfo?.functionLevel).toHaveLength(0);

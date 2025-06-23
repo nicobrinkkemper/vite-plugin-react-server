@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createTransformer } from '../../dist/plugin/loader/createTransformer.js';
-import { DEFAULT_LOADER_CONFIG } from '../../dist/plugin/config/defaults.js';
+import { DEFAULT_LOADER_CONFIG } from 'vite-plugin-react-server/config';
 
 // Create a complete loader config for testing
 const TEST_LOADER_CONFIG = {

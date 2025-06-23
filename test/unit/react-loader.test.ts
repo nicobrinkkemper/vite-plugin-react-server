@@ -1,7 +1,7 @@
 // test/unit/loader/loader.test.ts
 import { describe, test, expect } from "vitest";
-import { load } from "../../dist/plugin/loader/react-loader.server.js";
-import { createDefaultLoader } from "../../dist/plugin/loader/createDefaultLoader";
+import { load } from "vite-plugin-react-server/loader";
+import { createDefaultLoader } from "vite-plugin-react-server/loader";
 
 const loadReact = async (source: string, url = "test.js") => {
   return await load(

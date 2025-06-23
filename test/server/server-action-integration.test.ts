@@ -54,7 +54,7 @@ describe("Server Action Integration", () => {
 
   afterAll(async () => {
     await server?.close();
-    // await rm(testDir, { recursive: true, force: true });
+    await rm(testDir, { recursive: true, force: true });
   });
 
   it("should have the right headers", async () => {
