@@ -175,7 +175,6 @@ export const configureReactServer: ConfigureReactServerFn =
           res.setHeader("Content-Type", "text/x-component; charset=utf-8");
           rscResult.stream!.pipe(res);
         }
-        console.log("CREATED HANDLER");
         activeStreams.add(res);
         res.on("close", () => {
           activeStreams.delete(res);

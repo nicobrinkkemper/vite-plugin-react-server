@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createTransformer } from '../../plugin/loader/createTransformer.js';
-import { DEFAULT_LOADER_CONFIG } from '../../plugin/config/defaults.js';
+import { createTransformer } from '../../dist/plugin/loader/createTransformer.js';
+import { DEFAULT_LOADER_CONFIG } from '../../dist/plugin/config/defaults.js';
 
 // Create a complete loader config for testing
 const TEST_LOADER_CONFIG = {

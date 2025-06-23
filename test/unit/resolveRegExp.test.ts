@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { resolveDirectiveMatcher } from "../../plugin/config/resolveDirectiveMatcher.js";
-import { resolvePatternWithValues } from "../../plugin/config/resolvePatternWithValues.js";
-import { resolveRegExp } from "../../plugin/config/resolveRegExp.js";
-import { parsePattern } from "../../plugin/config/parsePattern.js";
-import type { DeserializedRegExp } from "../../plugin/types.js";
+import { resolveDirectiveMatcher } from "../../dist/plugin/config/resolveDirectiveMatcher.js";
+import { resolvePatternWithValues } from "../../dist/plugin/config/resolvePatternWithValues.js";
+import { resolveRegExp } from "../../dist/plugin/config/resolveRegExp.js";
+import { parsePattern } from "../../dist/plugin/config/parsePattern.js";
+import type { DeserializedRegExp } from "../../dist/plugin/types.js";
 
 describe("resolveDirectiveMatcher", () => {
   describe("string patterns", () => {

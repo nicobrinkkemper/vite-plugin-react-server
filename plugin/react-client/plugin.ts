@@ -94,10 +94,10 @@ export const reactClientPlugin: ReactClientPluginFn = function _reactClientPlugi
       }
     },
     // setup dev server
-    async configureServer(server) {
+    configureServer(server) {
       // Create HMR message channel
       hmrChannel = new MessageChannel();
-      await configureWorkerRequestHandler({
+      configureWorkerRequestHandler({
         server,
         autoDiscoveredFiles,
         userOptions,

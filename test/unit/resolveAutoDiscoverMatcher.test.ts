@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { resolveRegExp } from "../../plugin/config/resolveRegExp.js";
-import { resolvePatternWithValues } from "../../plugin/config/resolvePatternWithValues.js";
-import type { DeserializedRegExp } from "../../plugin/types.js";
+import { resolveRegExp } from "../../dist/plugin/config/resolveRegExp.js";
+import { resolvePatternWithValues } from "../../dist/plugin/config/resolvePatternWithValues.js";
+import type { DeserializedRegExp } from "../../dist/plugin/types.js";
 
 describe("resolveRegExp", () => {
   describe("string patterns", () => {

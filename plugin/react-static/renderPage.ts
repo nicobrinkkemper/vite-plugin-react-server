@@ -33,7 +33,6 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       route: handlerOptions.route,
       loader: handlerOptions.loader,
     });
-    console.log("pageAndPropsResult", pageAndPropsResult);
 
     if (pageAndPropsResult.type === "error") {
       yield {

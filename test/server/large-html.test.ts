@@ -89,6 +89,7 @@ describe('large html handling', () => {
       projectRoot: testDir,
       Page: ()=>"src/page/page.tsx",
       props: ()=>"src/page/props.ts",
+      rscTimeout: 500,
       build: {
         pages: ["/"],
       },

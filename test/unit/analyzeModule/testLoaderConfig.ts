@@ -1,4 +1,4 @@
-import { resolveOptions } from "../../../plugin/config/resolveOptions.js";
+import { resolveOptions } from "../../../dist/plugin/config/resolveOptions.js";
 
 export const testLoaderConfig = resolveOptions({
   moduleBase: "src",

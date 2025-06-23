@@ -192,6 +192,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn = as
           },
         },
         verbose: handlerOptions.verbose,
+        rscTimeout: handlerOptions.rscTimeout,
       });
 
       // Pipe the stream to the response
@@ -212,7 +213,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn = as
         timeout = setTimeout(() => {
           clearTimeout(timeout);
           reject(new Error("RSC Render timeout"));
-        }, 5000);
+        }, handlerOptions.rscTimeout);
       });
     } catch {
       if (currentWorker) {

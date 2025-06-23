@@ -50,7 +50,6 @@ import { baseURL } from "../utils/envUrls.node.js";
 import { readFile } from "node:fs/promises";
 import { logError } from "../error/logError.js";
 import { toError } from "../error/toError.js";
-import type { ShutdownCompleteMessage } from "../worker/types.js";
 
 export type ReactStaticPluginFn = ReactStreamPluginFn<{
   meta: ReactStreamPluginMeta;
@@ -393,28 +392,13 @@ export const reactStaticPlugin: ReactStaticPluginFn = function _reactStaticPlugi
         logError(toError(error), this.environment.logger);
       } finally {
         // Cleanup
-        try {
-          worker.postMessage({ type: "SHUTDOWN", id: "*" });
-          await new Promise<void>((resolve, reject) => {
-            const shutdownHandler = (msg: ShutdownCompleteMessage) => {
-              if (msg.type === "SHUTDOWN_COMPLETE") {
-                worker.removeListener("message", shutdownHandler);
-                worker
-                  .terminate()
-                  .then((code) =>
-                    code === 1
-                      ? resolve()
-                      : reject(new Error(`Worker terminated with code ${code}`))
-                  )
-                  .catch(reject);
-              }
-            };
-            worker.on("message", shutdownHandler);
-          });
-        } catch (error) {
-          logError(toError(error), this.environment.logger);
-        } finally {
-          worker.postMessage({ type: "SHUTDOWN", id: "*" });
+        if (worker) {
+          try {
+            // Force terminate the worker without waiting for graceful shutdown
+            await worker.terminate();
+          } catch (error) {
+            logError(toError(error), this.environment.logger);
+          }
         }
       }
     },

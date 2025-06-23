@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createAbsoluteURL, createBaseURL, createPageURL } from '../../plugin/utils/urls.js';
+import { createAbsoluteURL, createBaseURL, createPageURL } from '../../dist/plugin/utils/urls.js';
 
 //** These utilities are kind of like normalizers and parsers for the baseURL that we initially pass into the plugin
 //  This is because when you define the moduleBasePath, it will actually be removed from the stream - which is why we

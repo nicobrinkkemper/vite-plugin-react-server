@@ -1,4 +1,4 @@
-import { analyzeModule } from "../../../plugin/loader/directives/analyzeModule.js";
+import { analyzeModule } from "../../../dist/plugin/loader/directives/analyzeModule.js";
 import { describe, it, expect } from "vitest";
 import { testLoaderConfig } from "./testLoaderConfig.js";
 

@@ -1,7 +1,7 @@
 import { describe, it, expect} from 'vitest'
 import { testUserOptions } from '../test-config.js'
-import { resolveUserConfig } from '../../plugin/config/resolveUserConfig.js'
-import { resolveOptions } from '../../plugin/config/resolveOptions.js'
+import { resolveUserConfig } from '../../dist/plugin/config/resolveUserConfig.js'
+import { resolveOptions } from '../../dist/plugin/config/resolveOptions.js'
 
 
 describe('Build configuration', () => {

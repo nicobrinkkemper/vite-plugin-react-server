@@ -203,7 +203,10 @@ type BaseKeys =
   | "clientEntry"
   | "serverEntry"
   | "publicOrigin"
-  | "verbose";
+  | "verbose"
+  | "rscTimeout"
+  | "htmlWorkerStartupTimeout"
+  | "rscWorkerStartupTimeout";
 
 export type NestedConfigKeys =
   | "build"
@@ -741,6 +744,9 @@ export type StreamPluginOptions<
   normalizer?: InputNormalizer;
   moduleID?: (id: string) => string;
   verbose?: boolean;
+  rscTimeout?: number; // Timeout in milliseconds for RSC operations
+  htmlWorkerStartupTimeout?: number; // Timeout in milliseconds for HTML worker startup
+  rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
 };
 
 export type MultiPageHandlerOptions<Opt extends ResolvedUserOptions = ResolvedUserOptions> = Omit<

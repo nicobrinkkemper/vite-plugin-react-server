@@ -25,6 +25,7 @@ export type HandleWorkerRscStreamFn = (props: {
       >
     >;
   verbose?: boolean;
+  rscTimeout?: number;
 }) => ReadableStream<Uint8Array>;
 
 /**
@@ -41,6 +42,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWo
   logger,
   handlers,
   verbose = false,
+  rscTimeout,
 }) {
   // Create a ReadableStream from the async generator
   let isFlowing = false;
@@ -92,6 +94,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWo
             }
           },
           verbose,
+          rscTimeout,
         })) {
           // Process chunks directly from generator
           if (!isFlowing) {

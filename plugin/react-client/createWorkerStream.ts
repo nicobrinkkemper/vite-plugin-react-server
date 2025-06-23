@@ -27,6 +27,7 @@ export type CreateWorkerStreamFn = (props: {
       >
     >;
   verbose?: boolean;
+  rscTimeout?: number;
 }) => AsyncGenerator<Uint8Array>;
 
 /**
@@ -53,6 +54,7 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
     onCssFile,
   },
   verbose = false,
+  rscTimeout = 5000,
 }) {
   if (!worker) {
     throw new Error("Worker is not running");
@@ -161,7 +163,7 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
       workerTimeout = setTimeout(() => {
         if (verbose) logger.info(`worker timeout`);
         worker.terminate();
-      }, 5000);
+      }, rscTimeout);
       currentResolve = (chunk: Uint8Array | null) => {
         resolve(chunk);
       };

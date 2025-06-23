@@ -559,6 +559,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       autoDiscover: autoDiscover,
       loader: loader,
       pipeableStreamOptions,
+      rscTimeout: typeof options.rscTimeout === "number" ? options.rscTimeout : DEFAULT_CONFIG.RSC_TIMEOUT,
+      htmlWorkerStartupTimeout: typeof options.htmlWorkerStartupTimeout === "number" ? options.htmlWorkerStartupTimeout : DEFAULT_CONFIG.HTML_WORKER_STARTUP_TIMEOUT,
+      rscWorkerStartupTimeout: typeof options.rscWorkerStartupTimeout === "number" ? options.rscWorkerStartupTimeout : DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT,
     } as ResolvedUserOptions<typeof options>;
 
     // Stash the resolved options

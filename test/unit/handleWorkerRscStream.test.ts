@@ -3,7 +3,7 @@ import { handleWorkerRscStream } from '../../dist/plugin/react-client/handleWork
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import type { StreamHandlers } from '../../dist/plugin/worker/types.js';
-import type { RscRenderOpt } from '../../plugin/worker/rsc/types.js';
+import type { RscRenderOpt } from '../../dist/plugin/worker/rsc/types.js';
 
 describe('handleWorkerRscStream', () => {
   let mockWorker: Worker;

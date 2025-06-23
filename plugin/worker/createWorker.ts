@@ -156,9 +156,15 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     // Wait for worker to be ready
     return await new Promise<CreateWorkerSuccess | CreateWorkerSkip>(
       (resolve, reject) => {
+        // Use appropriate timeout based on worker type
+        const workerType = reverseCondition === "react-server" ? "rsc" : "html";
+        const startupTimeout = workerType === "rsc" 
+          ? options.workerData.userOptions.rscWorkerStartupTimeout 
+          : options.workerData.userOptions.htmlWorkerStartupTimeout;
+        
         const timeout = setTimeout(() => {
           reject({ type: "error", error: new Error("Worker ready timeout") });
-        }, 5000);
+        }, startupTimeout);
         const exitHandler = (code: number) => {
           clearTimeout(timeout);
           worker.removeListener("message", messageHandler);

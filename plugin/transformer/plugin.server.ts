@@ -87,7 +87,7 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
           throw new Error(`Static manifest not found during dev build.`);
         }
       }
-      console.log("staticManifest", isBuild, moduleID, staticManifest);
+      
       const finalID = userOptions.moduleID(moduleID);
 
 

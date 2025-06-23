@@ -6,7 +6,7 @@ import type {
   PluginEvent,
   FileWriteDoneEvent,
   RenderMetrics,
-} from "../../plugin/types.js";
+} from "../../dist/plugin/types.js";
 import { doBuild } from "./doBuild.js";
 
 describe("Plugin build test", () => {

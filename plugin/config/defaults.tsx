@@ -123,6 +123,9 @@ export const DEFAULT_CONFIG = {
   PREVIEW_HOST: "localhost",
   ENV_PREFIX: "VITE_",
   REACT_DIRECTIVES: new Set(["use client", "use server"]),
+  RSC_TIMEOUT: 5000, // 5 seconds default timeout for RSC operations
+  HTML_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for HTML worker startup
+  RSC_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for RSC worker startup
   BUILD: {
     pages: [],
     client: "client",

@@ -1,6 +1,6 @@
 import { build } from "vite";
 import { vitePluginReactClient } from "vite-plugin-react-server/client";
-import type { PluginEvent, StreamPluginOptions} from "../../plugin/types";
+import type { PluginEvent, StreamPluginOptions} from "../../dist/plugin/types";
 import { testUserOptions } from "../test-config";
 import { inspect } from "node:util";
 import { rm } from "fs/promises";

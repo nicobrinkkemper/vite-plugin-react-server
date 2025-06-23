@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { resolve } from "path";
 import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
-import type { PluginEvent, FileWriteDoneEvent } from "../../plugin/types.js";
+import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
 import { doBuild } from "./doBuild.js";
 
 describe("Plugin Inline Css Event hooks", () => {
@@ -53,6 +53,9 @@ describe("Plugin Inline Css Event hooks", () => {
   it("emits file.write events for html and rsc files", async () => {
     const fileWriteEvents = events.filter((e): e is FileWriteDoneEvent => e.type === "file.write.done");
     expect(fileWriteEvents.length).toBeGreaterThanOrEqual(2);
+    if(!fileWriteEvents.length) {
+      throw events;
+    }
     
     // Find HTML and RSC file write events
     const htmlEvent = fileWriteEvents.find(e => e.data.fileType === "html");
