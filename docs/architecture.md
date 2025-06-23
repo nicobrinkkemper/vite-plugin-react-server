@@ -58,7 +58,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
       ...testUserOptions.build,
       ...optionOverrides?.build,
     },
-  } as StreamPluginOptions<T, InlineCSS>;
+  } as StreamPluginOptions;
 
   // Change to test directory
   let originalCwd = process.cwd();

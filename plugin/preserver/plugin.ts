@@ -1,26 +1,10 @@
 import type { Node } from "estree";
 import type {
-  InlineCssOpt,
-  PagePropOpt,
-  StreamPluginOptions,
+  ReactStreamPluginFn,
 } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { basename } from "path";
-import type { Plugin } from "vite";
 import { resolveRegExp } from "../config/resolveRegExp.js";
-
-
-function createSourceMap(id: string, code: string, mappings: string) {
-  return {
-    version: 3,
-    file: basename(id),
-    sources: [id],
-    sourcesContent: [code],
-    names: [],
-    mappings,
-    sourceRoot: "",
-  };
-}
 
 function countLines(str: string): number {
   return str.split("\n").length;
@@ -40,10 +24,7 @@ function removeRanges(
   return result;
 }
 
-export function reactPreservePlugin<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->(options: StreamPluginOptions<T, InlineCSS>): Plugin {
+export const reactPreservePlugin: ReactStreamPluginFn = (options) => {
   const meta: Record<string, Set<string>> = {};
   // saves us from transforming all the options
   const moduleExtension = resolveRegExp(options.autoDiscover?.modulePattern, DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern);
@@ -130,7 +111,15 @@ export function reactPreservePlugin<
         }
 
         const newCode = removeRanges(code, rangesToRemove);
-        const sourceMap = createSourceMap(id, code, mappings);
+        const sourceMap = {
+          version: 3,
+          file: basename(id),
+          sources: [id],
+          sourcesContent: [code],
+          names: [],
+          mappings,
+          sourceRoot: "",
+        };
 
         return {
           code: newCode,
@@ -167,7 +156,15 @@ export function reactPreservePlugin<
         // Create source map for the prepended directives
         const lineCount = countLines(directivesCode);
         const mappings = "AAAA" + ";AACA".repeat(lineCount - 1);
-        const sourceMap = createSourceMap(chunk.fileName, code, mappings);
+        const sourceMap = {
+          version: 3,
+          file: basename(chunk.fileName),
+          sources: [chunk.fileName],
+          sourcesContent: [code],
+          names: [],
+          mappings,
+          sourceRoot: "",
+        };
 
         return {
           code: newCode,
