@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { formatMetrics, logMetrics } from "../../plugin/helpers/formatMetrics.js";
-import type { RenderMetrics } from "../../plugin/types.js";
+import { formatMetrics, logMetrics } from "vite-plugin-react-server/metrics";
+import type { RenderMetrics } from "vite-plugin-react-server/metrics";
 
 describe("formatMetrics", () => {
   const mockMetrics: RenderMetrics = {

@@ -6,7 +6,7 @@ import {
   getSource,
   resolveClientImport,
   loadClientSource
-} from "../../plugin/helpers/moduleResolver.js";
+} from "vite-plugin-react-server/helpers";
 import type { ResolveHookContext } from "node:module";
 
 describe("moduleResolver", () => {

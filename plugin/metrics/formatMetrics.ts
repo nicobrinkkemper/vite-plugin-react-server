@@ -1,4 +1,4 @@
-import type { RenderMetrics } from "../types.js";
+import type { RenderMetrics } from "./types.js";
 
 export function formatMetrics(metrics: RenderMetrics): string {
   const {
@@ -59,4 +59,8 @@ export function metricWatcher({
       }
     }
   };
+}
+
+export function logMetrics(metrics: RenderMetrics, logger: {info: (message: string) => void} = console) {
+  logger.info(formatMetrics(metrics));
 }

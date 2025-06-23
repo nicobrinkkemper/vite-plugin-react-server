@@ -31,6 +31,7 @@ import type {
   serializeResolvedConfig,
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
+import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
 
 export type ReactStreamPluginFn<R extends Record<string, unknown> = {
   meta: ReactStreamPluginMeta;
@@ -68,6 +69,7 @@ export type HmrState = {
   invalidated: boolean;
   routes: string[];
 };
+
 
 export type RenderPageResult =
   | {
@@ -332,29 +334,6 @@ export type DirectiveOptions<R extends ResolvedUserOptions = ResolvedUserOptions
   };
 };
 
-export type StreamMetrics = {
-  chunks: number;
-  bytes: number;
-  backpressureCount: number;
-  drainCount: number;
-  errorCount: number;
-  duration: number;
-  startTime: number;
-  route?: string;
-};
-
-export type RenderMetrics = {
-  route: string;
-  htmlSize: number;
-  rscSize: number;
-  processingTime: number;
-  chunks: number;
-  chunkRate: number;
-  memoryUsage: NodeJS.MemoryUsage;
-  streamMetrics: StreamMetrics;
-  htmlSizes: Map<string, number>;
-  rscSizes: Map<string, number>;
-};
 
 export type CssCollectorOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> =
   {
@@ -1315,3 +1294,7 @@ export type ReactStreamHandlerFn<ReturnType> = <
 export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
   options: ResolvedUserOptions
 ) => ReturnType;
+
+
+// re-exorts
+export type { StreamMetrics, RenderMetrics }

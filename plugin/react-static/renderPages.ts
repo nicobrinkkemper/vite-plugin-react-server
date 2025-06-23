@@ -9,7 +9,7 @@
  * 3. Transforms RSC to HTML via worker and pipes to .html files
  * 4. Collects metrics and handles errors
  */
-import { createRenderMetrics } from "../helpers/metrics.js";
+import { createRenderMetrics } from "../metrics/metrics.js";
 import { renderPage } from "./renderPage.js";
 import type { PassThrough } from "node:stream";
 import type {

@@ -15,7 +15,7 @@ import type {
   CreateHandlerOptions,
   StreamMetrics,  
 } from "../types.js";
-import { createStreamMetrics } from "../helpers/metrics.js";
+import { createStreamMetrics } from "../metrics/metrics.js";
 import { createRscToHtmlStream } from "./rscToHtmlStream.js";
 import { fileWriter } from "./fileWriter.js";
 import type { HtmlWorkerOutputMessage } from "../worker/html/types.js";

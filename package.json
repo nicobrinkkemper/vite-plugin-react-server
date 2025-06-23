@@ -34,7 +34,8 @@
     "./error": "./dist/plugin/error/index.js",
     "./vendor": "./dist/plugin/vendor/index.js",
     "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
-    "./loader": "./dist/plugin/loader/index.js"
+    "./loader": "./dist/plugin/loader/index.js",
+    "./helpers": "./dist/plugin/helpers/index.js"
   },
   "typesVersions": {
     "*": {
@@ -85,6 +86,9 @@
       ],
       "loader": [
         "./dist/plugin/loader/index.d.ts"
+      ],
+      "helpers": [
+        "./dist/plugin/helpers/index.d.ts"
       ]
     }
   },

@@ -32,6 +32,7 @@ export * from "./getBundleManifest.js";
 
 // Module handling
 export * from "./moduleRefs.js";
+export * from "./moduleResolver.js";
 
 // Utility functions
 export * from "./stashReturnValue.js";

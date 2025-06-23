@@ -17,7 +17,7 @@ import type {
   CreateHandlerOptions,
   StreamMetrics,
 } from "../types.js";
-import { createStreamMetrics } from "../helpers/metrics.js";
+import { createStreamMetrics } from "../metrics/metrics.js";
 import { fileWriter } from "./fileWriter.js";
 
 export type CollectRscContentReturn = Promise<{
