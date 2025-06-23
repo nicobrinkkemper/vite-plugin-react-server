@@ -240,7 +240,7 @@ PUBLIC_ORIGIN is introduced for the server to know in order to render favicons a
 
 ## Made to be removed
 
-The code tries to organize itself into plugins that are purely based on making the thing work. Things like the preserver plugin, is 
+The code tries to organize itself into plugins that are purely based on making the thing work. Things like the preserver plugin are 
 a backwards way to support the use client and use server directives, but we simply don't care and want to preserve the use client and use server for as long as possible - so that our transformer can handle it.
 
 ### HTML Component Support
