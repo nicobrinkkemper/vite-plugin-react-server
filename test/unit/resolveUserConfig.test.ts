@@ -1,8 +1,9 @@
 import { describe, it, expect} from 'vitest'
 import { testUserOptions } from '../test-config.js'
-import { resolveUserConfig } from '../../dist/plugin/config/resolveUserConfig.js'
-import { resolveOptions } from '../../dist/plugin/config/resolveOptions.js'
+import { resolveUserConfig } from 'vite-plugin-react-server/config'
+import { resolveOptions } from 'vite-plugin-react-server/config'
 
+const options = resolveOptions(testUserOptions).userOptions!
 
 describe('Build configuration', () => {
   it('sets build configuration correctly', () => {
@@ -10,7 +11,7 @@ describe('Build configuration', () => {
       condition: 'react-server',
       config: {},
       configEnv: { command: 'build', mode: 'development', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
         inputs: {},
         staticManifest: {},
@@ -31,7 +32,7 @@ describe('Build configuration', () => {
       config: {},
       condition: 'react-server',
       configEnv: { command: 'serve', mode: 'development', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
         inputs: {},
         staticManifest: {},
@@ -49,7 +50,7 @@ describe('Build configuration', () => {
       condition: 'react-client',
       config: {},
       configEnv: { command: 'build', mode: 'development', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
         inputs: {},
         staticManifest: {},
@@ -71,7 +72,7 @@ describe('Build configuration', () => {
         }
       },
       configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
         inputs: {},
         staticManifest: {},
@@ -94,7 +95,7 @@ describe('Build configuration', () => {
         }
       },
       configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
         inputs: {},
         staticManifest: {},

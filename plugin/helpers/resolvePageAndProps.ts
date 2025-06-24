@@ -89,7 +89,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           handlerOptions.pageExportName
         ] as never,
         pageProps: resolvePropsResult.module?.[
-          handlerOptions.propsExportName
+          handlerOptions.propsExportName as keyof typeof resolvePropsResult.module
         ] as never,
       };
     } catch (error) {

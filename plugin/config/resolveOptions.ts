@@ -1,6 +1,6 @@
 import type { PreRenderedAsset } from "rollup";
 import type { PreRenderedChunk } from "rollup";
-import type { StreamPluginOptions, ResolvedUserOptions } from "../types.js";
+import type { StreamPluginOptions, ResolvedUserOptions, PageName, PropsName } from "../types.js";
 import {
   BASE_PATTERNS,
   DEFAULT_CONFIG,
@@ -8,7 +8,6 @@ import {
 } from "./defaults.js";
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
-import { CssCollector } from "../components/css-collector.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { getNodeEnv } from "../getNodeEnv.js";
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
@@ -17,17 +16,17 @@ import { resolveRegExp } from "./resolveRegExp.js";
 import { createDefaultModuleID } from "./createModuleID.js";
 import { parse } from "../loader/parse.js";
 
-export type ResolveOptionsReturn<R extends StreamPluginOptions> =
+export type ResolveOptionsReturn =
   | {
       type: "success";
-      userOptions: ResolvedUserOptions<R>;
+      userOptions: ResolvedUserOptions;
       error?: never;
     }
   | { type: "error"; error: Error; userOptions?: never };
 
-export type ResolveOptionsFn = <R extends StreamPluginOptions>(
-  options: R
-) => ResolveOptionsReturn<R>;
+export type ResolveOptionsFn = (
+  options: StreamPluginOptions
+) => ResolveOptionsReturn;
 
 // /**
 //  * Ensures a path ends with .js extension
@@ -114,10 +113,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     process.env["VITE_PROD"] === "1";
   const prodModuleBase = isProd && preserveModulesRoot ? moduleBase : undefined;
 
-  const {
-    pageExportName = DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-    propsExportName = DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-  } = options;
 
   const client =
     typeof options.build?.client === "string"
@@ -461,7 +456,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     rscExtension: rscExtension,
     cssModuleExtension: cssModuleExtension,
     nodeExtension: DEFAULT_CONFIG.BUILD.nodeExtension,
-  } satisfies ResolvedUserOptions<typeof options>["build"];
+  } satisfies ResolvedUserOptions["build"];
 
   // Auto-discovery configuration
   const autoDiscover = {
@@ -479,7 +474,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     vendorPattern,
     virtualPattern,
     dotPattern,
-  } satisfies ResolvedUserOptions<typeof options>["autoDiscover"];
+  } satisfies ResolvedUserOptions["autoDiscover"];
 
   const allowedDirectives = resolveAllowedDirectives(
     options.loader?.allowedDirectives ?? DEFAULT_LOADER_CONFIG.allowedDirectives
@@ -533,7 +528,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   // Return resolved options
   try {
-    const userOptions = {
+    const userOptions: ResolvedUserOptions = {
       projectRoot,
       moduleBase,
       moduleBasePath,
@@ -544,14 +539,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
       onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
       onEvent: options.onEvent,
-      Page: options.Page ?? undefined,
-      props: options.props ?? undefined,
+      Page: options.Page,
+      props: options.props,
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
-      CssCollector: options.CssCollector ?? CssCollector,
+      CssCollector: options.CssCollector ?? DEFAULT_CONFIG.CSS_COLLECTOR,
       normalizer: normalizer,
       moduleID: moduleID,
-      pageExportName: pageExportName,
-      propsExportName: propsExportName,
+      pageExportName: options.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME as PageName,
+      propsExportName: options.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME as PropsName,
       css: {
         inlineCss: options.css?.inlineCss ?? DEFAULT_CONFIG.CSS.inlineCss,
         inlineThreshold:
@@ -572,7 +567,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       rscTimeout: typeof options.rscTimeout === "number" ? options.rscTimeout : DEFAULT_CONFIG.RSC_TIMEOUT,
       htmlWorkerStartupTimeout: typeof options.htmlWorkerStartupTimeout === "number" ? options.htmlWorkerStartupTimeout : DEFAULT_CONFIG.HTML_WORKER_STARTUP_TIMEOUT,
       rscWorkerStartupTimeout: typeof options.rscWorkerStartupTimeout === "number" ? options.rscWorkerStartupTimeout : DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT,
-    } as ResolvedUserOptions<typeof options>;
+    }
 
     // Stash the resolved options
     stashedUserOptions[envId] = userOptions;

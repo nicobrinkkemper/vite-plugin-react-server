@@ -16,11 +16,7 @@
 
 import { join } from "node:path";
 import type { Worker } from "node:worker_threads";
-import {
-  type Manifest,
-  type ResolvedConfig,  
-  createLogger,
-} from "vite";
+import { type Manifest, type ResolvedConfig, createLogger } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { createBuildLoader } from "./createBuildLoader.js";
@@ -53,354 +49,363 @@ import { toError } from "../error/toError.js";
 
 export type ReactStaticPluginFn = ReactStreamPluginFn<{
   meta: ReactStreamPluginMeta;
-}>
+}>;
 
-export const reactStaticPlugin: ReactStaticPluginFn = function _reactStaticPlugin(
-  options
-) {
-  let worker: Worker;
-  let userConfig: ResolvedUserConfig;
-  let resolvedConfig: ResolvedConfig;
-  let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
-  let serverManifest: Manifest | undefined = undefined;
-  const timing: BuildTiming = {
-    start: Date.now(),
-    configResolved: 0,
-    buildStart: 0,
-    renderStart: 0,
-  };
+export const reactStaticPlugin: ReactStaticPluginFn =
+  function _reactStaticPlugin(options) {
+    let worker: Worker;
+    let userConfig: ResolvedUserConfig;
+    let resolvedConfig: ResolvedConfig;
+    let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
+    let serverManifest: Manifest | undefined = undefined;
+    const timing: BuildTiming = {
+      start: Date.now(),
+      configResolved: 0,
+      buildStart: 0,
+      renderStart: 0,
+    };
 
-  const resolvedOptions = resolveOptions(options);
-  if (resolvedOptions.type === "error") {
-    throw resolvedOptions.error;
-  }
-  const userOptions = resolvedOptions.userOptions;
+    const resolvedOptions = resolveOptions(options);
+    if (resolvedOptions.type === "error") {
+      throw resolvedOptions.error;
+    }
+    const userOptions = resolvedOptions.userOptions;
 
-  return {
-    name: "vite:plugin-react-server/static",
-    enforce: "post",
-    api: {
-      meta: { timing },
-    },
+    return {
+      name: "vite:plugin-react-server/static",
+      enforce: "post",
+      api: {
+        meta: { timing },
+      },
 
-    async config(config, configEnv) {
-      if (config.root && config.root !== userOptions.projectRoot) {
-        userOptions.projectRoot = config.root;
-      }
-      if (configEnv.command !== "build") {
-        return;
-      }
-      // Initialize autoDiscoveredFiles for both server and client builds
-      const autoDiscoverResult = await resolveAutoDiscover({
-        config,
-        configEnv,
-        userOptions,
-        condition: "react-server",
-      });
-      if (autoDiscoverResult.type === "error") {
-        throw autoDiscoverResult.error;
-      }
-      autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
-      const resolvedConfig = resolveUserConfig({
-        condition: "react-server",
-        config,
-        configEnv,
-        userOptions,
-        autoDiscoveredFiles,
-      });
-      if (resolvedConfig.type === "error") {
-        throw resolvedConfig.error;
-      }
-
-      userConfig = resolvedConfig.userConfig;
-      timing.configResolved = Date.now();
-    },
-    configResolved(config) {
-      resolvedConfig = config;
-    },
-    async buildStart() {
-      timing.buildStart = Date.now();
-      if (userOptions.onEvent && autoDiscoveredFiles) {
-        userOptions.onEvent({
-          type: "build.start",
-          data: {
-            pages: Array.from(autoDiscoveredFiles.urlMap.keys()),
-            files: autoDiscoveredFiles,
-          },
-        });
-      }
-    },
-
-    async renderStart() {
-      timing.renderStart = Date.now();
-    },
-
-    async writeBundle(options, bundle) {
-      if (userOptions.onEvent) {
-        userOptions.onEvent({
-          type: "build.writeBundle.static-server",
-          data: {
-            pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
-            options,
-            bundle,
-          },
-        });
-      }
-      try {
-        const bundleManifest = getBundleManifest<false>({
-          bundle,
-          normalizer: userOptions.normalizer,
-        });
-        const manifestPath =
-          typeof resolvedConfig.build.manifest === "string"
-            ? resolvedConfig.build.manifest
-            : ".vite/manifest.json";
-        if (!("source" in bundleManifest[manifestPath])) {
-          throw new Error("Server manifest not found");
+      async config(config, configEnv) {
+        if (config.root && config.root !== userOptions.projectRoot) {
+          userOptions.projectRoot = config.root;
         }
-
-        serverManifest = JSON.parse(
-          bundleManifest[manifestPath].source as string
-        );
-
-        if (!serverManifest) {
-          throw new Error("Failed to parse server manifest");
+        if (configEnv.command !== "build") {
+          return;
         }
-
-        const buildLoader = createBuildLoader(
-          {
-            userConfig,
-            userOptions: userOptions,
-            serverManifest: serverManifest ?? {},
-            staticManifest: autoDiscoveredFiles?.staticManifest ?? {},
-            clientManifest: {},
-          },
-          bundle
-        );
-
-        // Create CSS props for each CSS file
-        const cssFilesByPage = new Map();
-
-        // First collect global styles from index.html
-        const indexHtmlCssInputs = collectManifestCss(
-          autoDiscoveredFiles?.staticManifest ?? {},
-          "index.html"
-        );
-        const clientEntryCssInputs = collectManifestCss(
-          autoDiscoveredFiles?.staticManifest ?? {},
-          userOptions.clientEntry
-        );
-        const globalCssInputs = {
-          ...indexHtmlCssInputs,
-          ...clientEntryCssInputs,
-        };
-
-        const globalCss = new Map();
-        // Collect CSS files for each page and its props
-        for (const [url, { page, props }] of autoDiscoveredFiles?.urlMap ??
-          []) {
-          const transformedServerManifest = Object.fromEntries(
-            Object.entries(serverManifest).map(([key, value]) => {
-              if (!value.css?.length) {
-                return [key, value];
-              }
-              return [
-                key,
-                {
-                  ...value,
-                  css:
-                    autoDiscoveredFiles?.staticManifest[key]?.css ?? value.css,
-                },
-              ];
-            })
-          );
-          const cssInputs = collectManifestCss(
-            transformedServerManifest,
-            props ? [page, props] : page
-          );
-          // Create a map for this page's CSS files
-          const pageCssMap: Map<string, CssContent> = new Map();
-          // Add global styles if they exist
-          if (Object.keys(globalCssInputs).length > 0) {
-            for (const [key, value] of Object.entries(globalCssInputs)) {
-              let cssContent = await buildLoader(`${value}?inline`).then((r) =>r.default);
-              if (cssContent === "undefined" || !cssContent) {
-                cssContent =
-                  (await readFile(
-                    join(
-                      userOptions.projectRoot,
-                      userOptions.build.outDir,
-                      userOptions.build.static,
-                      key
-                    ),
-                    "utf-8"
-                  )) ?? "";
-              }
-              if (cssContent) {
-                globalCss.set(
-                  key,
-                  createCssProps({
-                    id: key,
-                    code: cssContent,
-                    userOptions: userOptions,
-                  })
-                );
-              }
-            }
-          }
-
-          // Add page-specific styles
-          for (const [key, value] of Object.entries(cssInputs)) {
-            try {
-              const cssContent = await buildLoader(`${value}?inline`).then((r) => String(r.default));
-              if (typeof cssContent !== "string" || cssContent === "undefined") {
-                continue;
-              }
-              if (cssContent) {
-                // Ensure the CSS file path is properly resolved
-                pageCssMap.set(
-                  key,
-                  createCssProps({
-                    id: key,
-                    code: cssContent,
-                    userOptions: userOptions,
-                  })
-                );
-              }
-            } catch (error) {
-              console.warn(`Failed to process CSS file ${value}:`, error);
-              continue;
-            }
-          }
-          cssFilesByPage.set(url, pageCssMap);
-        }
-
-        const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
-        const indexHtml = staticManifest?.["index.html"]?.file;
-        const pipeableStreamOptions = {
-          ...userOptions.pipeableStreamOptions,
-          bootstrapModules: [
-            ...(indexHtml ? [baseURL(indexHtml)] : []),
-            ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
-          ],
-        };
-        userOptions.pipeableStreamOptions = pipeableStreamOptions;
-        const serializedUserOptions = serializedOptions(
+        // Initialize autoDiscoveredFiles for both server and client builds
+        const autoDiscoverResult = await resolveAutoDiscover({
+          config,
+          configEnv,
           userOptions,
-          autoDiscoveredFiles!
-        );
-        // Create worker
-        if (!worker) {
-          const viteEnvPrefix =
-            typeof resolvedConfig.envPrefix === "string"
-              ? resolvedConfig.envPrefix
-              : Array.isArray(resolvedConfig.envPrefix)
-              ? resolvedConfig.envPrefix[0]
-              : DEFAULT_CONFIG.ENV_PREFIX;
-          const routeCount = autoDiscoveredFiles?.urlMap.size ?? 0;
-          const maxListeners = routeCount + 1;
-          const workerResult = await createWorker({
-            projectRoot: userOptions.projectRoot,
-            workerPath: userOptions.htmlWorkerPath,
-            currentCondition: "react-server",
-            reverseCondition: "react-client",
-            maxListeners: maxListeners,
-            envPrefix: viteEnvPrefix,
-            logger: this.environment.logger,
-            workerData: {
-              resolvedConfig: serializeResolvedConfig(resolvedConfig),
-              userOptions: serializedUserOptions,
+          condition: "react-server",
+        });
+        if (autoDiscoverResult.type === "error") {
+          throw autoDiscoverResult.error;
+        }
+        autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
+        const resolvedConfig = resolveUserConfig({
+          condition: "react-server",
+          config,
+          configEnv,
+          userOptions,
+          autoDiscoveredFiles,
+        });
+        if (resolvedConfig.type === "error") {
+          throw resolvedConfig.error;
+        }
+
+        userConfig = resolvedConfig.userConfig;
+        timing.configResolved = Date.now();
+      },
+      configResolved(config) {
+        resolvedConfig = config;
+      },
+      async buildStart() {
+        timing.buildStart = Date.now();
+        if (userOptions.onEvent && autoDiscoveredFiles) {
+          userOptions.onEvent({
+            type: "build.start",
+            data: {
+              pages: Array.from(autoDiscoveredFiles.urlMap.keys()),
+              files: autoDiscoveredFiles,
             },
           });
-          if (workerResult.type === "error") {
-            throw workerResult.error;
-          } else if (workerResult.type === "skip") {
-            this.environment.logger.info(
-              "Worker not created, skipping static build"
-            );
-            return;
-          } else {
-            worker = workerResult.worker;
+        }
+      },
+
+      async renderStart() {
+        timing.renderStart = Date.now();
+      },
+
+      async writeBundle(options, bundle) {
+        if (userOptions.onEvent) {
+          userOptions.onEvent({
+            type: "build.writeBundle.static-server",
+            data: {
+              pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
+              options,
+              bundle,
+            },
+          });
+        }
+        try {
+          const bundleManifest = getBundleManifest<false>({
+            bundle,
+            normalizer: userOptions.normalizer,
+          });
+          const manifestPath =
+            typeof resolvedConfig.build.manifest === "string"
+              ? resolvedConfig.build.manifest
+              : ".vite/manifest.json";
+          if (!("source" in bundleManifest[manifestPath])) {
+            throw new Error("Server manifest not found");
           }
-        }
-        // Render pages
-        const { onEvent, ...handlerOptions } = userOptions;
-        const renderPagesGenerator = renderPages(
-          autoDiscoveredFiles!,
-          {
-            ...handlerOptions,
-            loader: buildLoader,
-            worker: worker,
-            logger: createLogger(),
-            onEvent: async (event: PluginEvent) => {
-              if (onEvent) {
-                onEvent(event);
-              }
-              // Add file write completion event
-              if (event.type === "file.write") {
-                await event.data.onComplete();
-              }
-            },
-            pipeableStreamOptions: pipeableStreamOptions,
-            manifest: serverManifest ?? {},
-            build: {
-              htmlOutputPath: userOptions.build.htmlOutputPath,
-              rscOutputPath: userOptions.build.rscOutputPath,
-              outDir: userOptions.build.outDir,
-              pages: userOptions.build.pages,
-              server: userOptions.build.server,
-              static: userOptions.build.static,
-              client: userOptions.build.client,
-            },
-            globalCss: globalCss,
-            css: {
-              ...handlerOptions.css,
-              inlineCss: handlerOptions.css.inlineCss,
-            },
-          },
-          cssFilesByPage
-        );
 
-        // Process render results
-        let finalResult: RenderPagesResult | undefined;
-        for await (const result of renderPagesGenerator) {
-          if (result.type === "error") {
-            throw result.error;
-          }
-          finalResult = result;
-        }
-
-        if (!finalResult) {
-          throw new Error("No render result produced");
-        }
-        finalResult.streamMetrics.duration = Math.round(
-          performance.now() - finalResult.streamMetrics.startTime
-        );
-
-        this.environment.logger.info(
-          `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
-        );
-        if (process.env["NODE_ENV"] !== "production") {
-          this.environment.logger.warn(
-            `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env["NODE_ENV"]})`
+          serverManifest = JSON.parse(
+            bundleManifest[manifestPath].source as string
           );
-        }
 
-        // Update timing
-        timing.render = Date.now() - (timing.renderStart ?? timing.start);
-      } catch (error) {
-        logError(toError(error), this.environment.logger);
-      } finally {
-        // Cleanup
-        if (worker) {
-          try {
-            // Force terminate the worker without waiting for graceful shutdown
-            await worker.terminate();
-          } catch (error) {
-            logError(toError(error), this.environment.logger);
+          if (!serverManifest) {
+            throw new Error("Failed to parse server manifest");
+          }
+
+          const buildLoader = createBuildLoader(
+            {
+              userConfig,
+              userOptions: userOptions,
+              serverManifest: serverManifest ?? {},
+              staticManifest: autoDiscoveredFiles?.staticManifest ?? {},
+              clientManifest: {},
+            },
+            bundle
+          );
+
+          // Create CSS props for each CSS file
+          const cssFilesByPage = new Map();
+
+          // First collect global styles from index.html
+          const indexHtmlCssInputs = collectManifestCss(
+            autoDiscoveredFiles?.staticManifest ?? {},
+            "index.html"
+          );
+          const clientEntryCssInputs = userOptions.clientEntry
+            ? collectManifestCss(
+                autoDiscoveredFiles?.staticManifest ?? {},
+                userOptions.clientEntry
+              )
+            : null;
+          const globalCssInputs = {
+            ...indexHtmlCssInputs,
+            ...clientEntryCssInputs,
+          };
+
+          const globalCss = new Map();
+          // Collect CSS files for each page and its props
+          for (const [url, { page, props }] of autoDiscoveredFiles?.urlMap ??
+            []) {
+            const transformedServerManifest = Object.fromEntries(
+              Object.entries(serverManifest).map(([key, value]) => {
+                if (!value.css?.length) {
+                  return [key, value];
+                }
+                return [
+                  key,
+                  {
+                    ...value,
+                    css:
+                      autoDiscoveredFiles?.staticManifest[key]?.css ??
+                      value.css,
+                  },
+                ];
+              })
+            );
+            const cssInputs = collectManifestCss(
+              transformedServerManifest,
+              props ? [page, props] : page
+            );
+            // Create a map for this page's CSS files
+            const pageCssMap: Map<string, CssContent> = new Map();
+            // Add global styles if they exist
+            if (Object.keys(globalCssInputs).length > 0) {
+              for (const [key, value] of Object.entries(globalCssInputs)) {
+                let cssContent = await buildLoader(`${value}?inline`).then(
+                  (r) => r.default
+                );
+                if (cssContent === "undefined" || !cssContent) {
+                  cssContent =
+                    (await readFile(
+                      join(
+                        userOptions.projectRoot,
+                        userOptions.build.outDir,
+                        userOptions.build.static,
+                        key
+                      ),
+                      "utf-8"
+                    )) ?? "";
+                }
+                if (cssContent) {
+                  globalCss.set(
+                    key,
+                    createCssProps({
+                      id: key,
+                      code: cssContent,
+                      userOptions: userOptions,
+                    })
+                  );
+                }
+              }
+            }
+
+            // Add page-specific styles
+            for (const [key, value] of Object.entries(cssInputs)) {
+              try {
+                const cssContent = await buildLoader(`${value}?inline`).then(
+                  (r) => String(r.default)
+                );
+                if (
+                  typeof cssContent !== "string" ||
+                  cssContent === "undefined"
+                ) {
+                  continue;
+                }
+                if (cssContent) {
+                  // Ensure the CSS file path is properly resolved
+                  pageCssMap.set(
+                    key,
+                    createCssProps({
+                      id: key,
+                      code: cssContent,
+                      userOptions: userOptions,
+                    })
+                  );
+                }
+              } catch (error) {
+                console.warn(`Failed to process CSS file ${value}:`, error);
+                continue;
+              }
+            }
+            cssFilesByPage.set(url, pageCssMap);
+          }
+
+          const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
+          const indexHtml = staticManifest?.["index.html"]?.file;
+          const pipeableStreamOptions = {
+            ...userOptions.pipeableStreamOptions,
+            bootstrapModules: [
+              ...(indexHtml ? [baseURL(indexHtml)] : []),
+              ...(userOptions.pipeableStreamOptions?.bootstrapModules ?? []),
+            ],
+          };
+          userOptions.pipeableStreamOptions = pipeableStreamOptions;
+          const serializedUserOptions = serializedOptions(
+            userOptions,
+            autoDiscoveredFiles!
+          );
+          // Create worker
+          if (!worker) {
+            const viteEnvPrefix =
+              typeof resolvedConfig.envPrefix === "string"
+                ? resolvedConfig.envPrefix
+                : Array.isArray(resolvedConfig.envPrefix)
+                ? resolvedConfig.envPrefix[0]
+                : DEFAULT_CONFIG.ENV_PREFIX;
+            const routeCount = autoDiscoveredFiles?.urlMap.size ?? 0;
+            const maxListeners = routeCount + 1;
+            const workerResult = await createWorker({
+              projectRoot: userOptions.projectRoot,
+              workerPath: userOptions.htmlWorkerPath,
+              currentCondition: "react-server",
+              reverseCondition: "react-client",
+              maxListeners: maxListeners,
+              envPrefix: viteEnvPrefix,
+              logger: this.environment.logger,
+              workerData: {
+                resolvedConfig: serializeResolvedConfig(resolvedConfig),
+                userOptions: serializedUserOptions,
+              },
+            });
+            if (workerResult.type === "error") {
+              throw workerResult.error;
+            } else if (workerResult.type === "skip") {
+              this.environment.logger.info(
+                "Worker not created, skipping static build"
+              );
+              return;
+            } else {
+              worker = workerResult.worker;
+            }
+          }
+          // Render pages
+          const { onEvent, ...handlerOptions } = userOptions;
+          const renderPagesGenerator = renderPages(
+            autoDiscoveredFiles!,
+            {
+              ...handlerOptions,
+              loader: buildLoader,
+              worker: worker,
+              logger: createLogger(),
+              onEvent: async (event: PluginEvent) => {
+                if (onEvent) {
+                  onEvent(event);
+                }
+                // Add file write completion event
+                if (event.type === "file.write") {
+                  await event.data.onComplete();
+                }
+              },
+              pipeableStreamOptions: pipeableStreamOptions,
+              manifest: serverManifest ?? {},
+              build: {
+                htmlOutputPath: userOptions.build.htmlOutputPath,
+                rscOutputPath: userOptions.build.rscOutputPath,
+                outDir: userOptions.build.outDir,
+                pages: userOptions.build.pages,
+                server: userOptions.build.server,
+                static: userOptions.build.static,
+                client: userOptions.build.client,
+              },
+              globalCss: globalCss,
+              css: {
+                ...handlerOptions.css,
+                inlineCss: handlerOptions.css.inlineCss,
+              },
+            },
+            cssFilesByPage
+          );
+
+          // Process render results
+          let finalResult: RenderPagesResult | undefined;
+          for await (const result of renderPagesGenerator) {
+            if (result.type === "error") {
+              throw result.error;
+            }
+            finalResult = result;
+          }
+
+          if (!finalResult) {
+            throw new Error("No render result produced");
+          }
+          finalResult.streamMetrics.duration = Math.round(
+            performance.now() - finalResult.streamMetrics.startTime
+          );
+
+          this.environment.logger.info(
+            `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
+          );
+          if (process.env["NODE_ENV"] !== "production") {
+            this.environment.logger.warn(
+              `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env["NODE_ENV"]})`
+            );
+          }
+
+          // Update timing
+          timing.render = Date.now() - (timing.renderStart ?? timing.start);
+        } catch (error) {
+          logError(toError(error), this.environment.logger);
+        } finally {
+          // Cleanup
+          if (worker) {
+            try {
+              // Force terminate the worker without waiting for graceful shutdown
+              await worker.terminate();
+            } catch (error) {
+              logError(toError(error), this.environment.logger);
+            }
           }
         }
-      }
-    },
-  } as const;
-}
+      },
+    } as const;
+  };

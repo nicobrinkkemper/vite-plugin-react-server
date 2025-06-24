@@ -4,7 +4,6 @@ import type {
   Serializable as WorkerSerializable,
 } from "node:worker_threads";
 import type React from "react";
-import type { ExoticComponent, FragmentProps } from "react";
 import type {
   NormalizedOutputOptions,
   OutputBundle,
@@ -34,11 +33,11 @@ import type {
 import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
 import type { Program } from "./loader/directives/types.js";
 
-export type ReactStreamPluginFn<R extends Record<string, unknown> = {
-  meta: ReactStreamPluginMeta;
-}> = <
-  Opt extends StreamPluginOptions = StreamPluginOptions
->(
+export type ReactStreamPluginFn<
+  R extends Record<string, unknown> = {
+    meta: ReactStreamPluginMeta;
+  }
+> = <Opt extends StreamPluginOptions = StreamPluginOptions>(
   options: Opt
 ) => Plugin<R>;
 
@@ -70,7 +69,6 @@ export type HmrState = {
   invalidated: boolean;
   routes: string[];
 };
-
 
 export type RenderPageResult =
   | {
@@ -190,7 +188,7 @@ export type StreamPluginOptionsClient = {
   cssFiles?: AliasOptions;
 };
 
-type BaseKeys =
+export type StringKeys =
   | "moduleBase"
   | "moduleBasePath"
   | "moduleBaseURL"
@@ -203,11 +201,14 @@ type BaseKeys =
   | "loaderPath"
   | "clientEntry"
   | "serverEntry"
-  | "publicOrigin"
-  | "verbose"
+  | "publicOrigin";
+
+export type NumberKeys =
   | "rscTimeout"
   | "htmlWorkerStartupTimeout"
   | "rscWorkerStartupTimeout";
+
+export type BooleanKeys = "verbose";
 
 export type NestedConfigKeys =
   | "build"
@@ -223,6 +224,15 @@ export type NormalizerKeys = "normalizer" | "moduleID";
 export type ComponentKeys = "Html" | "CssCollector";
 
 export type SourceURLKeys = "Page" | "props";
+
+export type OptKey =
+  | StringKeys
+  | NumberKeys
+  | BooleanKeys
+  | EventKeys
+  | NormalizerKeys
+  | ComponentKeys
+  | SourceURLKeys;
 
 export type AutoDiscoverConfig = {
   modulePattern: RegExp;
@@ -263,7 +273,11 @@ export type LoaderConfig = {
   registerServerReferenceName: string;
   isServerFunctionCode: (code: string, moduleId?: string) => boolean;
   isClientComponentCode: (code: string, moduleId?: string) => boolean;
-  parse: (source: string) => Promise<{ ast: Program; code: string; map?: { url: string; start: number; end: number; lines: number; } | null }>;
+  parse: (source: string) => Promise<{
+    ast: Program;
+    code: string;
+    map?: { url: string; start: number; end: number; lines: number } | null;
+  }>;
 };
 
 export type GenericModuleLoader = (
@@ -271,8 +285,11 @@ export type GenericModuleLoader = (
 ) => Promise<Record<string, unknown>>;
 
 export type BuildModuleLoader<
-  Opt extends Pick<ResolvedUserOptions, "pageExportName" | "propsExportName"> = Pick<ResolvedUserOptions, "pageExportName" | "propsExportName">,
-  T extends PagePropOpt = PagePropOpt,
+  Opt extends Pick<
+    ResolvedUserOptions,
+    "pageExportName" | "propsExportName"
+  > = Pick<ResolvedUserOptions, "pageExportName" | "propsExportName">,
+  T extends PagePropOpt = PagePropOpt
 > = <
   STR extends string,
   ID extends string = STR extends `${infer I extends string}${string}${string}`
@@ -312,25 +329,47 @@ export type StreamError = {
   code?: string;
 } & Error;
 
-export type ResolvedUserOptions<
-  R extends StreamPluginOptions = StreamPluginOptions
-> = Pick<
-  Required<{
-    [K in keyof R]-?: NonNullable<R[K]>;
-  }>,
-  BaseKeys | ComponentKeys | SourceURLKeys | EventKeys | NormalizerKeys
-> & {
-  pipeableStreamOptions: Required<ReactServerDomEsmOptions>;
+export type ResolvedUserOptions = {
+  // Core required properties
+  projectRoot: string;
+  moduleBase: string;
+  moduleBasePath: string;
+  moduleBaseURL: string;
+  moduleRootPath: string;
+  publicOrigin: string;
+  pageExportName: string;
+  propsExportName: string;
+  htmlWorkerPath: string;
+  rscWorkerPath: string;
+  loaderPath: string;
+  verbose: boolean;
+  rscTimeout: number;
+  htmlWorkerStartupTimeout: number;
+  rscWorkerStartupTimeout: number;
+
+  // Optional properties
+  onEvent?: (event: PluginEvent) => void;
+  props?: StreamPluginOptions["props"];
+  clientEntry?: string;
+  serverEntry?: string;
+
+  // Required complex properties
+  Page: StreamPluginOptions["Page"];
+  Html: HtmlComponentType;
+  CssCollector: CssCollectorFn;
+  normalizer: InputNormalizer;
+  moduleID: (id: string) => string;
+  onMetrics: (metrics: RenderMetrics) => void;
+  pipeableStreamOptions: ReactServerDomEsmOptions;
   autoDiscover: Required<AutoDiscoverConfig>;
   loader: Required<LoaderConfig>;
   build: Required<BuildConfig>;
   css: CssCollectorOptions<boolean>;
 };
 
-export type DirectiveOptions<R extends ResolvedUserOptions = ResolvedUserOptions> = Pick<
-  R,
-  "verbose"
-> & {
+export type DirectiveOptions<
+  R extends ResolvedUserOptions = ResolvedUserOptions
+> = Pick<R, "verbose"> & {
   loader: Pick<
     R["loader"],
     "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType"
@@ -338,7 +377,6 @@ export type DirectiveOptions<R extends ResolvedUserOptions = ResolvedUserOptions
     allowedDirectives: AllowedDirectives;
   };
 };
-
 
 export type CssCollectorOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> =
   {
@@ -360,40 +398,38 @@ export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
 /**
  * Boxed component type for the CssCollector
  */
-export type CssCollectorFn = (
-  props: CssCollectorProps
-) => React.ReactElement;
+export type CssCollectorFn<
+  As extends AsOpt = AsOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  PageProps extends PagePropOpt = PagePropOpt,
+  ReactType = any
+> = (props: CssCollectorProps<As, InlineCSS, PageProps>) => ReactType;
 
 export type CssCollectorProps<
-  T extends PagePropOpt = PagePropOpt,
+  As extends AsOpt = AsOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt
+  PageProps extends PagePropOpt = PagePropOpt
 > = {
   as: As;
   cssFiles?: Map<string, CssContent<InlineCSS>>;
-  pageProps?: T;
-  Page: PageComponentType<T>;
+  pageProps?: PageProps;
+  Page: PageComponentType<PageProps>;
   id?: string;
-} & Omit<React.ComponentProps<As>, "children">;
+};
 
 export type CssCollectorComponent = (
   props: CssCollectorProps
-) => React.ReactElement;
+) => React.ReactNode;
 
 /**
  * Boxed component type for the Html component
  */
-export type HtmlBoxedType<
-  _T extends PagePropOpt = PagePropOpt,
-  _InlineCSS extends InlineCssOpt = InlineCssOpt,
-  _As extends AsOpt = "div"
-> = <
-  T extends _T = _T,
-  InlineCSS extends _InlineCSS = _InlineCSS,
-  As extends _As = _As
->(
-  props: HtmlProps<T, InlineCSS, As> & { key?: string }
-) => React.ReactNode;
+export type HtmlComponentType<
+  T extends PagePropOpt = PagePropOpt,
+  InlineCSS extends InlineCssOpt = InlineCssOpt,
+  As extends AsOpt = AsOpt,
+  ReactType = any
+> = ((props: HtmlProps<T, InlineCSS, As>) => ReactType) | any;
 
 export type FileWriteEvent = {
   type: "file.write";
@@ -548,7 +584,11 @@ export type StreamPluginOptions<
       directive: string,
       moduleId?: string
     ) => "client" | "server" | undefined;
-    parse?: (source: string) => Promise<{ ast: Program; code: string; map?: { url: string; start: number; end: number; lines: number; } | null }>;
+    parse?: (source: string) => Promise<{
+      ast: Program;
+      code: string;
+      map?: { url: string; start: number; end: number; lines: number } | null;
+    }>;
   };
   // Auto-discovery (zero-config)
   autoDiscover?:
@@ -752,7 +792,9 @@ export type StreamPluginOptions<
   rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
 };
 
-export type MultiPageHandlerOptions<Opt extends ResolvedUserOptions = ResolvedUserOptions> = Omit<
+export type MultiPageHandlerOptions<
+  Opt extends ResolvedUserOptions = ResolvedUserOptions
+> = Omit<
   CreateHandlerOptions<Opt>,
   | "pagePath"
   | "route"
@@ -762,7 +804,9 @@ export type MultiPageHandlerOptions<Opt extends ResolvedUserOptions = ResolvedUs
   | "PageComponent"
 >;
 
-export type CreateHandlerOptions<Opt extends ResolvedUserOptions = ResolvedUserOptions> = Pick<
+export type CreateHandlerOptions<
+  Opt extends ResolvedUserOptions = ResolvedUserOptions
+> = Pick<
   Opt,
   | "autoDiscover"
   | "css"
@@ -960,7 +1004,7 @@ export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
 
 export type InlineCssOpt = undefined | boolean;
-export type PagePropOpt = Record<string, unknown> | undefined;
+export type PagePropOpt = Record<string, unknown>;
 export interface DeserializedRegExp {
   source: string;
   flags: string;
@@ -972,18 +1016,20 @@ export type PageName = "Page";
 export type PropsName = "props";
 
 export type AsOpt =
-  | ExoticComponent<FragmentProps>
+  | React.ExoticComponent<React.FragmentProps>
   | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
-export type PageComponentType<T extends PagePropOpt = PagePropOpt> =
-  React.FC<T>;
+export type PageComponentType<
+  PageProps extends PagePropOpt = PagePropOpt,
+  ReactType = any
+> = (props: PageProps) => ReactType;
 
 export type HtmlProps<
-  T extends PagePropOpt = PagePropOpt,
+  PageProps extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
   As extends AsOpt = AsOpt
 > = {
-  pageProps?: T;
-  Page: PageComponentType<T>;
+  pageProps?: PageProps;
+  Page: PageComponentType<PageProps>;
   route: string;
   url: string;
   projectRoot: string;
@@ -993,7 +1039,7 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  CssCollector: (props: CssCollectorProps) => React.ReactElement;
+  CssCollector: CssCollectorFn<As, InlineCSS, PageProps>;
   globalCss: Map<string, CssContent<InlineCSS>>;
   as?: As;
 };
@@ -1304,6 +1350,5 @@ export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
   options: ResolvedUserOptions
 ) => ReturnType;
 
-
 // re-exorts
-export type { StreamMetrics, RenderMetrics }
+export type { StreamMetrics, RenderMetrics };

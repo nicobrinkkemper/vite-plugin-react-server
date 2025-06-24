@@ -90,7 +90,6 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
       
       const finalID = userOptions.moduleID(moduleID);
 
-
       // Create a new transformer with the computed values
       const transformer = createTransformer({
         parseFn: async (source) => {

@@ -11,7 +11,7 @@ import { requestInfo } from "../helpers/requestInfo.js";
 
 export type ConfigurePreviewServerProps<Opt extends ResolvedUserOptions> = {
   server: PreviewServer;
-  userOptions: ResolvedUserOptions<Opt>;
+  userOptions: Opt;
 };
 
 export type ConfigurePreviewServerFn = <Opt extends ResolvedUserOptions>(

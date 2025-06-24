@@ -1,17 +1,15 @@
 import { describe, test, expect } from "vitest";
-import { createTransformer } from "../../dist/plugin/loader/createTransformer.js";
-import { DEFAULT_LOADER_CONFIG } from "../../dist/plugin/config/defaults.js";
-import type { LoaderConfig } from "../../dist/plugin/types.js";
+import { createTransformer } from "vite-plugin-react-server/loader";
+import { DEFAULT_LOADER_CONFIG } from "vite-plugin-react-server/config";
+import type { LoaderConfig } from "vite-plugin-react-server/types";
+import { parse } from "vite-plugin-react-server/loader";
 
 // Helper function to create complete LoaderConfig objects
 const createLoaderConfig = (overrides: Partial<LoaderConfig> = {}): LoaderConfig => ({
   ...DEFAULT_LOADER_CONFIG,
-  mode: "test",
-  importServerPath: "react-server-dom-esm/server.node",
-  importClientPath: "react-server-dom-esm/server.node",
-  registerServerReferenceName: "registerServerReference",
-  registerClientReferenceName: "registerClientReference",
   ...overrides,
+  mode: overrides.mode || "test",
+  parse: overrides.parse || parse,
 });
 
 describe("Custom Loader Configuration", () => {
