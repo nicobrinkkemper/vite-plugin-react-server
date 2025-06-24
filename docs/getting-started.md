@@ -1,7 +1,6 @@
-
 # Getting Started
 
-This guide will help you get started with the Vite React Server Plugin, which enables React Server Components (RSC) streaming and static HTML page generation.
+This guide will help you get started with the Vite React Server Plugin, which enables React Server Components (RSC) streaming and static HTML page generation with TypeScript support.
 
 ## Installation
 
@@ -17,7 +16,7 @@ npm install -D patch-package react@experimental react-dom@experimental react-ser
 
 ## Setting Up Patches
 
-The plugin includes a patch system to facilitate setup. Add the following command to your `package.json` scripts:
+The plugin includes a patch system to ensure React compatibility. Add the following command to your `package.json` scripts:
 
 ```json
 "patch": "patch"
@@ -35,7 +34,7 @@ It will instruct you to add:
 "postinstall": "patch-package"
 ```
 
-This ensures the patch is applied after every `npm install`. If errors arise related to `react-server-dom-esm`, verify that the postinstall step ran.
+This ensures the patch is applied after every `npm install`. If errors arise related to `react-server-dom-esm`, verify that the postinstall step ran successfully.
 
 ## Basic Setup
 
@@ -52,6 +51,9 @@ const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
       // static url
     case "/index.rsc":
       return `src/page/${file}`;
+    case "/about":
+    case "/about/index.rsc":
+      return `src/about/${file}`;
     default:
       throw new Error(`Unknown route: ${url}`);
   }
@@ -61,26 +63,34 @@ export const config = {
   moduleBase: "src",
   Page: createRouter("page.tsx"),
   props: createRouter("props.ts"),
-  Html: ({ children }) => (
+  Html: ({ CssCollector, cssFiles, pageProps, Page }) => (
     <html>
       <head>
-        <title>My App</title>
+        <title>{pageProps?.title || "My App"}</title>
+        <meta name="description" content={pageProps?.description} />
       </head>
       <body>
-        <div id="root">{children}</div>
+        <CssCollector as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
       </body>
     </html>
   ),
   build: {
-    pages: ["/"],
+    pages: ["/", "/about"],
+  },
+  // Enable monitoring
+  verbose: true,
+  onEvent: (event) => {
+    console.log(`[Plugin] ${event.type}:`, event.data);
+  },
+  onMetrics: (metrics) => {
+    console.log(`[Plugin] Build metrics:`, metrics);
   },
 } satisfies StreamPluginOptions;
 ```
 
-Because we are using the `.tsx` extension for this file, we can simply define the React server components.
-This does not work for the `vite.config.ts` file, because vite does not support this extension.
+Because we are using the `.tsx` extension for this file, we can directly define React server components with full type safety. This does not work for the `vite.config.ts` file, because Vite does not support this extension.
 
-### 2. Create Configuration
+### 2. Create Vite Configuration
 
 Create `vite.config.ts`:
 
@@ -91,10 +101,13 @@ import { config } from "./vite.react.config";
 
 export default defineConfig({
   plugins: vitePluginReactServer(config),
+  build: {
+    sourcemap: true, // Enable for debugging
+  },
 });
 ```
 
-For client-only config files (optional)
+For client-only config files (optional):
 
 ```ts
 import { defineConfig } from "vite";
@@ -106,7 +119,7 @@ export default defineConfig({
 });
 ```
 
-For server-only config files (optional)
+For server-only config files (optional):
 
 ```ts
 import { defineConfig } from "vite";
@@ -118,36 +131,156 @@ export default defineConfig({
 });
 ```
 
-
-### 4. Create Page Components
+### 3. Create Page Components with Type Safety
 
 Create a page component at `src/page/page.tsx`:
 
 ```tsx
-export const Page = ({ name }) => {
-  return <div>Hello {name}</div>;
+import type { PageProps } from "./props";
+
+export const Page = ({ name, title }: PageProps) => {
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>Hello {name}</p>
+    </div>
+  );
 };
 ```
 
 Create a props file at `src/page/props.ts`:
 
 ```ts
-export const props = ({url})=>({
+export const props = ({ url }: { url: string }) => ({
   name: "World",
+  title: "Welcome to React Server Components",
+  description: "A modern approach to server-side rendering",
   url,
 });
+
+// Export the type for use in the page component
+export type PageProps = Awaited<ReturnType<typeof props>>;
 ```
 
-### 4. Add Scripts to package.json
+### 4. Create About Page
+
+Create `src/about/page.tsx`:
+
+```tsx
+import type { PageProps } from "./props";
+
+export const Page = ({ title, content }: PageProps) => {
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>{content}</p>
+    </div>
+  );
+};
+```
+
+Create `src/about/props.ts`:
+
+```ts
+export const props = () => ({
+  title: "About Us",
+  content: "This is a React Server Components application built with Vite.",
+});
+
+export type PageProps = Awaited<ReturnType<typeof props>>;
+```
+
+### 5. Add Scripts to package.json
 
 ```json
-"scripts": {
-  "build": "build:static && build:client && build:server",
-  "dev": "NODE_OPTIONS='--conditions react-server' vite",
-  "start": "vite",
-  "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
-  "build:client": "vite build --ssr",
-  "build:static": "vite build"
+{
+  "scripts": {
+    "build": "npm run build:static && npm run build:client && npm run build:server",
+    "dev": "NODE_OPTIONS='--conditions react-server' vite",
+    "start": "vite",
+    "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
+    "build:client": "vite build --ssr",
+    "build:static": "vite build",
+    "debug-build": "NODE_ENV=development npm run build:client -- --mode development && NODE_ENV=development npm run build:server -- --mode development",
+    "test": "vitest",
+    "patch": "patch",
+    "postinstall": "patch-package"
+  }
+}
+```
+
+## Type Safety
+
+### Custom HTML Component with Full Typing
+
+```tsx
+import React from "react";
+import type { HtmlProps } from "vite-plugin-react-server/types";
+import { CssCollectorElements } from "vite-plugin-react-server/components";
+
+type MyPageProps = {
+  title: string;
+  description?: string;
+  user?: { name: string; email: string };
+};
+
+type MyHtmlProps = HtmlProps<MyPageProps, true, "div">;
+
+export const Html = ({
+  CssCollector,
+  cssFiles,
+  globalCss,
+  pageProps = { title: "My App" },
+  Page,
+  moduleBaseURL,
+}: MyHtmlProps) => (
+  <html lang="en">
+    <head>
+      <meta charSet="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>{pageProps?.title || "My App"}</title>
+      {pageProps?.description && (
+        <meta name="description" content={pageProps.description} />
+      )}
+      <CssCollectorElements cssFiles={globalCss} />
+    </head>
+    <body>
+      <CssCollector
+        as="div"
+        id="root"
+        cssFiles={cssFiles}
+        Page={Page}
+        pageProps={pageProps}
+      />
+    </body>
+  </html>
+);
+```
+
+### Server Actions with Type Safety
+
+Create `src/actions.server.ts`:
+
+```tsx
+"use server";
+
+import type { PageProps } from "./page/props";
+
+export async function updatePageData(
+  data: Partial<PageProps>
+): Promise<{ success: boolean; data?: PageProps }> {
+  try {
+    // Simulate database update
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    return {
+      success: true,
+      data: { ...data } as PageProps,
+    };
+  } catch (error) {
+    console.error("Failed to update page data:", error);
+    return { success: false };
+  }
 }
 ```
 
@@ -156,10 +289,10 @@ export const props = ({url})=>({
 ### Development Mode
 
 ```sh
-# Run server-side rendering
+# Run server-side rendering with direct React pipeline
 npm run dev
 
-# Run server-side development using rsc-worker
+# Run client-side development using rsc-worker
 npm run start
 ```
 
@@ -169,16 +302,50 @@ npm run start
 # Build everything
 npm run build
 
-# Or build separately
-npm run build:client
-npm run build:server
+# Or build separately for debugging
+npm run build:static  # Static assets
+npm run build:client  # Client-side rendering modules
+npm run build:server  # Server components and actions
 ```
+
+### Testing Your Build
+
+```sh
+# Run development build to see detailed errors
+npm run debug-build
+
+# Test the built application
+npx vite preview
+```
+
+## Verification
+
+After setup, verify everything works:
+
+1. **Development server**: `npm run dev` should start without errors
+2. **Build process**: `npm run build` should complete successfully
+3. **Type checking**: `npx tsc --noEmit` should pass
+4. **Generated files**: Check `dist/` for static, client, and server directories
 
 ## Example Projects
 
 For more examples, check out these projects:
 
-- [The official demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
-- [The mmcelebration.com project](https://github.com/nicobrinkkemper/mmc)
+- **[Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)** - Simple playground with GitHub Pages deployment
+- **[MMC Project](https://github.com/nicobrinkkemper/mmc)** - Production implementation with advanced features
 
-These examples demonstrate various features and configurations of the plugin in real-world applications. 
+These examples demonstrate various features and configurations of the plugin in real-world applications, including:
+
+- Advanced routing patterns
+- Server actions with database integration
+- Custom CSS handling
+- Type-safe component props
+- Error boundaries and error handling
+- Performance monitoring and metrics
+
+## Next Steps
+
+- Read [Core Concepts](./core-concepts.md) to understand the architecture
+- Learn about [Server Actions](./server-actions.md) for dynamic functionality
+- Explore [CSS Handling](./css-handling.md) for styling your components
+- Check out [Build Orchestration](./build-orchestration.md) for deployment strategies 

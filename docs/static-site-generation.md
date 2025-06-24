@@ -95,14 +95,14 @@ You can customize the HTML template used for static generation:
 ```ts
 export const config = {
   // ... other config
-  Html: ({ children, pageProps }) => (
+  Html: ({ CssCollector, cssFiles, pageProps, Page }) => (
     <html>
       <head>
         <title>{pageProps.title || "My Site"}</title>
         <meta name="description" content={pageProps.description} />
       </head>
       <body>
-        <div id="root">{children}</div>
+        <CssCollector as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
       </body>
     </html>
   ),

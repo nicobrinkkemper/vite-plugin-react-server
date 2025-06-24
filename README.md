@@ -1,34 +1,93 @@
 # Vite React Server Plugin
 
-A Vite plugin that enables React Server Components (RSC) streaming and static HTML page generation. It leverages experimental dependencies from React, specifically `react-server-dom-esm`.
+A Vite plugin that enables React Server Components (RSC) streaming and static HTML page generation.
 
-## Open Source and Work in Progress
+- Type Safe
+- Server first
 
-This project uses the latest _OSS-experimental_ React version from [the official React GitHub repository](https://github.com/facebook/react). The plugin includes a patch system to facilitate setup.
+## What separates this from other React projects?
+
+When you add this plugin to Vite, all aspects of Vite change to accommodate a "Native ESM" workflow for React.
+
+**React becomes part of your build tooling** - not just a dependency.
+
+### Vite's Philosophy + React
+
+[Vite's philosophy](https://vite.dev/guide/philosophy.html) is built around Native ESM and making frameworks first-class citizens. This plugin extends that philosophy to React:
+
+- **Native ESM for React**: Your React components are true ESM modules that work anywhere
+- **React as Configuration**: Use React components to configure your build (Html, CssCollector, Pages)
+- **Framework-First**: React Server Components are built into the development and build pipeline
+- **No Bundler Lock-in**: Generated modules work with any ESM-compatible system
+- **On-Demand Loading**: Only streams the pages you're actually developing
+
+#### Development Efficiency
+
+During development, the plugin only loads what you need:
+
+```tsx
+// Large application with 100+ pages
+export default defineConfig({
+  plugins: vitePluginReactServer({
+    Page: (url) => {
+      // Only the visited page gets loaded and compiled
+      switch (url) {
+        case "/": return "src/home/page.tsx";
+        case "/dashboard": return "src/dashboard/page.tsx";
+        case "/profile": return "src/profile/page.tsx";
+        // ... 97 other pages that won't load until visited
+      }
+    }
+  }),
+});
+```
+
+**Benefits:**
+- **Fast Startup**: Application starts instantly regardless of size
+- **Memory Efficient**: Only active pages consume memory
+- **True ESM**: Each page is a separate module loaded on-demand
+- **Hot Reload**: Changes only affect the current page
+
+### The Difference
+
+```tsx
+// Traditional: React is a dependency, build tools are separate
+import { defineConfig } from "vite";
+export default defineConfig({
+  // HTML template as string
+  // CSS handling as config
+  // React as external dependency
+});
+
+// This plugin: React IS the build configuration
+import { vitePluginReactServer } from "vite-plugin-react-server";
+export default defineConfig({
+  plugins: vitePluginReactServer({
+    // React components configure the build
+    Html: ({ children, pageProps }) => <html><body>{children}</body></html>,
+    CssCollector: ({ cssFiles }) => cssFiles.map(css => <link href={css.href} />),
+    Page: (url) => `src/pages${url}.tsx`,
+  }),
+});
+```
+
+### Native ESM Workflow
+
+Just like Vite pushes modern web standards, this plugin pushes modern React patterns:
+
+- **ESM-only**: All React modules are true ES modules
+- **Server Components**: Native RSC streaming without framework lock-in
+- **Build-time React**: React components generate your build configuration
+- **Standard Modules**: Output works with Next.js, Remix, or any ESM system
 
 ## Quick Start
 
 ```sh
-# Install the plugin and dependencies
 npm install -D vite-plugin-react-server patch-package react@experimental react-dom@experimental react-server-dom-esm
-
-# Set up patches (required for React compatibility)
 npm run patch
 ```
 
-Add to your `package.json`:
-```json
-{
-  "scripts": {
-    "patch": "patch",
-    "postinstall": "patch-package"
-  }
-}
-```
-
-## Basic Setup
-
-**1. Configure Vite:**
+**Configure with React:**
 
 ```ts
 // vite.config.ts
@@ -44,50 +103,13 @@ export default defineConfig({
 });
 ```
 
-**2. Create a Page Component:**
+**Create a Page:**
 
 ```tsx
 // src/page.tsx
 export function Page({ url }) {
   return <div>Hello from {url}</div>;
 }
-```
-
-**3. Create Client Entry:**
-
-```tsx
-// src/client.tsx
-import React, { use } from "react";
-import { createRoot } from "react-dom/client";
-import { createReactFetcher } from "vite-plugin-react-server/utils";
-
-const Shell = ({ data }) => {
-  const content = use(data);
-  return content;
-};
-
-const rootElement = document.getElementById("root");
-const initialData = createReactFetcher({
-  url: window.location.pathname,
-  moduleBaseURL: import.meta.env.BASE_URL,
-});
-
-createRoot(rootElement).render(<Shell data={initialData} />);
-```
-
-**4. Add index.html:**
-
-```html
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/client.tsx"></script>
-  </body>
-</html>
 ```
 
 ## Development & Build
@@ -108,7 +130,7 @@ createRoot(rootElement).render(<Shell data={initialData} />);
 
 ## Environment-Based Execution
 
-This plugin uses environment detection to determine the execution context. It achieves this by checking the `NODE_OPTIONS` environment variable:
+The plugin uses environment detection to determine execution context:
 
 ```typescript
 import { getCondition } from "vite-plugin-react-server/config";
@@ -118,17 +140,15 @@ if (getCondition() !== "react-server") {
 }
 ```
 
-The plugin automatically adapts based on your environment:
-
-- **Client Mode** (default): Uses worker threads for RSC requests, detailed error logging
-- **Server Mode** (`NODE_OPTIONS="--conditions react-server"`): Direct React pipeline, optimized performance
+- **Client Mode** (default): Uses worker threads for RSC requests
+- **Server Mode** (`NODE_OPTIONS="--conditions react-server"`): Direct React pipeline
 
 ## Advanced Features
 
 ### Props and Routing
 
 ```tsx
-// Custom router function
+// React components configure routing
 const createRouter = (file) => (url) => {
   switch (url) {
     case "/": return `src/home/${file}`;
@@ -139,9 +159,8 @@ const createRouter = (file) => (url) => {
 
 export default defineConfig({
   plugins: vitePluginReactServer({
-    moduleBase: "src",
     Page: createRouter("page.tsx"),
-    props: createRouter("props.ts"), // Optional props files
+    props: createRouter("props.ts"),
     build: { pages: ["/", "/about"] }
   }),
 });
@@ -154,7 +173,6 @@ export default defineConfig({
 "use server";
 
 export async function addTodo(title: string) {
-  // Server-side logic here
   return { success: true };
 }
 
@@ -187,7 +205,7 @@ export function Counter() {
 
 ## Build Output
 
-The plugin generates three optimized build targets:
+The plugin generates three build targets:
 
 ```
 dist/
@@ -195,6 +213,15 @@ dist/
 ├── client/     # Server-side rendering modules  
 └── server/     # React Server Components modules
 ```
+
+## Testing
+
+The plugin includes 269 test cases across 34 test files covering:
+- Build processes (static, client, server)
+- Server action integration
+- Error handling and edge cases
+- Type safety and React compatibility
+- Performance with large outputs
 
 ## Documentation
 
