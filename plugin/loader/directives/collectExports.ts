@@ -112,10 +112,10 @@ function handleReExports(
     ) {
       exports.push(
         createExportInfo(
-          specifier.local.name,
-          specifier.exported.name,
-          "function",
-          range
+        specifier.local.name,
+        specifier.exported.name,
+        "function",
+        range
         )
       );
     }

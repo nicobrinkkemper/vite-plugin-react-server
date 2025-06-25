@@ -60,9 +60,9 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
    - Extending the Plugin
 
 10. [API Reference](./api-reference.md)
-    - Plugin Options
-    - Component Props
-    - Worker Messages
+   - Plugin Options
+   - Component Props
+   - Worker Messages
     - Type Definitions
 
 11. [Transformations](./transformations.md)
@@ -106,7 +106,7 @@ The plugin uses generic types that adapt to your React version and prevent compa
 ```tsx
 import React from "react";
 import type { HtmlProps } from "vite-plugin-react-server/types";
-import { CssCollectorElements } from "vite-plugin-react-server/components";
+import { Css } from "vite-plugin-react-server/components";
 
 type MyHtmlProps = HtmlProps<
   // we always pass the title prop
@@ -120,7 +120,7 @@ type MyHtmlProps = HtmlProps<
 >;
 
 export const Html = ({
-  CssCollector,
+  Root,
   cssFiles,
   globalCss,
   pageProps = { title: "404 Not Found" },
@@ -132,10 +132,10 @@ export const Html = ({
   return (
     <html>
       <head>
-        <CssCollectorElements cssFiles={globalCss} />
+        <Css cssFiles={globalCss} />
       </head>
       <body>
-        <CssCollector
+        <Root
           as={"div"}
           id="root"
           cssFiles={cssFiles}

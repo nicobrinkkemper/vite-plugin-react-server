@@ -42,7 +42,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
 
   return async function buildLoader(id) {
     if(userOptions.verbose) {
-      console.log("buildLoader", id);
+      console.log("[buildLoader] id: ", id);
     }
     const [withoutQuery, query] = id.split("?", 2);
     const [moduleId, exportName] = withoutQuery.split("#", 2);

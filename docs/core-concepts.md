@@ -133,10 +133,10 @@ export default defineConfig({
     moduleBase: "src",
     Page: (url) => `src/pages${url}/page.tsx`,
     props: (url) => `src/pages${url}/props.ts`,
-    Html: ({ CssCollector, cssFiles, pageProps, Page }) => (
+    Html: ({ Root, cssFiles, pageProps, Page }) => (
       <html>
         <body>
-          <CssCollector as="div" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+          <Root as="div" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
         </body>
       </html>
     ),
@@ -222,12 +222,12 @@ interface CssFile {
 ### CSS Collector Component
 
 ```typescript
-export const CssCollector = ({ 
+export const Root = ({ 
   as = "div", 
   cssFiles, 
   Page, 
   pageProps 
-}: CssCollectorProps) => {
+}: RootProps) => {
   return (
     <As>
       {cssFiles.map(css => 

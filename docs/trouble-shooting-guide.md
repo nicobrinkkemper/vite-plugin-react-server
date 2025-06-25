@@ -9,8 +9,8 @@ This guide covers common issues and solutions when using the Vite React Server P
 **Problem**: TypeScript errors about React types not being compatible.
 
 ```
-'CssCollector' cannot be used as a JSX component.
-Its type 'ComponentType<CssCollectorProps>' is not a valid JSX element type.
+'Root' cannot be used as a JSX component.
+Its type 'ComponentType<RootProps>' is not a valid JSX element type.
 ```
 
 **Solution**: The plugin uses generic types to avoid React version conflicts. Make sure you're using the correct type imports:
@@ -28,14 +28,14 @@ type MyHtmlProps = HtmlProps<MyPageProps, true, "div">;
 
 // Use generic types that adapt to your React version
 export const Html = ({
-  CssCollector,
+  Root,
   cssFiles,
   pageProps = { title: "My App", user: { name: "User", email: "user@example.com" } },
   Page,
 }: MyHtmlProps) => (
   <html>
     <body>
-      <CssCollector
+      <Root
         as="div"
         cssFiles={cssFiles}
         Page={Page}
@@ -106,11 +106,11 @@ export async function serverAction() {
 
 ```tsx
 import React from "react";
-import { CssCollectorElements } from "vite-plugin-react-server/components";
+import { Css } from "vite-plugin-react-server/components";
 import type { HtmlProps } from "vite-plugin-react-server/types";
 
 export const Html = ({ 
-  CssCollector, 
+  Root, 
   cssFiles, 
   globalCss, 
   Page, 
@@ -118,10 +118,10 @@ export const Html = ({
 }: HtmlProps) => (
   <html>
     <head>
-      <CssCollectorElements cssFiles={globalCss} />
+      <Css cssFiles={globalCss} />
     </head>
     <body>
-      <CssCollector
+      <Root
         as="div"
         cssFiles={cssFiles}
         Page={Page}

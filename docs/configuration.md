@@ -70,13 +70,13 @@ Basically a router for mapping urls to source code. It can be any implementation
 ```tsx
 import React from "react";
 
-Html: ({ CssCollector, cssFiles, pageProps, Page }) => (
+Html: ({ Root, cssFiles, pageProps, Page }) => (
   <html>
     <head>
       <title>{pageProps?.title || "My App"}</title>
     </head>
     <body>
-      <CssCollector as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+      <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
     </body>
   </html>
 )
@@ -140,11 +140,11 @@ export const config = {
   moduleBase: "src",
   Page: "src/my-page.tsx",
   props: "src/my-props.ts",
-  Html: ({ CssCollector, cssFiles, pageProps, Page }) => (
+  Html: ({ Root, cssFiles, pageProps, Page }) => (
     <html>
       <title>{pageProps?.title || "My App"}</title>
       <body>
-        <CssCollector as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+        <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
       </body>
     </html>
   ),

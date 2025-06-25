@@ -10,9 +10,9 @@ Static site generation with this plugin:
 2. Generates corresponding "headless" RSC files for client-side hydration
 3. Enables easy deployment to any static hosting service
 4. Fully customize production html using the react `Html` component
-5. Fully customize production css using the react `CssCollector` component
+5. Fully customize production css using the react `Root` component
 
-Direct references to React components (like `Html` and `CssCollector`) are only used in react-server build mode.
+Direct references to React components (like `Html` and `Root`) are only used in react-server build mode.
 
 ### Output Structure
 
@@ -95,14 +95,14 @@ You can customize the HTML template used for static generation:
 ```ts
 export const config = {
   // ... other config
-  Html: ({ CssCollector, cssFiles, pageProps, Page }) => (
+  Html: ({ Root, cssFiles, pageProps, Page }) => (
     <html>
       <head>
         <title>{pageProps.title || "My Site"}</title>
         <meta name="description" content={pageProps.description} />
       </head>
       <body>
-        <CssCollector as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+        <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
       </body>
     </html>
   ),

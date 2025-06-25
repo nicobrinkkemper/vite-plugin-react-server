@@ -122,6 +122,8 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn = as
     }
     const pagePath = routeFiles.page;
     const propsPath = routeFiles.props;
+    const rootPath = routeFiles.root;
+    const htmlPath = routeFiles.html;
     try {
       // Set up response headers for streaming
       res.setHeader("Content-Type", info.contentType);
@@ -165,10 +167,12 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn = as
           ...serializedUserOptions,
           id: info.route,
           type: "RSC_RENDER",
-          // we make the worker stream aware of the route, pagePath, propsPath
+          // we make the worker stream aware of the route, pagePath, propsPath, rootPath, htmlPath
           route: info.route,
           pagePath: pagePath,
           propsPath: propsPath,
+          rootPath: rootPath,
+          htmlPath: htmlPath,
           // override these at all times to ensure the settings will work for the dev server
           projectRoot: server.config.root,
           build: serializedUserOptions.build,

@@ -16,7 +16,7 @@ When you add this plugin to Vite, all aspects of Vite change to accommodate a "N
 [Vite's philosophy](https://vite.dev/guide/philosophy.html) is built around Native ESM and making frameworks first-class citizens. This plugin extends that philosophy to React:
 
 - **Native ESM for React**: Your React components are true ESM modules that work anywhere
-- **React as Configuration**: Use React components to configure your build (Html, CssCollector, Pages)
+- **React as Configuration**: Use React components to configure your build (Html, Root, Pages)
 - **Framework-First**: React Server Components are built into the development and build pipeline
 - **No Bundler Lock-in**: Generated modules work with any ESM-compatible system
 - **On-Demand Loading**: Only streams the pages you're actually developing
@@ -65,7 +65,7 @@ export default defineConfig({
   plugins: vitePluginReactServer({
     // React components configure the build
     Html: ({ children, pageProps }) => <html><body>{children}</body></html>,
-    CssCollector: ({ cssFiles }) => cssFiles.map(css => <link href={css.href} />),
+    Root: ({ cssFiles }) => cssFiles.map(css => <link href={css.href} />),
     Page: (url) => `src/pages${url}.tsx`,
   }),
 });
@@ -95,11 +95,11 @@ import { defineConfig } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
 
 export default defineConfig({
-  plugins: vitePluginReactServer({
-    moduleBase: "src",
+    plugins: vitePluginReactServer({
+      moduleBase: "src",
     Page: (url) => `src/page.tsx`,
     build: { pages: ["/"] }
-  }),
+    }),
 });
 ```
 

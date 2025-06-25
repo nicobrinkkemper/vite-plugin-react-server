@@ -22,7 +22,7 @@ interface StreamPluginOptions<
   // Optional configurations
   props?: (url: string) => string;
   Html?: React.ComponentType<HtmlProps<PageProps, InlineCSS, As, ReactType>>;
-  CssCollector?: CssCollectorFn<As, InlineCSS, PageProps, ReactType>;
+  Root?: RootFn<As, InlineCSS, PageProps, ReactType>;
   build?: BuildConfig;
   css?: CssConfig;
   
@@ -93,7 +93,7 @@ interface HtmlProps<
   ReactType = any
 > {
   children: ReactType;
-  CssCollector: CssCollectorFn<As, InlineCSS, PageProps, ReactType>;
+  Root: RootFn<As, InlineCSS, PageProps, ReactType>;
   cssFiles: CssFile[];
   globalCss: CssFile[];
   pageProps: PageProps;
@@ -102,12 +102,12 @@ interface HtmlProps<
 }
 ```
 
-### CssCollectorProps
+### RootProps
 
 Props for CSS collector components:
 
 ```typescript
-interface CssCollectorProps<
+interface RootProps<
   As extends keyof JSX.IntrinsicElements = "div",
   InlineCSS extends boolean = boolean,
   PageProps = any,
@@ -253,12 +253,12 @@ The plugin uses generic types to maintain compatibility across React versions:
 
 ```typescript
 // Generic function type that adapts to any React version
-type CssCollectorFn<
+type RootFn<
   As extends keyof JSX.IntrinsicElements = "div",
   InlineCSS extends boolean = boolean,
   PageProps = any,
   ReactType = any
-> = (props: CssCollectorProps<As, InlineCSS, PageProps, ReactType>) => ReactType;
+> = (props: RootProps<As, InlineCSS, PageProps, ReactType>) => ReactType;
 
 // Generic page component type
 type PageComponentType<PageProps = any, ReactType = any> = 
@@ -410,7 +410,7 @@ import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import type { 
   StreamPluginOptions,
   HtmlProps,
-  CssCollectorProps,
+  RootProps,
   BuildConfig,
   PluginEvent,
   BuildMetrics
@@ -420,7 +420,7 @@ import type {
 ### Component Imports
 
 ```typescript
-import { CssCollectorElements } from "vite-plugin-react-server/components";
+import { Css } from "vite-plugin-react-server/components";
 ```
 
 ### Configuration Utilities

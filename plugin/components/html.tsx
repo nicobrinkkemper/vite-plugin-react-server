@@ -1,9 +1,9 @@
 import React from "react";
 import type { HtmlProps } from "../types.js";
-import { CssCollectorElements } from "./css-collector-elements.js";
+import { Css } from "./css.js";
 
 export const Html = ({
-  CssCollector,
+  Root,
   cssFiles,
   globalCss,
   pageProps,
@@ -12,10 +12,10 @@ export const Html = ({
 }: HtmlProps) => (
   <html>
     <head>
-      <CssCollectorElements cssFiles={globalCss} />
+      <Css cssFiles={globalCss} />
     </head>
     <body>
-      <CssCollector
+      <Root
         as={as}
         id="root"
         cssFiles={cssFiles}

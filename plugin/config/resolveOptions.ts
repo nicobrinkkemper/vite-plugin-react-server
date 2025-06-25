@@ -1,6 +1,6 @@
 import type { PreRenderedAsset } from "rollup";
 import type { PreRenderedChunk } from "rollup";
-import type { StreamPluginOptions, ResolvedUserOptions, PageName, PropsName } from "../types.js";
+import type { StreamPluginOptions, ResolvedUserOptions, PageName, PropsName, HtmlName, RootName } from "../types.js";
 import {
   BASE_PATTERNS,
   DEFAULT_CONFIG,
@@ -542,11 +542,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       Page: options.Page,
       props: options.props,
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
-      CssCollector: options.CssCollector ?? DEFAULT_CONFIG.CSS_COLLECTOR,
+      Root: options.Root ?? DEFAULT_CONFIG.ROOT,
+      components: options.components,
       normalizer: normalizer,
       moduleID: moduleID,
       pageExportName: options.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME as PageName,
       propsExportName: options.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME as PropsName,
+      htmlExportName: options.htmlExportName ?? DEFAULT_CONFIG.HTML_EXPORT_NAME as HtmlName,
+      rootExportName: options.rootExportName ?? DEFAULT_CONFIG.ROOT_EXPORT_NAME as RootName,
       css: {
         inlineCss: options.css?.inlineCss ?? DEFAULT_CONFIG.CSS.inlineCss,
         inlineThreshold:

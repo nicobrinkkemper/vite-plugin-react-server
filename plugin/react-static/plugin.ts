@@ -47,6 +47,7 @@ import { readFile } from "node:fs/promises";
 import { logError } from "../error/logError.js";
 import { toError } from "../error/toError.js";
 
+
 export type ReactStaticPluginFn = ReactStreamPluginFn<{
   meta: ReactStreamPluginMeta;
 }>;
@@ -328,7 +329,7 @@ export const reactStaticPlugin: ReactStaticPluginFn =
               worker = workerResult.worker;
             }
           }
-          // Render pages
+          // Render pages - component resolution now happens per-route in renderPage
           const { onEvent, ...handlerOptions } = userOptions;
           const renderPagesGenerator = renderPages(
             autoDiscoveredFiles!,
@@ -362,6 +363,7 @@ export const reactStaticPlugin: ReactStaticPluginFn =
                 ...handlerOptions.css,
                 inlineCss: handlerOptions.css.inlineCss,
               },
+
             },
             cssFilesByPage
           );

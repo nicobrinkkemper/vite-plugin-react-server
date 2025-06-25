@@ -1,5 +1,5 @@
 import { createRenderMetrics } from "../metrics/metrics.js";
-import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
+import { resolveComponents } from "../helpers/resolveComponents.js";
 import type {
   RenderPageResult,
   ReactStreamHandlerFn,
@@ -7,6 +7,7 @@ import type {
 import { renderStreams } from "./renderStreams.js";
 import { collectHtmlWorkerContent } from "./collectHtmlWorkerContent.js";
 import { collectRscContent } from "./collectRscContent.js";
+
 
 export type RenderPageReturn = AsyncGenerator<RenderPageResult, void, unknown>;
 
@@ -25,39 +26,43 @@ export const renderPage: RenderPageFn = async function* _renderPage(
   try {
     const metrics = createRenderMetrics(handlerOptions.route);
 
-    const pageAndPropsResult = await resolvePageAndProps({
+    // Resolve all components together (alongside component resolution like other places)
+    console.log(`[DEBUG] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`);
+    const componentsResult = await resolveComponents({
       pagePath: handlerOptions.pagePath,
-      pageExportName: handlerOptions.pageExportName,
       propsPath: handlerOptions.propsPath,
+      rootPath: handlerOptions.rootPath,
+      htmlPath: handlerOptions.htmlPath,
+      pageExportName: handlerOptions.pageExportName,
       propsExportName: handlerOptions.propsExportName,
+      rootExportName: handlerOptions.rootExportName,
+      htmlExportName: handlerOptions.htmlExportName,
       route: handlerOptions.route,
       loader: handlerOptions.loader,
+      // Use direct component overrides if available (for static builds)
+      RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
+      HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
     });
 
-    if (pageAndPropsResult.type === "error") {
+    if (componentsResult.type === "error") {
       yield {
         type: "error",
-        error: pageAndPropsResult.error,
+        error: componentsResult.error,
       };
       return;
     }
 
-    if (pageAndPropsResult.type === "skip") {
-      yield {
-        type: "skip",
-      };
-      return;
-    }
-
-    const { PageComponent, pageProps } = pageAndPropsResult;
+    const { PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult;
 
     const newHandlerOptions = {
       ...handlerOptions,
-      PageComponent: PageComponent as never,
+      PageComponent: PageComponent,
       pageProps: pageProps as never,
+      RootComponent: RootComponent,
+      HtmlComponent: HtmlComponent,
     };
     // Create streams with CSS files
-    const [rscFull, rscHeadless] = await renderStreams(newHandlerOptions);
+    const [rscFull, rscHeadless] = renderStreams(newHandlerOptions);
     // Handle stream creation errors
     if (rscFull.type !== "success") {
       yield {

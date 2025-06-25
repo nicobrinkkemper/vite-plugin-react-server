@@ -63,17 +63,15 @@ export const config = {
   moduleBase: "src",
   Page: createRouter("page.tsx"),
   props: createRouter("props.ts"),
-  Html: ({ CssCollector, cssFiles, pageProps, Page }) => (
-    <html>
-      <head>
-        <title>{pageProps?.title || "My App"}</title>
-        <meta name="description" content={pageProps?.description} />
-      </head>
-      <body>
-        <CssCollector as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
-      </body>
-    </html>
-  ),
+  
+  // String paths for serializable components (works in both static and RSC worker modes)
+  Root: "src/Root.tsx",
+  Html: "src/Html.tsx",
+  
+  // Alternative: Router functions for dynamic resolution
+  // Root: (url) => `src/pages/${url}/Root.tsx`,
+  // Html: (url) => `src/pages/${url}/Html.tsx`,
+  
   build: {
     pages: ["/", "/about"],
   },
@@ -87,6 +85,13 @@ export const config = {
   },
 } satisfies StreamPluginOptions;
 ```
+
+**Note:** All component references (Page, props, Root, Html) now follow the same serializable pattern:
+- **String paths**: `"src/CustomRoot.tsx"`
+- **Router functions**: `(url) => "src/pages/" + url + "/Root.tsx"`
+- **Async functions**: `(url) => Promise.resolve("src/Root.tsx")`
+
+For direct component references in static builds, use the `components` override (see Type Safety section below).
 
 Because we are using the `.tsx` extension for this file, we can directly define React server components with full type safety. This does not work for the `vite.config.ts` file, because Vite does not support this extension.
 
@@ -211,50 +216,100 @@ export type PageProps = Awaited<ReturnType<typeof props>>;
 
 ## Type Safety
 
-### Custom HTML Component with Full Typing
+### Create Custom HTML Component
+
+Create `src/CustomHtml.tsx`:
 
 ```tsx
 import React from "react";
-import type { HtmlProps } from "vite-plugin-react-server/types";
-import { CssCollectorElements } from "vite-plugin-react-server/components";
-
-type MyPageProps = {
-  title: string;
-  description?: string;
-  user?: { name: string; email: string };
-};
-
-type MyHtmlProps = HtmlProps<MyPageProps, true, "div">;
+import { Css, type HtmlProps } from "vite-plugin-react-server/components";
 
 export const Html = ({
-  CssCollector,
+  Root,
   cssFiles,
   globalCss,
-  pageProps = { title: "My App" },
+  pageProps = {},
   Page,
-  moduleBaseURL,
-}: MyHtmlProps) => (
-  <html lang="en">
-    <head>
-      <meta charSet="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>{pageProps?.title || "My App"}</title>
-      {pageProps?.description && (
-        <meta name="description" content={pageProps.description} />
-      )}
-      <CssCollectorElements cssFiles={globalCss} />
-    </head>
-    <body>
-      <CssCollector
-        as="div"
-        id="root"
-        cssFiles={cssFiles}
-        Page={Page}
-        pageProps={pageProps}
-      />
-    </body>
-  </html>
-);
+}: HtmlProps) => {
+  if (!pageProps.title) {
+    pageProps.title = "No title";
+  }
+  return (
+    <html>
+      <head>
+        <Css cssFiles={globalCss} />
+      </head>
+      <body>
+        <Root
+          as={"div"}
+          id="root"
+          cssFiles={cssFiles}
+          Page={Page}
+          pageProps={pageProps}
+        />
+      </body>
+    </html>
+  );
+};
+```
+
+### Create Custom Root Component
+
+Create `src/CustomRoot.tsx`:
+
+```tsx
+import React from "react";
+import type { RootFn } from "vite-plugin-react-server/types";
+
+export const Root: RootFn = ({ Page, pageProps = {}, as = "div", cssFiles, ...props }) => {
+  return React.createElement(as as any, {
+    ...props,
+    "data-css-count": cssFiles ? cssFiles.size : 0,
+  }, 
+    React.createElement(Page, pageProps)
+  );
+};
+```
+
+### Component Override for Static Builds
+
+For static builds where you want to avoid file resolution, you can use direct component references:
+
+```ts
+import { CustomRootComponent } from "./src/CustomRoot";
+import { CustomHtmlComponent } from "./src/CustomHtml";
+
+export const config = {
+  // Serializable paths (used by RSC worker mode)
+  Root: "src/CustomRoot.tsx",
+  Html: "src/CustomHtml.tsx",
+  
+  // Direct component overrides (used by static builds)
+  components: {
+    Root: CustomRootComponent,
+    Html: CustomHtmlComponent,
+  },
+  
+  // ... rest of config
+} satisfies StreamPluginOptions;
+```
+
+**Component Resolution Priority:**
+1. **Direct components** (`components.Root`, `components.Html`) - Used in static builds
+2. **Path resolution** (`Root`, `Html` strings/functions) - Used in RSC worker mode
+3. **Default components** - Plugin fallbacks
+
+### Export Name Configuration
+
+You can customize the export names when using path resolution:
+
+```ts
+export const config = {
+  Root: "src/components.tsx#MyCustomRoot",  // Fragment syntax
+  rootExportName: "MyCustomRoot",           // Or global config
+  htmlExportName: "MyCustomHtml",
+  // ... rest of config
+} satisfies StreamPluginOptions;
 ```
 
 ### Server Actions with Type Safety

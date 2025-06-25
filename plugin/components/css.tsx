@@ -2,7 +2,7 @@ import React from "react";
 import type { CssContent } from "../types.js";
 
 // Create link elements for each CSS file
-export const CssCollectorElements = ({
+export const Css = ({
   cssFiles,
 }: {
   cssFiles: Map<string, CssContent> | CssContent[];

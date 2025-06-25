@@ -62,7 +62,7 @@ export function hydrateUserOptions<T extends SerializedUserOptions>(
         ['Page']: options['Page'] ?? undefined,
         ['props']: options['props'] ?? undefined,
         ['Html']: options['Html'] ?? undefined,
-        ['CssCollector']: options['CssCollector'] ?? undefined,
+        ['Root']: options['Root'] ?? undefined,
         ['onMetrics']: options['onMetrics'] ?? undefined,
         ['onEvent']: options['onEvent'] ?? undefined,
         ['normalizer']: options['normalizer'] ?? undefined,

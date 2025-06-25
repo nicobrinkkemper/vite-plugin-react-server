@@ -1,13 +1,11 @@
-import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
+import { resolveComponents } from "../../helpers/resolveComponents.js";
 import type { RscRenderMessage } from "./types.js";
 import type { StreamHandlers } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
 import { createRscStream } from "../../helpers/createRscStream.js";
-import { CssCollector } from "../../components/css-collector.js";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { workerData } from "node:worker_threads";
-import { React } from "../../vendor/vendor.server.js";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
 import type { BuildModuleLoader, ResolvedUserOptions } from "../../types.js";
@@ -26,6 +24,8 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     route,
     pagePath,
     propsPath,
+    rootPath,
+    htmlPath,
     pageExportName = workerData.userOptions.pageExportName,
     propsExportName = workerData.userOptions.propsExportName,
     projectRoot = workerData.userOptions.projectRoot,
@@ -39,35 +39,42 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     verbose = workerData.userOptions.verbose,
   } = msg;
   try {
-    // Load modules
-    const pageAndPropsResult = await resolvePageAndProps({
-      pagePath,
-      propsPath,
-      pageExportName,
-      propsExportName,
-      route,
-      loader: (async (moduleID) => {
-        // Handle #Page/#props suffixes
-        const [id, exportName] = moduleID.split('#');
-        if (hmrState.get(id)?.invalidated) {
-          hmrState.delete(id);
-          const res = await import(join(projectRoot, id) + `?t=${Date.now()}`)
-          if(!exportName) return res;
-          if(exportName in res) return { [exportName]: res[exportName] };
-          return res;
-        }
-        const res = await import(join(projectRoot, id))
+    // Create loader function for module resolution
+    const loader = async (moduleID: string) => {
+      // Handle #Page/#props suffixes
+      const [id, exportName] = moduleID.split('#');
+      if (hmrState.get(id)?.invalidated) {
+        hmrState.delete(id);
+        const res = await import(join(projectRoot, id) + `?t=${Date.now()}`)
         if(!exportName) return res;
         if(exportName in res) return { [exportName]: res[exportName] };
         return res;
-      }) as BuildModuleLoader<ResolvedUserOptions>, 
+      }
+      const res = await import(join(projectRoot, id))
+      if(!exportName) return res;
+      if(exportName in res) return { [exportName]: res[exportName] };
+      return res;
+    };
+
+    // Load modules (page, props, and components together)
+    const componentsResult = await resolveComponents({
+      pagePath,
+      propsPath,
+      rootPath,
+      htmlPath,
+      pageExportName,
+      propsExportName,
+      rootExportName: workerData.userOptions.rootExportName,
+      htmlExportName: workerData.userOptions.htmlExportName,
+      route,
+      loader: loader as BuildModuleLoader<ResolvedUserOptions>, 
     });
-    if (pageAndPropsResult.type !== "success") {
-      const { error, ...rest } = pageAndPropsResult;
-      return handlers.onError(id, error, rest);
+    if (componentsResult.type !== "success") {
+      const { error, reason } = componentsResult;
+      return handlers.onError(id, error, { reason });
     }
 
-    const { PageComponent, pageProps } = pageAndPropsResult;
+    const { PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult;
 
     const adaptedOnEvent = (event: "error" | "postpone", data: {
       error?: Error | null;
@@ -91,9 +98,11 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     // Create stream
     const streamResult = createRscStream({
       projectRoot: projectRoot,
-      Html: React.Fragment,
+      Html: HtmlComponent,
+      HtmlComponent: HtmlComponent,
       PageComponent,
-      CssCollector,
+      Root: RootComponent,
+      RootComponent: RootComponent,
       pageProps,
       moduleBase,
       moduleRootPath,

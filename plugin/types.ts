@@ -22,16 +22,16 @@ import type {
   UserConfig,
   ViteDevServer,
 } from "vite";
-import type { ReactServerDomEsmOptions } from "./worker/types.js";
-import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
-import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type {
   serializedOptions,
   serializeResolvedConfig,
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
-import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
 import type { Program } from "./loader/directives/types.js";
+import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
+import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
+import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
+import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
 export type ReactStreamPluginFn<
   R extends Record<string, unknown> = {
@@ -221,7 +221,7 @@ export type EventKeys = "onMetrics" | "onEvent";
 
 export type NormalizerKeys = "normalizer" | "moduleID";
 
-export type ComponentKeys = "Html" | "CssCollector";
+export type ComponentKeys = "Html" | "Root";
 
 export type SourceURLKeys = "Page" | "props";
 
@@ -339,6 +339,8 @@ export type ResolvedUserOptions = {
   publicOrigin: string;
   pageExportName: string;
   propsExportName: string;
+  htmlExportName: string;
+  rootExportName: string;
   htmlWorkerPath: string;
   rscWorkerPath: string;
   loaderPath: string;
@@ -355,8 +357,8 @@ export type ResolvedUserOptions = {
 
   // Required complex properties
   Page: StreamPluginOptions["Page"];
-  Html: HtmlComponentType;
-  CssCollector: CssCollectorFn;
+  Html: StreamPluginOptions["Html"]; // Unresolved: can be string, function
+  Root: StreamPluginOptions["Root"]; // Unresolved: can be string, function
   normalizer: InputNormalizer;
   moduleID: (id: string) => string;
   onMetrics: (metrics: RenderMetrics) => void;
@@ -364,7 +366,8 @@ export type ResolvedUserOptions = {
   autoDiscover: Required<AutoDiscoverConfig>;
   loader: Required<LoaderConfig>;
   build: Required<BuildConfig>;
-  css: CssCollectorOptions<boolean>;
+  css: RootOptions<boolean>;
+  components?: StreamPluginOptions["components"]; // Direct component overrides (optional)
 };
 
 export type DirectiveOptions<
@@ -378,7 +381,7 @@ export type DirectiveOptions<
   };
 };
 
-export type CssCollectorOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> =
+export type RootOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> =
   {
     inlineCss?: InlineCSS;
     inlineThreshold?: number;
@@ -396,19 +399,19 @@ export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
     : never;
 
 /**
- * Boxed component type for the CssCollector
+ * Boxed component type for the Root
  */
-export type CssCollectorFn<
+export type RootFn<
   As extends AsOpt = AsOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
   PageProps extends PagePropOpt = PagePropOpt,
   ReactType = any
-> = (props: CssCollectorProps<As, InlineCSS, PageProps>) => ReactType;
+> = (props: RootProps<PageProps, InlineCSS, As>) => ReactType;
 
-export type CssCollectorProps<
-  As extends AsOpt = AsOpt,
+export type RootProps<
+  PageProps extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
-  PageProps extends PagePropOpt = PagePropOpt
+  As extends AsOpt = AsOpt,
 > = {
   as: As;
   cssFiles?: Map<string, CssContent<InlineCSS>>;
@@ -417,8 +420,8 @@ export type CssCollectorProps<
   id?: string;
 };
 
-export type CssCollectorComponent = (
-  props: CssCollectorProps
+export type RootComponent = (
+  props: RootProps
 ) => React.ReactNode;
 
 /**
@@ -558,7 +561,9 @@ export type StreamPluginOptions<
   InlineCSS extends InlineCssOpt = InlineCssOpt,
   As extends AsOpt = AsOpt,
   N1 extends string = PageName,
-  N2 extends string = PropsName
+  N2 extends string = PropsName,
+  N3 extends string = HtmlName,
+  N4 extends string = RootName
 > = {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
@@ -776,10 +781,17 @@ export type StreamPluginOptions<
   loaderPath?: string;
   pageExportName?: N1;
   propsExportName?: N2;
-  Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment;
-  CssCollector?: CssCollectorFn;
+  htmlExportName?: N3;
+  rootExportName?: N4;
+  Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment | string;
+  Root?: RootFn | string;
+  // Direct component overrides (bypasses string resolution)
+  components?: {
+    Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment;
+    Root?: RootFn;
+  };
   build?: BuildConfig;
-  css?: CssCollectorOptions<InlineCSS>;
+  css?: RootOptions<InlineCSS>;
   // moduleBaseExceptions?: string[];
   pipeableStreamOptions?: ReactServerDomEsmOptions;
   onMetrics?: (metrics: RenderMetrics) => void;
@@ -800,8 +812,12 @@ export type MultiPageHandlerOptions<
   | "route"
   | "cssFiles"
   | "propsPath"
+  | "rootPath"
+  | "htmlPath"
   | "pageProps"
   | "PageComponent"
+  | "RootComponent"
+  | "HtmlComponent"
 >;
 
 export type CreateHandlerOptions<
@@ -812,8 +828,8 @@ export type CreateHandlerOptions<
   | "css"
   | "pageExportName"
   | "propsExportName"
-  | "Html"
-  | "CssCollector"
+  | "rootExportName"
+  | "htmlExportName"
   | "moduleBase"
   | "moduleRootPath"
   | "moduleBasePath"
@@ -825,15 +841,20 @@ export type CreateHandlerOptions<
   | "normalizer"
   | "moduleID"
   | "verbose"
-> & {
+  | "components"
+> &  {
   logger: Logger;
   loader: BuildModuleLoader | GenericModuleLoader;
   pagePath: string;
   propsPath?: string;
+  rootPath?: string;
+  htmlPath?: string;
   pageProps?: PagePropOpt;
   PageComponent?: PageComponentType<PagePropOpt>;
-  RootComponent?: AsOpt;
+  RootComponent?: RootFn;
+  HtmlComponent?: HtmlComponentType<PagePropOpt>;
   route: string;
+  as?: AsOpt,
   manifest: Manifest;
   worker?: Worker;
   server?: ViteDevServer;
@@ -974,6 +995,8 @@ export type BuildTiming = {
 export type ResolvedBuildPages = {
   propsMap: Map<string, string>;
   pageMap: Map<string, string>;
+  rootMap: Map<string, string>;
+  htmlMap: Map<string, string>;
   /**
    * ## routeMap
    *
@@ -995,7 +1018,7 @@ export type ResolvedBuildPages = {
    * urlMap.set("/", { props: "/props", page: "/page" });
    * ```
    */
-  urlMap: Map<string, { props?: string; page: string }>;
+  urlMap: Map<string, { props?: string; page: string; root?: string; html?: string }>;
   errors: Error[];
 };
 
@@ -1014,6 +1037,8 @@ export interface DeserializedRegExp {
 export type RegExpOpt = RegExp | string | DeserializedRegExp;
 export type PageName = "Page";
 export type PropsName = "props";
+export type HtmlName = "Html";
+export type RootName = "Root";
 
 export type AsOpt =
   | React.ExoticComponent<React.FragmentProps>
@@ -1039,7 +1064,7 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  CssCollector: CssCollectorFn<As, InlineCSS, PageProps>;
+  Root: RootFn<As, InlineCSS, PageProps>;
   globalCss: Map<string, CssContent<InlineCSS>>;
   as?: As;
 };
@@ -1074,7 +1099,7 @@ export type StyleCssProps = BaseCssProps & {
   href?: never;
 };
 
-export type CssCollectorElementsProps<
+export type CssProps<
   InlineCSS extends InlineCssOpt = InlineCssOpt
 > = {
   cssFiles: Map<string, CssContent<InlineCSS>>;
@@ -1278,7 +1303,7 @@ export type FlightConfig = {
 // Import configuration from separate file
 export {
   createFlightBindings,
-  defaultFlightBindings,
+  defaultFlightBindings
 } from "./config/flightBindings.js";
 
 export type DirectiveConfig = {
@@ -1351,4 +1376,5 @@ export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
 ) => ReturnType;
 
 // re-exorts
-export type { StreamMetrics, RenderMetrics };
+export type { RenderMetrics, StreamMetrics };
+

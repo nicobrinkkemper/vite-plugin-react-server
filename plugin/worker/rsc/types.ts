@@ -89,13 +89,14 @@ export type RscRenderOpt = WorkerMessage & {
   | "onEvent"
   | "onMetrics"
   | "loader"
-  | "Html"
-  | "CssCollector"
   | "logger"
   | "build"
   | "autoDiscover"
   | "normalizer"
   | "moduleID"
+  | "HtmlComponent"
+  | "RootComponent"
+  | "PageComponent"
 > & {
   build: Omit<
     CreateHandlerOptions<ResolvedUserOptions>["build"],

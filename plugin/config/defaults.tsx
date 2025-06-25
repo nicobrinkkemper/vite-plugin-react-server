@@ -1,4 +1,4 @@
-import { CssCollector } from "../components/css-collector.js";
+import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
 import { parse } from "../loader/parse.js";
 
@@ -112,6 +112,8 @@ export const DEFAULT_CONFIG = {
   SERVER_ENTRY: undefined,
   PAGE_EXPORT_NAME: "Page",
   PROPS_EXPORT_NAME: "props",
+  HTML_EXPORT_NAME: "Html",
+  ROOT_EXPORT_NAME: "Root",
   HTML_WORKER_PATH: `worker/html/html-worker.${
     process.env["NODE_ENV"] === "production" ? "production" : "development"
   }.js`,
@@ -120,8 +122,8 @@ export const DEFAULT_CONFIG = {
   }.js`,
   LOADER_PATH: "worker/loader.js",
   RSC_EXTENSION: ".rsc",
-  CSS_COLLECTOR: CssCollector,
-  HTML: Html,
+  ROOT: undefined,
+  HTML: undefined,
   ON_METRICS: ()=>{},
   DEV_PORT: 5173,
   PREVIEW_PORT: 4173,
@@ -132,6 +134,10 @@ export const DEFAULT_CONFIG = {
   RSC_TIMEOUT: 5000, // 5 seconds default timeout for RSC operations
   HTML_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for HTML worker startup
   RSC_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for RSC worker startup
+  COMPONENTS: {
+    Html: Html,
+    Root: Root,
+  },
   BUILD: {
     pages: [],
     client: "client",

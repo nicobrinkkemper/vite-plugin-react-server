@@ -33,6 +33,12 @@ type ResolveAutoDiscoverProps = {
     | "props"
     | "htmlWorkerPath"
     | "rscWorkerPath"
+    | "pageExportName"
+    | "propsExportName"
+    | "htmlExportName"
+    | "rootExportName"  
+    | "Root"
+    | "Html"
   >;
   condition: "react-server" | "react-client";
 };

@@ -56,7 +56,7 @@ export const createHandler: CreateHandlerFn = ((handlerOptions) => {
     const streamResult = createRscStream({
       ...handlerOptions,
       onEvent: adaptedOnEvent,
-      cssFiles: handlerOptions.cssFiles,
+      cssFiles: handlerOptions.cssFiles,  
       PageComponent: handlerOptions.PageComponent,
       pageProps: handlerOptions.pageProps,
     });

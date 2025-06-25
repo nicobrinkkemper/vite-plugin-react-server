@@ -1,0 +1,71 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { resolve } from "path";
+import { mkdir, rm, writeFile } from "fs/promises";
+import { setupTestProject } from "../setup.js";
+import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
+import { doBuild } from "./doBuild.js";
+
+describe("Custom Root Component - String Path", () => {
+  const testDir = resolve(__dirname, "../fixtures/custom-root-string.test");
+  let events: PluginEvent[];
+  let htmlContent: string;
+
+  beforeAll(async () => {
+    await mkdir(testDir, { recursive: true });
+    await setupTestProject(testDir);
+    
+    // Create custom Root component file
+    await writeFile(
+      resolve(testDir, "src", "CustomRoot.tsx"),
+      `
+import React from "react";
+import type { RootFn } from "vite-plugin-react-server/types";
+
+export const Root: RootFn = ({ Page, pageProps = {}, as = "main", cssFiles, ...props }) => {
+  const cssCount = cssFiles ? cssFiles.size : 0;
+  return React.createElement(as as any, { 
+    ...props, 
+    "data-string-root": "true",
+    "data-css-files": cssCount.toString(),
+    role: "main"
+  }, 
+    React.createElement(Page, pageProps)
+  );
+};
+      `.trim()
+    );
+
+    events = await doBuild({
+      projectRoot: testDir,
+      Root: "src/CustomRoot.tsx", // String path reference
+    });
+
+    const htmlEvent = events.find(
+      (e) => e.type === "file.write.done" && e.data.fileType === "html"
+    ) as FileWriteDoneEvent;
+
+    if (htmlEvent) {
+      htmlContent = htmlEvent.data.content;
+    }
+  });
+
+  afterAll(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it("should load Root component from string path", async () => {
+    expect(htmlContent).toBeDefined();
+    expect(htmlContent).toContain('data-string-root="true"');
+  });
+
+  it("should use custom element type from string Root", async () => {
+    expect(htmlContent).toBeDefined();
+    expect(htmlContent).toContain('<main');
+    expect(htmlContent).toContain('role="main"');
+  });
+
+  it("should receive CSS files in string Root component", async () => {
+    expect(htmlContent).toBeDefined();
+    expect(htmlContent).toMatch(/data-css-files="[1-9]\d*"/);
+  });
+}); 

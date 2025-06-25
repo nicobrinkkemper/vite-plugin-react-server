@@ -1,18 +1,42 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
-import type { ResolvedBuildPages, ResolvedUserOptions } from "../../types.js";
+import type { PageName, PropsName, ResolvedBuildPages, ResolvedUserOptions, RootName, HtmlName } from "../../types.js";
 import { resolveUrlOption } from "../resolveUrlOption.js";
 
 let stashedBuildPages: ResolvedBuildPages | null = null;
 let stashedPages: string[] | null = null;
 
+/**
+ * Resolves build pages by calling resolveUrlOption for each page in build.pages.
+ * 
+ * ## BUILD-TIME STATIC DISCOVERY
+ * This function is called during build/startup to:
+ * 1. Take the explicit `build.pages` array (e.g., ["/", "/about", "/products"])
+ * 2. Call `resolveUrlOption` for each page to get file paths
+ * 3. Build static maps (urlMap, pageMap, propsMap, routeMap) for fast runtime lookup
+ * 4. Validate that resolved file paths actually exist on filesystem
+ * 
+ * ## Cache Strategy:
+ * Results are cached (stashedBuildPages) to avoid re-resolving on every build.
+ * Cache is invalidated only when the pages array changes.
+ * 
+ * ## Usage Flow:
+ * - Called by build process and plugin initialization
+ * - Feeds into auto-discovery system to populate urlMap cache
+ * - Enables fast runtime lookup in getRouteFiles.ts without dynamic resolution
+ * 
+ * ## Limitation:
+ * Only works when build.pages is explicitly provided. Without it, the system
+ * falls back to filesystem scanning + dynamic resolution in getRouteFiles.ts.
+ */
 export async function resolveBuildPages({
   pages,
   userOptions,
 }: {
   pages: string[];
-  userOptions: Pick<ResolvedUserOptions, "Page" | "props" | "build" | "moduleBase" | "projectRoot" | "normalizer" | "moduleBasePath">;
+  userOptions: Pick<ResolvedUserOptions, PageName | PropsName | "Root" | "Html" | "build" | "moduleBase" | "projectRoot" | "normalizer" | "moduleBasePath" | "pageExportName" | "propsExportName" | "rootExportName" | "htmlExportName">;
 }): Promise<ResolvedBuildPages> {
+  console.log(`[DEBUG] resolveBuildPages called with pages:`, pages, `Root:`, userOptions.Root, `Html:`, userOptions.Html);
   // Check if pages array has changed
   const pagesChanged =
     !stashedPages ||
@@ -25,7 +49,9 @@ export async function resolveBuildPages({
   const errors: Error[] = [];
   const pageMap = new Map<string, string>();
   const propsMap = new Map<string, string>();
-  const urlMap = new Map<string, { props: string | undefined; page: string }>();
+  const rootMap = new Map<string, string>();
+  const htmlMap = new Map<string, string>();
+  const urlMap = new Map<string, { props: string | undefined; page: string; root?: string; html?: string }>();
   const routeMap = new Map<string, string[]>();
 
   for (const page of pages) {
@@ -35,8 +61,45 @@ export async function resolveBuildPages({
       continue;
     }
     const [pageKey, pageValue] = userOptions.normalizer(pageResult.Page);
+    
+    // Resolve Root component path if defined
+    let rootValue: string | undefined;
+    if (userOptions.Root) {
+      console.log(`[DEBUG] resolveBuildPages - resolving Root for page: ${page}, Root option: ${userOptions.Root}`);
+      const rootResult = await resolveUrlOption(userOptions, "Root", page);
+      if (rootResult.type === "error") {
+        console.log(`[DEBUG] resolveBuildPages - Root resolution failed:`, rootResult.error);
+        errors.push(rootResult.error);
+      } else {
+        const [rootKey, resolvedRootValue] = userOptions.normalizer(rootResult.Root);
+        console.log(`[DEBUG] resolveBuildPages - Root resolved: ${rootResult.Root} -> ${resolvedRootValue}`);
+        rootValue = resolvedRootValue;
+        rootMap.set(rootKey, resolvedRootValue);
+      }
+    } else {
+      console.log(`[DEBUG] resolveBuildPages - No Root option defined`);
+    }
+    
+    // Resolve Html component path if defined
+    let htmlValue: string | undefined;
+    if (userOptions.Html) {
+      console.log(`[DEBUG] resolveBuildPages - resolving Html for page: ${page}, Html option: ${userOptions.Html}`);
+      const htmlResult = await resolveUrlOption(userOptions, "Html", page);
+      if (htmlResult.type === "error") {
+        console.log(`[DEBUG] resolveBuildPages - Html resolution failed:`, htmlResult.error);
+        errors.push(htmlResult.error);
+      } else {
+        const [htmlKey, resolvedHtmlValue] = userOptions.normalizer(htmlResult.Html);
+        console.log(`[DEBUG] resolveBuildPages - Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`);
+        htmlValue = resolvedHtmlValue;
+        htmlMap.set(htmlKey, resolvedHtmlValue);
+      }
+    } else {
+      console.log(`[DEBUG] resolveBuildPages - No Html option defined`);
+    }
+    
     if(!userOptions.props) {
-      urlMap.set(page, { props: undefined, page: pageValue });
+      urlMap.set(page, { props: undefined, page: pageValue, root: rootValue, html: htmlValue });
       pageMap.set(pageKey, pageValue);
       // Add to routeMap
       const routes = routeMap.get(pageValue) || [];
@@ -67,7 +130,7 @@ export async function resolveBuildPages({
           );
         }
       }
-      urlMap.set(page, { props: propsValue, page: pageValue });
+      urlMap.set(page, { props: propsValue, page: pageValue, root: rootValue, html: htmlValue });
       propsMap.set(propsKey, propsValue);
       
       // Add to routeMap for both page and props files
@@ -80,7 +143,7 @@ export async function resolveBuildPages({
       routeMap.set(propsValue, propsRoutes);
     } else {
       // If no props path, use the page path for both
-      urlMap.set(page, { props: undefined, page: pageValue });
+      urlMap.set(page, { props: undefined, page: pageValue, root: rootValue, html: htmlValue });
       
       // Add to routeMap for page file only
       const routes = routeMap.get(pageValue) || [];
@@ -91,7 +154,7 @@ export async function resolveBuildPages({
     pageMap.set(pageKey, pageValue);
   }
 
-  stashedBuildPages = { pageMap, propsMap, urlMap, routeMap, errors };
+  stashedBuildPages = { pageMap, propsMap, rootMap, htmlMap, urlMap, routeMap, errors };
   stashedPages = [...pages];
   return stashedBuildPages;
 }

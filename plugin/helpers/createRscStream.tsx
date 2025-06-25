@@ -11,7 +11,7 @@ import { toError } from "../error/toError.js";
 
 export type CreateRscStreamOptions = Pick<
 CreateHandlerOptions<ResolvedUserOptions>,
-| "Html"
+| "HtmlComponent"
 | "PageComponent"
 | "RootComponent"
 | "pageProps"
@@ -22,11 +22,11 @@ CreateHandlerOptions<ResolvedUserOptions>,
 | "cssFiles"
 | "route"
 | "pipeableStreamOptions"
-| "CssCollector"
 | "globalCss"
 | "manifest"
 | "projectRoot"
 | "verbose"
+| "as"
 > & {
 onEvent?: (
   event: "error" | "postpone",
@@ -53,7 +53,7 @@ export type CreateRscStreamFn = <
 ) => CreateRscStreamReturn   
 
 export const createRscStream: CreateRscStreamFn = function _createRscStream({
-  Html,
+  HtmlComponent,
   PageComponent,
   RootComponent,
   pageProps,
@@ -65,17 +65,17 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
   globalCss = new Map(),
   route,
   pipeableStreamOptions,
-  CssCollector,
   manifest,
   onEvent,
   projectRoot,
   verbose,
+  as = "div",
 }) {
   let errorCount = 0;
   let streamError: Error | null = null;
   const startTime = performance.now();
   try {
-    const htmlIsFragment = Html === React.Fragment;
+    const htmlIsFragment = HtmlComponent === React.Fragment;
     const url = route.startsWith(moduleBaseURL) ? route : moduleBaseURL + route;
 
     if (!PageComponent) {
@@ -87,15 +87,30 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
           bytes: 0,
           backpressureCount: 0,
           drainCount: 0,
-          errorCount: 0,
+          errorCount: 1,
           duration: 0,
           startTime: 0,
         },
       };
     }
+    if(!RootComponent) {
+      return {
+        type: "error",
+        error: new Error("RootComponent is required"),
+        metrics: {
+          chunks: 0,
+          bytes: 0, 
+          backpressureCount: 0,
+          drainCount: 0,
+          errorCount: 1,
+          duration: 0,
+          startTime: 0,
+        },  
+      };
+    }
 
     const elements = htmlIsFragment ? (
-      <CssCollector
+      <RootComponent
         key={route}
         as={React.Fragment}
         cssFiles={cssFiles}
@@ -103,7 +118,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         Page={PageComponent}
       />
     ) : (
-      <Html
+      <HtmlComponent
         moduleBase={moduleBase}
         moduleBaseURL={moduleBaseURL}
         moduleBasePath={moduleBasePath}
@@ -114,10 +129,10 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         pageProps={pageProps}
         cssFiles={cssFiles}
         globalCss={globalCss}
-        CssCollector={CssCollector}
+        Root={RootComponent}
         manifest={manifest}
         Page={PageComponent}
-        as={RootComponent}
+        as={as}
       />
     );
     const stream = ReactDOMServer.renderToPipeableStream(

@@ -2,6 +2,9 @@ import { mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
 
 export async function setupIndexHTML(testDir: string) {
+  await mkdir(testDir, { recursive: true });
+  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await setupClientTSX(testDir);
   await writeFile(
     resolve(testDir, "index.html"),
     `<!DOCTYPE html>
@@ -129,14 +132,9 @@ export const props = (url: string)=>({
 }
 
 export async function setupTestServerActionJS(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
-  await mkdir(resolve(testDir, "src/page"), { recursive: true });
-
   // Use existing setup functions for basic structure
   await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
+
 
   // Create server actions
   await writeFile(
@@ -267,15 +265,9 @@ export const props = async () => {
 }
 
 export async function setupTodoTestProject(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
-  await mkdir(resolve(testDir, "src/page"), { recursive: true });
-  await mkdir(resolve(testDir, "src/components"), { recursive: true });
-
   // Use existing setup functions for basic structure
   await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
 
   // Create server actions
   await writeFile(
@@ -444,26 +436,17 @@ export type Props = Awaited<ReturnType<typeof props>>;`
 }
 
 export async function setupTestProject(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await setupIndexHTML(testDir);
   await mkdir(resolve(testDir, "src/components"), { recursive: true });
 
   // Create test files
-  await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
   await setupServerTSX(testDir);
   await setupPageTSX(testDir);
   await setupPageTSX2(testDir);
 }
 
 export async function setupTestProjectEnv(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
-  await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
   await setupPageTSX2(testDir);
 
   // Create a test page component
@@ -495,12 +478,9 @@ return (
 
 export async function setupTestProjectPropsVariations(testDir: string) {
   // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await setupIndexHTML(testDir);
   await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await mkdir(resolve(testDir, "src/page2"), { recursive: true });
-  await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
   await setupServerTSX(testDir);
 
   // Create a test page component

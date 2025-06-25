@@ -9,7 +9,7 @@ The plugin provides a flexible CSS handling system that allows you to:
 1. **Collect CSS files** from your components and pages
 2. **Inline small CSS files** to reduce HTTP requests
 3. **Link larger CSS files** to avoid bloating HTML
-4. **Customize CSS rendering** with your own CssCollector component
+4. **Customize CSS rendering** with your own Root component
 
 ## CSS Collection Process
 
@@ -64,15 +64,14 @@ Configure CSS handling in your plugin options:
 export const config = {
   // ... other options
   css: {
-    inlineCss: false,           // Global flag to disable inlining
+    inlineCss: false,           // Global flag to disable inlining on threshold
     inlineThreshold: 4096,      // Size threshold in bytes (4KB)
     inlinePatterns: [           // RegExp patterns to force inlining
-      /\.critical\.css$/,
-      /\.module\.css$/
+      /\.inline\.css$/,
     ],
     linkPatterns: [             // RegExp patterns to force linking
-      /node_modules/,
-      /\.large\.css$/
+      /^node_modules/,
+      /^@/           
     ]
   }
 };
@@ -85,63 +84,155 @@ export const config = {
 - **`inlinePatterns`**: RegExp array - files matching these patterns are always inlined
 - **`linkPatterns`**: RegExp array - files matching these patterns are always linked
 
-## CssCollector Component
+## Root Component
 
-The `CssCollector` is responsible for rendering CSS files and the page component. You can use the default implementation or create your own.
+The `Root` is responsible for rendering CSS files and the page component. You can use the default implementation or create your own.
 
-### Default CssCollector
+### Default Root
 
 ```typescript
-import { CssCollectorElements } from "vite-plugin-react-server/components";
+import { Root } from "vite-plugin-react-server/components";
 
-// Use the default implementation
+// Direct component, allowed only when condition is "react-server"
 export const config = {
-  CssCollector: CssCollectorElements
+  moduleBase: 'src',
+  Root: Root
 };
 ```
+You can also use a string path to import the root, this is useful if you want to also use it in the worker.
+```typescript
+export const config = {
+  moduleBase: 'src',
+  // ... rest of config
+  // Your custom Root, resolved during each "resolveOptions" including in rsc-worker
+  Root: "./src/MmcRoot.tsx"
+}
+```
 
-### Custom CssCollector
+Example of custom Root component
+```typescript
+import React from "react";
+import { Css } from "vite-plugin-react-server/components";
+import type { RootProps } from "vite-plugin-react-server/types";
+import { themes } from "./config/themeConfig.js";
+
+// type Theme = "4ymm" | "5ymm" | "6ymm" | "7mmc" | "8mmc" | "9mmc"
+
+const removeableCSS = [
+  "/src/css/4ymm.module.css",
+  "/src/css/5-6ymm.module.css",
+  "/src/css/7mmc.module.css",
+  "/src/css/8mmc.module.css",
+  "/src/css/9mmc.module.css",
+];
+
+const createFilter = (theme: Theme) => {
+  if (theme === "5ymm" || theme === "6ymm") {
+    return [theme, removeableCSS.filter((css) => css.includes("5-6ymm"))];
+  }
+  return [theme, removeableCSS.filter((css) => css.includes(theme))];
+};
+
+const filters = Object.fromEntries(themes.map(createFilter)) as {
+  [key in Theme]: string[];
+};
+
+export const MmcRoot = ({
+  as: Component = 'div',
+  cssFiles,
+  pageProps,
+  Page,
+  ...props
+}: RootProps<
+  {
+    pathInfo: { theme: Theme };
+  }
+>) => {
+  const theme = pageProps.pathInfo.theme;
+  const cssArray = Array.from(cssFiles.values());
+  const removeNonCurrentThemeCss = new Map(
+    cssArray
+      .filter(
+        (file) =>
+          !removeableCSS.includes(file.id) || filters[theme].includes(file.id)
+      )
+      .map((file) => [file.id, file])
+  );
+  return (
+    <Component {...props}>
+      <Page {...pageProps} />
+      <Css cssFiles={removeNonCurrentThemeCss} />
+    </Component>
+  );
+};
+
+```
+
+## Changing export name
+
+You can change the export name "Root":
+```typescript
+export const config = {
+  Root: "src/RenderPage.tsx",
+  rootExportName: "RenderPage",
+}
+```
+Or alternatively
+```typescript
+export const config = {
+  Root: "src/RenderPage.tsx#RenderPage",
+}
+```
+
+### Custom Html
+
+The Root component from the config will always be included in the props for the Html component.
 
 ```typescript
 import React from "react";
-import type { CssCollectorProps } from "vite-plugin-react-server/types";
+import { Css, type HtmlProps } from "vite-plugin-react-server/components";
 
-export const MyCssCollector = ({
-  as: Component = "div",
+export const Html = ({
+  Root,
   cssFiles,
+  globalCss,
+  pageProps = {},
   Page,
-  pageProps,
-  ...props
-}: CssCollectorProps) => {
+}: HtmlProps) => {
+  if (!pageProps.title) {
+    pageProps.title = "No title";
+  }
   return (
-    <Component {...props}>
-      {/* Render CSS files from Map */}
-      {cssFiles && Array.from(cssFiles.values()).map(cssContent => 
-        cssContent.as === "style" ? (
-          <style key={cssContent.id} type={cssContent.type}>
-            {cssContent.children}
-          </style>
-        ) : (
-          <link 
-            key={cssContent.id} 
-            href={cssContent.href} 
-            rel={cssContent.rel}
-            precedence={cssContent.precedence}
-          />
-        )
-      )}
-      
-      {/* Render the page component */}
-      {Page && pageProps && <Page {...pageProps} />}
-    </Component>
+    <html>
+      <head>
+        <Css cssFiles={globalCss} />
+      </head>
+      <body>
+        <Root
+          as={"div"}
+          id="root"
+          cssFiles={cssFiles}
+          Page={Page}
+          pageProps={pageProps}
+        />
+      </body>
+    </html>
   );
 };
 ```
 
-### CssCollectorProps Interface
+This component is used when:
+- Generating a static build, it gets serialized into the index.html and index.rsc files
+- Serving the app using `react-server` condition, serialized into Page rsc requests
+
+The Root is the Root component of the development application. To give the user full control over the final css that gets used,
+the Root is required to render the Page using the provided props. The plugin makes sure that the props will be resolved using the 
+user configuration.
+
+### RootProps Interface
 
 ```typescript
-interface CssCollectorProps<
+interface RootProps<
   As extends keyof JSX.IntrinsicElements = "div",
   InlineCSS extends boolean = boolean,
   PageProps = any
@@ -156,19 +247,19 @@ interface CssCollectorProps<
 
 ## CSS Filtering and Purging
 
-You can filter CSS files in your custom CssCollector to implement CSS purging or conditional loading:
+You can filter CSS files in your custom Root to implement CSS purging or conditional loading:
 
 ```typescript
 import React from "react";
-import { CssCollectorElements } from "vite-plugin-react-server/components";
-import type { CssCollectorProps } from "vite-plugin-react-server/types";
+import { Css } from "vite-plugin-react-server/components";
+import type { RootProps } from "vite-plugin-react-server/types";
 
-export const FilteredCssCollector = ({
+export const FilteredRoot = ({
   cssFiles,
   pageProps,
   Page,
   ...props
-}: CssCollectorProps<"div", boolean, { theme: string }>) => {
+}: RootProps<"div", boolean, { theme: string }>) => {
   // Filter CSS files based on theme
   const filteredCssFiles = new Map();
   
@@ -192,7 +283,7 @@ export const FilteredCssCollector = ({
   return (
     <div {...props}>
       <Page {...pageProps} />
-      <CssCollectorElements cssFiles={filteredCssFiles} />
+      <Css cssFiles={filteredCssFiles} />
     </div>
   );
 };
@@ -200,15 +291,15 @@ export const FilteredCssCollector = ({
 
 ## Usage in Html Component
 
-The CssCollector is typically used within your Html component:
+The Root is typically used within your Html component:
 
 ```typescript
 import React from "react";
 import type { HtmlProps } from "vite-plugin-react-server/types";
-import { CssCollectorElements } from "vite-plugin-react-server/components";
+import { Css } from "vite-plugin-react-server/components";
 
 export const Html = ({
-  CssCollector,
+  Root,
   cssFiles,
   globalCss,
   pageProps,
@@ -217,11 +308,11 @@ export const Html = ({
   <html>
     <head>
       {/* Global CSS (from client entry imports) */}
-      <CssCollectorElements cssFiles={globalCss} />
+      <Css cssFiles={globalCss} />
     </head>
     <body>
       {/* Page-specific CSS and content */}
-      <CssCollector
+      <Root
         as="div"
         id="root"
         cssFiles={cssFiles}
@@ -313,12 +404,12 @@ const filteredCssMap = new Map(filteredCss);
 ### Complete CSS Configuration
 
 ```typescript
-import { MyCssCollector } from "./components/MyCssCollector";
+import { MyRoot } from "./components/MyRoot";
 
 export const config = {
   moduleBase: "src",
   Page: (url) => `src/pages${url}/page.tsx`,
-  CssCollector: MyCssCollector,
+  Root: MyRoot,
   css: {
     inlineCss: true,
     inlineThreshold: 2048, // 2KB
@@ -341,4 +432,4 @@ This configuration will:
 - Inline files smaller than 2KB
 - Always inline critical, module, and inline CSS files
 - Always link vendor and large CSS files
-- Use a custom CssCollector component
+- Use a custom Root component

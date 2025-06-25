@@ -20,7 +20,7 @@ import React from "react";
 import type { ReactStreamHandlerFn } from "../types.js";
 
 // The return type for the function
-export type RenderStreamsReturn = Promise<[ReturnType<CreateHandlerFn>, ReturnType<CreateHandlerFn>]>;
+export type RenderStreamsReturn = [ReturnType<CreateHandlerFn>, ReturnType<CreateHandlerFn>];
 
 // The function signature type
 export type RenderStreamsFn = ReactStreamHandlerFn<RenderStreamsReturn>
@@ -28,8 +28,8 @@ export type RenderStreamsFn = ReactStreamHandlerFn<RenderStreamsReturn>
 /**
  * Creates handlers for both document and RSC streams
  */
-export const renderStreams = ((handler) => {
-  return Promise.all([
+export const renderStreams: RenderStreamsFn = ((handler) => {
+  return [
     /**
      * This stream goes to the document worker for client side rendering with full HTML structure,
      * links are already bubbled up in the static document which required us
@@ -43,5 +43,5 @@ export const renderStreams = ((handler) => {
      * css/head information that can bubble up to the browser's dom)
      */
     createHandler({ ...handler, Html: React.Fragment }),
-  ]);
-}) satisfies RenderStreamsFn;
+  ];
+});

@@ -6,7 +6,7 @@ import type {
 } from "../types.js";
 import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
-import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
+import { resolveComponents } from "../helpers/resolveComponents.js";
 import { createHandler } from "../helpers/createHandler.js";
 import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
@@ -117,22 +117,27 @@ export const configureReactServer: ConfigureReactServerFn =
         }
         const pagePath = routeFiles.page;
         const propsPath = routeFiles.props;
+        const rootPath = routeFiles.root;
+        const htmlPath = routeFiles.html;
 
-        // First load the page and props
-        const pageAndPropsResult = await resolvePageAndProps({
+        // Resolve all components together
+        const componentsResult = await resolveComponents({
           pagePath,
           propsPath,
-          route: info.route,
-          loader: loader as never,
+          rootPath,
+          htmlPath,
           pageExportName: handlerOptions.pageExportName ?? "Page",
           propsExportName: handlerOptions.propsExportName ?? "props",
+          rootExportName: handlerOptions.rootExportName,
+          htmlExportName: handlerOptions.htmlExportName,
+          route: info.route,
+          loader: loader as never,
         });
-        if (pageAndPropsResult.type === "error") {
-          throw pageAndPropsResult.error;
+        if (componentsResult.type === "error") {
+          throw componentsResult.error;
         }
-        if (pageAndPropsResult.type === "skip") {
-          return next();
-        }
+
+        const { PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult;
 
         const eventHandler = createEventHandler(onEvent);
         const intermediateHandlerOptions = {
@@ -158,15 +163,16 @@ export const configureReactServer: ConfigureReactServerFn =
         if (cssFilesResult.type === "error") {
           throw cssFilesResult.error;
         }
-        
-        const { PageComponent, pageProps } = pageAndPropsResult;
 
         const finalHandlerOptions = Object.assign(intermediateHandlerOptions, {
           PageComponent: PageComponent,
           pageProps: pageProps,
+          RootComponent,
+          HtmlComponent,
           cssFiles: cssFilesResult.cssFiles ?? new Map(),
           globalCss: new Map(),
         });
+
         // Create the headless RSC stream directly
         const rscResult = createHandler(finalHandlerOptions);
 
