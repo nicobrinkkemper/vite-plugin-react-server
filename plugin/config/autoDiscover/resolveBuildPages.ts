@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
-import type { PageName, PropsName, ResolvedBuildPages, ResolvedUserOptions, RootName, HtmlName } from "../../types.js";
+import type { PageName, PropsName, ResolvedBuildPages, ResolvedUserOptions } from "../../types.js";
 import { resolveUrlOption } from "../resolveUrlOption.js";
 
 let stashedBuildPages: ResolvedBuildPages | null = null;
