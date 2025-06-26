@@ -27,7 +27,10 @@ export const renderPage: RenderPageFn = async function* _renderPage(
     const metrics = createRenderMetrics(handlerOptions.route);
 
     // Resolve all components together (alongside component resolution like other places)
-    console.log(`[DEBUG] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`);
+    if (handlerOptions.verbose) {
+      console.log(`[renderPage] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`);
+    }
+
     const componentsResult = await resolveComponents({
       pagePath: handlerOptions.pagePath,
       propsPath: handlerOptions.propsPath,
@@ -39,6 +42,7 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       htmlExportName: handlerOptions.htmlExportName,
       route: handlerOptions.route,
       loader: handlerOptions.loader,
+      verbose: handlerOptions.verbose,
       // Use direct component overrides if available (for static builds)
       RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
       HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,

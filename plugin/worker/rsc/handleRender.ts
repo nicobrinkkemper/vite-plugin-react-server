@@ -67,7 +67,8 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       rootExportName: workerData.userOptions.rootExportName,
       htmlExportName: workerData.userOptions.htmlExportName,
       route,
-      loader: loader as BuildModuleLoader<ResolvedUserOptions>, 
+      verbose: workerData.userOptions.verbose,
+      loader: loader as BuildModuleLoader<ResolvedUserOptions>,
     });
     if (componentsResult.type !== "success") {
       const { error, reason } = componentsResult;

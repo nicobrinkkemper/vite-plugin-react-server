@@ -34,6 +34,7 @@ export const configureReactServer: ConfigureReactServerFn =
       onEvent,
       // loader config isn't important here, since that's used by the transformer
       loader: _loaderConfig,
+      verbose,
       // we can use these directly to create the handler
       ...handlerUserOptions
     } = _userOptions;
@@ -95,6 +96,7 @@ export const configureReactServer: ConfigureReactServerFn =
         onEvent: createEventHandler(onEvent),
         css: handlerUserOptions.css,
         loader: loader,
+        verbose,
       };
       const info = requestInfo(req, handlerOptions, "", server.config.logger);
 
@@ -130,6 +132,7 @@ export const configureReactServer: ConfigureReactServerFn =
           htmlExportName: handlerOptions.htmlExportName,
           route: info.route,
           loader: loader as never,
+          verbose,
         });
         if (componentsResult.type === "error") {
           throw componentsResult.error;

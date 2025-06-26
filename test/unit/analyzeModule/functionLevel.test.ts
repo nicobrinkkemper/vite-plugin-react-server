@@ -11,7 +11,6 @@ describe("analyzeModule - function-level directives", () => {
 }`,
       testLoaderConfig
     );
-    console.log("Result:", JSON.stringify(result.directiveInfo, null, 2));
     expect(result.directiveInfo?.functionLevel).toHaveLength(1);
     expect(result.directiveInfo?.functionLevel[0]?.type).toBe("server");
   });

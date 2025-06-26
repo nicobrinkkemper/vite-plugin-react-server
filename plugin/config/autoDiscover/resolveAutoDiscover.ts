@@ -39,6 +39,7 @@ type ResolveAutoDiscoverProps = {
     | "rootExportName"  
     | "Root"
     | "Html"
+    | "verbose"
   >;
   condition: "react-server" | "react-client";
 };
@@ -113,7 +114,10 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
 
     const files = await resolveBuildPages({
       pages,
-      userOptions,
+      userOptions: {
+        ...userOptions,
+        verbose: userOptions.verbose,
+      },
     });
 
     // Load static manifest for client build

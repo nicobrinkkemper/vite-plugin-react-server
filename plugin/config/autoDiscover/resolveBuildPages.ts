@@ -34,9 +34,11 @@ export async function resolveBuildPages({
   userOptions,
 }: {
   pages: string[];
-  userOptions: Pick<ResolvedUserOptions, PageName | PropsName | "Root" | "Html" | "build" | "moduleBase" | "projectRoot" | "normalizer" | "moduleBasePath" | "pageExportName" | "propsExportName" | "rootExportName" | "htmlExportName">;
+  userOptions: Pick<ResolvedUserOptions, PageName | PropsName | "Root" | "Html" | "build" | "moduleBase" | "projectRoot" | "normalizer" | "moduleBasePath" | "pageExportName" | "propsExportName" | "rootExportName" | "htmlExportName" | "verbose">;
 }): Promise<ResolvedBuildPages> {
-  console.log(`[DEBUG] resolveBuildPages called with pages:`, pages, `Root:`, userOptions.Root, `Html:`, userOptions.Html);
+  if (userOptions.verbose) {
+    console.log(`[resolveBuildPages] resolveBuildPages called with pages:`, pages, `Root:`, userOptions.Root, `Html:`, userOptions.Html);
+  }
   // Check if pages array has changed
   const pagesChanged =
     !stashedPages ||
@@ -65,37 +67,53 @@ export async function resolveBuildPages({
     // Resolve Root component path if defined
     let rootValue: string | undefined;
     if (userOptions.Root) {
-      console.log(`[DEBUG] resolveBuildPages - resolving Root for page: ${page}, Root option: ${userOptions.Root}`);
+      if (userOptions.verbose) {
+        console.log(`[resolveBuildPages] resolveBuildPages - resolving Root for page: ${page}, Root option: ${userOptions.Root}`);
+      }
       const rootResult = await resolveUrlOption(userOptions, "Root", page);
       if (rootResult.type === "error") {
-        console.log(`[DEBUG] resolveBuildPages - Root resolution failed:`, rootResult.error);
+        if (userOptions.verbose) {
+          console.log(`[resolveBuildPages] resolveBuildPages - Root resolution failed:`, rootResult.error);
+        }
         errors.push(rootResult.error);
       } else {
         const [rootKey, resolvedRootValue] = userOptions.normalizer(rootResult.Root);
-        console.log(`[DEBUG] resolveBuildPages - Root resolved: ${rootResult.Root} -> ${resolvedRootValue}`);
+        if (userOptions.verbose) {
+          console.log(`[resolveBuildPages] resolveBuildPages - Root resolved: ${rootResult.Root} -> ${resolvedRootValue}`);
+        }
         rootValue = resolvedRootValue;
         rootMap.set(rootKey, resolvedRootValue);
       }
     } else {
-      console.log(`[DEBUG] resolveBuildPages - No Root option defined`);
+      if (userOptions.verbose) {
+        console.log(`[resolveBuildPages] resolveBuildPages - No Root option defined`);
+      }
     }
     
     // Resolve Html component path if defined
     let htmlValue: string | undefined;
     if (userOptions.Html) {
-      console.log(`[DEBUG] resolveBuildPages - resolving Html for page: ${page}, Html option: ${userOptions.Html}`);
+      if (userOptions.verbose) {
+        console.log(`[resolveBuildPages] resolveBuildPages - resolving Html for page: ${page}, Html option: ${userOptions.Html}`);
+      }
       const htmlResult = await resolveUrlOption(userOptions, "Html", page);
       if (htmlResult.type === "error") {
-        console.log(`[DEBUG] resolveBuildPages - Html resolution failed:`, htmlResult.error);
+        if (userOptions.verbose) {
+          console.log(`[resolveBuildPages] resolveBuildPages - Html resolution failed:`, htmlResult.error);
+        }
         errors.push(htmlResult.error);
       } else {
         const [htmlKey, resolvedHtmlValue] = userOptions.normalizer(htmlResult.Html);
-        console.log(`[DEBUG] resolveBuildPages - Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`);
+        if (userOptions.verbose) {
+          console.log(`[resolveBuildPages] resolveBuildPages - Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`);
+        }
         htmlValue = resolvedHtmlValue;
         htmlMap.set(htmlKey, resolvedHtmlValue);
       }
     } else {
-      console.log(`[DEBUG] resolveBuildPages - No Html option defined`);
+      if (userOptions.verbose) {
+        console.log(`[resolveBuildPages] resolveBuildPages - No Html option defined`);
+      }
     }
     
     if(!userOptions.props) {
@@ -156,7 +174,9 @@ export async function resolveBuildPages({
 
   // If there are no pages but custom components are defined, resolve them for a default route
   if (pages.length === 0 && (userOptions.Root || userOptions.Html)) {
-    console.log(`[DEBUG] resolveBuildPages - No pages but custom components defined, resolving for default route`);
+    if (userOptions.verbose) {
+      console.log(`[resolveBuildPages] resolveBuildPages - No pages but custom components defined, resolving for default route`);
+    }
     const defaultPage = "/";
     
     // Resolve Root component for default route
@@ -164,7 +184,9 @@ export async function resolveBuildPages({
       const rootResult = await resolveUrlOption(userOptions, "Root", defaultPage);
       if (rootResult.type === "success") {
         const [rootKey, resolvedRootValue] = userOptions.normalizer(rootResult.Root);
-        console.log(`[DEBUG] resolveBuildPages - Default Root resolved: ${rootResult.Root} -> ${resolvedRootValue}`);
+        if (userOptions.verbose) {
+          console.log(`[resolveBuildPages] resolveBuildPages - Default Root resolved: ${rootResult.Root} -> ${resolvedRootValue}`);
+        }
         rootMap.set(rootKey, resolvedRootValue);
       }
     }
@@ -174,7 +196,9 @@ export async function resolveBuildPages({
       const htmlResult = await resolveUrlOption(userOptions, "Html", defaultPage);
       if (htmlResult.type === "success") {
         const [htmlKey, resolvedHtmlValue] = userOptions.normalizer(htmlResult.Html);
-        console.log(`[DEBUG] resolveBuildPages - Default Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`);
+        if (userOptions.verbose) {
+          console.log(`[resolveBuildPages] resolveBuildPages - Default Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`);
+        }
         htmlMap.set(htmlKey, resolvedHtmlValue);
       }
     }
