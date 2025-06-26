@@ -7,6 +7,7 @@ const resolvedTestConfig = {
   Page: "src/page/page.tsx",
   props: "src/page/props.ts",
   pageExportName: "Page",
+  propsExportName: "props",
   moduleBasePath: '/',
   moduleBaseURL: '/',
   verbose: false,

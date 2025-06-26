@@ -1,19 +1,42 @@
 # Troubleshooting Guide
 
-This guide covers common issues and solutions when using the Vite React Server Plugin.
+This guide covers common errors, gotchas, and solutions when working with the Vite React Server Plugin.
 
-## Common Issues
+## Common Errors and Solutions
 
-### React Version Compatibility
+### 🔍 **Missing Detailed Stack Traces**
 
-**Problem**: TypeScript errors about React types not being compatible.
+**Problem**: You're not seeing detailed error information in the browser.
 
+**Solution**: Open the browser's Developer Console (F12) to see full stack traces and error details.
+
+**Why**: The plugin streams detailed error information to the console, not just the rendered page.
+
+### 📦 **@types/react Version Mismatch**
+
+**Problem**: TypeScript errors or runtime issues, especially when using linked packages.
+
+**Error Examples**:
 ```
+Type 'X' is not assignable to type 'Y'
+Cannot find module 'react'
 'Root' cannot be used as a JSX component.
 Its type 'ComponentType<RootProps>' is not a valid JSX element type.
 ```
 
-**Solution**: The plugin uses generic types to avoid React version conflicts. Make sure you're using the correct type imports:
+**Solution**: Ensure all React-related packages have matching versions:
+
+```json
+{
+    "react": "^0.0.0-experimental-0ff1d13b-20250507",
+    "react-dom": "^0.0.0-experimental-0ff1d13b-20250507",
+    "react-server-dom-esm": "^0.0.1",
+    "@types/react": "^19.0.9",
+    "@types/react-dom": "^19.0.3",
+}
+```
+
+**For React Version Compatibility**: The plugin uses generic types to avoid React version conflicts. Make sure you're using the correct type imports:
 
 ```tsx
 import React from "react";
@@ -46,7 +69,104 @@ export const Html = ({
 );
 ```
 
-### Build Errors
+### 🔧 **Postinstall Script Didn't Run**
+
+**Problem**: Patches not applied after `npm install some-package`.
+
+**Error**: `react-server-dom-esm` related errors or missing functionality.
+
+**Solution**: 
+The postinstall only runs after `npm install` without arguments. Assuming your `package.json` already has:
+```json
+{
+  "scripts": {
+    "postinstall": "patch-package"
+  }
+}
+```
+You could run
+```sh
+npm install some-thing;
+npm run postinstall
+```
+
+### 🚫 **"use client" Directive Issues**
+
+**Problem**: Client components not working or throwing errors.
+
+**Common Issues**:
+- Missing `"use client"` at the top of client component files
+- Client components imported from server components without `.client.` suffix
+- Client components used as boundaries between server and client code
+
+**Solution**: 
+1. Ensure client components have `"use client"` as the first line
+2. Use `.client.` suffix in filenames for auto-discovery
+3. Check component boundaries
+
+**Directive Placement**: Ensure directives are placed correctly:
+
+```tsx
+"use server";
+// ✅ Correct - at the top of the file
+
+export async function serverAction() {
+  // server code
+}
+
+// ❌ Incorrect - after other statements
+const x = 1;
+"use server"; // This won't work
+```
+
+For function-level directives:
+
+```tsx
+export async function serverAction() {
+  "use server"; // ✅ Function-level directive
+  // server code
+}
+```
+
+### 🔄 **Worker Thread Errors**
+
+**Problem**: Worker processes hanging or crashing.
+
+**Common Causes**:
+- Worker startup taking too long (especially on slower machines)
+- RSC requests timing out before completion
+- Worker shutdown not properly cleaning up resources
+
+**Solutions**:
+1. **Worker startup timeout**: If workers take too long to start, increase `htmlWorkerStartupTimeout` and `rscWorkerStartupTimeout` in your config
+2. **RSC request timeout**: If RSC requests are timing out, increase `rscTimeout` (default 5000ms)
+3. **Worker cleanup**: Ensure workers are properly terminated - the plugin now handles this automatically
+
+**Timeout Configuration Options**:
+```ts
+export const config = {
+  // ... other config
+  htmlWorkerStartupTimeout: 10000, // 10 seconds for HTML worker startup
+  rscWorkerStartupTimeout: 10000,  // 10 seconds for RSC worker startup  
+  rscTimeout: 10000,               // 10 seconds for RSC request completion
+};
+```
+
+### 🌐 **Environment Variable Issues**
+
+**Problem**: Plugin not detecting correct environment.
+
+**Solution**: The plugin automatically detects the environment based on `NODE_OPTIONS`. For server-side rendering, ensure your build scripts include:
+
+```json
+{
+  "scripts": {
+    "build:server": "NODE_OPTIONS='--conditions react-server' vite build"
+  }
+}
+```
+
+### 🏗️ **Build Errors**
 
 **Problem**: Build fails with "rules of hooks" errors during static generation.
 
@@ -70,244 +190,116 @@ npm run build:client  # Client-side rendering
 npm run build:server  # Server components and actions
 ```
 
-### Directive Issues
+### 📁 **Module Resolution Errors**
 
-**Problem**: `"use server"` or `"use client"` directives not working.
+**Problem**: Cannot find modules or incorrect imports.
 
-**Solution**: Ensure directives are placed correctly:
+**Common Issues**:
+- Missing `.js` extensions in imports
+- Incorrect module paths
+- Case sensitivity issues
 
-```tsx
-"use server";
-// ✅ Correct - at the top of the file
+**Solution**:
+1. Always use `.js` extensions in imports (even for TypeScript files)
+2. Use absolute paths from project root
+3. Check file casing matches exactly
 
-export async function serverAction() {
-  // server code
-}
+### 🎨 **CSS Collection Issues**
 
-// ❌ Incorrect - after other statements
-const x = 1;
-"use server"; // This won't work
-```
+**Problem**: Styles not loading or CSS not collected properly.
 
-For function-level directives:
+**Solutions**:
+1. Ensure CSS files are imported in server components
+2. Check CSS collector configuration
+3. Verify CSS file paths are correct
 
-```tsx
-export async function serverAction() {
-  "use server"; // ✅ First statement in function
-  return await database.query();
-}
-```
+### 🔗 **Server Actions Not Working**
 
-### CSS Issues
+**Problem**: Server actions throwing errors or not executing.
 
-**Problem**: CSS not loading or styles missing.
+**Common Issues**:
+- Missing `"use server"` directive
+- Incorrect import paths
+- Form action configuration
 
-**Solution**: Check your CSS collector configuration:
+**Solution**:
+1. Ensure `"use server"` is at the top of server action files
+2. Use correct import paths with `.js` extensions
+3. Check form action configuration
 
-```tsx
-import React from "react";
-import { Css } from "vite-plugin-react-server/components";
-import type { HtmlProps } from "vite-plugin-react-server/types";
+### ⚡ **Build Performance Issues**
 
-export const Html = ({ 
-  Root, 
-  cssFiles, 
-  globalCss, 
-  Page, 
-  pageProps 
-}: HtmlProps) => (
-  <html>
-    <head>
-      <Css cssFiles={globalCss} />
-    </head>
-    <body>
-      <Root
-        as="div"
-        cssFiles={cssFiles}
-        Page={Page}
-        pageProps={pageProps}
-      />
-    </body>
-  </html>
-);
-```
+**Problem**: Slow builds or memory issues.
 
-importing syntax in the client entry indicates globalCss:
+**Solutions**:
+1. Use separate build steps for large applications
+2. Optimize CSS collection
+3. Consider disabling unused features
+4. Use production mode for final builds
 
-```tsx
-import "globalStyles.css";
-// src/client.tsx
-```
+### 🔍 **Debugging Tips**
 
-in index.html:
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Vite React Stream</title>
-</head>
-<body>
-    <div id="root"></div>
-    <script type="module" src="/src/client.tsx"></script> <!-- this will be a client entry  -->
-</body>
-</html>
-```
-
-### Worker Issues
-
-**Problem**: RSC worker timing out or hanging.
-
-**Solution**: Check worker configuration and timeout settings:
+#### Enable Verbose Logging
 
 ```ts
 export const config = {
-  rscTimeout: 10000, // Increase timeout
-  rscWorkerStartupTimeout: 5000,
-  htmlWorkerStartupTimeout: 5000,
   // ... other config
-};
-```
-
-## Debugging Tips
-
-### Enable Verbose Logging
-
-```ts
-export const config = {
   verbose: true,
-  onEvent: (event) => {
-    console.log(`[Plugin] ${event.type}:`, event);
-  },
-  onMetrics: (metrics) => {
-    console.log(`[Plugin] Metrics:`, metrics);
-  },
 };
 ```
 
-### Check Build Events
+#### Check Worker Logs
 
-Monitor build events to understand what's happening:
+Look for worker-related messages in the console for debugging worker issues.
 
-```ts
-const events: PluginEvent[] = [];
+#### Use Error Boundaries
 
-export const config = {
-  onEvent: (event) => {
-    events.push(event);
-    console.log("Build Event:", event.type);
-  },
-};
+Wrap problematic components in error boundaries to isolate issues:
+
+```tsx
+"use client";
+import { ErrorBoundary } from "./ErrorBoundary.client.js";
+
+export function Page() {
+  return (
+    <ErrorBoundary>
+      <ProblematicComponent />
+    </ErrorBoundary>
+  );
+}
 ```
 
-### Source Map Debugging
+### 🚨 **Common Gotchas**
 
-The plugin preserves source maps for debugging. Check that your build tools are configured to use them:
+1. **File Extensions**: You can simply always use `.js` extensions in imports, even for TypeScript files
+2. **Client Components**: Must have `"use client"` directive and `.client.` suffix for auto-discovery
+3. **Server Actions**: Must have `"use server"` directive at the top of the file or at beginning of the function
+4. **Environment Detection**: Plugin behavior changes based on `NODE_OPTIONS`
+5. **Worker Timeouts**: Adjust timeouts for large applications or slow development machines
+6. **CSS Collection**: CSS must be imported in server components to be collected
+7. **Module Resolution**: Use absolute paths and correct casing for imports
 
-```ts
-// vite.config.ts
-export default defineConfig({
-  build: {
-    sourcemap: true,
-  },
-});
-```
+### 🔧 **Getting Help**
 
-### Test Your Setup
+If you're still experiencing issues:
 
-Use the plugin's test utilities to verify your setup:
+1. Check the [GitHub Issues](https://github.com/nicobrinkkemper/vite-plugin-react-server/issues)
+2. Review the [API Reference](./api-reference.md)
+3. Look at [example projects](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
+4. Enable verbose logging and check console output
+5. Create a minimal reproduction case
 
-```ts
-import { doBuild } from "vite-plugin-react-server/test";
+### 📋 **Checklist for New Projects**
 
-// Test your configuration
-const events = await doBuild({
-  projectRoot: "./",
-  build: { pages: ["/"] },
-});
-
-console.log("Build events:", events);
-```
-
-## Performance Optimization
-
-### Large HTML Output
-
-For large HTML files, monitor memory usage:
-
-```ts
-export const config = {
-  onMetrics: (metrics) => {
-    if (metrics.htmlSize > 1000000) { // 1MB
-      console.warn("Large HTML detected:", metrics);
-    }
-  },
-};
-```
-
-### CSS Optimization
-
-Configure CSS inlining thresholds:
-
-```ts
-export const config = {
-  css: {
-    inlineThreshold: 4096, // 4KB
-    inlinePatterns: [/\.critical\.css$/],
-    linkPatterns: [/node_modules/],
-  },
-};
-```
-
-### Bundle Analysis
-
-Analyze your build output:
-
-```bash
-# Check build sizes
-ls -la dist/static/
-ls -la dist/client/
-ls -la dist/server/
-
-# Analyze bundle composition
-npx vite-bundle-analyzer dist/static
-```
-
-## Error Messages
-
-### Common Error Patterns
-
-1. **"Attempted to call [Component] from the server but [Component] is on the client"**
-   - This is expected behavior for client components
-   - The error is only thrown if you actually try to call the component function
-
-2. **"Cannot use both 'use client' and 'use server' directives"**
-   - Remove one of the conflicting directives
-   - Choose based on where the code should run
-
-3. **"Directive must be at the top of the file"**
-   - Move the directive before any other statements
-   - Remove any comments or whitespace before the directive
-
-### Development vs Production
-
-Some errors only appear in development mode:
-
-```bash
-# See full error details
-NODE_ENV=development npm run dev
-
-# Production mode (errors are hidden)
-NODE_ENV=production npm run build
-```
-
-## Getting Help
-
-If you encounter issues not covered here:
-
-1. Check the [test suite](https://github.com/nicobrinkkemper/vite-plugin-react-server/tree/main/test) for examples
-2. Review the [API documentation](./api-reference.md)
-3. Look at the [example projects](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
-4. File an issue on [GitHub](https://github.com/nicobrinkkemper/vite-plugin-react-server/issues)
+- [ ] All React packages have matching versions
+- [ ] Postinstall script is configured
+- [ ] Patches are applied (`npm run patch`)
+- [ ] Environment variables are set correctly
+- [ ] Client components have `"use client"` directive
+- [ ] Server actions have `"use server"` directive
+- [ ] Import paths use `.js` extensions
+- [ ] CSS files are imported in server components
+- [ ] Error boundaries are in place for debugging
 
 ## Diagnostic Commands
 

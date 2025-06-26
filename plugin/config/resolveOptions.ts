@@ -503,7 +503,21 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     allowedDirectives: allowedDirectives,
     getDirectiveType:
       options.loader?.getDirectiveType ??
-      DEFAULT_LOADER_CONFIG.getDirectiveType,
+      options.loader?.allowedDirectives ?
+      (directive: string) => {
+        if (options.loader?.allowedDirectives) {
+          if (Array.isArray(options.loader?.allowedDirectives)) {
+            return options.loader?.allowedDirectives.includes(directive) ? 
+              (directive === "use server" ? "server" : "client") : undefined;
+          } else {
+            const config = options.loader?.allowedDirectives[directive];
+            return config ? 
+              (directive === "use server" ? "server" : "client") : undefined;
+          }
+        }
+        return undefined;
+      }
+      : DEFAULT_LOADER_CONFIG.getDirectiveType,
     mode: loaderMode,
     importServerPath:
       options.loader?.importServerPath ??

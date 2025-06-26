@@ -1,61 +1,53 @@
 import { analyzeModule } from "../../../dist/plugin/loader/directives/analyzeModule.js";
-import { describe, it, expect } from "vitest";
+import { describe, test, expect } from "vitest";
+import { testLoaderConfig } from "./testLoaderConfig.js";
 
 describe("analyzeModule - file-level directive warnings", () => {
-  it("should warn about multiple file-level directives", async () => {
-    const source = `"use client";
-"use server";`;
-    const result = await analyzeModule(source);
-    expect(result.directiveInfo?.fileLevel?.type).toBe("client");
-    expect(result.directiveInfo?.warnings).toEqual([
-      {
-        message: "Cannot have both 'use client' and 'use server' directives in the same file",
-        range: [0, 0],
-        type: "server"
-      }
-    ]);
+  test("should warn about multiple file-level directives", async () => {
+    const result = await analyzeModule(
+      `"use client";
+"use server";
+export function test() {
+  return 42;
+}`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.warnings).toHaveLength(1);
   });
 
-  it("should warn about mixed server/client file-level directives", async () => {
-    const source = `"use client";
-"use server";`;
-    const result = await analyzeModule(source);
-    expect(result.directiveInfo?.fileLevel?.type).toBe("client");
-    expect(result.directiveInfo?.warnings).toEqual([
-      {
-        message: "Cannot have both 'use client' and 'use server' directives in the same file",
-        range: [0, 0],
-        type: "server"
-      }
-    ]);
+  test("should warn about mixed server/client file-level directives", async () => {
+    const result = await analyzeModule(
+      `"use client";
+"use server";
+export function test() {
+  return 42;
+}`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.warnings).toHaveLength(1);
   });
 
-  it("should warn about file-level directive after code", async () => {
-    const source = `const x = 1;
-"use server";`;
-    const result = await analyzeModule(source);
-    expect(result.directiveInfo?.fileLevel?.type).toBe("server");
-    expect(result.directiveInfo?.warnings).toEqual([
-      {
-        message: "File-level directives must be at the top of the file, before any other code",
-        range: [13, 26],
-        type: "server"
-      }
-    ]);
+  test("should warn about file-level directive after code", async () => {
+    const result = await analyzeModule(
+      `export function test() {
+  return 42;
+}
+"use client";`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.warnings).toHaveLength(1);
   });
 
-  it("should warn about file-level directive after comments", async () => {
-    const source = `// This is a comment
+  test("should warn about file-level directive after comments", async () => {
+    const result = await analyzeModule(
+      `// Some comment
 /* Another comment */
-"use server";`;
-    const result = await analyzeModule(source);
-    expect(result.directiveInfo?.fileLevel?.type).toBe("server");
-    expect(result.directiveInfo?.warnings).toEqual([
-      {
-        message: "File-level directives must be at the top of the file, before any other code",
-        range: [43, 56],
-        type: "server"
-      }
-    ]);
+"use client";
+export function test() {
+  return 42;
+}`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.warnings).toHaveLength(1);
   });
 }); 

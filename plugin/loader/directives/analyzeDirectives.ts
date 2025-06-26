@@ -64,7 +64,9 @@ export function analyzeDirectives(
       }
 
       if (directive) {
-        const type = directive === "use server" ? "server" : "client";
+        const getDirectiveType = optionsOrMatches != null && 'loader' in optionsOrMatches ? optionsOrMatches.loader?.getDirectiveType : undefined;
+        const type = getDirectiveType?.(directive) ?? 
+          (directive === "use server" ? "server" : "client");
         if (!firstDirective) {
           firstDirective = { type, range: [node.start!, node.end!] };
         } else {

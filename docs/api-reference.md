@@ -1,83 +1,122 @@
 # API Reference
 
-This document provides a complete reference for the Vite React Server Plugin API.
+This document provides a comprehensive reference for the Vite React Server Plugin's API.
 
-## Plugin Configuration
+## Plugin Options
 
-### StreamPluginOptions
+The plugin accepts a configuration object that satisfies the `StreamPluginOptions` type:
 
-The main configuration interface for the plugin:
+```ts
+import type { StreamPluginOptions } from "vite-plugin-react-server/types";
 
-```typescript
-interface StreamPluginOptions<
-  PageProps = any,
-  InlineCSS extends boolean = boolean,
-  As extends keyof JSX.IntrinsicElements = "div",
-  ReactType = any
-> {
-  // Required options
-  moduleBase: string;
-  Page: (url: string) => string;
-  
-  // Optional configurations
-  props?: (url: string) => string;
-  Html?: React.ComponentType<HtmlProps<PageProps, InlineCSS, As, ReactType>>;
-  Root?: RootFn<As, InlineCSS, PageProps, ReactType>;
-  build?: BuildConfig;
-  css?: CssConfig;
-  
-  // Monitoring and debugging
-  verbose?: boolean;
-  onEvent?: (event: PluginEvent) => void;
-  onMetrics?: (metrics: BuildMetrics) => void;
-  
-  // Timeouts (in milliseconds)
-  rscTimeout?: number; // Default: 5000
-  htmlWorkerStartupTimeout?: number; // Default: 3000
-  rscWorkerStartupTimeout?: number; // Default: 3000
-  
-  // Advanced options
-  moduleBaseExceptions?: string[];
-  reactDirectives?: Set<string>;
-  devPort?: number; // Default: 5173
-  previewPort?: number; // Default: 4173
-  devHost?: string; // Default: "localhost"
-  previewHost?: string; // Default: "localhost"
-}
+export const config = {
+  moduleBase: 'src',
+  // ... options
+} satisfies StreamPluginOptions;
 ```
 
-### Default Values
+### Core Options
 
-```typescript
-const DEFAULT_CONFIG = {
-  RSC_TIMEOUT: 5000, // 5 seconds
-  HTML_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds
-  RSC_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds
-  DEV_PORT: 5173,
-  PREVIEW_PORT: 4173,
-  DEV_HOST: "localhost",
-  PREVIEW_HOST: "localhost",
-  VERBOSE: false,
-  REACT_DIRECTIVES: new Set(["use client", "use server"]),
-  CSS: {
-    inlineCss: false,
-    purgeCss: false,
-    inlineThreshold: 4096, // 4KB
-    inlinePatterns: [],
-    linkPatterns: [],
-  },
-  BUILD: {
-    pages: [],
-    client: "client",
-    server: "server",
-    static: "static",
-    outDir: "dist",
-    assetsDir: "assets",
-    rscOutputPath: "index.rsc",
-    htmlOutputPath: "index.html",
-  }
-};
-```
+| Option | Type | Description | Example |
+|--------|------|-------------|---------|
+| `moduleBase` | `string` | Root directory for project modules | `"src"` |
+| `moduleBasePath` | `string` | Second argument to `renderToPipeableStream` | `"/my-repo/"` |
+| `moduleBaseURL` | `string` | Requests from this base | `"/my-repo/"` |
+| `publicOrigin` | `string` | Origin for moduleBaseURL | `"https://username.github.io"` |
+| `Page` | `(url: string) => string` | Maps URLs to page component files | - |
+| `props` | `(url: string) => string` | Maps URLs to props files | - |
+| `Html` | `React.ComponentType<HtmlProps>` | Wrapper component for production pages | - |
+| `pageExportName` | `string` | Name of the page export | `"Page"` |
+| `propsExportName` | `string` | Name of the props export | `"props"` |
+| `htmlWorkerPath` | `string` | Path to custom HTML worker | - |
+| `rscWorkerPath` | `string` | Path to custom RSC worker | - |
+| `CssCollector` | `React.ComponentType<CssCollectorProps>` | Component for collecting CSS (handles both inline and non-inline modes) | - |
+| `build` | `BuildOptions` | Build configuration | - |
+| `css` | `CssOptions` | CSS handling configuration | - |
+| `verbose` | `boolean` | Enable verbose logging | `true` |
+| `rscTimeout` | `number` | Timeout in milliseconds for RSC operations | `5000` |
+| `htmlWorkerStartupTimeout` | `number` | Timeout in milliseconds for HTML worker startup | `5000` |
+| `rscWorkerStartupTimeout` | `number` | Timeout in milliseconds for RSC worker startup | `5000` |
+| `onMetrics` | `(metrics: RenderMetrics) => void` | Callback for build metrics | - |
+| `onEvent` | `(event: PluginEvent) => void` | Callback for plugin events | - |
+| `normalizer` | `InputNormalizer` | Custom input normalizer | - |
+| `moduleID` | `(id: string) => string` | Custom module ID transformer | - |
+| `pipeableStreamOptions` | `ReactServerDomEsmOptions` | Options for React's renderToPipeableStream | - |
+
+### Build Options
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `pages` | `string[]` | Routes to generate | `[]` |
+| `dir` | `string` | Base directory | `"dist"` |
+| `client` | `string` | Client assets directory | `"client"` |
+| `server` | `string` | Server assets directory | `"server"` |
+| `static` | `string` | Static output directory | `"static"` |
+| `hash` | `string` | Hash for client files | `"hash"` |
+| `preserveModulesRoot` | `boolean` | Enable module base preservation in production builds | `false` |
+| `assetsDir` | `string` | Assets directory | `"assets"` |
+| `api` | `string` | API output directory | `"api"` |
+| `outDir` | `string` | Output directory | `"dist"` |
+| `preserveDirectives` | `boolean` | Preserve directives in output | `false` |
+| `rscOutputPath` | `string` | RSC output filename | `"index.rsc"` |
+| `htmlOutputPath` | `string` | HTML output filename | `"index.html"` |
+| `entryFile` | `(chunk: PreRenderedChunk, ssr: boolean) => string` | Custom entry file naming | - |
+| `chunkFile` | `(chunk: PreRenderedChunk, ssr: boolean) => string` | Custom chunk file naming | - |
+| `assetFile` | `(asset: PreRenderedAsset, ssr: boolean) => string` | Custom asset file naming | - |
+| `extensionMap` | `Record<string, string>` | Custom file extensions | - |
+| `moduleExtension` | `string` | Module file extension | `".js"` |
+| `jsExtension` | `string` | JavaScript file extension | `".js"` |
+| `cssExtension` | `string` | CSS file extension | `".css"` |
+| `htmlExtension` | `string` | HTML file extension | `".html"` |
+| `jsonExtension` | `string` | JSON file extension | `".json"` |
+| `rscExtension` | `string` | RSC file extension | `".rsc"` |
+| `cssModuleExtension` | `string` | CSS module file extension | `".css.js"` |
+| `nodeExtension` | `string` | Node.js file extension | `".node"` |
+
+### CSS Options
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `inlineCss` | `boolean` | Inline CSS in HTML | `true` |
+| `inlineThreshold` | `number` | Size threshold for inlining (bytes) | `4096` |
+| `inlinePatterns` | `RegExp[]` | Patterns for files to always inline | `[]` |
+| `linkPatterns` | `RegExp[]` | Patterns for files to always link | `[]` |
+
+### Loader Options
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `importServerPath` | `string` | Path for server imports | `"vite-plugin-react-server/loader"` |
+| `importClientPath` | `string` | Path for client imports | `"vite-plugin-react-server/loader"` |
+| `registerClientReferenceName` | `string` | Name for client reference registration | `"registerClientReference"` |
+| `registerServerReferenceName` | `string` | Name for server reference registration | `"registerServerReference"` |
+| `serverDirective` | `RegExp` | Pattern to match server directives | `/^"use server"$/` |
+| `clientDirective` | `RegExp` | Pattern to match client directives | `/^"use client"$/` |
+| `directivePattern` | `RegExp` | General pattern for directives | `/^"use (server|client)"$/` |
+| `allowedDirectives` | `string[]` | List of allowed directive names | `["use server", "use client"]` |
+| `mode` | `"development" \| "production" \| "test"` | Loader mode | `"development"` |
+| `isServerFunctionCode` | `(code: string, moduleId?: string) => boolean` | Custom server function detection | - |
+| `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client component detection | - |
+| `getDirectiveType` | `(directive: string, moduleId?: string) => "client" \| "server" \| undefined` | Custom directive type detection | - |
+
+### Auto-Discovery Options
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| `cssPattern` | `RegExp \| string` | Pattern to match CSS files | `/\.css$/` |
+| `cssModulePattern` | `RegExp \| string` | Pattern to match CSS module files | `/\.css\.js$/` |
+| `clientPattern` | `RegExp \| string` | Pattern to match client component files | `/\.client\.(js\|ts\|jsx\|tsx)$/` |
+| `serverPattern` | `RegExp \| string` | Pattern to match server function files | `/\.server\.(js\|ts\|jsx\|tsx)$/` |
+| `htmlPattern` | `RegExp \| string` | Pattern to match HTML files | `/\.html$/` |
+| `jsonPattern` | `RegExp \| string` | Pattern to match JSON files | `/\.json$/` |
+| `modulePattern` | `RegExp \| string` | Pattern to match module files | `/\.(js\|ts\|jsx\|tsx)$/` |
+| `rscPattern` | `RegExp \| string` | Pattern to match RSC files | `/\.rsc$/` |
+| `pagePattern` | `RegExp \| string` | Pattern to match page files | `/[Pp]age\.(js\|ts\|jsx\|tsx)$/` |
+| `propsPattern` | `RegExp \| string` | Pattern to match props files | `/[Pp]rops\.(js\|ts\|jsx\|tsx)$/` |
+| `dotPattern` | `RegExp \| string` | Pattern to match dot files | `/^\.[^/]+$/` |
+| `nodePattern` | `RegExp \| string` | Pattern to match Node.js native modules | `/\.node$/` |
+| `vendorPattern` | `RegExp \| string` | Pattern to match vendor files | `/node_modules\|_virtual/` |
+| `virtualPattern` | `RegExp \| string` | Pattern to match virtual files | `/^virtual:/` |
 
 ## Component Props
 
