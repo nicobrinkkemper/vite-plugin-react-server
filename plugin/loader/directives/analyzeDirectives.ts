@@ -125,7 +125,17 @@ export function analyzeDirectives(
         body.body[0].expression.value === directiveValue;
 
       if (isAtStart) {
-        functionNodes.push({ node, match });
+        // Only allow server directives in function-level contexts
+        if (match.type === "server") {
+          functionNodes.push({ node, match });
+        } else {
+          // Generate warning for client directives in functions
+          directiveInfo.warnings.push({
+            message: "Function-level 'use client' isn't allowed",
+            range: match.range,
+            type: "client"
+          });
+        }
         break;
       }
     }
@@ -153,9 +163,15 @@ export function analyzeDirectives(
           range: func.range,
           type: "server"
         });
+      } else if (func.type !== "server") {
+        directiveInfo.warnings.push({
+          message: `Function-level directives should be 'use server', but got 'use ${func.type}'`,
+          range: func.range,
+          type: "client"
+        });
       } else {
         directiveInfo.warnings.push({
-          message: `'use ${func.type}' is already defined at the top of the file, this function-level directive should be removed.`,
+          message: `'use server' is already defined at the top of the file, this function-level directive should be removed.`,
           range: func.range,
           type: "server"
         });

@@ -18,7 +18,6 @@ describe("RSC Server", () => {
   beforeAll(async () => {
     // Clean up and create test directory
     await rm(testDir, { recursive: true, force: true });
-    await mkdir(testDir, { recursive: true });
     await setupTestProjectEnv(testDir);
     try {
       // Start the server

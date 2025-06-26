@@ -8,7 +8,6 @@ import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { resolveComponents } from "../helpers/resolveComponents.js";
 import { createHandler } from "../helpers/createHandler.js";
-import React from "react";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { logError } from "../error/logError.js";
@@ -93,7 +92,6 @@ export const configureReactServer: ConfigureReactServerFn =
         moduleBaseURL: server.config.base,
         moduleBasePath: server.config.base,
         projectRoot: server.config.root,
-        Html: React.Fragment,
         onEvent: createEventHandler(onEvent),
         css: handlerUserOptions.css,
         loader: loader,
@@ -109,7 +107,7 @@ export const configureReactServer: ConfigureReactServerFn =
         const routeFiles = await getRouteFiles(
           info.route,
           autoDiscoveredFiles,
-          handlerOptions
+          _userOptions
         );
         if (routeFiles.type === "error") {
           server.config.logger.error(routeFiles.error.message);
@@ -148,14 +146,20 @@ export const configureReactServer: ConfigureReactServerFn =
           pagePath,
           propsPath,
           logger: server.config.logger,
-          Html: React.Fragment,
+          Html: _userOptions.Html,
           manifest: serverManifest,
           server,
         };
         const cssFilesResult = await collectViteModuleGraphCss({
           moduleGraph: server.moduleGraph,
           parentUrl: pagePath,
-          handlerOptions: intermediateHandlerOptions,
+          handlerOptions: {
+            ...handlerOptions,
+            pagePath,
+            moduleBaseURL: server.config.base,
+            moduleBasePath: server.config.base,
+            projectRoot: server.config.root,
+          },
         });
         if (cssFilesResult.type === "skip") {
           return next();

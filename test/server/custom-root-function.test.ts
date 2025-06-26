@@ -5,8 +5,8 @@ import { setupTestProject } from "../setup.js";
 import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
 import { doBuild } from "./doBuild.js";
 
-describe("Custom Root Component - String Path", () => {
-  const testDir = resolve(__dirname, "../fixtures/custom-root-string.test");
+describe("Custom Root Component - Function Path", () => {
+  const testDir = resolve(__dirname, "../fixtures/custom-root-function.test");
   let events: PluginEvent[];
   let htmlContent: string;
 
@@ -34,7 +34,7 @@ export const Root: RootFn = ({ Page, pageProps = {}, as: As = React.Fragment, cs
   // For normal HTML stream, always render as 'main' regardless of what was passed
   return React.createElement('main', { 
     ...props, 
-    "data-string-root": "true",
+    "data-function-root": "true",
     "data-css-files": cssCount.toString(),
     role: "main"
   }, 
@@ -46,7 +46,7 @@ export const Root: RootFn = ({ Page, pageProps = {}, as: As = React.Fragment, cs
 
     events = await doBuild({
       projectRoot: testDir,
-      Root: "src/CustomRoot.tsx", // String path reference
+      Root: (url: string) => `src/CustomRoot.tsx`, // Function that returns string path
     });
 
     const htmlEvent = events.find(
@@ -58,22 +58,22 @@ export const Root: RootFn = ({ Page, pageProps = {}, as: As = React.Fragment, cs
     }
   });
 
-  // afterAll(async () => {
-  //   await rm(testDir, { recursive: true, force: true });
-  // });
-
-  it("should load Root component from string path", async () => {
-    expect(htmlContent).toBeDefined();
-    expect(htmlContent).toContain('data-string-root="true"');
+  afterAll(async () => {
+    await rm(testDir, { recursive: true, force: true });
   });
 
-  it("should use custom element type from string Root", async () => {
+  it("should load Root component from function path", async () => {
+    expect(htmlContent).toBeDefined();
+    expect(htmlContent).toContain('data-function-root="true"');
+  });
+
+  it("should use custom element type from function Root", async () => {
     expect(htmlContent).toBeDefined();
     expect(htmlContent).toContain('<main');
     expect(htmlContent).toContain('role="main"');
   });
 
-  it("should receive CSS files in string Root component", async () => {
+  it("should receive CSS files in function Root component", async () => {
     expect(htmlContent).toBeDefined();
     expect(htmlContent).toMatch(/data-css-files="[1-9]\d*"/);
   });

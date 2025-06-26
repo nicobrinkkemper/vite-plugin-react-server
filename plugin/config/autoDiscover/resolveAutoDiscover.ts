@@ -164,6 +164,18 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       inputs: {},
       userOptions,
     });
+
+    // Add custom Root and Html components to inputs
+    const customComponentInputs: Record<string, string> = {};
+    if (typeof userOptions.Root === "string") {
+      const [rootKey] = userOptions.normalizer(userOptions.Root);
+      customComponentInputs[rootKey] = userOptions.Root;
+    }
+    if (typeof userOptions.Html === "string") {
+      const [htmlKey] = userOptions.normalizer(userOptions.Html);
+      customComponentInputs[htmlKey] = userOptions.Html;
+    }
+
     const agnosticInputs = {
       ...configInputRecord,
       ...clientInputs,
@@ -185,6 +197,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
             ...serverActions,
             ...serverEntry,
             ...jsonInputs,
+            ...customComponentInputs, // Add custom components to server build
           };
     return {
       type: "success",

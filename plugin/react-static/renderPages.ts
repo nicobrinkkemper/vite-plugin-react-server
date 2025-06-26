@@ -57,7 +57,7 @@ export const renderPages: RenderPagesFn = async function* _renderPages(
   }
 
   for (const route of routes) {
-    const { page, props } = autoDiscoveredFiles.urlMap.get(route) || {};
+    const { page, props, root, html } = autoDiscoveredFiles.urlMap.get(route) || {};
     if (!page) continue;
 
     try {
@@ -66,6 +66,8 @@ export const renderPages: RenderPagesFn = async function* _renderPages(
         route,
         pagePath: page as string,
         propsPath: props as string,
+        rootPath: root as string,
+        htmlPath: html as string,
         cssFiles: cssFilesByPage.get(route) ?? new Map(),
       });
 

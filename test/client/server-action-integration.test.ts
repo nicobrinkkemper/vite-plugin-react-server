@@ -92,7 +92,7 @@ describe("Client Server Action Integration", () => {
   it("should handle client component references correctly", async () => {
     // The RSC stream should contain client component references
     expect(response.result).toContain(
-      '7:I["src/components/TodoList.client.tsx","TodoList"]'
+      'c:I["src/components/TodoList.client.tsx","TodoList"]'
     );
   });
 });

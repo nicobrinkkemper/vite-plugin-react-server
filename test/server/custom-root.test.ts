@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { resolve } from "path";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
-import type { PluginEvent, FileWriteDoneEvent, RootFn } from "../../dist/plugin/types.js";
+import type { PluginEvent, FileWriteDoneEvent, RootComponentType } from "vite-plugin-react-server/types";
 import { doBuild } from "./doBuild.js";
 import React from "react";
 
@@ -12,7 +12,7 @@ describe("Custom Root Component", () => {
   let htmlContent: string;
 
   // Custom Root component for testing
-  const TestRoot: RootFn = ({ Page, pageProps = {}, as = "div", cssFiles, ...props }) => {
+  const TestRoot: RootComponentType = ({ Page, pageProps = {}, as = "div", cssFiles, ...props }) => {
     const cssCount = cssFiles ? cssFiles.size : 0;
     return React.createElement(as as any, { 
       ...props, 
@@ -29,7 +29,9 @@ describe("Custom Root Component", () => {
     
     events = await doBuild({
       projectRoot: testDir,
-      Root: TestRoot,
+      components: {
+        Root: TestRoot,
+      },
     });
 
     const htmlEvent = events.find(

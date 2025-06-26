@@ -3,3 +3,4 @@ export { createDefaultLoader } from "./createDefaultLoader.js";
 export { createTransformer } from "./createTransformer.js";
 export { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
 export { parse } from "./parse.js";
+export { analyzeModule } from "./directives/analyzeModule.js";

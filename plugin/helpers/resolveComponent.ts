@@ -1,5 +1,5 @@
 import { toError } from "../error/toError.js";
-import type { GenericModuleLoader, HtmlComponentType, RootFn } from "../types.js";
+import type { GenericModuleLoader, HtmlComponentType, RootComponentType } from "../types.js";
 
 export type ComponentName = "Root" | "Html";
 
@@ -32,7 +32,7 @@ type ResolveComponentOptions = {
  * 
  * @returns A result object containing the resolved component or error
  */
-export async function resolveComponent<T = RootFn | HtmlComponentType>(
+export async function resolveComponent<T = RootComponentType | HtmlComponentType>(
   options: ResolveComponentOptions
 ): Promise<ResolveComponentResult<T>> {
   const { componentPath, exportName, loader } = options;
@@ -119,13 +119,13 @@ export async function resolveComponent<T = RootFn | HtmlComponentType>(
  * @returns Resolved components or original values if not strings
  */
 export async function resolveComponentOptions(options: {
-  Root: RootFn | string;
+  Root: RootComponentType | string;
   Html: HtmlComponentType | string; 
   rootExportName: string;
   htmlExportName: string;
   loader: GenericModuleLoader;
 }): Promise<{
-  Root: RootFn;
+  Root: RootComponentType;
   Html: HtmlComponentType;
   errors: Error[];
 }> {
@@ -135,7 +135,7 @@ export async function resolveComponentOptions(options: {
 
   // Resolve Root if it's a string
   if (typeof options.Root === "string") {
-    const rootResult = await resolveComponent<RootFn>({
+    const rootResult = await resolveComponent<RootComponentType>({
       componentPath: options.Root,
       exportName: options.rootExportName,
       loader: options.loader,
@@ -166,7 +166,7 @@ export async function resolveComponentOptions(options: {
   }
 
   return {
-    Root: resolvedRoot as RootFn,
+    Root: resolvedRoot as RootComponentType,
     Html: resolvedHtml as HtmlComponentType,
     errors,
   };

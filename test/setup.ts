@@ -136,7 +136,8 @@ export async function setupTestServerActionJS(testDir: string) {
   await setupIndexHTML(testDir);
 
 
-  // Create server actions
+  // Create server actions 
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await writeFile(
     resolve(testDir, "src/page/actions.server.ts"),
     `"use server";
@@ -149,7 +150,6 @@ export async function subtract(a, b) {
   return a - b;
 }`
   );
-
   await writeFile(
     resolve(testDir, "src/page/add.server.ts"),
     `
@@ -268,6 +268,7 @@ export async function setupTodoTestProject(testDir: string) {
   // Use existing setup functions for basic structure
   await setupIndexHTML(testDir);
   await mkdir(resolve(testDir, "src/components"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
 
   // Create server actions
   await writeFile(
@@ -450,6 +451,7 @@ export async function setupTestProjectEnv(testDir: string) {
   await setupPageTSX2(testDir);
 
   // Create a test page component
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await writeFile(
     resolve(testDir, "src", "page", "page.tsx"),
     `import React from "react";

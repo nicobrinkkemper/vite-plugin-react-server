@@ -2,7 +2,7 @@ import { resolvePageAndProps } from "./resolvePageAndProps.js";
 import { resolveComponent } from "./resolveComponent.js";
 import { Root as DefaultRoot } from "../components/root.js";
 import { Html as DefaultHtml } from "../components/html.js";
-import type { BuildModuleLoader, ResolvedUserOptions, PageComponentType, PagePropOpt, RootFn, HtmlComponentType, GenericModuleLoader } from "../types.js";
+import type { BuildModuleLoader, ResolvedUserOptions, PageComponentType, PagePropOpt, RootComponentType, HtmlComponentType, GenericModuleLoader } from "../types.js";
 
 export type ResolveComponentsOptions = {
   pagePath: string;
@@ -16,7 +16,7 @@ export type ResolveComponentsOptions = {
   route: string;
   loader: BuildModuleLoader<ResolvedUserOptions> | GenericModuleLoader;
   // Allow override with direct components (for static builds)
-  RootComponent?: RootFn;
+  RootComponent?: RootComponentType;
   HtmlComponent?: HtmlComponentType;
 };
 
@@ -24,7 +24,7 @@ export type ResolveComponentsSuccess = {
   type: "success";
   PageComponent: PageComponentType<PagePropOpt>;
   pageProps: PagePropOpt;
-  RootComponent: RootFn;
+  RootComponent: RootComponentType;
   HtmlComponent: HtmlComponentType;
 };
 
@@ -93,11 +93,8 @@ export const resolveComponents = async ({
       });
       if (rootResult.type === "error") {
         console.log(`[DEBUG] Root component resolution failed:`, rootResult.error);
-        return {
-          type: "error",
-          error: rootResult.error,
-          reason: `Root component resolution error: ${rootResult.error.message}`,
-        };
+        // Fallback to default Root component
+        RootComponent = DefaultRoot;
       } else if (rootResult.type === "success") {
         console.log(`[DEBUG] Root component resolved successfully`);
         RootComponent = rootResult.component;
@@ -117,11 +114,8 @@ export const resolveComponents = async ({
       });
       if (htmlResult.type === "error") {
         console.log(`[DEBUG] Html component resolution failed:`, htmlResult.error);
-        return {
-          type: "error",
-          error: htmlResult.error,
-          reason: `Html component resolution error: ${htmlResult.error.message}`,
-        };
+        // Fallback to default Html component
+        HtmlComponent = DefaultHtml;
       } else if (htmlResult.type === "success") {
         console.log(`[DEBUG] Html component resolved successfully`);
         HtmlComponent = htmlResult.component;

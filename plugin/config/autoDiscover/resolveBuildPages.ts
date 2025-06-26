@@ -154,6 +154,32 @@ export async function resolveBuildPages({
     pageMap.set(pageKey, pageValue);
   }
 
+  // If there are no pages but custom components are defined, resolve them for a default route
+  if (pages.length === 0 && (userOptions.Root || userOptions.Html)) {
+    console.log(`[DEBUG] resolveBuildPages - No pages but custom components defined, resolving for default route`);
+    const defaultPage = "/";
+    
+    // Resolve Root component for default route
+    if (userOptions.Root) {
+      const rootResult = await resolveUrlOption(userOptions, "Root", defaultPage);
+      if (rootResult.type === "success") {
+        const [rootKey, resolvedRootValue] = userOptions.normalizer(rootResult.Root);
+        console.log(`[DEBUG] resolveBuildPages - Default Root resolved: ${rootResult.Root} -> ${resolvedRootValue}`);
+        rootMap.set(rootKey, resolvedRootValue);
+      }
+    }
+    
+    // Resolve Html component for default route
+    if (userOptions.Html) {
+      const htmlResult = await resolveUrlOption(userOptions, "Html", defaultPage);
+      if (htmlResult.type === "success") {
+        const [htmlKey, resolvedHtmlValue] = userOptions.normalizer(htmlResult.Html);
+        console.log(`[DEBUG] resolveBuildPages - Default Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`);
+        htmlMap.set(htmlKey, resolvedHtmlValue);
+      }
+    }
+  }
+
   stashedBuildPages = { pageMap, propsMap, rootMap, htmlMap, urlMap, routeMap, errors };
   stashedPages = [...pages];
   return stashedBuildPages;

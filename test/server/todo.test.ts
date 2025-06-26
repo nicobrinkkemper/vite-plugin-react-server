@@ -1,15 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setupTodoTestProject } from '../setup';
 import { resolve } from 'path';
-import { mkdtemp } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
 
 describe('Todo Server Actions', () => {
-  let testDir: string;
+  const testDir = resolve(__dirname, "../fixtures/todo.test");
 
   beforeEach(async () => {
-    testDir = await mkdtemp(join(tmpdir(), 'todo-test-'));
     await setupTodoTestProject(testDir);
   });
 

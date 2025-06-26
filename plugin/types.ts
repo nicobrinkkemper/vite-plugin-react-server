@@ -401,7 +401,7 @@ export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
 /**
  * Boxed component type for the Root
  */
-export type RootFn<
+export type RootComponentType<
   As extends AsOpt = AsOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
   PageProps extends PagePropOpt = PagePropOpt,
@@ -769,12 +769,8 @@ export type StreamPluginOptions<
       }
     | undefined;
   // Manual configuration
-  Page: string | ((url: string) => string) | ((url: string) => Promise<string>);
-  props?:
-    | undefined
-    | string
-    | ((url: string) => string)
-    | ((url: string) => Promise<string>);
+  Page: UrlOpt;
+  props?: UrlOpt;
   // Escape hatches
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
@@ -783,12 +779,12 @@ export type StreamPluginOptions<
   propsExportName?: N2;
   htmlExportName?: N3;
   rootExportName?: N4;
-  Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment | string;
-  Root?: RootFn | string;
+  Html?: UrlOpt;
+  Root?: UrlOpt;
   // Direct component overrides (bypasses string resolution)
   components?: {
     Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment;
-    Root?: RootFn;
+    Root?: RootComponentType;
   };
   build?: BuildConfig;
   css?: RootOptions<InlineCSS>;
@@ -851,7 +847,7 @@ export type CreateHandlerOptions<
   htmlPath?: string;
   pageProps?: PagePropOpt;
   PageComponent?: PageComponentType<PagePropOpt>;
-  RootComponent?: RootFn;
+  RootComponent?: RootComponentType;
   HtmlComponent?: HtmlComponentType<PagePropOpt>;
   route: string;
   as?: AsOpt,
@@ -1035,6 +1031,7 @@ export interface DeserializedRegExp {
 }
 
 export type RegExpOpt = RegExp | string | DeserializedRegExp;
+export type UrlOpt = string | ((url: string) => string) | ((url: string) => Promise<string>);
 export type PageName = "Page";
 export type PropsName = "props";
 export type HtmlName = "Html";
@@ -1064,7 +1061,7 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  Root: RootFn<As, InlineCSS, PageProps>;
+  Root: RootComponentType<As, InlineCSS, PageProps>;
   globalCss: Map<string, CssContent<InlineCSS>>;
   as?: As;
 };

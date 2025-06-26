@@ -1,6 +1,6 @@
-import { analyzeModule } from "../../../dist/plugin/loader/directives/analyzeModule.js";
+import { analyzeModule } from "vite-plugin-react-server/loader";
 import { describe, test, expect } from "vitest";
-import { testLoaderConfig } from "./testLoaderConfig.js";
+import { testLoaderConfig } from "./testLoaderConfig.ts";
 
 describe("analyzeModule - file-level client directives", () => {
   test("should detect file-level use client directive", async () => {

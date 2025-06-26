@@ -1,11 +1,13 @@
 import type { 
   GenericModuleLoader, 
   HtmlComponentType, 
-  RootFn, 
+  RootComponentType, 
   ResolvedUserOptions,
-  StreamPluginOptions 
+  StreamPluginOptions
 } from "../types.js";
-import { resolveComponentOptions } from "./resolveComponent.js";
+import { resolveComponent } from "./resolveComponent.js";
+import { Root as DefaultRoot } from "../components/root.js";
+import { Html as DefaultHtml } from "../components/html.js";
 
 /**
  * Resolves Root and Html components from user options for a specific URL.
@@ -22,51 +24,110 @@ import { resolveComponentOptions } from "./resolveComponent.js";
  */
 export async function resolveUserComponents(
   userOptions: ResolvedUserOptions,
-  _url: string,
+  url: string,
   loader: GenericModuleLoader
 ): Promise<{
-  Root: RootFn;
+  Root: RootComponentType;
   Html: HtmlComponentType;
   errors: Error[];
 }> {
   const errors: Error[] = [];
 
-  // Start with defaults from resolved options (these might already be resolved by components override)
-  let resolvedRoot = userOptions.Root;
-  let resolvedHtml = userOptions.Html;
+  // Check for direct component overrides first
+  if (userOptions.components?.Root) {
+    return {
+      Root: userOptions.components.Root,
+      Html: userOptions.components.Html || DefaultHtml,
+      errors: [],
+    };
+  }
 
-  // Check if we need to resolve string paths or router functions
-  const needsRootResolution = typeof userOptions.Root === "string" || typeof userOptions.Root === "function";
-  const needsHtmlResolution = typeof userOptions.Html === "string" || typeof userOptions.Html === "function";
+  if (userOptions.components?.Html) {
+    return {
+      Root: DefaultRoot,
+      Html: userOptions.components.Html,
+      errors: [],
+    };
+  }
 
-  if (needsRootResolution || needsHtmlResolution) {
-    // Get the original user options to check for router functions
-    // Note: We need access to the original options, not just the resolved ones
-    // For now, we'll work with what we have and assume they're already resolved in resolveOptions
-    
+  // No component overrides, so we need to resolve paths to components
+  let rootPath: string | undefined;
+  let htmlPath: string | undefined;
+
+  // Resolve Root path
+  if (userOptions.Root) {
+    if (typeof userOptions.Root === "function") {
+      try {
+        rootPath = await (userOptions.Root as (url: string) => string | Promise<string>)(url);
+      } catch (error) {
+        errors.push(error instanceof Error ? error : new Error(String(error)));
+      }
+    } else if (typeof userOptions.Root === "string") {
+      rootPath = userOptions.Root;
+    }
+  }
+
+  // Resolve Html path
+  if (userOptions.Html) {
+    if (typeof userOptions.Html === "function") {
+      try {
+        htmlPath = await (userOptions.Html as (url: string) => string | Promise<string>)(url);
+      } catch (error) {
+        errors.push(error instanceof Error ? error : new Error(String(error)));
+      }
+    } else if (typeof userOptions.Html === "string") {
+      htmlPath = userOptions.Html;
+    }
+  }
+
+  // Load components from paths
+  let resolvedRoot: RootComponentType = DefaultRoot;
+  let resolvedHtml: HtmlComponentType = DefaultHtml;
+
+  // Only try to resolve if we have actual paths
+  if (rootPath) {
     try {
-      const componentResolution = await resolveComponentOptions({
-        Root: resolvedRoot as RootFn | string,
-        Html: resolvedHtml as HtmlComponentType | string,
-        rootExportName: userOptions.rootExportName,
-        htmlExportName: userOptions.htmlExportName,
+      const rootResult = await resolveComponent<RootComponentType>({
+        componentPath: rootPath,
+        exportName: userOptions.rootExportName,
         loader,
       });
       
-      if (componentResolution.errors.length > 0) {
-        errors.push(...componentResolution.errors);
-      } else {
-        resolvedRoot = componentResolution.Root;
-        resolvedHtml = componentResolution.Html;
+      if (rootResult.type === "success") {
+        resolvedRoot = rootResult.component;
+      } else if (rootResult.type === "error") {
+        errors.push(rootResult.error);
+        // Keep using default if resolution failed
       }
     } catch (error) {
       errors.push(error instanceof Error ? error : new Error(String(error)));
+      // Keep using default if resolution failed
+    }
+  }
+
+  if (htmlPath) {
+    try {
+      const htmlResult = await resolveComponent<HtmlComponentType>({
+        componentPath: htmlPath,
+        exportName: userOptions.htmlExportName,
+        loader,
+      });
+      
+      if (htmlResult.type === "success") {
+        resolvedHtml = htmlResult.component;
+      } else if (htmlResult.type === "error") {
+        errors.push(htmlResult.error);
+        // Keep using default if resolution failed
+      }
+    } catch (error) {
+      errors.push(error instanceof Error ? error : new Error(String(error)));
+      // Keep using default if resolution failed
     }
   }
 
   return {
-    Root: resolvedRoot as RootFn,
-    Html: resolvedHtml as HtmlComponentType,
+    Root: resolvedRoot,
+    Html: resolvedHtml,
     errors,
   };
 }
@@ -84,45 +145,42 @@ export function resolveRouterFunctions(
   originalOptions: Pick<StreamPluginOptions, "Root" | "Html" | "components">,
   url: string
 ): {
-  Root: string | RootFn;
-  Html: string | HtmlComponentType;
+  Root: string | undefined;
+  Html: string | undefined;
 } {
-  let resolvedRoot: string | RootFn = originalOptions.Root as any;
-  let resolvedHtml: string | HtmlComponentType = originalOptions.Html as any;
+  let resolvedRoot: string | undefined;
+  let resolvedHtml: string | undefined;
 
   // Check for direct component overrides first
   if (originalOptions.components?.Root) {
-    resolvedRoot = originalOptions.components.Root;
-  } else if (typeof originalOptions.Root === "function") {
-    // Detect if this is a router function (takes 1 string parameter) vs React component (takes props object)
-    if (originalOptions.Root.length === 1) {
-      // This is a router function, call it with the URL
-      try {
-        resolvedRoot = (originalOptions.Root as unknown as (url: string) => string)(url);
-      } catch (error) {
-        console.warn(`Failed to resolve Root for URL ${url}:`, error);
-      }
-    } else {
-      // This is a React component, keep as-is
-      resolvedRoot = originalOptions.Root;
-    }
+    // Component override, no path resolution needed
+    return { Root: undefined, Html: undefined };
   }
 
   if (originalOptions.components?.Html) {
-    resolvedHtml = originalOptions.components.Html;
-  } else if (typeof originalOptions.Html === "function") {
-    // Detect if this is a router function (takes 1 string parameter) vs React component (takes props object)
-    if (originalOptions.Html.length === 1) {
-      // This is a router function, call it with the URL
-      try {
-        resolvedHtml = (originalOptions.Html as unknown as (url: string) => string)(url);
-      } catch (error) {
-        console.warn(`Failed to resolve Html for URL ${url}:`, error);
-      }
-    } else {
-      // This is a React component, keep as-is
-      resolvedHtml = originalOptions.Html;
+    // Component override, no path resolution needed
+    return { Root: undefined, Html: undefined };
+  }
+
+  // Resolve router functions to string paths
+  if (typeof originalOptions.Root === "function") {
+    try {
+      resolvedRoot = (originalOptions.Root as (url: string) => string)(url);
+    } catch (error) {
+      console.warn(`Failed to resolve Root for URL ${url}:`, error);
     }
+  } else if (typeof originalOptions.Root === "string") {
+    resolvedRoot = originalOptions.Root;
+  }
+
+  if (typeof originalOptions.Html === "function") {
+    try {
+      resolvedHtml = (originalOptions.Html as (url: string) => string)(url);
+    } catch (error) {
+      console.warn(`Failed to resolve Html for URL ${url}:`, error);
+    }
+  } else if (typeof originalOptions.Html === "string") {
+    resolvedHtml = originalOptions.Html;
   }
 
   return {

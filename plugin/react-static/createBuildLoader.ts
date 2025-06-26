@@ -9,6 +9,8 @@ import { getModuleRef } from "../helpers/moduleRefs.js";
 import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";
 import { toError } from "../error/toError.js";
+import { readFile } from "fs/promises";
+import { existsSync } from "fs";
 
 export type CreateBuildLoaderFn = (props: {
   userConfig: ResolvedUserConfig;
@@ -186,6 +188,39 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
         } catch (error) {
           const err = toError(error);
           console.warn("Error loading static module:", err);
+          temporaryReferences?.delete(moduleRef);
+          throw err;
+        }
+      }
+
+      // For source files (like custom Root/Html components), try to load directly from filesystem
+      const sourceFilePath = join(userOptions.projectRoot, normalizedValue);
+      if(userOptions.verbose) {
+        console.log("[buildLoader] Checking source file:", sourceFilePath, "exists:", existsSync(sourceFilePath));
+      }
+      if (existsSync(sourceFilePath)) {
+        try {
+          if(userOptions.verbose) {
+            console.log("[buildLoader] Loading source file:", sourceFilePath);
+          }
+          // For TypeScript/TSX files, we need to compile them
+          if (sourceFilePath.endsWith('.tsx') || sourceFilePath.endsWith('.ts')) {
+            // Use dynamic import to let Node.js handle the compilation
+            const module = await import(sourceFilePath);
+            temporaryReferences?.set(moduleRef, module);
+            // If we have an export name, make sure it's a key
+            if(exportName && !(exportName in module)) {
+              throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
+            }
+            return module;
+          } else {
+            // For other files, read as text
+            const content = await readFile(sourceFilePath, 'utf-8');
+            return { default: content };
+          }
+        } catch (error) {
+          const err = toError(error);
+          console.warn("Error loading source file:", err);
           temporaryReferences?.delete(moduleRef);
           throw err;
         }

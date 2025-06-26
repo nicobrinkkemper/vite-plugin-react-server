@@ -151,7 +151,7 @@ export const reactStaticPlugin: ReactStaticPluginFn =
             typeof resolvedConfig.build.manifest === "string"
               ? resolvedConfig.build.manifest
               : ".vite/manifest.json";
-          if (!("source" in bundleManifest[manifestPath])) {
+          if (!bundleManifest[manifestPath] || !("source" in bundleManifest[manifestPath])) {
             throw new Error("Server manifest not found");
           }
 
