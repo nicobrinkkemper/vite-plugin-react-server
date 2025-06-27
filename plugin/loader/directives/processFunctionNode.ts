@@ -1,6 +1,20 @@
 import type { Node, BlockStatement, MethodDefinition, Property } from "acorn";
 import type { DirectiveMatch, DirectiveInfo } from "./types.js";
-import { isMethodDefinition, isProperty, isFunctionNode, isAsyncFunction } from "./typeGuards.js";
+import { isMethodDefinition, isProperty, isFunctionNode, isAsyncFunction, isArrowFunctionExpression, isFunctionDeclaration, isFunctionExpression } from "./typeGuards.js";
+
+function getFunctionTypeDescription(node: Node): string {
+  if (isArrowFunctionExpression(node)) {
+    return "Arrow function";
+  } else if (isMethodDefinition(node)) {
+    return "Class method";
+  } else if (isFunctionDeclaration(node)) {
+    return "Function";
+  } else if (isFunctionExpression(node)) {
+    return "Function expression";
+  } else {
+    return "Function";
+  }
+}
 
 export function processFunctionNode(
   node: Node,
@@ -51,7 +65,7 @@ export function processFunctionNode(
   // If we have a file-level directive, warn about function-level directives
   if (directiveInfo.fileLevel) {
     directiveInfo.warnings.push({
-      message: `'use ${directiveInfo.fileLevel.type}' is already defined at the top of the file, this function-level directive should be removed.`,
+      message: `'use ${directiveInfo.fileLevel.type}' is already defined at the top of the file, this directive should be removed.`,
       range: match.range,
       type: match.type
     });
@@ -68,8 +82,10 @@ export function processFunctionNode(
         range: match.range,
       });
     } else {
+      const functionType = getFunctionTypeDescription(node);
+      const nameDesc = actualName === "anonymous" ? "" : ` '${actualName}'`;
       directiveInfo.warnings.push({
-        message: "'use server' directive is only allowed at the top of a file or at the start of an async function",
+        message: `${functionType}${nameDesc} with 'use server' directive must be declared as async`,
         range: match.range,
         type: "server"
       });

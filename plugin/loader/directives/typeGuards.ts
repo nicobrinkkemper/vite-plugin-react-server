@@ -156,3 +156,47 @@ export function isFunctionLikeWithBlock(node: Node): node is FunctionDeclaration
   }
   return false;
 }
+
+/**
+ * Checks if a function node is nested inside another function
+ */
+export function isNestedFunction(node: Node): boolean {
+  if (!isFunctionNode(node) || !isNodeWithParent(node)) {
+    return false;
+  }
+  
+  let current = node.parent as Node | undefined;
+  while (current) {
+    // If we find another function node in the parent chain, this is nested
+    if (isFunctionNode(current)) {
+      return true;
+    }
+    // If we find a class method, check if we're nested inside the method
+    if (isMethodDefinition(current)) {
+      // If the method contains our function, we're nested
+      return true;
+    }
+    current = isNodeWithParent(current) ? current.parent : undefined;
+  }
+  
+  return false;
+}
+
+/**
+ * Checks if a function node is a class method
+ */
+export function isClassMethod(node: Node): boolean {
+  if (!isFunctionNode(node) || !isNodeWithParent(node)) {
+    return false;
+  }
+  
+  // Check if direct parent is a method definition
+  return isMethodDefinition(node.parent);
+}
+
+/**
+ * Checks if a function node is at the top level (not nested or in a class)
+ */
+export function isTopLevelFunction(node: Node): boolean {
+  return isFunctionNode(node) && !isNestedFunction(node) && !isClassMethod(node);
+}

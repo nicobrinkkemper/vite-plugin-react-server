@@ -49,44 +49,50 @@ export const createTransformer: TransformerFactory = ({
     ) {
       const isProduction = getNodeEnv() === "production";
 
-      // Show warnings with source code snippets (hide detailed info in production)
+      // Handle directive errors (can be downgraded to warnings based on panicThreshold)
       for (const warning of parseResult.directiveInfo.warnings) {
-        const shouldPanic = isProduction || 
-          options.panicThreshold === 'all_errors' || 
-          options.panicThreshold === 'critical_errors';
+        const shouldDowngradeToWarning = !isProduction && options.panicThreshold === 'none';
           
-        if (shouldPanic) {
-          // Throw error in production or when panicThreshold requires it
-          throw new Error(warning.message);
-        } else {
-          // Detailed warning with source context in development
+        if (shouldDowngradeToWarning) {
+          // Downgrade error to warning in development when panicThreshold is 'none'
           const [start, end] = warning.range;
-          let snippet = source.slice(start, end);
-
-          // Normalize snippet to show just the directive (remove trailing semicolon if present)
-          snippet = snippet.replace(/;$/, "");
-
-          const startLine = source.slice(0, start).split("\n").length;
-
-          // Show what content is before the directive (if any)
-          const beforeDirective = source.slice(0, start);
-          const beforeContent = beforeDirective.trim();
-
+          const lines = source.split('\n');
+          const startLine = source.slice(0, start).split('\n').length;
+          
           console.warn(`Warning: ${warning.message}`);
-          console.warn(`  at line ${startLine}: ${snippet}`);
-
-          if (beforeContent) {
-            console.warn(
-              `  content before directive: ${JSON.stringify(beforeContent)}`
-            );
-          } else {
-            console.warn(`  (no content before directive)`);
+          
+          // Show document preview with line numbers
+          const contextLines = 2; // Show 2 lines before and after
+          const minLine = Math.max(1, startLine - contextLines);
+          const maxLine = Math.min(lines.length, startLine + contextLines);
+          
+          console.warn('');
+          for (let i = minLine; i <= maxLine; i++) {
+            const lineNum = i.toString().padStart(3, ' ');
+            const isErrorLine = i === startLine;
+            const prefix = isErrorLine ? '>' : ' ';
+            const line = lines[i - 1] || '';
+            
+            if (isErrorLine) {
+              console.warn(`${prefix} ${lineNum} | ${line}`);
+              // Show pointer to the directive
+              const lineStart = source.lastIndexOf('\n', start - 1) + 1;
+              const columnPos = Math.max(0, start - lineStart);
+              const directiveLength = Math.max(1, end - start);
+              const pointer = ' '.repeat(7 + columnPos) + '^'.repeat(directiveLength);
+              console.warn(`  ${pointer}`);
+            } else {
+              console.warn(`  ${lineNum} | ${line}`);
+            }
           }
+          console.warn('');
 
           if (options.verbose) {
             console.warn(`  range: [${start}, ${end}]`);
-            console.warn(`  raw before: ${JSON.stringify(beforeDirective)}`);
           }
+        } else {
+          // Treat as error (default behavior) - panic and stop compilation
+          throw new Error(warning.message);
         }
       }
     }
@@ -102,7 +108,7 @@ export const createTransformer: TransformerFactory = ({
       loader: options.loader,
       directiveWarnings: parseResult.directiveInfo.warnings,
       verbose: options.verbose || false,
-      panicThreshold: options.panicThreshold || false,
+      panicThreshold: options.panicThreshold || 'none',
     });
   };
 };

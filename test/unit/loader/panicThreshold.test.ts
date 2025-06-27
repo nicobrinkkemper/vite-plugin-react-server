@@ -47,7 +47,7 @@ export async function test() {
   return 42;
 }`;
 
-  it("should show warnings but not throw when panicThreshold='none'", async () => {
+  it("should downgrade errors to warnings when panicThreshold='none'", async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     
     const transformer = createTransformer({
@@ -60,7 +60,7 @@ export async function test() {
     expect(result).toBeDefined();
     expect(result.code).toBeDefined();
     
-    // Should have shown warnings
+    // Should have downgraded error to warning
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("File-level directives must be at the top")
     );
@@ -68,7 +68,7 @@ export async function test() {
     consoleSpy.mockRestore();
   });
 
-  it("should throw error when panicThreshold='all_errors'", async () => {
+  it("should treat directive issues as errors when panicThreshold='all_errors'", async () => {
     const transformer = createTransformer({
       options: createMockOptions({ panicThreshold: 'all_errors' })
     });
@@ -78,7 +78,7 @@ export async function test() {
     );
   });
 
-  it("should throw error when panicThreshold='critical_errors'", async () => {
+  it("should treat directive issues as errors when panicThreshold='critical_errors'", async () => {
     const transformer = createTransformer({
       options: createMockOptions({ panicThreshold: 'critical_errors' })
     });
@@ -100,13 +100,13 @@ export async function test() {
     expect(result.code).toBeDefined();
   });
 
-  it("should always throw in production mode regardless of panicThreshold", async () => {
+  it("should always treat directive issues as errors in production", async () => {
     // Mock NODE_ENV to be production
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
     
     try {
-      // Test with panicThreshold='none' - should still throw in production
+      // Test with panicThreshold='none' - should still treat as error in production
       const transformer = createTransformer({
         options: createMockOptions({ panicThreshold: 'none' })
       });
@@ -120,7 +120,7 @@ export async function test() {
     }
   });
 
-  it("should show detailed warnings in development mode when panicThreshold='none'", async () => {
+  it("should show detailed context when downgrading to warnings", async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     
     const transformer = createTransformer({
@@ -129,15 +129,15 @@ export async function test() {
 
     await transformer(sourceWithWarning, 'test.js');
     
-    // Should show detailed warning information
+    // Should show detailed warning information when downgraded
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("File-level directives must be at the top")
     );
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('at line 2: "use server"')
+      expect.stringContaining('>   2 | "use server";')
     );
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('content before directive:')
+      expect.stringContaining('^^^^^^^^^^^^')
     );
     
     consoleSpy.mockRestore();

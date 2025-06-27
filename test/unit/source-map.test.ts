@@ -37,6 +37,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -75,6 +76,7 @@ export function ClientComponent() {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: false,
       forceClientComponent: true,
@@ -113,6 +115,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -150,6 +153,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -185,6 +189,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -217,6 +222,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -249,6 +255,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -281,6 +288,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -313,6 +321,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -345,6 +354,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -378,6 +388,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -404,12 +415,13 @@ export async function add(a, b) {
   });
 
   it('should handle class methods with directives', async () => {
-    const source = `export class Calculator {\n  add(a, b) { "use server"; return a + b; }\n  sub(a, b) { "use server"; return a - b; }\n}`;
+    const source = `export class Calculator {\n  async add(a, b) { "use server"; return a + b; }\n  async sub(a, b) { "use server"; return a - b; }\n}`;
     
     const transformer = createTransformer({
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -417,7 +429,6 @@ export async function add(a, b) {
     });
 
     const result = await transformer(source, '/test/class.server.ts');
-
     // Verify source map exists
     expect(result.map).toBeTruthy();
     const sourceMap = result.map!;
@@ -445,6 +456,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -476,6 +488,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -511,6 +524,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,
@@ -542,6 +556,7 @@ export async function add(a, b) {
       options: {
         loader: TEST_LOADER_CONFIG,
         verbose: false,
+        panicThreshold: 'none',
       },
       forceServerFunction: true,
       forceClientComponent: false,

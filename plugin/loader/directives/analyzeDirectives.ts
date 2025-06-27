@@ -1,5 +1,4 @@
 import { findDirectiveMatches } from "./findDirectiveMatches.js";
-import { traverseNode } from "./traverseNode.js";
 import { isFunctionNode } from "./typeGuards.js";
 import { getFunctionBody } from "./getFunctionBody.js";
 import { getFunctionName } from "./getFunctionName.js";
@@ -156,37 +155,111 @@ export function analyzeDirectives(
   const processedFunctions = new Set<string>();
 
   // First pass: collect all function nodes with their directives
-  const functionNodes: Array<{node: Node, match: DirectiveMatch}> = [];
-  traverseNode(ast, (node) => {
-    if (!isFunctionNode(node)) return;
+  const functionNodes: Array<{node: Node, match: DirectiveMatch, context: string}> = [];
+  
+  // Track context during traversal
+  function traverseWithContext(node: Node, context: { inFunction: boolean, inClass: boolean }) {
+    if (isFunctionNode(node)) {
+      const body = getFunctionBody(node);
+      if (body) {
+        // Check if directive is at the start of the function body
+        for (const match of functionLevelMatches) {
+          const directiveValue = match.type === "server" ? "use server" : "use client";
+          const isAtStart = body.body.length > 0 && 
+            body.body[0].type === "ExpressionStatement" &&
+            body.body[0].expression.type === "Literal" &&
+            body.body[0].expression.value === directiveValue;
 
-    const body = getFunctionBody(node);
-    if (!body) return;
+          if (isAtStart) {
+            // Check if the match range corresponds to this specific directive position
+            const directiveNode = body.body[0];
+            const directiveStart = directiveNode.start!;
+            const directiveEnd = directiveNode.end!;
+            
+            // Match based on position - the match should overlap with the directive node
+            const matchOverlaps = (match.range[0] >= directiveStart && match.range[0] < directiveEnd) ||
+                                 (match.range[1] > directiveStart && match.range[1] <= directiveEnd) ||
+                                 (match.range[0] <= directiveStart && match.range[1] >= directiveEnd);
+            
+            if (matchOverlaps) {
+              const functionName = getFunctionName(node) || "anonymous";
+              
+              // Check for invalid contexts based on traversal context
+              if (context.inFunction) {
+                const nameDesc = functionName === "anonymous" ? "" : ` '${functionName}'`;
+                directiveInfo.warnings.push({
+                  message: `Function${nameDesc} with '${directiveValue}' directive cannot be nested inside another function. Directives are only allowed in top-level functions.`,
+                  range: match.range,
+                  type: match.type
+                });
+                return; // Skip this function entirely
+              }
+              
+              if (context.inClass) {
+                const nameDesc = functionName === "anonymous" ? "" : ` '${functionName}'`;
+                directiveInfo.warnings.push({
+                  message: `Class method${nameDesc} with '${directiveValue}' directive is not supported. Directives are only allowed in top-level functions.`,
+                  range: match.range,
+                  type: match.type
+                });
+                return; // Skip this function entirely
+              }
 
-    // Check if directive is at the start of the function body
-    for (const match of functionLevelMatches) {
-      const directiveValue = match.type === "server" ? "use server" : "use client";
-      const isAtStart = body.body.length > 0 && 
-        body.body[0].type === "ExpressionStatement" &&
-        body.body[0].expression.type === "Literal" &&
-        body.body[0].expression.value === directiveValue;
-
-      if (isAtStart) {
-        // Only allow server directives in function-level contexts
-        if (match.type === "server") {
-          functionNodes.push({ node, match });
-        } else {
-          // Generate warning for client directives in functions
-          directiveInfo.warnings.push({
-            message: "Function-level 'use client' isn't allowed",
-            range: match.range,
-            type: "client"
-          });
+              // Only allow server directives in function-level contexts
+              if (match.type === "server") {
+                functionNodes.push({ node, match, context: context.inFunction ? "nested" : context.inClass ? "class" : "top-level" });
+              } else {
+                // Generate warning for client directives in functions
+                directiveInfo.warnings.push({
+                  message: "Function-level 'use client' isn't allowed",
+                  range: match.range,
+                  type: "client"
+                });
+              }
+              break;
+            }
+          }
         }
-        break;
+      }
+      
+      // Continue traversal with updated context (now inside a function)
+      traverseChildren(node, { inFunction: true, inClass: context.inClass });
+    } else if (node.type === "ClassDeclaration" || node.type === "ClassExpression") {
+      // Continue traversal with updated context (now inside a class)
+      traverseChildren(node, { inFunction: context.inFunction, inClass: true });
+    } else if (node.type === "MethodDefinition") {
+      // Method definitions are inside classes
+      traverseChildren(node, { inFunction: context.inFunction, inClass: true });
+    } else {
+      // Continue with same context
+      traverseChildren(node, context);
+    }
+  }
+  
+  function traverseChildren(node: Node, context: { inFunction: boolean, inClass: boolean }) {
+    const nodeWithChildren = node as any;
+    for (const key in nodeWithChildren) {
+      if (key === 'parent' || key === 'start' || key === 'end' || key === 'loc' || key === 'range') {
+        continue;
+      }
+      
+      const value = nodeWithChildren[key];
+      if (value && typeof value === 'object') {
+        if (Array.isArray(value)) {
+          for (const child of value) {
+            if (child && typeof child === 'object' && child.type) {
+              traverseWithContext(child, context);
+            }
+          }
+        } else if (value.type) {
+          traverseWithContext(value, context);
+        }
       }
     }
-  });
+  }
+  
+  // Start traversal at top level (not in function or class)
+  traverseWithContext(ast, { inFunction: false, inClass: false });
 
   // Second pass: process functions in order
   for (const { node, match } of functionNodes) {
@@ -218,7 +291,7 @@ export function analyzeDirectives(
         });
       } else {
         directiveInfo.warnings.push({
-          message: `'use server' is already defined at the top of the file, this function-level directive should be removed.`,
+          message: `'use server' is already defined at the top of the file, this directive should be removed.`,
           range: func.range,
           type: "server"
         });

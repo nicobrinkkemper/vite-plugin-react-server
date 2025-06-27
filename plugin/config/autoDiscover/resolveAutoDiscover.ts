@@ -135,13 +135,14 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
         // in dev mode the static manifest is not needed
         // without ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
         if (staticManifestResult.type === "error") {
-          console.error(staticManifestResult.error);
-          if(userOptions.panicThreshold) {
-            throw new Error("Failed on first warning or error.");
+          if(userOptions.panicThreshold === 'critical_errors') {
+            throw staticManifestResult.error;
+          } else {
+            console.error(staticManifestResult.error);
           }
         }
-        if(userOptions.panicThreshold) {
-          throw new Error("Failed to find static manifest and panicThreshold is true.");
+        if(userOptions.panicThreshold === 'all_errors') {
+          throw new Error( "Failed to find static manifest." );
         } else {
           console.warn("Continuing without static manifest");
         }

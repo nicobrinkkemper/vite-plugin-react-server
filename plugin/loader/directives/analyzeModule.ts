@@ -14,18 +14,18 @@ export async function analyzeModule(
 ): Promise<ParseResult> {
   const { ast, code } = await parseFn(source);
 
-  const directiveInfo = analyzeDirectives(ast, source, options);
-  if(options?.verbose) {
-    if(directiveInfo.warnings.length > 0) {
-      console.log('[analyzeModule] warnings', directiveInfo.warnings);
-    }
-  }
-
-  // Collect exports from the AST
+  // Collect exports from the AST first
   const exports = await getExports(ast);
   if(options?.verbose) {
     if(exports.exports.size > 0) {
       console.log('[analyzeModule] exports', Array.from(exports.exports.values()));
+    }
+  }
+
+  const directiveInfo = analyzeDirectives(ast, source, options);
+  if(options?.verbose) {
+    if(directiveInfo.warnings.length > 0) {
+      console.log('[analyzeModule] warnings', directiveInfo.warnings);
     }
   }
 

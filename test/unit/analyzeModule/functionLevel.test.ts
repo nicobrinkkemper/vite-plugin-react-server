@@ -112,4 +112,41 @@ const x = "use server"; // This should be ignored`,
     expect(result.directiveInfo?.functionLevel).toHaveLength(1);
     expect(result.directiveInfo?.functionLevel[0]?.type).toBe("server");
   });
+
+  test("should warn about nested function directives", async () => {
+    const result = await analyzeModule(
+      `export function outer() {
+  function inner() { "use server"; return 1; }
+  return inner();
+}`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.functionLevel).toHaveLength(0);
+    expect(result.directiveInfo?.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("nested inside another function"),
+          type: "server"
+        })
+      ])
+    );
+  });
+
+  test("should warn about class method directives", async () => {
+    const result = await analyzeModule(
+      `export class Calculator {
+  async add(a, b) { "use server"; return a + b; }
+}`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.functionLevel).toHaveLength(0);
+    expect(result.directiveInfo?.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("Class method"),
+          type: "server"
+        })
+      ])
+    );
+  });
 });
