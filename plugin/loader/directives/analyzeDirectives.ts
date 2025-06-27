@@ -4,6 +4,7 @@ import { getFunctionBody } from "./getFunctionBody.js";
 import { getFunctionName } from "./getFunctionName.js";
 import { getExportedName } from "./getExportedName.js";
 import { processFunctionNode } from "./processFunctionNode.js";
+import { isDirectiveAtStart, getDirectiveValue, matchOverlapsDirective } from "./utils.js";
 import type { DirectiveInfo, DirectiveMatch, DirectiveMatches } from "./types.js";
 import type { Node, Program } from "acorn";
 import type { DirectiveOptions } from "../../types.js";
@@ -164,22 +165,16 @@ export function analyzeDirectives(
       if (body) {
         // Check if directive is at the start of the function body
         for (const match of functionLevelMatches) {
-          const directiveValue = match.type === "server" ? "use server" : "use client";
-          const isAtStart = body.body.length > 0 && 
-            body.body[0].type === "ExpressionStatement" &&
-            body.body[0].expression.type === "Literal" &&
-            body.body[0].expression.value === directiveValue;
-
-          if (isAtStart) {
+          const directiveValue = getDirectiveValue(match.type);
+          
+          if (isDirectiveAtStart(node, directiveValue)) {
             // Check if the match range corresponds to this specific directive position
             const directiveNode = body.body[0];
             const directiveStart = directiveNode.start!;
             const directiveEnd = directiveNode.end!;
             
             // Match based on position - the match should overlap with the directive node
-            const matchOverlaps = (match.range[0] >= directiveStart && match.range[0] < directiveEnd) ||
-                                 (match.range[1] > directiveStart && match.range[1] <= directiveEnd) ||
-                                 (match.range[0] <= directiveStart && match.range[1] >= directiveEnd);
+            const matchOverlaps = matchOverlapsDirective(match.range, directiveStart, directiveEnd);
             
             if (matchOverlaps) {
               const functionName = getFunctionName(node) || "anonymous";

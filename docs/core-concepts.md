@@ -163,7 +163,7 @@ const AUTO_DISCOVER = {
 
 ### Directive Processing
 
-The plugin processes React directives to determine module boundaries:
+The plugin processes React directives to determine module boundaries with intelligent context-aware validation:
 
 ```typescript
 // Server directive - can be file-level or function-level
@@ -179,7 +179,46 @@ export function ClientComponent() {
 }
 ```
 
-### Directive Validation
+### Advanced Directive Validation
+
+The plugin provides comprehensive validation with context-aware error messages:
+
+#### Context Detection
+
+```typescript
+// ✅ Valid: Top-level function with server directive
+export async function validServerAction() {
+  "use server";
+  return await database.query();
+}
+
+// ❌ Invalid: Nested function
+export function outer() {
+  function inner() { 
+    "use server"; // Error: Cannot be nested inside another function
+    return 1; 
+  }
+}
+
+// ❌ Invalid: Class method
+export class Calculator {
+  async add(a, b) { 
+    "use server"; // Error: Class methods not supported
+    return a + b; 
+  }
+}
+```
+
+#### Error Message Examples
+
+The plugin provides specific, actionable error messages:
+
+- **Nested Functions**: `"Function 'inner' with 'use server' directive cannot be nested inside another function. Directives are only allowed in top-level functions."`
+- **Class Methods**: `"Class method 'add' with 'use server' directive is not supported. Directives are only allowed in top-level functions."`
+- **Non-async Functions**: `"Function 'syncAction' with 'use server' directive must be declared as async"`
+- **Function Type Detection**: `"Arrow function with 'use server' directive must be declared as async"`
+
+#### Configuration Options
 
 ```typescript
 const DIRECTIVE_CONFIGS = {
@@ -197,6 +236,9 @@ const DIRECTIVE_CONFIGS = {
     warning: "File-level directives must be at the top of the file"
   }
 };
+
+// Error handling configuration
+const panicThreshold = 'none' | 'critical_errors' | 'all_errors';
 ```
 
 ## CSS Handling

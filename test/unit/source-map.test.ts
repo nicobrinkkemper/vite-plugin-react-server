@@ -183,7 +183,7 @@ export async function add(a, b) {
   });
 
   it('should handle multiple function-level directives', async () => {
-    const source = `export async function add(a, b) {\n  "use server";\n  return a + b;\n}\nexport function sub(a, b) {\n  "use server";\n  return a - b;\n}`;
+    const source = `export async function add(a, b) {\n  "use server";\n  return a + b;\n}\nexport async function sub(a, b) {\n  "use server";\n  return a - b;\n}`;
     
     const transformer = createTransformer({
       options: {

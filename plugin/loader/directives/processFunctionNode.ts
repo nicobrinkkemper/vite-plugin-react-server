@@ -1,6 +1,7 @@
 import type { Node, BlockStatement, MethodDefinition, Property } from "acorn";
 import type { DirectiveMatch, DirectiveInfo } from "./types.js";
 import { isMethodDefinition, isProperty, isFunctionNode, isAsyncFunction, isArrowFunctionExpression, isFunctionDeclaration, isFunctionExpression } from "./typeGuards.js";
+import { isDirectiveAtStart, getDirectiveValue } from "./utils.js";
 
 function getFunctionTypeDescription(node: Node): string {
   if (isArrowFunctionExpression(node)) {
@@ -52,13 +53,9 @@ export function processFunctionNode(
   }
 
   // Check if directive is at the start of the function body
-  const directiveValue = match.type === "server" ? "use server" : "use client";
-  const isAtStart = body.body.length > 0 && 
-    body.body[0].type === "ExpressionStatement" &&
-    body.body[0].expression.type === "Literal" &&
-    body.body[0].expression.value === directiveValue;
-
-  if (!isAtStart) {
+  const directiveValue = getDirectiveValue(match.type);
+  
+  if (!isDirectiveAtStart(node, directiveValue)) {
     return;
   }
 

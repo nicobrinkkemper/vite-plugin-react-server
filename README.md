@@ -13,7 +13,7 @@ When you add this plugin to Vite, all aspects of Vite change to accommodate a "N
 
 ### Vite's Philosophy + React
 
-[Vite's philosophy](https://vite.dev/guide/philosophy.html) is built around Native ESM and making frameworks first-class citizens. This plugin extends that philosophy to React:
+[Vite's philosophy](https://vite.dev/guide/philosophy.html) is built around Native ESM and making frameworks first-class citizens. This plugin extends that philosophy to React Server Components:
 
 - **Native ESM for React**: Your React components are true ESM modules that work anywhere
 - **React as Configuration**: Use React components to configure your build (Html, Root, Pages)
@@ -64,8 +64,9 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 export default defineConfig({
   plugins: vitePluginReactServer({
     // React components configure the build
-    Html: ({ children, pageProps }) => <html><body>{children}</body></html>,
-    Root: ({ cssFiles }) => cssFiles.map(css => <link href={css.href} />),
+    components: {
+      Html: ({ children, pageProps }) => <html><body>{children}</body></html>,
+    },
     Page: (url) => `src/pages${url}.tsx`,
   }),
 });
@@ -216,7 +217,7 @@ dist/
 
 ## Testing
 
-The plugin includes 269 test cases across 34 test files covering:
+The plugin includes 235 test cases across 20 test files covering:
 - Build processes (static, client, server)
 - Server action integration
 - Error handling and edge cases
