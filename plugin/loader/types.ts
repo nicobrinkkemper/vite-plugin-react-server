@@ -15,6 +15,7 @@ export type TransformOptions = {
   // based on warning, add warning directive index to avoid warning in development
   addDirectives?: number[];
   verbose: boolean;
+  failOnWarnings: boolean;
 };
 
 export type TransformResult = {
@@ -30,13 +31,13 @@ export type TransformFunction = (
 ) => Promise<TransformResult>;
 
 export type TransformerFactory = (options: {
-  parseFn?: (source: string, verbose?: boolean) => Promise<{ ast: Program; code: string; map?: {
+  parseFn?: (source: string) => Promise<{ ast: Program; code: string; map?: {
     url: string;
     start: number;
     end: number;
     lines: number;
   } | null }>;
-  options: Pick<ResolvedUserOptions, 'verbose' | 'loader'>;
+  options: Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'failOnWarnings'>;
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;
   isServerEnvironment?: boolean;

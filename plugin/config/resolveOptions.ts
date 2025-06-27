@@ -1,6 +1,13 @@
 import type { PreRenderedAsset } from "rollup";
 import type { PreRenderedChunk } from "rollup";
-import type { StreamPluginOptions, ResolvedUserOptions, PageName, PropsName, HtmlName, RootName } from "../types.js";
+import type {
+  StreamPluginOptions,
+  ResolvedUserOptions,
+  PageName,
+  PropsName,
+  HtmlName,
+  RootName,
+} from "../types.js";
 import {
   BASE_PATTERNS,
   DEFAULT_CONFIG,
@@ -112,7 +119,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     process.env["VITE_PROD"] === "true" ||
     process.env["VITE_PROD"] === "1";
   const prodModuleBase = isProd && preserveModulesRoot ? moduleBase : undefined;
-
 
   const client =
     typeof options.build?.client === "string"
@@ -502,22 +508,27 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     ),
     allowedDirectives: allowedDirectives,
     getDirectiveType:
-      options.loader?.getDirectiveType ??
-      options.loader?.allowedDirectives ?
-      (directive: string) => {
-        if (options.loader?.allowedDirectives) {
-          if (Array.isArray(options.loader?.allowedDirectives)) {
-            return options.loader?.allowedDirectives.includes(directive) ? 
-              (directive === "use server" ? "server" : "client") : undefined;
-          } else {
-            const config = options.loader?.allowedDirectives[directive];
-            return config ? 
-              (directive === "use server" ? "server" : "client") : undefined;
+      options.loader?.getDirectiveType ?? options.loader?.allowedDirectives
+        ? (directive: string) => {
+            if (options.loader?.allowedDirectives) {
+              if (Array.isArray(options.loader?.allowedDirectives)) {
+                return options.loader?.allowedDirectives.includes(directive)
+                  ? directive === "use server"
+                    ? "server"
+                    : "client"
+                  : undefined;
+              } else {
+                const config = options.loader?.allowedDirectives[directive];
+                return config
+                  ? directive === "use server"
+                    ? "server"
+                    : "client"
+                  : undefined;
+              }
+            }
+            return undefined;
           }
-        }
-        return undefined;
-      }
-      : DEFAULT_LOADER_CONFIG.getDirectiveType,
+        : DEFAULT_LOADER_CONFIG.getDirectiveType,
     mode: loaderMode,
     importServerPath:
       options.loader?.importServerPath ??
@@ -560,10 +571,15 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       components: options.components,
       normalizer: normalizer,
       moduleID: moduleID,
-      pageExportName: options.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME as PageName,
-      propsExportName: options.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME as PropsName,
-      htmlExportName: options.htmlExportName ?? DEFAULT_CONFIG.HTML_EXPORT_NAME as HtmlName,
-      rootExportName: options.rootExportName ?? DEFAULT_CONFIG.ROOT_EXPORT_NAME as RootName,
+      pageExportName:
+        options.pageExportName ?? (DEFAULT_CONFIG.PAGE_EXPORT_NAME as PageName),
+      propsExportName:
+        options.propsExportName ??
+        (DEFAULT_CONFIG.PROPS_EXPORT_NAME as PropsName),
+      htmlExportName:
+        options.htmlExportName ?? (DEFAULT_CONFIG.HTML_EXPORT_NAME as HtmlName),
+      rootExportName:
+        options.rootExportName ?? (DEFAULT_CONFIG.ROOT_EXPORT_NAME as RootName),
       css: {
         inlineCss: options.css?.inlineCss ?? DEFAULT_CONFIG.CSS.inlineCss,
         inlineThreshold:
@@ -581,10 +597,23 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       autoDiscover: autoDiscover,
       loader: loader,
       pipeableStreamOptions,
-      rscTimeout: typeof options.rscTimeout === "number" ? options.rscTimeout : DEFAULT_CONFIG.RSC_TIMEOUT,
-      htmlWorkerStartupTimeout: typeof options.htmlWorkerStartupTimeout === "number" ? options.htmlWorkerStartupTimeout : DEFAULT_CONFIG.HTML_WORKER_STARTUP_TIMEOUT,
-      rscWorkerStartupTimeout: typeof options.rscWorkerStartupTimeout === "number" ? options.rscWorkerStartupTimeout : DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT,
-    }
+      rscTimeout:
+        typeof options.rscTimeout === "number"
+          ? options.rscTimeout
+          : DEFAULT_CONFIG.RSC_TIMEOUT,
+      htmlWorkerStartupTimeout:
+        typeof options.htmlWorkerStartupTimeout === "number"
+          ? options.htmlWorkerStartupTimeout
+          : DEFAULT_CONFIG.HTML_WORKER_STARTUP_TIMEOUT,
+      rscWorkerStartupTimeout:
+        typeof options.rscWorkerStartupTimeout === "number"
+          ? options.rscWorkerStartupTimeout
+          : DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT,
+      failOnWarnings:
+        typeof options.failOnWarnings === "boolean"
+          ? options.failOnWarnings
+          : DEFAULT_CONFIG.FAIL_ON_WARNINGS,
+    };
 
     // Stash the resolved options
     stashedUserOptions[envId] = userOptions;

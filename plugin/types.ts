@@ -348,6 +348,7 @@ export type ResolvedUserOptions = {
   rscTimeout: number;
   htmlWorkerStartupTimeout: number;
   rscWorkerStartupTimeout: number;
+  failOnWarnings: boolean;
 
   // Optional properties
   onEvent?: (event: PluginEvent) => void;
@@ -372,7 +373,7 @@ export type ResolvedUserOptions = {
 
 export type DirectiveOptions<
   R extends ResolvedUserOptions = ResolvedUserOptions
-> = Pick<R, "verbose"> & {
+> = Pick<R, "verbose" | "failOnWarnings"> & {
   loader: Pick<
     R["loader"],
     "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType"
@@ -798,6 +799,7 @@ export type StreamPluginOptions<
   rscTimeout?: number; // Timeout in milliseconds for RSC operations
   htmlWorkerStartupTimeout?: number; // Timeout in milliseconds for HTML worker startup
   rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
+  failOnWarnings?: boolean;
 };
 
 export type MultiPageHandlerOptions<

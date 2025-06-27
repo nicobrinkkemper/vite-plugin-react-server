@@ -27,7 +27,8 @@ export function analyzeDirectives(
   source: string,
   optionsOrMatches?: DirectiveMatches | DirectiveOptions,
 ): DirectiveInfo {
-  const directiveMatches = typeof optionsOrMatches === 'object' && 'matches' in optionsOrMatches
+  const hasOptions  = optionsOrMatches != null && typeof optionsOrMatches === 'object';
+  const directiveMatches = hasOptions && 'matches' in optionsOrMatches
     ? optionsOrMatches
     : findDirectiveMatches(source);
 
@@ -40,14 +41,18 @@ export function analyzeDirectives(
   // Find file-level directives by checking AST
   let foundNonDirective = false;
   let firstDirective: DirectiveMatch | null = null;
-
+  let verbose = hasOptions && 'verbose' in optionsOrMatches && optionsOrMatches.verbose;
   for (const node of ast.body) {
-    // Check if this node is after any comments
-    if (node.start! > 0) {
-      const beforeNode = source.slice(0, node.start!);
-      if (beforeNode.trim().startsWith("//") || beforeNode.trim().startsWith("/*")) {
-        foundNonDirective = true;
-      }
+    // Debug logging
+    if (verbose) {
+      console.log('[analyzeDirectives] Processing node:', {
+        type: node.type,
+        start: node.start,
+        end: node.end,
+        directive: 'directive' in node ? node.directive : undefined,
+        beforeNode: node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)) : 'none',
+        foundNonDirective
+      });
     }
 
     // Only check for directives in expression statements
@@ -69,6 +74,9 @@ export function analyzeDirectives(
           (directive === "use server" ? "server" : "client");
         if (!firstDirective) {
           firstDirective = { type, range: [node.start!, node.end!] };
+          if (verbose) {
+            console.log('[analyzeDirectives] Found first directive:', directive, 'at range:', [node.start!, node.end!]);
+          }
         } else {
           directiveInfo.warnings.push({
             message: "Cannot have both 'use client' and 'use server' directives in the same file",
@@ -76,16 +84,55 @@ export function analyzeDirectives(
             type: "server"
           });
         }
+      } else {
+        // This expression statement is not a directive, so mark as non-directive
+        // if we haven't found the first directive yet
+        if (!firstDirective) {
+          foundNonDirective = true;
+          if (optionsOrMatches != null && 'verbose' in optionsOrMatches && optionsOrMatches?.verbose) {
+            console.log('[analyzeDirectives] Found non-directive expression before first directive, setting foundNonDirective=true');
+          }
+        }
       }
     } else if (node.type !== "ImportDeclaration" && node.type !== "ExportNamedDeclaration" && node.type !== "ExportDefaultDeclaration") {
       // Only mark actual code (not imports/exports) as non-directive
-      foundNonDirective = true;
+      // if we haven't found the first directive yet
+      if (!firstDirective) {
+        foundNonDirective = true;
+        if (verbose) {
+          console.log('[analyzeDirectives] Found non-directive node before first directive:', node.type, 'setting foundNonDirective=true');
+        }
+      }
+    }
+
+    // Check if this node is after any comments or non-whitespace content
+    // Only matters if we haven't found the first directive yet
+    if (!firstDirective && node.start! > 0) {
+      const beforeNode = source.slice(0, node.start!).trim();
+      if (beforeNode.length > 0) {
+        foundNonDirective = true;
+        if (verbose) {
+          console.log('[analyzeDirectives] Found content before first directive:', JSON.stringify(beforeNode), 'setting foundNonDirective=true');
+        }
+      }
     }
   }
 
   // Set the first directive as file-level if found
   if (firstDirective) {
     directiveInfo.fileLevel = firstDirective;
+    
+    // Check if there was content (including comments) before the directive
+    if (!foundNonDirective && firstDirective.range[0] > 0) {
+      const beforeDirective = source.slice(0, firstDirective.range[0]).trim();
+      if (beforeDirective.length > 0) {
+        foundNonDirective = true;
+        if (verbose) {
+          console.log('[analyzeDirectives] Found content before directive:', JSON.stringify(beforeDirective), 'setting foundNonDirective=true for directive');
+        }
+      }
+    }
+    
     if (foundNonDirective) {
       directiveInfo.warnings.push({
         message: "File-level directives must be at the top of the file, before any other code",

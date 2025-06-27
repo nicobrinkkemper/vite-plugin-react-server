@@ -1,4 +1,4 @@
-import { createRenderMetrics } from "../metrics/metrics.js";
+import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { resolveComponents } from "../helpers/resolveComponents.js";
 import type {
   RenderPageResult,

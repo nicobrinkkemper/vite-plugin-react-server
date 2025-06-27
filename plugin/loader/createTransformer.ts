@@ -1,14 +1,11 @@
 import { transformModule } from "./transformModule.js";
 import { isReactServerCondition } from "../config/getCondition.js";
 import { parse } from "./parse.js";
-import type {
-  DirectiveWarning,
-  DirectiveMatch,
-} from "./directives/types.js";
-import { analyzeDirectives } from "./directives/analyzeDirectives.js";
-import { getExports } from "./directives/getExports.js";
+import { analyzeModule } from "./directives/analyzeModule.js";
 import { findDirectiveMatches } from "./directives/findDirectiveMatches.js";
+import type { DirectiveMatch } from "./directives/types.js";
 import type { TransformerFactory, TransformResult } from "./types.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 /**
  * Creates a transformer that handles React Server Components (RSC) boundaries.
@@ -24,63 +21,84 @@ export const createTransformer: TransformerFactory = ({
     if (options.verbose) {
       console.log(`[createTransformer] Loading: ${moduleId}`);
     }
+
     // Fast-path: skip parsing and transformation if no directives are present
     const matches = findDirectiveMatches(source);
-
-    // Validate flags against matches
-    const hasServerDirective = matches.matches.some((m: DirectiveMatch) => m.type === "server");
-    const hasClientDirective = matches.matches.some((m: DirectiveMatch) => m.type === "client");
+    const hasServerDirective = matches.matches.some(
+      (m: DirectiveMatch) => m.type === "server"
+    );
+    const hasClientDirective = matches.matches.some(
+      (m: DirectiveMatch) => m.type === "client"
+    );
 
     if (hasClientDirective === false && hasServerDirective === false) {
       return { code: source, map: null };
     }
-    if(isServerEnvironment === false && hasServerDirective) {
-      console.warn('You likely don\'t want to use createTransformer in the client environment.');
+
+    if (isServerEnvironment === false && hasServerDirective) {
+      console.warn(
+        "You likely don't want to use createTransformer in the client environment."
+      );
     }
-    const warnings: DirectiveWarning[] = [];
 
-    // Parse the module to get AST, code, and map
-    const { ast, code, map } = await parseFn(source, options.verbose);
-    const exports = await getExports(ast);
-    const directiveInfo = analyzeDirectives(ast, source, {
-      loader: options.loader,
-      verbose: options.verbose
-    });
+    // Use analyzeModule to get the full parse result, passing the custom parseFn
+    const parseResult = await analyzeModule(source, options, parseFn);
+    if (
+      parseResult.directiveInfo &&
+      parseResult.directiveInfo.warnings.length > 0
+    ) {
+      const isProduction = getNodeEnv() === "production";
 
-    // Handle directive removal
-    const transformedSource = source;
-    
-    if(warnings.length > 0) {
-      // throw first warning as error
-      const error = new Error(warnings[0].message);
-      Error.captureStackTrace(error, createTransformer);
-      throw error;
+      // Show warnings with source code snippets (hide detailed info in production)
+      for (const warning of parseResult.directiveInfo.warnings) {
+        if (isProduction || options.failOnWarnings) {
+          // Throw error in production or when failOnWarnings is enabled
+          throw new Error(warning.message);
+        } else {
+          // Detailed warning with source context in development
+          const [start, end] = warning.range;
+          let snippet = source.slice(start, end);
+
+          // Normalize snippet to show just the directive (remove trailing semicolon if present)
+          snippet = snippet.replace(/;$/, "");
+
+          const startLine = source.slice(0, start).split("\n").length;
+
+          // Show what content is before the directive (if any)
+          const beforeDirective = source.slice(0, start);
+          const beforeContent = beforeDirective.trim();
+
+          console.warn(`Warning: ${warning.message}`);
+          console.warn(`  at line ${startLine}: ${snippet}`);
+
+          if (beforeContent) {
+            console.warn(
+              `  content before directive: ${JSON.stringify(beforeContent)}`
+            );
+          } else {
+            console.warn(`  (no content before directive)`);
+          }
+
+          if (options.verbose) {
+            console.warn(`  range: [${start}, ${end}]`);
+            console.warn(`  raw before: ${JSON.stringify(beforeDirective)}`);
+          }
+        }
+      }
+    }
+    if (parseResult.type !== "success") {
+      return { code: source, map: null };
     }
 
     // Transform the module
-    const transformedCode = await transformModule(
-      transformedSource,
-      moduleId,
-      {
-        type: "success",
-        ast,
-        code,
-        map,
-        exports,
-        directiveInfo,
-      },
-      {
-        forceServerFunction: forceServerFunction ?? hasServerDirective,
-        forceClientComponent: forceClientComponent ?? hasClientDirective,
-        isServerEnvironment,
-        loader: options.loader,
-        directiveWarnings: warnings,
-        verbose: options.verbose || false,
-      }
-    );
-    return {
-      code: transformedCode.code,
-      map: transformedCode.map || null,
-    };
+    return await transformModule(source, moduleId, parseResult, {
+      forceServerFunction: forceServerFunction ?? hasServerDirective,
+      forceClientComponent: forceClientComponent ?? hasClientDirective,
+      isServerEnvironment,
+      loader: options.loader,
+      directiveWarnings: parseResult.directiveInfo.warnings,
+      verbose: options.verbose || false,
+      failOnWarnings: options.failOnWarnings || false,
+    });
   };
 };
