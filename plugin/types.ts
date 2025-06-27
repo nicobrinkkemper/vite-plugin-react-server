@@ -348,7 +348,7 @@ export type ResolvedUserOptions = {
   rscTimeout: number;
   htmlWorkerStartupTimeout: number;
   rscWorkerStartupTimeout: number;
-  failOnWarnings: boolean;
+  panicThreshold: "none" | "critical_errors" | "all_errors";
 
   // Optional properties
   onEvent?: (event: PluginEvent) => void;
@@ -373,7 +373,7 @@ export type ResolvedUserOptions = {
 
 export type DirectiveOptions<
   R extends ResolvedUserOptions = ResolvedUserOptions
-> = Pick<R, "verbose" | "failOnWarnings"> & {
+> = Pick<R, "verbose" | "panicThreshold"> & {
   loader: Pick<
     R["loader"],
     "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType"
@@ -382,13 +382,12 @@ export type DirectiveOptions<
   };
 };
 
-export type RootOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> =
-  {
-    inlineCss?: InlineCSS;
-    inlineThreshold?: number;
-    inlinePatterns?: RegExp[];
-    linkPatterns?: RegExp[];
-  };
+export type RootOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> = {
+  inlineCss?: InlineCSS;
+  inlineThreshold?: number;
+  inlinePatterns?: RegExp[];
+  linkPatterns?: RegExp[];
+};
 
 export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
   InlineCSS extends true
@@ -412,7 +411,7 @@ export type RootComponentType<
 export type RootProps<
   PageProps extends PagePropOpt = PagePropOpt,
   InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt,
+  As extends AsOpt = AsOpt
 > = {
   as: As;
   cssFiles?: Map<string, CssContent<InlineCSS>>;
@@ -421,9 +420,7 @@ export type RootProps<
   id?: string;
 };
 
-export type RootComponent = (
-  props: RootProps
-) => React.ReactNode;
+export type RootComponent = (props: RootProps) => React.ReactNode;
 
 /**
  * Boxed component type for the Html component
@@ -799,7 +796,7 @@ export type StreamPluginOptions<
   rscTimeout?: number; // Timeout in milliseconds for RSC operations
   htmlWorkerStartupTimeout?: number; // Timeout in milliseconds for HTML worker startup
   rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
-  failOnWarnings?: boolean;
+  panicThreshold?: "none" | "critical_errors" | "all_errors";
 };
 
 export type MultiPageHandlerOptions<
@@ -840,7 +837,7 @@ export type CreateHandlerOptions<
   | "moduleID"
   | "verbose"
   | "components"
-> &  {
+> & {
   logger: Logger;
   loader: BuildModuleLoader | GenericModuleLoader;
   pagePath: string;
@@ -852,7 +849,7 @@ export type CreateHandlerOptions<
   RootComponent?: RootComponentType;
   HtmlComponent?: HtmlComponentType<PagePropOpt>;
   route: string;
-  as?: AsOpt,
+  as?: AsOpt;
   manifest: Manifest;
   worker?: Worker;
   server?: ViteDevServer;
@@ -1016,7 +1013,10 @@ export type ResolvedBuildPages = {
    * urlMap.set("/", { props: "/props", page: "/page" });
    * ```
    */
-  urlMap: Map<string, { props?: string; page: string; root?: string; html?: string }>;
+  urlMap: Map<
+    string,
+    { props?: string; page: string; root?: string; html?: string }
+  >;
   errors: Error[];
 };
 
@@ -1033,7 +1033,10 @@ export interface DeserializedRegExp {
 }
 
 export type RegExpOpt = RegExp | string | DeserializedRegExp;
-export type UrlOpt = string | ((url: string) => string) | ((url: string) => Promise<string>);
+export type UrlOpt =
+  | string
+  | ((url: string) => string)
+  | ((url: string) => Promise<string>);
 export type PageName = "Page";
 export type PropsName = "props";
 export type HtmlName = "Html";
@@ -1098,9 +1101,7 @@ export type StyleCssProps = BaseCssProps & {
   href?: never;
 };
 
-export type CssProps<
-  InlineCSS extends InlineCssOpt = InlineCssOpt
-> = {
+export type CssProps<InlineCSS extends InlineCssOpt = InlineCssOpt> = {
   cssFiles: Map<string, CssContent<InlineCSS>>;
 };
 
@@ -1302,7 +1303,7 @@ export type FlightConfig = {
 // Import configuration from separate file
 export {
   createFlightBindings,
-  defaultFlightBindings
+  defaultFlightBindings,
 } from "./config/flightBindings.js";
 
 export type DirectiveConfig = {
@@ -1376,4 +1377,3 @@ export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
 
 // re-exorts
 export type { RenderMetrics, StreamMetrics };
-

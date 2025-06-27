@@ -609,10 +609,10 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         typeof options.rscWorkerStartupTimeout === "number"
           ? options.rscWorkerStartupTimeout
           : DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT,
-      failOnWarnings:
-        typeof options.failOnWarnings === "boolean"
-          ? options.failOnWarnings
-          : DEFAULT_CONFIG.FAIL_ON_WARNINGS,
+      panicThreshold:
+        typeof options.panicThreshold === "string"
+          ? options.panicThreshold
+          : DEFAULT_CONFIG.PANIC_THRESHOLD,
     };
 
     // Stash the resolved options

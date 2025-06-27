@@ -206,7 +206,7 @@ export const DEFAULT_CONFIG = {
   },
   MODULE_ID: (id: string) => id,
   VERBOSE: false,
-  FAIL_ON_WARNINGS: false,
+  PANIC_THRESHOLD: 'none' as const,
   // Centralized loader config for RSC boundaries
   RSC_LOADER: {
     development: {

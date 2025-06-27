@@ -51,8 +51,12 @@ export const createTransformer: TransformerFactory = ({
 
       // Show warnings with source code snippets (hide detailed info in production)
       for (const warning of parseResult.directiveInfo.warnings) {
-        if (isProduction || options.failOnWarnings) {
-          // Throw error in production or when failOnWarnings is enabled
+        const shouldPanic = isProduction || 
+          options.panicThreshold === 'all_errors' || 
+          options.panicThreshold === 'critical_errors';
+          
+        if (shouldPanic) {
+          // Throw error in production or when panicThreshold requires it
           throw new Error(warning.message);
         } else {
           // Detailed warning with source context in development
@@ -98,7 +102,7 @@ export const createTransformer: TransformerFactory = ({
       loader: options.loader,
       directiveWarnings: parseResult.directiveInfo.warnings,
       verbose: options.verbose || false,
-      failOnWarnings: options.failOnWarnings || false,
+      panicThreshold: options.panicThreshold || false,
     });
   };
 };

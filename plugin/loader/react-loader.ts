@@ -82,7 +82,7 @@ export function initialize(
           mode: getNodeEnv(),
         },
         verbose: false,
-        failOnWarnings: false,
+        panicThreshold: 'none',
       },
     });
   }

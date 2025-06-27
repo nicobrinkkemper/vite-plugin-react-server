@@ -15,7 +15,7 @@ export type TransformOptions = {
   // based on warning, add warning directive index to avoid warning in development
   addDirectives?: number[];
   verbose: boolean;
-  failOnWarnings: boolean;
+  panicThreshold: 'none' | 'critical_errors' | 'all_errors';
 };
 
 export type TransformResult = {
@@ -37,7 +37,7 @@ export type TransformerFactory = (options: {
     end: number;
     lines: number;
   } | null }>;
-  options: Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'failOnWarnings'>;
+  options: Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'panicThreshold'>;
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;
   isServerEnvironment?: boolean;

@@ -103,7 +103,7 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
         options: {
           loader: userOptions.loader,
           verbose: userOptions.verbose,
-          failOnWarnings: userOptions.failOnWarnings
+          panicThreshold: userOptions.panicThreshold
         },
         isServerEnvironment: true,
       });

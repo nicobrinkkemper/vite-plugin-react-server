@@ -3,9 +3,9 @@ import { createTransformer } from "vite-plugin-react-server/loader";
 import type { ResolvedUserOptions } from "vite-plugin-react-server/types";
 
 // Mock options for testing
-const createMockOptions = (overrides: Partial<Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'failOnWarnings'>> = {}): Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'failOnWarnings'> => ({
+const createMockOptions = (overrides: Partial<Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'panicThreshold'>> = {}): Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'panicThreshold'> => ({
   verbose: false,
-  failOnWarnings: false,
+  panicThreshold: 'none',
   loader: {
     serverDirective: /^"use server"$/,
     clientDirective: /^"use client"$/,
@@ -33,7 +33,7 @@ const createMockOptions = (overrides: Partial<Pick<ResolvedUserOptions, 'verbose
   ...overrides
 });
 
-describe("failOnWarnings functionality", () => {
+describe("panicThreshold functionality", () => {
   // Test source with misplaced directive (should generate warning)
   const sourceWithWarning = `// This comment comes before the directive
 "use server";
@@ -47,11 +47,11 @@ export async function test() {
   return 42;
 }`;
 
-  it("should show warnings but not throw when failOnWarnings=false", async () => {
+  it("should show warnings but not throw when panicThreshold='none'", async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     
     const transformer = createTransformer({
-      options: createMockOptions({ failOnWarnings: false })
+      options: createMockOptions({ panicThreshold: 'none' })
     });
 
     const result = await transformer(sourceWithWarning, 'test.js');
@@ -68,9 +68,9 @@ export async function test() {
     consoleSpy.mockRestore();
   });
 
-  it("should throw error when failOnWarnings=true", async () => {
+  it("should throw error when panicThreshold='all_errors'", async () => {
     const transformer = createTransformer({
-      options: createMockOptions({ failOnWarnings: true })
+      options: createMockOptions({ panicThreshold: 'all_errors' })
     });
 
     await expect(transformer(sourceWithWarning, 'test.js')).rejects.toThrow(
@@ -78,9 +78,19 @@ export async function test() {
     );
   });
 
-  it("should not throw when failOnWarnings=true but no warnings exist", async () => {
+  it("should throw error when panicThreshold='critical_errors'", async () => {
     const transformer = createTransformer({
-      options: createMockOptions({ failOnWarnings: true })
+      options: createMockOptions({ panicThreshold: 'critical_errors' })
+    });
+
+    await expect(transformer(sourceWithWarning, 'test.js')).rejects.toThrow(
+      "File-level directives must be at the top of the file, before any other code"
+    );
+  });
+
+  it("should not throw when panicThreshold='all_errors' but no warnings exist", async () => {
+    const transformer = createTransformer({
+      options: createMockOptions({ panicThreshold: 'all_errors' })
     });
 
     const result = await transformer(sourceWithoutWarning, 'test.js');
@@ -90,15 +100,15 @@ export async function test() {
     expect(result.code).toBeDefined();
   });
 
-  it("should always throw in production mode regardless of failOnWarnings", async () => {
+  it("should always throw in production mode regardless of panicThreshold", async () => {
     // Mock NODE_ENV to be production
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
     
     try {
-      // Test with failOnWarnings=false - should still throw in production
+      // Test with panicThreshold='none' - should still throw in production
       const transformer = createTransformer({
-        options: createMockOptions({ failOnWarnings: false })
+        options: createMockOptions({ panicThreshold: 'none' })
       });
 
       await expect(transformer(sourceWithWarning, 'test.js')).rejects.toThrow(
@@ -110,11 +120,11 @@ export async function test() {
     }
   });
 
-  it("should show detailed warnings in development mode when failOnWarnings=false", async () => {
+  it("should show detailed warnings in development mode when panicThreshold='none'", async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     
     const transformer = createTransformer({
-      options: createMockOptions({ failOnWarnings: false, verbose: true })
+      options: createMockOptions({ panicThreshold: 'none' })
     });
 
     await transformer(sourceWithWarning, 'test.js');
