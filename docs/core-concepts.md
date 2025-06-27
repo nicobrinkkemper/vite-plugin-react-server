@@ -195,7 +195,7 @@ export async function validServerAction() {
 // ❌ Invalid: Nested function
 export function outer() {
   function inner() { 
-    "use server"; // Error: Cannot be nested inside another function
+    "use server"; // Invalid: nested function
     return 1; 
   }
 }
@@ -203,20 +203,20 @@ export function outer() {
 // ❌ Invalid: Class method
 export class Calculator {
   async add(a, b) { 
-    "use server"; // Error: Class methods not supported
+    "use server"; // Invalid: class method
     return a + b; 
   }
 }
 ```
 
-#### Error Message Examples
+#### Error Detection Categories
 
-The plugin provides specific, actionable error messages:
+The plugin provides specific, actionable error messages for:
 
-- **Nested Functions**: `"Function 'inner' with 'use server' directive cannot be nested inside another function. Directives are only allowed in top-level functions."`
-- **Class Methods**: `"Class method 'add' with 'use server' directive is not supported. Directives are only allowed in top-level functions."`
-- **Non-async Functions**: `"Function 'syncAction' with 'use server' directive must be declared as async"`
-- **Function Type Detection**: `"Arrow function with 'use server' directive must be declared as async"`
+- **Nested Functions**: Detects directives in functions inside other functions
+- **Class Methods**: Identifies directives in class method definitions  
+- **Non-async Server Functions**: Validates that server directives are in async functions
+- **Function Type Detection**: Provides context-specific messages for arrow functions, class methods, etc.
 
 #### Configuration Options
 

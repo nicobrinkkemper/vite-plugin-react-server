@@ -2,12 +2,17 @@
 
 The RSC worker is used by the client plugin to handle React Server Components when the main thread is running without the `react-server` condition. It provides the server-condition capabilities that the client plugin needs but can't access directly.
 
+> **Part of**: [Vite React Server Plugin](../../../README.md)  
+> **Documentation**: [Plugin Architecture Overview](../../../docs/README.md#plugin-architecture-documentation)
+
 ## Purpose
 
 The RSC worker serves several key functions:
 
 1. **Server Condition Access**: Enables RSC processing in a client-focused environment
 2. **Message-Based Communication**: Handles RSC streaming through a message passing interface
+3. **Context Isolation**: Provides a clean environment for server-side React processing
+4. **Streaming Support**: Handles RSC chunk processing and streaming responses
 
 ## Implementation Details
 
@@ -15,6 +20,22 @@ The worker comes in two variants:
 
 - `rsc-worker.development.ts`: Full implementation with detailed logging and error handling
 - `rsc-worker.production.ts`: Optimized implementation for production builds
+
+### Message Types
+
+The worker handles several message types:
+
+- `RSC_RENDER`: Renders React Server Components
+- `SERVER_ACTION`: Executes server actions
+- `CLEANUP`: Cleans up worker resources
+
+### State Management
+
+The worker maintains state for:
+- Active render requests
+- Server action handlers
+- Streaming connections
+- Error boundaries
 
 ## Extending the Worker
 

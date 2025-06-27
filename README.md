@@ -1,85 +1,17 @@
 # Vite React Server Plugin
 
-A Vite plugin that enables React Server Components (RSC) streaming and static HTML page generation.
+A Vite plugin that enables React Server Components (RSC) streaming and static HTML page generation. This plugin enables a unique "Native ESM" developer experience based on the React Server Components specifications.
 
-- Type Safe
-- Server first
-
-## What separates this from other React projects?
-
-When you add this plugin to Vite, all aspects of Vite change to accommodate a "Native ESM" workflow for React.
-
-**React becomes part of your build tooling** - not just a dependency.
+**React Components as part of your build tooling** - not just as a dependency.
 
 ### Vite's Philosophy + React
 
 [Vite's philosophy](https://vite.dev/guide/philosophy.html) is built around Native ESM and making frameworks first-class citizens. This plugin extends that philosophy to React Server Components:
 
 - **Native ESM for React**: Your React components are true ESM modules that work anywhere
-- **React as Configuration**: Use React components to configure your build (Html, Root, Pages)
-- **Framework-First**: React Server Components are built into the development and build pipeline
-- **No Bundler Lock-in**: Generated modules work with any ESM-compatible system
+- **React as Configuration**: Serialize React Server Components for static hosting
 - **On-Demand Loading**: Only streams the pages you're actually developing
 
-#### Development Efficiency
-
-During development, the plugin only loads what you need:
-
-```tsx
-// Large application with 100+ pages
-export default defineConfig({
-  plugins: vitePluginReactServer({
-    Page: (url) => {
-      // Only the visited page gets loaded and compiled
-      switch (url) {
-        case "/": return "src/home/page.tsx";
-        case "/dashboard": return "src/dashboard/page.tsx";
-        case "/profile": return "src/profile/page.tsx";
-        // ... 97 other pages that won't load until visited
-      }
-    }
-  }),
-});
-```
-
-**Benefits:**
-- **Fast Startup**: Application starts instantly regardless of size
-- **Memory Efficient**: Only active pages consume memory
-- **True ESM**: Each page is a separate module loaded on-demand
-- **Hot Reload**: Changes only affect the current page
-
-### The Difference
-
-```tsx
-// Traditional: React is a dependency, build tools are separate
-import { defineConfig } from "vite";
-export default defineConfig({
-  // HTML template as string
-  // CSS handling as config
-  // React as external dependency
-});
-
-// This plugin: React IS the build configuration
-import { vitePluginReactServer } from "vite-plugin-react-server";
-export default defineConfig({
-  plugins: vitePluginReactServer({
-    // React components configure the build
-    components: {
-      Html: ({ children, pageProps }) => <html><body>{children}</body></html>,
-    },
-    Page: (url) => `src/pages${url}.tsx`,
-  }),
-});
-```
-
-### Native ESM Workflow
-
-Just like Vite pushes modern web standards, this plugin pushes modern React patterns:
-
-- **ESM-only**: All React modules are true ES modules
-- **Server Components**: Native RSC streaming without framework lock-in
-- **Build-time React**: React components generate your build configuration
-- **Standard Modules**: Output works with Next.js, Remix, or any ESM system
 
 ## Quick Start
 
@@ -88,7 +20,7 @@ npm install -D vite-plugin-react-server patch-package react@experimental react-d
 npm run patch
 ```
 
-**Configure with React:**
+**Minimal Config:**
 
 ```ts
 // vite.config.ts
@@ -98,8 +30,8 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 export default defineConfig({
     plugins: vitePluginReactServer({
       moduleBase: "src",
-    Page: (url) => `src/page.tsx`,
-    build: { pages: ["/"] }
+      Page: `src/page.tsx`,
+      build: { pages: ["/"] }
     }),
 });
 ```
@@ -196,13 +128,6 @@ export function Counter() {
   return <button onClick={() => setCount(count + 1)}>{count}</button>;
 }
 ```
-
-## Example Projects
-
-- **[Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)** - Simple playground with GitHub Pages deployment
-  - [Live Demo](https://nicobrinkkemper.github.io/vite-plugin-react-server-demo-official/)
-- **[MMC Project](https://github.com/nicobrinkkemper/mmc)** - Production implementation with advanced features
-  - [Live Demo](https://nicobrinkkemper.github.io/mmc/)
 
 ## Build Output
 

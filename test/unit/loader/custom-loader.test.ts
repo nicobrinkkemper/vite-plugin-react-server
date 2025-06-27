@@ -3,6 +3,14 @@ import { createTransformer } from "vite-plugin-react-server/loader";
 import { DEFAULT_LOADER_CONFIG } from "vite-plugin-react-server/config";
 import type { LoaderConfig } from "vite-plugin-react-server/types";
 
+const testOptions = (options: Partial<LoaderConfig> = {}) => ({
+  options: {
+    loader: createLoaderConfig(options),
+    verbose: false,
+    panicThreshold: "none" as const,
+  },
+});
+
 // Helper function to create complete LoaderConfig objects
 const createLoaderConfig = (overrides: Partial<LoaderConfig> = {}): LoaderConfig => ({
   ...DEFAULT_LOADER_CONFIG,
@@ -17,16 +25,11 @@ const createLoaderConfig = (overrides: Partial<LoaderConfig> = {}): LoaderConfig
 describe("Custom Loader Behavior", () => {
   describe("Custom Import Paths", () => {
     test("should use custom server import path", async () => {
-      const customLoaderConfig = createLoaderConfig({
+      const customLoaderConfig = testOptions({
         importServerPath: "custom-rsc-dom/server",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: customLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(customLoaderConfig);
       
       const result = await transform(
         '"use server";\nexport async function action() { return "test"; }',
@@ -38,16 +41,11 @@ describe("Custom Loader Behavior", () => {
     });
 
     test("should use custom client import path", async () => {
-      const customLoaderConfig = createLoaderConfig({
+      const customLoaderConfig = testOptions({
         importClientPath: "custom-rsc-dom/client",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: customLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(customLoaderConfig);
       
       const result = await transform(
         '"use client";\nexport function Component() { return null; }',
@@ -61,16 +59,11 @@ describe("Custom Loader Behavior", () => {
 
   describe("Custom Registration Function Names", () => {
     test("should use custom server registration function name", async () => {
-      const customLoaderConfig = createLoaderConfig({
+      const customLoaderConfig = testOptions({
         registerServerReferenceName: "customRegisterServerReference",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: customLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(customLoaderConfig);
       
       const result = await transform(
         '"use server";\nexport async function action() { return "test"; }',
@@ -82,16 +75,11 @@ describe("Custom Loader Behavior", () => {
     });
 
     test("should use custom client registration function name", async () => {
-      const customLoaderConfig = createLoaderConfig({
+      const customLoaderConfig = testOptions({
         registerClientReferenceName: "customRegisterClientReference",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: customLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(customLoaderConfig);
       
       const result = await transform(
         '"use client";\nexport function Component() { return null; }',
@@ -105,18 +93,13 @@ describe("Custom Loader Behavior", () => {
 
   describe("Environment-Specific Configuration", () => {
     test("should use development configuration in development mode", async () => {
-      const developmentLoaderConfig = createLoaderConfig({
+      const developmentLoaderConfig = testOptions({
         mode: "development",
         importServerPath: "react-server-dom-esm/server.node",
         importClientPath: "react-server-dom-esm/server.node",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: developmentLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(developmentLoaderConfig);
       
       const result = await transform(
         '"use server";\nexport async function action() { return "test"; }',
@@ -127,18 +110,13 @@ describe("Custom Loader Behavior", () => {
     });
 
     test("should use production configuration in production mode", async () => {
-      const productionLoaderConfig = createLoaderConfig({
+      const productionLoaderConfig = testOptions({
         mode: "production",
         importServerPath: "react-server-dom-esm/server",
         importClientPath: "react-server-dom-esm/server",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: productionLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(productionLoaderConfig);
       
       const result = await transform(
         '"use server";\nexport async function action() { return "test"; }',
@@ -151,13 +129,10 @@ describe("Custom Loader Behavior", () => {
 
   describe("Directive-Based Transformation", () => {
     test("should transform server functions with use server directive", async () => {
-      const loaderConfig = createLoaderConfig();
+      const loaderConfig = testOptions();
 
       const transform = createTransformer({
-        options: {
-          loader: loaderConfig,
-          verbose: false,
-        },
+        ...loaderConfig,
         forceServerFunction: true,
       });
       
@@ -171,13 +146,10 @@ describe("Custom Loader Behavior", () => {
     });
 
     test("should transform client components with use client directive", async () => {
-      const loaderConfig = createLoaderConfig();
+      const loaderConfig = testOptions();
 
       const transform = createTransformer({
-        options: {
-          loader: loaderConfig,
-          verbose: false,
-        },
+        ...loaderConfig,
         forceClientComponent: true,
       });
       
@@ -193,19 +165,14 @@ describe("Custom Loader Behavior", () => {
 
   describe("Webpack Compatibility", () => {
     test("should generate webpack-compatible code", async () => {
-      const webpackLoaderConfig = createLoaderConfig({
+      const webpackLoaderConfig = testOptions({
         importServerPath: "react-server-dom-webpack/server",
         importClientPath: "react-server-dom-webpack/client",
         registerServerReferenceName: "registerServerReference",
         registerClientReferenceName: "registerClientReference",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: webpackLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(webpackLoaderConfig);
       
       const result = await transform(
         '"use server";\nexport async function action() { return "webpack"; }',
@@ -219,16 +186,11 @@ describe("Custom Loader Behavior", () => {
 
   describe("Error Handling", () => {
     test("should handle missing registration functions gracefully", async () => {
-      const incompleteLoaderConfig = createLoaderConfig({
+      const incompleteLoaderConfig = testOptions({
         registerServerReferenceName: "nonExistentFunction",
       });
 
-      const transform = createTransformer({
-        options: {
-          loader: incompleteLoaderConfig,
-          verbose: false,
-        },
-      });
+      const transform = createTransformer(incompleteLoaderConfig);
       
       const result = await transform(
         '"use server";\nexport async function action() { return "test"; }',
@@ -242,13 +204,8 @@ describe("Custom Loader Behavior", () => {
 
   describe("Multiple Export Patterns", () => {
     test("should handle export * from client modules", async () => {
-      const loaderConfig = createLoaderConfig();
-      const transform = createTransformer({
-        options: {
-          loader: loaderConfig,
-          verbose: false,
-        },
-      });
+      const loaderConfig = testOptions();
+      const transform = createTransformer(loaderConfig);
       
       const result = await transform(
         'export * from "./utils.js";\nexport function localFunction() { return "local"; }',
@@ -260,13 +217,8 @@ describe("Custom Loader Behavior", () => {
     });
 
     test("should handle mixed export patterns", async () => {
-      const loaderConfig = createLoaderConfig();
-      const transform = createTransformer({
-        options: {
-          loader: loaderConfig,
-          verbose: false,
-        },
-      });
+      const loaderConfig = testOptions();
+      const transform = createTransformer(loaderConfig);
       
       const result = await transform(
         '"use server";\nexport { default as Component } from "./Component.js";\nexport async function action() { return "action"; }',
@@ -280,13 +232,8 @@ describe("Custom Loader Behavior", () => {
 
   describe("Source Map Preservation", () => {
     test("should preserve source maps with custom loader", async () => {
-      const loaderConfig = createLoaderConfig();
-      const transform = createTransformer({
-        options: {
-          loader: loaderConfig,
-          verbose: false,
-        },
-      });
+      const loaderConfig = testOptions();
+      const transform = createTransformer(loaderConfig);
       
       const result = await transform(
         '"use server";\nexport async function action() {\n  return "test";\n}',
@@ -298,4 +245,4 @@ describe("Custom Loader Behavior", () => {
       expect(result.map?.sourcesContent).toBeDefined();
     });
   });
-}); 
+});

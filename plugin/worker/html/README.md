@@ -2,7 +2,17 @@
 
 The HTML worker handles HTML generation and transformation as part of the server plugin (which runs under the `react-server` condition). Since the main thread is already in the correct condition for RSC, the HTML worker can work directly with RSC streams without needing a separate RSC worker.
 
+> **Part of**: [Vite React Server Plugin](../../../README.md)  
+> **Documentation**: [Plugin Architecture Overview](../../../docs/README.md#plugin-architecture-documentation)
+
 The worker receives RSC streams directly from the main thread (which is running under `react-server` condition) and transforms them into HTML. This is different from the client plugin, which needs a separate RSC worker to handle server-condition tasks.
+
+## Key Features
+
+- **Direct RSC Processing**: Works with RSC streams without additional workers
+- **HTML Streaming**: Generates HTML incrementally as RSC chunks arrive
+- **Asset Management**: Handles CSS collection and optimization
+- **Error Boundaries**: Provides robust error handling during HTML generation
 
 ## Extending the Worker
 

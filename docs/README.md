@@ -2,14 +2,6 @@
 
 Welcome to the documentation for the Vite React Server Plugin. This plugin enables React Server Components (RSC) streaming and static HTML page generation using Vite, with TypeScript support and testing.
 
-## What's New
-
-- **Type Safety**: Generic types that work with any React version, preventing compatibility issues
-- **Testing**: 269 test cases across 34 test files covering build processes, server actions, error handling
-- **Monitoring**: Built-in metrics and event system for performance tracking
-- **Architecture**: Separation of concerns with multiple build targets
-- **Development Experience**: Error messages, source maps, and debugging capabilities
-
 ## Table of Contents
 
 1. [Getting Started](./getting-started.md)
@@ -91,6 +83,27 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
     - Debugging Tips
     - Performance Optimization
 
+## Plugin Architecture Documentation
+
+The plugin is composed of several specialized modules, each with their own documentation:
+
+### Core Transformation
+- **[Transformer Plugin](../plugin/transformer/README.md)** - Core React Server Components transformation logic
+  - AST-based module transformation
+  - Environment-specific directive handling
+  - Client/server boundary management
+
+### Worker System
+- **[RSC Worker](../plugin/worker/rsc/README.md)** - React Server Components processing worker
+  - Server condition access in client environments
+  - Message-based RSC streaming
+  - Custom worker extensibility
+
+- **[HTML Worker](../plugin/worker/html/README.md)** - HTML generation and transformation worker
+  - HTML rendering from RSC streams
+  - Asset optimization and processing
+  - Custom HTML transformation pipelines
+
 ## Quick Links
 
 - [GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
@@ -149,10 +162,11 @@ export const Html = ({
 ```
 
 ### Testing
-269 test cases across 34 test files ensure reliability across:
+235 test cases across 20 test files ensure reliability across:
 - Build processes (static, client, server)
 - Server action integration
 - Error handling and edge cases
+- Directive validation and context detection
 - Type safety and React compatibility
 - Performance with large outputs
 

@@ -2,6 +2,16 @@
 
 This plugin provides the core transformation functionality for React Server Components (RSC) in Vite. It handles both client and server-side transformations, enabling seamless integration between React Server Components and Vite's build system.
 
+> **Part of**: [Vite React Server Plugin](../../../README.md)  
+> **Documentation**: [Plugin Architecture Overview](../../../docs/README.md#plugin-architecture-documentation)
+
+## Key Features
+
+- **Intelligent Directive Validation**: Context-aware validation with specific error messages
+- **AST-Based Transformation**: Preserves module structure and source maps
+- **Environment-Specific Processing**: Handles both client and server modules appropriately
+- **Error Handling Configuration**: Configurable `panicThreshold` for development vs production
+
 ## Module Transformation Strategy
 
 The plugin uses a sophisticated approach to transform modules while preserving their structure. Each loader (client and server) handles BOTH client and server modules, but in their respective environments:
@@ -31,15 +41,72 @@ Handles both:
    - Creates server-side references for client components
    - Ensures proper server-side rendering
 
+### Directive Validation
+
+The transformer includes intelligent directive validation with context-aware error detection:
+
+#### Valid Directive Placement
+```typescript
+// ✅ File-level server directive
+"use server";
+export async function add(a, b) {
+  return a + b;
+}
+
+// ✅ File-level client directive  
+"use client"
+import React from 'react';
+export function ClientComponent() { 
+  return <div>Interactive</div>; 
+}
+
+// ✅ Function-level server directive
+export async function add(a, b) {
+  "use server";
+  return a + b;
+}
+```
+
+#### Invalid Directive Placement
+```typescript
+// ❌ Nested function - detected and reported
+export function outer() {
+  function inner() { 
+    "use server"; 
+    return 1; 
+  }
+}
+
+// ❌ Class method - detected and reported
+export class Calculator {
+  async add(a, b) { 
+    "use server"; 
+    return a + b; 
+  }
+}
+```
+
+#### Error Handling Configuration
+```typescript
+// Configure error handling behavior
+const config = {
+  loader: {
+    panicThreshold: 'none' | 'critical_errors' | 'all_errors'
+  }
+};
+```
+
 ### AST-Based Transformation
 
 Both loaders use Abstract Syntax Trees (AST) to:
-1. Find the first export declaration
-2. Split source code into before/after exports
-3. Insert registration code in the right place
-4. Preserve original exports
+1. Validate directive placement and context
+2. Find the first export declaration
+3. Split source code into before/after exports
+4. Insert registration code in the right place
+5. Preserve original exports
 
 This ensures:
+- Proper directive validation with helpful error messages
 - Imports stay at the top
 - Registration code is added in the right place
 - Original exports are preserved
@@ -135,27 +202,34 @@ export function Counter() { ... }
 
 ### Key Benefits
 
-1. **Environment-Aware Transformations**
+1. **Intelligent Directive Validation**
+   - Context-aware error detection (nested functions, class methods)
+   - Specific, actionable error messages
+   - Configurable error handling (`panicThreshold`)
+   - Function type detection (arrow functions, class methods, etc.)
+
+2. **Environment-Aware Transformations**
    - Each loader handles both module types
    - Transformations are environment-specific
    - Proper RSC boundary handling
 
-2. **Preserves Module Structure**
+3. **Preserves Module Structure**
    - Maintains original import order
    - Keeps exports in their original location
    - Preserves source maps
 
-3. **Handles Complex Cases**
+4. **Handles Complex Cases**
    - Server action imports from .server files
    - Client component registration
    - Proper metadata for RSC boundaries
    - Environment-specific transformations
 
-4. **Avoids Common Pitfalls**
+5. **Avoids Common Pitfalls**
    - No duplicate exports
    - No broken source maps
    - No mangled imports
    - Proper environment isolation
+   - Clear validation errors prevent runtime issues
 
 ## Usage
 
