@@ -2,17 +2,19 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { setupTestServerActionJS } from "../setup.js";
 import { doBuild } from "./doBuild.js";
 import { testUserOptions } from "../test-config.js";
-import {  mkdir } from "fs/promises";
+import {  mkdir, rm } from "fs/promises";
 import { resolve } from "path";
-import type { PluginEvent } from "../../dist/types.js";
+import type { PluginEvent } from "vite-plugin-react-server/types";
 import type { OutputBundle } from "rollup";
 const testDir = resolve(__dirname, "../fixtures/server-action.test");
 describe("Generic Server Action Build Output", () => {
   let events: PluginEvent[];
   let serverFiles: string[];
   let clientFiles: string[];
+  let staticFiles: string[];
   let serverBundle: OutputBundle; 
   let clientBundle: OutputBundle;
+  let staticBundle: OutputBundle;
   beforeAll(async () => {
     await mkdir(testDir, { recursive: true });
     await setupTestServerActionJS(testDir);
@@ -38,6 +40,18 @@ describe("Generic Server Action Build Output", () => {
       clientFiles = Object.keys(clientBundle).filter(
         (f) => !f.endsWith(".map")
       ) 
+      
+      // get static bundle for index.html
+      const staticEvent = events.find((e) => e.type === "build.writeBundle.static-client");
+      if (staticEvent) {
+        staticBundle = staticEvent.data.bundle;
+        staticFiles = Object.keys(staticBundle).filter(
+          (f) => !f.endsWith(".map")
+        );
+      } else {
+        staticFiles = [];
+      }
+      
       // check if the new server action file is in the list
       expect(serverFiles.length).toBeGreaterThan(0);
       expect(serverFiles.includes("page/actions.server.js")).toBe(true);
@@ -45,7 +59,7 @@ describe("Generic Server Action Build Output", () => {
       expect(serverFiles.includes("page/subtract.server.js")).toBe(true);
       expect(clientFiles.length).toBeGreaterThan(0);
       expect(clientFiles.find((v) => v.includes("page/ClientComponent.client"))).toBeDefined();
-      expect(clientFiles.includes("index.html")).toBe(true);
+      expect(staticFiles.includes("index.html")).toBe(true);
     } catch (error) {
       console.trace(error);
       throw error;
@@ -53,7 +67,7 @@ describe("Generic Server Action Build Output", () => {
   });
 
   afterAll(async () => {
-    // await rm(testDir, { recursive: true, force: true });
+    await rm(testDir, { recursive: true, force: true });
   });
 
   it("should output at least one server action file", () => {

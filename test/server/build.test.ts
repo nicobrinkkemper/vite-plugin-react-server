@@ -6,7 +6,7 @@ import type {
   PluginEvent,
   FileWriteDoneEvent,
   RenderMetrics,
-} from "../../dist/plugin/types.js";
+} from "vite-plugin-react-server/types";
 import { doBuild } from "./doBuild.js";
 
 describe("Plugin build test", () => {

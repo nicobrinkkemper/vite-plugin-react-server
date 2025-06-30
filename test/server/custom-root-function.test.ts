@@ -11,7 +11,6 @@ describe("Custom Root Component - Function Path", () => {
   let htmlContent: string;
 
   beforeAll(async () => {
-    await mkdir(testDir, { recursive: true });
     await setupTestProject(testDir);
     
     // Create custom Root component file

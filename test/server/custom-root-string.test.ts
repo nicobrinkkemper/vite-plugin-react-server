@@ -11,7 +11,6 @@ describe("Custom Root Component - String Path", () => {
   let htmlContent: string;
 
   beforeAll(async () => {
-    await mkdir(testDir, { recursive: true });
     await setupTestProject(testDir);
     
     // Create custom Root component file
@@ -58,9 +57,9 @@ export const Root: RootFn = ({ Page, pageProps = {}, as: As = React.Fragment, cs
     }
   });
 
-  // afterAll(async () => {
-  //   await rm(testDir, { recursive: true, force: true });
-  // });
+  afterAll(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
 
   it("should load Root component from string path", async () => {
     expect(htmlContent).toBeDefined();

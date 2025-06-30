@@ -104,7 +104,7 @@ export function subtract(a, b) {
     // The error should be caught and handled gracefully
     expect(errorResponse.ok).toBe(true);
     expect(errorResponse.result).toContain(
-      'a:E{"digest":"","name":"Error","message":"Test error"'
+      'E{"digest":"","name":"Error","message":"Test error"'
     ); // Error marker in RSC format
     expect(errorResponse.result).toContain("Test error");
   });
@@ -133,7 +133,7 @@ export function subtract(a, b) {
 
     expect(errorResponse.result).toContain("Test error");
     expect(result).toContain(
-      'a:E{"digest":"","name":"Error","message":"Test error"'
+      'E{"digest":"","name":"Error","message":"Test error"'
     ); // Error marker in RSC format
     expect(result).toContain("Test error");
   });

@@ -13,6 +13,8 @@ import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { logError } from "../error/logError.js";
 import { handleServerAction } from "./handleServerAction.js";
 import { ReactDOMServer } from "../vendor/vendor.server.js";
+import React from "react";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 export type ConfigureReactServerFn = (options: {
   server: ViteDevServer;
@@ -126,19 +128,19 @@ export const configureReactServer: ConfigureReactServerFn =
           propsPath,
           rootPath,
           htmlPath,
-          pageExportName: handlerOptions.pageExportName ?? "Page",
-          propsExportName: handlerOptions.propsExportName ?? "props",
-          rootExportName: handlerOptions.rootExportName,
-          htmlExportName: handlerOptions.htmlExportName,
+          pageExportName: handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
+          propsExportName: handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+          rootExportName: handlerOptions.rootExportName ?? DEFAULT_CONFIG.ROOT_EXPORT_NAME,
+          htmlExportName: handlerOptions.htmlExportName ?? DEFAULT_CONFIG.HTML_EXPORT_NAME,
           route: info.route,
-          loader: loader as never,
+          loader: loader,
           verbose,
         });
         if (componentsResult.type === "error") {
           throw componentsResult.error;
         }
 
-        const { PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult;
+        const { PageComponent, pageProps, RootComponent } = componentsResult;
 
         const eventHandler = createEventHandler(onEvent);
         const intermediateHandlerOptions = {
@@ -149,7 +151,6 @@ export const configureReactServer: ConfigureReactServerFn =
           pagePath,
           propsPath,
           logger: server.config.logger,
-          Html: _userOptions.Html,
           manifest: serverManifest,
           server,
         };
@@ -175,7 +176,7 @@ export const configureReactServer: ConfigureReactServerFn =
           PageComponent: PageComponent,
           pageProps: pageProps,
           RootComponent,
-          HtmlComponent,
+          HtmlComponent: React.Fragment,
           cssFiles: cssFilesResult.cssFiles ?? new Map(),
           globalCss: new Map(),
         });

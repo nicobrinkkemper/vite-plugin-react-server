@@ -115,10 +115,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
 
     const files = await resolveBuildPages({
       pages,
-      userOptions: {
-        ...userOptions,
-        verbose: userOptions.verbose,
-      },
+      userOptions,
     });
 
     // Load static manifest for client build
@@ -197,7 +194,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     };
     // Add inputs based on condition
     const inputs =
-      condition === "react-client"
+      condition !== "react-server"
         ? {
             ...indexHtmlInputs,
             ...agnosticInputs,

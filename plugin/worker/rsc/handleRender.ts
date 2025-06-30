@@ -9,6 +9,7 @@ import { workerData } from "node:worker_threads";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
 import type { BuildModuleLoader, ResolvedUserOptions } from "../../types.js";
+import React from "react";
 
 export type HandleRenderFn = <Msg extends RscRenderMessage = RscRenderMessage>(
   msg: Msg,
@@ -69,13 +70,18 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       route,
       verbose: workerData.userOptions.verbose,
       loader: loader as BuildModuleLoader<ResolvedUserOptions>,
+      // Use components override for headless RSC streams in development
+      HtmlComponent: React.Fragment,
     });
     if (componentsResult.type !== "success") {
       const { error, reason } = componentsResult;
       return handlers.onError(id, error, { reason });
     }
 
-    const { PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult;
+    const { PageComponent, pageProps, RootComponent } = componentsResult;
+
+    // Override HtmlComponent with React.Fragment for headless RSC streams in development
+    const finalHtmlComponent = React.Fragment;
 
     const adaptedOnEvent = (event: "error" | "postpone", data: {
       error?: Error | null;
@@ -99,10 +105,8 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     // Create stream
     const streamResult = createRscStream({
       projectRoot: projectRoot,
-      Html: HtmlComponent,
-      HtmlComponent: HtmlComponent,
+      HtmlComponent: finalHtmlComponent,
       PageComponent,
-      Root: RootComponent,
       RootComponent: RootComponent,
       pageProps,
       moduleBase,

@@ -9,7 +9,7 @@ import { getModuleRef } from "../helpers/moduleRefs.js";
 import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";
 import { toError } from "../error/toError.js";
-import { readFile } from "fs/promises";
+import { readFile, writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
 
 export type CreateBuildLoaderFn = (props: {
@@ -43,7 +43,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
   }
 
   return async function buildLoader(id) {
-    if(userOptions.verbose) {
+    if (userOptions.verbose) {
       console.log("[buildLoader] id: ", id);
     }
     const [withoutQuery, query] = id.split("?", 2);
@@ -106,16 +106,11 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
       // Determine if this is a client component
       const isClientComponent =
         userOptions.autoDiscover.clientPattern.test(normalizedValue);
-      const isServerAction =
-        userOptions.autoDiscover.serverPattern.test(normalizedValue);
-      const isPage = userOptions.autoDiscover.pagePattern.test(normalizedValue);
-      const isProps =
-        userOptions.autoDiscover.propsPattern.test(normalizedValue);
 
       // For client components, use client manifest
       if (isClientComponent) {
         const clientEntry = clientManifest[normalizedValue];
-        if(userOptions.verbose) {
+        if (userOptions.verbose) {
           console.log("clientEntry", clientEntry);
         }
         if (clientEntry) {
@@ -139,34 +134,6 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
         }
       }
 
-      // For server components and actions, use server manifest
-      if (isServerAction || isPage || isProps) {
-        const serverEntry = serverManifest[normalizedValue];
-        if (serverEntry) {
-          try {
-            const module = await import(
-              join(
-                userOptions.projectRoot,
-                userOptions.build.outDir,
-                userOptions.build.server,
-                serverEntry.file
-              )
-            );
-            temporaryReferences?.set(moduleRef, module);
-            // If we have an export name, make sure it's a key
-            if(exportName && !(exportName in module)) {
-              throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
-            }
-            return module;
-          } catch (error) {
-            const err = toError(error);
-            console.warn("Error loading server module:", err);
-            temporaryReferences?.delete(moduleRef);
-            throw err;
-          }
-        }
-      }
-
       // For static assets, use static manifest
       const staticEntry = staticManifest[normalizedValue];
       if (staticEntry) {
@@ -181,7 +148,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
           );
           temporaryReferences?.set(moduleRef, module);
           // If we have an export name, make sure it's a key
-          if(exportName && !(exportName in module)) {
+          if (exportName && !(exportName in module)) {
             throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
           }
           return module;
@@ -193,26 +160,122 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
         }
       }
 
+      // Check server manifest for any remaining modules (including Html/Root components)
+      const serverEntry = serverManifest[normalizedValue];
+      if (userOptions.verbose) {
+        console.log("[buildLoader] Checking server manifest for:", normalizedValue);
+        console.log("[buildLoader] Server manifest keys:", Object.keys(serverManifest));
+        console.log("[buildLoader] Server entry found:", !!serverEntry);
+      }
+      if (serverEntry) {
+        try {
+          const module = await import(
+            join(
+              userOptions.projectRoot,
+              userOptions.build.outDir,
+              userOptions.build.server,
+              serverEntry.file
+            )
+          );
+          temporaryReferences?.set(moduleRef, module);
+          // If we have an export name, make sure it's a key
+          if (exportName && !(exportName in module)) {
+            throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
+          }
+          return module;
+        } catch (error) {
+          const err = toError(error);
+          console.warn("Error loading server module:", err);
+          temporaryReferences?.delete(moduleRef);
+          throw err;
+        }
+      }
+
       // For source files (like custom Root/Html components), try to load directly from filesystem
       const sourceFilePath = join(userOptions.projectRoot, normalizedValue);
-      if(userOptions.verbose) {
+      if (userOptions.verbose) {
         console.log("[buildLoader] Checking source file:", sourceFilePath, "exists:", existsSync(sourceFilePath));
       }
       if (existsSync(sourceFilePath)) {
         try {
-          if(userOptions.verbose) {
+          if (userOptions.verbose) {
             console.log("[buildLoader] Loading source file:", sourceFilePath);
           }
-          // For TypeScript/TSX files, we need to compile them
-          if (sourceFilePath.endsWith('.tsx') || sourceFilePath.endsWith('.ts')) {
-            // Use dynamic import to let Node.js handle the compilation
-            const module = await import(sourceFilePath);
-            temporaryReferences?.set(moduleRef, module);
-            // If we have an export name, make sure it's a key
-            if(exportName && !(exportName in module)) {
-              throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
+
+          // For TypeScript/TSX files, first check if there's a built version in dist
+          if (sourceFilePath.endsWith('.tsx') || sourceFilePath.endsWith('.ts') || sourceFilePath.endsWith('.mts')) {
+            // Try to find the built module first - check both static and server directories
+            const relativePath = normalizedValue.replace(/^src\//, '');
+            const staticBuiltPath = join(
+              userOptions.projectRoot,
+              userOptions.build.outDir,
+              userOptions.build.static,
+              relativePath.replace(/\.(tsx?|mts)$/, '.js')
+            );
+            const serverBuiltPath = join(
+              userOptions.projectRoot,
+              userOptions.build.outDir,
+              userOptions.build.server,
+              relativePath.replace(/\.(tsx?|mts)$/, '.js')
+            );
+
+            // Check static directory first, then server directory
+            let builtModulePath: string | null = null;
+            if (existsSync(staticBuiltPath)) {
+              builtModulePath = staticBuiltPath;
+            } else if (existsSync(serverBuiltPath)) {
+              builtModulePath = serverBuiltPath;
             }
-            return module;
+
+            if (builtModulePath) {
+              if (userOptions.verbose) {
+                console.log("[buildLoader] Found built module:", builtModulePath);
+              }
+              const module = await import(builtModulePath);
+              temporaryReferences?.set(moduleRef, module);
+              // If we have an export name, make sure it's a key
+              if (exportName && !(exportName in module)) {
+                throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
+              }
+              return module;
+            }
+
+            // If no built module found, try to compile the source file
+            if (userOptions.verbose) {
+              console.log("[buildLoader] No built module found, trying to compile source file");
+            }
+
+            // Use esbuild to compile the TypeScript/TSX file
+            const { transformWithEsbuild } = await import('vite');
+            const sourceCode = await readFile(sourceFilePath, 'utf-8');
+            const result = await transformWithEsbuild(sourceCode, sourceFilePath, {
+              format: 'esm',
+              sourcemap: false,
+            });
+
+            // Create a temporary file with the compiled code
+            const tempFilePath = sourceFilePath.replace(/\.(tsx?|mts)$/, '.temp.js');
+            await writeFile(tempFilePath, result.code);
+
+            try {
+              const module = await import(tempFilePath);
+              temporaryReferences?.set(moduleRef, module);
+              // If we have an export name, make sure it's a key
+              if (exportName && !(exportName in module)) {
+                throw new Error(`Export ${exportName} not found in module ${normalizedValue}`);
+              }
+              return module;
+            } finally {
+              // Clean up temporary file
+              try {
+                await unlink(tempFilePath);
+              } catch (cleanupError) {
+                // Ignore cleanup errors
+                if (userOptions.verbose) {
+                  console.warn("[buildLoader] Failed to cleanup temp file:", cleanupError);
+                }
+              }
+            }
           } else {
             // For other files, read as text
             const content = await readFile(sourceFilePath, 'utf-8');

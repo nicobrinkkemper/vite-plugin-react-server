@@ -2,15 +2,45 @@ import type { Plugin } from "vite";
 import { resolveConfigDefine, resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { userProjectRoot } from "../root.js";
-const isBuild = process.argv[process.argv.length - 1] === "build";
-const isPreview = process.argv.findIndex((arg) => arg === "preview") !== -1;
+
+/**
+ * Helper function to parse command-line arguments in both formats:
+ * --arg value (space-separated) and --arg=value (equals-separated)
+ * Handles any IFS characters and edge cases
+ */
+function getArgValue(argName: string): string | undefined {
+  // Check for --arg=value format first (handles any character after =)
+  const equalsArg = process.argv.find((arg) => arg.startsWith(`--${argName}=`));
+  if (equalsArg) {
+    return equalsArg.substring(`--${argName}=`.length);
+  }
+  
+  // Check for --arg value format (handles any IFS characters)
+  const argIndex = process.argv.findIndex((arg) => arg === `--${argName}`);
+  if (argIndex !== -1 && argIndex + 1 < process.argv.length) {
+    const value = process.argv[argIndex + 1];
+    // Only return if the next argument doesn't start with -- (isn't another flag)
+    if (value && !value.startsWith("--")) {
+      return value;
+    }
+  }
+  
+  return undefined;
+}
+
+const isBuild = process.argv.includes("build");
+const isPreview = process.argv.includes("preview");
 
 
 // Set up environment variables from .env files as early as possible
 // This is to ensure that the env variables are available even in the config file,
 // and you can use process.env to configure the plugin.
+
+// Detect mode from command line arguments
+const detectedMode = getArgValue("mode");
+
 const cleanupInitialUserConfigEnv = resolveEnv(
-  process.env["NODE_ENV"] || (isBuild || isPreview ? "production" : "development"),
+  detectedMode || process.env["NODE_ENV"] || (isBuild || isPreview ? "production" : "development"),
   userProjectRoot,
   DEFAULT_CONFIG.ENV_PREFIX
 );

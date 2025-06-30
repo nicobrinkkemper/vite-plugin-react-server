@@ -42,6 +42,6 @@ export const renderStreams: RenderStreamsFn = ((handler) => {
      * for navigating to pages (without the Html wrapper, but does contain
      * css/head information that can bubble up to the browser's dom)
      */
-    createHandler({ ...handler, Html: React.Fragment }),
+    createHandler({ ...handler, HtmlComponent: React.Fragment }),
   ];
 });
