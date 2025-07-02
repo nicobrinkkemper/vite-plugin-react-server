@@ -1,6 +1,7 @@
 import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
 import { parse } from "../loader/parse.js";
+import { pluginRoot } from "../root.js";
 
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
@@ -227,5 +228,8 @@ export const DEFAULT_CONFIG = {
       registerClientReferenceName: "registerClientReference" as string,
       registerServerReferenceName: "registerServerReference" as string
     }
-  }
+  },
+  REACT_LOADER_PATH: pluginRoot + "/loader/react-loader.js",
+  CSS_LOADER_PATH: pluginRoot + "/loader/css-loader.js",
+  ENV_LOADER_PATH: pluginRoot + "/loader/env-loader.js",
 };

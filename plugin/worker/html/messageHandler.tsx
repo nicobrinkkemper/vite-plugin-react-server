@@ -2,21 +2,18 @@ import { parentPort } from "node:worker_threads";
 import type { HtmlWorkerInputMessage, HtmlWorkerRenderState, HtmlWorkerOutputMessage } from "../html/types.js";
 import { createHtmlWorkerRenderState } from "./createHtmlWorkerRenderState.js";
 import { toError } from "../../error/toError.js";
+import { serializeError } from "../../error/serializeError.js";
 
 // Track active renders
 const activeRenders = new Map<string, HtmlWorkerRenderState>();
 
 function sendMessage(msg: HtmlWorkerOutputMessage) {
   // Send the original message
-  if ("error" in msg && msg.error instanceof Error) {
+  if ("error" in msg) {
+    console.trace(msg.error);
     parentPort?.postMessage({
       ...msg,
-      error: {
-        message: msg.error.message,
-        stack: msg.error.stack,
-        name: msg.error.name,
-        cause: msg.error.cause,
-      },
+      error: serializeError(msg.error),
     });
   } else {
     parentPort?.postMessage(msg);

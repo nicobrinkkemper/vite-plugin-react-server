@@ -43,13 +43,17 @@ export default defineConfig({
           __dirname,
           "plugin/transformer/plugin.ts"
         ),
-        "plugin/loader/css-loader.production": resolve(
+        "plugin/loader/react-loader": resolve(
           __dirname,
-          "plugin/loader/css-loader.production.ts"
+          "plugin/loader/react-loader.ts"
         ),
-        "plugin/loader/css-loader.development": resolve(
+        "plugin/loader/env-loader": resolve(
           __dirname,
-          "plugin/loader/css-loader.development.ts"
+          "plugin/loader/env-loader.ts"
+        ),
+        "plugin/loader/css-loader": resolve(  
+          __dirname,
+          "plugin/loader/css-loader.ts"
         ),
         "plugin/loader/index": resolve(
           __dirname,

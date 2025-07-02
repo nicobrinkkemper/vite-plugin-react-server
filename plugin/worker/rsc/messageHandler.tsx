@@ -6,6 +6,7 @@ import { toError } from "../../error/toError.js";
 import { handlers } from "./handlers.js";
 import { join } from "node:path";
 import { workerData } from "node:worker_threads";
+import { sendMessage } from "../sendMessage.js";
 
 // In test mode, we want errors to propagate up immediately
 const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
@@ -86,15 +87,11 @@ export async function messageHandler(
     }
     // In dev mode, try to send error message before exiting
     if (parentPort) {
-      port?.postMessage({
+      sendMessage({
         type: "ERROR",
         id: "rsc-worker",
-        error: {
-          message: err.message,
-          stack: err.stack,
-          name: err.name,
-        },
-      });
+        error: err,
+      }, port);
     }
     if (!isDevEnv || isTestEnv) {
       // In test mode or production mode, just throw the error to fail fast

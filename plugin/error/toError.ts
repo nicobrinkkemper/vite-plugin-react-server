@@ -1,9 +1,14 @@
 export function toError(error: unknown): Error {
   if (typeof error === "string") {
-    return new Error(error);
+    const err = new Error(error);
+    // Capture stack trace, excluding this function from the trace
+    Error.captureStackTrace(err, toError);
+    return err;
   }
   if (error == null) {
-    return new Error("Unknown React Stream Error (null/undefined)");
+    const err = new Error("Unknown React Stream Error (null/undefined)");
+    Error.captureStackTrace(err, toError);
+    return err;
   }
   if (error instanceof Error) {
     return error;
@@ -15,6 +20,9 @@ export function toError(error: unknown): Error {
       err.name = error.name;
       if ("stack" in error && typeof error.stack === "string") {
         err.stack = error.stack;
+      } else {
+        // If no stack trace available, capture one at this point
+        Error.captureStackTrace(err, toError);
       }
       return err;
     }
@@ -55,13 +63,19 @@ export function toError(error: unknown): Error {
       return err;
     }
     
-    return new Error(message);
+    const err = new Error(message);
+    Error.captureStackTrace(err, toError);
+    return err;
   }
   
   // Handle primitive types
   try {
-    return new Error(`Unknown React Stream Error: ${String(error)}`);
+    const err = new Error(`Unknown React Stream Error: ${String(error)}`);
+    Error.captureStackTrace(err, toError);
+    return err;
   } catch {
-    return new Error("Unknown React Stream Error (unstringifiable)");
+    const err = new Error("Unknown React Stream Error (unstringifiable)");
+    Error.captureStackTrace(err, toError);
+    return err;
   }
 }

@@ -32,6 +32,12 @@ export function logError(error: unknown, logger: Logger | Console = console) {
       logger.error(err.message);
     } else if(typeof err.message === "object" && err.message !== null && "message" in err.message) {
       logger.error(err.message);
+    } else if (err.stack) {
+      logger.error(err.stack);
+    } else if (err != null && typeof err === "object" && 'reason' in err && typeof err.reason === "string") {
+      logger.error(err.reason);
+    } else if (err != null && typeof err === "object" && 'error' in err && typeof err.error === "string") {
+      logger.error(err.error);
     } else {
       logger.error(JSON.stringify(err));
     }

@@ -35,7 +35,10 @@
     "./vendor": "./dist/plugin/vendor/index.js",
     "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
     "./loader": "./dist/plugin/loader/index.js",
-    "./helpers": "./dist/plugin/helpers/index.js"
+    "./helpers": "./dist/plugin/helpers/index.js",
+    "./react-loader": "./dist/plugin/loader/react-loader.js",
+    "./env-loader": "./dist/plugin/loader/env-loader.js",
+    "./css-loader": "./dist/plugin/loader/css-loader.js"
   },
   "typesVersions": {
     "*": {

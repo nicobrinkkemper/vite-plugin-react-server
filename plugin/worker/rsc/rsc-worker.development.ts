@@ -2,7 +2,7 @@ import { parentPort, MessageChannel, workerData } from "node:worker_threads";
 import { messageHandler } from "./messageHandler.js";
 import { register } from "node:module";
 import { register as registerTsx } from "tsx/esm/api";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import { pluginRoot } from "../../root.js";
 import type { HmrAcceptMessage, ReadyMessage } from "../types.js";
 import type {
@@ -13,6 +13,7 @@ import type {
   RscWorkerInputMessage,
 } from "./types.js";
 import { toError } from "../../error/toError.js";
+import { DEFAULT_CONFIG } from "../../config/defaults.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -118,18 +119,18 @@ try {
   const reactLoaderPath =
     "file://" +
     (workerData.userOptions.reactLoaderPath
-      ? join(workerData.resolvedConfig.root, workerData.userOptions.reactLoaderPath)
-      : join(pluginRoot, "loader/react-loader.js"));
+      ? resolve(workerData.resolvedConfig.root, workerData.userOptions.reactLoaderPath)
+      : resolve(workerData.resolvedConfig.root, DEFAULT_CONFIG.REACT_LOADER_PATH));
   const cssLoaderPath =
     "file://" +
     (workerData.userOptions.cssLoaderPath
-      ? join(workerData.resolvedConfig.root, workerData.userOptions.cssLoaderPath)
-      : join(pluginRoot, "loader/css-loader.development.js"));
+      ? resolve(workerData.resolvedConfig.root, workerData.userOptions.cssLoaderPath)
+      : resolve(workerData.resolvedConfig.root, DEFAULT_CONFIG.CSS_LOADER_PATH));
   const envLoaderPath =
     "file://" +
     (workerData.userOptions.envLoaderPath
-      ? join(workerData.resolvedConfig.root, workerData.userOptions.envLoaderPath)
-      : join(pluginRoot, "loader/env-loader.development.js"));
+      ? resolve(workerData.resolvedConfig.root, workerData.userOptions.envLoaderPath)
+      : resolve(workerData.resolvedConfig.root, DEFAULT_CONFIG.ENV_LOADER_PATH));
 
   register(cssLoaderPath, {
     parentURL: pluginRoot,

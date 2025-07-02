@@ -2,6 +2,7 @@ import { resolvePageAndProps } from "./resolvePageAndProps.js";
 import { resolveComponent } from "./resolveComponent.js";
 import { Root as DefaultRoot } from "../components/root.js";
 import { Html as DefaultHtml } from "../components/html.js";
+import { enhanceError } from "../error/enhanceError.js";
 import type { BuildModuleLoader, ResolvedUserOptions, PageComponentType, PagePropOpt, RootComponentType, HtmlComponentType, GenericModuleLoader } from "../types.js";
 
 export type ResolveComponentsOptions = {
@@ -46,8 +47,8 @@ export const resolveComponents = async ({
   propsPath,
   rootPath,
   htmlPath,
-  pageExportName,
-  propsExportName,
+  pageExportName = "Page",
+  propsExportName = "props",
   rootExportName = "Root",
   htmlExportName = "Html",
   route,
@@ -69,16 +70,31 @@ export const resolveComponents = async ({
 
     if (pageAndPropsResult.type !== "success") {
       if (pageAndPropsResult.type === "error") {
-        console.trace(pageAndPropsResult.error)
+        const enhancedError = enhanceError(
+          pageAndPropsResult.error,
+          `[resolveComponents] Error for route \"${route}\"`,
+          resolveComponents
+        );
+        
+        if (verbose) {
+          console.error(`[resolveComponents] Enhanced error details:`, enhancedError.message);
+          console.error(`[resolveComponents] Original error:`, pageAndPropsResult.error.message);
+          console.error(`[resolveComponents] Error stack:`, enhancedError.stack);
+        }
+        
         return {
           type: "error",
-          error: pageAndPropsResult.error,
+          error: enhancedError,
           reason: "Page/props resolution failed",
         };
       }
+      
+      const skipError = new Error("Page/props resolution was skipped");
+      Error.captureStackTrace(skipError, resolveComponents);
+      
       return {
         type: "error",
-        error: new Error("Page/props resolution was skipped"),
+        error: skipError,
         reason: "Page/props resolution was skipped",
       };
     }
@@ -151,9 +167,20 @@ export const resolveComponents = async ({
       HtmlComponent,
     };
   } catch (error) {
+    const enhancedError = enhanceError(
+      error,
+      `[resolveComponents] Component resolution failed for route ${route}`,
+      resolveComponents
+    );
+    
+    if (verbose) {
+      console.error(`[resolveComponents] Unexpected error during component resolution:`, enhancedError.message);
+      console.error(`[resolveComponents] Error stack:`, enhancedError.stack);
+    }
+    
     return {
       type: "error",
-      error: error as Error,
+      error: enhancedError,
       reason: "Component resolution failed",
     };
   }

@@ -10,13 +10,12 @@ import type {
   SerializedUserOptions,
 } from "../types.js";
 import { fileURLToPath } from "node:url";
-import { preprocessCSS } from "vite";
+import { preprocessCSS, resolveConfig } from "vite";
 import { readFile } from "node:fs/promises";
 import { env } from "../utils/env.js";
 import type { InitializedCssLoaderMessage } from "../worker/rsc/types.js";
 import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
 import { toError } from "../error/toError.js";
-import { join } from "node:path";
 
 /**
  * Global port for communication between the main thread and the CSS loader.
@@ -86,27 +85,10 @@ async function processCssFile(
     let processed: { code: string; modules?: any };
     try {
       // Create a minimal config with environments that preprocessCSS expects
-      const viteConfig = {
+      const viteConfig = await resolveConfig({
         ...resolvedConfig,
         env: env,
-        environments: {
-          ...resolvedConfig?.environments,
-          client: resolvedConfig?.environments?.client || {
-            resolve: { conditions: ['browser', 'module', 'import'] },
-            consumer: 'client',
-            optimizeDeps: { include: [] },
-            dev: { optimizeDeps: { include: [] } },
-            build: { outDir: join(userOptions?.build?.outDir || 'dist', userOptions?.build?.static || 'static') },
-          },
-          ssr: resolvedConfig?.environments?.ssr || {
-            resolve: { conditions: ['node', 'import'] },
-            consumer: 'server', 
-            optimizeDeps: { include: [] },
-            dev: { optimizeDeps: { include: [] } },
-            build: { outDir: join(userOptions?.build?.outDir || 'dist', userOptions?.build?.client || 'client') },
-          },
-        },
-      } as any;
+      }, "serve");
 
       processed = await preprocessCSS(source, path, viteConfig);
     } catch (error) {

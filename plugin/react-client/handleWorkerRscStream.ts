@@ -5,14 +5,14 @@ import { createWorkerStream } from "./createWorkerStream.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import { toError } from "../error/toError.js";
 
-export type HandleWorkerRscStreamFn = (props: { 
+export type HandleWorkerRscStreamFn = (props: {
   worker: NodeWorker;
   message: Omit<RscRenderMessage, "type" | "id"> &
     Partial<Pick<RscRenderMessage, "id">> & {
       type?: "RSC_RENDER";
     };
   logger: Logger;
-  handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate"> & 
+  handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate"> &
     Partial<
       Pick<
         StreamHandlers,
@@ -36,105 +36,121 @@ export type HandleWorkerRscStreamFn = (props: {
  * @param message - The RSC render message
  * @returns A ReadableStream that yields RSC chunks
  */
-export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWorkerRscStream({
-  worker,
-  message,
-  logger,
-  handlers,
-  verbose = false,
-  rscTimeout,
-}) {
-  // Create a ReadableStream from the async generator
-  let isFlowing = false;
-  let isClosed = false;
-  let hasError = false;
+export const handleWorkerRscStream: HandleWorkerRscStreamFn =
+  function _handleWorkerRscStream({
+    worker,
+    message,
+    logger,
+    handlers,
+    verbose = false,
+    rscTimeout,
+  }) {
+    // Create a ReadableStream from the async generator
+    let isFlowing = false;
+    let isClosed = false;
+    let hasError = false;
 
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const handleError = (error: unknown, errorInfo?: Record<string, unknown>) => {
-        if (hasError) return; // Prevent double error handling
-        hasError = true;
-        const errorToThrow = toError(error);
-        
-        // Ensure we log the error message properly, even if it's somehow an object
-        const messageToLog = typeof errorToThrow.message === 'string' 
-          ? errorToThrow.message 
-          : JSON.stringify(errorToThrow.message, null, 2);
-        
-        logger.error(`[react-client] Error: ${messageToLog}`);
-        if (errorInfo) {
-          logger.error(JSON.stringify(errorInfo));
-        }
-        if (!isClosed) {
-          isClosed = true;
-          try {
-            controller.close();
-          } catch {
-            // Ignore errors from trying to close an already closed controller
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const handleError = (
+          error: unknown,
+          errorInfo?: Record<string, unknown>
+        ) => {
+          if (hasError) return; // Prevent double error handling
+          hasError = true;
+          const errorToThrow = toError(error);
+
+          // Ensure we log the error message properly, even if it's somehow an object
+          const messageToLog =
+            typeof errorToThrow.message === "string"
+              ? errorToThrow.message
+              : undefined;
+
+          const stackToLog = errorToThrow.stack
+            ? errorToThrow.stack
+            : undefined;
+          if (messageToLog && (!stackToLog || stackToLog.includes(messageToLog))) {
+            logger.error(`[rsc-worker] ${messageToLog}`);
           }
-        }
-      };
-
-      try {
-        if (verbose) logger.info("[react-client] Starting stream");
-        
-        // Pure generator approach - process chunks directly
-        for await (const chunk of createWorkerStream({
-          worker,
-          message,
-          logger,
-          handlers: {
-            // Only keep non-data handlers for side effects
-            onMetrics: handlers.onMetrics,
-            onHmrAccept: handlers.onHmrAccept,
-            onHmrUpdate: handlers.onHmrUpdate,
-            onServerAction: handlers.onServerAction,
-            onServerActionResponse: handlers.onServerActionResponse,
-            onCssFile: handlers.onCssFile,
-            onError: (id: string, error: unknown, errorInfo?: Record<string, unknown>) => {
-              handleError(error, errorInfo);
-              if(handlers.onError) {
-                handlers.onError(id, error, errorInfo);
-              }
+          if (stackToLog) {
+            logger.error(`[rsc-worker] ${stackToLog}`);
+          }
+          if (errorInfo != null && typeof errorInfo === "object" && 'reason' in errorInfo && typeof errorInfo["reason"] === "string") {
+            logger.error(errorInfo["reason"]);  
+          }
+          if (!isClosed) {
+            isClosed = true;
+            try {
+              controller.close();
+            } catch {
+              // Ignore errors from trying to close an already closed controller
             }
-          },
-          verbose,
-          rscTimeout,
-        })) {
-          // Process chunks directly from generator
-          if (!isFlowing) {
-            isFlowing = true;
-            if (verbose) logger.info("[react-client] Stream is flowing");
           }
-          
+        };
+
+        try {
+          if (verbose) logger.info("[react-client] Starting stream");
+
+          // Pure generator approach - process chunks directly
+          for await (const chunk of createWorkerStream({
+            worker,
+            message,
+            logger,
+            handlers: {
+              // Only keep non-data handlers for side effects
+              onMetrics: handlers.onMetrics,
+              onHmrAccept: handlers.onHmrAccept,
+              onHmrUpdate: handlers.onHmrUpdate,
+              onServerAction: handlers.onServerAction,
+              onServerActionResponse: handlers.onServerActionResponse,
+              onCssFile: handlers.onCssFile,
+              onError: (
+                id: string,
+                error: unknown,
+                errorInfo?: Record<string, unknown>
+              ) => {
+                handleError(error, errorInfo);
+                if (handlers.onError) {
+                  handlers.onError(id, error, errorInfo);
+                }
+              },
+            },
+            verbose,
+            rscTimeout,
+          })) {
+            // Process chunks directly from generator
+            if (!isFlowing) {
+              isFlowing = true;
+              if (verbose) logger.info("[react-client] Stream is flowing");
+            }
+
+            if (!isClosed && !hasError) {
+              controller.enqueue(chunk);
+            }
+
+            // Call onData handler if provided
+            if (handlers.onData) {
+              handlers.onData(message?.id ?? message.route, chunk);
+            }
+          }
+
+          // Stream ended naturally
+          if (isFlowing) {
+            isFlowing = false;
+            if (verbose) logger.info("[react-client] Stream closing");
+          }
           if (!isClosed && !hasError) {
-            controller.enqueue(chunk);
+            isClosed = true;
+            controller.close();
           }
-          
-          // Call onData handler if provided
-          if (handlers.onData) {
-            handlers.onData(message?.id ?? message.route, chunk);
+
+          // Call onEnd handler if provided
+          if (handlers.onEnd) {
+            handlers.onEnd(message?.id ?? message.route);
           }
+        } catch (error) {
+          handleError(error);
         }
-        
-        // Stream ended naturally
-        if (isFlowing) {
-          isFlowing = false;
-          if (verbose) logger.info("[react-client] Stream closing");
-        }
-        if (!isClosed && !hasError) {
-          isClosed = true;
-          controller.close();
-        }
-        
-        // Call onEnd handler if provided
-        if (handlers.onEnd) {
-          handlers.onEnd(message?.id ?? message.route);
-        }
-        
-      } catch (error) {
-        handleError(error);
-      }
-    },
-  });
-}
+      },
+    });
+  };

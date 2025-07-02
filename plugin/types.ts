@@ -200,6 +200,9 @@ export type StringKeys =
   | "htmlWorkerPath"
   | "rscWorkerPath"
   | "loaderPath"
+  | "reactLoaderPath"
+  | "cssLoaderPath"
+  | "envLoaderPath"
   | "clientEntry"
   | "serverEntry"
   | "publicOrigin";
@@ -345,6 +348,9 @@ export type ResolvedUserOptions = {
   htmlWorkerPath: string;
   rscWorkerPath: string;
   loaderPath: string;
+  reactLoaderPath?: string;
+  cssLoaderPath?: string;
+  envLoaderPath?: string;
   verbose: boolean;
   rscTimeout: number;
   htmlWorkerStartupTimeout: number;
@@ -774,6 +780,9 @@ export type StreamPluginOptions<
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
   loaderPath?: string;
+  reactLoaderPath?: string;
+  cssLoaderPath?: string;
+  envLoaderPath?: string;
   pageExportName?: N1;
   propsExportName?: N2;
   htmlExportName?: N3;
