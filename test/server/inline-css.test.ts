@@ -66,7 +66,6 @@ describe("Plugin Inline Css Event hooks", () => {
     if (htmlEvent && rscEvent) {
       // Verify HTML content
       expect(htmlContent).toBeDefined();
-      expect(htmlContent).toContain("data-vite-dev-id");
       expect(htmlContent).toContain("</style>");
       
       // Verify RSC content

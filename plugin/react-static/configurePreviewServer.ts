@@ -25,18 +25,19 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
       userOptions.build.outDir,
       userOptions.build.static
     );
+    console.log(userOptions.moduleBaseURL, userOptions.moduleBasePath);
     server.middlewares.use(async (req, res, next) => {
       if (!req.url) {
         return next();
       }
-      const { contentType, filePath } = requestInfo(
+      const { contentType, filePath, isRscRequest } = requestInfo(
         req,
         userOptions,
         staticHostDir,
         server.config.logger
       );
       // Handle static files including CSS
-      if (filePath && contentType.includes("text/x-component")) {
+      if (filePath && (isRscRequest)) {
         try {
           const stats = await stat(filePath);
           if (stats.isFile()) {
@@ -87,6 +88,7 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
                       error: streamError,
                     }
                   );
+                  console.log("File not found: ", filePath);
                   res.end("File not found");
                 } else {
                   // Server error
@@ -108,6 +110,12 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
           const err = error as Error;
           // Handle file system errors
           if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+            server.config.logger.error(
+              `File not found: ${filePath}. ${err.message}`,
+              {
+                error: err,
+              }
+            );
             res.statusCode = 404;
             res.end("File not found");
           } else {

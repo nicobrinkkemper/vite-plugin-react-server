@@ -1,4 +1,4 @@
-import type { ResolvedUserOptions, SerializedUserOptions } from "../types.js";
+import type { ResolvedUserOptions, SerializedResolvedConfig, SerializedUserOptions } from "../types.js";
 import type { ModuleInfo } from "rollup";
 import { MessagePort } from "node:worker_threads";
 import type {
@@ -7,7 +7,7 @@ import type {
 } from "../worker/rsc/types.js";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { hydrateUserOptions } from "../helpers/index.js";
+import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import type { LoadHook, ResolveHook } from "node:module";
 import type { RawSourceMap } from "source-map";
@@ -51,10 +51,12 @@ export function initialize(
     id: string;
     port: MessagePort;
     userOptions: SerializedUserOptions | null;
+    resolvedConfig: SerializedResolvedConfig | null;
   } = {
     id: "react-loader",
     port: new MessagePort(),
     userOptions: null,
+    resolvedConfig: null,
   }
 ) {
   if (userOptions?.verbose) {
@@ -67,11 +69,14 @@ export function initialize(
     if (resolvedUserOptions.type === "error") {
       throw new Error(resolvedUserOptions.error.message);
     }
+    
+    // Use the hydrated user options directly (includes recreated functions)
     userOptions = resolvedUserOptions.userOptions;
+    
     isServerFunction = userOptions.loader.isServerFunctionCode;
     isClientComponent = userOptions.loader.isClientComponentCode;
     transformer = createTransformer({
-      options: resolvedUserOptions.userOptions,
+      options: userOptions,
     });
   } else {
     // when no user options are provided, use the default loader config
@@ -180,7 +185,7 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     if (userOptions?.normalizer) {
       const [, value] = userOptions.normalizer(filePath);
       moduleID = join(userOptions.moduleBasePath, value);
-      finalID = userOptions.moduleID(moduleID);
+      finalID = userOptions.moduleID?.(moduleID) || moduleID;
       if (userOptions?.verbose) {
         console.log("[react-loader] Normalized IDs:", { moduleID, finalID });
       }

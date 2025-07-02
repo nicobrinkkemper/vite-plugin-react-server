@@ -162,11 +162,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
 
       // Check server manifest for any remaining modules (including Html/Root components)
       const serverEntry = serverManifest[normalizedValue];
-      if (userOptions.verbose) {
-        console.log("[buildLoader] Checking server manifest for:", normalizedValue);
-        console.log("[buildLoader] Server manifest keys:", Object.keys(serverManifest));
-        console.log("[buildLoader] Server entry found:", !!serverEntry);
-      }
+
       if (serverEntry) {
         try {
           const module = await import(
@@ -185,9 +181,13 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
           return module;
         } catch (error) {
           const err = toError(error);
-          console.warn("Error loading server module:", err);
-          temporaryReferences?.delete(moduleRef);
-          throw err;
+          if(userOptions.panicThreshold === "critical_errors") {
+            console.warn("Error loading server module:", err);
+            temporaryReferences?.delete(moduleRef);
+          } else {
+            console.error("Error loading server module:", err);
+            throw err;
+          }
         }
       }
 

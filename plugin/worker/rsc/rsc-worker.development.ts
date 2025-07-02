@@ -68,8 +68,52 @@ try {
 
   // Set up message handlers before transferring ports
   reactLoaderChannel.port2.on("message", developmentReactLoaderMessageHandler);
+  reactLoaderChannel.port2.on("messageerror", (error: Error) => {
+    console.error("[rsc-worker] React loader message serialization failed:", error);
+    if (parentPort) {
+      parentPort.postMessage({
+        type: "ERROR",
+        id: "react-loader",
+        error: {
+          message: "Message serialization failed in react loader",
+          name: "MessageError",
+          stack: undefined,
+        },
+      });
+    }
+  });
+  
   cssLoaderChannel.port2.on("message", developmentCssLoaderMessageHandler);
+  cssLoaderChannel.port2.on("messageerror", (error: Error) => {
+    console.error("[rsc-worker] CSS loader message serialization failed:", error);
+    if (parentPort) {
+      parentPort.postMessage({
+        type: "ERROR",
+        id: "css-loader",
+        error: {
+          message: "Message serialization failed in CSS loader",
+          name: "MessageError",
+          stack: undefined,
+        },
+      });
+    }
+  });
+  
   envLoaderChannel.port2.on("message", developmentEnvLoaderMessageHandler);
+  envLoaderChannel.port2.on("messageerror", (error: Error) => {
+    console.error("[rsc-worker] Env loader message serialization failed:", error);
+    if (parentPort) {
+      parentPort.postMessage({
+        type: "ERROR",
+        id: "env-loader",
+        error: {
+          message: "Message serialization failed in env loader",
+          name: "MessageError",
+          stack: undefined,
+        },
+      });
+    }
+  });
 
   const reactLoaderPath =
     "file://" +
@@ -108,6 +152,7 @@ try {
       id: "react-loader",
       port: reactLoaderChannel.port1,
       userOptions: workerData.userOptions,
+      resolvedConfig: workerData.resolvedConfig,
     },
     transferList: [reactLoaderChannel.port1],
   });
@@ -119,12 +164,17 @@ try {
       id: "env-loader",
       port: envLoaderChannel.port1,
       resolvedConfig: workerData.resolvedConfig,
+      userOptions: workerData.userOptions,
     },
     transferList: [envLoaderChannel.port1],
   });
 
   // Set up message handling
   parentPort!.on("message", developmentMessageHandler);
+  parentPort!.on("messageerror", (error: Error) => {
+    console.error("[rsc-worker] Parent port message serialization failed:", error);
+    // Can't send via parentPort since that's what failed, so just log
+  });
 
   const { hmrPort } = workerData;
   if (hmrPort) {
@@ -149,6 +199,22 @@ try {
         } satisfies HmrAcceptMessage);
       }
     });
+    
+    // Handle HMR port message errors
+    hmrPort.on("messageerror", (error: Error) => {
+      console.error("[rsc-worker] HMR port message serialization failed:", error);
+      if (parentPort) {
+        parentPort.postMessage({
+          type: "ERROR",
+          id: "hmr-port",
+          error: {
+            message: "Message serialization failed in HMR port",
+            name: "MessageError",
+            stack: undefined,
+          },
+        });
+      }
+    });
   }
 
   // Notify parent that we're ready
@@ -162,16 +228,21 @@ try {
   if (process.env["NODE_ENV"] === "production") {
     throw new Error("This module should not run in production mode.");
   }
-} catch (error) {
+} catch (error: unknown) {
   if (isDevEnv) {
     console.error(error);
   }
   // In dev mode, try to send error message before exiting
   if (parentPort) {
+    const err = toError(error);
     parentPort?.postMessage({
       type: "ERROR",
       id: "rsc-worker",
-      error: toError(error),
+      error: {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+      },
     });
   }
   if (!isDevEnv || isTestEnv) {

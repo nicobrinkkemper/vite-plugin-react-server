@@ -216,7 +216,7 @@ export async function add(a, b) {
   });
 
   it('should ignore directives with comments or whitespace', async () => {
-    const source = `// comment\n  \n"use server";\nexport function add(a, b) {\n  // another comment\n  "use server";\n  return a + b;\n}`;
+    const source = `// comment\n// comment\n// comment on line 3\n  \n"use server";\nexport function add(a, b) {\n  // another comment\n  "use server";\n  return a + b;\n}`;
     
     const transformer = createTransformer({
       options: {

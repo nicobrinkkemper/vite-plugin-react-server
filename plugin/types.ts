@@ -23,7 +23,6 @@ import type {
   ViteDevServer,
 } from "vite";
 import type {
-  serializedOptions,
   serializeResolvedConfig,
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
@@ -54,11 +53,13 @@ export type CreateInputNormalizerProps = {
   preserveModulesRoot?: string | undefined;
   removeExtension?: boolean | RegExp | string | ((path: string) => boolean);
   moduleBasePath: string | undefined;
+  moduleBaseURL: string | undefined;
 };
 export type Serializable =
   | WorkerSerializable
   | Serializable[]
   | SerializableRecord;
+  
 export type SerializableRecord = {
   [key: string]: Serializable;
 };
@@ -167,9 +168,9 @@ export type SerializedUserConfig<
   T extends ResolvedUserConfig = ResolvedUserConfig
 > = ReturnType<typeof serializeResolvedUserConfig<T>>;
 
-export type SerializedUserOptions<
-  Opt extends ResolvedUserOptions = ResolvedUserOptions
-> = ReturnType<typeof serializedOptions<Opt>>;
+export type SerializedUserOptions = {
+  [k in keyof ResolvedUserOptions]: Extract<ResolvedUserOptions[k], Serializable | Record<string, Serializable>> extends infer X ? X extends never ? undefined : X : undefined;
+}
 
 export type SerializedResolvedConfig = ReturnType<
   typeof serializeResolvedConfig
@@ -361,7 +362,7 @@ export type ResolvedUserOptions = {
   Html: StreamPluginOptions["Html"]; // Unresolved: can be string, function
   Root: StreamPluginOptions["Root"]; // Unresolved: can be string, function
   normalizer: InputNormalizer;
-  moduleID: (id: string) => string;
+  moduleID: ((id: string) => string) | undefined;
   onMetrics: (metrics: RenderMetrics) => void;
   pipeableStreamOptions: ReactServerDomEsmOptions;
   autoDiscover: Required<AutoDiscoverConfig>;
@@ -767,7 +768,7 @@ export type StreamPluginOptions<
       }
     | undefined;
   // Manual configuration
-  Page: UrlOpt;
+  Page?: UrlOpt;
   props?: UrlOpt;
   // Escape hatches
   htmlWorkerPath?: string;

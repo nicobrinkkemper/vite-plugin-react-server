@@ -7,12 +7,8 @@ describe('Error Handling', () => {
     it('should handle string errors', () => {
       const error = 'Test error message';
       const result = toError(error);
-      expect(result).toEqual({
-        name: 'Error',
-        message: 'Test error message',
-        stack: undefined,
-        cause: undefined,
-      });
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('Test error message');
     });
 
     it('should handle Error objects', () => {
@@ -29,12 +25,10 @@ describe('Error Handling', () => {
         cause: new Error('Cause error'),
       };
       const result = toError(error);
-      expect(result).toEqual({
-        name: 'CustomError',
-        message: 'Test message',
-        stack: 'Error stack',
-        cause: expect.any(Error),
-      });
+      expect(result).toBeInstanceOf(Error);
+      expect(result.name).toBe('CustomError');
+      expect(result.message).toBe('Test message');
+      expect(result.stack).toBe('Error stack');
     });
 
     it('should handle objects with non-string message', () => {
@@ -43,32 +37,20 @@ describe('Error Handling', () => {
         message: { detail: 'Test message' },
       };
       const result = toError(error);
-      expect(result).toEqual({
-        name: 'CustomError',
-        message: '{"detail":"Test message"}',
-        stack: undefined,
-        cause: error,
-      });
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('Message object: {"detail":"Test message"}');
     });
 
     it('should handle null', () => {
       const result = toError(null);
-      expect(result).toEqual({
-        name: expect.any(String),
-        message: expect.any(String),
-        stack: undefined,
-        cause: null,
-      });
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('Unknown React Stream Error (null/undefined)');
     });
 
     it('should handle undefined', () => {
       const result = toError(undefined);
-      expect(result).toEqual({
-        name: expect.any(String),
-        message: expect.any(String),
-        stack: undefined,
-        cause: undefined,
-      });
+      expect(result).toBeInstanceOf(Error);
+      expect(result.message).toBe('Unknown React Stream Error (null/undefined)');
     });
 
     it('should handle objects with cause', () => {
@@ -77,7 +59,9 @@ describe('Error Handling', () => {
         message: 'Test message',
       };
       const result = toError(error);
+      expect(result).toBeInstanceOf(Error);
       expect(result.message).toEqual('Test message');
+      expect(result.name).toBe('CustomError');
     });
   });
 
@@ -120,9 +104,10 @@ describe('Error Handling', () => {
       
       logError(error, mockLogger);
       
-      expect(mockLogger.error).toHaveBeenCalledWith('Test error', {
-        error: expect.any(Object),
-      });
+      // The error object will be converted to an Error instance by toError()
+      // and since toError() creates a new Error instance, it will have a stack
+      // So it will log the stack (which includes the message)
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Test error'));
     });
 
     it('should log only message in production', () => {

@@ -121,7 +121,7 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
           );
         }
         const cssContent = createCssProps({
-          id: mod?.url,
+          id: mod?.id,
           code: string,
           userOptions: {
             moduleBaseURL: moduleBaseURL,
@@ -134,7 +134,7 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
             publicOrigin: publicOrigin,
           },
         });
-        cssFiles.set(mod?.url, cssContent);
+        cssFiles.set(mod?.id, cssContent);
         onCss?.(cssContent, parentUrl ?? pagePath);
       }
 

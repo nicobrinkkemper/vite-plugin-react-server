@@ -93,7 +93,7 @@ export const configureReactServer: ConfigureReactServerFn =
       const handlerOptions = {
         ...handlerUserOptions,
         moduleBaseURL: server.config.base,
-        moduleBasePath: server.config.base,
+        moduleBasePath: handlerUserOptions.moduleBasePath,
         projectRoot: server.config.root,
         onEvent: createEventHandler(onEvent),
         css: handlerUserOptions.css,
@@ -161,7 +161,7 @@ export const configureReactServer: ConfigureReactServerFn =
             ...handlerOptions,
             pagePath,
             moduleBaseURL: server.config.base,
-            moduleBasePath: server.config.base,
+            moduleBasePath: handlerUserOptions.moduleBasePath,
             projectRoot: server.config.root,
           },
         });

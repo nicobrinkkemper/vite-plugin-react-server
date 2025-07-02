@@ -102,7 +102,7 @@ describe('URL utilities', () => {
     it('should handle invalid public origin', () => {
       const pageURL = createPageURL('/', 'IGNORE_THIS_ERROR');
       const result = pageURL('/test');
-      expect(result.indexRSC).toBe('/index.rsc');
+      expect(result.indexRSC).toBe('/test/index.rsc');
       expect(result.moduleBaseURL).toBe('/');
     });
 

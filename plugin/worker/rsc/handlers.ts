@@ -7,27 +7,23 @@ import { join } from "path";
 import { ReactDOMServer } from "../../vendor/vendor.server.js";
 import { PassThrough } from "node:stream";
 
+// Helper function to serialize errors for worker thread communication
+const serializeError = (error: unknown) => {
+  const err = toError(error);
+  return {
+    message: err.message,
+    name: err.name,
+    stack: err.stack,
+  };
+};
+
 export const handlers: Required<StreamHandlers> = {
   onError: (id, error, errorInfo) => {
-    // Format error for React Server Components
-    const formattedError = typeof error === 'string'
-      ? {
-          message: error,
-          stack: undefined,
-          name: 'Error'
-        }
-      : {
-          message: (error as Error)?.message || 'Unknown error',
-          name: (error as Error)?.name || 'Error',
-          stack: (error as Error)?.stack,
-          ...(error && typeof error === 'object' ? error : {})
-        };
-
     sendRscWorkerMessage({
       type: "ERROR",
       id: id,
       errorInfo,
-      error: formattedError,
+      error: serializeError(error),
     });
   },
   onData: (id, data) => {
@@ -87,7 +83,7 @@ export const handlers: Required<StreamHandlers> = {
           sendRscWorkerMessage({
             type: "ERROR",
             id,
-            error: toError(error),
+            error: serializeError(error),
           });
         },
       }
@@ -115,7 +111,7 @@ export const handlers: Required<StreamHandlers> = {
       sendRscWorkerMessage({
         type: "ERROR",
         id,
-        error: toError(error),
+        error: serializeError(error),
       });
     });
   },
@@ -157,7 +153,7 @@ export const handlers: Required<StreamHandlers> = {
             sendRscWorkerMessage({
               type: "ERROR",
               id,
-              error: toError(error),
+              error: serializeError(error),
             });
           },
         }
@@ -185,11 +181,11 @@ export const handlers: Required<StreamHandlers> = {
         sendRscWorkerMessage({
           type: "ERROR",
           id,
-          error: toError(error),
+          error: serializeError(error),
         });
       });
     } catch (error: unknown) {
-      const errorMessage = toError(error).message;
+      const errorMessage = serializeError(error).message;
       // Send error response using RSC stream
       const stream = ReactDOMServer.renderToPipeableStream(
         {
@@ -202,7 +198,7 @@ export const handlers: Required<StreamHandlers> = {
             sendRscWorkerMessage({
               type: "ERROR",
               id,
-              error: toError(error),
+              error: serializeError(error),
             });
           },
         }
@@ -230,7 +226,7 @@ export const handlers: Required<StreamHandlers> = {
         sendRscWorkerMessage({
           type: "ERROR",
           id,
-          error: toError(error),
+          error: serializeError(error),
         });
       });
     }

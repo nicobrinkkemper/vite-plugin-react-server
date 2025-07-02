@@ -12,9 +12,10 @@ describe("extMap", () => {
     const mockOptions = {
       build: {
         extensionMap: {
-          "\\.ts$": ".js",
-          "\\.tsx$": ".js",
-          "\\.jsx$": ".js"
+          ".node": ".node.js",
+          ".ts": ".js",
+          ".tsx": ".js",
+          ".jsx": ".js"
         }
       }
     };
@@ -80,8 +81,8 @@ describe("extMap", () => {
       const multipleOptions = {
         build: {
           extensionMap: {
-            "\\.ts$": ".mjs",
-            "\\.tsx?$": ".js"
+            ".ts": ".mjs",
+            ".tsx": ".js"
           }
         }
       };
@@ -134,8 +135,8 @@ describe("extMap", () => {
       const customOptions = {
         build: {
           extensionMap: {
-            "\\.ts$": ".esm.js",
-            "\\.tsx$": ".component.js"
+            ".ts": ".esm.js",
+            ".tsx": ".component.js"
           }
         }
       };

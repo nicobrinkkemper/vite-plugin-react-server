@@ -127,6 +127,7 @@
     "test-base-url": "BASE_URL='/test/' && npm run build && npm run test:server && npm run test:client",
     "test:coverage": "npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
+    "test:bidoof-template": "cd ../bidoof-template && npm run build:preview",
     "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",

@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import type { ResolvedUserOptions } from "../types.js";
 import { createLogger, type Connect, type Logger } from "vite";
 import { MIME_TYPES } from "../config/mimeTypes.js";
@@ -24,11 +24,31 @@ export function requestInfo(
     | "verbose"
     | "moduleBasePath"
     | "moduleBaseURL"
+    | "verbose"
   >,
   hostDir: string,
   logger: Logger = createLogger()
 ) {
-  const [, value] = userOptions.normalizer(req.url);
+  const route = requestToRoute(req, {
+    moduleBasePath: userOptions.moduleBasePath,
+    moduleBaseURL: userOptions.moduleBaseURL,
+    build: userOptions.build,
+  });
+  
+  if (!route) {
+    return {
+      route: "/",
+      ext: "",
+    };
+  }
+  
+  // Use the cleaned route for normalization, not the raw req.url
+  // This ensures base URL is properly stripped before normalization
+  const [, value] = userOptions.normalizer(route);
+  if (userOptions.verbose) {
+    console.log("requestInfo:", { value, hostDir, reqUrl: req.url, route });
+  }
+  
   const dotIndex = value.lastIndexOf(".");
   const ext = dotIndex === -1 ? "" : value.slice(dotIndex);
   // handle index.html
@@ -95,36 +115,41 @@ export function requestInfo(
     !isJsonRequest &&
     (isCss || hasCssHeader);
 
-  let filePath = join(hostDir, value);
+  // Use the normalized value for file path construction
+  // The normalizer should have already stripped base URLs properly
+  const routeForFilePath = value;
+  
+  let filePath = resolve(hostDir, routeForFilePath);
   let contentType;
   if (isServerActionRequest) {
     // For server actions, we'll get the actual file path from the request body
     // The route is just a placeholder
-    filePath = value;
+    filePath = resolve(hostDir, routeForFilePath);
     contentType = "application/json; charset=utf-8";
   } else if (isHtmlRequest) {
     if (!isHtml) {
-      filePath = join(hostDir, value, userOptions.build.htmlOutputPath);
+      filePath = resolve(hostDir, routeForFilePath, userOptions.build.htmlOutputPath);
     }
     contentType = "text/html; charset=utf-8";
   } else if (isRscRequest) {
     if (!isRsc) {
-      filePath = join(hostDir, value, userOptions.build.rscOutputPath);
+      // Value doesn't end with .rsc, append the rsc output path
+      filePath = resolve(hostDir, routeForFilePath, userOptions.build.rscOutputPath);
     }
     contentType = "text/x-component; charset=utf-8";
   } else if (isCssRequest) {
     if (!isCss) {
-      filePath = join(hostDir, value + ".css");
+      filePath = resolve(hostDir, routeForFilePath + ".css");
     }
     contentType = "text/css; charset=utf-8";
   } else if (isJsRequest) {
     if (!isJS) {
-      filePath = resolve(hostDir, value + ".js");
+      filePath = resolve(hostDir, routeForFilePath + ".js");
     }
     contentType = "application/javascript; charset=utf-8";
   } else if (isJsonRequest) {
     if (!isJson) {
-      filePath = join(hostDir, value + ".json");
+      filePath = resolve(hostDir, routeForFilePath + ".json");
     }
     contentType = "application/json; charset=utf-8";
   } else {
@@ -132,19 +157,8 @@ export function requestInfo(
     if (mimeType) {
       contentType = mimeType + "; charset=utf-8";
     } else {
-      contentType = "application/octet-stream";
+      contentType = "application/octet-stream; charset=utf-8";
     }
-  }
-  const route = requestToRoute(req, {
-    moduleBasePath: userOptions.moduleBasePath,
-    moduleBaseURL: userOptions.moduleBaseURL,
-    build: userOptions.build,
-  });
-  if (!route) {
-    return {
-      route: "/",
-      ext,
-    };
   }
 
   if (userOptions.verbose) {

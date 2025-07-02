@@ -115,7 +115,7 @@ describe("Generic Server Action Build Output", () => {
       throw new Error("Add server action is an asset");
     }
     const addServerAction = entry.code;
-    expect(addServerAction).toContain("registerServerReference(add, \"/src/page/add.server.ts\", \"add\");");
+    expect(addServerAction).toContain("registerServerReference(add, \"/page/add.server.js\", \"add\");");
     expect(addServerAction).not.toContain("registerServerReference(subtract");
   });
   it("should register the subtract server action, but not the add server action", async () => {
@@ -124,9 +124,9 @@ describe("Generic Server Action Build Output", () => {
       throw new Error("Subtract server action is an asset");
     }
     const subtractServerAction = entry.code;
-    expect(subtractServerAction).toContain("registerServerReference(subtract, \"/src/page/subtract.server.ts\", \"subtract\");");
+    expect(subtractServerAction).toContain("registerServerReference(subtract, \"/page/subtract.server.js\", \"subtract\");");
     // wrench in the system, 2 use server directives but one non use server directive function export
-    expect(subtractServerAction).toContain("registerServerReference(multiply, \"/src/page/subtract.server.ts\", \"multiply\");");
+    expect(subtractServerAction).toContain("registerServerReference(multiply, \"/page/subtract.server.js\", \"multiply\");");
     expect(subtractServerAction).not.toContain("registerServerReference(add");
   });
 });

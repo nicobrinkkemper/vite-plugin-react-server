@@ -1,4 +1,4 @@
-import { hydrateUserOptions } from "../../helpers/index.js";
+import { hydrateUserOptions } from "../../helpers/hydrateUserOptions.js";
 import { workerData } from "node:worker_threads";
 const userOptionsResult = hydrateUserOptions(workerData?.userOptions)
 if(userOptionsResult.type === "error") {

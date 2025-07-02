@@ -28,8 +28,12 @@ export function logError(error: unknown, logger: Logger | Console = console) {
           error: err,
         });
       }
-    } else {
+    } else if(typeof err.message === "string") {
       logger.error(err.message);
+    } else if(typeof err.message === "object" && err.message !== null && "message" in err.message) {
+      logger.error(err.message);
+    } else {
+      logger.error(JSON.stringify(err));
     }
   }
   

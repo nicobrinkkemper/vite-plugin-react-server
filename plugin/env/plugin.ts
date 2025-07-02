@@ -2,6 +2,40 @@ import type { Plugin } from "vite";
 import { resolveConfigDefine, resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { userProjectRoot } from "../root.js";
+import { getNodeEnv } from "../getNodeEnv.js";
+import type { ConfigEnv } from "vite";
+
+/**
+ * Reconstruct ConfigEnv from process.argv and environment variables
+ * This allows us to determine the config environment before the config hook runs
+ */
+export const createConfigEnv = (): ConfigEnv => {
+  const argv = process.argv;
+  
+  // Detect command from argv
+  let command: 'build' | 'serve' = 'serve';
+  if (argv.includes('build')) {
+    command = 'build';
+  } else if (argv.includes('dev') || argv.includes('serve') || argv.includes('preview')) {
+    command = 'serve';
+  }
+  
+  // Detect mode from argv or environment
+  let mode: string = getNodeEnv();
+  const modeIndex = argv.findIndex(arg => arg === '--mode' || arg === '-m');
+  if (modeIndex !== -1 && argv[modeIndex + 1]) {
+    mode = argv[modeIndex + 1];
+  }
+  
+  // Detect SSR build
+  const isSsrBuild = argv.includes('--ssr');
+  
+  return {
+    command,
+    mode,
+    isSsrBuild
+  };
+};
 
 /**
  * Helper function to parse command-line arguments in both formats:

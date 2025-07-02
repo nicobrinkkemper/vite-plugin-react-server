@@ -370,9 +370,36 @@ export const reactStaticPlugin: ReactStaticPluginFn =
 
           // Process render results
           let finalResult: RenderPagesResult | undefined;
+          const errors: Error[] = [];
           for await (const result of renderPagesGenerator) {
             if (result.type === "error") {
-              throw result.error;
+              errors.push(result.error);
+              
+              // Provide developer-friendly error messages for common issues
+              if (result.error.message.includes("Attempted to load a Client Module outside the hosted root")) {
+                const failedRoutes = Array.from(result.failedRoutes || []);
+                const failingPage = failedRoutes[failedRoutes.length - 1] || 'unknown';
+                const hostedRoot = userOptions.moduleBaseURL || '/';
+                this.environment.logger.error(
+                  `❌ Page: ${failingPage} | Hosted root: ${hostedRoot} | Client modules registered outside hosted root`
+                );
+              } else {
+                this.environment.logger.warn(
+                  `Failed to render page, skipping: ${result.error.message}`
+                );
+              }
+              
+              // Continue processing other pages instead of throwing
+              finalResult = {
+                type: "success",
+                completedRoutes: result.completedRoutes,
+                failedRoutes: undefined,
+                htmlSizes: result.htmlSizes,
+                rscSizes: result.rscSizes,
+                streamMetrics: result.streamMetrics,
+                results: result.results,
+              };
+              continue;
             }
             finalResult = result;
           }
@@ -387,6 +414,11 @@ export const reactStaticPlugin: ReactStaticPluginFn =
           this.environment.logger.info(
             `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
           );
+          if (errors.length > 0) {
+            this.environment.logger.warn(
+              `${errors.length} pages failed to render and were skipped`
+            );
+          }
           if (process.env["NODE_ENV"] !== "production") {
             this.environment.logger.warn(
               `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env["NODE_ENV"]})`

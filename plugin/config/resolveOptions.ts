@@ -20,7 +20,6 @@ import { getNodeEnv } from "../getNodeEnv.js";
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
-import { createDefaultModuleID } from "./createModuleID.js";
 import { parse } from "../loader/parse.js";
 
 export type ResolveOptionsReturn =
@@ -352,7 +351,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     if (vendorPattern.test(path))
       return registerPath(path, vendorPattern, jsExtension);
     if (cssModulePattern.test(path))
-      return registerPath(path, cssModulePattern, cssModuleExtension);
+      return registerPath(path, cssModulePattern, cssExtension);
     if (cssPattern.test(path))
       return registerPath(path, cssPattern, cssExtension);
     if (clientPattern.test(path))
@@ -379,6 +378,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       preserveModulesRoot: prodModuleBase,
       removeExtension: true,
       moduleBasePath,
+      moduleBaseURL,
     });
   // File naming functions
   const entryFile = (n: PreRenderedChunk, ssr: boolean) => {
@@ -389,12 +389,36 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     return hash(getOutputPath(normalizer(n.name)[0]), ssr);
   };
 
-  const assetFile = (n: PreRenderedAsset, ssr: boolean) => {
+  const assetFile: (n: PreRenderedAsset, ssr?: boolean) => string = (n: PreRenderedAsset, ssr = false) => {
     if (n.names.length > 1) {
-      return n.names.map((name) => hash(getOutputPath(name), ssr)).join(",");
+      return n.names.map((name) => hash(name, ssr)).join(",");
     }
-    const firstName = n.names[0];
-    return hash(getOutputPath(firstName), ssr);
+    let firstName = n.names[0];
+    
+    // Clean up asset paths by removing the moduleBase from within assets directory
+    // Transform: assets/src/page/file.css -> assets/page/file.css
+    const assetsDir = build.assetsDir || "assets";
+    if (firstName.startsWith(assetsDir + "/" + moduleBase + "/")) {
+      firstName = assetsDir + "/" + firstName.slice((assetsDir + "/" + moduleBase + "/").length);
+    }
+    // Handle moduleBasePath removal
+    else if (moduleBasePath && firstName.startsWith(moduleBasePath)) {
+      firstName = firstName.slice(moduleBasePath.length);
+    } else if(moduleBaseURL && moduleBaseURL !== "/" && moduleBaseURL !== "" && firstName.startsWith(moduleBaseURL)) {
+      firstName = firstName.slice(moduleBaseURL.length);
+    }
+    // Handle direct moduleBase removal  
+    else if (firstName.startsWith(moduleBase + "/")) {
+      firstName = firstName.slice(moduleBase.length + 1);
+    }
+    
+    // For CSS files, make sure we preserve the .css extension and don't apply JS extension mapping
+    if (firstName.endsWith('.css')) {
+      return hash(firstName, false);
+    }
+    
+    // For other assets, apply the extension mapping if needed
+    return hash(getOutputPath(firstName), false);
   };
 
   /**
@@ -436,8 +460,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     outDir: options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir,
     hash: options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash,
     extensionMap: {
-      // Extension mappings
-      [BASE_PATTERNS.MODULE]: jsExtension,
+      // File extensions first (more specific patterns should come first)
       [BASE_PATTERNS.EXT.CSS]: cssExtension,
       [BASE_PATTERNS.EXT.JSON]: jsonExtension,
       [BASE_PATTERNS.EXT.HTML]: htmlExtension,
@@ -446,6 +469,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       [BASE_PATTERNS.EXT.NODE]:
         BASE_PATTERNS.EXT.NODE +
         (options.build?.jsExtension ?? DEFAULT_CONFIG.BUILD.jsExtension),
+      // General module pattern last (less specific)
+      [BASE_PATTERNS.MODULE]: jsExtension,
       ...options.build?.extensionMap,
     },
     entryFile,
@@ -486,15 +511,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     options.loader?.allowedDirectives ?? DEFAULT_LOADER_CONFIG.allowedDirectives
   );
 
-  const moduleID =
-    typeof options.moduleID === "function"
-      ? options.moduleID
-      : createDefaultModuleID({
-          moduleBase,
-          moduleBasePath,
-          build: build,
-          autoDiscover: autoDiscover,
-        });
 
   // Create loader configuration
   const loader = {
@@ -569,8 +585,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
       Root: options.Root ?? DEFAULT_CONFIG.ROOT,
       components: options.components,
-      normalizer: normalizer,
-      moduleID: moduleID,
+              normalizer: normalizer,
+        moduleID: options.moduleID, // if not provided, will be created when config hook is called
       pageExportName:
         options.pageExportName ?? (DEFAULT_CONFIG.PAGE_EXPORT_NAME as PageName),
       propsExportName:

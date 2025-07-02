@@ -62,15 +62,12 @@ export const resolveUserConfig: ResolveUserConfigFn =
     // Get existing inputs
     const root = config.root ?? userOptions.projectRoot ?? process.cwd();
 
-    const handleSsrName = <T extends PreRenderedChunk | PreRenderedAsset>(
-      info: T,
+    const handleSsrEntryName = (
+      info: PreRenderedChunk,
       input: string | null,
-      fallback: (info: T, ssr: boolean) => string,
+      fallback: (info: PreRenderedChunk, ssr: boolean) => string,
       ssr: boolean
     ) => {
-      if ("source" in info && info.source === "") {
-        return "";
-      }
       if (!ssr || !input) {
         if (typeof fallback === "function") {
           return fallback(info, false);
@@ -78,27 +75,65 @@ export const resolveUserConfig: ResolveUserConfigFn =
         return userOptions.normalizer(info.name)[0];
       }
       const normalized = userOptions.normalizer(input);
-      const id = normalized[0];
       let value = normalized[1];
       if (value.startsWith(userOptions.moduleBasePath)) {
         value = value.slice(userOptions.moduleBasePath.length);
       }
       const entry = autoDiscoveredFiles.staticManifest[value];
-      if (
-        entry?.name &&
-        info.type === "asset" &&
-        userOptions.autoDiscover.cssPattern.test(value)
-      ) {
-        const found = entry.css?.find((css) => css.startsWith(id as string));
-        if (found) {
-          return found;
-        } else {
-          return entry.file;
-        }
-      } else if (entry) {
+      if (entry) {
         return entry.file;
       }
       return fallback(info, true);
+    };
+
+    const handleSsrAssetName = (
+      info: PreRenderedAsset,
+      input: string | null,
+      fallback: (info: PreRenderedAsset, ssr: boolean) => string,
+      ssr: boolean
+    ) => {
+      if (info.source === "") {
+        return "";
+      }
+      
+      // Check if this is a CSS file
+      const isCssFile = input?.endsWith('.css') || 
+        info.names?.some(name => name.endsWith('.css'));
+      
+      if (!ssr || !input || isCssFile) {
+        if (typeof fallback === "function") {
+          return fallback(info, ssr);
+        }
+        return userOptions.normalizer(info.names[0])[0];
+      }
+      
+      
+      // First check if we have a static manifest entry for consistent module ID resolution
+      const normalized = userOptions.normalizer(input);
+      const id = normalized[0];
+      let value = normalized[1];
+      if (value.startsWith(userOptions.moduleBasePath)) {
+        value = value.slice(userOptions.moduleBasePath.length);
+      }
+      
+      const entry = autoDiscoveredFiles.staticManifest[value];
+      if (entry) {
+        // For CSS files, look for a specific CSS file that matches our normalized ID
+        if (entry?.name && userOptions.autoDiscover.cssPattern.test(value)) {
+          const found = entry.css?.find((css) => css.startsWith(id as string));
+          if (found) {
+            return join(userOptions.build.assetsDir, found);
+          } else {
+            return join(userOptions.build.assetsDir, entry.file);
+          }
+        } else {
+          // For other assets, use the entry file
+          return entry.file;
+        }
+      }
+      
+      // Fall back to the user's assetFile function for consistent behavior
+      return fallback(info, ssr);
     };
     const userDefinedOutput = config.build?.rollupOptions?.output;
     const hasOtherOutput =
@@ -144,7 +179,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
             info.name + userOptions.build.moduleExtension;
           const inputId = input + (ssr ? "-ssr" : "");
           if (!stashedReturns[inputId]) {
-            const r = handleSsrName(
+            const r = handleSsrEntryName(
               info,
               input,
               userOptions.build.entryFile,
@@ -169,17 +204,17 @@ export const resolveUserConfig: ResolveUserConfigFn =
             const inputId = input + (ssr ? "-ssr" : "");
 
             if (!stashedReturns[inputId]) {
-              const r = handleSsrName(
+              const r = handleSsrAssetName(
                 info,
                 input,
                 userOptions.build.assetFile,
                 ssr
               );
-
+              
               if (userOptions.verbose) {
-                console.log("assetFileNames", input, stashedReturns[input]);
+                console.log("assetFileNames", input, r);
               }
-              stashedReturns[inputId] = r ?? info.names[0];
+              stashedReturns[inputId] = r ?? join(userOptions.build.assetsDir, userOptions.normalizer(input)[0]);
             }
             // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
             // at the last possible moment as to not confuse the rest of the logic around the basePath
@@ -196,7 +231,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
           const inputId = input + (ssr ? "-ssr" : "");
 
           if (!stashedReturns[inputId]) {
-            const r = handleSsrName(
+            const r = handleSsrEntryName(
               info,
               input,
               userOptions.build.chunkFile,
@@ -204,7 +239,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
             );
 
             if (userOptions.verbose) {
-              console.log("chunkFileNames", input, stashedReturns[input]);
+              console.log("chunkFileNames", input, stashedReturns[inputId]);
             }
             stashedReturns[inputId] = r ?? info.name;
           }
@@ -312,7 +347,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         ...config,
         root: root,
         mode: mode,
-        base: userOptions.moduleBaseURL,
+        base: config.base ?? userOptions.moduleBaseURL,
         envPrefix: vitePrefix,
         resolve: {
           ...config.resolve,

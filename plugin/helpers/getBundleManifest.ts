@@ -88,7 +88,16 @@ export function getBundleManifest<SSR extends boolean>({
           
           if (!virtualModules.has(virtualKey)) {
             // First time seeing this virtual module
-            const virtualFileName = query === 'inline' ? virtualPath : `${virtualPath}.${query}.js`;
+            let virtualFileName;
+            if (query === 'inline') {
+              virtualFileName = virtualPath;
+            } else if (virtualPath.endsWith('.css')) {
+              // Preserve CSS extension for CSS files
+              virtualFileName = virtualPath;
+            } else {
+              // Add .js extension for other files
+              virtualFileName = `${virtualPath}.${query}.js`;
+            }
             virtualModules.set(virtualKey, virtualFileName);
           }
           

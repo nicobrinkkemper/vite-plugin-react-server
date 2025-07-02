@@ -20,6 +20,12 @@ export function requestToRoute(
   if (typeof route !== "string") {
     return route;
   }
+  
+  // Strip moduleBaseURL from the beginning of the route
+  if (route.startsWith(handlerOptions.moduleBaseURL)) {
+    route = route.slice(handlerOptions.moduleBaseURL.length);
+  }
+  
   if (route.startsWith(handlerOptions.moduleBasePath)) {
     route = route.slice(handlerOptions.moduleBasePath.length);
   }

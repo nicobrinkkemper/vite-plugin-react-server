@@ -1,4 +1,3 @@
-
 /**
  * # createAbsoluteUrl
  *
@@ -104,11 +103,10 @@ export const isBlankRegex = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?\/\//;
 export const isAbsoluteURL = (url: string) =>
   isBlankRegex.test(url) || url.startsWith("//");
 
-
 export const folderName = (path: string, withBaseURL: string) => {
   const baseURL = createBaseURL(withBaseURL);
   return baseURL(path.replace(/\[index.(html?|rsc|HTML?)]$/, ""));
-}
+};
 
 /**
  * # createPageURL
@@ -151,7 +149,7 @@ export const createPageURL = (
   isDev = false,
   normalizer = !withBaseURL.endsWith("/")
     ? removeTrailingSlash
-    : addTrailingSlash,
+    : addTrailingSlash
 ) => {
   return (to: string, fileName: string = "index.rsc") => {
     try {
@@ -176,8 +174,13 @@ export const createPageURL = (
       };
     } catch (error) {
       if (isDev) console.error("Error parsing pageURL", error);
+      let shouldJoin = !to.endsWith("/") && !fileName.startsWith("/");
+      let shouldSlice = to.endsWith("/") && fileName.startsWith("/");
       return {
-        indexRSC: withBaseURL + "index.rsc",
+        indexRSC:
+          to +  
+          (shouldJoin ? "/" : "") +
+          (shouldSlice ? fileName.slice(1) : fileName),
         moduleBaseURL: withBaseURL,
       };
     }

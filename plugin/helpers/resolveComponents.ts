@@ -69,6 +69,7 @@ export const resolveComponents = async ({
 
     if (pageAndPropsResult.type !== "success") {
       if (pageAndPropsResult.type === "error") {
+        console.trace(pageAndPropsResult.error)
         return {
           type: "error",
           error: pageAndPropsResult.error,

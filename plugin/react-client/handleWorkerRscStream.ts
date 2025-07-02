@@ -55,8 +55,13 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn = function _handleWo
         if (hasError) return; // Prevent double error handling
         hasError = true;
         const errorToThrow = toError(error);
-        errorToThrow.message = `[react-client] ${errorToThrow.message}`;
-        logger.error(errorToThrow.message);
+        
+        // Ensure we log the error message properly, even if it's somehow an object
+        const messageToLog = typeof errorToThrow.message === 'string' 
+          ? errorToThrow.message 
+          : JSON.stringify(errorToThrow.message, null, 2);
+        
+        logger.error(`[react-client] Error: ${messageToLog}`);
         if (errorInfo) {
           logger.error(JSON.stringify(errorInfo));
         }

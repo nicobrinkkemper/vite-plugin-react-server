@@ -101,21 +101,21 @@ declare module 'react-server-dom-esm/server' {
 }
 
 declare module 'react-server-dom-esm/client.browser' {
-  export function createFromFetch(
+  export function createFromFetch<R extends unknown>(
     promiseForResponse: Promise<Response>,
     options?: {
-      callServer?: (id: string, args: any[]) => Promise<any>;
+      callServer?: (id: string, args: any[]) => Promise<R>;
       moduleBaseURL?: string;
     }
-  ): Promise<React.ReactNode>;
+  ): Promise<R>;
 
-  export function createFromReadableStream(
+  export function createFromReadableStream<R extends unknown>(
     stream: ReadableStream,
     options?: {
-      callServer?: (id: string, args: any[]) => Promise<any>;
+      callServer?: (id: string, args: any[]) => Promise<R>;
       moduleBaseURL?: string;
     }
-  ): Promise<React.ReactNode>;
+  ): Promise<R>;
 
   export function encodeReply(
     value: unknown,

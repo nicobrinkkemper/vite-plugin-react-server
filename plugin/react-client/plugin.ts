@@ -102,7 +102,6 @@ export const reactClientPlugin: ReactClientPluginFn = function _reactClientPlugi
         autoDiscoveredFiles,
         userOptions,
         hmrChannel,
-        onMetrics: userOptions.onMetrics,
       });
     },
 

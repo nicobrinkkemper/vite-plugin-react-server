@@ -52,6 +52,7 @@ export function cleanObject<T>(
 ): SerializableRecord & T {
   if (typeof obj !== "object" || obj == null) return obj as Extract<SerializableRecord, T>;
   if (isSerializable(obj)) return obj as Extract<SerializableRecord, T>;
+  if(obj instanceof RegExp) return serializeRegExp(obj) as unknown as Extract<SerializableRecord, T>;
 
   if (Array.isArray(obj)) {
     return obj

@@ -19,6 +19,7 @@ import {
 import { configureReactServer } from "./configureReactServer.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
+import { createDefaultModuleID } from "../config/createModuleID.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 
@@ -96,6 +97,11 @@ export const reactServerPlugin:ReactServerPluginFn = function _reactServerPlugin
       });
     },
     async config(config, configEnv): Promise<UserConfig> {
+      // Create the proper moduleID function now that we have ConfigEnv
+      if (typeof userOptions.moduleID !== "function") {
+        userOptions.moduleID = createDefaultModuleID(userOptions, configEnv, userOptions.loader.mode);
+      }
+
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,

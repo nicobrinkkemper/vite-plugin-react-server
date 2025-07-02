@@ -5,9 +5,9 @@ import type {
   SerializableRecord,
   ResolvedUserConfig,
   SerializedUserOptions,
+  Serializable,
 } from "../types.js";
 import { cleanObject } from "./cleanObject.js";
-import { resolveOptions } from "../config/resolveOptions.js";
 
 // Common non-serializable functions in Vite's resolved config
 const VITE_NON_SERIALIZABLE_FUNCTIONS = new Set([
@@ -146,14 +146,14 @@ export function deserializeRegExp<T>(obj: T): Extract<T, SerializableRecord> {
 // Helper function to recursively process objects for serialization
 export function processForSerialization<T>(
   obj: T
-): Extract<T, SerializableRecord> {
+): Extract<T, Serializable> {
   if (obj instanceof RegExp) {
-    return serializeRegExp(obj) as unknown as Extract<T, SerializableRecord>;
+    return serializeRegExp(obj) as unknown as Extract<T, Serializable>;
   }
   if (Array.isArray(obj)) {
     return obj.map(processForSerialization) as unknown as Extract<
       T,
-      SerializableRecord
+      Serializable
     >;
   }
   if (obj && typeof obj === "object") {
@@ -161,15 +161,15 @@ export function processForSerialization<T>(
     for (const [key, value] of Object.entries(obj)) {
       result[key] = processForSerialization(value) as unknown as Extract<
         T,
-        SerializableRecord
+        Serializable
       >[keyof T];
     }
-    return result as unknown as Extract<T, SerializableRecord>;
+    return result as unknown as Extract<T, Serializable>;
   }
-  return obj as unknown as Extract<T, SerializableRecord>;
+  return obj as unknown as Extract<T, Serializable>;
 }
 
-export function serializeResolvedConfig<T extends ResolvedConfig>(
+export function serializeResolvedConfig<T extends ResolvedConfig = ResolvedConfig>(
   config: T,
   knownNonSerializableFunctions: Set<string> = VITE_NON_SERIALIZABLE_FUNCTIONS
 ) {
@@ -177,14 +177,38 @@ export function serializeResolvedConfig<T extends ResolvedConfig>(
     getSortedPluginHooks: _getSortedPluginHooks,
     getSortedPlugins: _getSortedPlugins,
     assetsInclude: _assetsInclude,
+    environments: _environments,
     // extract known vite function properties
     ...handlerOptions
   } = config;
 
+  // Preserve a minimal environments structure for CSS processing
+  const minimalEnvironments = _environments ? {
+    client: {
+      resolve: { conditions: ['browser', 'module', 'import'] },
+      consumer: 'client',
+      optimizeDeps: { include: [] },
+      dev: { optimizeDeps: { include: [] } },
+      build: { outDir: 'dist' },
+    },
+    ssr: {
+      resolve: { conditions: ['node', 'import'] },
+      consumer: 'server', 
+      optimizeDeps: { include: [] },
+      dev: { optimizeDeps: { include: [] } },
+      build: { outDir: 'dist' },
+    },
+  } : undefined;
+
   // Clean the object to remove non-serializable properties and process RegExp objects
-  return processForSerialization(
-    cleanObject(handlerOptions, knownNonSerializableFunctions)
-  );
+  const cleaned = cleanObject(handlerOptions, knownNonSerializableFunctions) as any;
+  
+  // Add back the minimal environments if they existed
+  if (minimalEnvironments) {
+    cleaned.environments = minimalEnvironments;
+  }
+  
+  return processForSerialization(cleaned);
 }
 
 export function serializeResolvedUserConfig<T extends ResolvedUserConfig>(
@@ -221,13 +245,11 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
 };
 
 // For your own options (if you need custom non-serializable functions)
-export const serializedOptions = <
-  Opt extends ResolvedUserOptions = ResolvedUserOptions
->(
-  userOptions: Opt,
+export const serializedOptions = (
+  userOptions: ResolvedUserOptions,
   autoDiscoveredFiles: AutoDiscoveredFiles,
   customNonSerializableFunctions: Set<string> = PLUGIN_NON_SERIALIZABLE_FUNCTIONS
-) => {
+): SerializedUserOptions => {
   const {
     Page: _Page,
     props: _props,
@@ -276,6 +298,12 @@ export const serializedOptions = <
   } = autoDiscover;
   const result = {
     ...handlerOptions,
+    Page: typeof _Page === 'string' ? _Page : undefined,
+    Html: typeof _Html === 'string' ? _Html : undefined,
+    Root: typeof _Root === 'string' ? _Root : undefined,
+    normalizer: undefined,
+    onEvent: undefined,
+    onMetrics: undefined,
     propsExportName: propsExportName,
     pageExportName: pageExportName,
     build: {
@@ -310,42 +338,11 @@ export const serializedOptions = <
       rscPattern: serializeRegExp(_rscPattern),
       ...serializedAutoDiscover,
     },
-  };
+  } as const
 
   // Clean the object to remove non-serializable properties and process RegExp objects
-  return processForSerialization(
+  const finalResult = processForSerialization(
     cleanObject(result, customNonSerializableFunctions)
   );
+  return finalResult as never
 };
-
-export function hydrateUserOptions<
-  Opt extends ResolvedUserOptions = ResolvedUserOptions
->(
-  userOptions: SerializedUserOptions<Opt>
-):
-  | {
-      type: "error";
-      error: Error;
-      userOptions?: never;
-    }
-  | {
-      type: "success";
-      userOptions: Opt;
-      error?: never;
-    } {
-  if (!userOptions) {
-    return userOptions;
-  }
-
-  // Restore RegExp objects
-  if (typeof userOptions === "object" && "autoDiscover" in userOptions) {
-    const { autoDiscover } = userOptions;
-    const { modulePattern } = autoDiscover;
-    if (modulePattern) {
-      userOptions.autoDiscover.modulePattern = deserializeRegExp(modulePattern);
-    }
-  }
-
-  const result = resolveOptions(deserializeRegExp(userOptions as never));
-  return result as never;  
-}

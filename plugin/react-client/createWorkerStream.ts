@@ -7,7 +7,6 @@ import type { StreamMetrics } from "../types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
-import { logError } from "../error/logError.js";
 
 export type CreateWorkerStreamFn = (props: {
   worker: NodeWorker;
@@ -66,10 +65,6 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
   let isStreamClosed = false;
   const handlers: StreamHandlers = {
     onError: (id, error, errorInfo) => {
-      logError(error, logger);
-      if (errorInfo) {
-        logError(errorInfo.componentStack, logger);
-      }
       isStreamClosed = true;
       if (typeof onError === "function") {
         onError(id, error, errorInfo);

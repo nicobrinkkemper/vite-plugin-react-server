@@ -43,10 +43,13 @@ export const createCssProps = ({
 }): CssContent<boolean> => {
   const { css, moduleRootPath } = userOptions;
   // If we don't have a bundle entry, create a linked CSS file
-  let inline = css?.inlineCss !== false && typeof code === "string" && code.length > (css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold);
+  let inline =
+    css?.inlineCss !== false &&
+    typeof code === "string" &&
+    code.length > (css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold);
   // Normalize the ID to be relative to src/
   const [, value] = userOptions.normalizer(id);
-  const moduleID = userOptions.moduleID(value);
+  const moduleID = userOptions?.moduleID?.(value) ?? value;
   if (css.inlinePatterns?.length) {
     // Deserialize RegExp patterns if they exist
     const inlinePatterns = css.inlinePatterns;
@@ -76,18 +79,24 @@ export const createCssProps = ({
     } as CssContent<boolean>;
   }
   const processEnv = process.env || {};
-  const hasEnv= typeof processEnv.VITE_PUBLIC_ORIGIN === "string" &&
-      processEnv.VITE_PUBLIC_ORIGIN !== "";
+  const hasEnv =
+    typeof processEnv.VITE_PUBLIC_ORIGIN === "string" &&
+    processEnv.VITE_PUBLIC_ORIGIN !== "";
   const importMeta = import.meta || {};
-  const hasMetaEnv = 'env' in importMeta && typeof importMeta.env.PUBLIC_ORIGIN === "string" &&
-      importMeta.env.PUBLIC_ORIGIN !== "";
+  const hasMetaEnv =
+    "env" in importMeta &&
+    typeof importMeta.env.PUBLIC_ORIGIN === "string" &&
+    importMeta.env.PUBLIC_ORIGIN !== "";
   // final public origin check
-  if((hasEnv || hasMetaEnv) && userOptions.publicOrigin) {
+  if ((hasEnv || hasMetaEnv) && userOptions.publicOrigin) {
     // change the public origin to the one from the env
-    if(hasEnv && userOptions.publicOrigin !== processEnv.VITE_PUBLIC_ORIGIN) {
+    if (hasEnv && userOptions.publicOrigin !== processEnv.VITE_PUBLIC_ORIGIN) {
       // prefer potentially dynamic process.env
       userOptions.publicOrigin = processEnv.VITE_PUBLIC_ORIGIN;
-    } else if(hasMetaEnv && userOptions.publicOrigin !== import.meta.env.PUBLIC_ORIGIN) {
+    } else if (
+      hasMetaEnv &&
+      userOptions.publicOrigin !== import.meta.env.PUBLIC_ORIGIN
+    ) {
       // static import.meta.env
       userOptions.publicOrigin = import.meta.env.PUBLIC_ORIGIN;
     }
@@ -98,9 +107,24 @@ export const createCssProps = ({
     as: "link",
     rel: "stylesheet",
     href:
-    userOptions.publicOrigin !== ""
-        ? new URL(moduleID, userOptions.publicOrigin).href
+      userOptions.publicOrigin !== ""
+        ? new URL(
+            userOptions.moduleBaseURL +
+              moduleID.slice(
+                Number(
+                  moduleID.startsWith("/") &&
+                    userOptions.moduleBaseURL.endsWith("/")
+                )
+              ),
+            userOptions.publicOrigin +
+              userOptions.moduleBaseURL.slice(
+                Number(
+                  userOptions.publicOrigin.endsWith("/") &&
+                    userOptions.moduleBaseURL.startsWith("/")
+                )
+              )
+          ).href
         : moduleID,
-    precedence: "high", 
+    precedence: "high",
   } as CssContent<boolean>;
 };

@@ -89,7 +89,11 @@ export async function messageHandler(
       port?.postMessage({
         type: "ERROR",
         id: "rsc-worker",
-        error: err,
+        error: {
+          message: err.message,
+          stack: err.stack,
+          name: err.name,
+        },
       });
     }
     if (!isDevEnv || isTestEnv) {

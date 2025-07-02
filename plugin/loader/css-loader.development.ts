@@ -5,17 +5,18 @@ import type {
   ModuleFormat,
 } from "node:module";
 import type {
-  ResolvedUserConfig,
   ResolvedUserOptions,
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";
 import { fileURLToPath } from "node:url";
-import { preprocessCSS, type ResolvedConfig } from "vite";
+import { preprocessCSS } from "vite";
 import { readFile } from "node:fs/promises";
 import { env } from "../utils/env.js";
 import type { InitializedCssLoaderMessage } from "../worker/rsc/types.js";
-import { hydrateUserOptions } from "../helpers/index.js";
+import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
+import { toError } from "../error/toError.js";
+import { join } from "node:path";
 
 /**
  * Global port for communication between the main thread and the CSS loader.
@@ -23,7 +24,7 @@ import { hydrateUserOptions } from "../helpers/index.js";
  */
 export let loaderPort: MessagePort | undefined;
 
-let resolvedConfig: ResolvedUserConfig | undefined;
+let resolvedConfig: SerializedResolvedConfig | null;
 let userOptions: ResolvedUserOptions | undefined;
 
 /**
@@ -46,7 +47,10 @@ export async function initialize(data: {
   if (resolvedUserOptions.type === "error") {
     throw new Error(resolvedUserOptions.error.message);
   }
+  
+  // Use the hydrated user options directly (includes recreated functions)
   userOptions = resolvedUserOptions.userOptions;
+  
   data.port.postMessage({
     type: "INITIALIZED_CSS_LOADER",
     id: data.id,
@@ -63,7 +67,6 @@ export async function initialize(data: {
  */
 async function processCssFile(
   filePath: string,
-  config: ResolvedUserConfig,
   inline: boolean
 ): Promise<{ format: ModuleFormat; source: string; shortCircuit: boolean }> {
   try {
@@ -77,12 +80,40 @@ async function processCssFile(
     let moduleID = path;
     if (userOptions?.normalizer) {
       const [, value] = userOptions.normalizer(path);
-      moduleID = userOptions.moduleID(value || path);
+      moduleID = userOptions.moduleID?.(value || path) || path;
     }
-    const processed = await preprocessCSS(source, path, {
-      ...(config as unknown as ResolvedConfig),
-      env: env,
-    });
+    // Try to process CSS with preprocessCSS, fall back to raw CSS if config is incomplete  
+    let processed: { code: string; modules?: any };
+    try {
+      // Create a minimal config with environments that preprocessCSS expects
+      const viteConfig = {
+        ...resolvedConfig,
+        env: env,
+        environments: {
+          ...resolvedConfig?.environments,
+          client: resolvedConfig?.environments?.client || {
+            resolve: { conditions: ['browser', 'module', 'import'] },
+            consumer: 'client',
+            optimizeDeps: { include: [] },
+            dev: { optimizeDeps: { include: [] } },
+            build: { outDir: join(userOptions?.build?.outDir || 'dist', userOptions?.build?.static || 'static') },
+          },
+          ssr: resolvedConfig?.environments?.ssr || {
+            resolve: { conditions: ['node', 'import'] },
+            consumer: 'server', 
+            optimizeDeps: { include: [] },
+            dev: { optimizeDeps: { include: [] } },
+            build: { outDir: join(userOptions?.build?.outDir || 'dist', userOptions?.build?.client || 'client') },
+          },
+        },
+      } as any;
+
+      processed = await preprocessCSS(source, path, viteConfig);
+    } catch (error) {
+      // If preprocessCSS fails, fall back to raw CSS
+      console.warn(`[css-loader] preprocessCSS failed, using raw CSS: ${error}`);
+      processed = { code: source, modules: {} };
+    }
 
     // If we're processing CSS for a specific page, notify the message handler
     if (loaderPort) {
@@ -107,8 +138,9 @@ async function processCssFile(
       shortCircuit: true,
     };
   } catch (error) {
-    console.error(`[css-loader] Error processing CSS file: ${error}`);
-    throw error;
+    const err = toError(error);
+    console.error(`[css-loader] Error processing CSS file: ${err.message}`);
+    throw err;
   }
 }
 
@@ -125,7 +157,7 @@ async function processCssFile(
 export const load: LoadHook = async (url, context, defaultLoad) => {
   const [name, query] = url.split("?");
   if (name.endsWith(".css")) {
-    return processCssFile(url, resolvedConfig!, query === "inline");
+    return processCssFile(url, query === "inline");
   }
 
   return defaultLoad(url, context);

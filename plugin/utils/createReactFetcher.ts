@@ -1,10 +1,9 @@
-import type { ReactNode } from "react";
 import { createFromFetch } from "react-server-dom-esm/client.browser";
 import { createCallServer } from "./createCallServer.js";
 import { env } from "./env.js";
 import { createPageURL } from "./urls.js";
 
-export function createReactFetcher({
+export function createReactFetcher<R extends unknown>({
   moduleBaseURL = env.BASE_URL,
   publicOrigin = env.PUBLIC_ORIGIN,
   url = window.location.pathname,
@@ -18,14 +17,15 @@ export function createReactFetcher({
   publicOrigin?: string;
   indexRSC?: string;
   headers?: HeadersInit;
-} = {}): Promise<ReactNode> {
+} = {}): Promise<R> {
   const parsedURL = createPageURL(moduleBaseURL, publicOrigin, env.DEV)(url, indexRSC);
-  return createFromFetch(
+  console.log(url, parsedURL);
+  return createFromFetch<R>(
     fetch(parsedURL.indexRSC, {
       headers: headers,
     }),
     {
-      callServer: createCallServer(parsedURL.moduleBaseURL),
+      callServer: createCallServer<R>(parsedURL.moduleBaseURL),
       moduleBaseURL: parsedURL.moduleBaseURL,
     }
   );

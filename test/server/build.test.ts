@@ -129,4 +129,32 @@ describe("Plugin build test", () => {
   it("should collect css files", async () => {
     expect(htmlContent).toContain(".css");
   });
+
+  it("should generate correct CSS paths without src.css artifacts", async () => {
+    expect(htmlContent).toBeDefined();
+    
+    // Extract all href attributes from link tags
+    const linkMatches = htmlContent.match(/href="([^"]*\.css[^"]*)"/g);
+    
+    if (linkMatches && linkMatches.length > 0) {
+      const hrefs = linkMatches.map(match => {
+        const href = match.match(/href="([^"]*)"/)?.[1];
+        return href;
+      }).filter(Boolean);
+      // Check each CSS href
+      for (const href of hrefs) {
+        // Should NOT contain "src.css" patterns  
+        expect(href).not.toMatch(/src/);
+        
+        // Should have proper CSS path structure: /assets/ for built files
+        expect(href).toMatch(/^\/assets\//);
+        
+        // Should end with .css
+        expect(href).toMatch(/\.css$/);
+        
+        // Should not have double slashes or malformed paths
+        expect(href).not.toMatch(/\/\//);
+      }
+    }
+  });
 });
