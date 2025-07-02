@@ -12,7 +12,7 @@ export function enhanceError(
     ? originalError.message 
     : String(originalError);
   
-  const enhancedMessage = `${context}: ${baseMessage}`;
+  const enhancedMessage = `[${context}] ${baseMessage}`;
   
   // Create a new error with enhanced message
   const enhancedError = new Error(enhancedMessage);

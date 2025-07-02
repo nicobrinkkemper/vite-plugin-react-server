@@ -72,15 +72,9 @@ export const resolveComponents = async ({
       if (pageAndPropsResult.type === "error") {
         const enhancedError = enhanceError(
           pageAndPropsResult.error,
-          `[resolveComponents] Error for route \"${route}\"`,
+          `route \"${route}\"`,
           resolveComponents
         );
-        
-        if (verbose) {
-          console.error(`[resolveComponents] Enhanced error details:`, enhancedError.message);
-          console.error(`[resolveComponents] Original error:`, pageAndPropsResult.error.message);
-          console.error(`[resolveComponents] Error stack:`, enhancedError.stack);
-        }
         
         return {
           type: "error",
@@ -172,11 +166,6 @@ export const resolveComponents = async ({
       `[resolveComponents] Component resolution failed for route ${route}`,
       resolveComponents
     );
-    
-    if (verbose) {
-      console.error(`[resolveComponents] Unexpected error during component resolution:`, enhancedError.message);
-      console.error(`[resolveComponents] Error stack:`, enhancedError.stack);
-    }
     
     return {
       type: "error",

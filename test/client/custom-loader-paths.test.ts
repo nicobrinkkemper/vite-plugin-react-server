@@ -34,7 +34,21 @@ export const load = async (url, context, defaultLoad) => {
     const customCssLoader = `
 export const load = async (url, context, defaultLoad) => {
   const [name, query] = url.split("?");
-  
+  if (name.endsWith(".css")) {
+    if(query === "inline") {
+      return {
+        format: "module",
+        source: \`export default ".test { color: red; }"\`,
+        shortCircuit: true,
+      };
+    } else {
+      return {
+        format: "module",
+        source: \`export default {test:'test'}\`,
+        shortCircuit: true,
+      };
+    }
+  }
   // Just pass through to the default behavior
   // The fact that this loader gets called proves custom loader paths work
   return defaultLoad(url, context);

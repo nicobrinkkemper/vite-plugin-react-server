@@ -75,7 +75,8 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     });
     if (componentsResult.type !== "success") {
       const { error, reason } = componentsResult;
-      return handlers.onError(id, error, { reason });
+      handlers.onError(id, error, { reason });
+      return; // Don't propagate the error after handling it
     }
 
     const { PageComponent, pageProps, RootComponent } = componentsResult;
@@ -125,7 +126,7 @@ export const handleRender: HandleRenderFn = async function _handleRender(
 
     if (streamResult.type !== "success") {
       handlers.onError(id, streamResult.error);
-      return;
+      return; // Already handled the error
     }
 
     const { stream, metrics } = streamResult;
@@ -162,6 +163,6 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     });
   } catch (error) {
     handlers.onError(id, error as Error, { reason: `${id} render error` });
-    return Promise.reject(error);
+    return; // Don't propagate the error after handling it
   }
 }
