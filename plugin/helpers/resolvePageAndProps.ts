@@ -7,6 +7,7 @@ import type {
 } from "../types.js";
 import { resolvePage } from "./resolvePage.js";
 import { resolveProps } from "./resolveProps.js";
+import { routeToURL } from "../utils/routeToURL.js";
 
 type ResolvePageAndPropsResult<T extends PagePropOpt = PagePropOpt> =
   | {
@@ -37,20 +38,24 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
     | "propsExportName"
     | "route"
     | "loader"
+    | "moduleBaseURL"
+    | "build"
   >
 ) => Promise<ResolvePageAndPropsResult<T>>;
 
 export const resolvePageAndProps: ResolvePageAndPropsFn =
   async function _resolvePageAndProps(handlerOptions) {
     try {
+      const url = routeToURL(handlerOptions.route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath);
+ 
       // Load the page component
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
         exportName: handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
         loader: handlerOptions.loader,
       });
-      const resolvePropsPromise = resolveProps({
-        url: handlerOptions.route,
+      const resolvePropsPromise = resolveProps({  
+        url,
         id: handlerOptions.propsPath || handlerOptions.pagePath,
         exportName: handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
         loader: async () => {
@@ -69,7 +74,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
             return handlerOptions.loader(handlerOptions.propsPath);
           }
           return {
-            [handlerOptions.propsExportName]: { url: handlerOptions.route },
+            [handlerOptions.propsExportName]: { url: url },
           };
         },
       });

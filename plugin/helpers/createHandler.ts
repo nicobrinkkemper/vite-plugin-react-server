@@ -5,6 +5,7 @@ import { createRscStream } from "./createRscStream.js";
 import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";
 import type { PassThrough } from "node:stream";
+import { routeToURL } from "../utils/routeToURL.js";
 
 export type CreateHandlerReturn =
   | {
@@ -53,8 +54,11 @@ export const createHandler: CreateHandlerFn = ((handlerOptions) => {
       }
     };
 
+    const url = routeToURL(handlerOptions.route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath);
+
     const streamResult = createRscStream({
       ...handlerOptions,
+      url,
       onEvent: adaptedOnEvent,
       cssFiles: handlerOptions.cssFiles,  
       PageComponent: handlerOptions.PageComponent,

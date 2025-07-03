@@ -31,7 +31,7 @@ describe("RSC Server", () => {
           ...testUserOptions,
           projectRoot: testDir,
           Page: (id) =>
-            id === "/"
+            !id.includes('page2')
               ? join("src", "page", "page.tsx")
               : join("src", "page2", "page.tsx"),
           props: undefined, // no props
@@ -89,7 +89,7 @@ describe("RSC Server", () => {
     expect(response.result).toContain(
       `{"children":["Public Origin: ","http://localhost:${port}"]}`
     );
-    expect(response.result).toContain(`{"children":["URL: ","/"]}`);
+    expect(response.result).toContain(`{"children":["URL: ","${process.env.VITE_BASE_URL}"]}`);
     expect(response.result).toContain(`["Dev: ",true]`);
     expect(response.result).toContain(
       `[["Page","${testDir}/src/page/page.tsx",`
@@ -103,13 +103,13 @@ describe("RSC Server", () => {
     expect(response.result).toContain(
       `{"children":["Public Origin: ","http://localhost:${port}"]}`
     );
-    expect(response2.result).toContain(`{"children":["URL: ","/"]}`);
+    expect(response2.result).toContain(`{"children":["URL: ","${process.env.VITE_BASE_URL}"]}`);
     expect(response2.result).toContain(`["Dev: ",true]`);
     expect(response2.result).toContain(
       `[["Page","${testDir}/src/page2/page.tsx",`
     );
     expect(response2.result).toContain(
-      `{"children":["Home Page for ","/page2"]}`
+      `{"children":["Home Page for ","${process.env.VITE_BASE_URL}page2/"]}`
     );
     expect(response2.result).not.toContain(`$undefined`);
   });

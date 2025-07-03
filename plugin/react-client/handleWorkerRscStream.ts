@@ -70,10 +70,10 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
             ? errorToThrow.stack
             : undefined;
           if (messageToLog && (!stackToLog && !stackToLog?.includes(messageToLog))) {
-            logger.error(`[rsc-worker-error] ${messageToLog}`);
+            logger.error(`[rsc-worker-error] ${messageToLog}`, {error: errorToThrow});
           }
           if (stackToLog) {
-            logger.error(`[rsc-worker-stack] ${stackToLog}`);
+            logger.error(`[rsc-worker-stack] ${stackToLog}`, {error: errorToThrow});
           }
           if (errorInfo != null && typeof errorInfo === "object" && 'reason' in errorInfo && typeof errorInfo["reason"] === "string") {
             logger.error(errorInfo["reason"]);  

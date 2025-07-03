@@ -132,7 +132,7 @@
     "test:directives": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/unit/analyzeModule",
     "test:server-action-integration-client": "npm run build && vitest run test/client/server-action-integration.test.ts",
     "test": "npm run build && npm run test:server && npm run test:client && npm run test:unit",
-    "test-base-url": "BASE_URL='/test/' && npm run build && npm run test:server && npm run test:client",
+    "test-base-url": "export BASE_URL='/test-base-url/' && npm run build && npm run test:server",
     "test:coverage": "npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
     "test:bidoof-template": "cd ../bidoof-template && npm run build:preview",

@@ -1,5 +1,5 @@
-import { join } from "path";
-import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "../plugin/types.js";
+import { join } from "node:path";
+import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "vite-plugin-react-server/types";
 
 const resolvedTestConfig = {
   moduleBase: "src",
@@ -9,7 +9,7 @@ const resolvedTestConfig = {
   pageExportName: "Page",
   propsExportName: "props",
   moduleBasePath: '/',
-  moduleBaseURL: '/',
+  moduleBaseURL: process.env.VITE_BASE_URL || '/',
   verbose: false,
   rscTimeout: 720,
   rscWorkerStartupTimeout: 2000,

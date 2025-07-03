@@ -515,7 +515,7 @@ return (
 export function Page({url, propsEnv = import.meta.env}) {
 return (
   <div>
-    <h1>Home Page for {url}</h1>
+    <h1>Home Page for {new URL(import.meta.env.BASE_URL + url, import.meta.env.PUBLIC_ORIGIN + import.meta.env.BASE_URL).pathname}</h1>
     <p>Base URL: {propsEnv.BASE_URL}</p>
     <p>Public: {propsEnv.PUBLIC_ORIGIN}</p>
     <p>Mode: {import.meta.env.MODE}</p>

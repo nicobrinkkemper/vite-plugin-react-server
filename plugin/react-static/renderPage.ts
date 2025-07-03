@@ -46,6 +46,8 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       // Use direct component overrides if available (for static builds)
       RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
       HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
+      moduleBaseURL: handlerOptions.moduleBaseURL,
+      build: handlerOptions.build,
     });
 
     if (componentsResult.type === "error") {

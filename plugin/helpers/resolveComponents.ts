@@ -3,24 +3,28 @@ import { resolveComponent } from "./resolveComponent.js";
 import { Root as DefaultRoot } from "../components/root.js";
 import { Html as DefaultHtml } from "../components/html.js";
 import { enhanceError } from "../error/enhanceError.js";
-import type { BuildModuleLoader, ResolvedUserOptions, PageComponentType, PagePropOpt, RootComponentType, HtmlComponentType, GenericModuleLoader } from "../types.js";
+import type { PageComponentType, PagePropOpt, RootComponentType, HtmlComponentType } from "../types.js";
 import { toError } from "../error/toError.js";
+import type { CreateHandlerOptions } from "../types.js";
 
-export type ResolveComponentsOptions = {
-  pagePath: string;
-  propsPath?: string;
+export type ResolveComponentsOptions = Pick<
+  CreateHandlerOptions,
+  | "pagePath"
+  | "pageExportName"
+  | "propsPath"
+  | "propsExportName"
+  | "route"
+  | "loader"
+  | "moduleBaseURL"
+  | "build"
+  | "RootComponent"
+  | "HtmlComponent"
+  | "verbose"
+> & {
   rootPath?: string;
   htmlPath?: string;
-  pageExportName: string;
-  propsExportName: string;
   rootExportName?: string;
   htmlExportName?: string;
-  route: string;
-  loader: BuildModuleLoader<ResolvedUserOptions> | GenericModuleLoader;
-  // Allow override with direct components (for static builds)
-  RootComponent?: RootComponentType;
-  HtmlComponent?: HtmlComponentType;
-  verbose: boolean;
 };
 
 export type ResolveComponentsSuccess = {
@@ -54,6 +58,8 @@ export const resolveComponents = async ({
   htmlExportName = "Html",
   route,
   loader,
+  moduleBaseURL,
+  build,
   RootComponent: overrideRootComponent,
   HtmlComponent: overrideHtmlComponent,
   verbose,
@@ -67,6 +73,8 @@ export const resolveComponents = async ({
       propsExportName,
       route,
       loader,
+      moduleBaseURL,
+      build,
     });
 
     if (pageAndPropsResult.type !== "success") {

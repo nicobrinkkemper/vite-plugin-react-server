@@ -25,6 +25,9 @@ export function requestToRoute(
   if (route.startsWith(handlerOptions.moduleBaseURL)) {
     route = route.slice(handlerOptions.moduleBaseURL.length);
   }
+  if(route.endsWith(handlerOptions.build.rscOutputPath)) {
+    route = route.slice(0, -handlerOptions.build.rscOutputPath.length);
+  }
   
   if (route.startsWith(handlerOptions.moduleBasePath)) {
     route = route.slice(handlerOptions.moduleBasePath.length);

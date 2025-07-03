@@ -3,7 +3,7 @@ import { setupTodoTestProject } from '../setup.js';
 import { doBuild } from './doBuild.js';
 import { testUserOptions } from '../test-config.js';
 import { readdir, readFile, mkdir, rm } from 'fs/promises';
-import { resolve, join } from 'path';
+import { resolve, join } from 'node:path';
 
 const testDir = resolve(__dirname, '../fixtures/client-server-action.test');
 

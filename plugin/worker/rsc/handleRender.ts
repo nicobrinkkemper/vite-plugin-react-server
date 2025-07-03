@@ -10,6 +10,7 @@ import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
 import type { BuildModuleLoader, ResolvedUserOptions } from "../../types.js";
 import React from "react";
+import { routeToURL } from "../../utils/routeToURL.js";
 
 export type HandleRenderFn = <Msg extends RscRenderMessage = RscRenderMessage>(
   msg: Msg,
@@ -38,6 +39,7 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     cssFiles: messageCssFiles,
     globalCss,
     verbose = workerData.userOptions.verbose,
+    build = workerData.userOptions.build,
   } = msg;
   try {
     // Create loader function for module resolution
@@ -72,6 +74,8 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       loader: loader as BuildModuleLoader<ResolvedUserOptions>,
       // Use components override for headless RSC streams in development
       HtmlComponent: React.Fragment,
+      moduleBaseURL,
+      build,
     });
     if (componentsResult.type !== "success") {
       const { error, reason } = componentsResult;
@@ -102,12 +106,15 @@ export const handleRender: HandleRenderFn = async function _handleRender(
         cssFiles.set(id, cssContent);
       }
     }
+    const url = routeToURL(route, moduleBaseURL, build.rscOutputPath);
+
 
     // Create stream
     const streamResult = createRscStream({
+      url: url,
       projectRoot: projectRoot,
       HtmlComponent: finalHtmlComponent,
-      PageComponent,
+      PageComponent: PageComponent,
       RootComponent: RootComponent,
       pageProps,
       moduleBase,

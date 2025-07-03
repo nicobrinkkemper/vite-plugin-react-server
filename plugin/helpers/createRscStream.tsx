@@ -10,39 +10,40 @@ import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";
 
 export type CreateRscStreamOptions = Pick<
-CreateHandlerOptions<ResolvedUserOptions>,
-| "HtmlComponent"
-| "PageComponent"
-| "RootComponent"
-| "pageProps"
-| "moduleBase"
-| "moduleRootPath"
-| "moduleBasePath"
-| "moduleBaseURL"
-| "cssFiles"
-| "route"
-| "pipeableStreamOptions"
-| "globalCss"
-| "manifest"
-| "projectRoot"
-| "verbose"
-| "as"
+  CreateHandlerOptions<ResolvedUserOptions>,
+  | "HtmlComponent"
+  | "PageComponent"
+  | "RootComponent"
+  | "pageProps"
+  | "moduleBase"
+  | "moduleRootPath"
+  | "moduleBasePath"
+  | "moduleBaseURL"
+  | "cssFiles"
+  | "route"
+  | "pipeableStreamOptions"
+  | "globalCss"
+  | "manifest"
+  | "projectRoot"
+  | "verbose"
+  | "as"
 > & {
-onEvent?: (
-  event: "error" | "postpone",
-  data: {
-    route: string;
-    error?: Error | null;
-    errorInfo?: {
-      componentStack?: string | null;
-      digest?: string | null;
-    };
-    reason?: string | null;
-  }
-) => void;
-}
+  url: string;
+  onEvent?: (
+    event: "error" | "postpone",
+    data: {
+      route: string;
+      error?: Error | null;
+      errorInfo?: {
+        componentStack?: string | null;
+        digest?: string | null;
+      };
+      reason?: string | null;
+    }
+  ) => void;
+};
 
-export type CreateRscStreamReturn = 
+export type CreateRscStreamReturn =
   | { type: "success"; stream: PassThrough; metrics: StreamMetrics }
   | { type: "error"; error: Error; metrics: StreamMetrics };
 
@@ -50,7 +51,7 @@ export type CreateRscStreamFn = <
   Opt extends CreateRscStreamOptions = CreateRscStreamOptions
 >(
   options: Opt
-) => CreateRscStreamReturn   
+) => CreateRscStreamReturn;
 
 export const createRscStream: CreateRscStreamFn = function _createRscStream({
   HtmlComponent,
@@ -69,6 +70,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
   onEvent,
   projectRoot,
   verbose,
+  url,
   as = "div",
 }) {
   let errorCount = 0;
@@ -76,7 +78,6 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
   const startTime = performance.now();
   try {
     const htmlIsFragment = HtmlComponent === React.Fragment;
-    const url = route.startsWith(moduleBaseURL) ? route : moduleBaseURL + route;
 
     if (!PageComponent) {
       return {
@@ -93,19 +94,19 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         },
       };
     }
-    if(!RootComponent) {
+    if (!RootComponent) {
       return {
         type: "error",
         error: new Error("RootComponent is required"),
         metrics: {
           chunks: 0,
-          bytes: 0, 
+          bytes: 0,
           backpressureCount: 0,
           drainCount: 0,
           errorCount: 1,
           duration: 0,
           startTime: 0,
-        },  
+        },
       };
     }
 

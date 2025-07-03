@@ -135,6 +135,8 @@ export const configureReactServer: ConfigureReactServerFn =
           route: info.route,
           loader: loader,
           verbose,
+          moduleBaseURL: server.config.base,
+          build: handlerOptions.build,
         });
         if (componentsResult.type === "error") {
           throw componentsResult.error;
