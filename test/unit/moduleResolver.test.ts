@@ -197,21 +197,12 @@ describe("moduleResolver", () => {
       expect(result).toBe("file:///resolved-client.js");
     });
 
-    it("should return null and log error on resolution failure", async () => {
+    it("should throw error on resolution failure", async () => {
       const mockResolveFunction = vi.fn().mockRejectedValue(new Error("Resolution failed"));
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setStashedResolve(mockResolveFunction);
 
-      const result = await resolveClientImport("failing-module", "file:///parent.js");
-
-      expect(result).toBeNull();
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Error resolving import failing-module:",
-        expect.any(Error)
-      );
-
-      consoleSpy.mockRestore();
+      await expect(resolveClientImport("failing-module", "file:///parent.js")).rejects.toThrow("Resolution failed");
     });
 
     it("should use correct conditions for client import", async () => {
@@ -262,21 +253,12 @@ describe("moduleResolver", () => {
       expect(result).toBe(expectedSource);
     });
 
-    it("should return null and log error on source loading failure", async () => {
+    it("should throw error on source loading failure", async () => {
       const mockGetSourceFunction = vi.fn().mockRejectedValue(new Error("Source loading failed"));
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setStashedGetSource(mockGetSourceFunction);
 
-      const result = await loadClientSource("file:///failing.js");
-
-      expect(result).toBeNull();
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Error loading source for file:///failing.js:",
-        expect.any(Error)
-      );
-
-      consoleSpy.mockRestore();
+      await expect(loadClientSource("file:///failing.js")).rejects.toThrow("Source loading failed");
     });
 
     it("should use module format for loading source", async () => {

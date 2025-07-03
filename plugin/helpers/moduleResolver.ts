@@ -58,22 +58,17 @@ export async function resolveClientImport(specifier: string, parentURL: string) 
     );
   }
 
-  try {
-    const result = await stashedResolve(
-      specifier,
-      {
-        conditions,
-        parentURL,
-        importAttributes: {}
-      },
-      stashedResolve
-    );
+  const result = await stashedResolve(
+    specifier,
+    {
+      conditions,
+      parentURL,
+      importAttributes: {}
+    },
+    stashedResolve
+  );
 
-    return result.url;
-  } catch (error) {
-    console.error(`Error resolving import ${specifier}:`, error);
-    return null;
-  }
+  return result.url;
 }
 
 export async function loadClientSource(url: string) {
@@ -83,19 +78,14 @@ export async function loadClientSource(url: string) {
     );
   }
 
-  try {
-    const result = await stashedGetSource(
-      url,
-      {
-        format: "module",
-        url
-      },
-      stashedGetSource
-    );
+  const result = await stashedGetSource(
+    url,
+    {
+      format: "module",
+      url
+    },
+    stashedGetSource
+  );
 
-    return result.source;
-  } catch (error) {
-    console.error(`Error loading source for ${url}:`, error);
-    return null;
-  }
+  return result.source;
 } 
