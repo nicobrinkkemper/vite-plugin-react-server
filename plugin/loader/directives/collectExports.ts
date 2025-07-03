@@ -13,20 +13,21 @@ import {
   isArrowFunctionExpression,
   isFunctionExpression,
 } from "./typeGuards.js";
-import { collectExportsFromModule } from "./collectExportsFromModule.js";
 import { addLocalExportedNames } from "./addLocalExportedNames.js";
 
 function createExportInfo(
   localName: string,
   exportName: string,
   type: "function" | "class" | "variable" | null,
-  range: [number, number]
+  range: [number, number],
+  originalModuleId?: string
 ): ExportInfo {
   return {
     localName,
     exportName,
     type,
     range,
+    originalModuleId,
   };
 }
 
@@ -99,10 +100,11 @@ function handleNamedExport(
   return exports;
 }
 
-function handleReExports(
+async function handleReExports(
   specifiers: ExportSpecifier[],
-  range: [number, number]
-): ExportInfo[] {
+  range: [number, number],
+  sourceModuleId?: string
+): Promise<ExportInfo[]> {
   const exports: ExportInfo[] = [];
 
   for (const specifier of specifiers) {
@@ -110,12 +112,16 @@ function handleReExports(
       specifier.local.type === "Identifier" &&
       specifier.exported.type === "Identifier"
     ) {
+      // For re-exports from another module, use exported name for function reference
+      // For local exports with aliases, use local name for function reference
+      const functionName = sourceModuleId ? specifier.exported.name : specifier.local.name;
+      
       exports.push(
         createExportInfo(
-        specifier.local.name,
-        specifier.exported.name,
-        "function",
-        range
+          functionName,              // Function reference name
+          specifier.exported.name,   // Export name
+          "function",
+          range,
         )
       );
     }
@@ -150,17 +156,8 @@ export async function collectExports(program: Program): Promise<ExportInfo[]> {
       }
 
       case "ExportAllDeclaration":
-        if (typeof node.source.value === "string") {
-          try {
-            const reExports = await collectExportsFromModule(node.source.value);
-            exports.push(...reExports);
-          } catch (error) {
-            console.warn(
-              `Failed to collect exports from ${node.source.value}:`,
-              error
-            );
-          }
-        }
+        // If export * is used, the other file needs to explicitly opt into "use server" too.
+        // This matches React's loader behavior - we ignore export * declarations
         break;
 
       case "ExportNamedDeclaration":
@@ -170,9 +167,11 @@ export async function collectExports(program: Program): Promise<ExportInfo[]> {
           );
         }
         if (node.specifiers) {
-          exports.push(
-            ...handleReExports(node.specifiers, [node.start, node.end])
-          );
+          const sourceModuleId = node.source && typeof node.source.value === "string" 
+            ? node.source.value 
+            : undefined;
+          const reExports = await handleReExports(node.specifiers, [node.start, node.end], sourceModuleId);
+          exports.push(...reExports);
         }
         break;
     }

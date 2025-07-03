@@ -1,4 +1,8 @@
-import type { ResolvedUserOptions, SerializedResolvedConfig, SerializedUserOptions } from "../types.js";
+import type {
+  ResolvedUserOptions,
+  SerializedResolvedConfig,
+  SerializedUserOptions,
+} from "../types.js";
 import type { ModuleInfo } from "rollup";
 import { MessagePort } from "node:worker_threads";
 import type {
@@ -69,10 +73,10 @@ export function initialize(
     if (resolvedUserOptions.type === "error") {
       throw new Error(resolvedUserOptions.error.message);
     }
-    
+
     // Use the hydrated user options directly (includes recreated functions)
     userOptions = resolvedUserOptions.userOptions;
-    
+
     isServerFunction = userOptions.loader.isServerFunctionCode;
     isClientComponent = userOptions.loader.isClientComponentCode;
     transformer = createTransformer({
@@ -87,7 +91,7 @@ export function initialize(
           mode: getNodeEnv(),
         },
         verbose: false,
-        panicThreshold: 'none',
+        panicThreshold: "none",
       },
     });
   }
@@ -152,6 +156,19 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         : false);
 
     if (userOptions?.verbose) {
+      let startPreviewIndex = 0;
+      let startLine = 0;
+      let lines = source.split("\n");
+      while (
+        lines[startLine].trim() === "" || lines[startLine].trim() === "\r" ||
+        // comment lines
+        lines[startLine].trim().startsWith("//")
+        || lines[startLine].trim().startsWith("/**")
+        || lines[startLine].trim().startsWith("*")
+      ) {
+        startPreviewIndex += lines[startLine].length;
+        startLine++;
+      }
       console.log("[react-loader] Module analysis:", {
         url,
         isServer,
@@ -159,7 +176,7 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         hasFileLevelServerDirective,
         hasFileLevelClientDirective,
         sourceLength: source.length,
-        sourcePreview: source.slice(0, 100) + "...",
+        sourcePreview: source.slice(startPreviewIndex, startPreviewIndex + 100) + "...",
       });
     }
 

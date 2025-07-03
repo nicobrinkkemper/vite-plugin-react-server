@@ -82,6 +82,8 @@ export interface ExportInfo {
   isAsync?: boolean;
   range: DirectiveRange;
   loc?: { line: number; column: number } | null | undefined;
+  /** Original module ID where this export is actually defined (for re-exports) */
+  originalModuleId?: string;
 }
 
 export type ParsedExports = {

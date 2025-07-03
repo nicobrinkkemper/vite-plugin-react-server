@@ -88,6 +88,8 @@ async function processCssFile(
       const viteConfig = await resolveConfig({
         ...resolvedConfig,
         env: env,
+        // do-not re-resolve the config file as it would import the plugin again which we do not need.
+        configFile: false,
       }, "serve");
 
       processed = await preprocessCSS(source, path, viteConfig);

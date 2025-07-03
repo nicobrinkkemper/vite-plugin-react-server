@@ -16,5 +16,10 @@ export async function collectExportsFromModule(moduleId: string): Promise<Export
     // Use our existing parse function
     const { ast } = await parse(source);
     const exports = await getExports(ast);
-    return Array.from(exports.exports.values());
+    
+    // Set originalModuleId for local exports, preserve it for re-exports
+    return Array.from(exports.exports.values()).map(exp => ({
+      ...exp,
+      originalModuleId: exp.originalModuleId || moduleId
+    }));
   }

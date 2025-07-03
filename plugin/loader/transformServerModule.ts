@@ -110,8 +110,10 @@ export async function transformServerModule(
       hasServerDirective ||
       parseResult.directiveInfo.fileLevel?.type === "server"
     ) {
+      // Use original module ID for re-exports, current module ID for local exports
+      const targetModuleId = exp.originalModuleId || moduleId;
       registrations.push(
-        `${loader?.registerServerReferenceName}(${exp.localName}, "${moduleId}", "${exp.exportName}");`
+        `${loader?.registerServerReferenceName}(${exp.localName}, "${targetModuleId}", "${exp.exportName}");`
       );
     }
   }

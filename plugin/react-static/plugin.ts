@@ -46,6 +46,7 @@ import { baseURL } from "../utils/envUrls.node.js";
 import { readFile } from "node:fs/promises";
 import { logError } from "../error/logError.js";
 import { toError } from "../error/toError.js";
+import { createDefaultModuleID } from "../config/createModuleID.js";
 
 
 export type ReactStaticPluginFn = ReactStreamPluginFn<{
@@ -85,6 +86,9 @@ export const reactStaticPlugin: ReactStaticPluginFn =
         }
         if (configEnv.command !== "build") {
           return;
+        }
+        if(typeof userOptions.moduleID !== "function") {
+          userOptions.moduleID = createDefaultModuleID(userOptions, configEnv, userOptions.loader.mode);
         }
         // Initialize autoDiscoveredFiles for both server and client builds
         const autoDiscoverResult = await resolveAutoDiscover({
