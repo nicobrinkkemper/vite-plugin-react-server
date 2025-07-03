@@ -1,9 +1,12 @@
+import {
+  resolveDirectiveMatcher,
+  resolvePatternWithValues,
+  resolveRegExp,
+  parsePattern,
+} from "vite-plugin-react-server/config";
+import type { DeserializedRegExp } from "vite-plugin-react-server/types";
+
 import { describe, it, expect } from "vitest";
-import { resolveDirectiveMatcher } from "../../dist/plugin/config/resolveDirectiveMatcher.js";
-import { resolvePatternWithValues } from "../../dist/plugin/config/resolvePatternWithValues.js";
-import { resolveRegExp } from "../../dist/plugin/config/resolveRegExp.js";
-import { parsePattern } from "../../dist/plugin/config/parsePattern.js";
-import type { DeserializedRegExp } from "../../dist/plugin/types.js";
 
 describe("resolveDirectiveMatcher", () => {
   describe("string patterns", () => {
@@ -29,7 +32,7 @@ describe("resolveDirectiveMatcher", () => {
     it("handles case sensitivity", () => {
       const matcher = resolveDirectiveMatcher("*.js");
       expect(matcher("file.JS")).toBe(false);
-      
+
       const caseInsensitive = resolveDirectiveMatcher("*.js/i");
       expect(caseInsensitive("file.JS")).toBe(true);
     });
@@ -66,32 +69,26 @@ describe("resolveDirectiveMatcher", () => {
 describe("resolvePatternWithValues", () => {
   describe("string patterns with interpolation", () => {
     it("interpolates simple values", () => {
-      const matcher = resolvePatternWithValues(
-        "*.{ext}",
-        "*.js",
-        { ext: "js" }
-      );
+      const matcher = resolvePatternWithValues("*.{ext}", "*.js", {
+        ext: "js",
+      });
       expect(matcher("file.js")).toBe(true);
       expect(matcher("file.ts")).toBe(false);
     });
 
     it("interpolates multiple values", () => {
-      const matcher = resolvePatternWithValues(
-        "*.{ext}",
-        "*.{js,ts}",
-        { ext: "js|ts" }
-      );
+      const matcher = resolvePatternWithValues("*.{ext}", "*.{js,ts}", {
+        ext: "js|ts",
+      });
       expect(matcher("file.js")).toBe(true);
       expect(matcher("file.ts")).toBe(true);
       expect(matcher("file.css")).toBe(false);
     });
 
     it("interpolates directory patterns", () => {
-      const matcher = resolvePatternWithValues(
-        "src/*.{ext}",
-        "src/*.js",
-        { ext: "js" }
-      );
+      const matcher = resolvePatternWithValues("src/*.{ext}", "src/*.js", {
+        ext: "js",
+      });
       expect(matcher("src/file.js")).toBe(true);
       expect(matcher("file.js")).toBe(false);
     });
@@ -99,42 +96,30 @@ describe("resolvePatternWithValues", () => {
 
   describe("RegExp patterns", () => {
     it("uses RegExp objects without interpolation", () => {
-      const matcher = resolvePatternWithValues(
-        /\.js$/,
-        "*.js",
-        { ext: "js" }
-      );
+      const matcher = resolvePatternWithValues(/\.js$/, "*.js", { ext: "js" });
       expect(matcher("file.js")).toBe(true);
       expect(matcher("file.ts")).toBe(false);
     });
 
     it("preserves RegExp flags", () => {
-      const matcher = resolvePatternWithValues(
-        /\.js$/i,
-        "*.js",
-        { ext: "js" }
-      );
+      const matcher = resolvePatternWithValues(/\.js$/i, "*.js", { ext: "js" });
       expect(matcher("file.JS")).toBe(true);
     });
   });
 
   describe("default patterns", () => {
     it("uses default string pattern with interpolation", () => {
-      const matcher = resolvePatternWithValues(
-        undefined,
-        "*.{ext}",
-        { ext: "js" }
-      );
+      const matcher = resolvePatternWithValues(undefined, "*.{ext}", {
+        ext: "js",
+      });
       expect(matcher("file.js")).toBe(true);
       expect(matcher("file.ts")).toBe(false);
     });
 
     it("uses default RegExp without interpolation", () => {
-      const matcher = resolvePatternWithValues(
-        undefined,
-        /\.js$/,
-        { ext: "js" }
-      );
+      const matcher = resolvePatternWithValues(undefined, /\.js$/, {
+        ext: "js",
+      });
       expect(matcher("file.js")).toBe(true);
       expect(matcher("file.ts")).toBe(false);
     });
@@ -184,7 +169,7 @@ describe("resolveRegExp", () => {
   });
 
   it("should handle default patterns", () => {
-    const regex = resolveRegExp(undefined, "*.js");      
+    const regex = resolveRegExp(undefined, "*.js");
     expect(regex.test("file.js")).toBe(true);
     expect(regex.test("file.ts")).toBe(false);
   });
@@ -199,7 +184,7 @@ describe("resolveRegExp", () => {
     const deserialized: DeserializedRegExp = {
       source: "\\.js$",
       flags: "i",
-      __isRegExp: true
+      __isRegExp: true,
     };
     const regex = resolveRegExp(deserialized);
     expect(regex.test("file.js")).toBe(true);
@@ -234,12 +219,12 @@ describe("parsePattern", () => {
   });
 });
 
-describe('rsolveRegExp direct output', () => {
-  it('should return a RegExp object for directory patterns', () => {
-    const regex = resolveRegExp('src/*.js');
+describe("rsolveRegExp direct output", () => {
+  it("should return a RegExp object for directory patterns", () => {
+    const regex = resolveRegExp("src/*.js");
     expect(regex).toBeInstanceOf(RegExp);
-    expect(typeof regex.test).toBe('function');
-    expect(regex.test('src/file.js')).toBe(true);
-    expect(regex.test('file.js')).toBe(false);
+    expect(typeof regex.test).toBe("function");
+    expect(regex.test("src/file.js")).toBe(true);
+    expect(regex.test("file.js")).toBe(false);
   });
-}); 
+});

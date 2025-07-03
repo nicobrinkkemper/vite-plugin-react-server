@@ -6,6 +6,7 @@ import { findDirectiveMatches } from "./directives/findDirectiveMatches.js";
 import type { DirectiveMatch } from "./directives/types.js";
 import type { TransformerFactory, TransformResult } from "./types.js";
 import { getNodeEnv } from "../getNodeEnv.js";
+import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 
 /**
  * Creates a transformer that handles React Server Components (RSC) boundaries.
@@ -42,7 +43,10 @@ export const createTransformer: TransformerFactory = ({
     }
 
     // Use analyzeModule to get the full parse result, passing the custom parseFn
-    const parseResult = await analyzeModule(source, options, parseFn);
+    const parseResult = await analyzeModule(source, {
+      ...options,
+      loader: options.loader ?? DEFAULT_LOADER_CONFIG,
+    }, parseFn);
     if (
       parseResult.directiveInfo &&
       parseResult.directiveInfo.warnings.length > 0

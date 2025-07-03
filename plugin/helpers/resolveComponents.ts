@@ -4,6 +4,7 @@ import { Root as DefaultRoot } from "../components/root.js";
 import { Html as DefaultHtml } from "../components/html.js";
 import { enhanceError } from "../error/enhanceError.js";
 import type { BuildModuleLoader, ResolvedUserOptions, PageComponentType, PagePropOpt, RootComponentType, HtmlComponentType, GenericModuleLoader } from "../types.js";
+import { toError } from "../error/toError.js";
 
 export type ResolveComponentsOptions = {
   pagePath: string;
@@ -72,8 +73,8 @@ export const resolveComponents = async ({
       if (pageAndPropsResult.type === "error") {
         const enhancedError = enhanceError(
           pageAndPropsResult.error,
-          `route \"${route}\"`,
-          resolveComponents
+          resolveComponents,
+          `resolveComponents(\"${route}\")`,
         );
         
         return {
@@ -162,9 +163,9 @@ export const resolveComponents = async ({
     };
   } catch (error) {
     const enhancedError = enhanceError(
-      error,
-      `[resolveComponents] Component resolution failed for route ${route}`,
-      resolveComponents
+      toError(error),
+      resolveComponents,
+      `resolveComponents(\"${route}\")`
     );
     
     return {

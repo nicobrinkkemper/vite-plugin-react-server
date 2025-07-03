@@ -1,41 +1,21 @@
 /**
- * Enhances an existing error with additional context and captured stack trace
- * This is useful when we need to wrap errors with more context while preserving
- * the original error information
+ * Creates a new error with context from any input.
+ * Always creates a fresh stack trace and sets the original as the cause.
+ * This is the preferred way to wrap errors with context.
  */
 export function enhanceError(
-  originalError: unknown,
-  context: string,
-  captureStackTraceFunction?: Function
+  originalError: Error | string | {message: string},
+  captureStackTraceFunction: Function,
+  context: string = captureStackTraceFunction.name,
 ): Error {
-  const baseMessage = originalError instanceof Error 
-    ? originalError.message 
-    : String(originalError);
+  const baseMessage = typeof originalError === 'string' ? originalError : originalError.message;
   
-  const enhancedMessage = `[${context}] ${baseMessage}`;
+  const contextualError = createContextualError(baseMessage, context, captureStackTraceFunction || enhanceError);
   
-  // Create a new error with enhanced message
-  const enhancedError = new Error(enhancedMessage);
+  // Set the original as the cause for traceability
+  contextualError.cause = originalError;
   
-  // Preserve original error properties if available
-  if (originalError instanceof Error) {
-    enhancedError.name = originalError.name;
-    enhancedError.cause = originalError;
-    
-    // Preserve original stack if available, but append our captured stack
-    if (originalError.stack) {
-      enhancedError.stack = originalError.stack;
-    }
-  } else {
-    enhancedError.name = "EnhancedError";
-    enhancedError.cause = originalError;
-  }
-  
-  // Capture stack trace at the point where this function was called
-  // This will give us context about where the error enhancement happened
-  Error.captureStackTrace(enhancedError, captureStackTraceFunction || enhanceError);
-  
-  return enhancedError;
+  return contextualError;
 }
 
 /**
@@ -44,15 +24,18 @@ export function enhanceError(
  */
 export function createContextualError(
   message: string,
-  context: string,
+  context: string = '',
   captureStackTraceFunction?: Function
 ): Error {
-  const contextualMessage = `${context}: ${message}`;
+  const contextualMessage = context && context !== '' ? `[${context}:error] ${message}` : message;
   const error = new Error(contextualMessage);
   error.name = "ContextualError";
-  
+
   // Capture stack trace excluding this function (or the specified function)
-  Error.captureStackTrace(error, captureStackTraceFunction || createContextualError);
-  
+  Error.captureStackTrace(
+    error,
+    captureStackTraceFunction || createContextualError
+  );
+
   return error;
-} 
+}

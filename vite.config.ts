@@ -27,6 +27,10 @@ export default defineConfig({
           __dirname,
           "plugin/react-server/plugin.ts"
         ),
+        "plugin/worker/index": resolve(
+          __dirname,
+          "plugin/worker/index.ts"
+        ),
         "plugin/worker/html/index": resolve(
           __dirname,
           "plugin/worker/html/index.ts"
@@ -59,17 +63,21 @@ export default defineConfig({
           __dirname,
           "plugin/loader/index.ts"
         ),
-        "plugin/components": resolve(__dirname, "plugin/components/index.ts"),
-        "plugin/utils": resolve(__dirname, "plugin/utils/index.ts"),
-        "plugin/metrics": resolve(__dirname, "plugin/metrics/index.ts"),
-        "plugin/env": resolve(__dirname, "plugin/env/plugin.ts"),
-        "plugin/vendor": resolve(__dirname, "plugin/vendor/index.ts"),
-        "plugin/config": resolve(__dirname, "plugin/config/index.ts"),
-        "plugin/error": resolve(__dirname, "plugin/error/index.ts"),
-        "plugin/helpers": resolve(__dirname, "plugin/helpers/index.ts"),
-        "plugin/file-preserver": resolve(
+        "plugin/components/index": resolve(__dirname, "plugin/components/index.ts"),
+        "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
+        "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
+        "plugin/env/plugin": resolve(__dirname, "plugin/env/plugin.ts"),
+        "plugin/vendor/index": resolve(__dirname, "plugin/vendor/index.ts"),
+        "plugin/config/index": resolve(__dirname, "plugin/config/index.ts"),
+        "plugin/error/index": resolve(__dirname, "plugin/error/index.ts"),
+        "plugin/helpers/index": resolve(__dirname, "plugin/helpers/index.ts"),
+        "plugin/file-preserver/plugin": resolve(
           __dirname,
           "plugin/file-preserver/plugin.ts"
+        ),
+        "plugin/loader/directives/index": resolve(
+          __dirname,
+          "plugin/loader/directives/index.ts"
         ),
       },
       formats: ["es"],

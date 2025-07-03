@@ -22,6 +22,9 @@ export * from "./createRscStream.js";
 export * from "./createHandler.js";
 export * from "./createEventHandler.js";
 
+// Hydrate user options
+export * from "./hydrateUserOptions.js";
+
 // Metrics and monitoring
 export * from "./formatMetrics.js";
 export * from "./metrics.js";

@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createWorkerStream } from 'vite-plugin-react-server/client';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
-import type { RscRenderOpt } from '../../dist/plugin/worker/rsc/types.js';
-import type { StreamHandlers } from '../../dist/plugin/worker/types.js';
+import type { RscRenderOpt } from 'vite-plugin-react-server/rsc-worker';
+import type { StreamHandlers } from 'vite-plugin-react-server/worker';
 
 describe('createWorkerStream', () => {
   let mockWorker: Worker;
@@ -21,6 +21,8 @@ describe('createWorkerStream', () => {
     publicOrigin: '/',
     pageExportName: 'Page',
     propsExportName: 'props',
+    rootExportName: 'Root',
+    htmlExportName: 'Html',
     pagePath: 'src/pages/test.tsx',
     propsPath: 'src/pages/test.props.ts',
     pipeableStreamOptions: {},

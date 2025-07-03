@@ -26,11 +26,12 @@ import type {
   serializeResolvedConfig,
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
-import type { Program } from "./loader/directives/types.js";
+import type { AllowedDirectives, Program } from "./loader/directives/types.js";
 import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
+import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 
 export type ReactStreamPluginFn<
   R extends Record<string, unknown> = {
@@ -59,7 +60,7 @@ export type Serializable =
   | WorkerSerializable
   | Serializable[]
   | SerializableRecord;
-  
+
 export type SerializableRecord = {
   [key: string]: Serializable;
 };
@@ -169,8 +170,15 @@ export type SerializedUserConfig<
 > = ReturnType<typeof serializeResolvedUserConfig<T>>;
 
 export type SerializedUserOptions = {
-  [k in keyof ResolvedUserOptions]: Extract<ResolvedUserOptions[k], Serializable | Record<string, Serializable>> extends infer X ? X extends never ? undefined : X : undefined;
-}
+  [k in keyof ResolvedUserOptions]: Extract<
+    ResolvedUserOptions[k],
+    Serializable | Record<string, Serializable>
+  > extends infer X
+    ? X extends never
+      ? undefined
+      : X
+    : undefined;
+};
 
 export type SerializedResolvedConfig = ReturnType<
   typeof serializeResolvedConfig
@@ -253,35 +261,6 @@ export type AutoDiscoverConfig = {
   dotPattern: RegExp;
   virtualPattern: RegExp;
   rscPattern: RegExp;
-};
-
-export type TransformResult = {
-  source: string;
-  isServer: boolean;
-  isClient: boolean;
-  isServerEnvironment: boolean;
-};
-
-export type LoaderConfig = {
-  serverDirective: RegExp;
-  clientDirective: RegExp;
-  allowedDirectives: AllowedDirectives;
-  getDirectiveType: (
-    directive: string,
-    moduleId?: string
-  ) => "client" | "server" | undefined;
-  mode: "development" | "production" | "test";
-  importServerPath: string;
-  importClientPath: string;
-  registerClientReferenceName: string;
-  registerServerReferenceName: string;
-  isServerFunctionCode: (code: string, moduleId?: string) => boolean;
-  isClientComponentCode: (code: string, moduleId?: string) => boolean;
-  parse: (source: string) => Promise<{
-    ast: Program;
-    code: string;
-    map?: { url: string; start: number; end: number; lines: number } | null;
-  }>;
 };
 
 export type GenericModuleLoader = (
@@ -378,11 +357,12 @@ export type ResolvedUserOptions = {
   components?: StreamPluginOptions["components"]; // Direct component overrides (optional)
 };
 
-export type DirectiveOptions<
-  R extends ResolvedUserOptions = ResolvedUserOptions
-> = Pick<R, "verbose" | "panicThreshold"> & {
+export type DirectiveOptions = Pick<
+  TransformOptions,
+  "verbose" | "panicThreshold" | "loader"
+> & {
   loader: Pick<
-    R["loader"],
+    Required<NonNullable<TransformOptions["loader"]>>,
     "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType"
   > & {
     allowedDirectives: AllowedDirectives;
@@ -1315,48 +1295,6 @@ export {
   createFlightBindings,
   defaultFlightBindings,
 } from "./config/flightBindings.js";
-
-export type DirectiveConfig = {
-  /**
-   * Whether this directive is allowed at function level
-   */
-  functionLevel: boolean;
-  /**
-   * Whether this directive targets client or server components
-   */
-  target: "client" | "server";
-  /**
-   * Optional validation function to check if the directive is valid in its context
-   */
-  validate?: (params: {
-    code: string;
-    moduleId?: string;
-    index: number;
-    match: RegExpExecArray;
-  }) => boolean;
-  /**
-   * Optional warning message to show when this directive is used incorrectly
-   */
-  warning?: string;
-};
-
-export type AllowedDirectives = Record<string, DirectiveConfig>;
-
-export type AllowedDirectiveInput =
-  | string
-  | [string, "client" | "server"]
-  | AllowedDirectives
-  | undefined;
-
-export type DirectiveMatch = {
-  type: "server" | "client";
-  range: [number, number];
-  name?: string;
-  exportName?: string;
-  message?: string;
-  directive: string; // The actual directive that was matched
-  config: DirectiveConfig; // The configuration for this directive
-};
 
 export type ReactStreamOptionsFn<ReturnType = void> = <
   PageProp extends PagePropOpt = PagePropOpt,

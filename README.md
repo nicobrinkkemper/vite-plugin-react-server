@@ -53,7 +53,7 @@ export function Page({ url }) {
     "dev": "NODE_OPTIONS='--conditions react-server' vite",
     "dev:client": "vite",
     "build": "vite build && vite build --ssr && NODE_OPTIONS='--conditions react-server' vite build",
-    "debug-build": "NODE_ENV=development && vite build --ssr --mode development && NODE_OPTIONS='--conditions react-server' vite build",
+    "debug-build": "NODE_ENV=development && vite build --mode vite build --mode development && NODE_OPTIONS='--conditions react-server' vite build",
   }
 }
 ```

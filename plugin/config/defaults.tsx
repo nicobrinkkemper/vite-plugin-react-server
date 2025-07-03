@@ -2,6 +2,7 @@ import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
 import { parse } from "../loader/parse.js";
 import { pluginRoot } from "../root.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
@@ -75,7 +76,8 @@ export const DEFAULT_LOADER_CONFIG = {
   registerClientReferenceName: "registerClientReference",
   registerServerReferenceName: "registerServerReference",
   getDirectiveType,
-  parse: parse
+  parse: parse,
+  mode: getNodeEnv()
 } as const;
 
 // Define base patterns that can be reused

@@ -1,21 +1,45 @@
 import type { RawSourceMap } from "source-map";
-import type { ResolvedUserOptions } from "../types.js";
-import type { DirectiveWarning, ParseResult, Program } from "./directives/types.js";
+import type { DirectiveWarning, ParseResult, Program, AllowedDirectives } from "./directives/types.js";
 
-export type RscLoader = Pick<ResolvedUserOptions['loader'], 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
+
+
+export type LoaderConfig = {
+  serverDirective: RegExp;
+  clientDirective: RegExp;
+  allowedDirectives: AllowedDirectives;
+  getDirectiveType: (
+    directive: string,
+    moduleId?: string
+  ) => "client" | "server" | undefined;
+  mode: "development" | "production" | "test";
+  importServerPath: string;
+  importClientPath: string;
+  registerClientReferenceName: string;
+  registerServerReferenceName: string;
+  isServerFunctionCode: (code: string, moduleId?: string) => boolean;
+  isClientComponentCode: (code: string, moduleId?: string) => boolean;
+  parse: (source: string) => Promise<{
+    ast: Program;
+    code: string;
+    map?: { url: string; start: number; end: number; lines: number } | null;
+  }>;
+};
+
+export type RscLoader = Pick<LoaderConfig, 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
 
 export type TransformOptions = {
-  forceServerFunction: boolean;
-  forceClientComponent: boolean;
-  isServerEnvironment: boolean;
-  loader: ResolvedUserOptions['loader'];
-  directiveWarnings: DirectiveWarning[];
+  forceServerFunction?: boolean;
+  forceClientComponent?: boolean;
+  isServerEnvironment?: boolean;
+  loader?: LoaderConfig;
+  directiveWarnings?: DirectiveWarning[];
   // based on warning, remove warning directive index to avoid warning in development
   removeDirectives?: number[];
   // based on warning, add warning directive index to avoid warning in development
   addDirectives?: number[];
-  verbose: boolean;
-  panicThreshold: 'none' | 'critical_errors' | 'all_errors';
+  verbose?: boolean;
+  panicThreshold?: 'none' | 'critical_errors' | 'all_errors';
+  mode?: "development" | "production" | "test";
 };
 
 export type TransformResult = {
@@ -37,7 +61,7 @@ export type TransformerFactory = (options: {
     end: number;
     lines: number;
   } | null }>;
-  options: Pick<ResolvedUserOptions, 'verbose' | 'loader' | 'panicThreshold'>;
+  options: Pick<TransformOptions, 'verbose' | 'loader' | 'panicThreshold'>;
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;
   isServerEnvironment?: boolean;

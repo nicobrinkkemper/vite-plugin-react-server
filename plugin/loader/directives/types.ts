@@ -121,3 +121,52 @@ export type DirectiveLocation = {
   exportName: string;
   range: [number, number];
 };
+
+
+export type DirectiveConfig = {
+  /**
+   * Whether this directive is allowed at function level
+   */
+  functionLevel: boolean;
+  /**
+   * Whether this directive targets client or server components
+   */
+  target: "client" | "server";
+  /**
+   * Optional validation function to check if the directive is valid in its context
+   */
+  validate?: (params: {
+    code: string;
+    moduleId?: string;
+    index: number;
+    match: RegExpExecArray;
+  }) => boolean;
+  /**
+   * Optional warning message to show when this directive is used incorrectly
+   */
+  warning?: string;
+};
+
+export type AllowedDirectives = Record<string, DirectiveConfig>;
+
+export type AllowedDirectiveInput =
+  | string
+  | [string, "client" | "server"]
+  | AllowedDirectives
+  | undefined;
+
+export type AnyDirectiveMatch = {
+  type: "server" | "client";
+  range: [number, number];
+  name?: string;
+  exportName?: string;
+  message?: string;
+  directive: string; // The actual directive that was matched
+  config: DirectiveConfig; // The configuration for this directive
+};
+export type TransformResult = {
+  source: string;
+  isServer: boolean;
+  isClient: boolean;
+  isServerEnvironment: boolean;
+};
