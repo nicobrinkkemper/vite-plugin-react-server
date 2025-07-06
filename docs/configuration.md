@@ -109,9 +109,11 @@ Example `package.json` setup:
   "dev": "NODE_OPTIONS='--conditions react-server' vite",
   "dev:client": "vite",
   "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
-  "build:client": "vite build"
+  "build:client": "vite build --ssr",
+  "build:static": "vite build"
 }
 ```
+> For `NODE_OPTIONS='--conditions react-server' vite build`, the `--ssr` is implied (default)
 
 ### ./src/my-page.tsx
 
