@@ -7,10 +7,12 @@ type NestedEnv = {
   [key: string]: unknown | NestedEnv;
 };
 
-function setNestedEnv(obj: NestedEnv, path: string[], value: string) {
+function setNestedEnv(obj: NestedEnv, path: string[], value: string, verbose = false) {
   if (!path.length) return;
   const key = path[0];
-  console.log("setNestedEnv:", { key, path, value, currentObj: obj[key] });
+  if (verbose) {
+    console.log("setNestedEnv:", { key, path, value, currentObj: obj[key] });
+  }
   if (path.length === 1) {
     obj[key] = value;
     return;
@@ -18,7 +20,7 @@ function setNestedEnv(obj: NestedEnv, path: string[], value: string) {
   if (!obj[key] || typeof obj[key] === "string") {
     obj[key] = {};
   }
-  setNestedEnv(obj[key] as NestedEnv, path.slice(1), value);
+  setNestedEnv(obj[key] as NestedEnv, path.slice(1), value, verbose);
 }
 
 /**
@@ -137,7 +139,8 @@ export function resolveEnv(
 }
 
 export function resolveConfigDefine(
-  resolvedConfig: Pick<ResolvedConfig, "define" | "envPrefix">
+  resolvedConfig: Pick<ResolvedConfig, "define" | "envPrefix">,
+  verbose = false
 ) {
   const { define } = resolvedConfig;
   const addedEnv: NestedEnv = {};
@@ -149,12 +152,13 @@ export function resolveConfigDefine(
     const withoutPrefix = key.split("process.env.")[1];
     if (typeof define[key] === "string") {
       const path = withoutPrefix.split(".");
-      setNestedEnv(addedEnv, path, define[key] as string);
+      setNestedEnv(addedEnv, path, define[key] as string, verbose);
       if (!process.env[path[0]]) process.env[path[0]] = {} as never;
       setNestedEnv(
         process.env[path[0]] as never,
         path.slice(1),
-        define[key] as string
+        define[key] as string,
+        verbose
       );
     }
   }

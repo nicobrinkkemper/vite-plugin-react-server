@@ -78,7 +78,7 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
     - Debugging Features
     - Production Implementations
 
-15. [Troubleshooting Guide](./trouble-shooting-guide.md)
+15. [Troubleshooting Guide](./troubleshooting-guide.md)
     - Common Issues
     - Debugging Tips
     - Performance Optimization

@@ -50,16 +50,16 @@ This will remove any previous patches, do a clean install of the react dependenc
 
 Example output:
 ```bash
-> vite-plugin-react-server@1.1.0 experimental:setup
+> vite-plugin-react-server@1.2.0 experimental:setup
 > rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches
 
-> vite-plugin-react-server@1.1.0 experimental:clean-install
+> vite-plugin-react-server@1.2.0 experimental:clean-install
 > npm install react-server-dom-esm react@experimental react-dom@experimental && npm install react-server-dom-esm
 
-> vite-plugin-react-server@1.1.0 experimental:copy
+> vite-plugin-react-server@1.2.0 experimental:copy
 > cp -r ./oss-experimental/* ./node_modules/
 
-> vite-plugin-react-server@1.1.0 experimental:patch
+> vite-plugin-react-server@1.2.0 experimental:patch
 > npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'
 
 patch-package 8.0.0
@@ -78,7 +78,7 @@ patch-package 8.0.0
 • Diffing your files with clean files
 ✔ Created file patches/react-dom+0.0.0-experimental-0ca8420f-20250504.patch
 
-> vite-plugin-react-server@1.1.0 experimental:move-patches
+> vite-plugin-react-server@1.2.0 experimental:move-patches
 > mv patches/* ./scripts/
 ```
 
@@ -91,10 +91,10 @@ npm run experimental:patch-react
 
 Example output:
 ```bash
-> vite-plugin-react-server@1.1.0 experimental:patch-react
+> vite-plugin-react-server@1.2.0 experimental:patch-react
 > npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs
 
-> vite-plugin-react-server@1.1.0 experimental:clean-install
+> vite-plugin-react-server@1.2.0 experimental:clean-install
 > npm install react-server-dom-esm react@experimental react-dom@experimental && npm install react-server-dom-esm
 
 Template version: 0.0.0-experimental-0ca8420f-20250504
@@ -126,7 +126,7 @@ npm run postinstall
 
 Example output:
 ```bash
-> vite-plugin-react-server@1.1.0 postinstall
+> vite-plugin-react-server@1.2.0 postinstall
 > patch-package
 
 patch-package 8.0.0

@@ -146,7 +146,7 @@ export const reactServerPlugin:ReactServerPluginFn = function _reactServerPlugin
     async buildStart() {
       if (!timing.buildStart) {
         timing.buildStart = performance.now();
-      } else {
+      } else if (userOptions.verbose) {
         console.log("Build already started");
       }
     },
