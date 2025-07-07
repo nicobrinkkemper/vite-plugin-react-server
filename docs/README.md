@@ -162,7 +162,7 @@ export const Html = ({
 ```
 
 ### Testing
-235 test cases across 20 test files ensure reliability across:
+335 test cases across 45 test files ensure reliability across:
 - Build processes (static, client, server)
 - Server action integration
 - Error handling and edge cases

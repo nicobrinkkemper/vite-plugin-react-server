@@ -145,7 +145,7 @@ dist/
 
 ## Testing
 
-The plugin includes 235 test cases across 20 test files covering:
+The plugin includes 335 test cases across 45 test files covering:
 - Build processes (static, client, server)
 - Server action integration
 - Error handling and edge cases

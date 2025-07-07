@@ -34,7 +34,7 @@ Download the official React repository and make sure you use `yarn` for this rep
 
 Check the version number and replace in both `bin/patch.mjs` and `scripts/check-react-version.mjs` the following line:
 ```typescript
-const TEMPLATE_VERSION = "0.0.0-experimental-0ca8420f-20250504";
+const TEMPLATE_VERSION = "0.0.0-experimental-0ff1d13b-20250507";
 ```
 to be like your oss-experimental build.
 
@@ -64,19 +64,19 @@ Example output:
 
 patch-package 8.0.0
 • Creating temporary folder
-• Installing react-server-dom-esm@0.0.0-experimental-0ca8420f-20250504 with npm
+• Installing react-server-dom-esm@0.0.0-experimental-0ff1d13b-20250507 with npm
 • Diffing your files with clean files
-✔ Created file patches/react-server-dom-esm+0.0.0-experimental-0ca8420f-20250504.patch
+✔ Created file patches/react-server-dom-esm+0.0.0-experimental-0ff1d13b-20250507.patch
 
 • Creating temporary folder
-• Installing react@0.0.0-experimental-0ca8420f-20250504 with npm
+• Installing react@0.0.0-experimental-0ff1d13b-20250507 with npm
 • Diffing your files with clean files
-✔ Created file patches/react+0.0.0-experimental-0ca8420f-20250504.patch
+✔ Created file patches/react+0.0.0-experimental-0ff1d13b-20250507.patch
 
 • Creating temporary folder
-• Installing react-dom@0.0.0-experimental-0ca8420f-20250504 with npm
+• Installing react-dom@0.0.0-experimental-0ff1d13b-20250507 with npm
 • Diffing your files with clean files
-✔ Created file patches/react-dom+0.0.0-experimental-0ca8420f-20250504.patch
+✔ Created file patches/react-dom+0.0.0-experimental-0ff1d13b-20250507.patch
 
 > vite-plugin-react-server@1.2.0 experimental:move-patches
 > mv patches/* ./scripts/
@@ -97,7 +97,7 @@ Example output:
 > vite-plugin-react-server@1.2.0 experimental:clean-install
 > npm install react-server-dom-esm react@experimental react-dom@experimental && npm install react-server-dom-esm
 
-Template version: 0.0.0-experimental-0ca8420f-20250504
+Template version: 0.0.0-experimental-0ff1d13b-20250507
 Installed version: 19.2.0-experimental-f7396427-20250501
 Peer version: 0.0.0-experimental-f7396427-20250501
 ESM version (for final patch): 0.0.1
