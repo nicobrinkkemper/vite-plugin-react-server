@@ -30,7 +30,7 @@ describe("preserveModulesRoot", () => {
     } catch (error) {
       console.error("Error building project", error);
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     try {

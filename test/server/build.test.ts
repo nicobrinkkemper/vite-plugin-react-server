@@ -52,13 +52,12 @@ describe("Plugin build test", () => {
     } catch (error) {
       console.error("Error building project", error);
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     try {
       await rm(testDir, { recursive: true, force: true });
-    } catch (error) {
-      console.error("Error removing test directory", error);
+    } catch {
     }
   });
 

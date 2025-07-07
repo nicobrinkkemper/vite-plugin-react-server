@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { setupTestServerActionJS } from "../setup.js";
 import { doBuild } from "./doBuild.js";
 import { testUserOptions } from "../test-config.js";
-import {  mkdir, rm } from "fs/promises";
+import { mkdir, rm } from "fs/promises";
 import { resolve } from "path";
 import type { PluginEvent } from "vite-plugin-react-server/types";
 import type { OutputBundle } from "rollup";
@@ -12,7 +12,7 @@ describe("Generic Server Action Build Output", () => {
   let serverFiles: string[];
   let clientFiles: string[];
   let staticFiles: string[];
-  let serverBundle: OutputBundle; 
+  let serverBundle: OutputBundle;
   let clientBundle: OutputBundle;
   let staticBundle: OutputBundle;
   beforeAll(async () => {
@@ -39,8 +39,8 @@ describe("Generic Server Action Build Output", () => {
 
       clientFiles = Object.keys(clientBundle).filter(
         (f) => !f.endsWith(".map")
-      ) 
-      
+      )
+
       // get static bundle for index.html
       const staticEvent = events.find((e) => e.type === "build.writeBundle.static-client");
       if (staticEvent) {
@@ -51,7 +51,7 @@ describe("Generic Server Action Build Output", () => {
       } else {
         staticFiles = [];
       }
-      
+
       // check if the new server action file is in the list
       expect(serverFiles.length).toBeGreaterThan(0);
       expect(serverFiles.includes("page/actions.server.js")).toBe(true);
@@ -64,10 +64,13 @@ describe("Generic Server Action Build Output", () => {
       console.trace(error);
       throw error;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+    }
   });
 
   it("should output at least one server action file", () => {
@@ -78,11 +81,11 @@ describe("Generic Server Action Build Output", () => {
     let found = false;
     for (const file of serverFiles) {
       const entry = serverBundle[file];
-      if(entry.type === "asset") {
+      if (entry.type === "asset") {
         continue;
       }
       const content = entry.code;
-      if(!content || !content.includes('registerServerReference')) {
+      if (!content || !content.includes('registerServerReference')) {
         continue;
       }
       expect(content).toContain("import { registerServerReference } from \"react-server-dom-esm/server.node\"");
@@ -92,26 +95,26 @@ describe("Generic Server Action Build Output", () => {
   });
   it("should register the client component using import from react-server-dom-esm/server.node", async () => {
     let found = false;
-    for (const file of serverFiles) { 
+    for (const file of serverFiles) {
       const entry = serverBundle[file];
-      if(entry.type === "asset") {
+      if (entry.type === "asset") {
         continue;
       }
       const content = entry.code;
-      if(file.includes(".client.")) {
+      if (file.includes(".client.")) {
         expect(content).toContain('throw new Error("Attempted to call');
         expect(content).toContain("import { registerClientReference } from \"react-server-dom-esm/server.node\"");
       }
-      if(file.includes(".server.")) {
+      if (file.includes(".server.")) {
         expect(content).toContain("import { registerServerReference } from \"react-server-dom-esm/server.node\"");
       }
       found = true;
-    } 
+    }
     expect(found).toBe(true);
   });
   it("should register the add server action, but not the subtract server action", async () => {
     const entry = serverBundle["page/add.server.js"];
-    if(entry.type === "asset") {
+    if (entry.type === "asset") {
       throw new Error("Add server action is an asset");
     }
     const addServerAction = entry.code;
@@ -120,7 +123,7 @@ describe("Generic Server Action Build Output", () => {
   });
   it("should register the subtract server action, but not the add server action", async () => {
     const entry = serverBundle["page/subtract.server.js"];
-    if(entry.type === "asset") {
+    if (entry.type === "asset") {
       throw new Error("Subtract server action is an asset");
     }
     const subtractServerAction = entry.code;

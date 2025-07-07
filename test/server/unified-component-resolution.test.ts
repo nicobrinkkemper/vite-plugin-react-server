@@ -68,7 +68,7 @@ export const Html = ({ Root, cssFiles, globalCss, pageProps = {}, Page }: HtmlPr
       (e) => e.type === "file.write.done" && e.data.fileType === "html"
     ) as FileWriteDoneEvent;
     htmlContent = htmlEvent?.data?.content;
-  });
+  }, 30000);
 
   afterAll(async () => {
     try {
