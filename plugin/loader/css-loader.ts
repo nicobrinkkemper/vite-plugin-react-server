@@ -1,9 +1,5 @@
 import { type MessagePort } from "node:worker_threads";
-import type {
-  LoadHook,
-  ResolveHook,
-  ModuleFormat,
-} from "node:module";
+import type { LoadHook, ResolveHook, ModuleFormat } from "node:module";
 import type {
   ResolvedUserOptions,
   SerializedResolvedConfig,
@@ -13,9 +9,14 @@ import { fileURLToPath } from "node:url";
 import { preprocessCSS, resolveConfig } from "vite";
 import { readFile } from "node:fs/promises";
 import { env } from "../utils/env.js";
-import type { InitializedCssLoaderMessage } from "../worker/rsc/types.js";
+import type {
+  CssFileMessage,
+  InitializedCssLoaderMessage,
+} from "../worker/rsc/types.js";
 import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
 import { toError } from "../error/toError.js";
+import { sendMessage } from "../worker/sendMessage.js";
+import type { ErrorMessage } from "../worker/types.js";
 
 /**
  * Global port for communication between the main thread and the CSS loader.
@@ -41,19 +42,33 @@ export async function initialize(data: {
 }) {
   loaderPort = data.port;
   resolvedConfig = data.resolvedConfig;
-  const resolvedUserOptions = 
-    hydrateUserOptions(data.userOptions)
+  const resolvedUserOptions = hydrateUserOptions(data.userOptions);
   if (resolvedUserOptions.type === "error") {
-    throw new Error(resolvedUserOptions.error.message);
+    if (loaderPort) {
+      sendMessage(
+        {
+          type: "ERROR",
+          id: "css-loader",
+          error: resolvedUserOptions.error,
+        } satisfies ErrorMessage,
+        loaderPort
+      );
+    }
+    throw resolvedUserOptions.error;
   }
-  
+
   // Use the hydrated user options directly (includes recreated functions)
   userOptions = resolvedUserOptions.userOptions;
-  
-  data.port.postMessage({
-    type: "INITIALIZED_CSS_LOADER",
-    id: data.id,
-  } satisfies InitializedCssLoaderMessage);
+
+  if (loaderPort) {
+    sendMessage(
+      {
+        type: "INITIALIZED_CSS_LOADER",
+        id: data.id,
+      } satisfies InitializedCssLoaderMessage,
+      loaderPort
+    );
+  }
 }
 
 /**
@@ -81,31 +96,46 @@ async function processCssFile(
       const [, value] = userOptions.normalizer(path);
       moduleID = userOptions.moduleID?.(value || path) || path;
     }
-    // Try to process CSS with preprocessCSS, fall back to raw CSS if config is incomplete  
+    // Try to process CSS with preprocessCSS, fall back to raw CSS if config is incomplete
     let processed: { code: string; modules?: any };
     try {
       // Create a minimal config with environments that preprocessCSS expects
-      const viteConfig = await resolveConfig({
-        ...resolvedConfig,
-        env: env,
-        // do-not re-resolve the config file as it would import the plugin again which we do not need.
-        configFile: false,
-      }, "serve");
+      const viteConfig = await resolveConfig(
+        {
+          ...resolvedConfig,
+          env: env,
+          // do-not re-resolve the config file as it would import the plugin again which we do not need.
+          configFile: false,
+        },
+        "serve"
+      );
 
       processed = await preprocessCSS(source, path, viteConfig);
     } catch (error) {
       // If preprocessCSS fails, fall back to raw CSS
-      console.warn(`[css-loader] preprocessCSS failed, using raw CSS: ${error}`);
+      if (loaderPort) {
+        sendMessage(
+          {
+            type: "ERROR",
+            id: moduleID,
+            error: toError(error),
+          } satisfies ErrorMessage,
+          loaderPort
+        );
+      }
       processed = { code: source, modules: {} };
     }
 
     // If we're processing CSS for a specific page, notify the message handler
     if (loaderPort) {
-      loaderPort.postMessage({
-        type: "CSS_FILE",
-        id: moduleID,
-        content: processed.code,
-      });
+      sendMessage(
+        {
+          type: "CSS_FILE",
+          id: moduleID,
+          content: processed.code,
+        } satisfies CssFileMessage,
+        loaderPort
+      );
     }
 
     // Return a module that can be used by React components
@@ -123,7 +153,16 @@ async function processCssFile(
     };
   } catch (error) {
     const err = toError(error);
-    console.error(`[css-loader] Error processing CSS file: ${err.message}`);
+    if (loaderPort) {
+      sendMessage(
+        {
+          type: "ERROR",
+          id: "css-loader",
+          error: err,
+        } satisfies ErrorMessage,
+        loaderPort
+      );
+    }
     throw err;
   }
 }
@@ -141,7 +180,13 @@ async function processCssFile(
 export const load: LoadHook = async (url, context, defaultLoad) => {
   const [name, query] = url.split("?");
   if (name.endsWith(".css")) {
-    return processCssFile(url, query === "inline");
+    let isInline = query?.startsWith("inline") || query?.includes("&inline");
+    if (isInline && query.includes('inline=')) {
+      // handle = true/false
+      const match = query.match(/inline=(1|true|0|false)/)?.[1];
+      isInline = match === '1' || match === 'true';
+    }
+    return processCssFile(url, isInline);
   }
 
   return defaultLoad(url, context);

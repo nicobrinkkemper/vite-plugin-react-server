@@ -30,6 +30,7 @@ const config = {
 `moduleBaseURL` should be same as moduleBasePath in most cases. The url equivalant. Defaults to VITE_BASE_URL or "/"
 
 > Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL and moduleBasePath matches your base path - or leave empty and use VITE_BASE_URL.
+
 ```ts
 publicOrigin: "", // URL parseable origin
 ```
@@ -76,14 +77,19 @@ Html: ({ Root, cssFiles, pageProps, Page }) => (
       <title>{pageProps?.title || "My App"}</title>
     </head>
     <body>
-      <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+      <Root
+        as="div"
+        id="root"
+        cssFiles={cssFiles}
+        Page={Page}
+        pageProps={pageProps}
+      />
     </body>
   </html>
-)
+);
 ```
 
-This defines the final wrapper around your Page in production. 
-
+This defines the final wrapper around your Page in production.
 
 ### build
 
@@ -113,6 +119,7 @@ Example `package.json` setup:
   "build:static": "vite build"
 }
 ```
+
 > For `NODE_OPTIONS='--conditions react-server' vite build`, the `--ssr` is implied (default)
 
 ### ./src/my-page.tsx
@@ -146,7 +153,13 @@ export const config = {
     <html>
       <title>{pageProps?.title || "My App"}</title>
       <body>
-        <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+        <Root
+          as="div"
+          id="root"
+          cssFiles={cssFiles}
+          Page={Page}
+          pageProps={pageProps}
+        />
       </body>
     </html>
   ),
@@ -169,21 +182,46 @@ export default defineConfig(() => {
 });
 ```
 
+## Client plugin
 
-## Client plugin Hook Types
+The server command enables the rsc-worker development mode. The plugin will handle sending messages to the worker and the rsc-worker handles the React server paradigm using familiar vite defaults. The worker receices the plugin's and vite's own resolved configuration. Functions are removed from the objects before sending them to the worker.
 
-There will be several hooks registered to allow all the server-plugin features to work at runtime.
-Handling of typescript is done by the `tsx` dependency. (same as vite)
-React is handled using a customized version of react's node-loader, that is tailored to a more recent nodejs version (23.7).
-It also directly adds postcss imports for .css files, so that the stream automatically
-includes those files like you would expect css files to work in vite.
+Functions defined in the config will never reach the worker. The string results of the Page, props, Root and Html functions are send with each RSC_RENDER message and are called in the main thread. Vite's resolved config is as the third argument for processCss.
 
-It requires nodejs version 23.7.0 or higher.
+```typescript
+// css-loader.tsx
+import { preprocessCSS, resolveConfig } from "vite";
+import { workerData } from "node:worker_threads";
 
-## Server plugin dev mode
+const viteConfig = await resolveConfig(
+  {
+    ...workerData.resolvedConfig,
+    // do-not re-resolve the config file as it would import the plugin again which we do not need.
+    configFile: false,
+  },
+  "serve"
+);
+function processCssFile(file: string) {
+  // Convert file URL to path if needed
+  const path = filePath.startsWith("file://")
+    ? fileURLToPath(filePath)
+    : filePath;
+
+  // Process CSS using Vite's preprocessCSS
+  return await preprocessCSS(await readFile(path, "utf-8"), path, viteConfig);
+}
+```
+
+The worker thread registers hooks to support TypeScript, css modules and react server components.
+Handling of TypeScript is done by the `tsx` dependency. (same as vite)
+React is handled using a customized version of react's node-loader, that is tailored to a more recent nodejs version (23.7). The css loader is fine-tuned to work with the aforementioned preprocessCSS function.
+
+It requires NodeJS version 23.7.0 or higher.
+
+## Server plugin
 
 When running the server plugin in dev mode, it will pipe the react stream directly to the response. This will use
-vite's `ssrLoadModule` to load modules and therefor support anything that vite supports.  Hot-reloading
+vite's `ssrLoadModule` to load modules and therefor support anything that vite supports. Hot-reloading
 is supported for defined route files, hot module replacement is only supported for client-side modules.
 
 ```sh
@@ -200,4 +238,5 @@ dist/static/index.rsc
 dist/static/about/index.html
 dist/static/about/index.rsc
 ```
+
 For an example of this, see the demo.

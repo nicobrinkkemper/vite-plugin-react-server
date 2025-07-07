@@ -25,8 +25,14 @@ describe("RSC Worker (Client)", () => {
   }); 
 
   afterAll(async () => {
-    await server?.close();
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await server?.close();
+    } catch {
+    }
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+    }
   });
 
   it("should handle RSC requests and return streaming response", async () => {

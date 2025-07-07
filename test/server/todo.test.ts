@@ -1,12 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setupTodoTestProject } from '../setup';
-import { resolve } from 'path';
+import { resolve } from 'node:path';
+import { rm } from 'node:fs/promises';
 
 describe('Todo Server Actions', () => {
   const testDir = resolve(__dirname, "../fixtures/todo.test");
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     await setupTodoTestProject(testDir);
+  });
+
+  afterAll(async () => {
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch (error) {
+    }
   });
 
   it('should handle todo operations', async () => {

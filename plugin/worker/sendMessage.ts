@@ -1,12 +1,13 @@
 import { cleanObject } from "../helpers/cleanObject.js";
 import type {
+  RscWorkerInputMessage,
   RscWorkerOutputMessage,
 } from "./rsc/types.js";
-import type { HtmlWorkerOutputMessage } from "./html/types.js";
+import type { HtmlWorkerInputMessage, HtmlWorkerOutputMessage } from "./html/types.js";
 import { parentPort } from "node:worker_threads";
 
 export function sendMessage(
-  msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage,
+  msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage | HtmlWorkerInputMessage | RscWorkerInputMessage,
   port = parentPort
 ) {
   if (!port) {
