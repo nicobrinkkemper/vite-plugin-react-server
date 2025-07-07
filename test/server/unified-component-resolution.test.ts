@@ -71,7 +71,10 @@ export const Html = ({ Root, cssFiles, globalCss, pageProps = {}, Page }: HtmlPr
   });
 
   afterAll(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+    }
   });
 
   it("should resolve Root and Html from string path", () => {
