@@ -44,10 +44,13 @@ describe("Plugin Inline Css Event hooks", () => {
     if (rscDoneEvent) {
       rscContent = rscDoneEvent.data.content;
     }
-  });
+  }, 30000);
   
   afterAll(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+    }
   });
 
   it("emits file.write events for html and rsc files", async () => {

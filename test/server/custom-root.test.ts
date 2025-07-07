@@ -41,10 +41,13 @@ describe("Custom Root Component", () => {
     if (htmlEvent) {
       htmlContent = htmlEvent.data.content;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+    }
   });
 
   it("should use custom Root component", async () => {

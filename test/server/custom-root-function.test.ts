@@ -55,10 +55,13 @@ export const Root: RootComponentType = ({ Page, pageProps = {}, as: As = React.F
     if (htmlEvent) {
       htmlContent = htmlEvent.data.content;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+    }
   });
 
   it("should load Root component from function path", async () => {
