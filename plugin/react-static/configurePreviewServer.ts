@@ -25,7 +25,6 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
       userOptions.build.outDir,
       userOptions.build.static
     );
-    console.log(userOptions.moduleBaseURL, userOptions.moduleBasePath);
     server.middlewares.use(async (req, res, next) => {
       if (!req.url) {
         return next();
@@ -88,7 +87,9 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
                       error: streamError,
                     }
                   );
-                  console.log("File not found: ", filePath);
+                  if (userOptions.verbose) {
+                    console.log("File not found: ", filePath);
+                  }
                   res.end("File not found");
                 } else {
                   // Server error
