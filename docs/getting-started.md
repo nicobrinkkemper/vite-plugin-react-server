@@ -259,9 +259,9 @@ Create `src/CustomRoot.tsx`:
 
 ```tsx
 import React from "react";
-import type { RootFn } from "vite-plugin-react-server/types";
+import type { RootComponentType } from "vite-plugin-react-server/types";
 
-export const Root: RootFn = ({ Page, pageProps = {}, as = "div", cssFiles, ...props }) => {
+export const Root: RootComponentType = ({ Page, pageProps = {}, as = "div", cssFiles, ...props }) => {
   return React.createElement(as as any, {
     ...props,
     "data-css-count": cssFiles ? cssFiles.size : 0,

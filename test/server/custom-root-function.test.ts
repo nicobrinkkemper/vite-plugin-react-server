@@ -18,9 +18,9 @@ describe("Custom Root Component - Function Path", () => {
       resolve(testDir, "src", "CustomRoot.tsx"),
       `
 import React from "react";
-import type { RootFn } from "vite-plugin-react-server/types";
+import type { RootComponentType } from "vite-plugin-react-server/types";
 
-export const Root: RootFn = ({ Page, pageProps = {}, as: As = React.Fragment, cssFiles, ...props }) => {
+export const Root: RootComponentType = ({ Page, pageProps = {}, as: As = React.Fragment, cssFiles, ...props }) => {
   const cssCount = cssFiles ? cssFiles.size : 0;
   
   // For headless stream, use React.Fragment

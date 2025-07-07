@@ -132,7 +132,7 @@ interface HtmlProps<
   ReactType = any
 > {
   children: ReactType;
-  Root: RootFn<As, InlineCSS, PageProps, ReactType>;
+  Root: RootComponentType<As, InlineCSS, PageProps, ReactType>;
   cssFiles: CssFile[];
   globalCss: CssFile[];
   pageProps: PageProps;
@@ -292,7 +292,7 @@ The plugin uses generic types to maintain compatibility across React versions:
 
 ```typescript
 // Generic function type that adapts to any React version
-type RootFn<
+type RootComponentType<
   As extends keyof JSX.IntrinsicElements = "div",
   InlineCSS extends boolean = boolean,
   PageProps = any,
