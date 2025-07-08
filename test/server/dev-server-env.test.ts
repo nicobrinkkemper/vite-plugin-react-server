@@ -79,7 +79,7 @@ describe("RSC Server", () => {
     expect(response.result).toContain(
       `["Public Origin: ","http://localhost:${port}"]`
     );
-    expect(response.result).toContain(`{"children":["URL: ","${process.env.VITE_BASE_URL}"]}`);
+    expect(response.result).toContain(`{"children":["URL: ","${process.env.VITE_BASE_URL ?? '/'}"]}`);
     expect(response.result).toContain(`["Dev: ",true]`);
     expect(response.result).toContain(
       `[["Page","${testDir}/src/page/page.tsx",`

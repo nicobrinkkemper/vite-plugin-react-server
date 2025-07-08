@@ -63,6 +63,7 @@ describe("Custom Environment Prefix Integration", () => {
   }, 30000);
 
   afterAll(async () => {
+    try {
     // Restore original environment by removing our custom vars
     delete process.env.CUSTOM_MODE;
     delete process.env.CUSTOM_DEV;
@@ -70,11 +71,12 @@ describe("Custom Environment Prefix Integration", () => {
     delete process.env.CUSTOM_SSR;
     delete process.env.CUSTOM_BASE_URL;
     delete process.env.CUSTOM_PUBLIC_ORIGIN;
+    } catch  {
+    }
     
     try {
       await rm(testDir, { recursive: true, force: true });
-    } catch (error) {
-      console.error("Error cleaning up test project", error);
+    } catch {
     }
   });
 

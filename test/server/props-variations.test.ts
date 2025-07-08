@@ -104,15 +104,25 @@ describe("RSC Server", () => {
     expect(response.result).toContain(
       `{"children":["Public Origin: ","http://localhost:${port}"]}`
     );
-    expect(response2.result).toContain(`{"children":["URL: ","${process.env.VITE_BASE_URL}"]}`);
+    expect(response2.result).toContain(`{"children":["URL: ","${process.env.VITE_BASE_URL ?? '/'}"]}`);
     expect(response2.result).toContain(`["Dev: ",true]`);
     expect(response2.result).toContain(`["Mode: ","test"]`);
     expect(response2.result).toContain(
       `[["Page","${testDir}/src/page2/page.tsx",`
     );
-    expect(response2.result).toContain(
-      `{"children":["Home Page for ","${process.env.VITE_BASE_URL}page2/"]}`
-    );
+    if(
+      process.env.VITE_BASE_URL === ''
+    ) {
+      expect(response2.result).toContain(
+        `{"children":["Home Page for ","/page2/"]}`
+      );
+      throw new Error('VITE_BASE_URL is empty string');
+    } else {
+      expect(response2.result).toContain(
+        `{"children":["Home Page for ","${process.env.VITE_BASE_URL}page2/"]}`
+      );
+    }
+    
     expect(response2.result).not.toContain(`$undefined`);
   });
 });

@@ -260,6 +260,17 @@ export const resolveUserConfig: ResolveUserConfigFn =
       ? [config.build?.rollupOptions?.output, pluginOutput]
       : pluginOutput;
     const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
+    
+    // Retroactively update userOptions with environment variables (env vars take precedence over config)
+    const envBaseUrl = process.env[`${vitePrefix}BASE_URL`];
+    if (envBaseUrl != null && envBaseUrl !== "") {
+      userOptions.moduleBaseURL = envBaseUrl;
+    }
+    const envPublicOrigin = process.env[`${vitePrefix}PUBLIC_ORIGIN`];
+    if (envPublicOrigin != null) {
+      userOptions.publicOrigin = envPublicOrigin;
+    }
+    
     const nodeEnv = getNodeEnv();
     let mode =
       config.mode ??
@@ -306,7 +317,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
       typeof config.server?.host === "string"
         ? config.server?.host
         : "localhost";
-    const base = config.base ?? userOptions.moduleBaseURL;
+    const base = config.base ?? userOptions.moduleBaseURL ?? DEFAULT_CONFIG.MODULE_BASE_URL;
     if (configEnv.command === "serve" && !configEnv.isPreview) {
       if (strictPort) {
         publicOrigin = `http${
@@ -333,17 +344,12 @@ export const resolveUserConfig: ResolveUserConfigFn =
       ...ssrDefine,
     };
 
-    // Set process.env values if they haven't been set by custom environment variables
-    // This ensures they're available in process.env for server-side code
+    // Set process.env values to ensure they're available in process.env for server-side code
     // These will never be cleaned up, because we are resolving the user config
     // and it's assumed the thread closes after this and we don't want
     // it to change after the config has been resolved
-    if (!process.env[`${vitePrefix}BASE_URL`]) {
-      process.env[`${vitePrefix}BASE_URL`] = base;
-    }
-    if (!process.env[`${vitePrefix}PUBLIC_ORIGIN`]) {
-      process.env[`${vitePrefix}PUBLIC_ORIGIN`] = publicOrigin;
-    }
+    process.env[`${vitePrefix}BASE_URL`] = base;
+    process.env[`${vitePrefix}PUBLIC_ORIGIN`] = publicOrigin;
 
     if (condition === "react-client") {
       // client plugin build options (client plugin still outputs server files)

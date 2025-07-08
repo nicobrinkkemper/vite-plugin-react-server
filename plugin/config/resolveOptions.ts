@@ -105,6 +105,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     typeof options.moduleBase === "string"
       ? options.moduleBase
       : DEFAULT_CONFIG.MODULE_BASE;
+
   // Basic configuration
   const projectRoot = options.projectRoot ?? process.cwd();
 
