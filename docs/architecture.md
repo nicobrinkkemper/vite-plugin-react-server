@@ -4,23 +4,18 @@ The benefits and ease of use of Node.js, the React UI library and vite combined.
 ## Who is this for?
 This plugin offers a way to bundle esmodules that would enable a custom react-server implementation, for example using NextJS or express.
 
-Aside from that, if you keep your props static and with the right client entry point, it enables you to generate a modern static site using a simple routing function that maps requests to source files. This static site
+If props are static and the client entry-point enables transition based navigation, the generated static folder can be used as a modern static site. This static site
 can be uploaded to any host.
 
 ## Server first
-Vite is not built with React's server paradigm in mind. This plugin bridges the gap between these two workflows.
-
-### Point me to the modules
-
-Here are some reason why this plugin requires `NODE_OPTIONS='--conditions react-server'`
+Vite is not built with React's server paradigm in mind. This plugin bridges the gap between these two workflows. The plugin requires `NODE_OPTIONS='--conditions react-server'` to ensure that the native ESM React workflow keeps working and so that Vite can adjust to it accordingly. 
 
 - no server needed for serializing components
 - use idiomatic react to configure vite
 - compatible with existing ESM eco system
 - out-of-the-box vitest support
 
-You can still run client builds from within a server-environment, but not the other way around. This 
-is done by directly importing the environments' plugin:
+You can still run client builds from within a server-environment, but not the other way around. This is done by directly importing the environments' plugin:
 
 ```typescript
 import { build } from "vite";

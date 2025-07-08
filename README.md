@@ -143,14 +143,6 @@ dist/
 └── server/     # React Server Components modules
 ```
 
-## Testing
-
-The plugin includes 335 test cases across 45 test files covering:
-- Build processes (static, client, server)
-- Server action integration
-- Error handling and edge cases
-- Type safety and React compatibility
-- Performance with large outputs
 
 ## Documentation
 
