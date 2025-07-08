@@ -1,19 +1,55 @@
 import type { LoadHook } from "node:module";
 import type { MessagePort } from "node:worker_threads";
-import type { ResolvedConfig } from "vite";
+import type {
+  ResolvedUserOptions,
+  SerializedResolvedConfig,
+  SerializedUserOptions,
+} from "../types.js";
 import type { RscWorkerInputMessage } from "../worker/rsc/types.js";
+import { getEnvValue } from "../env/getEnvKey.js";
+import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
+import { sendMessage } from "../worker/sendMessage.js";
+import type { ErrorMessage } from "../worker/types.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 export let loaderPort: MessagePort | undefined;
-let resolvedConfig: ResolvedConfig | undefined;
+let resolvedConfig: SerializedResolvedConfig | undefined;
+let userOptions: ResolvedUserOptions | undefined;
+let envPrefix: string = DEFAULT_CONFIG.ENV_PREFIX;
 
 // Initialize hook
 export async function initialize(data: {
   id: string;
   port: MessagePort;
-  resolvedConfig: ResolvedConfig;
+  resolvedConfig: SerializedResolvedConfig;
+  userOptions: SerializedUserOptions;
 }) {
   loaderPort = data.port;
   resolvedConfig = data.resolvedConfig;
+  
+  // Extract envPrefix from resolved config
+  envPrefix = Array.isArray(resolvedConfig.envPrefix)
+    ? resolvedConfig.envPrefix[0]
+    : resolvedConfig.envPrefix || DEFAULT_CONFIG.ENV_PREFIX;
+
+  // Hydrate user options
+  const resolvedUserOptions = hydrateUserOptions(data.userOptions);
+  if (resolvedUserOptions.type === "error") {
+    if (loaderPort) {
+      sendMessage(
+        {
+          type: "ERROR",
+          id: "env-loader",
+          error: resolvedUserOptions.error,
+        } satisfies ErrorMessage,
+        loaderPort
+      );
+    }
+    throw resolvedUserOptions.error;
+  }
+
+  userOptions = resolvedUserOptions.userOptions;
+
   data.port.postMessage({
     type: "INITIALIZED_ENV_LOADER",
     id: data.id,
@@ -55,19 +91,25 @@ export const load: LoadHook = async (
     return result;
   }
 
-  // Get define object from resolved config
-  const define = resolvedConfig?.define || {};
-
-  // Create the env object with Vite's default environment variables
+  // Create the env object using our dynamic prefix system
   const envObject = {
-    MODE: resolvedConfig?.mode || "development",
-    BASE_URL: resolvedConfig?.base || "/",
-    PROD: resolvedConfig?.isProduction ? true : false,
-    DEV: resolvedConfig?.isProduction ? false : true,
-    SSR: true,
-    PUBLIC_ORIGIN: "",
+    MODE: getEnvValue("MODE", envPrefix) || resolvedConfig?.mode || "development",
+    BASE_URL: getEnvValue("BASE_URL", envPrefix) || resolvedConfig?.base || "/",
+    PROD: getEnvValue("PROD", envPrefix) === "true" || 
+          getEnvValue("PROD", envPrefix) === "1" || 
+          resolvedConfig?.isProduction || false,
+    DEV: getEnvValue("DEV", envPrefix) === "true" || 
+         getEnvValue("DEV", envPrefix) === "1" || 
+         !(resolvedConfig?.isProduction) || true,
+    SSR: getEnvValue("SSR", envPrefix) === "true" || 
+         getEnvValue("SSR", envPrefix) === "1" || 
+         true,
+    PUBLIC_ORIGIN: getEnvValue("PUBLIC_ORIGIN", envPrefix) || 
+                   userOptions?.publicOrigin || "",
+    
+    // Include additional environment variables from Vite's define
     ...Object.fromEntries(
-      Object.entries(define)
+      Object.entries(resolvedConfig?.define || {})
         .filter(([key]) => key.startsWith("import.meta.env."))
         .map(([key, value]) => [
           key.replace("import.meta.env.", ""),

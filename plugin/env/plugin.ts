@@ -2,82 +2,7 @@ import type { Plugin } from "vite";
 import { resolveConfigDefine, resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { userProjectRoot } from "../root.js";
-import { getNodeEnv } from "../getNodeEnv.js";
-import type { ConfigEnv } from "vite";
-
-/**
- * Reconstruct ConfigEnv from process.argv and environment variables
- * This allows us to determine the config environment before the config hook runs
- */
-export const createConfigEnv = (): ConfigEnv => {
-  const argv = process.argv;
-  
-  // Detect command from argv
-  let command: 'build' | 'serve' = 'serve';
-  if (argv.includes('build')) {
-    command = 'build';
-  } else if (argv.includes('dev') || argv.includes('serve') || argv.includes('preview')) {
-    command = 'serve';
-  }
-  
-  // Detect mode from argv or environment
-  let mode: string = getNodeEnv();
-  const modeIndex = argv.findIndex(arg => arg === '--mode' || arg === '-m');
-  if (modeIndex !== -1 && argv[modeIndex + 1]) {
-    mode = argv[modeIndex + 1];
-  }
-  
-  // Detect SSR build
-  const isSsrBuild = argv.includes('--ssr');
-  
-  return {
-    command,
-    mode,
-    isSsrBuild
-  };
-};
-
-/**
- * Helper function to parse command-line arguments in both formats:
- * --arg value (space-separated) and --arg=value (equals-separated)
- * Handles any IFS characters and edge cases
- */
-function getArgValue(argName: string): string | undefined {
-  // Check for --arg=value format first (handles any character after =)
-  const equalsArg = process.argv.find((arg) => arg.startsWith(`--${argName}=`));
-  if (equalsArg) {
-    return equalsArg.substring(`--${argName}=`.length);
-  }
-  
-  // Check for --arg value format (handles any IFS characters)
-  const argIndex = process.argv.findIndex((arg) => arg === `--${argName}`);
-  if (argIndex !== -1 && argIndex + 1 < process.argv.length) {
-    const value = process.argv[argIndex + 1];
-    // Only return if the next argument doesn't start with -- (isn't another flag)
-    if (value && !value.startsWith("--")) {
-      return value;
-    }
-  }
-  
-  return undefined;
-}
-
-const isBuild = process.argv.includes("build");
-const isPreview = process.argv.includes("preview");
-
-
-// Set up environment variables from .env files as early as possible
-// This is to ensure that the env variables are available even in the config file,
-// and you can use process.env to configure the plugin.
-
-// Detect mode from command line arguments
-const detectedMode = getArgValue("mode");
-
-const cleanupInitialUserConfigEnv = resolveEnv(
-  detectedMode || process.env["NODE_ENV"] || (isBuild || isPreview ? "production" : "development"),
-  userProjectRoot,
-  DEFAULT_CONFIG.ENV_PREFIX
-);
+import { userConfigEnv } from "./userConfigEnv.js";
 
 /**
  * This plugin can be used to set up the environment defined in the env file
@@ -104,6 +29,12 @@ const cleanupInitialUserConfigEnv = resolveEnv(
  *    publicOrigin: process.env.VITE_PUBLIC_ORIGIN,
  * }
  * ```
+ * Example of env file would be like:
+ * ```txt
+ * VITE_BASE_URL=$BASE_URL
+ * VITE_PUBLIC_ORIGIN=$PUBLIC_ORIGIN
+ * ```
+ * This way, you can set BASE_URL (without the prefix) and the .env file will prefix them to work with your prefix which defaults to `VITE_`
  * @returns
  */
 export function envPlugin(): Plugin {
@@ -124,7 +55,7 @@ export function envPlugin(): Plugin {
         (mode !== undefined && mode !== process.env[`${vitePrefix}MODE`]) ||
         (config.root !== undefined && config.root !== userProjectRoot);
       if (invalidEnv) {
-        cleanupInitialUserConfigEnv();
+        userConfigEnv();
       }
       // Clean up any previous env setup
       const cleanupUserConfigEnv = invalidEnv
@@ -133,7 +64,7 @@ export function envPlugin(): Plugin {
             config.root ?? userProjectRoot,
             vitePrefix
           )
-        : cleanupInitialUserConfigEnv;
+        : userConfigEnv;
       const cleanupUserConfig = resolveConfigDefine(config);
 
       // Combine cleanup functions

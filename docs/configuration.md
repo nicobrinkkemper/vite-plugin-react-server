@@ -69,24 +69,36 @@ Basically a router for mapping urls to source code. It can be any implementation
 ### Html
 
 ```tsx
-import React from "react";
+import type { StreamPluginOptions } from "vite-plugin-react-server/types";
 
-Html: ({ Root, cssFiles, pageProps, Page }) => (
-  <html>
-    <head>
-      <title>{pageProps?.title || "My App"}</title>
-    </head>
-    <body>
-      <Root
-        as="div"
-        id="root"
-        cssFiles={cssFiles}
-        Page={Page}
-        pageProps={pageProps}
-      />
-    </body>
-  </html>
-);
+export const config = {
+  moduleBase: 'src',
+} satisfies StreamPluginOptions
+```
+
+When the environment allows, you can override the components using the `components` key.
+
+```tsx
+import React from "react";
+// later
+components: {
+  Html: ({ Root, cssFiles, pageProps, Page }) => (
+    <html>
+      <head>
+        <title>{pageProps?.title || "My App"}</title>
+      </head>
+      <body>
+        <Root
+          as="div"
+          id="root"
+          cssFiles={cssFiles}
+          Page={Page}
+          pageProps={pageProps}
+        />
+      </body>
+    </html>
+  );
+}
 ```
 
 This defines the final wrapper around your Page in production.
@@ -94,6 +106,8 @@ This defines the final wrapper around your Page in production.
 ### build
 
 ```ts
+  moduleBase: 'src',
+  Page: 
   build: {
      pages: ["/","/about"]
      dir:    "dist",    // dist/**
@@ -101,7 +115,7 @@ This defines the final wrapper around your Page in production.
      server: "server",  // **/server
      static: "static"   // **/static
      hash: "hash",      //  -[hash].js for client files
-     preserveModulesRoot: true // remove moduleBase from build
+     preserveModulesRoot: false // when true, preserve `src/` in build output paths
   }
 ```
 

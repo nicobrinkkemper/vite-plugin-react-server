@@ -351,7 +351,7 @@ export type ResolvedUserOptions = {
   onMetrics: (metrics: RenderMetrics) => void;
   pipeableStreamOptions: ReactServerDomEsmOptions;
   autoDiscover: Required<AutoDiscoverConfig>;
-  loader: Required<LoaderConfig>;
+  loader?: Required<LoaderConfig> | undefined;
   build: Required<BuildConfig>;
   css: RootOptions<boolean>;
   components?: StreamPluginOptions["components"]; // Direct component overrides (optional)

@@ -99,7 +99,7 @@ export const reactServerPlugin:ReactServerPluginFn = function _reactServerPlugin
     async config(config, configEnv): Promise<UserConfig> {
       // Create the proper moduleID function now that we have ConfigEnv
       if (typeof userOptions.moduleID !== "function") {
-        userOptions.moduleID = createDefaultModuleID(userOptions, configEnv, userOptions.loader.mode);
+        userOptions.moduleID = createDefaultModuleID(userOptions, configEnv, userOptions.loader?.mode);
       }
 
       const autoDiscoverResult = await resolveAutoDiscover({

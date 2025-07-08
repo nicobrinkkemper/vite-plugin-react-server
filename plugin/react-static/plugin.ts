@@ -88,7 +88,7 @@ export const reactStaticPlugin: ReactStaticPluginFn =
           return;
         }
         if(typeof userOptions.moduleID !== "function") {
-          userOptions.moduleID = createDefaultModuleID(userOptions, configEnv, userOptions.loader.mode);
+          userOptions.moduleID = createDefaultModuleID(userOptions, configEnv, userOptions.loader?.mode);
         }
         // Initialize autoDiscoveredFiles for both server and client builds
         const autoDiscoverResult = await resolveAutoDiscover({

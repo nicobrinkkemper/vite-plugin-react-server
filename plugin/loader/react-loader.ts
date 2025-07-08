@@ -77,8 +77,9 @@ export function initialize(
     // Use the hydrated user options directly (includes recreated functions)
     userOptions = resolvedUserOptions.userOptions;
 
-    isServerFunction = userOptions.loader.isServerFunctionCode;
-    isClientComponent = userOptions.loader.isClientComponentCode;
+    isServerFunction = userOptions.loader?.isServerFunctionCode ?? DEFAULT_LOADER_CONFIG.isServerFunctionCode;
+    isClientComponent = userOptions.loader?.isClientComponentCode ?? DEFAULT_LOADER_CONFIG.isClientComponentCode;
+    
     transformer = createTransformer({
       options: userOptions,
     });

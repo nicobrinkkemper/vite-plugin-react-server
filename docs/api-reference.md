@@ -53,7 +53,7 @@ export const config = {
 | `server` | `string` | Server assets directory | `"server"` |
 | `static` | `string` | Static output directory | `"static"` |
 | `hash` | `string` | Hash for client files | `"hash"` |
-| `preserveModulesRoot` | `boolean` | Enable module base preservation in production builds | `false` |
+| `preserveModulesRoot` | `boolean` | When `true`, preserves the `moduleBase` directory (e.g. `src/`) in output paths. When `false`, strips it from output paths. | `false` |
 | `assetsDir` | `string` | Assets directory | `"assets"` |
 | `api` | `string` | API output directory | `"api"` |
 | `outDir` | `string` | Output directory | `"dist"` |
@@ -209,6 +209,22 @@ interface CssConfig {
   linkPatterns?: RegExp[];
 }
 ```
+
+### preserveModulesRoot Behavior
+
+The `build.preserveModulesRoot` option controls how the `moduleBase` directory appears in build output paths:
+
+#### When `preserveModulesRoot: true` (preserve paths)
+- **Input:** `src/page/home.tsx`
+- **Output:** `dist/client/src/page/home.js`
+- **Behavior:** The `src/` directory is **preserved** in the output path
+
+#### When `preserveModulesRoot: false` (strip paths - default)
+- **Input:** `src/page/home.tsx`  
+- **Output:** `dist/client/page/home.js`
+- **Behavior:** The `src/` directory is **removed** from the output path
+
+This option is useful when you want to maintain your source directory structure in the build output, especially for debugging or when integrating with tools that expect specific path structures.
 
 ## Event System
 

@@ -1,7 +1,6 @@
 import type { ParseResult, Program } from "./directives/types.js";
-import type {  ResolvedUserOptions } from "../types.js";
 import { createSourceMap } from "./sourceMap.js";
-import type { TransformResult } from "./types.js";
+import type { LoaderConfig, TransformResult } from "./types.js";
 import { removeDirectives } from "./removeDirectives.js";
 import * as acorn from "acorn";
 import { getNodeEnv } from "../getNodeEnv.js";
@@ -18,10 +17,7 @@ export async function transformServerModule(
   source: string,
   moduleId: string,
   parseResult: ParseResult,
-  loader: Pick<
-    ResolvedUserOptions["loader"],
-    "registerServerReferenceName" | "importServerPath" 
-  > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
+  loader: Pick<LoaderConfig, "registerServerReferenceName" | "importServerPath"> = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   verbose = false
 ): Promise<TransformResult> {
   if (!loader) {

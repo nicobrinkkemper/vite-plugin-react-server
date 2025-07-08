@@ -11,11 +11,11 @@ export type LoaderConfig = {
     directive: string,
     moduleId?: string
   ) => "client" | "server" | undefined;
-  mode: "development" | "production" | "test";
-  importServerPath: string;
-  importClientPath: string;
-  registerClientReferenceName: string;
-  registerServerReferenceName: string;
+  mode?: "development" | "production" | "test" | undefined;
+  importServerPath?: string;
+  importClientPath?: string;
+  registerClientReferenceName?: string;
+  registerServerReferenceName?: string;
   isServerFunctionCode: (code: string, moduleId?: string) => boolean;
   isClientComponentCode: (code: string, moduleId?: string) => boolean;
   parse: (source: string) => Promise<{

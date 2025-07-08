@@ -1,7 +1,6 @@
-import type { ParseResult } from "./directives/types.js";   
-import type { ResolvedUserOptions } from "../types.js";
+import type { ParseResult } from "./directives/types.js";  
 import { createSourceMap } from "./sourceMap.js";
-import type { TransformResult } from "./types.js";
+import type { LoaderConfig, TransformResult } from "./types.js";
 import { getNodeEnv } from "../getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
@@ -14,10 +13,7 @@ export async function transformClientModule(
   source: string,
   moduleId: string,
   parseResult: ParseResult,
-  loader: Pick<
-    ResolvedUserOptions["loader"],
-    "registerClientReferenceName" | "importClientPath"
-  > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
+  loader: Pick<LoaderConfig, "registerClientReferenceName" | "importClientPath"> = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   verbose = false
 ): Promise<TransformResult> {
   if (!loader) {

@@ -127,19 +127,26 @@ dist/
 // vite.config.ts
 import { defineConfig } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
+import { Css } from "vite-plugin-react-server/components"
 
 export default defineConfig({
   plugins: vitePluginReactServer({
     moduleBase: "src",
     Page: (url) => `src/pages${url}/page.tsx`,
     props: (url) => `src/pages${url}/props.ts`,
-    Html: ({ Root, cssFiles, pageProps, Page }) => (
-      <html>
-        <body>
-          <Root as="div" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
-        </body>
-      </html>
-    ),
+    components: {
+      // optional: direct component inputs (react-server only)
+      Html: ({ Root, cssFiles, globalCss, pageProps, Page }) => (
+        <html>
+          <head>
+            <Css cssFiles={globalCss} />
+          </head>
+          <body>
+            <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+          </body>
+        </html>
+      ),
+    }
     build: { pages: ["/", "/about"] }
   })
 });

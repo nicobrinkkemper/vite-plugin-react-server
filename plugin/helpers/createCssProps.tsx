@@ -78,29 +78,7 @@ export const createCssProps = ({
         : {}),
     } as CssContent<boolean>;
   }
-  const processEnv = process.env || {};
-  const hasEnv =
-    typeof processEnv.VITE_PUBLIC_ORIGIN === "string" &&
-    processEnv.VITE_PUBLIC_ORIGIN !== "";
-  const importMeta = import.meta || {};
-  const hasMetaEnv =
-    "env" in importMeta &&
-    typeof importMeta.env.PUBLIC_ORIGIN === "string" &&
-    importMeta.env.PUBLIC_ORIGIN !== "";
-  // final public origin check
-  if ((hasEnv || hasMetaEnv) && userOptions.publicOrigin) {
-    // change the public origin to the one from the env
-    if (hasEnv && userOptions.publicOrigin !== processEnv.VITE_PUBLIC_ORIGIN) {
-      // prefer potentially dynamic process.env
-      userOptions.publicOrigin = processEnv.VITE_PUBLIC_ORIGIN;
-    } else if (
-      hasMetaEnv &&
-      userOptions.publicOrigin !== import.meta.env.PUBLIC_ORIGIN
-    ) {
-      // static import.meta.env
-      userOptions.publicOrigin = import.meta.env.PUBLIC_ORIGIN;
-    }
-  }
+  
   // Default case
   return {
     id: moduleID,

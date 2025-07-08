@@ -306,6 +306,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
       typeof config.server?.host === "string"
         ? config.server?.host
         : "localhost";
+    const base = config.base ?? userOptions.moduleBaseURL;
     if (configEnv.command === "serve" && !configEnv.isPreview) {
       if (strictPort) {
         publicOrigin = `http${
@@ -321,23 +322,26 @@ export const resolveUserConfig: ResolveUserConfigFn =
           [`process.env.${vitePrefix}DEV`]: `${DEV}`,
           [`process.env.${vitePrefix}PROD`]: `${PROD}`,
           [`process.env.${vitePrefix}MODE`]: `"${mode}"`,
-          [`process.env.${vitePrefix}BASE_URL`]: `"${userOptions.moduleBaseURL}"`,
+          [`process.env.${vitePrefix}BASE_URL`]: `"${base}"`,
           [`process.env.${vitePrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
         }
       : {};
     const define = {
       ...config.define,
-      [`import.meta.env.BASE_URL`]: `"${userOptions.moduleBaseURL}"`,
+      [`import.meta.env.BASE_URL`]: `"${base}"`,
       [`import.meta.env.PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
       ...ssrDefine,
     };
-    // these will never be cleaned up, because, we are resolving the user config
+
+    // Set process.env values if they haven't been set by custom environment variables
+    // This ensures they're available in process.env for server-side code
+    // These will never be cleaned up, because we are resolving the user config
     // and it's assumed the thread closes after this and we don't want
     // it to change after the config has been resolved
-    if (process.env[`${vitePrefix}BASE_URL`] !== userOptions.moduleBaseURL) {
-      process.env[`${vitePrefix}BASE_URL`] = userOptions.moduleBaseURL;
+    if (!process.env[`${vitePrefix}BASE_URL`]) {
+      process.env[`${vitePrefix}BASE_URL`] = base;
     }
-    if (process.env[`${vitePrefix}PUBLIC_ORIGIN`] !== publicOrigin) {
+    if (!process.env[`${vitePrefix}PUBLIC_ORIGIN`]) {
       process.env[`${vitePrefix}PUBLIC_ORIGIN`] = publicOrigin;
     }
 
@@ -347,7 +351,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         ...config,
         root: root,
         mode: mode,
-        base: config.base ?? userOptions.moduleBaseURL,
+        base: base,
         envPrefix: vitePrefix,
         resolve: {
           ...config.resolve,

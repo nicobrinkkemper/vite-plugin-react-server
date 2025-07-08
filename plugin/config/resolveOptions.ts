@@ -16,11 +16,11 @@ import {
 import { join } from "node:path";
 import { pluginRoot } from "../root.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
-import { getNodeEnv } from "../getNodeEnv.js";
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
 import { parse } from "../loader/parse.js";
+import type { LoaderConfig } from "../loader/types.js";
 
 export type ResolveOptionsReturn =
   | {
@@ -99,7 +99,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     };
   }
 
-  const loaderMode = options.loader?.mode ?? getNodeEnv();
+  const loaderMode = options.loader?.mode ?? undefined;
   // Module path configuration
   const moduleBase =
     typeof options.moduleBase === "string"
@@ -112,12 +112,13 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const preserveModulesRoot =
     options.build?.preserveModulesRoot ??
     DEFAULT_CONFIG.BUILD.preserveModulesRoot;
-
-  const isProd =
-    process.env["NODE_ENV"] === "production" ||
-    process.env["VITE_PROD"] === "true" ||
-    process.env["VITE_PROD"] === "1";
-  const prodModuleBase = isProd && preserveModulesRoot ? moduleBase : undefined;
+  
+  // Rollup's preserveModulesRoot works in reverse of what you'd expect:
+  // - When user wants preservation (true): pass undefined to Rollup (don't strip anything)
+  // - When user wants stripping (false): pass moduleBase to Rollup (strip this path)
+  const preserveModulesRootString = preserveModulesRoot === false
+    ? moduleBase  // Strip src/ from output paths
+    : undefined;  // Keep src/ in output paths
 
   const client =
     typeof options.build?.client === "string"
@@ -129,15 +130,16 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       ? options.build.outDir
       : DEFAULT_CONFIG.BUILD.outDir;
 
+  // Use defaults for now - these will be updated later when we have the config with proper prefix
   const moduleBasePath =
     typeof options.moduleBasePath === "string"
       ? options.moduleBasePath
-      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_PATH;
+      : DEFAULT_CONFIG.MODULE_BASE_PATH;
 
   const moduleBaseURL =
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
-      : process.env.VITE_BASE_URL ?? DEFAULT_CONFIG.MODULE_BASE_URL;
+      : DEFAULT_CONFIG.MODULE_BASE_URL;
 
   const moduleRootPath =
     typeof options.moduleRootPath === "string"
@@ -147,7 +149,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const publicOrigin =
     typeof options.publicOrigin === "string"
       ? options.publicOrigin
-      : process.env.VITE_PUBLIC_ORIGIN ?? DEFAULT_CONFIG.PUBLIC_ORIGIN;
+      : DEFAULT_CONFIG.PUBLIC_ORIGIN;
 
   // Worker and loader paths
   const rscWorkerPath =
@@ -203,15 +205,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     typeof options.build?.htmlOutputPath === "string"
       ? options.build.htmlOutputPath
       : DEFAULT_CONFIG.BUILD.htmlOutputPath;
-
-  // these will never be cleaned up, because, we are resolving the user options
-  // and it's assumed they are relevant until the process stops
-  if (process.env.VITE_BASE_URL !== moduleBaseURL) {
-    process.env.VITE_BASE_URL = moduleBaseURL;
-  }
-  if (process.env.VITE_PUBLIC_ORIGIN !== publicOrigin) {
-    process.env.VITE_PUBLIC_ORIGIN = publicOrigin;
-  }
 
   const modulePattern = resolveRegExp(
     options.autoDiscover?.modulePattern,
@@ -375,7 +368,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     options.normalizer ??
     createInputNormalizer({
       root: projectRoot,
-      preserveModulesRoot: prodModuleBase,
+      preserveModulesRoot: preserveModulesRootString,
       removeExtension: true,
       moduleBasePath,
       moduleBaseURL,
@@ -389,34 +382,45 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     return hash(getOutputPath(normalizer(n.name)[0]), ssr);
   };
 
-  const assetFile: (n: PreRenderedAsset, ssr?: boolean) => string = (n: PreRenderedAsset, ssr = false) => {
+  const assetFile: (n: PreRenderedAsset, ssr?: boolean) => string = (
+    n: PreRenderedAsset,
+    ssr = false
+  ) => {
     if (n.names.length > 1) {
       return n.names.map((name) => hash(name, ssr)).join(",");
     }
     let firstName = n.names[0];
-    
+
     // Clean up asset paths by removing the moduleBase from within assets directory
     // Transform: assets/src/page/file.css -> assets/page/file.css
     const assetsDir = build.assetsDir || "assets";
     if (firstName.startsWith(assetsDir + "/" + moduleBase + "/")) {
-      firstName = assetsDir + "/" + firstName.slice((assetsDir + "/" + moduleBase + "/").length);
+      firstName =
+        assetsDir +
+        "/" +
+        firstName.slice((assetsDir + "/" + moduleBase + "/").length);
     }
     // Handle moduleBasePath removal
     else if (moduleBasePath && firstName.startsWith(moduleBasePath)) {
       firstName = firstName.slice(moduleBasePath.length);
-    } else if(moduleBaseURL && moduleBaseURL !== "/" && moduleBaseURL !== "" && firstName.startsWith(moduleBaseURL)) {
+    } else if (
+      moduleBaseURL &&
+      moduleBaseURL !== "/" &&
+      moduleBaseURL !== "" &&
+      firstName.startsWith(moduleBaseURL)
+    ) {
       firstName = firstName.slice(moduleBaseURL.length);
     }
-    // Handle direct moduleBase removal  
+    // Handle direct moduleBase removal
     else if (firstName.startsWith(moduleBase + "/")) {
       firstName = firstName.slice(moduleBase.length + 1);
     }
-    
+
     // For CSS files, make sure we preserve the .css extension and don't apply JS extension mapping
-    if (firstName.endsWith('.css')) {
+    if (firstName.endsWith(".css")) {
       return hash(firstName, false);
     }
-    
+
     // For other assets, apply the extension mapping if needed
     return hash(getOutputPath(firstName), false);
   };
@@ -511,57 +515,58 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     options.loader?.allowedDirectives ?? DEFAULT_LOADER_CONFIG.allowedDirectives
   );
 
-
   // Create loader configuration
-  const loader = {
-    serverDirective: resolveRegExp(
-      options.loader?.serverDirective,
-      DEFAULT_LOADER_CONFIG.serverDirective
-    ),
-    clientDirective: resolveRegExp(
-      options.loader?.clientDirective,
-      DEFAULT_LOADER_CONFIG.clientDirective
-    ),
-    allowedDirectives: allowedDirectives,
-    getDirectiveType:
-      options.loader?.getDirectiveType ?? options.loader?.allowedDirectives
-        ? (directive: string) => {
-            if (options.loader?.allowedDirectives) {
-              if (Array.isArray(options.loader?.allowedDirectives)) {
-                return options.loader?.allowedDirectives.includes(directive)
-                  ? directive === "use server"
-                    ? "server"
-                    : "client"
-                  : undefined;
-              } else {
-                const config = options.loader?.allowedDirectives[directive];
-                return config
-                  ? directive === "use server"
-                    ? "server"
-                    : "client"
-                  : undefined;
+  const loader = loaderMode
+    ? ({
+        serverDirective: resolveRegExp(
+          options.loader?.serverDirective,
+          DEFAULT_LOADER_CONFIG.serverDirective
+        ),
+        clientDirective: resolveRegExp(
+          options.loader?.clientDirective,
+          DEFAULT_LOADER_CONFIG.clientDirective
+        ),
+        allowedDirectives: allowedDirectives,
+        getDirectiveType:
+          options.loader?.getDirectiveType ?? options.loader?.allowedDirectives
+            ? (directive: string) => {
+                if (options.loader?.allowedDirectives) {
+                  if (Array.isArray(options.loader?.allowedDirectives)) {
+                    return options.loader?.allowedDirectives.includes(directive)
+                      ? directive === "use server"
+                        ? "server"
+                        : "client"
+                      : undefined;
+                  } else {
+                    const config = options.loader?.allowedDirectives[directive];
+                    return config
+                      ? directive === "use server"
+                        ? "server"
+                        : "client"
+                      : undefined;
+                  }
+                }
+                return undefined;
               }
-            }
-            return undefined;
-          }
-        : DEFAULT_LOADER_CONFIG.getDirectiveType,
-    mode: loaderMode,
-    importServerPath:
-      options.loader?.importServerPath ??
-      DEFAULT_CONFIG.RSC_LOADER[loaderMode].importServerPath,
-    importClientPath:
-      options.loader?.importClientPath ??
-      DEFAULT_CONFIG.RSC_LOADER[loaderMode].importClientPath,
-    registerClientReferenceName:
-      options.loader?.registerClientReferenceName ??
-      DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerClientReferenceName,
-    registerServerReferenceName:
-      options.loader?.registerServerReferenceName ??
-      DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerServerReferenceName,
-    isServerFunctionCode,
-    isClientComponentCode,
-    parse: parse,
-  } satisfies ResolvedUserOptions["loader"];
+            : DEFAULT_LOADER_CONFIG.getDirectiveType,
+        mode: loaderMode,
+        importServerPath:
+          options.loader?.importServerPath ??
+          DEFAULT_CONFIG.RSC_LOADER[loaderMode].importServerPath,
+        importClientPath:
+          options.loader?.importClientPath ??
+          DEFAULT_CONFIG.RSC_LOADER[loaderMode].importClientPath,
+        registerClientReferenceName:
+          options.loader?.registerClientReferenceName ??
+          DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerClientReferenceName,
+        registerServerReferenceName:
+          options.loader?.registerServerReferenceName ??
+          DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerServerReferenceName,
+        isServerFunctionCode,
+        isClientComponentCode,
+        parse: parse,
+      } as Required<LoaderConfig>)
+    : undefined;
 
   const pipeableStreamOptions = options.pipeableStreamOptions
     ? options.pipeableStreamOptions
@@ -585,8 +590,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
       Root: options.Root ?? DEFAULT_CONFIG.ROOT,
       components: options.components,
-              normalizer: normalizer,
-        moduleID: options.moduleID, // if not provided, will be created when config hook is called
+      normalizer: normalizer,
+      moduleID: options.moduleID, // if not provided, will be created when config hook is called
       pageExportName:
         options.pageExportName ?? (DEFAULT_CONFIG.PAGE_EXPORT_NAME as PageName),
       propsExportName:
@@ -608,7 +613,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       htmlWorkerPath: htmlWorkerPath,
       rscWorkerPath: rscWorkerPath,
       loaderPath: loaderPath,
-      reactLoaderPath: options.reactLoaderPath ?? DEFAULT_CONFIG.REACT_LOADER_PATH,
+      reactLoaderPath:
+        options.reactLoaderPath ?? DEFAULT_CONFIG.REACT_LOADER_PATH,
       cssLoaderPath: options.cssLoaderPath ?? DEFAULT_CONFIG.CSS_LOADER_PATH,
       envLoaderPath: options.envLoaderPath ?? DEFAULT_CONFIG.ENV_LOADER_PATH,
       clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,

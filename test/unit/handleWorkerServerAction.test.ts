@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleWorkerServerAction } from '../../dist/plugin/react-client/handleWorkerServerAction.js';
+import { handleWorkerServerAction } from 'vite-plugin-react-server/client';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import { PassThrough } from 'node:stream';
