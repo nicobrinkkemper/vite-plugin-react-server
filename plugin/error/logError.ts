@@ -4,6 +4,9 @@ import { getNodeEnv } from "../getNodeEnv.js";
 
 export function logError(error: unknown, logger: Logger | Console = console) {
     const err = toError(error);
+    if('hasErrorLogged' in logger && logger.hasErrorLogged(err)) {
+      return;
+    }
     if (getNodeEnv() !== "production") {
       if (
         err.stack &&

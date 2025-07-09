@@ -76,9 +76,6 @@ describe("RSC Worker Error Streaming", () => {
     // Read the RSC stream
     const rscStream = await rscResponse.text();
 
-    // Debug: log the actual stream content
-    console.log("RSC Stream content:", rscStream);
-
     // Verify that the stream contains error information
     // Should contain an error entry like: `9:E{"digest":"","name":"Error","message":"test error example",...}`
     expect(rscStream).toMatch(/\d+:E\{.*"message":"test error example".*\}/);

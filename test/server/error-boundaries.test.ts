@@ -100,7 +100,12 @@ describe("RSC Worker Error Streaming", () => {
 
     // Verify that the error was logged by the main thread
     expect(loggerSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Error: test error example")
+      expect.stringContaining("Error: test error example"),
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: "test error example"
+        })
+      })
     );
   });
 
@@ -161,7 +166,12 @@ describe("RSC Worker Error Streaming", () => {
 
     // Verify that the error was logged by the main thread
     expect(loggerSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Error: test error example")
+      expect.stringContaining("Error: test error example"),
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: "test error example"
+        })
+      })
     );
   });
 

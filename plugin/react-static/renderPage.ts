@@ -32,23 +32,10 @@ export const renderPage: RenderPageFn = async function* _renderPage(
     }
 
     const componentsResult = await resolveComponents({
-      pagePath: handlerOptions.pagePath,
-      propsPath: handlerOptions.propsPath,
-      rootPath: handlerOptions.rootPath,
-      htmlPath: handlerOptions.htmlPath,
-      pageExportName: handlerOptions.pageExportName,
-      propsExportName: handlerOptions.propsExportName,
-      rootExportName: handlerOptions.rootExportName,
-      htmlExportName: handlerOptions.htmlExportName,
-      route: handlerOptions.route,
-      loader: handlerOptions.loader,
-      verbose: handlerOptions.verbose,
+      ...handlerOptions,
       // Use direct component overrides if available (for static builds)
       RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
       HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
-      moduleBaseURL: handlerOptions.moduleBaseURL,
-      build: handlerOptions.build,
-      logger: handlerOptions.logger,
     });
 
     if (componentsResult.type === "error") {

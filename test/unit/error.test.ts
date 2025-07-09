@@ -1,71 +1,75 @@
-import { describe, it, expect, vi } from 'vitest';
-import { toError, logError } from 'vite-plugin-react-server/error';
-import type { Logger } from 'vite';
+import { describe, it, expect, vi } from "vitest";
+import { toError, logError } from "vite-plugin-react-server/error";
+import type { Logger } from "vite";
 
-describe('Error Handling', () => {
-  describe('toError', () => {
-    it('should handle string errors', () => {
-      const error = 'Test error message';
+describe("Error Handling", () => {
+  describe("toError", () => {
+    it("should handle string errors", () => {
+      const error = "Test error message";
       const result = toError(error);
       expect(result).toBeInstanceOf(Error);
-      expect(result.message).toBe('Test error message');
+      expect(result.message).toBe("Test error message");
     });
 
-    it('should handle Error objects', () => {
-      const error = new Error('Test error');
+    it("should handle Error objects", () => {
+      const error = new Error("Test error");
       const result = toError(error);
       expect(result).toBe(error); // Should return the original error object
     });
 
-    it('should handle objects with error properties', () => {
+    it("should handle objects with error properties", () => {
       const error = {
-        name: 'CustomError',
-        message: 'Test message',
-        stack: 'Error stack',
-        cause: new Error('Cause error'),
+        name: "CustomError",
+        message: "Test message",
+        stack: "Error stack",
+        cause: new Error("Cause error"),
       };
       const result = toError(error);
       expect(result).toBeInstanceOf(Error);
-      expect(result.name).toBe('CustomError');
-      expect(result.message).toBe('Test message');
-      expect(result.stack).toBe('Error stack');
+      expect(result.name).toBe("CustomError");
+      expect(result.message).toBe("Test message");
+      expect(result.stack).toBe("Error stack");
     });
 
-    it('should handle objects with non-string message', () => {
+    it("should handle objects with non-string message", () => {
       const error = {
-        name: 'CustomError',
-        message: { detail: 'Test message' },
+        name: "CustomError",
+        message: { detail: "Test message" },
       };
       const result = toError(error);
       expect(result).toBeInstanceOf(Error);
       expect(result.message).toBe('Message object: {"detail":"Test message"}');
     });
 
-    it('should handle null', () => {
+    it("should handle null", () => {
       const result = toError(null);
       expect(result).toBeInstanceOf(Error);
-      expect(result.message).toBe('Unknown React Stream Error (null/undefined)');
+      expect(result.message).toBe(
+        "Unknown React Stream Error (null/undefined)"
+      );
     });
 
-    it('should handle undefined', () => {
+    it("should handle undefined", () => {
       const result = toError(undefined);
       expect(result).toBeInstanceOf(Error);
-      expect(result.message).toBe('Unknown React Stream Error (null/undefined)');
+      expect(result.message).toBe(
+        "Unknown React Stream Error (null/undefined)"
+      );
     });
 
-    it('should handle objects with cause', () => {
+    it("should handle objects with cause", () => {
       const error = {
-        name: 'CustomError',
-        message: 'Test message',
+        name: "CustomError",
+        message: "Test message",
       };
       const result = toError(error);
       expect(result).toBeInstanceOf(Error);
-      expect(result.message).toEqual('Test message');
-      expect(result.name).toBe('CustomError');
+      expect(result.message).toEqual("Test message");
+      expect(result.name).toBe("CustomError");
     });
   });
 
-  describe('logError', () => {
+  describe("logError", () => {
     const createMockLogger = (): Logger => ({
       error: vi.fn(),
       info: vi.fn(),
@@ -76,64 +80,72 @@ describe('Error Handling', () => {
       hasErrorLogged: () => false,
     });
 
-    it('should log error with stack in development when stack includes message', () => {
+    it("should log error with stack in development when stack includes message", () => {
       const mockLogger = createMockLogger();
-      const error = new Error('Test error');
-      error.stack = 'Test error\nError stack';
-      
+      const error = new Error("Test error");
+      error.stack = "Test error\nError stack";
+
       logError(error, mockLogger);
-      
-      expect(mockLogger.error).toHaveBeenCalledWith('Test error\nError stack');
+
+      expect(mockLogger.error).toHaveBeenCalledWith("Test error\nError stack", {error: expect.any(Error)});
     });
 
-    it('should log error with message and stack in development when stack does not include message', () => {
+    it("should log error with message and stack in development when stack does not include message", () => {
       const mockLogger = createMockLogger();
-      const error = new Error('Test error');
-      error.stack = 'Different stack';
-      
+      const error = new Error("Test error");
+      error.stack = "Different stack";
+
       logError(error, mockLogger);
-      
-      expect(mockLogger.error).toHaveBeenCalledWith('Test error\nDifferent stack', {
-        error: expect.any(Error),
-      });
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        "Test error\nDifferent stack",
+        {
+          error: expect.any(Error),
+        }
+      );
     });
 
-    it('should log error with message and error object in development when no stack', () => {
+    it("should log error with message and error object in development when no stack", () => {
       const mockLogger = createMockLogger();
-      const error = { message: 'Test error' };
-      
+      const error = { message: "Test error" };
+
       logError(error, mockLogger);
-      
+
       // The error object will be converted to an Error instance by toError()
       // and since toError() creates a new Error instance, it will have a stack
       // So it will log the stack (which includes the message)
-      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Test error'));
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining("Test error"),
+        { error: expect.any(Error) }
+      );
     });
 
-    it('should log only message in production', () => {
+    it("should log only message in production", () => {
       const mockLogger = createMockLogger();
-      const error = new Error('Test error');
-      error.stack = 'Error stack';
-      
+      const error = new Error("Test error");
+      error.stack = "Error stack";
+
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      process.env.NODE_ENV = "production";
       try {
         logError(error, mockLogger);
-        expect(mockLogger.error).toHaveBeenCalledWith('Test error', {error: expect.any(Error)});
+        expect(mockLogger.error).toHaveBeenCalledWith("Test error", {
+          error: expect.any(Error),
+        });
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
     });
 
-    it('should use console by default', () => {
+    it("should use console by default", () => {
       const originalConsole = console.error;
       console.error = vi.fn();
-      
-      const error = new Error('Test error');
+
+      const error = new Error("Test error");
       logError(error);
-      
+
       expect(console.error).toHaveBeenCalled();
       console.error = originalConsole;
     });
   });
-}); 
+});
