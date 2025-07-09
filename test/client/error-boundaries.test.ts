@@ -48,7 +48,7 @@ describe("RSC Worker Error Streaming", () => {
       },
     });
 
-    serverUrl = `http://localhost:${server.config.server?.port}`;
+    serverUrl = `http://localhost:${server.config.server?.port}${process.env.VITE_BASE_URL ?? "/"}`;
   });
 
   afterAll(async () => {
@@ -63,7 +63,7 @@ describe("RSC Worker Error Streaming", () => {
   test("should send RSC error streams when server components throw errors", async () => {
     // Make a direct RSC request to test streaming behavior
     const rscResponse = await fetch(
-      `${serverUrl}/server-error-example/index.rsc`,
+      `${serverUrl}server-error-example/index.rsc`,
       {
         headers: {
           Accept: "text/x-component",
@@ -92,7 +92,7 @@ describe("RSC Worker Error Streaming", () => {
   test("should maintain stream integrity when errors occur", async () => {
     // Test that RSC streams complete properly even with errors
     const rscResponse = await fetch(
-      `${serverUrl}/server-error-example/index.rsc`,
+      `${serverUrl}server-error-example/index.rsc`,
       {
         headers: {
           Accept: "text/x-component",
@@ -118,7 +118,7 @@ describe("RSC Worker Error Streaming", () => {
     // "when we have a error on the rsc-worker side, we log the error but we actually fail to send the rsc stream thereafter"
 
     const rscResponse = await fetch(
-      `${serverUrl}/server-error-example/index.rsc`,
+      `${serverUrl}server-error-example/index.rsc`,
       {
         headers: {
           Accept: "text/x-component",
@@ -148,13 +148,13 @@ describe("RSC Worker Error Streaming", () => {
   test("should handle multiple RSC requests with errors consistently", async () => {
     // Test that the RSC worker doesn't get into a broken state after an error
     const requests = await Promise.all([
-      fetch(`${serverUrl}/server-error-example/index.rsc`, {
+      fetch(`${serverUrl}server-error-example/index.rsc`, {
         headers: { Accept: "text/x-component" },
       }),
-      fetch(`${serverUrl}/server-error-example/index.rsc`, {
+      fetch(`${serverUrl}server-error-example/index.rsc`, {
         headers: { Accept: "text/x-component" },
       }),
-      fetch(`${serverUrl}/server-error-example/index.rsc`, {
+      fetch(`${serverUrl}server-error-example/index.rsc`, {
         headers: { Accept: "text/x-component" },
       }),
     ]);
@@ -172,7 +172,7 @@ describe("RSC Worker Error Streaming", () => {
 
   test("should serve HTML page successfully even when server components will error", async () => {
     // Test that the HTML page loads successfully - errors happen in RSC stream, not HTML
-    const response = await fetch(`${serverUrl}/server-error-example`);
+    const response = await fetch(`${serverUrl}server-error-example`);
     const html = await response.text();
 
     // Check that the response is successful
@@ -187,7 +187,7 @@ describe("RSC Worker Error Streaming", () => {
   test("should have error boundary components ready for client-side error handling", async () => {
     // Test that the error boundary system is set up correctly in the HTML
     const response = await fetch(
-      `${serverUrl}/server-error-example/index.rsc`,
+      `${serverUrl}server-error-example/index.rsc`,
       {
         headers: {
           Accept: "text/x-component",

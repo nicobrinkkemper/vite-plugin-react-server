@@ -334,7 +334,6 @@ The transformation pipeline ensures that:
 2. Client and server boundaries are properly set up
 3. Components are transformed correctly for their target environment
 4. Static generation (if enabled) happens after all transformations
-5. Directives are preserved throughout the build process up untill the react transformer
 
 It also gives you the ability to override all the above behavior by either composing
 your plugins or developing a entirely new rsc-worker for your application that can then be used during your development process - which gives you full control over the node.js environment including it's loaders, etc.
