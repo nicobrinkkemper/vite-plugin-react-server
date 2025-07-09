@@ -10,7 +10,7 @@ export function logError(error: unknown, logger: Logger | Console = console) {
         err.message.length > 0 &&
         err.stack.includes(err.message)
       ) {
-        logger.error(err.stack);
+        logger.error(err.stack, {error: err});
       } else if (err.stack && err.stack.length > 0 && err.message.length > 0) {
         logger.error(err.message + "\n" + err.stack, {
           error: err,
