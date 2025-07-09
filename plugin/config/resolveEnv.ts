@@ -72,7 +72,7 @@ export function resolveEnv(
         process.env["NODE_ENV"] !== "production"
       ) {
         console.warn(
-          `NODE_ENV is not ${inferredMode} but ${modeKey} is ${inferredMode}, NODE_ENV takes precedence`
+          `NODE_ENV is not ${inferredMode} (${process.env["NODE_ENV"]}) but ${modeKey} is ${inferredMode}, NODE_ENV takes precedence`
         );
         mergedEnv[modeKey] = getNodeEnv();
       } else if (
@@ -82,13 +82,13 @@ export function resolveEnv(
         if (process.env["NODE_ENV"] === "test") {
           if (process.env["NODE_ENV"] !== "test") {
             console.warn(
-              `NODE_ENV is not ${inferredMode} but ${modeKey} is ${mode}, NODE_ENV takes precedence`
+              `NODE_ENV is not ${inferredMode} (${process.env["NODE_ENV"]}) but ${modeKey} is ${mode}, NODE_ENV takes precedence`
             );
           }
           mergedEnv[modeKey] = "development";
         } else {
           console.warn(
-            `NODE_ENV is not ${inferredMode} but ${modeKey} is ${mode}, NODE_ENV takes precedence`
+            `NODE_ENV is not ${inferredMode} (${process.env["NODE_ENV"]}) but ${modeKey} is ${mode}, NODE_ENV takes precedence`
           );
           mergedEnv[modeKey] = getNodeEnv();
         }

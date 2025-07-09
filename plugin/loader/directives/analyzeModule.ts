@@ -1,7 +1,7 @@
 import { parse } from "../parse.js";
 import { analyzeDirectives } from "./analyzeDirectives.js";
 import { getExports } from "./getExports.js";
-import type { ParseResult, Program } from "./types.js";
+import type { ParsedExports, ParseResult } from "./types.js";
 import type { DirectiveOptions } from "../../types.js";
 
 /**
@@ -9,31 +9,49 @@ import type { DirectiveOptions } from "../../types.js";
  */
 export async function analyzeModule(
   source: string,
-  options?: DirectiveOptions,
-  parseFn: (source: string) => Promise<{ ast: Program; code: string; map?: any }> = parse
+  options?: DirectiveOptions
 ): Promise<ParseResult> {
-  const { ast, code } = await parseFn(source);
-
+  let result =
+    typeof options?.loader.parse === "function"
+      ? options.loader.parse(source)
+      : parse(source);
+  if (result instanceof Promise) {
+    result = await result;
+  }
+  if (typeof result === "object" && !("ast" in result)) {
+    result = {
+      ast: result,
+    };
+  }
   // Collect exports from the AST first
-  const exports = await getExports(ast);
-  if(options?.verbose) {
-    if(exports.exports.size > 0) {
-      console.log('[analyzeModule] exports', Array.from(exports.exports.values()));
+  const exports: ParsedExports =
+    typeof result === "object" && "exports" in result && result.exports
+      ? result.exports
+      : await getExports(result.ast);
+
+  if (options?.verbose) {
+    if (exports && exports.exports.size > 0) {
+      console.log(
+        "[analyzeModule] exports",
+        Array.from(exports.exports.values())
+      );
     }
   }
 
-  const directiveInfo = analyzeDirectives(ast, source, options);
-  if(options?.verbose) {
-    if(directiveInfo.warnings.length > 0) {
-      console.log('[analyzeModule] warnings', directiveInfo.warnings);
+  const directiveInfo = analyzeDirectives(result.ast, source, options);
+  if (options?.verbose) {
+    if (directiveInfo.warnings.length > 0) {
+      console.log("[analyzeModule] warnings", directiveInfo.warnings);
     }
   }
-
+  let { code = source, map, ast, exports: _, ...rest } = result;
   return {
-    type: 'success',
-    ast,
-    code,
+    type: "success",
+    ...rest,
+    code: code,
+    map: map,
+    ast: ast,
     exports,
-    directiveInfo
+    directiveInfo,
   };
-} 
+}

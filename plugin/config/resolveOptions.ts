@@ -19,7 +19,6 @@ import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
-import { parse } from "../loader/parse.js";
 import type { LoaderConfig } from "../loader/types.js";
 
 export type ResolveOptionsReturn =
@@ -168,10 +167,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       ? join(projectRoot, options.loaderPath)
       : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
 
-  const preserveDirectives =
-    typeof options.build?.preserveDirectives === "boolean"
-      ? options.build.preserveDirectives
-      : DEFAULT_CONFIG.BUILD.preserveDirectives;
+
 
   const jsExtension =
     typeof options.build?.jsExtension === "string"
@@ -435,7 +431,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
    * api
    * outDir
    * hash
-   * preserveDirectives
+
    * preserveModulesRoot
    * rscOutputPath
    * htmlOutputPath
@@ -481,7 +477,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     entryFile,
     chunkFile,
     assetFile,
-    preserveDirectives: preserveDirectives,
+
     rscOutputPath: rscOutputPath,
     htmlOutputPath: htmlOutputPath,
     moduleExtension: jsExtension,
@@ -565,7 +561,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
           DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerServerReferenceName,
         isServerFunctionCode,
         isClientComponentCode,
-        parse: parse,
+        parse: DEFAULT_LOADER_CONFIG.parse,
       } as Required<LoaderConfig>)
     : undefined;
 

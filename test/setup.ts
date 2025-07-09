@@ -529,3 +529,199 @@ return (
 }`
   );
 }
+
+export async function setupErrorBoundaryTestProject(testDir: string) {
+  // Setup basic structure
+  await setupIndexHTML(testDir);
+  
+  // Create fallback page for root route
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/page/page.tsx"),
+    `import React from "react";
+export function Page(props: any) {
+  return (
+    <div>
+      <h1>Error Boundary Test Home</h1>
+      <p>This is the fallback page</p>
+    </div>
+  );
+}`
+  );
+  
+  await writeFile(
+    resolve(testDir, "src/page/props.ts"),
+    `export const props = (url: string) => ({
+  title: "Error Boundary Test",
+  url
+});`
+  );
+  
+  // Create ErrorMessage component
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/components/ErrorMessage.tsx"),
+    `"use client";
+import React from "react";
+
+export function ErrorMessage({ error }: { error: { message: string; stack?: string } }) {
+  return (
+    <div data-testid="error-boundary">
+      <h2>Error</h2>
+      <p data-testid="error-message">{error.message}</p>
+      {error.stack && (
+        <details>
+          <summary>Stack trace</summary>
+          <pre>{error.stack}</pre>
+        </details>
+      )}
+    </div>
+  );
+}`
+  );
+
+  // Create ErrorBoundary component using the provided code
+  await writeFile(
+    resolve(testDir, "src/components/ErrorBoundary.client.tsx"),
+    `"use client";
+import React from "react";
+import { ErrorMessage } from "./ErrorMessage.js";
+
+export class ErrorBoundary extends React.Component {
+  public state: {
+    hasError: boolean;
+    error: Error | null;
+  } = {
+    hasError: false,
+    error: null,
+  };
+  public props: {
+    children: React.ReactNode;
+  } = {
+    children: null,
+  };
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+    this.props = props;
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.state.error) {
+        return (
+          <ErrorMessage
+            error={{
+              message: this.state.error.message,
+              stack: this.state.error.stack,
+            }}
+          />
+        );
+      }
+      return <div>Error</div>;
+    }
+    return this.props.children;
+  }
+}`
+  );
+
+  // Create TestError component that throws an error
+  await writeFile(
+    resolve(testDir, "src/components/TestError.tsx"),
+    `import React from "react";
+
+export function TestError({ throwError }: { throwError: boolean }) {
+  if (throwError) {
+    throw new Error("test error example");
+  }
+  return <div>No error</div>;
+}`
+  );
+
+  // Create server error page
+  await mkdir(resolve(testDir, "src/page/server-error-example"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/page/server-error-example/props.ts"),
+    `export const props = (url: string) => ({
+  throwError: true,
+  title: "Server Error Example",
+  url
+});`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/server-error-example/page.tsx"),
+    `import React from "react";
+import { ErrorBoundary } from "../../components/ErrorBoundary.client.js";
+import { TestError } from "../../components/TestError.js";
+
+export function Page(props: any) {
+  return (
+    <>
+      <title>{props.title}</title>
+      <div>
+        <ErrorBoundary>
+          <p>This page should show an error.</p>
+          <TestError throwError={props.throwError} />
+        </ErrorBoundary>
+      </div>
+    </>
+  );
+}`
+  );
+
+  // Create client error page  
+  await mkdir(resolve(testDir, "src/page/client-error-example"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/page/client-error-example/props.ts"),
+    `export const props = (url: string) => ({
+  throwError: true,
+  title: "Client Error Example",
+  url
+});`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/client-error-example/page.tsx"),
+    `import React from "react";
+import { ClientErrorComponent } from "./ClientErrorComponent.client.js";
+
+export function Page(props: any) {
+  return (
+    <>
+      <title>{props.title}</title>
+      <div>
+        <ClientErrorComponent throwError={props.throwError} />
+      </div>
+    </>
+  );
+}`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/client-error-example/ClientErrorComponent.client.tsx"),
+    `"use client";
+import React from "react";
+import { ErrorBoundary } from "../../components/ErrorBoundary.client.js";
+
+function ThrowingComponent({ throwError }: { throwError: boolean }) {
+  if (throwError) {
+    throw new Error("Client component error");
+  }
+  return <div>No error</div>;
+}
+
+export function ClientErrorComponent({ throwError }: { throwError: boolean }) {
+  return (
+    <ErrorBoundary>
+      <p>This should show a client error.</p>
+      <ThrowingComponent throwError={throwError} />
+    </ErrorBoundary>
+  );
+}`
+  );
+}

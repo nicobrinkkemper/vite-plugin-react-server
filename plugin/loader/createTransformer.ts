@@ -1,18 +1,16 @@
 import { transformModule } from "./transformModule.js";
 import { isReactServerCondition } from "../config/getCondition.js";
-import { parse } from "./parse.js";
 import { analyzeModule } from "./directives/analyzeModule.js";
 import { findDirectiveMatches } from "./directives/findDirectiveMatches.js";
 import type { DirectiveMatch } from "./directives/types.js";
 import type { TransformerFactory, TransformResult } from "./types.js";
-import { getNodeEnv } from "../getNodeEnv.js";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 /**
  * Creates a transformer that handles React Server Components (RSC) boundaries.
  */
 export const createTransformer: TransformerFactory = ({
-  parseFn = parse,
   options,
   forceServerFunction = undefined,
   forceClientComponent = undefined,
@@ -35,18 +33,12 @@ export const createTransformer: TransformerFactory = ({
     if (hasClientDirective === false && hasServerDirective === false) {
       return { code: source, map: null };
     }
-
-    if (isServerEnvironment === false && hasServerDirective) {
-      console.warn(
-        "You likely don't want to use createTransformer in the client environment."
-      );
-    }
-
+    const loader = options.loader ?? DEFAULT_LOADER_CONFIG;
     // Use analyzeModule to get the full parse result, passing the custom parseFn
     const parseResult = await analyzeModule(source, {
       ...options,
-      loader: options.loader ?? DEFAULT_LOADER_CONFIG,
-    }, parseFn);
+      loader: loader,
+    });
     if (
       parseResult.directiveInfo &&
       parseResult.directiveInfo.warnings.length > 0

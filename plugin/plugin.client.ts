@@ -1,8 +1,8 @@
-import { reactPreservePlugin } from "./preserver/plugin.js";
 import type { StreamPluginOptions } from "../types.js";
 import { reactClientPlugin } from "./react-client/plugin.js";
 import { envPlugin } from "./env/plugin.js";
 import type { Plugin } from "vite";
+import { reactTransformPlugin } from "./transformer/plugin.client.js";
 
 export type VitePluginReactClientFn = <
   Opt extends StreamPluginOptions = StreamPluginOptions
@@ -15,7 +15,7 @@ export type VitePluginReactClientFn = <
  * Includes:
  * - envPlugin
  * - reactClientPlugin
- * - reactPreservePlugin
+ * - reactPreservePlugin (handles directive removal/preservation)
  * @param options
  * @returns
  */
@@ -24,11 +24,14 @@ export const vitePluginReactServer: VitePluginReactClientFn =
     if (options == null) {
       throw new Error("options is required");
     }
-    return [
+    
+    const plugins = [
       envPlugin(),
+      reactTransformPlugin(options),
       reactClientPlugin(options),
-      reactPreservePlugin(options),
     ];
+    
+    return plugins;
   };
 
 /**
@@ -36,7 +39,7 @@ export const vitePluginReactServer: VitePluginReactClientFn =
  * Includes:
  * - envPlugin
  * - reactClientPlugin
- * - reactPreservePlugin
+ * - reactPreservePlugin (handles directive removal/preservation)
  * @param options
  * @returns
  */

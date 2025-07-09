@@ -34,11 +34,8 @@ Then there are the essential utility plugins
    - Maintain hashes with static manifest
    - Determines final module id for components
 
-5. **Preserver Plugin** (`vite-plugin-react-server/preserver`)
 
-   - Just preserves "use client" and "use server" using rollup
-
-6. **Env plugin** (`vite-plugin-react-server/env`)
+5. **Env plugin** (`vite-plugin-react-server/env`)
    - Loads & Checks the environment on launch
    - Sets and unsets default VITE\_ process variables early (like VITE_BASE_URL and VITE_PUBLIC_ORIGIN)
    - Makes process.env available even in the config step (string only)
@@ -57,7 +54,6 @@ This imports all of plugins that are relevant for each condition. For example
 
 ```tsx
 // plugin.client.ts
-import { reactPreservePlugin } from "./preserver/plugin.js";
 import { reactTransformPlugin } from "./transformer/plugin.client.js";
 import type { StreamPluginOptions } from "../types.js";
 import { reactClientPlugin } from "./react-client/plugin.js";
@@ -70,7 +66,6 @@ export function vitePluginReactServer(
     envPlugin(),
     reactClientPlugin(options),
     reactTransformPlugin(options),
-    reactPreservePlugin(options),
   ];
 }
 ```

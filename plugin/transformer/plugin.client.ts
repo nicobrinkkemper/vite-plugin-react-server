@@ -44,12 +44,12 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
 
   let staticManifest: Manifest = {};
   let isBuild = true;
-  let isSSR = true;
+  let isSSR = false;
   const nodeEnv = getNodeEnv();
   let mode = nodeEnv;
 
   return {
-    name: "vite-plugin-react-server:transform",
+    name: "vite-plugin-react-server:client-transform",
     enforce: "post",
     configResolved(config) {
       isBuild = config.command === "build";
@@ -73,8 +73,10 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
     },
     transform: {
       order: "post",
-      async handler(code, id, options) {
-        if (!options?.ssr || !userOptions.autoDiscover.modulePattern.test(id)) {
+      async handler(code, id) {
+        // Debug logging for the problematic file
+
+        if (!userOptions.autoDiscover.modulePattern.test(id)) {
           return null;
         }
 
@@ -91,7 +93,6 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
 
         const finalID = userOptions.moduleID?.(moduleID) || moduleID;
 
-
         // Create a new transformer with the computed values
         const transformer = createTransformer({
           parseFn: (source) => {
@@ -99,38 +100,36 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
               allowReturnOutsideFunction: true,
               jsx: true,
             }) as Program;
-            console.log('returning rollup ast');
-            return { ast, code: 'test' };
+            return ast;
           },
           options: {
             loader: userOptions.loader,
             verbose: userOptions.verbose,
             panicThreshold: userOptions.panicThreshold,
           },
-          isServerEnvironment: true,
+          isServerEnvironment: false,
         });
         // Always transform in server context
         const { code: transformed, map } = await transformer(code, finalID);
-
 
         if (userOptions.verbose)
           if (transformed !== code) {
             if (id !== finalID) {
               this.environment.logger.info(
-                "[react-server-transform] " +
+                "[react-client-transform] " +
                   id.split("/").pop() +
                   " -> " +
                   finalID
               );
             } else {
               this.environment.logger.info(
-                "[react-server-transform] " +
+                "[react-client-transform] " +
                   id.split("/").pop() +
                   (code.startsWith('"use client"') ? " (client)" : "")
               );
             }
             this.environment.logger.info(
-              "[react-server-transform] " + transformed
+              "[react-client-transform] " + transformed
             );
           }
         return {

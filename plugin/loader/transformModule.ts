@@ -14,6 +14,7 @@ import type { ParseResult } from "./directives/types.js";
 import { transformServerModule } from "./transformServerModule.js";
 import { transformClientModule } from "./transformClientModule.js";
 import type { TransformFunction, TransformOptions, TransformResult } from "./types.js";
+import { transformNonServerEnvironment } from "./transformNonServerEnvironment.js";
 
 /**
  * Transforms a module for RSC boundaries, handling imports and registrations.
@@ -40,6 +41,10 @@ export const transformModule: TransformFunction = async (
       `isClientComponent:`,
       options.forceClientComponent
     );
+  }
+  if(!options.isServerEnvironment) {
+    // only remove the directives
+    return transformNonServerEnvironment(source, moduleId, parseResult, options.loader, options.verbose);
   }
 
   // Only apply transformation for server functions or client components

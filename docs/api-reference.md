@@ -57,7 +57,7 @@ export const config = {
 | `assetsDir` | `string` | Assets directory | `"assets"` |
 | `api` | `string` | API output directory | `"api"` |
 | `outDir` | `string` | Output directory | `"dist"` |
-| `preserveDirectives` | `boolean` | Preserve directives in output | `false` |
+
 | `rscOutputPath` | `string` | RSC output filename | `"index.rsc"` |
 | `htmlOutputPath` | `string` | HTML output filename | `"index.html"` |
 | `entryFile` | `(chunk: PreRenderedChunk, ssr: boolean) => string` | Custom entry file naming | - |
@@ -191,7 +191,6 @@ interface BuildConfig {
   rscOutputPath?: string; // Default: "index.rsc"
   htmlOutputPath?: string; // Default: "index.html"
   preserveModulesRoot?: boolean;
-  preserveDirectives?: boolean;
   hash?: string;
 }
 ```

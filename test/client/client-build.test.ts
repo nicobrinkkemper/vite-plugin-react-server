@@ -21,7 +21,10 @@ describe("RSC Worker (Client)", () => {
 
   afterAll(async () => {
     // comment below line to see the fixture directory
-    await rm(testDir, { recursive: true, force: true });
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+    }
   });
 
   

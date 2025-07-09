@@ -3,9 +3,15 @@ import { resolveComponent } from "./resolveComponent.js";
 import { Root as DefaultRoot } from "../components/root.js";
 import { Html as DefaultHtml } from "../components/html.js";
 import { enhanceError } from "../error/enhanceError.js";
-import type { PageComponentType, PagePropOpt, RootComponentType, HtmlComponentType } from "../types.js";
+import type {
+  PageComponentType,
+  PagePropOpt,
+  RootComponentType,
+  HtmlComponentType,
+} from "../types.js";
 import { toError } from "../error/toError.js";
 import type { CreateHandlerOptions } from "../types.js";
+import { createLogger } from "vite";
 
 export type ResolveComponentsOptions = Pick<
   CreateHandlerOptions,
@@ -20,6 +26,7 @@ export type ResolveComponentsOptions = Pick<
   | "RootComponent"
   | "HtmlComponent"
   | "verbose"
+  | "logger"
 > & {
   rootPath?: string;
   htmlPath?: string;
@@ -41,7 +48,9 @@ export type ResolveComponentsError = {
   reason?: string;
 };
 
-export type ResolveComponentsResult = ResolveComponentsSuccess | ResolveComponentsError;
+export type ResolveComponentsResult =
+  | ResolveComponentsSuccess
+  | ResolveComponentsError;
 
 /**
  * Unified component resolution function that builds a complete components object.
@@ -63,6 +72,7 @@ export const resolveComponents = async ({
   RootComponent: overrideRootComponent,
   HtmlComponent: overrideHtmlComponent,
   verbose,
+  logger = createLogger(),
 }: ResolveComponentsOptions): Promise<ResolveComponentsResult> => {
   try {
     // First resolve page and props using existing function
@@ -82,19 +92,19 @@ export const resolveComponents = async ({
         const enhancedError = enhanceError(
           pageAndPropsResult.error,
           resolveComponents,
-          `resolveComponents(\"${route}\")`,
+          `resolveComponents(\"${route}\")`
         );
-        
+
         return {
           type: "error",
           error: enhancedError,
           reason: "Page/props resolution failed",
         };
       }
-      
+
       const skipError = new Error("Page/props resolution was skipped");
       Error.captureStackTrace(skipError, resolveComponents);
-      
+
       return {
         type: "error",
         error: skipError,
@@ -108,7 +118,9 @@ export const resolveComponents = async ({
     let RootComponent = overrideRootComponent || DefaultRoot;
     if (!overrideRootComponent && rootPath) {
       if (verbose) {
-        console.log(`[resolveComponents] Resolving Root component from path: ${rootPath}, exportName: ${rootExportName}`);
+        logger.info(
+          `[resolveComponents] Resolving Root component from path: ${rootPath}, exportName: ${rootExportName}`
+        );
       }
       const rootResult = await resolveComponent({
         componentPath: rootPath,
@@ -117,19 +129,20 @@ export const resolveComponents = async ({
       });
       if (rootResult.type === "error") {
         if (verbose) {
-          console.log(`[resolveComponents] Root component resolution failed:`, rootResult.error);
+          logger.error(
+            `[resolveComponents] Root component resolution failed:`,
+            { error: rootResult.error }
+          );
         }
         // Fallback to default Root component
         RootComponent = DefaultRoot;
       } else if (rootResult.type === "success") {
         if (verbose) {
-          console.log(`[resolveComponents] Root component resolved successfully`);
+          logger.info(
+            `[resolveComponents] Root component resolved successfully`
+          );
         }
         RootComponent = rootResult.component;
-      }
-    } else {
-      if (verbose) {
-        console.log(`[resolveComponents] Using default Root component (override: ${!!overrideRootComponent}, rootPath: ${rootPath})`);
       }
     }
 
@@ -137,7 +150,9 @@ export const resolveComponents = async ({
     let HtmlComponent = overrideHtmlComponent || DefaultHtml;
     if (!overrideHtmlComponent && htmlPath) {
       if (verbose) {
-        console.log(`[resolveComponents] Resolving Html component from path: ${htmlPath}, exportName: ${htmlExportName}`);
+        logger.info(
+          `[resolveComponents] Resolving Html component from path: ${htmlPath}, exportName: ${htmlExportName}`
+        );
       }
       const htmlResult = await resolveComponent({
         componentPath: htmlPath,
@@ -146,19 +161,26 @@ export const resolveComponents = async ({
       });
       if (htmlResult.type === "error") {
         if (verbose) {
-          console.log(`[resolveComponents] Html component resolution failed:`, htmlResult.error);
+          logger.error(
+            `[resolveComponents] Html component resolution failed:`,
+            { error: htmlResult.error }
+          );
         }
         // Fallback to default Html component
         HtmlComponent = DefaultHtml;
       } else if (htmlResult.type === "success") {
         if (verbose) {
-          console.log(`[resolveComponents] Html component resolved successfully`);
+          logger.info(
+            `[resolveComponents] Html component resolved successfully`
+          );
         }
         HtmlComponent = htmlResult.component;
       }
     } else {
       if (verbose) {
-        console.log(`[resolveComponents] Using default Html component (override: ${!!overrideHtmlComponent}, htmlPath: ${htmlPath})`);
+        logger.info(
+          `[resolveComponents] Using default Html component (override: ${!!overrideHtmlComponent}, htmlPath: ${htmlPath})`
+        );
       }
     }
 
@@ -175,11 +197,11 @@ export const resolveComponents = async ({
       resolveComponents,
       `resolveComponents(\"${route}\")`
     );
-    
+
     return {
       type: "error",
       error: enhancedError,
       reason: "Component resolution failed",
     };
   }
-}; 
+};

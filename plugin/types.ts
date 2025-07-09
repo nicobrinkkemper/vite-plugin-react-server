@@ -363,7 +363,7 @@ export type DirectiveOptions = Pick<
 > & {
   loader: Pick<
     Required<NonNullable<TransformOptions["loader"]>>,
-    "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType"
+    "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType" | "parse"
   > & {
     allowedDirectives: AllowedDirectives;
   };
@@ -919,7 +919,6 @@ export type BuildConfig = {
   api?: string; // Output directory for API files
   outDir?: string;
   hash?: string;
-  preserveDirectives?: boolean;
   preserveModulesRoot?: boolean;
   rscOutputPath?: string; // defaults: `index.rsc`
   htmlOutputPath?: string; // defaults: `index.html`

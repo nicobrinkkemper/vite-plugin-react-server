@@ -27,6 +27,7 @@ export type CreateRscStreamOptions = Pick<
   | "projectRoot"
   | "verbose"
   | "as"
+  | "logger"
 > & {
   url: string;
   onEvent?: (
@@ -72,6 +73,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
   verbose,
   url,
   as = "div",
+  logger,
 }) {
   let errorCount = 0;
   let streamError: Error | null = null;
@@ -154,7 +156,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         onAllReady() {
           // Stream is ready to be consumed
           if (verbose) {
-            console.log(`[react-server] Stream ready for route: ${route}`);
+            logger.info(`[react-server] Stream ready for route: ${route}`);
           }
         },
         onShellError(error: Error) {
@@ -166,7 +168,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         onShellReady() {
           // Shell is ready, but we still need to wait for onAllReady
           if (verbose) {
-            console.log(`[react-server] Shell ready for route: ${route}`);
+            logger.info(`[react-server] Shell ready for route: ${route}`);
           }
         },
       }
@@ -202,7 +204,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
       },
     };
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
     onEvent?.("error", { route, error: err });
     return {
       type: "error",

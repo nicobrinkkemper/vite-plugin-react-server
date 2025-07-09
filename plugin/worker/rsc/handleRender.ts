@@ -11,6 +11,10 @@ import { performance } from "node:perf_hooks";
 import type { BuildModuleLoader, ResolvedUserOptions } from "../../types.js";
 import React from "react";
 import { routeToURL } from "../../utils/routeToURL.js";
+import { createLogger } from "vite";
+
+
+const logger = createLogger();
 
 export type HandleRenderFn = <Msg extends RscRenderMessage = RscRenderMessage>(
   msg: Msg,
@@ -76,6 +80,7 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       HtmlComponent: React.Fragment,
       moduleBaseURL,
       build,
+      logger,
     });
     if (componentsResult.type !== "success") {
       const { error, reason } = componentsResult;
@@ -95,8 +100,14 @@ export const handleRender: HandleRenderFn = async function _handleRender(
         digest?: string | null;
       };
     }) => {
+      // Don't send ERROR messages for React component errors - let React handle them
+      // and serialize them into the RSC stream. Only handle non-React errors.
       if (event === "error") {
-        handlers.onError(id, data.error, data.errorInfo);
+        // React will handle component errors by serializing them into the RSC stream
+        // We just log them for debugging but don't send ERROR messages
+        if (data.error && logger) {
+          logger.error(`[rsc-worker] React component error: ${data.error.message}`, { error: data.error });
+        }
       }
     };
 
@@ -129,6 +140,7 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       onEvent: adaptedOnEvent,
       pipeableStreamOptions: pipeableStreamOptions,
       verbose,
+      logger,
     });
 
     if (streamResult.type !== "success") {

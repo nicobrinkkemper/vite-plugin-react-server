@@ -4,12 +4,12 @@ import type { Program } from "./types.js";
 /**
  * Parses a module and returns { ast, code, map } to match Rollup's this.parse API.
  */
-export async function parse(source: string): Promise<{ ast: Program, code: string, map?: {
+export function parse(source: string): { ast: Program, code: string, map?: {
   url: string;
   start: number;
   end: number;
   lines: number;
-} | null }> {
+} | null; exports?: never } {
   let sourceMappingURL: string | null = null;
   let sourceMappingStart = 0;
   let sourceMappingEnd = 0;

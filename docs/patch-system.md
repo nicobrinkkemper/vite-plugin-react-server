@@ -15,7 +15,7 @@ Above command would run the build and show you any errors+stacktraces that occur
 
 Beware, development builds actually change the emitted files to development versions. For example, the index.rsc files will contain information about the user's local machine.
 
-## Setting Up for plugin maintainers
+## Setting up for plugin maintainers
 
 1. Clone the repository:
 ```bash
@@ -46,7 +46,7 @@ First let's run
 npm run experimental:setup
 ```
 
-This will remove any previous patches, do a clean install of the react dependencies. It does this to ensure that the experimental version number is the same as installing a clean @experimental react version. 
+This will remove any previous patches, do a clean install of the React dependencies. It does this to ensure that the experimental version number is the same as installing a clean @experimental react version. 
 
 Example output:
 ```bash
@@ -134,7 +134,7 @@ Applying patches...
 react-server-dom-esm@0.0.1 ✔
 ```
 
-We did a second clean install of the react depedencies to apply a newly created patch file based on the installed version number. Before we apply these patch files, we make sure to replace the version string to the React version we have installed.
+We did a second clean install of the React depedencies to apply a newly created patch file based on the installed version number. Before we apply these patch files, we make sure to replace the version string to the React version we have installed.
 
 The scripts folder will contain the actual patches that plugin users will get when they run the `patch` command. While it's possible to also patch `react` and `react-dom`, you have to add these to array in the `bin/patch.mjs` file yourself.
 

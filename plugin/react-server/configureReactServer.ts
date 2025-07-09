@@ -111,7 +111,8 @@ export const configureReactServer: ConfigureReactServerFn =
         const routeFiles = await getRouteFiles(
           info.route,
           autoDiscoveredFiles,
-          _userOptions
+          _userOptions,
+          server.config.logger
         );
         if (routeFiles.type === "error") {
           server.config.logger.error(routeFiles.error.message);
@@ -137,6 +138,7 @@ export const configureReactServer: ConfigureReactServerFn =
           verbose,
           moduleBaseURL: server.config.base,
           build: handlerOptions.build,
+          logger: server.config.logger,
         });
         if (componentsResult.type === "error") {
           throw componentsResult.error;

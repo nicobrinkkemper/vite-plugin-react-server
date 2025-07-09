@@ -5,7 +5,11 @@ import { removeDirectives } from "./removeDirectives.js";
 import * as acorn from "acorn";
 import { getNodeEnv } from "../getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
-import type { ArrowFunctionExpression, FunctionDeclaration, FunctionExpression } from "acorn";
+import type {
+  ArrowFunctionExpression,
+  FunctionDeclaration,
+  FunctionExpression,
+} from "acorn";
 
 /**
  * Transforms a server module by:
@@ -17,7 +21,10 @@ export async function transformServerModule(
   source: string,
   moduleId: string,
   parseResult: ParseResult,
-  loader: Pick<LoaderConfig, "registerServerReferenceName" | "importServerPath"> = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
+  loader: Pick<
+    LoaderConfig,
+    "registerServerReferenceName" | "importServerPath" | "parse"
+  > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   verbose = false
 ): Promise<TransformResult> {
   if (!loader) {
@@ -27,15 +34,37 @@ export async function transformServerModule(
     return { code: "", map: null };
   }
 
-  // Parse the source with Acorn to get accurate directive locations
-  const ast = acorn.parse(source, {
-    ecmaVersion: "latest",
-    sourceType: "module",
-    locations: true,
-    ranges: true,
-    allowAwaitOutsideFunction: true,
-    allowReturnOutsideFunction: true,
-  });
+  // Parse the source using the loader's parse function or fallback to Acorn
+  let ast;
+  if (typeof loader.parse === "function") {
+    const parsed = loader.parse(source);
+
+    if (parsed instanceof Promise) {
+      ast = await parsed;
+    } else {
+      ast = parsed;
+    }
+  }
+  if (typeof ast === "object" && "ast" in ast) {
+    ast = ast.ast;
+  }
+  if (!ast) {
+    ast = acorn.parse(source, {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      locations: true,
+      ranges: true,
+      allowAwaitOutsideFunction: true,
+      allowReturnOutsideFunction: true,
+    });
+  }
+
+  // check if body is iterable
+  if (!(ast.body && typeof ast.body === "object" && "forEach" in ast.body)) {
+    throw new Error(
+      `[transformServerModule] Failed to parse ${moduleId} with loader.parse`
+    );
+  }
 
   // Collect all directive ranges (file-level and function-level)
   const rangesToRemove: { start: number; end: number }[] = [];
@@ -53,7 +82,13 @@ export async function transformServerModule(
   }
 
   // Function-level: walk all functions and check first statement in body
-  function walkFunctionDirectives(node: FunctionDeclaration | FunctionExpression | ArrowFunctionExpression | Program) {
+  function walkFunctionDirectives(
+    node:
+      | FunctionDeclaration
+      | FunctionExpression
+      | ArrowFunctionExpression
+      | Program
+  ) {
     if (
       (node.type === "FunctionDeclaration" ||
         node.type === "FunctionExpression" ||
@@ -76,11 +111,11 @@ export async function transformServerModule(
       const value = node[key as keyof typeof node];
       if (Array.isArray(value)) {
         value.forEach((item) => {
-          if (item && typeof item === 'object' && 'type' in item) {
+          if (item && typeof item === "object" && "type" in item) {
             walkFunctionDirectives(item as any);
           }
         });
-      } else if (value && typeof value === 'object' && 'type' in value) {
+      } else if (value && typeof value === "object" && "type" in value) {
         walkFunctionDirectives(value as any);
       }
     }

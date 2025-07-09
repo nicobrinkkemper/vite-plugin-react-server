@@ -1,5 +1,5 @@
 import type { RawSourceMap } from "source-map";
-import type { DirectiveWarning, ParseResult, Program, AllowedDirectives } from "./directives/types.js";
+import type { DirectiveWarning, ParseResult, Program, AllowedDirectives, ParsedExports } from "./directives/types.js";
 
 
 
@@ -18,14 +18,12 @@ export type LoaderConfig = {
   registerServerReferenceName?: string;
   isServerFunctionCode: (code: string, moduleId?: string) => boolean;
   isClientComponentCode: (code: string, moduleId?: string) => boolean;
-  parse: (source: string) => Promise<{
-    ast: Program;
-    code: string;
-    map?: { url: string; start: number; end: number; lines: number } | null;
-  }>;
+  parse: ParseFn;
 };
 
 export type RscLoader = Pick<LoaderConfig, 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
+
+export type ParseFn = (source: string) => Program | { ast: Program; code?: string; map?: any; exports?: ParsedExports }
 
 export type TransformOptions = {
   forceServerFunction?: boolean;
@@ -55,12 +53,7 @@ export type TransformFunction = (
 ) => Promise<TransformResult>;
 
 export type TransformerFactory = (options: {
-  parseFn?: (source: string) => Promise<{ ast: Program; code: string; map?: {
-    url: string;
-    start: number;
-    end: number;
-    lines: number;
-  } | null }>;
+  parseFn?: ParseFn;
   options: Pick<TransformOptions, 'verbose' | 'loader' | 'panicThreshold'>;
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;

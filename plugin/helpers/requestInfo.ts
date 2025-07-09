@@ -34,21 +34,29 @@ export function requestInfo(
     moduleBaseURL: userOptions.moduleBaseURL,
     build: userOptions.build,
   });
-  
+
   if (!route) {
     return {
       route: "/",
       ext: "",
     };
   }
-  
+
   // Use the cleaned route for normalization, not the raw req.url
   // This ensures base URL is properly stripped before normalization
   const [, value] = userOptions.normalizer(route);
   if (userOptions.verbose) {
-    console.log("requestInfo:", { value, hostDir, reqUrl: req.url, route });
+    if (value && value !== "") {
+      logger.info(`[requestInfo] Value: \"${value}\"`);
+    }
+    if (hostDir && hostDir !== "") {
+      logger.info(`[requestInfo] Host Dir: \"${hostDir}\"`);
+    }
+    if (req.url && req.url !== "") {
+      logger.info(`[requestInfo] Request URL: \"${req.url}\"`);
+    }
   }
-  
+
   const dotIndex = value.lastIndexOf(".");
   const ext = dotIndex === -1 ? "" : value.slice(dotIndex);
   // handle index.html
@@ -118,7 +126,7 @@ export function requestInfo(
   // Use the normalized value for file path construction
   // The normalizer should have already stripped base URLs properly
   const routeForFilePath = value;
-  
+
   let filePath = resolve(hostDir, routeForFilePath);
   let contentType;
   if (isServerActionRequest) {
@@ -128,13 +136,21 @@ export function requestInfo(
     contentType = "application/json; charset=utf-8";
   } else if (isHtmlRequest) {
     if (!isHtml) {
-      filePath = resolve(hostDir, routeForFilePath, userOptions.build.htmlOutputPath);
+      filePath = resolve(
+        hostDir,
+        routeForFilePath,
+        userOptions.build.htmlOutputPath
+      );
     }
     contentType = "text/html; charset=utf-8";
   } else if (isRscRequest) {
     if (!isRsc) {
       // Value doesn't end with .rsc, append the rsc output path
-      filePath = resolve(hostDir, routeForFilePath, userOptions.build.rscOutputPath);
+      filePath = resolve(
+        hostDir,
+        routeForFilePath,
+        userOptions.build.rscOutputPath
+      );
     }
     contentType = "text/x-component; charset=utf-8";
   } else if (isCssRequest) {
@@ -165,9 +181,7 @@ export function requestInfo(
     if (isFormActionRequest) {
       logger.info(`[react-dev-server] (form-action) ${route}`);
     } else if (isServerActionRequest) {
-      logger.info(
-        `[react-dev-server] (server-action) ${route}`
-      );
+      logger.info(`[react-dev-server] (server-action) ${route}`);
     } else if (isHtmlRequest) {
       logger.info(`[react-dev-server] (html) ${route}`);
     } else if (isRscRequest) {

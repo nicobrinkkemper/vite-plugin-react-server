@@ -117,7 +117,8 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
       const routeFiles = await getRouteFiles(
         info.route,
         autoDiscoveredFiles,
-        handlerOptions
+        handlerOptions,
+        server.config.logger
       );
       if (routeFiles.type === "error") {
         logger.error(routeFiles.error.message);

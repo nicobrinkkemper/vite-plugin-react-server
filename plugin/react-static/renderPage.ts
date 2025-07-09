@@ -48,6 +48,7 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
       moduleBaseURL: handlerOptions.moduleBaseURL,
       build: handlerOptions.build,
+      logger: handlerOptions.logger,
     });
 
     if (componentsResult.type === "error") {
