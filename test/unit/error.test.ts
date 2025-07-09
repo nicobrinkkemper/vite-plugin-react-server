@@ -119,7 +119,7 @@ describe('Error Handling', () => {
       process.env.NODE_ENV = 'production';
       try {
         logError(error, mockLogger);
-        expect(mockLogger.error).toHaveBeenCalledWith('Test error');
+        expect(mockLogger.error).toHaveBeenCalledWith('Test error', {error: expect.any(Error)});
       } finally {
         process.env.NODE_ENV = originalEnv;
       }

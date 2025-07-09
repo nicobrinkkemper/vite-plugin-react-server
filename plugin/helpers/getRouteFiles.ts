@@ -3,6 +3,7 @@ import type { PageName, PropsName, ResolvedUserOptions } from "../types.js";
 import { resolveUrlOption } from "../config/resolveUrlOption.js";
 import type { AutoDiscoveredFiles } from "../types.js";
 import { createLogger } from "vite";
+import { logError } from "../error/logError.js";
 
 type GetRouteFilesSuccess = {
   type: "success";
@@ -123,7 +124,7 @@ export const getRouteFiles = async (
   );
   if (type === "error") {
     if (userOptions.verbose) {
-      logger.error("[getRouteFiles] Page resolution error:", { error });
+      logError(error, logger);
     }
     return { type: "error", error };
   }
@@ -181,7 +182,7 @@ export const getRouteFiles = async (
 
   if (propsType === "error") {
     if (userOptions.verbose) {
-      logger.error("[getRouteFiles] Props resolution error:", { error: propsError });
+      logError(propsError, logger);
     }
     return { type: "error", error: propsError };
   }

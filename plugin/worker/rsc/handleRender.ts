@@ -11,19 +11,18 @@ import { performance } from "node:perf_hooks";
 import type { BuildModuleLoader, ResolvedUserOptions } from "../../types.js";
 import React from "react";
 import { routeToURL } from "../../utils/routeToURL.js";
-import { createLogger } from "vite";
-
-
-const logger = createLogger();
+import { createLogger, type Logger} from "vite";
 
 export type HandleRenderFn = <Msg extends RscRenderMessage = RscRenderMessage>(
   msg: Msg,
-  handlers: StreamHandlers
+  handlers: StreamHandlers,
+  logger: Logger
 ) => Promise<void>;
 
 export const handleRender: HandleRenderFn = async function _handleRender(
   msg,
-  handlers
+  handlers,
+  logger = createLogger()
 ) {
   const {
     id,
@@ -93,23 +92,6 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     // Override HtmlComponent with React.Fragment for headless RSC streams in development
     const finalHtmlComponent = React.Fragment;
 
-    const adaptedOnEvent = (event: "error" | "postpone", data: {
-      error?: Error | null;
-      errorInfo?: {
-        componentStack?: string | null;
-        digest?: string | null;
-      };
-    }) => {
-      // Don't send ERROR messages for React component errors - let React handle them
-      // and serialize them into the RSC stream. Only handle non-React errors.
-      if (event === "error") {
-        // React will handle component errors by serializing them into the RSC stream
-        // We just log them for debugging but don't send ERROR messages
-        if (data.error && logger) {
-          logger.error(`[rsc-worker] React component error: ${data.error.message}`, { error: data.error });
-        }
-      }
-    };
 
     if (messageCssFiles && messageCssFiles.size > 0) {
       // if any css is added to the message, add it to the cssFiles map
@@ -137,7 +119,6 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       // this is a stateful object, which at this point we assume contains all the css files
       cssFiles,
       globalCss,
-      onEvent: adaptedOnEvent,
       pipeableStreamOptions: pipeableStreamOptions,
       verbose,
       logger,

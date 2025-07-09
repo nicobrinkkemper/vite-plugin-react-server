@@ -29,17 +29,17 @@ export function logError(error: unknown, logger: Logger | Console = console) {
         });
       }
     } else if(typeof err.message === "string") {
-      logger.error(err.message);
+      logger.error(err.message, {error: err});
     } else if(typeof err.message === "object" && err.message !== null && "message" in err.message) {
-      logger.error(err.message);
+      logger.error(err.message, {error: err});
     } else if (err.stack) {
-      logger.error(err.stack);
+      logger.error(err.stack, {error: err});
     } else if (err != null && typeof err === "object" && 'reason' in err && typeof err.reason === "string") {
-      logger.error(err.reason);
+      logger.error(err.reason, {error: err});
     } else if (err != null && typeof err === "object" && 'error' in err && typeof err.error === "string") {
-      logger.error(err.error);
+      logger.error(err.error, {error: err});
     } else {
-      logger.error(JSON.stringify(err));
+      logger.error(JSON.stringify(err), {error: err});
     }
   }
   

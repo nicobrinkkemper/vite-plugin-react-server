@@ -31,6 +31,7 @@ export const configureReactServer: ConfigureReactServerFn =
     serverManifest,
   }) {
     const activeStreams = new Set<ServerResponse>();
+    const logger = server.config.customLogger || server.config.logger;
     const {
       Html: _UserHtmlComponent,
       onEvent,
@@ -55,7 +56,7 @@ export const configureReactServer: ConfigureReactServerFn =
 
     // Handle Vite server restarts
     server.ws.on("restart", (path) => {
-      server.config.logger.info(
+      logger.info(
         "[vite-plugin-react-server] 🔧 Plugin changed, preparing for restart:",
         path
       );
@@ -99,8 +100,9 @@ export const configureReactServer: ConfigureReactServerFn =
         css: handlerUserOptions.css,
         loader: loader,
         verbose,
+        logger,
       };
-      const info = requestInfo(req, handlerOptions, "", server.config.logger);
+      const info = requestInfo(req, handlerOptions, "");
 
       // Handle server actions
       if (info.isServerActionRequest) {
@@ -112,10 +114,10 @@ export const configureReactServer: ConfigureReactServerFn =
           info.route,
           autoDiscoveredFiles,
           _userOptions,
-          server.config.logger
+          logger
         );
         if (routeFiles.type === "error") {
-          server.config.logger.error(routeFiles.error.message);
+          logError(routeFiles.error, logger);
           return next();
         }
         const pagePath = routeFiles.page;
@@ -138,7 +140,7 @@ export const configureReactServer: ConfigureReactServerFn =
           verbose,
           moduleBaseURL: server.config.base,
           build: handlerOptions.build,
-          logger: server.config.logger,
+          logger: logger,
         });
         if (componentsResult.type === "error") {
           throw componentsResult.error;
@@ -154,7 +156,7 @@ export const configureReactServer: ConfigureReactServerFn =
           route: info.route,
           pagePath,
           propsPath,
-          logger: server.config.logger,
+          logger: logger,
           manifest: serverManifest,
           server,
         };
@@ -198,7 +200,7 @@ export const configureReactServer: ConfigureReactServerFn =
           activeStreams.delete(res);
         });
       } catch (error) {
-        logError(error, server.config.logger);
+        logError(error, logger);
         res.statusCode = 500;
         res.setHeader("Content-Type", "text/x-component; charset=utf-8");
         res.setHeader("Content-Length", "0"); // Will be updated after streaming
@@ -214,7 +216,7 @@ export const configureReactServer: ConfigureReactServerFn =
           handlerOptions.moduleBasePath,
           {
             onError(error: Error) {
-              logError(error, server.config.logger);
+              logError(error, logger);
               res.statusCode = 500;
               res.end();
             },

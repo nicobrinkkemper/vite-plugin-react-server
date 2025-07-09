@@ -18,6 +18,7 @@ import type { RscWorkerInputMessage } from "../worker/rsc/types.js";
 import { Readable } from "node:stream";
 import type { ReadableStream } from "node:stream/web";
 import { handleWorkerServerAction } from "./handleWorkerServerAction.js";
+import { logError } from "../error/logError.js";
 
 export type ConfigureWorkerRequestHandlerFn = (props: {
   server: ViteDevServer;
@@ -39,6 +40,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
     userOptions: _userOptions,
     hmrChannel,
   }) {
+    const logger = server.config.customLogger || server.config.logger;
     const {
       // remove these
       projectRoot: _projectRoot,
@@ -48,11 +50,11 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
     const handlerOptions = Object.assign({}, handlerUserOptions, {
       moduleBaseURL: server.config.base,
       projectRoot: server.config.root,
+      logger: logger,
     });
 
     // Start the worker
     let currentWorker: Worker | null = null;
-    const logger = server.config.logger;
 
     // Handle server restarts
     server.ws.on("restart", async () => {
@@ -80,7 +82,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
     const handler: RequestHandler = async (req, res, next) => {
       if (!req.url) return next();
 
-      const info = requestInfo(req, handlerOptions, "", server.config.logger);
+      const info = requestInfo(req, handlerOptions, "");
 
       // Serialize user options for worker
       const serializedUserOptions = serializedOptions(
@@ -101,12 +103,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
         if (!currentWorker) {
           throw new Error("Failed to start worker");
         }
-        return handleWorkerServerAction(
-          req,
-          res,
-          currentWorker,
-          server.config.logger
-        );
+        return handleWorkerServerAction(req, res, currentWorker, logger);
       }
 
       // Handle RSC requests
@@ -118,10 +115,10 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
         info.route,
         autoDiscoveredFiles,
         handlerOptions,
-        server.config.logger
+        logger
       );
       if (routeFiles.type === "error") {
-        logger.error(routeFiles.error.message);
+        logError(routeFiles.error, logger);
         return next();
       }
       const pagePath = routeFiles.page;
@@ -214,11 +211,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
         }
         // wait for timeout
       } catch (error) {
-        if (error instanceof Error) {
-          server.config.logger.error(error.message + (error.stack ?? ""), {
-            error,
-          });
-        }
+        logError(error, logger);
       }
       let timeout: NodeJS.Timeout;
       try {
@@ -245,7 +238,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
           });
           currentWorker.removeAllListeners();
         }
-        server.config.logger.error("RSC render timeout.");
+        logger.error("RSC render timeout.");
         clearTimeout(timeout!);
         res.end();
       }

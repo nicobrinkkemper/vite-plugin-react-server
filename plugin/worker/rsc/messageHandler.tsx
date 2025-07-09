@@ -7,10 +7,14 @@ import { handlers } from "./handlers.js";
 import { join } from "node:path";
 import { workerData } from "node:worker_threads";
 import { sendMessage } from "../sendMessage.js";
+import { createLogger } from "vite";
+import { logError } from "../../error/logError.js";
 
 // In test mode, we want errors to propagate up immediately
 const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 const isDevEnv = process.env["NODE_ENV"] !== "production";
+
+const logger = createLogger(workerData.resolvedConfig.logLevel ?? 'info');
 
 export async function messageHandler(
   msg: RscWorkerInputMessage,
@@ -22,7 +26,7 @@ export async function messageHandler(
     }
     switch (msg.type) {
       case "RSC_RENDER":
-        return await handleRender(msg, handlers);
+        return await handleRender(msg, handlers, logger);
       case "SERVER_ACTION":
         return handlers.onServerAction(msg.id, msg.args);
       case "INITIALIZED_REACT_LOADER":
@@ -82,9 +86,6 @@ export async function messageHandler(
     }
   } catch (error) {
     const err = toError(error);
-    if (isDevEnv) {
-      console.error(err);
-    }
     // In dev mode, try to send error message before exiting
     if (parentPort) {
       sendMessage({
@@ -96,6 +97,8 @@ export async function messageHandler(
     if (!isDevEnv || isTestEnv) {
       // In test mode or production mode, just throw the error to fail fast
       throw err;
+    } else {
+      logError(err, logger);
     }
   }
 }

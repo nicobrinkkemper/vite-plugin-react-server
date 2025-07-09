@@ -8,6 +8,7 @@ import { performance } from "node:perf_hooks";
 import type { PassThrough } from "node:stream";
 import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";
+import { logError } from "../error/logError.js";
 
 export type CreateRscStreamOptions = Pick<
   CreateHandlerOptions<ResolvedUserOptions>,
@@ -147,6 +148,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         onError(error: Error, errorInfo: ErrorInfo) {
           const err = toError(error);
           streamError = err;
+          logError(err, logger);
           onEvent?.("error", { route, error: err, errorInfo });
           errorCount++;
         },
@@ -161,6 +163,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         },
         onShellError(error: Error) {
           const err = toError(error);
+          logError(err, logger);
           streamError = err;
           onEvent?.("error", { route, error: err });
           errorCount++;

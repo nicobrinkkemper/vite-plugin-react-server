@@ -8,6 +8,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { requestInfo } from "../helpers/requestInfo.js";
+import { logError } from "../error/logError.js";
 
 export type ConfigurePreviewServerProps<Opt extends ResolvedUserOptions> = {
   server: PreviewServer;
@@ -29,11 +30,15 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
       if (!req.url) {
         return next();
       }
+      const logger = server.config.customLogger || server.config.logger;
+      const handlerOptions = {
+        ...userOptions,
+        logger,
+      };
       const { contentType, filePath, isRscRequest } = requestInfo(
         req,
-        userOptions,
-        staticHostDir,
-        server.config.logger
+        handlerOptions,
+        staticHostDir,  
       );
       // Handle static files including CSS
       if (filePath && (isRscRequest)) {
@@ -81,24 +86,14 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
                 } else if (streamError.code === "ENOENT") {
                   // File not found
                   res.statusCode = 404;
-                  server.config.logger.error(
-                    `File not found: ${filePath}. ${streamError.message}`,
-                    {
-                      error: streamError,
-                    }
-                  );
+                  logError(streamError, logger);
                   if (userOptions.verbose) {
                     console.log("File not found: ", filePath);
                   }
                   res.end("File not found");
                 } else {
                   // Server error
-                  server.config.logger.error(
-                    `Error loading file: ${filePath}. ${streamError.message}`,
-                    {
-                      error: streamError,
-                    }
-                  );
+                  logError(streamError, logger);
                   res.statusCode = 500;
                   res.end("Internal server error");
                 }
@@ -111,18 +106,11 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
           const err = error as Error;
           // Handle file system errors
           if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-            server.config.logger.error(
-              `File not found: ${filePath}. ${err.message}`,
-              {
-                error: err,
-              }
-            );
+            logError(err, logger);
             res.statusCode = 404;
             res.end("File not found");
           } else {
-            server.config.logger.error(`Error loading file: ${filePath}.`, {
-              error: err,
-            });
+            logError(err, logger);
             res.statusCode = 500;
             res.end("Internal server error");
           }

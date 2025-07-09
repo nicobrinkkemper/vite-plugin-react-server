@@ -1,5 +1,6 @@
 import type { Logger } from "vite";
 import { toError } from "../error/toError.js";
+import { logError } from "../error/logError.js";
 import { PassThrough } from "node:stream";
 import type { ServerResponse } from "node:http";
 
@@ -56,7 +57,7 @@ export function createServerActionResponse(result?: unknown, error?: string): Se
  */
 export function handleServerActionError(error: unknown, res: ServerResponse, logger: Logger) {
   const err = toError(error);
-  logger.error(err.message + (err.stack ?? ""), { error: err });
+  logError(err, logger);
   res.statusCode = 500;
   res.end(JSON.stringify(createServerActionResponse(undefined, err.message)));
 }

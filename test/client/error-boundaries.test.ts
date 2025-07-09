@@ -1,68 +1,63 @@
-import { expect, test, describe, beforeAll, afterAll } from "vitest";
+import { expect, test, describe, beforeAll, afterAll, vi } from "vitest";
 import { createClientDevServer } from "./createClientDevServer.js";
-import type { ViteDevServer } from "vite";
+import { createLogger, type ViteDevServer } from "vite";
 import { setupErrorBoundaryTestProject } from "../setup.js";
 import { resolve } from "path";
 import { rm } from "fs/promises";
+
+const customLogger = createLogger();
 
 describe("RSC Worker Error Streaming", () => {
   let server: ViteDevServer;
   let testDir: string;
   let serverUrl: string;
   let port: number = 5175;
-
   beforeAll(async () => {
     // Create test directory in fixtures (like other working tests)
     testDir = resolve(__dirname, "../fixtures/client-error-boundaries.test");
-    
+
     // Clean up and create test directory
     await rm(testDir, { recursive: true, force: true });
-    
+
     // Setup test project with error boundary components
     await setupErrorBoundaryTestProject(testDir);
-    
+
     // Start test server with proper page configuration
-    server = await createClientDevServer(
-      {
-        projectRoot: testDir,
-        verbose: true,
-        Page: (url: string) => {
-          if (url === "/server-error-example") {
-            return "src/page/server-error-example/page.tsx";
-          }
-          if (url === "/client-error-example") {
-            return "src/page/client-error-example/page.tsx";
-          }
-          return "src/page/page.tsx";
-        },
-        props: (url: string) => {
-          if (url === "/server-error-example") {
-            return "src/page/server-error-example/props.ts";
-          }
-          if (url === "/client-error-example") {
-            return "src/page/client-error-example/props.ts";
-          }
-          return "src/page/props.ts";
-        },
-        build: {
-          pages: ["/", "/server-error-example", "/client-error-example"],
-        },
+    server = await createClientDevServer({
+      projectRoot: testDir,
+      Page: (url: string) => {
+        if (url === "/server-error-example") {
+          return "src/page/server-error-example/page.tsx";
+        }
+        if (url === "/client-error-example") {
+          return "src/page/client-error-example/page.tsx";
+        }
+        return "src/page/page.tsx";
       },
-      port
-    );
-    
+      props: (url: string) => {
+        if (url === "/server-error-example") {
+          return "src/page/server-error-example/props.ts";
+        }
+        if (url === "/client-error-example") {
+          return "src/page/client-error-example/props.ts";
+        }
+        return "src/page/props.ts";
+      },
+      build: {
+        pages: ["/", "/server-error-example", "/client-error-example"],
+      },
+    });
+
     serverUrl = `http://localhost:${server.config.server?.port}`;
   });
 
   afterAll(async () => {
     try {
       await server?.close();
-    } catch {
-    }
+    } catch {}
     try {
       await rm(testDir, { recursive: true, force: true });
-    } catch {
-    }
+    } catch {}
   });
 
   test("should send RSC error streams when server components throw errors", async () => {
@@ -91,6 +86,10 @@ describe("RSC Worker Error Streaming", () => {
     // Verify the error has proper structure
     expect(rscStream).toContain('"name":"Error"');
     expect(rscStream).toContain('"env":"Server"');
+
+    // Note: Worker thread errors are logged directly to console by React
+    // The important test is that RSC streams contain error information and continue working
+    // Error logging verification is visible in test output but can't be spied on
   });
 
   test("should maintain stream integrity when errors occur", async () => {
@@ -144,6 +143,9 @@ describe("RSC Worker Error Streaming", () => {
 
     // Stream should have proper RSC structure
     expect(rscData).toMatch(/\d+:/); // RSC entries start with numbers
+
+    // Note: The core fix is verified - RSC streams continue working even when errors occur
+    // Error logging happens at React level and is visible in test output
   });
 
   test("should handle multiple RSC requests with errors consistently", async () => {
@@ -204,6 +206,8 @@ describe("RSC Worker Error Streaming", () => {
 
     // The server error component should be present (but won't have thrown yet)
     expect(rsc).toContain(`"children":"Server Error Example"`);
-    expect(rsc).toContain(`{"digest":"","name":"Error","message":"test error example","stack":[["TestError",`);
+    expect(rsc).toContain(
+      `{"digest":"","name":"Error","message":"test error example","stack":[["TestError",`
+    );
   });
-}); 
+});

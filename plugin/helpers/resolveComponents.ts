@@ -12,6 +12,7 @@ import type {
 import { toError } from "../error/toError.js";
 import type { CreateHandlerOptions } from "../types.js";
 import { createLogger } from "vite";
+import { logError } from "../error/logError.js";
 
 export type ResolveComponentsOptions = Pick<
   CreateHandlerOptions,
@@ -129,10 +130,7 @@ export const resolveComponents = async ({
       });
       if (rootResult.type === "error") {
         if (verbose) {
-          logger.error(
-            `[resolveComponents] Root component resolution failed:`,
-            { error: rootResult.error }
-          );
+          logError(rootResult.error, logger);
         }
         // Fallback to default Root component
         RootComponent = DefaultRoot;
@@ -161,10 +159,7 @@ export const resolveComponents = async ({
       });
       if (htmlResult.type === "error") {
         if (verbose) {
-          logger.error(
-            `[resolveComponents] Html component resolution failed:`,
-            { error: htmlResult.error }
-          );
+          logError(htmlResult.error, logger);
         }
         // Fallback to default Html component
         HtmlComponent = DefaultHtml;

@@ -3,7 +3,7 @@ import type { RscRenderMessage } from "../worker/rsc/types.js";
 import type { StreamHandlers } from "../worker/types.js";
 import { createWorkerStream } from "./createWorkerStream.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
-import { toError } from "../error/toError.js";
+import { logError } from "../error/logError.js";
 
 export type HandleWorkerRscStreamFn = (props: {
   worker: NodeWorker;
@@ -58,26 +58,15 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
         ) => {
           if (hasError) return; // Prevent double error handling
           hasError = true;
-          const errorToThrow = toError(error);
-
-          // Ensure we log the error message properly, even if it's somehow an object
-          const messageToLog =
-            typeof errorToThrow.message === "string"
-              ? errorToThrow.message
-              : undefined;
-
-          const stackToLog = errorToThrow.stack
-            ? errorToThrow.stack
-            : undefined;
-          if (messageToLog && !stackToLog) {
-            logger.error(`[rsc-worker-error] ${messageToLog}`, {error: errorToThrow});
-          }
-          if (stackToLog) {
-            logger.error(`[rsc-worker-stack] ${stackToLog}`, {error: errorToThrow});
-          }
+          
+          // Use logError for smart error formatting
+          logError(error, logger);
+          
+          // Log errorInfo if provided
           if (errorInfo != null && typeof errorInfo === "object" && 'reason' in errorInfo && typeof errorInfo["reason"] === "string") {
             logger.error(errorInfo["reason"]);  
           }
+          
           if (!isClosed) {
             isClosed = true;
             try {

@@ -1,4 +1,4 @@
-import { expect, test, describe, beforeAll, afterAll } from "vitest";
+import { expect, test, describe, beforeAll, afterAll, vi } from "vitest";
 import { createServerDevServer } from "./createServerDevServer.js";
 import type { ViteDevServer } from "vite";
 import { setupErrorBoundaryTestProject } from "../setup.js";
@@ -10,6 +10,7 @@ describe("RSC Worker Error Streaming", () => {
   let testDir: string;
   let serverUrl: string;
   let port: number = 2337;
+  let loggerSpy: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
     // Create test directory in fixtures (like other working tests)
@@ -25,7 +26,6 @@ describe("RSC Worker Error Streaming", () => {
     server = await createServerDevServer(
       {
         projectRoot: testDir,
-        verbose: true,
         Page: (url: string) => {
           if (url === "/server-error-example") {
             return "src/page/server-error-example/page.tsx";
@@ -51,6 +51,9 @@ describe("RSC Worker Error Streaming", () => {
       port
     );
 
+    // Spy on the main thread's logger where worker errors are logged
+    loggerSpy = vi.spyOn(server.config.logger, "error").mockImplementation(() => {});
+
     serverUrl = `http://localhost:${server.config.server?.port}`;
   });
 
@@ -66,6 +69,9 @@ describe("RSC Worker Error Streaming", () => {
   });
 
   test("should send RSC error streams when server components throw errors", async () => {
+    // Clear any previous calls
+    loggerSpy.mockClear();
+
     // Make a direct RSC request to test streaming behavior
     const rscResponse = await fetch(
       `${serverUrl}/server-error-example/index.rsc`,
@@ -91,6 +97,11 @@ describe("RSC Worker Error Streaming", () => {
     // Verify the error has proper structure
     expect(rscStream).toContain('"name":"Error"');
     expect(rscStream).toContain('"env":"Server"');
+
+    // Verify that the error was logged by the main thread
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Error: test error example")
+    );
   });
 
   test("should maintain stream integrity when errors occur", async () => {
@@ -121,6 +132,9 @@ describe("RSC Worker Error Streaming", () => {
     // This is the key test for the issue mentioned:
     // "when we have a error on the rsc-worker side, we log the error but we actually fail to send the rsc stream thereafter"
 
+    // Clear any previous calls
+    loggerSpy.mockClear();
+
     const rscResponse = await fetch(
       `${serverUrl}/server-error-example/index.rsc`,
       {
@@ -144,6 +158,11 @@ describe("RSC Worker Error Streaming", () => {
 
     // Stream should have proper RSC structure
     expect(rscData).toMatch(/\d+:/); // RSC entries start with numbers
+
+    // Verify that the error was logged by the main thread
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Error: test error example")
+    );
   });
 
   test("should handle multiple RSC requests with errors consistently", async () => {
