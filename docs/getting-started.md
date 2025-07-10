@@ -48,11 +48,8 @@ import type { StreamPluginOptions } from "vite-plugin-react-server/types";
 const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
   switch (url) {
     case "/":
-      // static url
-    case "/index.rsc":
       return `src/page/${file}`;
     case "/about":
-    case "/about/index.rsc":
       return `src/about/${file}`;
     default:
       throw new Error(`Unknown route: ${url}`);
@@ -88,8 +85,8 @@ export const config = {
 
 **Note:** All component references (Page, props, Root, Html) now follow the same serializable pattern:
 - **String paths**: `"src/CustomRoot.tsx"`
-- **Router functions**: `(url) => "src/pages/" + url + "/Root.tsx"`
-- **Async functions**: `(url) => Promise.resolve("src/Root.tsx")`
+- **Router functions**: `(url) => "src/pages" + url + "/Root.tsx"`
+- **Async functions**: `async (url) => "src/Root.tsx"`
 
 For direct component references in static builds, use the `components` override (see Type Safety section below).
 
@@ -106,9 +103,6 @@ import { config } from "./vite.react.config";
 
 export default defineConfig({
   plugins: vitePluginReactServer(config),
-  build: {
-    sourcemap: true, // Enable for debugging
-  },
 });
 ```
 
@@ -164,7 +158,7 @@ export const props = ({ url }: { url: string }) => ({
 });
 
 // Export the type for use in the page component
-export type PageProps = Awaited<ReturnType<typeof props>>;
+export type PageProps = ReturnType<typeof props>;
 ```
 
 ### 4. Create About Page
@@ -192,7 +186,7 @@ export const props = () => ({
   content: "This is a React Server Components application built with Vite.",
 });
 
-export type PageProps = Awaited<ReturnType<typeof props>>;
+export type PageProps = ReturnType<typeof props>;
 ```
 
 ### 5. Add Scripts to package.json
@@ -202,7 +196,7 @@ export type PageProps = Awaited<ReturnType<typeof props>>;
   "scripts": {
     "build": "npm run build:static && npm run build:client && npm run build:server",
     "dev": "NODE_OPTIONS='--conditions react-server' vite",
-    "start": "vite",
+    "dev:client": "vite",
     "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
     "build:client": "vite build --ssr",
     "build:static": "vite build",
@@ -284,7 +278,7 @@ export const config = {
   Root: "src/CustomRoot.tsx",
   Html: "src/CustomHtml.tsx",
   
-  // Direct component overrides (used by static builds)
+  // Or, direct component overrides (used by static builds)
   components: {
     Root: CustomRootComponent,
     Html: CustomHtmlComponent,
@@ -345,10 +339,16 @@ export async function updatePageData(
 
 ```sh
 # Run server-side rendering with direct React pipeline
+NODE_OPTIONS='--conditions react-server' npx vite
+# or from paclage.json scripts
 npm run dev
+```
 
+```sh
 # Run client-side development using rsc-worker
-npm run start
+npx vite
+# or from paclage.json scripts
+npm run dev:client
 ```
 
 ### Building for Production
