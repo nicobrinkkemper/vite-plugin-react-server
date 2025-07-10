@@ -49,18 +49,39 @@ export function Page({ url }) {
 
 ```json
 {
+  "type": "module",
   "scripts": {
     "dev": "NODE_OPTIONS='--conditions react-server' vite",
     "dev:client": "vite",
-    "build": "vite build && vite build --ssr && NODE_OPTIONS='--conditions react-server' vite build",
-    "debug-build": "NODE_ENV=development vite build --mode vite build --mode development && NODE_ENV=development NODE_OPTIONS='--conditions react-server' vite build  --mode development",
+    "build": "npm run build:static && npm run build:client && npm run build:server",
+    "build:static": "vite build",
+    "build:client": "vite build --ssr",
+    "build:server": "NODE_OPTIONS='--conditions react-server' vite build --ssr",
+    "dev-build": "npm run dev-build:static && npm run dev-build:client && npm run dev-build:server",
+    "dev-build:static": "NODE_ENV=development vite build --mode development",
+    "dev-build:client": "NODE_ENV=development vite build --mode development --ssr",
+    "dev-build:server": "NODE_ENV=development NODE_OPTIONS='--conditions react-server' vite build --ssr --mode development"
   }
 }
 ```
 
-- **`npm run dev`**: Server-side development with direct React pipeline
-- **`npm run dev:client`**: Client-side development with worker threads
-- **`npm run build`**: Creates optimized static, client, and server builds
+With the above scripts in our package.json:
+
+- **`npm run dev`**: 
+    - Develop `react-server` components on the main thread
+- **`npm run dev:client`**: 
+    - Develop `react-server` components using the worker thread (`rsc-worker`)
+- **`npm run build`**: 
+    - `npm run build:static` -> `dist/static` 
+    - `npm run build:client` -> `dist/client`
+    - `npm run build:server` -> `dist/server`
+      + `use client`/`use server`  boundary transformations
+      + `index.html` and `index.rsc` to `dist/static/${route}` for each `build.pages`
+- **`npm run dev-build`**:
+  - Debug the build process
+  - Avoids the "this error message is hidden in production" and shows the full error
+  - Development build is not intended for production
+
 
 ## Environment-Based Execution
 
