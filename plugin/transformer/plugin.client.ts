@@ -3,13 +3,10 @@ import type { Manifest } from "vite";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
 import { createTransformer } from "../loader/createTransformer.js";
-import type { ReactStreamPluginFn, ReactStreamPluginMeta } from "../types.js";
+import type { VitePluginFn } from "../types.js";
 import type { Program } from "acorn";
 import { join } from "node:path";
 
-export type ReactTransformPluginFn = ReactStreamPluginFn<{
-  meta: ReactStreamPluginMeta;
-}>;
 
 /**
  * Plugin for transforming React Client Components.
@@ -35,7 +32,7 @@ export type ReactTransformPluginFn = ReactStreamPluginFn<{
  * });
  * ```
  */
-export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
+export const reactTransformPlugin: VitePluginFn = (options) => {
   const resolvedOptionsResult = resolveOptions(options);
 
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;

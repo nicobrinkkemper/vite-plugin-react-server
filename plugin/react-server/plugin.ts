@@ -4,28 +4,26 @@ import {
   type UserConfig,
   type ViteDevServer,
   type Manifest,
+  createLogger,
+  type Logger,
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import type {
   AutoDiscoveredFiles,
   BuildTiming,
-  ReactStreamPluginFn,
-  ReactStreamPluginMeta,
+  VitePluginFn,
 } from "../types.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { configureReactServer } from "./configureReactServer.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
+import { logError } from "../error/logError.js";
 
 let resolvedConfig: ResolvedConfig | null = null;
 
-export type ReactServerPluginFn = ReactStreamPluginFn<{
-  meta: ReactStreamPluginMeta;
-}>;
-
-export const reactServerPlugin: ReactServerPluginFn =
+export const reactServerPlugin: VitePluginFn =
   function _reactServerPlugin(options) {
     const timing: BuildTiming = {
       start: performance.now(),
@@ -33,6 +31,7 @@ export const reactServerPlugin: ReactServerPluginFn =
 
     let autoDiscoveredFiles: AutoDiscoveredFiles;
     let serverManifest: Manifest = {};
+    let logger: Logger;
 
     const resolvedOptions = resolveOptions(options);
     if (resolvedOptions.type === "error") {
@@ -66,12 +65,14 @@ export const reactServerPlugin: ReactServerPluginFn =
       },
 
       async configurePreviewServer(server) {
+        logger = server.config.customLogger || server.config.logger;
         await configurePreviewServer({
           server,
           userOptions,
         });
       },
       async configureServer(server: ViteDevServer) {
+        logger = server.config.customLogger || server.config.logger;
         configureReactServer({
           server,
           autoDiscoveredFiles,
@@ -88,12 +89,15 @@ export const reactServerPlugin: ReactServerPluginFn =
             userOptions.loader?.mode
           );
         }
-
+        if(!logger) {
+          logger = config.customLogger || createLogger();
+        }
         const autoDiscoverResult = await resolveAutoDiscover({
           config,
           configEnv,
           userOptions,
           condition: "react-server",
+          logger,
         });
         if (autoDiscoverResult.type === "error") {
           throw autoDiscoverResult.error;
@@ -109,11 +113,12 @@ export const reactServerPlugin: ReactServerPluginFn =
         });
 
         if (resolvedConfig.type === "error") {
-          console.error(
-            "[react-server-plugin] Failed to resolve config:",
-            resolvedConfig.error
-          );
-          throw resolvedConfig.error;
+          if(userOptions.panicThreshold === 'none') {
+            logError(resolvedConfig.error, logger);
+            return config;
+          } else {
+            throw resolvedConfig.error;
+          }
         }
 
         return resolvedConfig.userConfig;
@@ -134,7 +139,7 @@ export const reactServerPlugin: ReactServerPluginFn =
         if (!timing.buildStart) {
           timing.buildStart = performance.now();
         } else if (userOptions.verbose) {
-          console.log("Build already started");
+          this.environment.logger.info("Build already started");
         }
       },
       async generateBundle(_options, bundle) {
@@ -174,12 +179,10 @@ export const reactServerPlugin: ReactServerPluginFn =
             }
           }
 
-          // Let Vite handle the HMR update
-          return ctx.modules;
         } catch (error) {
-          console.error("[react-server] HMR Error:", error);
-          return ctx.modules;
+          logError(error, logger || createLogger());
         }
+        return ctx.modules;
       },
     };
   };

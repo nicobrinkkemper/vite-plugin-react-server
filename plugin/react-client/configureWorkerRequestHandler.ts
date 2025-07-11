@@ -83,10 +83,13 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
       if (!req.url) return next();
 
       const info = requestInfo(req, handlerOptions, "");
-
+      const handlerOptionsWithUrl = {
+        ...handlerOptions,
+        url: info.url,
+      };
       // Serialize user options for worker
       const serializedUserOptions = serializedOptions(
-        handlerOptions,
+        handlerOptionsWithUrl,
         autoDiscoveredFiles
       );
 
@@ -170,6 +173,7 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
             type: "RSC_RENDER",
             // we make the worker stream aware of the route, pagePath, propsPath, rootPath, htmlPath
             route: info.route,
+            url: info.url,
             pagePath: pagePath,
             propsPath: propsPath,
             rootPath: rootPath,

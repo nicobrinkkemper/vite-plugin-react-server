@@ -146,7 +146,12 @@ describe("Plugin build test", () => {
         expect(href).not.toMatch(/src/);
         
         // Should have proper CSS path structure: /assets/ for built files
-        expect(href).toMatch(/^\/assets\//);
+
+        if(process.env.VITE_BASE_URL) {
+          expect(href?.startsWith(process.env.VITE_BASE_URL + 'assets/')).toBe(true);
+        } else {
+          expect(href).toMatch(/^\/assets\//);
+        }
         
         // Should end with .css
         expect(href).toMatch(/\.css$/);

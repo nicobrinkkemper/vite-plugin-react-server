@@ -20,15 +20,18 @@ import React from "react";
 import type { ReactStreamHandlerFn } from "../types.js";
 
 // The return type for the function
-export type RenderStreamsReturn = [ReturnType<CreateHandlerFn>, ReturnType<CreateHandlerFn>];
+export type RenderStreamsReturn = [
+  ReturnType<CreateHandlerFn>,
+  ReturnType<CreateHandlerFn>
+];
 
 // The function signature type
-export type RenderStreamsFn = ReactStreamHandlerFn<RenderStreamsReturn>
+export type RenderStreamsFn = ReactStreamHandlerFn<never, RenderStreamsReturn>;
 
 /**
  * Creates handlers for both document and RSC streams
  */
-export const renderStreams: RenderStreamsFn = ((handler) => {
+export const renderStreams: RenderStreamsFn = (handler) => {
   return [
     /**
      * This stream goes to the document worker for client side rendering with full HTML structure,
@@ -44,4 +47,4 @@ export const renderStreams: RenderStreamsFn = ((handler) => {
      */
     createHandler({ ...handler, HtmlComponent: React.Fragment }),
   ];
-});
+};

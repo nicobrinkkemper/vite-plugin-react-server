@@ -186,7 +186,7 @@ export const DEFAULT_CONFIG = {
     nodeExtension: BASE_PATTERNS.EXT.NODE,
   },
   CSS: {
-    inlineCss: false,
+    inlineCss: undefined,
     purgeCss: false,
     inlineThreshold: 4096, // 4KB
     inlinePatterns: [] as RegExp[], // Always inline CSS modules

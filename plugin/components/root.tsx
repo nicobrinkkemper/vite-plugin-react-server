@@ -13,7 +13,7 @@ export const Root: RootComponentType = ({
   Page,
   ...props
 }) => (
-  <As {...(As != React.Fragment ? props : null)}>
+  <As {...(As !== React.Fragment ? props : {})}>
     <Page {...pageProps} />
     <Css cssFiles={cssFiles!} />
   </As>

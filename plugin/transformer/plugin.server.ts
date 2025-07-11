@@ -3,13 +3,10 @@ import type { Manifest } from "vite";
 import { tryManifest } from "../helpers/tryManifest.js";
 import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
 import { createTransformer } from "../loader/createTransformer.js";
-import type { ReactStreamPluginFn, ReactStreamPluginMeta } from "../types.js";
+import type { VitePluginFn } from "../types.js";
 import type { Program } from "acorn";
 import { join } from "node:path";
 
-export type ReactTransformPluginFn = ReactStreamPluginFn<{
-  meta: ReactStreamPluginMeta;
-}>;
 
 /**
  * Plugin for transforming React Client Components.
@@ -35,7 +32,7 @@ export type ReactTransformPluginFn = ReactStreamPluginFn<{
  * });
  * ```
  */
-export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
+export const reactTransformPlugin: VitePluginFn = (options) => {
   const resolvedOptionsResult = resolveOptions(options);
 
   if (resolvedOptionsResult.type === "error") throw resolvedOptionsResult.error;
@@ -71,73 +68,68 @@ export const reactTransformPlugin: ReactTransformPluginFn = (options) => {
         }
       }
     },
-    transform: {
-      order: "post",
-      async handler(code, id, options) {
-        if (!options?.ssr || !userOptions.autoDiscover.modulePattern.test(id)) {
-          return null;
-        }
+    async transform(code, id, options) {
+      if (!options?.ssr || !userOptions.autoDiscover.modulePattern.test(id)) {
+        return null;
+      }
 
-        let [, moduleID] = userOptions.normalizer(id);
-        if (isBuild) {
-          if (staticManifest) {
-            if (moduleID in staticManifest) {
-              moduleID = staticManifest[moduleID].file;
-            }
-          } else {
-            throw new Error(`Static manifest not found during dev build.`);
+      let [, moduleID] = userOptions.normalizer(id);
+      if (isBuild) {
+        if (staticManifest) {
+          if (moduleID in staticManifest) {
+            moduleID = staticManifest[moduleID].file;
           }
+        } else {
+          throw new Error(`Static manifest not found during dev build.`);
         }
+      }
 
-        const finalID = userOptions.moduleID?.(moduleID) || moduleID;
+      const finalID = userOptions.moduleID?.(moduleID) || moduleID;
 
+      // Create a new transformer with the computed values
+      const transformer = createTransformer({
+        parseFn: (source) => {
+          const ast = this.parse(source, {
+            allowReturnOutsideFunction: true,
+            jsx: true,
+          }) as Program;
+          console.log("returning rollup ast");
+          return { ast, code: "test" };
+        },
+        options: {
+          loader: userOptions.loader,
+          verbose: userOptions.verbose,
+          panicThreshold: userOptions.panicThreshold,
+        },
+        isServerEnvironment: true,
+      });
+      // Always transform in server context
+      const { code: transformed, map } = await transformer(code, finalID);
 
-        // Create a new transformer with the computed values
-        const transformer = createTransformer({
-          parseFn: (source) => {
-            const ast = this.parse(source, {
-              allowReturnOutsideFunction: true,
-              jsx: true,
-            }) as Program;
-            console.log('returning rollup ast');
-            return { ast, code: 'test' };
-          },
-          options: {
-            loader: userOptions.loader,
-            verbose: userOptions.verbose,
-            panicThreshold: userOptions.panicThreshold,
-          },
-          isServerEnvironment: true,
-        });
-        // Always transform in server context
-        const { code: transformed, map } = await transformer(code, finalID);
-
-
-        if (userOptions.verbose)
-          if (transformed !== code) {
-            if (id !== finalID) {
-              this.environment.logger.info(
-                "[react-server-transform] " +
-                  id.split("/").pop() +
-                  " -> " +
-                  finalID
-              );
-            } else {
-              this.environment.logger.info(
-                "[react-server-transform] " +
-                  id.split("/").pop() +
-                  (code.startsWith('"use client"') ? " (client)" : "")
-              );
-            }
+      if (userOptions.verbose)
+        if (transformed !== code) {
+          if (id !== finalID) {
             this.environment.logger.info(
-              "[react-server-transform] " + transformed
+              "[react-server-transform] " +
+                id.split("/").pop() +
+                " -> " +
+                finalID
+            );
+          } else {
+            this.environment.logger.info(
+              "[react-server-transform] " +
+                id.split("/").pop() +
+                (code.startsWith('"use client"') ? " (client)" : "")
             );
           }
-        return {
-          code: transformed,
-          map: map,
-        };
-      },
+          this.environment.logger.info(
+            "[react-server-transform] " + transformed
+          );
+        }
+      return {
+        code: transformed,
+        map: map,
+      };
     },
   };
 };

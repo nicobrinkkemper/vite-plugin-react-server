@@ -170,7 +170,6 @@ export default defineConfig({
       
       // Custom CSS processing
       css: {
-        inlineCss: true,
         inlineThreshold: 1024,
       },
       

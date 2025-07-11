@@ -28,7 +28,7 @@ describe('createWorkerStream', () => {
     pipeableStreamOptions: {},
     verbose: false,
     css: {
-      inlineCss: false,
+      inlineCss: undefined,
       inlineThreshold: 4096,
       inlinePatterns: [],
       linkPatterns: []

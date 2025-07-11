@@ -7,11 +7,12 @@ import type {
 import { renderStreams } from "./renderStreams.js";
 import { collectHtmlWorkerContent } from "./collectHtmlWorkerContent.js";
 import { collectRscContent } from "./collectRscContent.js";
+import { routeToURL } from "../utils/routeToURL.js";
 
 
 export type RenderPageReturn = AsyncGenerator<RenderPageResult, void, unknown>;
 
-export type RenderPageFn = ReactStreamHandlerFn<RenderPageReturn>
+export type RenderPageFn = ReactStreamHandlerFn<"RootComponent" | "HtmlComponent" | "PageComponent" | "pageProps" | 'url' | 'onEvent', RenderPageReturn>
 
 export const renderPage: RenderPageFn = async function* _renderPage(
   handlerOptions
@@ -22,13 +23,16 @@ export const renderPage: RenderPageFn = async function* _renderPage(
     };
     return;
   }
+  if(!handlerOptions.url) {
+    handlerOptions.url = routeToURL(handlerOptions.route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath);
+  }
 
   try {
     const metrics = createRenderMetrics(handlerOptions.route);
 
     // Resolve all components together (alongside component resolution like other places)
     if (handlerOptions.verbose) {
-      console.log(`[renderPage] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`);
+      handlerOptions.logger.info(`[renderPage] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`);
     }
 
     const componentsResult = await resolveComponents({
@@ -50,6 +54,8 @@ export const renderPage: RenderPageFn = async function* _renderPage(
 
     const newHandlerOptions = {
       ...handlerOptions,
+      url: `${handlerOptions.url}`,
+      route: `${handlerOptions.route}`,
       PageComponent: PageComponent,
       pageProps: pageProps as never,
       RootComponent: RootComponent,
@@ -111,8 +117,8 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       { stream: rscStream, metrics: rscMetrics },
       { stream: htmlStream, metrics: htmlMetrics },
     ] = await Promise.all([
-      collectRscContent(rscHeadless.stream, handlerOptions),
-      collectHtmlWorkerContent(rscFull.stream, handlerOptions),
+      collectRscContent(rscHeadless.stream, newHandlerOptions),
+      collectHtmlWorkerContent(rscFull.stream, newHandlerOptions),
     ]);
 
     // Update metrics

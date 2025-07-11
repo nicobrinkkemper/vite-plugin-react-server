@@ -25,7 +25,7 @@ const resolvedTestConfig = {
   onMetrics: (() => {}) as ((metrics: RenderMetrics) => void) | undefined,
   onEvent: undefined as ((event: PluginEvent) => void) | undefined,
   css: {
-    inlineCss: false as boolean,
+    inlineCss: false,
   },
 } satisfies StreamPluginOptions;
 

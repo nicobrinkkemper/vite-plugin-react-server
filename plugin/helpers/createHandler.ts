@@ -19,7 +19,7 @@ export type CreateHandlerReturn =
       stream?: never;
     };
 
-export type CreateHandlerFn = ReactStreamHandlerFn<CreateHandlerReturn>
+export type CreateHandlerFn = ReactStreamHandlerFn<"url" | "onEvent", CreateHandlerReturn>
 
 export const createHandler: CreateHandlerFn = ((handlerOptions) => {
   if (!handlerOptions.PageComponent) {
@@ -54,7 +54,7 @@ export const createHandler: CreateHandlerFn = ((handlerOptions) => {
       }
     };
 
-    const url = routeToURL(handlerOptions.route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath);
+    const url = handlerOptions.url || routeToURL(handlerOptions.route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath);
 
     const streamResult = createRscStream({
       ...handlerOptions,

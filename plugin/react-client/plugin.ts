@@ -1,9 +1,8 @@
-import { type ConfigEnv } from "vite";
+import { createLogger, type ConfigEnv } from "vite";
 import type {
   AutoDiscoveredFiles,
-  ReactStreamPluginFn,
-  ReactStreamPluginMeta,
   ResolvedUserConfig,
+  VitePluginFn,
 } from "../types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -12,11 +11,7 @@ import { configureWorkerRequestHandler } from "./configureWorkerRequestHandler.j
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { MessageChannel } from "node:worker_threads";
 
-export type ReactClientPluginFn = ReactStreamPluginFn<{
-  meta: ReactStreamPluginMeta;
-}>;
-
-export const reactClientPlugin: ReactClientPluginFn = function _reactClientPlugin(
+export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
   options
 ) {
   let userConfig: ResolvedUserConfig;
@@ -46,12 +41,13 @@ export const reactClientPlugin: ReactClientPluginFn = function _reactClientPlugi
         root = config.root;
         userOptions.projectRoot = root;
       }
-
+      const logger = config.customLogger || createLogger();
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,
         userOptions,
         condition: "react-client",
+        logger,
       });
       if (autoDiscoverResult.type === "error") {
         throw autoDiscoverResult.error;

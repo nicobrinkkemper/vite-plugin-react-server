@@ -55,7 +55,7 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
    - Plugin Options
    - Component Props
    - Worker Messages
-    - Type Definitions
+   - Type Definitions
 
 11. [Transformations](./transformations.md)
     - Code Transformations

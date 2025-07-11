@@ -141,6 +141,9 @@ export const configureReactServer: ConfigureReactServerFn =
           moduleBaseURL: server.config.base,
           build: handlerOptions.build,
           logger: logger,
+          HtmlComponent: React.Fragment,
+          RootComponent: handlerOptions.components?.Root,
+          
         });
         if (componentsResult.type === "error") {
           throw componentsResult.error;

@@ -165,19 +165,6 @@ dist/
 ```
 
 
-## Documentation
-
-| Topic | Description |
-|-------|-------------|
-| [Getting Started](./docs/getting-started.md) | Complete installation and setup guide |
-| [Core Concepts](./docs/core-concepts.md) | Architecture, RSC, and plugin design |
-| [Configuration](./docs/configuration.md) | All configuration options and examples |
-| [CSS Handling](./docs/css-handling.md) | CSS collection, inlining, and optimization |
-| [Server Actions](./docs/server-actions.md) | Server-side functions and database integration |
-| [Static Site Generation](./docs/static-site-generation.md) | Building and deploying static sites |
-| [API Reference](./docs/api-reference.md) | Complete API documentation |
-| [Advanced Topics](./docs/advanced-topics.md) | Custom workers and extending the plugin |
-
 ## Requirements
 
 - **Node.js**: 23.7.0 or higher
@@ -187,6 +174,27 @@ dist/
 ## Contributing
 
 This project uses experimental React features and includes a patch system for compatibility. See [Patch System](./docs/patch-system.md) for maintenance details.
+
+## Documentation
+
+| Topic | Description |
+|-------|-------------|
+| [Getting Started](./docs/getting-started.md) | Installation and Setup |
+| [Core Concepts](./docs/core-concepts.md) | Client-Server Separation |
+| [Configuration](./docs/configuration.md) | Plugin Options |
+| [CSS Handling](./docs/css-handling.md) | CSS Collectors |
+| [Server Actions](./docs/server-actions.md) | Creating Server Actions |
+| [Static Site Generation](./docs/static-site-generation.md) | Static Plugin |
+| [Build Orchestration](./docs/build-orchestration.md) | Multiple Build Targets |
+| [Architecture](./docs/architecture.md) | Design Philosophy |
+| [Advanced Topics](./docs/advanced-topics.md) | Custom Workers |
+| [API Reference](./docs/api-reference.md) | Plugin Options |
+| [Transformations](./docs/transformations.md) | Code Transformations |
+| [Loader](./docs/loader.md) | React Server Components Loader |
+| [Patch System](./docs/patch-system.md) | React Version Compatibility |
+| [Practical Guide](./docs/practical-guide.md) | Real-world Examples |
+| [Troubleshooting Guide](./docs/troubleshooting-guide.md) | Common Issues |
+
 
 ## License
 

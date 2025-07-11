@@ -97,7 +97,9 @@ export type RscRenderOpt = WorkerMessage & {
   | "HtmlComponent"
   | "RootComponent"
   | "PageComponent"
+  | "url"
 > & {
+  url?: string;
   build: Omit<
     CreateHandlerOptions<ResolvedUserOptions>["build"],
     "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"

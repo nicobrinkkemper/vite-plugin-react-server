@@ -22,13 +22,12 @@ import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { createBuildLoader } from "./createBuildLoader.js";
 import type {
   BuildTiming,
-  ReactStreamPluginMeta,
   ResolvedUserConfig,
   PluginEvent,
   RenderPagesResult,
   AutoDiscoveredFiles,
   CssContent,
-  ReactStreamPluginFn,
+  VitePluginFn,
 } from "../types.js";
 import { renderPages } from "./renderPages.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
@@ -49,11 +48,7 @@ import { toError } from "../error/toError.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 
 
-export type ReactStaticPluginFn = ReactStreamPluginFn<{
-  meta: ReactStreamPluginMeta;
-}>;
-
-export const reactStaticPlugin: ReactStaticPluginFn =
+export const reactStaticPlugin: VitePluginFn =
   function _reactStaticPlugin(options) {
     let worker: Worker;
     let userConfig: ResolvedUserConfig;
@@ -96,6 +91,7 @@ export const reactStaticPlugin: ReactStaticPluginFn =
           configEnv,
           userOptions,
           condition: "react-server",
+          logger:  config.customLogger || createLogger(),
         });
         if (autoDiscoverResult.type === "error") {
           throw autoDiscoverResult.error;
@@ -278,7 +274,7 @@ export const reactStaticPlugin: ReactStaticPluginFn =
                   );
                 }
               } catch (error) {
-                console.warn(`Failed to process CSS file ${value}:`, error);
+                logError(error, this.environment.logger);
                 continue;
               }
             }
@@ -335,42 +331,28 @@ export const reactStaticPlugin: ReactStaticPluginFn =
           }
           // Render pages - component resolution now happens per-route in renderPage
           const { onEvent, ...handlerOptions } = userOptions;
-          const renderPagesGenerator = renderPages(
-            autoDiscoveredFiles!,
-            {
-              ...handlerOptions,
-              loader: buildLoader,
-              worker: worker,
-              logger: createLogger(),
-              onEvent: async (event: PluginEvent) => {
-                if (onEvent) {
-                  onEvent(event);
-                }
-                // Add file write completion event
-                if (event.type === "file.write") {
-                  await event.data.onComplete();
-                }
-              },
-              pipeableStreamOptions: pipeableStreamOptions,
-              manifest: serverManifest ?? {},
-              build: {
-                htmlOutputPath: userOptions.build.htmlOutputPath,
-                rscOutputPath: userOptions.build.rscOutputPath,
-                outDir: userOptions.build.outDir,
-                pages: userOptions.build.pages,
-                server: userOptions.build.server,
-                static: userOptions.build.static,
-                client: userOptions.build.client,
-              },
-              globalCss: globalCss,
-              css: {
-                ...handlerOptions.css,
-                inlineCss: handlerOptions.css.inlineCss,
-              },
-
+          const routes = (!autoDiscoveredFiles) ? ['/'] : Array.from(autoDiscoveredFiles!.urlMap.keys());
+          // this will render the routes
+          const renderPagesGenerator = renderPages(routes)({
+            ...handlerOptions,  
+            loader: buildLoader,
+            worker: worker,
+            logger: createLogger(),
+            onEvent: async (event: PluginEvent) => {
+              if (onEvent) {
+                onEvent(event);
+              }
+              // Add file write completion event
+              if (event.type === "file.write") {
+                await event.data.onComplete();
+              }
             },
-            cssFilesByPage
-          );
+            pipeableStreamOptions: pipeableStreamOptions,
+            manifest: serverManifest ?? {},
+            globalCss: globalCss,
+            autoDiscoveredFiles: autoDiscoveredFiles!,
+            cssFilesByPage: cssFilesByPage,
+          });
 
           // Process render results
           let finalResult: RenderPagesResult | undefined;

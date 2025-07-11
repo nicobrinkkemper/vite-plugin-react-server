@@ -78,7 +78,25 @@ export const createCssProps = ({
         : {}),
     } as CssContent<boolean>;
   }
-  
+  const normalModuleBaseURL = !moduleID.startsWith(userOptions.moduleBaseURL)
+    ? userOptions.moduleBaseURL +
+      moduleID.slice(
+        Number(
+          moduleID.startsWith("/") && userOptions.moduleBaseURL.endsWith("/")
+        )
+      )
+    : moduleID;
+  const normalOrigin = !userOptions.moduleBaseURL.startsWith(
+    userOptions.publicOrigin
+  )
+    ? userOptions.publicOrigin +
+      userOptions.moduleBaseURL.slice(
+        Number(
+          userOptions.publicOrigin.endsWith("/") &&
+            userOptions.moduleBaseURL.startsWith("/")
+        )
+      )
+    : userOptions.moduleBaseURL;
   // Default case
   return {
     id: moduleID,
@@ -86,23 +104,8 @@ export const createCssProps = ({
     rel: "stylesheet",
     href:
       userOptions.publicOrigin !== ""
-        ? new URL(
-            userOptions.moduleBaseURL +
-              moduleID.slice(
-                Number(
-                  moduleID.startsWith("/") &&
-                    userOptions.moduleBaseURL.endsWith("/")
-                )
-              ),
-            userOptions.publicOrigin +
-              userOptions.moduleBaseURL.slice(
-                Number(
-                  userOptions.publicOrigin.endsWith("/") &&
-                    userOptions.moduleBaseURL.startsWith("/")
-                )
-              )
-          ).href
-        : moduleID,
+        ? new URL(normalModuleBaseURL, normalOrigin).href
+        : normalModuleBaseURL,
     precedence: "high",
   } as CssContent<boolean>;
 };

@@ -27,21 +27,14 @@ import type {
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
 import type { AllowedDirectives, Program } from "./loader/directives/types.js";
+import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
-import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 
-export type ReactStreamPluginFn<
-  R extends Record<string, unknown> = {
-    meta: ReactStreamPluginMeta;
-  }
-> = <Opt extends StreamPluginOptions = StreamPluginOptions>(
-  options: Opt
-) => Plugin<R>;
 
-export type OnEvent = (event: PluginEvent) => void;
+export type OnEvent<Interface extends CoreInterface = DefaultInterface> = (event: PluginEvent<Interface>) => void;
 
 export type MessageHandler<
   T extends HtmlWorkerOutputMessage | RscChunkOutputMessage =
@@ -308,6 +301,15 @@ export type BuildModuleLoader<
     : Record<string, unknown>
 >;
 
+// Interface-aware version of BuildModuleLoader
+export type InterfaceAwareBuildModuleLoader<
+  Interface extends CoreInterface = DefaultInterface,
+  Opt extends Pick<
+    ResolvedUserOptions,
+    "pageExportName" | "propsExportName"
+  > = Pick<ResolvedUserOptions, "pageExportName" | "propsExportName">
+> = BuildModuleLoader<Opt, Interface["PageProps"]>;
+
 export type StreamError = {
   code?: string;
 } & Error;
@@ -337,7 +339,7 @@ export type ResolvedUserOptions = {
   panicThreshold: "none" | "critical_errors" | "all_errors";
 
   // Optional properties
-  onEvent?: (event: PluginEvent) => void;
+  onEvent?: OnEvent<DefaultInterface>;
   props?: StreamPluginOptions["props"];
   clientEntry?: string;
   serverEntry?: string;
@@ -363,7 +365,10 @@ export type DirectiveOptions = Pick<
 > & {
   loader: Pick<
     Required<NonNullable<TransformOptions["loader"]>>,
-    "isServerFunctionCode" | "isClientComponentCode" | "getDirectiveType" | "parse"
+    | "isServerFunctionCode"
+    | "isClientComponentCode"
+    | "getDirectiveType"
+    | "parse"
   > & {
     allowedDirectives: AllowedDirectives;
   };
@@ -388,36 +393,14 @@ export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
 /**
  * Boxed component type for the Root
  */
-export type RootComponentType<
-  As extends AsOpt = AsOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  PageProps extends PagePropOpt = PagePropOpt,
-  ReactType = any
-> = (props: RootProps<PageProps, InlineCSS, As>) => ReactType;
 
-export type RootProps<
-  PageProps extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt
-> = {
-  as: As;
-  cssFiles?: Map<string, CssContent<InlineCSS>>;
-  pageProps?: PageProps;
-  Page: PageComponentType<PageProps>;
-  id?: string;
-};
 
-export type RootComponent = (props: RootProps) => React.ReactNode;
-
-/**
- * Boxed component type for the Html component
- */
-export type HtmlComponentType<
-  T extends PagePropOpt = PagePropOpt,
+export type CssComponentType<
   InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt,
-  ReactType = any
-> = ((props: HtmlProps<T, InlineCSS, As>) => ReactType) | any;
+  R = any
+> = (props: {
+  cssFiles: Map<string, CssContent<InlineCSS>> | CssContent[];
+}) => R;
 
 export type FileWriteEvent = {
   type: "file.write";
@@ -473,9 +456,9 @@ export type PropsLoadEvent = {
   };
 };
 
-export type CssProcessEvent = {
+export type CssProcessEvent<Interface extends CoreInterface = DefaultInterface> = {
   type: "css.process";
-  data: CssContent;
+  data: InterfaceAwareCssContent<Interface>;
 };
 
 export type BuildStartEvent = {
@@ -528,28 +511,22 @@ export type BuildWriteBundleEvent =
   | BuildWriteBundleEventStaticClient
   | BuildWriteBundleEventStaticServer;
 
-export type PluginEvent =
+export type PluginEvent<Interface extends CoreInterface = DefaultInterface> =
   | FileWriteEvent
   | FileWriteDoneEvent
   | RouteProcessEvent
   | RouteErrorEvent
   | RoutePostponeEvent
   | PropsLoadEvent
-  | CssProcessEvent
+  | CssProcessEvent<Interface>
   | BuildStartEvent
   | BuildWriteBundleEvent;
 
 export type PluginEventType = PluginEvent["type"];
 
-export type StreamPluginOptions<
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt,
-  N1 extends string = PageName,
-  N2 extends string = PropsName,
-  N3 extends string = HtmlName,
-  N4 extends string = RootName
-> = {
+export interface StreamPluginOptions<
+  Interface extends CoreInterface = DefaultInterface
+> {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
   moduleBasePath?: string; // defaults to '/'
@@ -763,23 +740,23 @@ export type StreamPluginOptions<
   reactLoaderPath?: string;
   cssLoaderPath?: string;
   envLoaderPath?: string;
-  pageExportName?: N1;
-  propsExportName?: N2;
-  htmlExportName?: N3;
-  rootExportName?: N4;
+  pageExportName?: Interface["PageExportName"];
+  propsExportName?: Interface["PropsExportName"];
+  htmlExportName?: Interface["HtmlExportName"];
+  rootExportName?: Interface["RootExportName"];
   Html?: UrlOpt;
   Root?: UrlOpt;
   // Direct component overrides (bypasses string resolution)
   components?: {
-    Html?: React.FC<HtmlProps<T, InlineCSS, As>> | typeof React.Fragment;
-    Root?: RootComponentType;
+    Html?: HtmlComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], Interface["ReactType"]>;
+    Root?: RootComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], Interface["ReactType"]>;
   };
   build?: BuildConfig;
-  css?: RootOptions<InlineCSS>;
+  css?: RootOptions<Interface["InlineCSS"]>;
   // moduleBaseExceptions?: string[];
   pipeableStreamOptions?: ReactServerDomEsmOptions;
   onMetrics?: (metrics: RenderMetrics) => void;
-  onEvent?: (event: PluginEvent) => void;
+  onEvent?: OnEvent<Interface>;
   normalizer?: InputNormalizer;
   moduleID?: (id: string) => string;
   verbose?: boolean;
@@ -806,7 +783,9 @@ export type MultiPageHandlerOptions<
 >;
 
 export type CreateHandlerOptions<
-  Opt extends ResolvedUserOptions = ResolvedUserOptions
+  Opt extends ResolvedUserOptions = ResolvedUserOptions,
+  Interface extends CoreInterface = DefaultInterface,
+  R = Interface["ReactType"]
 > = Pick<
   Opt,
   | "autoDiscover"
@@ -834,18 +813,19 @@ export type CreateHandlerOptions<
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;
-  pageProps?: PagePropOpt;
-  PageComponent?: PageComponentType<PagePropOpt>;
-  RootComponent?: RootComponentType;
-  HtmlComponent?: HtmlComponentType<PagePropOpt>;
+  pageProps?: Interface["PageProps"];
+  PageComponent: PageComponentType<Interface["PageProps"], R>;
+  RootComponent: RootComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], R>;
+  HtmlComponent: HtmlComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], R>;
   route: string;
-  as?: AsOpt;
+  url: string;
+  as?: Interface["As"];
   manifest: Manifest;
   worker?: Worker;
   server?: ViteDevServer;
   importedCss?: Set<string>;
-  cssFiles: Map<string, CssContent<InlineCssOpt>>;
-  globalCss: Map<string, CssContent<InlineCssOpt>>;
+  cssFiles: Map<string, InterfaceAwareCssContent<Interface>>;
+  globalCss: Map<string, InterfaceAwareCssContent<Interface>>;
   pipeableStreamOptions: ReactServerDomEsmOptions;
   build: Pick<
     ResolvedUserOptions["build"],
@@ -1013,8 +993,7 @@ export type ResolvedBuildPages = {
 export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
 
-export type InlineCssOpt = undefined | boolean;
-export type PagePropOpt = Record<string, unknown>;
+
 export interface DeserializedRegExp {
   source: string;
   flags: string;
@@ -1031,21 +1010,16 @@ export type PropsName = "props";
 export type HtmlName = "Html";
 export type RootName = "Root";
 
-export type AsOpt =
-  | React.ExoticComponent<React.FragmentProps>
-  | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
-export type PageComponentType<
-  PageProps extends PagePropOpt = PagePropOpt,
-  ReactType = any
-> = (props: PageProps) => ReactType;
+
 
 export type HtmlProps<
-  PageProps extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt,
-  As extends AsOpt = AsOpt
+  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
+  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
+  As extends CoreInterface["As"] = DefaultInterface["As"],
+  R = DefaultInterface["ReactType"]
 > = {
   pageProps?: PageProps;
-  Page: PageComponentType<PageProps>;
+  Page: PageComponentType<PageProps, R>;
   route: string;
   url: string;
   projectRoot: string;
@@ -1055,7 +1029,7 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  Root: RootComponentType<As, InlineCSS, PageProps>;
+  Root: RootComponentType<PageProps, As, InlineCSS, R>;
   globalCss: Map<string, CssContent<InlineCSS>>;
   as?: As;
 };
@@ -1290,30 +1264,29 @@ export type FlightConfig = {
 };
 
 // Import configuration from separate file
-export {
-  createFlightBindings,
-  defaultFlightBindings,
-} from "./config/flightBindings.js";
 
-export type ReactStreamOptionsFn<ReturnType = void> = <
-  PageProp extends PagePropOpt = PagePropOpt,
-  As extends AsOpt = AsOpt,
-  N1 extends string = PageName,
-  N2 extends string = PropsName,
-  Input extends StreamPluginOptions<
-    PageProp,
-    InlineCssOpt,
-    As,
-    N1,
-    N2
-  > = StreamPluginOptions<PageProp, InlineCssOpt, As, N1, N2>,
-  Output extends ReturnType = ReturnType
+export type VitePluginMainFn = <
+  Opt extends StreamPluginOptions = StreamPluginOptions
 >(
-  options: Input
-) => Output;
+  options: Opt
+) => Plugin<Opt>[];
 
-export type ReactStreamHandlerFn<ReturnType> = <
-  Opt extends CreateHandlerOptions = CreateHandlerOptions
+export type VitePluginFn = <
+  Opt extends StreamPluginOptions = StreamPluginOptions
+>(
+  options: Opt
+) => Plugin;
+
+export type ReactStreamHandlerFn<
+  Handles extends keyof CreateHandlerOptions,
+  ReturnType
+> = <
+  Opt extends Omit<CreateHandlerOptions, Handles> &
+    Partial<Pick<CreateHandlerOptions, Handles>> = Omit<
+    CreateHandlerOptions,
+    Handles
+  > &
+    Partial<Pick<CreateHandlerOptions, Handles>>
 >(
   options: Opt
 ) => ReturnType;
@@ -1324,3 +1297,87 @@ export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
 
 // re-exorts
 export type { RenderMetrics, StreamMetrics };
+
+// Core interface types that can be overridden
+export interface CoreInterface {
+  PageProps: Record<string, unknown>;
+  As: React.ExoticComponent<React.FragmentProps> | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
+  InlineCSS: undefined | boolean;
+  ReactType: React.ReactNode;
+  PropsExportName: string;
+  PageExportName: string;
+  RootExportName: string;
+  HtmlExportName: string;
+}
+
+// Default interface implementation
+export type DefaultInterface = {
+  PageProps: Record<string, unknown>;
+  As: React.ExoticComponent<React.FragmentProps> | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
+  InlineCSS: undefined | boolean;
+  ReactType: React.ReactNode;
+  PropsExportName: PropsName;
+  PageExportName: PageName;
+  RootExportName: RootName;
+  HtmlExportName: HtmlName;
+};
+
+// Legacy type aliases for backward compatibility
+export type PagePropOpt = DefaultInterface["PageProps"];
+export type AsOpt = DefaultInterface["As"];
+export type InlineCssOpt = DefaultInterface["InlineCSS"];
+
+// Configurable type system that uses the interface
+export type PageComponentType<
+  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
+  ReactType = DefaultInterface["ReactType"]
+> = (props: PageProps) => ReactType;
+
+export type RootComponentType<
+  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
+  As extends CoreInterface["As"] = DefaultInterface["As"],
+  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
+  R = DefaultInterface["ReactType"]
+> = (props: RootProps<PageProps, InlineCSS, As, R>) => R;
+
+export type RootProps<
+  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
+  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
+  As extends CoreInterface["As"] = DefaultInterface["As"],
+  R = DefaultInterface["ReactType"]
+> = {
+  as: As;
+  cssFiles?: Map<string, CssContent<InlineCSS>>;
+  pageProps?: PageProps;
+  Page: PageComponentType<PageProps, R>;
+  id?: string;
+};
+
+/**
+ * Boxed component type for the Html component
+ */
+export type HtmlComponentType<
+  T extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
+  As extends CoreInterface["As"] = DefaultInterface["As"],
+  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
+  R = DefaultInterface["ReactType"]
+> = typeof React.Fragment | ((props: HtmlProps<T, InlineCSS, As, R>) => R);
+
+// Interface-aware type aliases for better type safety
+export type InterfaceAwareCssContent<Interface extends CoreInterface> = 
+  CssContent<Interface["InlineCSS"]>;
+
+export type InterfaceAwareRootOptions<Interface extends CoreInterface> = 
+  RootOptions<Interface["InlineCSS"]>;
+
+export type InterfaceAwareCssComponentType<Interface extends CoreInterface, R = Interface["ReactType"]> = 
+  CssComponentType<Interface["InlineCSS"], R>;
+
+export type InterfaceAwareCssProps<Interface extends CoreInterface> = 
+  CssProps<Interface["InlineCSS"]>;
+
+export type InterfaceAwareHandlerAssets<Interface extends CoreInterface> = 
+  HandlerAssets<Interface["InlineCSS"]>;
+
+export type InterfaceAwareCreateHandlerResult<Interface extends CoreInterface> = 
+  CreateHandlerResult<Interface["InlineCSS"]>;

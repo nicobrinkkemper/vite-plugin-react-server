@@ -1,4 +1,4 @@
-import type { ConfigEnv, UserConfig } from "vite";
+import { type ConfigEnv, type UserConfig } from "vite";
 import type {
   AutoDiscoveredFiles,
   ResolvedUserOptions,
@@ -7,10 +7,11 @@ import { join } from "path";
 import { resolveBuildPages } from "./resolveBuildPages.js";
 import { resolvePages } from "../resolvePages.js";
 import { tryManifest } from "../../helpers/tryManifest.js";
-import type { Manifest } from "vite";
+import type { Logger, Manifest } from "vite";
 import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
 import { customWorkerFiles } from "./customWorkerFiles.js";
 import { pageAndPropFiles } from "./pageAndPropFiles.js";
+import { logError } from "../../error/logError.js";
 
 const clientFiles = createGlobAutoDiscover("**/*.client.*");
 const serverFiles = createGlobAutoDiscover("**/*.server.*");
@@ -43,6 +44,7 @@ type ResolveAutoDiscoverProps = {
     | "panicThreshold"
   >;
   condition: "react-server" | "react-client";
+  logger: Logger;
 };
 
 type ResolveAutoDiscoverReturn =
@@ -69,6 +71,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     configEnv,
     userOptions,
     condition,
+    logger,
   }) {
     const ssr = configEnv.isSsrBuild || condition === "react-server";
     const envDir =
@@ -116,6 +119,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     const files = await resolveBuildPages({
       pages,
       userOptions,
+      logger,
     });
 
     // Load static manifest for client build
@@ -135,13 +139,13 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
           if(userOptions.panicThreshold === 'critical_errors') {
             throw staticManifestResult.error;
           } else {
-            console.error(staticManifestResult.error);
+            logError(staticManifestResult.error, logger);
           }
         }
         if(userOptions.panicThreshold === 'all_errors') {
           throw new Error( "Failed to find static manifest." );
         } else {
-          console.warn("Continuing without static manifest");
+          logger.warn("Continuing without static manifest");
         }
         // this can still work, but, it won't be able to look up any client-side assets
       }

@@ -24,15 +24,15 @@ export type ResolveComponentsOptions = Pick<
   | "loader"
   | "moduleBaseURL"
   | "build"
-  | "RootComponent"
-  | "HtmlComponent"
   | "verbose"
   | "logger"
 > & {
   rootPath?: string;
   htmlPath?: string;
   rootExportName?: string;
-  htmlExportName?: string;
+  htmlExportName?: string;  
+  RootComponent?: RootComponentType;
+  HtmlComponent?: HtmlComponentType;
 };
 
 export type ResolveComponentsSuccess = {
@@ -140,7 +140,7 @@ export const resolveComponents = async ({
             `[resolveComponents] Root component resolved successfully`
           );
         }
-        RootComponent = rootResult.component;
+        RootComponent = rootResult.component as RootComponentType;
       }
     }
 
@@ -169,7 +169,7 @@ export const resolveComponents = async ({
             `[resolveComponents] Html component resolved successfully`
           );
         }
-        HtmlComponent = htmlResult.component;
+        HtmlComponent = htmlResult.component as HtmlComponentType;
       }
     } else {
       if (verbose) {

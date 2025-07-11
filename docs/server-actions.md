@@ -1,5 +1,4 @@
 # Server Actions
-
 Server Actions are a powerful feature that allows you to define server-side functions that can be called directly from your React components. This guide will show you how to implement and use server actions in your application.
 
 ## Important Disclaimers
@@ -401,10 +400,7 @@ When building your application, server actions are transformed into different ou
 While it is totally possible to include the output of the database in the static render, the static render will not handle the fact that a common static-host can't actually respond to the server action in any meaningful way.
 
 If you want dynamic server actions you have to make sure that you also HOST your server modules, much like this plugin hosts your modules during development. If the server actions work both in the client environment's "rsc-worker" and the server environment's main thread, then
-you choose between deciding your own server setup.
-
-
-When running in non-production mode, `react-server-dom-esm/server` will be transformed to `react-server-dom-esm/server.node` instead. This is to support vitest module resolution.
+you choose between deciding your own server setup.When running in non-production mode, `react-server-dom-esm/server` will be transformed to `react-server-dom-esm/server.node` instead. This is to support vitest module resolution.
 
 ## Server Hosting
 
@@ -492,4 +488,97 @@ Server Actions provide a powerful way to handle server-side operations in your R
 
 Server action are not as powerful as pages, because they do not support the css collection and custom prop function out of the box. While
 they could be used to stream React components, generally it is used for sending mutations to the server like the todo app in demo shows.
-Try to keep the return value simple and update the state on the client side on success indicator. 
+Try to keep the return value simple and update the state on the client side on success indicator. <!-- AUTO-GENERATED-TOC-START -->
+
+## 📚 Documentation Navigation
+
+## Table of Contents
+
+1. [Getting Started](./getting-started.md)
+	- [Installation and Setup](./getting-started.md#installation-and-setup)
+	- [Basic Configuration](./getting-started.md#basic-configuration)
+	- [Example Projects](./getting-started.md#example-projects)
+
+2. [Core Concepts](./core-concepts.md)
+	- [Client-Server Separation](./core-concepts.md#client-server-separation)
+	- [React Server Components](./core-concepts.md#react-server-components)
+	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
+
+3. [Configuration](./configuration.md)
+	- [Plugin Options](./configuration.md#plugin-options)
+	- [Routing Configuration](./configuration.md#routing-configuration)
+	- [Build Configuration](./configuration.md#build-configuration)
+
+4. [CSS Handling](./css-handling.md)
+	- [CSS Collectors](./css-handling.md#css-collectors)
+	- [Inline CSS](./css-handling.md#inline-css)
+	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
+
+5. **[Server Actions](./server-actions.md) ← you are here**
+	- [Creating Server Actions](./server-actions.md#creating-server-actions)
+	- [Client Integration](./server-actions.md#client-integration)
+	- [Error Handling](./server-actions.md#error-handling)
+	- [Database Integration](./server-actions.md#database-integration)
+
+6. [Static Site Generation](./static-site-generation.md)
+	- [Static Plugin](./static-site-generation.md#static-plugin)
+	- [Build Process](./static-site-generation.md#build-process)
+	- [Deployment Strategies](./static-site-generation.md#deployment-strategies)
+
+7. [Build Orchestration](./build-orchestration.md)
+	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
+	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
+	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
+
+8. [Architecture](./architecture.md)
+	- [Design Philosophy](./architecture.md#design-philosophy)
+	- [Environment Variables](./architecture.md#environment-variables)
+	- [Plugin Composition](./architecture.md#plugin-composition)
+	- [HTML Component Support](./architecture.md#html-component-support)
+
+9. [Advanced Topics](./advanced-topics.md)
+	- [Custom Workers](./advanced-topics.md#custom-workers)
+	- [Message System](./advanced-topics.md#message-system)
+	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
+
+10. [API Reference](./api-reference.md)
+	- [Plugin Options](./api-reference.md#plugin-options)
+	- [Component Props](./api-reference.md#component-props)
+	- [Worker Messages](./api-reference.md#worker-messages)
+	- [Type Definitions](./api-reference.md#type-definitions)
+
+11. [Transformations](./transformations.md)
+	 - [Code Transformations](./transformations.md#code-transformations)
+	 - [Directive Handling](./transformations.md#directive-handling)
+	 - [Build Output Examples](./transformations.md#build-output-examples)
+
+12. [Loader](./loader.md)
+	 - [React Server Components Loader](./loader.md#react-server-components-loader)
+	 - [Directive Processing](./loader.md#directive-processing)
+	 - [Module Boundaries](./loader.md#module-boundaries)
+	 - [Custom Registration Functions](./loader.md#custom-registration-functions)
+
+13. [Patch System](./patch-system.md)
+	 - [React Version Compatibility](./patch-system.md#react-version-compatibility)
+	 - [Creating Patches](./patch-system.md#creating-patches)
+	 - [Maintenance Guide](./patch-system.md#maintenance-guide)
+
+14. [Practical Guide](./practical-guide.md)
+	 - [Real-world Examples](./practical-guide.md#real-world-examples)
+	 - [Debugging Features](./practical-guide.md#debugging-features)
+	 - [Production Implementations](./practical-guide.md#production-implementations)
+
+15. [Troubleshooting Guide](./troubleshooting-guide.md)
+	 - [Common Issues](./troubleshooting-guide.md#common-issues)
+	 - [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
+	 - [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
+
+### Quick Links
+- [🏠 Main Documentation](./README.md)
+- [🚀 Getting Started](./getting-started.md)
+- [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
+- [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
+
+---
+
+<!-- AUTO-GENERATED-TOC-END -->

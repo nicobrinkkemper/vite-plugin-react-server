@@ -2,6 +2,7 @@ import { reactStaticPlugin } from "./react-static/plugin.js";
 import { reactTransformPlugin } from "./transformer/plugin.server.js";
 import type {
   StreamPluginOptions,
+  VitePluginMainFn,
 } from "./types.js";
 import { reactServerPlugin } from "./react-server/plugin.js";
 import { envPlugin } from "./env/plugin.js";
@@ -22,7 +23,7 @@ export type VitePluginReactServerFn = <
  * - reactStaticPlugin (if build.pages is not empty)
  * - reactPreservePlugin (handles directive removal/preservation)
  */
-export const vitePluginReactServer: VitePluginReactServerFn =
+export const vitePluginReactServer: VitePluginMainFn =
   function _vitePluginReactServer(
     options
   ) {
@@ -40,12 +41,12 @@ export const vitePluginReactServer: VitePluginReactServerFn =
       (Array.isArray(options.build.pages) && options.build.pages.length === 0)
     ) {
       // in this case we do not need the static plugin at all
-      return basePlugins;
+      return basePlugins 
     }
     
     // Add static plugin for static builds
     return [
       ...basePlugins,
       reactStaticPlugin(options),
-    ];
+    ] 
   };

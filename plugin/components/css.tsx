@@ -1,12 +1,9 @@
 import React from "react";
-import type { CssContent } from "../types.js";
+import type { CssComponentType, CssContent } from "../types.js";
+
 
 // Create link elements for each CSS file
-export const Css = ({
-  cssFiles,
-}: {
-  cssFiles: Map<string, CssContent> | CssContent[];
-}) => {
+export const Css: CssComponentType = ({ cssFiles }) => {
   if (!cssFiles) return null;
   const cssFilesArray = Array.isArray(cssFiles)
     ? cssFiles

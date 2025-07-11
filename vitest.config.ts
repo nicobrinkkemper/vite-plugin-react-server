@@ -26,6 +26,18 @@ export default defineConfig({
       '**/cypress/**',
       '**/.{idea,git,cache,output,temp}/**',
       process.env['NODE_OPTIONS']?.includes('react-server') ? 'test/client/*' : 'test/server/*'
-    ]
+    ],
+    typecheck: {
+      include: [
+        'test/**/*.test.ts',
+        'test/**/*.spec.ts'
+      ],
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/cypress/**',
+        '**/.{idea,git,cache,output,temp}/**'
+      ]
+    }
   }
 }) 

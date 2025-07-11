@@ -3,6 +3,7 @@ import type { CreateHandlerOptions } from "../types.js";
 import { type Connect } from "vite";
 import { MIME_TYPES } from "../config/mimeTypes.js";
 import { requestToRoute } from "./requestToRoute.js";
+import { routeToURL } from "../utils/routeToURL.js";
 
 /**
  * # Request info
@@ -38,6 +39,7 @@ export function requestInfo(
   if (!route) {
     return {
       route: "/",
+      url: routeToURL("/", handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath),
       ext: "",
     };
   }
@@ -198,6 +200,7 @@ export function requestInfo(
   }
   return {
     route,
+    url: routeToURL(route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath),
     ext,
     isHtmlRequest,
     isRscRequest,

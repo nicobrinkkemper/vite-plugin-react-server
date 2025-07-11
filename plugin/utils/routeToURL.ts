@@ -16,11 +16,10 @@ export const routeToURL = (
   let url = !route || route === "" ? "/" : route;
   let shouldRemoveBaseURL =
     baseURL !== "" && url.startsWith(baseURL);
-  let shouldRemoveFileName = url.endsWith(fileName);
-
   if (shouldRemoveBaseURL) {
     url = url.slice(baseURL.length);
   }
+  let shouldRemoveFileName = url.endsWith(fileName);
   if (shouldRemoveFileName) {
     url = url.slice(0, -fileName.length);
   }
