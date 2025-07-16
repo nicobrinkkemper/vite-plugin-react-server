@@ -1,5 +1,6 @@
 import type { RawSourceMap } from "source-map";
 import type { DirectiveWarning, ParseResult, Program, AllowedDirectives, ParsedExports } from "./directives/types.js";
+import type { Logger } from "vite";
 
 
 
@@ -23,7 +24,7 @@ export type LoaderConfig = {
 
 export type RscLoader = Pick<LoaderConfig, 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
 
-export type ParseFn = (source: string) => Program | { ast: Program; code?: string; map?: any; exports?: ParsedExports }
+export type ParseFn = (source: string) => Program | { ast: Program; code?: string; map?: any; exports?: ParsedExports } | Promise<Program | { ast: Program; code?: string; map?: any; exports?: ParsedExports }>
 
 export type TransformOptions = {
   forceServerFunction?: boolean;
@@ -38,6 +39,7 @@ export type TransformOptions = {
   verbose?: boolean;
   panicThreshold?: 'none' | 'critical_errors' | 'all_errors';
   mode?: "development" | "production" | "test";
+  logger?: Logger;
 };
 
 export type TransformResult = {
@@ -54,7 +56,7 @@ export type TransformFunction = (
 
 export type TransformerFactory = (options: {
   parseFn?: ParseFn;
-  options: Pick<TransformOptions, 'verbose' | 'loader' | 'panicThreshold'>;
+  options: Pick<TransformOptions, 'verbose' | 'loader' | 'panicThreshold' | 'logger'>;
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;
   isServerEnvironment?: boolean;

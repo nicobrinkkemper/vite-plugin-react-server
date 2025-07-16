@@ -1,7 +1,7 @@
-await (
-  process.env['NODE_ENV'] === 'production' 
-    ? import('./html-worker.production.js') 
-    : import('./html-worker.development.js')
-);
+import { getNodeEnv } from "../../getNodeEnv.js";
 
-export * from './types.js';
+const envName = getNodeEnv() === "production" ? "production" : "development";
+
+await import(`./html-worker.${envName}.js`);
+
+export * from "./types.js";

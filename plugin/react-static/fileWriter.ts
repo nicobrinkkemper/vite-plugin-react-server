@@ -39,12 +39,17 @@ export async function fileWriter(
     options.build.outDir,
     options.build.static,
     options.route,
-    fileType === "html" ? options.build.htmlOutputPath : options.build.rscOutputPath
+    fileType === "html"
+      ? options.build.htmlOutputPath
+      : options.build.rscOutputPath
   );
 
   // Ensure directory exists
   try {
-    await mkdir(join(options.build.outDir, options.build.static, options.route), { recursive: true });
+    await mkdir(
+      join(options.build.outDir, options.build.static, options.route),
+      { recursive: true }
+    );
   } catch (error) {
     console.error(`Error creating directory: ${error}`);
   }
@@ -57,12 +62,12 @@ export async function fileWriter(
     transform(chunk, _encoding, callback) {
       // Pass through the chunk
       callback(null, chunk);
-    }
+    },
   });
 
   // Collect chunks for content
   const chunks: Buffer[] = [];
-  contentCapture.on('data', (chunk) => {
+  contentCapture.on("data", (chunk) => {
     chunks.push(Buffer.from(chunk));
   });
 
@@ -82,26 +87,34 @@ export async function fileWriter(
 
   // Pipe the stream through content capture to file
   return new Promise((resolve, reject) => {
-    stream
-      .pipe(contentCapture)
-      .pipe(writeStream)
-      .on("finish", () => {
-        // Combine chunks into content
-        const content = Buffer.concat(chunks).toString('utf-8');
-        
-        // Emit file.write.done event with content
-        if (onEvent) {
-          onEvent({
-            type: "file.write.done",
-            data: {
-              fileType: fileType,
-              route: options.route,
-              content: content
-            },
-          });
-        }
-        resolve();
-      })
-      .on("error", reject);
+    let finished = false;
+    function done(err?: Error) {
+      if (finished) return;
+      finished = true;
+      if (err) return reject(err);
+
+      // Combine chunks into content
+      const content = Buffer.concat(chunks).toString("utf-8");
+      const trimmedContent = content.trim();
+
+      // Emit file.write.done event with content (even if empty)
+      if (onEvent) {
+        onEvent({
+          type: "file.write.done",
+          data: {
+            fileType: fileType,
+            route: options.route,
+            content: trimmedContent ? content : "",
+          },
+        });
+      }
+      resolve();
+    }
+
+    writeStream.on("finish", () => done());
+    writeStream.on("close", () => done());
+    writeStream.on("error", (err) => done(err));
+
+    stream.pipe(contentCapture).pipe(writeStream);
   });
 }

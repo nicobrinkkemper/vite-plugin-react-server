@@ -87,7 +87,11 @@ describe("Error Handling", () => {
 
       logError(error, mockLogger);
 
-      expect(mockLogger.error).toHaveBeenCalledWith("Test error\nError stack", {error: expect.any(Error)});
+      expect(mockLogger.error).toHaveBeenCalledWith("Test error\nError stack", {
+        error: expect.any(Error),
+        clear: false,
+        timestamp: false,
+      });
     });
 
     it("should log error with message and stack in development when stack does not include message", () => {
@@ -101,6 +105,8 @@ describe("Error Handling", () => {
         "Test error\nDifferent stack",
         {
           error: expect.any(Error),
+          clear: false,
+          timestamp: false,
         }
       );
     });
@@ -115,8 +121,8 @@ describe("Error Handling", () => {
       // and since toError() creates a new Error instance, it will have a stack
       // So it will log the stack (which includes the message)
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Test error"),
-        { error: expect.any(Error) }
+        expect.stringContaining("Error: Test error"),
+        { error: expect.any(Error), clear: false, timestamp: false }
       );
     });
 
@@ -131,18 +137,20 @@ describe("Error Handling", () => {
         logError(error, mockLogger);
         expect(mockLogger.error).toHaveBeenCalledWith("Test error", {
           error: expect.any(Error),
+          clear: false,
+          timestamp: true,
         });
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
     });
 
-    it("should use console by default", () => {
+    it("should use console by if passed as argument", () => {
       const originalConsole = console.error;
       console.error = vi.fn();
 
       const error = new Error("Test error");
-      logError(error);
+      logError(error, console);
 
       expect(console.error).toHaveBeenCalled();
       console.error = originalConsole;

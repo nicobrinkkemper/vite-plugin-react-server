@@ -1,7 +1,6 @@
 import { describe, it, expectTypeOf } from 'vitest';
 import React from 'react';
 import type {
-  CoreInterface,
   DefaultInterface,
   PageComponentType,
   RootComponentType,
@@ -13,7 +12,7 @@ import type {
 // Test the default interface types
 describe('DefaultInterface', () => {
   it('should have correct default types', () => {
-    expectTypeOf<DefaultInterface['PageProps']>().toEqualTypeOf<Record<string, unknown>>();
+    expectTypeOf<DefaultInterface['PageProps']>().toEqualTypeOf<any>();
     expectTypeOf<DefaultInterface['As']>().toEqualTypeOf<AsOpt>();
     expectTypeOf<DefaultInterface['InlineCSS']>().toEqualTypeOf<InlineCssOpt>();
     expectTypeOf<DefaultInterface['ReactType']>().toEqualTypeOf<React.ReactNode>();
@@ -21,7 +20,7 @@ describe('DefaultInterface', () => {
 });
 
 // Test custom interface
-interface CustomInterface extends CoreInterface {
+interface CustomInterface extends ViteReactServerComponentsPlugin {
   PageProps: { userId: string; theme: 'light' | 'dark' };
   As: 'div' | 'section' | 'main';
   InlineCSS: true; // Only allow inline CSS
@@ -70,8 +69,8 @@ describe('ComponentTypes with CustomInterface', () => {
 // Test backward compatibility
 describe('Backward Compatibility', () => {
   it('should maintain legacy type aliases', () => {
-    expectTypeOf<PagePropOpt>().toEqualTypeOf<Record<string, unknown>>();
-    expectTypeOf<AsOpt>().toEqualTypeOf<React.ExoticComponent<React.FragmentProps> | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">>();
+    expectTypeOf<PagePropOpt>().toEqualTypeOf<any>();
+    expectTypeOf<AsOpt>().toEqualTypeOf<keyof React.JSX.IntrinsicElements | React.JSXElementConstructor<any>>();
     expectTypeOf<InlineCssOpt>().toEqualTypeOf<undefined | boolean>();
   });
 
@@ -79,7 +78,7 @@ describe('Backward Compatibility', () => {
     type DefaultPageComponent = PageComponentType<PagePropOpt, any>;
     const testComponent: DefaultPageComponent = (props) => React.createElement('div');
     expectTypeOf(testComponent).toEqualTypeOf<
-      (props: Record<string, unknown>) => any
+      (props: any) => any
     >();
   });
 });
@@ -87,7 +86,7 @@ describe('Backward Compatibility', () => {
 // Test practical usage
 describe('Practical Usage', () => {
   it('should work with a realistic custom interface', () => {
-    interface AppInterface extends CoreInterface {
+    interface AppInterface extends ViteReactServerComponentsPlugin {
       PageProps: {
         user: { id: string; name: string };
         settings: { theme: string; language: string };

@@ -5,11 +5,11 @@ import type {
   ResolvedUserOptions,
 } from "../types.js";
 import { performance } from "node:perf_hooks";
-import type { PassThrough } from "node:stream";
+import type { PassThrough as PassThroughType } from "node:stream";
 import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";
 import { logError } from "../error/logError.js";
-
+import { PassThrough } from "node:stream";
 export type CreateRscStreamOptions = Pick<
   CreateHandlerOptions<ResolvedUserOptions>,
   | "HtmlComponent"
@@ -46,7 +46,7 @@ export type CreateRscStreamOptions = Pick<
 };
 
 export type CreateRscStreamReturn =
-  | { type: "success"; stream: PassThrough; metrics: StreamMetrics }
+  | { type: "success"; stream: PassThrough; controller: { abort: () => void; destroy: () => void }; metrics: StreamMetrics }
   | { type: "error"; error: Error; metrics: StreamMetrics };
 
 export type CreateRscStreamFn = <
@@ -77,7 +77,6 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
   logger,
 }) {
   let errorCount = 0;
-  let streamError: Error | null = null;
   const startTime = performance.now();
   try {
     const htmlIsFragment = HtmlComponent === React.Fragment;
@@ -139,18 +138,17 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         as={as}
       />
     );
-    const stream = ReactDOMServer.renderToPipeableStream(
+    const reactStream = ReactDOMServer.renderToPipeableStream(
       elements,
       moduleBasePath,
       {
         ...pipeableStreamOptions,
         moduleBaseURL: moduleBaseURL,
-        onError(error: Error, errorInfo: ErrorInfo) {
+        onError(error: Error, errorInfo?: ErrorInfo) {
           const err = toError(error);
-          streamError = err;
-          logError(err, logger);
           onEvent?.("error", { route, error: err, errorInfo });
           errorCount++;
+          // Don't abort here - let React handle the error naturally
         },
         onPostpone(reason: string) {
           onEvent?.("postpone", { route, reason });
@@ -164,7 +162,6 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         onShellError(error: Error) {
           const err = toError(error);
           logError(err, logger);
-          streamError = err;
           onEvent?.("error", { route, error: err });
           errorCount++;
         },
@@ -176,26 +173,23 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream({
         },
       }
     );
-    // If we have a stream error, return it immediately
-    if (streamError) {
-      return {
-        type: "error",
-        error: streamError,
-        metrics: {
-          chunks: 0,
-          bytes: 0,
-          backpressureCount: 0,
-          drainCount: 0,
-          errorCount,
-          duration: Date.now() - startTime,
-          startTime: startTime,
-        },
-      };
-    }
-
+    const passThrough: PassThroughType = new PassThrough();
+    reactStream.pipe(passThrough);
+    
+    // Ensure the stream is properly handled even when there are errors
+    // React will include error entries in the stream when components throw
+    const controller = {
+      abort: (reason?: any) => reactStream.abort(reason),
+      destroy: () => {
+        try { reactStream.abort("destroyed"); } catch {}
+        try { passThrough.destroy(); } catch {}
+      }
+    };
+    
     return {
       type: "success",
-      stream,
+      stream: passThrough,
+      controller,
       metrics: {
         chunks: 0,
         bytes: 0,

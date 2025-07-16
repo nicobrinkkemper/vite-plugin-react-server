@@ -68,68 +68,71 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
         }
       }
     },
-    async transform(code, id, options) {
-      if (!options?.ssr || !userOptions.autoDiscover.modulePattern.test(id)) {
-        return null;
-      }
-
-      let [, moduleID] = userOptions.normalizer(id);
-      if (isBuild) {
-        if (staticManifest) {
-          if (moduleID in staticManifest) {
-            moduleID = staticManifest[moduleID].file;
-          }
-        } else {
-          throw new Error(`Static manifest not found during dev build.`);
+    transform: {
+      order: "post",
+      async handler(code, id) {
+        if (!userOptions.autoDiscover.modulePattern.test(id)) {
+          return null;
         }
-      }
 
-      const finalID = userOptions.moduleID?.(moduleID) || moduleID;
-
-      // Create a new transformer with the computed values
-      const transformer = createTransformer({
-        parseFn: (source) => {
-          const ast = this.parse(source, {
-            allowReturnOutsideFunction: true,
-            jsx: true,
-          }) as Program;
-          console.log("returning rollup ast");
-          return { ast, code: "test" };
-        },
-        options: {
-          loader: userOptions.loader,
-          verbose: userOptions.verbose,
-          panicThreshold: userOptions.panicThreshold,
-        },
-        isServerEnvironment: true,
-      });
-      // Always transform in server context
-      const { code: transformed, map } = await transformer(code, finalID);
-
-      if (userOptions.verbose)
-        if (transformed !== code) {
-          if (id !== finalID) {
-            this.environment.logger.info(
-              "[react-server-transform] " +
-                id.split("/").pop() +
-                " -> " +
-                finalID
-            );
+        let [, moduleID] = userOptions.normalizer(id);
+        if (isBuild) {
+          if (staticManifest) {
+            if (moduleID in staticManifest) {
+              moduleID = staticManifest[moduleID].file;
+            }
           } else {
+            throw new Error(`Static manifest not found during dev build.`);
+          }
+        }
+
+        const finalID = userOptions.moduleID?.(moduleID) || moduleID;
+
+        // Create a new transformer with the computed values
+        const transformer = createTransformer({
+          parseFn: (source) => {
+            const ast = this.parse(source, {
+              allowReturnOutsideFunction: true,
+              jsx: true,
+            }) as Program;
+            console.log("returning rollup ast");
+            return { ast, code: "test" };
+          },
+          options: {
+            loader: userOptions.loader,
+            verbose: userOptions.verbose,
+            panicThreshold: userOptions.panicThreshold,
+          },
+          isServerEnvironment: true,
+        });
+        // Always transform in server context
+        const { code: transformed, map } = await transformer(code, finalID);
+
+        if (userOptions.verbose)
+          if (transformed !== code) {
+            if (id !== finalID) {
+              this.environment.logger.info(
+                "[react-server-transform] " +
+                  id.split("/").pop() +
+                  " -> " +
+                  finalID
+              );
+            } else {
+              this.environment.logger.info(
+                "[react-server-transform] " +
+                  id.split("/").pop() +
+                  (code.startsWith('"use client"') ? " (client)" : "")
+              );
+            }
             this.environment.logger.info(
-              "[react-server-transform] " +
-                id.split("/").pop() +
-                (code.startsWith('"use client"') ? " (client)" : "")
+              "[react-server-transform] " + transformed
             );
           }
-          this.environment.logger.info(
-            "[react-server-transform] " + transformed
-          );
-        }
-      return {
-        code: transformed,
-        map: map,
-      };
+        return {
+          code: transformed,
+          map: map,
+        };
+      },
     },
   };
 };

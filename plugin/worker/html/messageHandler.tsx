@@ -6,11 +6,12 @@ import { serializeError } from "../../error/serializeError.js";
 
 // Track active renders
 const activeRenders = new Map<string, HtmlWorkerRenderState>();
+// Track which renders have encountered errors to prevent duplicate processing
+const errorRenders = new Set<string>();
 
 function sendMessage(msg: HtmlWorkerOutputMessage) {
   // Send the original message
   if ("error" in msg) {
-    console.trace(msg.error);
     parentPort?.postMessage({
       ...msg,
       error: serializeError(msg.error),
@@ -22,36 +23,70 @@ function sendMessage(msg: HtmlWorkerOutputMessage) {
 
 function cleanup(id: string) {
   const renderState = activeRenders.get(id);
-  if (renderState) {
-    renderState.rscStream.destroy();
-    renderState.htmlTransform?.destroy();
-    activeRenders.delete(id);
-
-    sendMessage({
-      type: "CLEANUP_COMPLETE",
-      id,
-    });
+  if (!renderState) {
+    // Already cleaned up
+    return;
   }
+  try {
+    renderState.stream.abort('cleanup requested');
+  } catch (e) {}
+  renderState.rscStream.destroy();
+  renderState.htmlTransform?.destroy();
+  activeRenders.delete(id);
+  errorRenders.delete(id);
+
+  sendMessage({
+    type: "CLEANUP_COMPLETE",
+    id,
+  });
 }
 export async function messageHandler(msg: HtmlWorkerInputMessage) {
   const { type, id } = msg;
   try {
     switch (type) {
       case "ROUTE_READY": {
-        let renderState = activeRenders.get(id);
-        if (!renderState) {
-          renderState = createHtmlWorkerRenderState(msg, sendMessage);
-          
-          activeRenders.set(id, renderState);
-        } else {
-          throw new Error("Render state already exists");
+        // Clean up any existing render state for this route
+        const existingRenderState = activeRenders.get(id);
+        if (existingRenderState) {
+          // Abort the React stream first to stop it from sending messages
+          try {
+            existingRenderState.stream.abort('route ready cleanup');
+          } catch (e) {
+            console.warn('Failed to abort stream', e);
+            // Ignore abort errors
+          }
+          existingRenderState.rscStream.destroy();
+          existingRenderState.htmlTransform?.destroy();
+          activeRenders.delete(id);
+          errorRenders.delete(id);
         }
+        
+        // Create new render state with fresh streams
+        const renderState = createHtmlWorkerRenderState(msg, sendMessage);
+        activeRenders.set(id, renderState);
         break;
       }
       case "RSC_CHUNK": {
+        // Skip processing if this render has already encountered an error
+        if (errorRenders.has(id)) {
+          return;
+        }
+
         const renderState = activeRenders.get(id);
         if (!renderState) {
-          throw new Error(`No render state found for id: ${id}`);
+          // Ignore RSC chunks for routes that don't have a render state
+          return;
+        }
+
+        // Check if the render state has encountered an error
+        if (renderState.hasError) {
+          return;
+        }
+
+        // Only process RSC chunks for the current route
+        // This prevents processing stale chunks from previous routes
+        if (renderState.currentRoute !== id) {
+          return;
         }
 
         try {
@@ -64,6 +99,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
           });
         } catch (error) {
           const err = toError(error);
+          errorRenders.add(id);
           sendMessage({
             type: "ERROR",
             id,
@@ -88,6 +124,11 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         break;
       }
       case "CLEANUP": {
+        // Set error state to prevent HTML chunks from being sent
+        const renderState = activeRenders.get(id);
+        if (renderState && renderState.setError) {
+          renderState.setError();
+        }
         cleanup(id);
         break;
       }

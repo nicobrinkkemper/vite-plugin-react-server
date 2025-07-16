@@ -106,7 +106,8 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
           },
           isServerEnvironment: false,
         });
-        // Always transform in server context
+        
+        // Transform the code
         const { code: transformed, map } = await transformer(code, finalID);
 
         if (userOptions.verbose)

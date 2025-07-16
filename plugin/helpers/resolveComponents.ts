@@ -13,6 +13,7 @@ import { toError } from "../error/toError.js";
 import type { CreateHandlerOptions } from "../types.js";
 import { createLogger } from "vite";
 import { logError } from "../error/logError.js";
+import type { React } from "../vendor/vendor.server.js";
 
 export type ResolveComponentsOptions = Pick<
   CreateHandlerOptions,
@@ -31,16 +32,16 @@ export type ResolveComponentsOptions = Pick<
   htmlPath?: string;
   rootExportName?: string;
   htmlExportName?: string;  
-  RootComponent?: RootComponentType;
-  HtmlComponent?: HtmlComponentType;
+  RootComponent?: RootComponentType | typeof React.Fragment;
+  HtmlComponent?: HtmlComponentType | typeof React.Fragment;
 };
 
 export type ResolveComponentsSuccess = {
   type: "success";
   PageComponent: PageComponentType<PagePropOpt>;
   pageProps: PagePropOpt;
-  RootComponent: RootComponentType;
-  HtmlComponent: HtmlComponentType;
+  RootComponent: RootComponentType | typeof React.Fragment;
+  HtmlComponent: HtmlComponentType | typeof React.Fragment;
 };
 
 export type ResolveComponentsError = {
@@ -76,6 +77,87 @@ export const resolveComponents = async ({
   logger = createLogger(),
 }: ResolveComponentsOptions): Promise<ResolveComponentsResult> => {
   try {
+    // Handle case where pagePath is undefined (e.g., when PageComponent is provided)
+    if (!pagePath) {
+      if (verbose) {
+        logger.info(
+          `[resolveComponents] Skipping page/props resolution for route: ${route} (pagePath is undefined)`
+        );
+      }
+      
+      // Resolve Root component (use override if provided, otherwise resolve from path)
+      let RootComponent = overrideRootComponent || DefaultRoot;
+      if (!overrideRootComponent && rootPath) {
+        if (verbose) {
+          logger.info(
+            `[resolveComponents] Resolving Root component from path: ${rootPath}, exportName: ${rootExportName}`
+          );
+        }
+        const rootResult = await resolveComponent({
+          componentPath: rootPath,
+          exportName: rootExportName,
+          loader: loader as any,
+        });
+        if (rootResult.type === "error") {
+          if (verbose) {
+            logError(rootResult.error, logger);
+          }
+          // Fallback to default Root component
+          RootComponent = DefaultRoot;
+        } else if (rootResult.type === "success") {
+          if (verbose) {
+            logger.info(
+              `[resolveComponents] Root component resolved successfully`
+            );
+          }
+          RootComponent = rootResult.component as RootComponentType;
+        }
+      }
+
+      // Resolve Html component (use override if provided, otherwise resolve from path)
+      let HtmlComponent = overrideHtmlComponent || DefaultHtml;
+      if (!overrideHtmlComponent && htmlPath) {
+        if (verbose) {
+          logger.info(
+            `[resolveComponents] Resolving Html component from path: ${htmlPath}, exportName: ${htmlExportName}`
+          );
+        }
+        const htmlResult = await resolveComponent({
+          componentPath: htmlPath,
+          exportName: htmlExportName,
+          loader: loader as any,
+        });
+        if (htmlResult.type === "error") {
+          if (verbose) {
+            logError(htmlResult.error, logger);
+          }
+          // Fallback to default Html component
+          HtmlComponent = DefaultHtml;
+        } else if (htmlResult.type === "success") {
+          if (verbose) {
+            logger.info(
+              `[resolveComponents] Html component resolved successfully`
+            );
+          }
+          HtmlComponent = htmlResult.component as HtmlComponentType;
+        }
+      } else {
+        if (verbose) {
+          logger.info(
+            `[resolveComponents] Using default Html component (override: ${!!overrideHtmlComponent}, htmlPath: ${htmlPath})`
+          );
+        }
+      }
+
+      return {
+        type: "success",
+        PageComponent: null as any, // This will be overridden by the caller
+        pageProps: {} as any, // This will be overridden by the caller
+        RootComponent,
+        HtmlComponent,
+      };
+    }
+
     // First resolve page and props using existing function
     const pageAndPropsResult = await resolvePageAndProps({
       pagePath,

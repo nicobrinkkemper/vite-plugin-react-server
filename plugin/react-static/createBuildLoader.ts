@@ -61,7 +61,11 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
       }
     }
 
+
+
     try {
+
+
       // For inline modules, handle them directly
       if (query === "inline") {
         const startsWithMarker = normalizedKey.split("-")[0];

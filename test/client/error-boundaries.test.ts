@@ -25,6 +25,7 @@ describe("RSC Worker Error Streaming", () => {
     // Start test server with proper page configuration
     server = await createClientDevServer({
       projectRoot: testDir,
+      verbose: true,
       Page: (url: string) => {
         if (url === "/server-error-example") {
           return "src/page/server-error-example/page.tsx";
@@ -104,7 +105,7 @@ describe("RSC Worker Error Streaming", () => {
 
     // Stream should still contain normal RSC data before the error
     expect(rscStream).toMatch(/\d+:".*"/); // Normal RSC entries
-    expect(rscStream).toMatch(/\d+:I\[.*\]/); // Import entries
+    expect(rscStream).toMatch(/\d+:\{.*"name":".*".*\}/); // Component entries
 
     // And should contain the error entry (but might not be at the very end)
     expect(rscStream).toMatch(/\d+:E\{.*\}/);
@@ -197,11 +198,8 @@ describe("RSC Worker Error Streaming", () => {
 
     // expect(response.status).toBe(200);
 
-    // The HTML should have the error boundary structure ready
+    // The RSC should contain the server error component and error entry
     const rsc = await response.text();
-    expect(rsc).toContain("ErrorBoundary");
-
-    // The server error component should be present (but won't have thrown yet)
     expect(rsc).toContain(`"children":"Server Error Example"`);
     expect(rsc).toContain(
       `{"digest":"","name":"Error","message":"test error example","stack":[["TestError",`

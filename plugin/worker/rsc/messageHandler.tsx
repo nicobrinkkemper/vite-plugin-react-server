@@ -80,7 +80,7 @@ export async function messageHandler(
         return;
       }
       default: {
-        console.log("Unknown message", msg);
+        logger.info(`Unknown message: ${msg.type}`);
         return;
       }
     }

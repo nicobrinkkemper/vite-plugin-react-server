@@ -18,7 +18,9 @@ export default defineConfig({
     },
     include: [
       'test/**/*.test.ts',
-      'test/**/*.spec.ts'
+      'test/**/*.spec.ts',
+      'test/**/*.test.tsx',
+      'test/**/*.spec.tsx'
     ],
     exclude: [
       '**/node_modules/**',
@@ -28,9 +30,11 @@ export default defineConfig({
       process.env['NODE_OPTIONS']?.includes('react-server') ? 'test/client/*' : 'test/server/*'
     ],
     typecheck: {
-      include: [
+      include: [  
         'test/**/*.test.ts',
-        'test/**/*.spec.ts'
+        'test/**/*.spec.ts',
+        'test/**/*.test.tsx',
+        'test/**/*.spec.tsx'
       ],
       exclude: [
         '**/node_modules/**',

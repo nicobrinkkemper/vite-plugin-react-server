@@ -37,6 +37,9 @@ export type HtmlWorkerRenderState = {
   stream: ReactDOMServer.PipeableStream;
   abort?: () => void;
   shellReady?: boolean;
+  hasError?: boolean;
+  setError?: () => void;
+  currentRoute?: string;
 }
 
 // HTML-specific messages
@@ -82,4 +85,4 @@ export type HtmlWorkerOutputMessage =
   | ReadyMessage
   | ServerActionMessage
   | ServerActionResponseMessage
-  | CleanupCompleteMessage;
+  | CleanupCompleteMessage

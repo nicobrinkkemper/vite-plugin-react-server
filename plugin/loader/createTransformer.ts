@@ -6,6 +6,9 @@ import type { DirectiveMatch } from "./directives/types.js";
 import type { TransformerFactory, TransformResult } from "./types.js";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import { getNodeEnv } from "../getNodeEnv.js";
+import { createLogger } from "vite";
+import pkg from "picocolors";
+const { red, underline } = pkg;
 
 /**
  * Creates a transformer that handles React Server Components (RSC) boundaries.
@@ -17,8 +20,13 @@ export const createTransformer: TransformerFactory = ({
   isServerEnvironment = isReactServerCondition(),
 }) => {
   return async (source: string, moduleId: string): Promise<TransformResult> => {
-    if (options.verbose) {
-      console.log(`[createTransformer] Loading: ${moduleId}`);
+    const {
+      verbose,
+      logger = createLogger(),
+      loader = DEFAULT_LOADER_CONFIG,
+    } = options;
+    if (verbose) {
+      logger.info(`[createTransformer] Loading: ${moduleId}`);
     }
 
     // Fast-path: skip parsing and transformation if no directives are present
@@ -33,10 +41,10 @@ export const createTransformer: TransformerFactory = ({
     if (hasClientDirective === false && hasServerDirective === false) {
       return { code: source, map: null };
     }
-    const loader = options.loader ?? DEFAULT_LOADER_CONFIG;
     // Use analyzeModule to get the full parse result, passing the custom parseFn
     const parseResult = await analyzeModule(source, {
       ...options,
+      logger,
       loader: loader,
     });
     if (
@@ -47,44 +55,49 @@ export const createTransformer: TransformerFactory = ({
 
       // Handle directive errors (can be downgraded to warnings based on panicThreshold)
       for (const warning of parseResult.directiveInfo.warnings) {
-        const shouldDowngradeToWarning = !isProduction && options.panicThreshold === 'none';
-          
+        const shouldDowngradeToWarning =
+          !isProduction && options.panicThreshold === "none";
+
         if (shouldDowngradeToWarning) {
           // Downgrade error to warning in development when panicThreshold is 'none'
           const [start, end] = warning.range;
-          const lines = source.split('\n');
-          const startLine = source.slice(0, start).split('\n').length;
-          
-          console.warn(`Warning: ${warning.message}`);
-          
+          const lines = source.split("\n");
+          const startLine = source.slice(0, start).split("\n").length;
+
+          logger.warn(`Warning: ${warning.message}`);
+
           // Show document preview with line numbers
           const contextLines = 2; // Show 2 lines before and after
           const minLine = Math.max(1, startLine - contextLines);
           const maxLine = Math.min(lines.length, startLine + contextLines);
-          
-          console.warn('');
+
           for (let i = minLine; i <= maxLine; i++) {
-            const lineNum = i.toString().padStart(3, ' ');
+            const lineNum = i.toString().padStart(3, " ");
             const isErrorLine = i === startLine;
-            const prefix = isErrorLine ? '>' : ' ';
-            const line = lines[i - 1] || '';
-            
+            const prefix = isErrorLine ? ">" : " ";
+            const line = lines[i - 1] || "";
+
             if (isErrorLine) {
-              console.warn(`${prefix} ${lineNum} | ${line}`);
-              // Show pointer to the directive
-              const lineStart = source.lastIndexOf('\n', start - 1) + 1;
+              // Highlight the directive text itself using Vite's logger color methods
+              const lineStart = source.lastIndexOf("\n", start - 1) + 1;
               const columnPos = Math.max(0, start - lineStart);
               const directiveLength = Math.max(1, end - start);
-              const pointer = ' '.repeat(7 + columnPos) + '^'.repeat(directiveLength);
-              console.warn(`  ${pointer}`);
-            } else {
-              console.warn(`  ${lineNum} | ${line}`);
+              
+              // Split the line to highlight just the directive
+              const beforeDirective = line.slice(0, columnPos);
+              const directiveText = line.slice(columnPos, columnPos + directiveLength);
+              const afterDirective = line.slice(columnPos + directiveLength);
+              
+              // Use picocolors for proper semantic coloring that adapts to themes
+              logger.warn(`${prefix} ${lineNum} | ${beforeDirective}${red(underline(directiveText))}${afterDirective}`);
+            } else if(line.trim() !== "") {
+              logger.warn(`  ${lineNum} | ${line}`);
             }
           }
-          console.warn('');
+          logger.warn("");
 
           if (options.verbose) {
-            console.warn(`  range: [${start}, ${end}]`);
+            logger.warn(`  range: [${start}, ${end}]`);
           }
         } else {
           // Treat as error (default behavior) - panic and stop compilation
@@ -104,7 +117,7 @@ export const createTransformer: TransformerFactory = ({
       loader: options.loader,
       directiveWarnings: parseResult.directiveInfo.warnings,
       verbose: options.verbose || false,
-      panicThreshold: options.panicThreshold || 'none',
+      panicThreshold: options.panicThreshold || "none",
     });
   };
 };

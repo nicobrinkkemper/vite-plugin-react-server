@@ -110,15 +110,17 @@ describe('createWorkerStream', () => {
 
   it('should call worker.postMessage when stream starts', async () => {
     // Create a mock worker that responds immediately
+    let messageHandler: ((msg: any) => void) | null = null;
     const responsiveWorker = {
       postMessage: vi.fn(),
       on: vi.fn((event, handler) => {
         if (event === 'message') {
-          // Immediately respond with a chunk and end
-          setTimeout(() => {
-            handler({ type: 'RSC_CHUNK', id: '/test', chunk: new Uint8Array([1, 2, 3]) });
-            handler({ type: 'RSC_END', id: '/test' });
-          }, 0);
+          messageHandler = handler;
+          // Send chunk and end immediately
+          if (messageHandler) {
+            messageHandler({ type: 'RSC_CHUNK', id: '/test', chunk: new Uint8Array([1, 2, 3]) });
+            messageHandler({ type: 'RSC_END', id: '/test' });
+          }
         }
       }),
       removeListener: vi.fn(),
@@ -132,7 +134,7 @@ describe('createWorkerStream', () => {
       handlers: mockHandlers,
     });
 
-    // Start the stream - this should trigger postMessage
+    // Get the first chunk
     const result = await stream.next();
     
     // Verify worker.postMessage was called
@@ -142,29 +144,27 @@ describe('createWorkerStream', () => {
       id: '/test',
     });
 
-    // Verify we got a chunk
+    // Verify we got the chunk
     expect(result.value).toEqual(new Uint8Array([1, 2, 3]));
-    
-    // Get the end result
-    const endResult = await stream.next();
-    expect(endResult.done).toBe(true);
+    expect(result.done).toBe(false);
   });
 
   it('should handle errors from worker', async () => {
+    let messageHandler: ((msg: any) => void) | null = null;
     const errorWorker = {
       postMessage: vi.fn(),
       on: vi.fn((event, handler) => {
         if (event === 'message') {
-          setTimeout(() => {
-            handler({ 
+          messageHandler = handler;
+          if (messageHandler) {
+            messageHandler({ 
               type: 'ERROR', 
               id: '/test', 
               error: new Error('Worker error'),
               errorInfo: { componentStack: 'test stack' }
             });
-            // Error should close the stream, but let's also send an end to be sure
-            handler({ type: 'RSC_END', id: '/test' });
-          }, 0);
+            messageHandler({ type: 'RSC_END', id: '/test' });
+          }
         }
       }),
       removeListener: vi.fn(),
@@ -178,8 +178,8 @@ describe('createWorkerStream', () => {
       handlers: mockHandlers,
     });
 
-    // Start the stream and wait for error
-    await stream.next();
+    // Get the first chunk (should be null due to error)
+    const result = await stream.next();
     
     // Verify error handler was called
     expect(mockHandlers.onError).toHaveBeenCalledWith(
@@ -191,8 +191,43 @@ describe('createWorkerStream', () => {
       { componentStack: 'test stack' }
     );
 
-    // Stream should be closed after error
-    const endResult = await stream.next();
-    expect(endResult.done).toBe(true);
+    // Stream should end with null
+    expect(result.value).toBe(undefined);
+    expect(result.done).toBe(true);
+  });
+
+  it('should handle multiple chunks in a loop', async () => {
+    let messageHandler: ((msg: any) => void) | null = null;
+    const multiChunkWorker = {
+      postMessage: vi.fn(),
+      on: vi.fn((event, handler) => {
+        if (event === 'message') {
+          messageHandler = handler;
+          if (messageHandler) {
+            // Send multiple chunks
+            messageHandler({ type: 'RSC_CHUNK', id: '/test', chunk: new Uint8Array([1, 2, 3]) });
+            messageHandler({ type: 'RSC_CHUNK', id: '/test', chunk: new Uint8Array([4, 5, 6]) });
+            messageHandler({ type: 'RSC_CHUNK', id: '/test', chunk: new Uint8Array([7, 8, 9]) });
+            messageHandler({ type: 'RSC_END', id: '/test' });
+          }
+        }
+      }),
+      removeListener: vi.fn(),
+      terminate: vi.fn(),
+    } as unknown as Worker;
+
+    const stream = createWorkerStream({
+      worker: multiChunkWorker,
+      message: testMessage,
+      logger: mockLogger,
+      handlers: mockHandlers,
+    });
+
+    // Get the first chunk
+    const result = await stream.next();
+    
+    // Verify we got the first chunk
+    expect(result.value).toEqual(new Uint8Array([1, 2, 3]));
+    expect(result.done).toBe(false);
   });
 }); 

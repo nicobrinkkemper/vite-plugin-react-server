@@ -23,10 +23,11 @@ import { fileWriter } from "./fileWriter.js";
 export type CollectRscContentReturn = Promise<{
   stream: PassThrough;
   metrics: StreamMetrics;
+  controller: { abort: () => void; destroy: () => void };
 }>;
 
 export type CollectRscContentFn = (
-  rscStream: PassThrough,
+  rsc: { stream: PassThrough; controller: { abort: () => void; destroy: () => void } },
   handlerOptions: CreateHandlerOptions
 ) => CollectRscContentReturn;
 
@@ -38,7 +39,9 @@ export type CollectRscContentFn = (
  * @returns A promise that resolves with the complete RSC content and metrics
  */
 export const collectRscContent: CollectRscContentFn =
-  async function _collectRscContent(rscStream, handlerOptions) {
+  async function _collectRscContent(rsc, handlerOptions) {
+    const rscStream = rsc.stream;
+    const rscController = rsc.controller;
     const metrics = createStreamMetrics();
     const startTime = performance.now();
 
@@ -81,7 +84,7 @@ export const collectRscContent: CollectRscContentFn =
       // Wait for file writing to complete
       await writePromise;
 
-      return { stream: rscStream, metrics };
+      return { stream: rscStream, controller: rscController, metrics };
     } catch (error) {
       metricsTransform.destroy();
       throw error;

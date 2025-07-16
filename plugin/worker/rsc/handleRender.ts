@@ -116,17 +116,22 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       moduleBaseURL,
       manifest: {},
       route,
-      // this is a stateful object, which at this point we assume contains all the css files
       cssFiles,
       globalCss,
       pipeableStreamOptions: pipeableStreamOptions,
       verbose,
       logger,
+      onEvent: (event, data) => {
+        if (event === "error" && data?.error) {
+          handlers.onError(id, data.error, data.errorInfo);
+          // Don't return here - let the stream continue so React can include the error entry
+        }
+      },
     });
 
     if (streamResult.type !== "success") {
       handlers.onError(id, streamResult.error);
-      return; // Already handled the error
+      return; // Don't create stream for setup errors
     }
 
     const { stream, metrics } = streamResult;

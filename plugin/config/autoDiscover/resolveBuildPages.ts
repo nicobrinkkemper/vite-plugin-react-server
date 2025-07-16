@@ -277,7 +277,7 @@ export async function resolveBuildPages({
           htmlResult.Html
         );
         if (userOptions.verbose) {
-          console.log(
+          logger.info(
             `[resolveBuildPages] resolveBuildPages - Default Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`
           );
         }

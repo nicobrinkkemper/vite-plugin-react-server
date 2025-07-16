@@ -1,7 +1,7 @@
-import { transformWithAcornLoose } from "./transformWithAcornLoose.js";
 import type { RawSourceMap } from "source-map";
+import { createTransformer } from "./createTransformer.js";
 import type { TransformOptions } from "./types.js";
-
+import { parse } from "./parse.js";
 
 // --- React RSC Directive Handling ---
 //
@@ -36,30 +36,27 @@ import type { TransformOptions } from "./types.js";
 /**
  * Transforms a module and returns the transformed code with source map attached.
  * This is used by the loader to transform modules and attach source maps.
- * 
+ *
  * @returns The transformed code with source map attached as a URL comment
  */
-export async function transformModuleIfNeeded(
+export type TransformModuleIfNeededFn = (
   source: string,
   moduleId: string,
   options: TransformOptions
-): Promise<{ code: string; map: RawSourceMap | null }> {
-  try {
-    // Get transformed code and source map from acorn-loose transformer
-    const result = await transformWithAcornLoose(
-      source,
-      moduleId,
-      options
-    );
+) => Promise<{ code: string; map: RawSourceMap | null }>;
 
-    if(options.verbose) {
-      console.log("[transformModuleIfNeeded] Transformed module:", { code: result.code, map: result.map });
-    }
-    // Return the transformed code with source map attached as a URL comment
-    return result;
-  } catch (error) {
-    // Log the error and rethrow
-    console.error(`[transformModuleIfNeeded] Error transforming module ${moduleId}:`, error);
-    throw error;
-  }
-}
+/**
+ * Transforms a module using acorn-loose for parsing.
+ * @returns Object containing the transformed code and its source map
+ */
+export const transformModuleIfNeeded: TransformModuleIfNeededFn =
+  async function _transformModuleIfNeeded(source, moduleId, options) {
+    const transformer = createTransformer({
+      parseFn:
+        typeof options.loader?.parse === "function"
+          ? options.loader.parse
+          : parse,
+      options,
+    });
+    return transformer(source, moduleId);
+  };

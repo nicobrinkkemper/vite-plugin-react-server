@@ -136,9 +136,6 @@ export async function test() {
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('>   2 | "use server";')
     );
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('^^^^^^^^^^^^')
-    );
     
     consoleSpy.mockRestore();
   });

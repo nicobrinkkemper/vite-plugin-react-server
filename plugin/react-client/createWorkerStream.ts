@@ -62,17 +62,18 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
     | ((message: RscWorkerOutputMessage | undefined) => void)
     | null = null;
   let currentResolve: ((chunk: Uint8Array | null) => void) | null = null;
-  let isStreamClosed = false;
+  // let isStreamClosed = false;
   const handlers: StreamHandlers = {
     onError: (id, error, errorInfo) => {
-      isStreamClosed = true;
+      // isStreamClosed = true;
       if (typeof onError === "function") {
         onError(id, error, errorInfo);
       }
     },
     onData: (id: string, chunk: Uint8Array) => {
       // Handle generator flow - resolve the current promise with the chunk
-      if (currentResolve && !isStreamClosed) {
+      // Continue processing chunks even when there are errors to include error entries
+      if (currentResolve) {
         currentResolve(chunk);
         currentResolve = null;
       }
@@ -90,7 +91,7 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
         currentResolve(null);
         currentResolve = null;
       }
-      isStreamClosed = true;
+      // isStreamClosed = true;
       if (verbose) logger.info(`[react-client] received end`);
       if (messageHandler) {
         worker.removeListener("message", messageHandler);

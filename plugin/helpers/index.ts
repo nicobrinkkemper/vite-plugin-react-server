@@ -39,4 +39,3 @@ export * from "./moduleResolver.js";
 
 // Utility functions
 export * from "./stashReturnValue.js";
-export * from "./defaultFileWriter.js";

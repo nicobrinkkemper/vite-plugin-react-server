@@ -9,7 +9,6 @@ import { collectHtmlWorkerContent } from "./collectHtmlWorkerContent.js";
 import { collectRscContent } from "./collectRscContent.js";
 import { routeToURL } from "../utils/routeToURL.js";
 
-
 export type RenderPageReturn = AsyncGenerator<RenderPageResult, void, unknown>;
 
 export type RenderPageFn = ReactStreamHandlerFn<"RootComponent" | "HtmlComponent" | "PageComponent" | "pageProps" | 'url' | 'onEvent', RenderPageReturn>
@@ -17,7 +16,8 @@ export type RenderPageFn = ReactStreamHandlerFn<"RootComponent" | "HtmlComponent
 export const renderPage: RenderPageFn = async function* _renderPage(
   handlerOptions
 ) {
-  if (!handlerOptions.pagePath) {
+  // Skip if no pagePath AND no PageComponent provided (fallback case)
+  if (!handlerOptions.pagePath && !handlerOptions.PageComponent) {
     yield {
       type: "skip",
     };
@@ -35,29 +35,89 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       handlerOptions.logger.info(`[renderPage] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`);
     }
 
-    const componentsResult = await resolveComponents({
-      ...handlerOptions,
-      // Use direct component overrides if available (for static builds)
-      RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
-      HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
-    });
+    let PageComponent, pageProps, RootComponent, HtmlComponent;
 
-    if (componentsResult.type === "error") {
-      yield {
-        type: "error",
-        error: componentsResult.error,
-      };
-      return;
+    // Determine which Page component to use based on precedence
+    // 1. handlerOptions.PageComponent (highest priority - for fallback)
+    // 2. handlerOptions.components.Page (medium priority - for static builds)
+    // 3. Resolved from pagePath (lowest priority - normal resolution)
+    const useProvidedPageComponent = handlerOptions.PageComponent || handlerOptions.components?.Page;
+    
+    if (useProvidedPageComponent) {
+      if (handlerOptions.verbose) {
+        const source = handlerOptions.PageComponent ? 'PageComponent' : 'components.Page';
+        handlerOptions.logger.info(`[renderPage] Using provided Page component from ${source} for route: ${handlerOptions.route} (fallback mode: ${!handlerOptions.pagePath ? 'yes' : 'no'})`);
+      }
+      
+      // Resolve components - use empty strings to skip page resolution when PageComponent is provided
+      const componentsResult = await resolveComponents({
+        ...handlerOptions,
+        // Use empty strings to prevent page resolution when PageComponent is provided
+        pagePath: "",
+        propsPath: "",
+        // Use direct component overrides if available (for static builds)
+        RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
+        HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
+      });
+
+      if (componentsResult.type === "error") {
+        yield {
+          type: "error",
+          error: componentsResult.error,
+        };
+        return;
+      }
+
+      // Use the provided Page component (either PageComponent or components.Page)
+      PageComponent = useProvidedPageComponent;
+      // Use resolved props if available, otherwise use provided props or empty object
+      pageProps = componentsResult.pageProps || handlerOptions.pageProps || {};
+      RootComponent = componentsResult.RootComponent;
+      HtmlComponent = componentsResult.HtmlComponent;
+      
+      // Ensure we have the required components for fallback render
+      if (!RootComponent || !HtmlComponent) {
+        yield {
+          type: "error",
+          error: new Error(`Fallback render failed: missing required components (Root: ${!!RootComponent}, Html: ${!!HtmlComponent})`),
+        };
+        return;
+      }
+    } else {
+      // Normal resolution including Page component
+      const componentsResult = await resolveComponents({
+        ...handlerOptions,
+        // Use direct component overrides if available (for static builds)
+        RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
+        HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
+      });
+
+      if (componentsResult.type === "error") {
+        yield {
+          type: "error",
+          error: componentsResult.error,
+        };
+        return;
+      }
+
+      ({ PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult);
+      
+      // Ensure we have all required components
+      if (!PageComponent || !RootComponent || !HtmlComponent) {
+        yield {
+          type: "error",
+          error: new Error(`Component resolution failed: missing required components (Page: ${!!PageComponent}, Root: ${!!RootComponent}, Html: ${!!HtmlComponent})`),
+        };
+        return;
+      }
     }
-
-    const { PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult;
 
     const newHandlerOptions = {
       ...handlerOptions,
       url: `${handlerOptions.url}`,
       route: `${handlerOptions.route}`,
       PageComponent: PageComponent,
-      pageProps: pageProps as never,
+      pageProps: pageProps,
       RootComponent: RootComponent,
       HtmlComponent: HtmlComponent,
     };
@@ -117,8 +177,8 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       { stream: rscStream, metrics: rscMetrics },
       { stream: htmlStream, metrics: htmlMetrics },
     ] = await Promise.all([
-      collectRscContent(rscHeadless.stream, newHandlerOptions),
-      collectHtmlWorkerContent(rscFull.stream, newHandlerOptions),
+      collectRscContent(rscHeadless, newHandlerOptions),
+      collectHtmlWorkerContent(rscFull, newHandlerOptions),
     ]);
 
     // Update metrics

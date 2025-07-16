@@ -29,5 +29,5 @@ export const routeToURL = (
   if(!url.endsWith('/')) {
     url = `${url}/`;
   }
-  return url;
+  return `${url}`;
 };

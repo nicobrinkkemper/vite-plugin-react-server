@@ -6,17 +6,21 @@ import type { ErrorInfo } from "react";
 import { toError } from "../error/toError.js";
 import type { PassThrough } from "node:stream";
 import { routeToURL } from "../utils/routeToURL.js";
+import { logError } from "../error/logError.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 export type CreateHandlerReturn =
   | {
       type: "success";
       stream: PassThrough;
+      controller: { abort: () => void; destroy: () => void };
       error?: never;
     }
   | {
       type: "error";
       error: Error;
       stream?: never;
+      controller?: never;
     };
 
 export type CreateHandlerFn = ReactStreamHandlerFn<"url" | "onEvent", CreateHandlerReturn>
@@ -35,13 +39,13 @@ export const createHandler: CreateHandlerFn = ((handlerOptions) => {
       }
     ) => {
       if (event === "error") {
-        handlerOptions.onEvent?.({
-          type: "route.error",
-          data: {
-            route: handlerOptions.route,
-            ...data,
-          },
-        });
+        // Use logError utility for consistent error logging
+        if (data.error && handlerOptions.logger) {
+          logError(data.error, handlerOptions.logger, getNodeEnv());
+          if(data.errorInfo) {
+            logError(data.errorInfo, handlerOptions.logger, getNodeEnv()); 
+          } 
+        }
       } else if (event === "postpone") {
         handlerOptions.onEvent?.({
           type: "route.postpone",
@@ -66,29 +70,19 @@ export const createHandler: CreateHandlerFn = ((handlerOptions) => {
     });
 
     if (streamResult.type === "error") {
-      handlerOptions.onEvent?.({
-        type: "route.error",
-        data: {
-          route: handlerOptions.route,
-          error: streamResult.error,
-        },
-      });
-      throw streamResult.error;
+      return {
+        type: "error",
+        error: streamResult.error,
+      };
     }
 
     return {
       type: "success",
       stream: streamResult.stream,
+      controller: streamResult.controller,
     };
   } catch (error) {
     const err = toError(error);
-    handlerOptions.onEvent?.({
-      type: "route.error",
-      data: {
-        route: handlerOptions.route,
-        error: err,
-      },
-    });
     return {
       type: "error",
       error: err,

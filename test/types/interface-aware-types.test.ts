@@ -1,6 +1,5 @@
 import { describe, it, expectTypeOf } from "vitest";
 import type {
-  CoreInterface,
   DefaultInterface,
   InterfaceAwareCssContent,
   InterfaceAwareRootOptions,
@@ -13,7 +12,7 @@ import type {
 } from "vite-plugin-react-server/types";
 
 // Custom interface for testing
-interface CustomInterface extends CoreInterface {
+interface CustomInterface extends ViteReactServerComponentsPlugin {
   PageProps: { title: string; count: number };
   As: "div" | "section" | "article";
   InlineCSS: true; // Always inline CSS

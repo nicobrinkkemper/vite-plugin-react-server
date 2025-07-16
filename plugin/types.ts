@@ -33,8 +33,9 @@ import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
-
-export type OnEvent<Interface extends CoreInterface = DefaultInterface> = (event: PluginEvent<Interface>) => void;
+export type OnEvent<Interface extends ViteReactServerComponentsPlugin = DefaultInterface> = (
+  event: PluginEvent<Interface>
+) => void;
 
 export type MessageHandler<
   T extends HtmlWorkerOutputMessage | RscChunkOutputMessage =
@@ -93,7 +94,7 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
 };
 export type FileWriterOptions = Pick<
   CreateHandlerOptions,
-  "onEvent" | "route" | "build"
+  "onEvent" | "route" | "build" | "verbose" | "logger"
 >;
 
 // Input can be a string path, React component, tuple, or array
@@ -303,7 +304,7 @@ export type BuildModuleLoader<
 
 // Interface-aware version of BuildModuleLoader
 export type InterfaceAwareBuildModuleLoader<
-  Interface extends CoreInterface = DefaultInterface,
+  Interface extends ViteReactServerComponentsPlugin = DefaultInterface,
   Opt extends Pick<
     ResolvedUserOptions,
     "pageExportName" | "propsExportName"
@@ -372,6 +373,7 @@ export type DirectiveOptions = Pick<
   > & {
     allowedDirectives: AllowedDirectives;
   };
+  logger?: Logger;
 };
 
 export type RootOptions<InlineCSS extends InlineCssOpt = InlineCssOpt> = {
@@ -393,7 +395,6 @@ export type CssContent<InlineCSS extends InlineCssOpt = InlineCssOpt> =
 /**
  * Boxed component type for the Root
  */
-
 
 export type CssComponentType<
   InlineCSS extends InlineCssOpt = InlineCssOpt,
@@ -456,7 +457,9 @@ export type PropsLoadEvent = {
   };
 };
 
-export type CssProcessEvent<Interface extends CoreInterface = DefaultInterface> = {
+export type CssProcessEvent<
+  Interface extends ViteReactServerComponentsPlugin = DefaultInterface
+> = {
   type: "css.process";
   data: InterfaceAwareCssContent<Interface>;
 };
@@ -511,7 +514,7 @@ export type BuildWriteBundleEvent =
   | BuildWriteBundleEventStaticClient
   | BuildWriteBundleEventStaticServer;
 
-export type PluginEvent<Interface extends CoreInterface = DefaultInterface> =
+export type PluginEvent<Interface extends ViteReactServerComponentsPlugin = DefaultInterface> =
   | FileWriteEvent
   | FileWriteDoneEvent
   | RouteProcessEvent
@@ -525,7 +528,7 @@ export type PluginEvent<Interface extends CoreInterface = DefaultInterface> =
 export type PluginEventType = PluginEvent["type"];
 
 export interface StreamPluginOptions<
-  Interface extends CoreInterface = DefaultInterface
+  Interface extends ViteReactServerComponentsPlugin = DefaultInterface
 > {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
@@ -748,8 +751,22 @@ export interface StreamPluginOptions<
   Root?: UrlOpt;
   // Direct component overrides (bypasses string resolution)
   components?: {
-    Html?: HtmlComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], Interface["ReactType"]>;
-    Root?: RootComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], Interface["ReactType"]>;
+    Html?: HtmlComponentType<
+      Interface["PageProps"],
+      Interface["As"],
+      Interface["InlineCSS"],
+      Interface["ReactType"]
+    >;
+    Root?: RootComponentType<
+      Interface["PageProps"],
+      Interface["As"],
+      Interface["InlineCSS"],
+      Interface["ReactType"]
+    >;
+    Page?: PageComponentType<
+      Interface["PageProps"],
+      Interface["ReactType"]
+    >;
   };
   build?: BuildConfig;
   css?: RootOptions<Interface["InlineCSS"]>;
@@ -764,7 +781,7 @@ export interface StreamPluginOptions<
   htmlWorkerStartupTimeout?: number; // Timeout in milliseconds for HTML worker startup
   rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
   panicThreshold?: "none" | "critical_errors" | "all_errors";
-};
+}
 
 export type MultiPageHandlerOptions<
   Opt extends ResolvedUserOptions = ResolvedUserOptions
@@ -784,7 +801,7 @@ export type MultiPageHandlerOptions<
 
 export type CreateHandlerOptions<
   Opt extends ResolvedUserOptions = ResolvedUserOptions,
-  Interface extends CoreInterface = DefaultInterface,
+  Interface extends ViteReactServerComponentsPlugin = DefaultInterface,
   R = Interface["ReactType"]
 > = Pick<
   Opt,
@@ -815,8 +832,18 @@ export type CreateHandlerOptions<
   htmlPath?: string;
   pageProps?: Interface["PageProps"];
   PageComponent: PageComponentType<Interface["PageProps"], R>;
-  RootComponent: RootComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], R>;
-  HtmlComponent: HtmlComponentType<Interface["PageProps"], Interface["As"], Interface["InlineCSS"], R>;
+  RootComponent: RootComponentType<
+    Interface["PageProps"],
+    Interface["As"],
+    Interface["InlineCSS"],
+    R
+  >;
+  HtmlComponent: HtmlComponentType<
+    Interface["PageProps"],
+    Interface["As"],
+    Interface["InlineCSS"],
+    R
+  > | typeof React.Fragment;
   route: string;
   url: string;
   as?: Interface["As"];
@@ -851,13 +878,6 @@ export type ResolvePropsOptions = {
   url: string;
 };
 
-export type BaseProps = {
-  manifest: Manifest;
-  children?: React.ReactNode;
-  assets?: {
-    css?: string[];
-  };
-};
 
 export type StreamResult =
   | {
@@ -993,7 +1013,6 @@ export type ResolvedBuildPages = {
 export type ModuleId = string & { readonly __brand: unique symbol };
 export type PagePath = string & { readonly __brand: unique symbol };
 
-
 export interface DeserializedRegExp {
   source: string;
   flags: string;
@@ -1010,12 +1029,10 @@ export type PropsName = "props";
 export type HtmlName = "Html";
 export type RootName = "Root";
 
-
-
 export type HtmlProps<
-  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
-  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
-  As extends CoreInterface["As"] = DefaultInterface["As"],
+  PageProps extends ViteReactServerComponentsPlugin["PageProps"] = DefaultInterface["PageProps"],
+  InlineCSS extends ViteReactServerComponentsPlugin["InlineCSS"] = DefaultInterface["InlineCSS"],
+  As extends ViteReactServerComponentsPlugin["As"] = DefaultInterface["As"],
   R = DefaultInterface["ReactType"]
 > = {
   pageProps?: PageProps;
@@ -1266,7 +1283,7 @@ export type FlightConfig = {
 // Import configuration from separate file
 
 export type VitePluginMainFn = <
-  Opt extends StreamPluginOptions = StreamPluginOptions
+  Opt extends StreamPluginOptions<any> = StreamPluginOptions<any>
 >(
   options: Opt
 ) => Plugin<Opt>[];
@@ -1298,29 +1315,47 @@ export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
 // re-exorts
 export type { RenderMetrics, StreamMetrics };
 
-// Core interface types that can be overridden
-export interface CoreInterface {
-  PageProps: Record<string, unknown>;
-  As: React.ExoticComponent<React.FragmentProps> | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
-  InlineCSS: undefined | boolean;
-  ReactType: React.ReactNode;
+// Generic React type that can be inferred from user's React import
+export type InferReactType<R = React.ReactNode> = R;
+
+// Simple interface override for custom React types
+export type CustomInterface<R = React.ReactNode> = {
+  ReactType: R;
+  PageProps: any;
+  As: any;
   PropsExportName: string;
   PageExportName: string;
   RootExportName: string;
   HtmlExportName: string;
-}
-
-// Default interface implementation
-export type DefaultInterface = {
-  PageProps: Record<string, unknown>;
-  As: React.ExoticComponent<React.FragmentProps> | Exclude<keyof React.JSX.IntrinsicElements, "symbol" | "object">;
   InlineCSS: undefined | boolean;
-  ReactType: React.ReactNode;
+};
+
+// Core interface types that can be overridden
+declare global {
+  interface ViteReactServerComponentsPlugin {
+    PageProps: any;
+    As: any;
+    InlineCSS: undefined | boolean;
+    ReactType: InferReactType;
+    PropsExportName: string;
+    PageExportName: string;
+    RootExportName: string;
+    HtmlExportName: string;
+  }
+}
+// Default interface implementation
+export interface DefaultInterface<
+  T extends React.ComponentProps<any> = React.ComponentProps<any>,
+  As extends React.JSXElementConstructor<any> | keyof React.JSX.IntrinsicElements = React.JSXElementConstructor<any> | keyof React.JSX.IntrinsicElements
+> extends ViteReactServerComponentsPlugin {
+  ReactType: InferReactType;
+  PageProps: T;
+  As: As;
   PropsExportName: PropsName;
   PageExportName: PageName;
   RootExportName: RootName;
   HtmlExportName: HtmlName;
-};
+}
 
 // Legacy type aliases for backward compatibility
 export type PagePropOpt = DefaultInterface["PageProps"];
@@ -1329,27 +1364,27 @@ export type InlineCssOpt = DefaultInterface["InlineCSS"];
 
 // Configurable type system that uses the interface
 export type PageComponentType<
-  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
-  ReactType = DefaultInterface["ReactType"]
-> = (props: PageProps) => ReactType;
+  PageProps extends ViteReactServerComponentsPlugin["PageProps"] = DefaultInterface["PageProps"],
+  R = DefaultInterface["ReactType"]
+> = (props: PageProps) => R;
 
 export type RootComponentType<
-  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
-  As extends CoreInterface["As"] = DefaultInterface["As"],
-  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
+  PageProps extends ViteReactServerComponentsPlugin["PageProps"] = DefaultInterface["PageProps"],
+  As extends ViteReactServerComponentsPlugin["As"] = DefaultInterface["As"],
+  InlineCSS extends ViteReactServerComponentsPlugin["InlineCSS"] = DefaultInterface["InlineCSS"],
   R = DefaultInterface["ReactType"]
 > = (props: RootProps<PageProps, InlineCSS, As, R>) => R;
 
 export type RootProps<
-  PageProps extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
-  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
-  As extends CoreInterface["As"] = DefaultInterface["As"],
+  PageProps extends ViteReactServerComponentsPlugin["PageProps"] = DefaultInterface["PageProps"],
+  InlineCSS extends ViteReactServerComponentsPlugin["InlineCSS"] = DefaultInterface["InlineCSS"],
+  As extends ViteReactServerComponentsPlugin["As"] = DefaultInterface["As"],
   R = DefaultInterface["ReactType"]
 > = {
   as: As;
   cssFiles?: Map<string, CssContent<InlineCSS>>;
-  pageProps?: PageProps;
-  Page: PageComponentType<PageProps, R>;
+  pageProps?: Omit<PageProps, "children">;
+  Page: PageComponentType<Omit<PageProps, "children">, R>;
   id?: string;
 };
 
@@ -1357,27 +1392,30 @@ export type RootProps<
  * Boxed component type for the Html component
  */
 export type HtmlComponentType<
-  T extends CoreInterface["PageProps"] = DefaultInterface["PageProps"],
-  As extends CoreInterface["As"] = DefaultInterface["As"],
-  InlineCSS extends CoreInterface["InlineCSS"] = DefaultInterface["InlineCSS"],
+  T extends ViteReactServerComponentsPlugin["PageProps"] = DefaultInterface["PageProps"],
+  As extends ViteReactServerComponentsPlugin["As"] = DefaultInterface["As"],
+  InlineCSS extends ViteReactServerComponentsPlugin["InlineCSS"] = DefaultInterface["InlineCSS"],
   R = DefaultInterface["ReactType"]
-> = typeof React.Fragment | ((props: HtmlProps<T, InlineCSS, As, R>) => R);
+> = ((props: HtmlProps<T, InlineCSS, As, R>) => R);
 
 // Interface-aware type aliases for better type safety
-export type InterfaceAwareCssContent<Interface extends CoreInterface> = 
+export type InterfaceAwareCssContent<Interface extends ViteReactServerComponentsPlugin> =
   CssContent<Interface["InlineCSS"]>;
 
-export type InterfaceAwareRootOptions<Interface extends CoreInterface> = 
+export type InterfaceAwareRootOptions<Interface extends ViteReactServerComponentsPlugin> =
   RootOptions<Interface["InlineCSS"]>;
 
-export type InterfaceAwareCssComponentType<Interface extends CoreInterface, R = Interface["ReactType"]> = 
-  CssComponentType<Interface["InlineCSS"], R>;
+export type InterfaceAwareCssComponentType<
+  Interface extends ViteReactServerComponentsPlugin,
+  R = Interface["ReactType"]
+> = CssComponentType<Interface["InlineCSS"], R>;
 
-export type InterfaceAwareCssProps<Interface extends CoreInterface> = 
-  CssProps<Interface["InlineCSS"]>;
+export type InterfaceAwareCssProps<Interface extends ViteReactServerComponentsPlugin> = CssProps<
+  Interface["InlineCSS"]
+>;
 
-export type InterfaceAwareHandlerAssets<Interface extends CoreInterface> = 
+export type InterfaceAwareHandlerAssets<Interface extends ViteReactServerComponentsPlugin> =
   HandlerAssets<Interface["InlineCSS"]>;
 
-export type InterfaceAwareCreateHandlerResult<Interface extends CoreInterface> = 
+export type InterfaceAwareCreateHandlerResult<Interface extends ViteReactServerComponentsPlugin> =
   CreateHandlerResult<Interface["InlineCSS"]>;

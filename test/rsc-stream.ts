@@ -45,7 +45,7 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
       statusCode: response.status,
     };
   } catch (error) {
-    console.error("Error handling RSC stream:", error);
+    console.error("[test/rsc-stream] Error handling RSC stream:", error);
     return {
       result: "",
       responseHeaders: new Headers(),

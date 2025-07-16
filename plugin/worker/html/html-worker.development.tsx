@@ -2,16 +2,18 @@ import { messageHandler } from "./messageHandler.js";
 import { parentPort, workerData } from "node:worker_threads";
 import type { ReadyMessage } from "../types.js";
 import type { HtmlWorkerInputMessage } from "./types.js";
+import { createLogger } from "vite";
 
-const verbose = workerData.verbose;
+const verbose = Boolean(workerData.verbose);
+const logger = createLogger(workerData.resolvedConfig.logLevel ?? "info");
 
 function developmentMessageHandler(msg: HtmlWorkerInputMessage) {
   if (verbose) {
     if (msg.type === "RSC_CHUNK") {
       const preview = Buffer.from(msg.chunk).toString("utf-8");
-      console.log(`[html-worker:${msg.type}] ${preview}`);
+      logger.info(`[html-worker:${msg.type}] ${preview}`);
     } else {
-      console.log(`[html-worker:${msg.type}] ${JSON.stringify(msg)}`);
+      logger.info(`[html-worker:${msg.type}] ${JSON.stringify(msg)}`);
     }
   }
   messageHandler(msg);

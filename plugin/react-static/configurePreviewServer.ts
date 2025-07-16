@@ -62,7 +62,7 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
               const readStream = createReadStream(filePath);
               readStream.on("error", () => {
                 if (!res.writable) {
-                  controller.abort();
+                  controller.abort('aborted by preview server');
                 }
               });
               await pipeline(readStream, res, { signal });

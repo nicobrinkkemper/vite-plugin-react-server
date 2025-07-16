@@ -63,18 +63,17 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
           logError(error, logger);
           
           // Log errorInfo if provided
-          if (errorInfo != null && typeof errorInfo === "object" && 'reason' in errorInfo && typeof errorInfo["reason"] === "string") {
-            logger.error(errorInfo["reason"]);  
-          }
-          
-          if (!isClosed) {
-            isClosed = true;
-            try {
-              controller.close();
-            } catch {
-              // Ignore errors from trying to close an already closed controller
+          if (errorInfo != null && typeof errorInfo === "object") {
+            if('reason' in errorInfo && typeof errorInfo["reason"] === "string") {
+              logger.error(errorInfo["reason"]);  
+            }
+            if('componentStack' in errorInfo && typeof errorInfo["componentStack"] === "string") {
+              logger.error(errorInfo["componentStack"]);
             }
           }
+          
+          // Don't close the stream immediately on error - let React include the error entry
+          // The stream will be closed naturally when all chunks are processed
         };
 
         try {
@@ -113,7 +112,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
               if (verbose) logger.info("[react-client] Stream is flowing");
             }
 
-            if (!isClosed && !hasError) {
+            if (!isClosed) {
               controller.enqueue(chunk);
             }
 
@@ -128,7 +127,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
             isFlowing = false;
             if (verbose) logger.info("[react-client] Stream closing");
           }
-          if (!isClosed && !hasError) {
+          if (!isClosed) {
             isClosed = true;
             controller.close();
           }

@@ -4,8 +4,16 @@ import { getFunctionBody } from "./getFunctionBody.js";
 import { getFunctionName } from "./getFunctionName.js";
 import { getExportedName } from "./getExportedName.js";
 import { processFunctionNode } from "./processFunctionNode.js";
-import { isDirectiveAtStart, getDirectiveValue, matchOverlapsDirective } from "./utils.js";
-import type { DirectiveInfo, DirectiveMatch, DirectiveMatches } from "./types.js";
+import {
+  isDirectiveAtStart,
+  getDirectiveValue,
+  matchOverlapsDirective,
+} from "./utils.js";
+import type {
+  DirectiveInfo,
+  DirectiveMatch,
+  DirectiveMatches,
+} from "./types.js";
 import type { Node, Program } from "acorn";
 import type { DirectiveOptions } from "../../types.js";
 
@@ -13,45 +21,59 @@ import type { DirectiveOptions } from "../../types.js";
  * Analyzes directives in the given source and AST, returning directiveInfo.
  */
 export function analyzeDirectives(
-  ast: Program, 
+  ast: Program,
   source: string,
-  matches?: DirectiveMatches,
+  matches?: DirectiveMatches
 ): DirectiveInfo;
 export function analyzeDirectives(
-  ast: Program, 
+  ast: Program,
   source: string,
-  options?: DirectiveOptions,
+  options?: DirectiveOptions
 ): DirectiveInfo;
 export function analyzeDirectives(
-  ast: Program, 
+  ast: Program,
   source: string,
-  optionsOrMatches?: DirectiveMatches | DirectiveOptions,
+  optionsOrMatches?: DirectiveMatches | DirectiveOptions
 ): DirectiveInfo {
-  const hasOptions  = optionsOrMatches != null && typeof optionsOrMatches === 'object';
-  const directiveMatches = hasOptions && 'matches' in optionsOrMatches
-    ? optionsOrMatches
-    : findDirectiveMatches(source);
+  const hasOptions =
+    optionsOrMatches != null && typeof optionsOrMatches === "object";
+  const directiveMatches =
+    hasOptions && "matches" in optionsOrMatches
+      ? optionsOrMatches
+      : findDirectiveMatches(source);
 
   const directiveInfo: DirectiveInfo = {
     fileLevel: null,
     functionLevel: [],
-    warnings: []
+    warnings: [],
   };
 
   // Find file-level directives by checking AST
   let foundNonDirective = false;
   let firstDirective: DirectiveMatch | null = null;
-  let verbose = hasOptions && 'verbose' in optionsOrMatches && optionsOrMatches.verbose;
+  let verbose =
+    hasOptions && "verbose" in optionsOrMatches && optionsOrMatches.verbose;
+
+  // Check if this looks like Vite-injected code
+  const isViteInjectedCode =
+    source.includes("__vite__createHotContext") ||
+    source.includes("import.meta.hot") ||
+    source.includes("import.meta.env") ||
+    source.includes("/@vite/client");
+
   for (const node of ast.body) {
     // Debug logging
     if (verbose) {
-      console.log('[analyzeDirectives] Processing node:', {
+      console.log("[analyzeDirectives] Processing node:", {
         type: node.type,
         start: node.start,
         end: node.end,
-        directive: 'directive' in node ? node.directive : undefined,
-        beforeNode: node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)) : 'none',
-        foundNonDirective
+        directive: "directive" in node ? node.directive : undefined,
+        beforeNode:
+          node.start! > 0
+            ? JSON.stringify(source.slice(0, node.start!))
+            : "none",
+        foundNonDirective,
       });
     }
 
@@ -63,25 +85,36 @@ export function analyzeDirectives(
       } else if (
         node.expression.type === "Literal" &&
         typeof node.expression.value === "string" &&
-        (node.expression.value === "use server" || node.expression.value === "use client")
+        (node.expression.value === "use server" ||
+          node.expression.value === "use client")
       ) {
         directive = node.expression.value;
       }
 
       if (directive) {
-        const getDirectiveType = optionsOrMatches != null && 'loader' in optionsOrMatches ? optionsOrMatches.loader?.getDirectiveType : undefined;
-        const type = getDirectiveType?.(directive) ?? 
+        const getDirectiveType =
+          optionsOrMatches != null && "loader" in optionsOrMatches
+            ? optionsOrMatches.loader?.getDirectiveType
+            : undefined;
+        const type =
+          getDirectiveType?.(directive) ??
           (directive === "use server" ? "server" : "client");
         if (!firstDirective) {
           firstDirective = { type, range: [node.start!, node.end!] };
           if (verbose) {
-            console.log('[analyzeDirectives] Found first directive:', directive, 'at range:', [node.start!, node.end!]);
+            console.log(
+              "[analyzeDirectives] Found first directive:",
+              directive,
+              "at range:",
+              [node.start!, node.end!]
+            );
           }
         } else {
           directiveInfo.warnings.push({
-            message: "Cannot have both 'use client' and 'use server' directives in the same file",
+            message:
+              "Cannot have both 'use client' and 'use server' directives in the same file",
             range: [0, 0],
-            type: "server"
+            type: "server",
           });
         }
       } else {
@@ -89,18 +122,28 @@ export function analyzeDirectives(
         // if we haven't found the first directive yet
         if (!firstDirective) {
           foundNonDirective = true;
-          if (optionsOrMatches != null && 'verbose' in optionsOrMatches && optionsOrMatches?.verbose) {
-            console.log('[analyzeDirectives] Found non-directive expression before first directive, setting foundNonDirective=true');
+          if (
+            optionsOrMatches != null &&
+            "verbose" in optionsOrMatches &&
+            optionsOrMatches?.verbose
+          ) {
+            console.log(
+              "[analyzeDirectives] Found non-directive expression before first directive, setting foundNonDirective=true"
+            );
           }
         }
       }
-    } else if (node.type !== "ImportDeclaration" && node.type !== "ExportNamedDeclaration" && node.type !== "ExportDefaultDeclaration") {
+    } else {
       // Only mark actual code (not imports/exports) as non-directive
       // if we haven't found the first directive yet
       if (!firstDirective) {
         foundNonDirective = true;
         if (verbose) {
-          console.log('[analyzeDirectives] Found non-directive node before first directive:', node.type, 'setting foundNonDirective=true');
+          console.log(
+            "[analyzeDirectives] Found non-directive node before first directive:",
+            node.type,
+            "setting foundNonDirective=true"
+          );
         }
       }
     }
@@ -112,7 +155,11 @@ export function analyzeDirectives(
       if (beforeNode.length > 0) {
         foundNonDirective = true;
         if (verbose) {
-          console.log('[analyzeDirectives] Found content before first directive:', JSON.stringify(beforeNode), 'setting foundNonDirective=true');
+          console.log(
+            "[analyzeDirectives] Found content before first directive:",
+            JSON.stringify(beforeNode),
+            "setting foundNonDirective=true"
+          );
         }
       }
     }
@@ -121,94 +168,134 @@ export function analyzeDirectives(
   // Set the first directive as file-level if found
   if (firstDirective) {
     directiveInfo.fileLevel = firstDirective;
-    
+
     // Check if there was content (including comments) before the directive
     if (!foundNonDirective && firstDirective.range[0] > 0) {
       const beforeDirective = source.slice(0, firstDirective.range[0]).trim();
       if (beforeDirective.length > 0) {
         foundNonDirective = true;
         if (verbose) {
-          console.log('[analyzeDirectives] Found content before directive:', JSON.stringify(beforeDirective), 'setting foundNonDirective=true for directive');
+          console.log(
+            "[analyzeDirectives] Found content before directive:",
+            JSON.stringify(beforeDirective),
+            "setting foundNonDirective=true for directive"
+          );
         }
       }
     }
-    
+
+    // Only warn about directive placement if it's not Vite-injected code
     if (foundNonDirective) {
-      directiveInfo.warnings.push({
-        message: "File-level directives must be at the top of the file, before any other code",
-        range: [firstDirective.range[0], firstDirective.range[1]],
-        type: firstDirective.type
-      });
+      if (!isViteInjectedCode) {
+        directiveInfo.warnings.push({
+          message:
+            "File-level directives must be at the top of the file, before any other code",
+          range: [firstDirective.range[0], firstDirective.range[1]],
+          type: firstDirective.type,
+        });
+      } else {
+        directiveInfo.warnings.push({
+          message:
+            "The client entry is already a client component module, this directive can be removed.",
+          range: [firstDirective.range[0], firstDirective.range[1]],
+          type: firstDirective.type,
+        });
+      }
     }
   }
 
   // Process function-level directives
-  const functionLevelMatches = directiveMatches.matches.filter((match: DirectiveMatch) => {
-    // Skip if this match is already used as a file-level directive
-    if (directiveInfo.fileLevel && 
-        match.range[0] === directiveInfo.fileLevel.range[0] && 
-        match.range[1] === directiveInfo.fileLevel.range[1]) {
-      return false;
+  const functionLevelMatches = directiveMatches.matches.filter(
+    (match: DirectiveMatch) => {
+      // Skip if this match is already used as a file-level directive
+      if (
+        directiveInfo.fileLevel &&
+        match.range[0] === directiveInfo.fileLevel.range[0] &&
+        match.range[1] === directiveInfo.fileLevel.range[1]
+      ) {
+        return false;
+      }
+      return true;
     }
-    return true;
-  });
+  );
 
   const processedFunctions = new Set<string>();
 
   // First pass: collect all function nodes with their directives
-  const functionNodes: Array<{node: Node, match: DirectiveMatch, context: string}> = [];
-  
+  const functionNodes: Array<{
+    node: Node;
+    match: DirectiveMatch;
+    context: string;
+  }> = [];
+
   // Track context during traversal
-  function traverseWithContext(node: Node, context: { inFunction: boolean, inClass: boolean }) {
+  function traverseWithContext(
+    node: Node,
+    context: { inFunction: boolean; inClass: boolean }
+  ) {
     if (isFunctionNode(node)) {
       const body = getFunctionBody(node);
       if (body) {
         // Check if directive is at the start of the function body
         for (const match of functionLevelMatches) {
           const directiveValue = getDirectiveValue(match.type);
-          
+
           if (isDirectiveAtStart(node, directiveValue)) {
             // Check if the match range corresponds to this specific directive position
             const directiveNode = body.body[0];
             const directiveStart = directiveNode.start!;
             const directiveEnd = directiveNode.end!;
-            
+
             // Match based on position - the match should overlap with the directive node
-            const matchOverlaps = matchOverlapsDirective(match.range, directiveStart, directiveEnd);
-            
+            const matchOverlaps = matchOverlapsDirective(
+              match.range,
+              directiveStart,
+              directiveEnd
+            );
+
             if (matchOverlaps) {
               const functionName = getFunctionName(node) || "anonymous";
-              
+
               // Check for invalid contexts based on traversal context
               if (context.inFunction) {
-                const nameDesc = functionName === "anonymous" ? "" : ` '${functionName}'`;
+                const nameDesc =
+                  functionName === "anonymous" ? "" : ` '${functionName}'`;
                 directiveInfo.warnings.push({
                   message: `Function${nameDesc} with '${directiveValue}' directive cannot be nested inside another function. Directives are only allowed in top-level functions.`,
                   range: match.range,
-                  type: match.type
+                  type: match.type,
                 });
                 return; // Skip this function entirely
               }
-              
+
               if (context.inClass) {
-                const nameDesc = functionName === "anonymous" ? "" : ` '${functionName}'`;
+                const nameDesc =
+                  functionName === "anonymous" ? "" : ` '${functionName}'`;
                 directiveInfo.warnings.push({
                   message: `Class method${nameDesc} with '${directiveValue}' directive is not supported. Directives are only allowed in top-level functions.`,
                   range: match.range,
-                  type: match.type
+                  type: match.type,
                 });
                 return; // Skip this function entirely
               }
 
               // Only allow server directives in function-level contexts
               if (match.type === "server") {
-                functionNodes.push({ node, match, context: context.inFunction ? "nested" : context.inClass ? "class" : "top-level" });
+                functionNodes.push({
+                  node,
+                  match,
+                  context: context.inFunction
+                    ? "nested"
+                    : context.inClass
+                    ? "class"
+                    : "top-level",
+                });
               } else {
                 // Generate warning for client directives in functions
                 directiveInfo.warnings.push({
                   message: "Function-level 'use client' isn't allowed",
                   range: match.range,
-                  type: "client"
+                  type: "client",
                 });
               }
               break;
@@ -216,10 +303,13 @@ export function analyzeDirectives(
           }
         }
       }
-      
+
       // Continue traversal with updated context (now inside a function)
       traverseChildren(node, { inFunction: true, inClass: context.inClass });
-    } else if (node.type === "ClassDeclaration" || node.type === "ClassExpression") {
+    } else if (
+      node.type === "ClassDeclaration" ||
+      node.type === "ClassExpression"
+    ) {
       // Continue traversal with updated context (now inside a class)
       traverseChildren(node, { inFunction: context.inFunction, inClass: true });
     } else if (node.type === "MethodDefinition") {
@@ -230,19 +320,28 @@ export function analyzeDirectives(
       traverseChildren(node, context);
     }
   }
-  
-  function traverseChildren(node: Node, context: { inFunction: boolean, inClass: boolean }) {
+
+  function traverseChildren(
+    node: Node,
+    context: { inFunction: boolean; inClass: boolean }
+  ) {
     const nodeWithChildren = node as any;
     for (const key in nodeWithChildren) {
-      if (key === 'parent' || key === 'start' || key === 'end' || key === 'loc' || key === 'range') {
+      if (
+        key === "parent" ||
+        key === "start" ||
+        key === "end" ||
+        key === "loc" ||
+        key === "range"
+      ) {
         continue;
       }
-      
+
       const value = nodeWithChildren[key];
-      if (value && typeof value === 'object') {
+      if (value && typeof value === "object") {
         if (Array.isArray(value)) {
           for (const child of value) {
-            if (child && typeof child === 'object' && child.type) {
+            if (child && typeof child === "object" && child.type) {
               traverseWithContext(child, context);
             }
           }
@@ -252,7 +351,7 @@ export function analyzeDirectives(
       }
     }
   }
-  
+
   // Start traversal at top level (not in function or class)
   traverseWithContext(ast, { inFunction: false, inClass: false });
 
@@ -260,7 +359,7 @@ export function analyzeDirectives(
   for (const { node, match } of functionNodes) {
     const name = getFunctionName(node) || "anonymous";
     const exportName = getExportedName(node);
-    const functionKey = `${name}-${exportName || ''}-${match.range[0]}`;
+    const functionKey = `${name}-${exportName || ""}-${match.range[0]}`;
 
     // Skip if we've already processed this function
     if (processedFunctions.has(functionKey)) continue;
@@ -276,23 +375,23 @@ export function analyzeDirectives(
         directiveInfo.warnings.push({
           message: `Cannot have both 'use ${directiveInfo.fileLevel.type}' and 'use ${func.type}' directives in the same file`,
           range: func.range,
-          type: "server"
+          type: "server",
         });
       } else if (func.type !== "server") {
         directiveInfo.warnings.push({
           message: `Function-level directives should be 'use server', but got 'use ${func.type}'`,
           range: func.range,
-          type: "client"
+          type: "client",
         });
       } else {
         directiveInfo.warnings.push({
           message: `'use server' is already defined at the top of the file, this directive should be removed.`,
           range: func.range,
-          type: "server"
+          type: "server",
         });
       }
     }
   }
 
   return directiveInfo;
-} 
+}
