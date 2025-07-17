@@ -19,66 +19,71 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
    - Routing Configuration
    - Build Configuration
 
-4. [CSS Handling](./css-handling.md)
+4. [Component Resolution](./component-resolution.md)
+   - Path-based vs Direct Components
+   - When to Use Each Approach
+   - Migration Guide
+
+5. [CSS Handling](./css-handling.md)
    - CSS Collectors
    - Inline CSS
    - Custom CSS Processing
 
-5. [Server Actions](./server-actions.md)
+6. [Server Actions](./server-actions.md)
    - Creating Server Actions
    - Client Integration
    - Error Handling
    - Database Integration
 
-6. [Static Site Generation](./static-site-generation.md)
+7. [Static Site Generation](./static-site-generation.md)
    - Static Plugin
    - Build Process
    - Deployment Strategies
 
-7. [Build Orchestration](./build-orchestration.md)
+8. [Build Orchestration](./build-orchestration.md)
    - Multiple Build Targets
    - Plugin Architecture
    - Environment-Specific Builds
 
-8. [Architecture](./architecture.md)
+9. [Architecture](./architecture.md)
    - Design Philosophy
    - Environment Variables
    - Plugin Composition
    - HTML Component Support
 
-9. [Advanced Topics](./advanced-topics.md)
+10. [Advanced Topics](./advanced-topics.md)
    - Custom Workers
    - Message System
    - Extending the Plugin
 
-10. [API Reference](./api-reference.md)
+11. [API Reference](./api-reference.md)
    - Plugin Options
    - Component Props
    - Worker Messages
    - Type Definitions
 
-11. [Transformations](./transformations.md)
+12. [Transformations](./transformations.md)
     - Code Transformations
     - Directive Handling
     - Build Output Examples
 
-12. [Loader](./loader.md)
+13. [Loader](./loader.md)
     - React Server Components Loader
     - Directive Processing
     - Module Boundaries
     - Custom Registration Functions
 
-13. [Patch System](./patch-system.md)
+14. [Patch System](./patch-system.md)
     - React Version Compatibility
     - Creating Patches
     - Maintenance Guide
 
-14. [Practical Guide](./practical-guide.md)
+15. [Practical Guide](./practical-guide.md)
     - Real-world Examples
     - Debugging Features
     - Production Implementations
 
-15. [Troubleshooting Guide](./troubleshooting-guide.md)
+16. [Troubleshooting Guide](./troubleshooting-guide.md)
     - Common Issues
     - Debugging Tips
     - Performance Optimization

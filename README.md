@@ -40,9 +40,9 @@ export default defineConfig({
 
 ```tsx
 // src/page.tsx
-export function Page({ url }) {
+export const Page = ({ url }: { url: string }) => {
   return <div>Hello from {url}</div>;
-}
+};
 ```
 
 ## Development & Build
@@ -182,6 +182,7 @@ This project uses experimental React features and includes a patch system for co
 | [Getting Started](./docs/getting-started.md) | Installation and Setup |
 | [Core Concepts](./docs/core-concepts.md) | Client-Server Separation |
 | [Configuration](./docs/configuration.md) | Plugin Options |
+| [Component Resolution](./docs/component-resolution.md) | Path-based vs Direct Components |
 | [CSS Handling](./docs/css-handling.md) | CSS Collectors |
 | [Server Actions](./docs/server-actions.md) | Creating Server Actions |
 | [Static Site Generation](./docs/static-site-generation.md) | Static Plugin |

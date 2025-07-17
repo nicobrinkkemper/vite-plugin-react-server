@@ -1,95 +1,20 @@
 # Getting Started
-This guide will help you get started with the Vite React Server Plugin, which enables React Server Components (RSC) streaming and static HTML page generation with TypeScript support.
 
-## Installation
+This guide will help you set up a React Server Components project using Vite and the `vite-plugin-react-server` plugin.
 
-Install the plugin and its dependencies:
+## Installation and Setup
 
-```sh
-# Install the plugin
-npm install -D vite-plugin-react-server
+### 1. Install Dependencies
 
-# Install required React dependencies
+```bash
 npm install -D patch-package react@experimental react-dom@experimental react-server-dom-esm
 ```
 
-## Setting Up Patches
+To start using `react-server-dom-esm`, run the patch file after installing.
 
-The plugin includes a patch system to ensure React compatibility. Add the following command to your `package.json` scripts:
-
-```json
-"patch": "patch"
-```
-
-Run the patch command:
-
-```sh
+```bash
 npm run patch
 ```
-
-It will instruct you to add:
-
-```json
-"postinstall": "patch-package"
-```
-
-This ensures the patch is applied after every `npm install`. If errors arise related to `react-server-dom-esm`, verify that the postinstall step ran successfully.
-
-## Basic Setup
-
-### 1. Create Configuration Files
-
-Create a shared configuration file (let's call it `vite.react.config.tsx`):
-
-```ts
-import type { StreamPluginOptions } from "vite-plugin-react-server/types";
-
-const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
-  switch (url) {
-    case "/":
-      return `src/page/${file}`;
-    case "/about":
-      return `src/about/${file}`;
-    default:
-      throw new Error(`Unknown route: ${url}`);
-  }
-};
-
-export const config = {
-  moduleBase: "src",
-  Page: createRouter("page.tsx"),
-  props: createRouter("props.ts"),
-  
-  // String paths for serializable components (works in both static and RSC worker modes)
-  Root: "src/Root.tsx",
-  Html: "src/Html.tsx",
-  
-  // Alternative: Router functions for dynamic resolution
-  // Root: (url) => `src/pages/${url}/Root.tsx`,
-  // Html: (url) => `src/pages/${url}/Html.tsx`,
-  
-  build: {
-    pages: ["/", "/about"],
-  },
-  // Enable monitoring
-  verbose: true,
-  onEvent: (event) => {
-    console.log(`[Plugin] ${event.type}:`, event.data);
-  },
-  onMetrics: (metrics) => {
-    console.log(`[Plugin] Build metrics:`, metrics);
-  },
-} satisfies StreamPluginOptions;
-```
-
-**Note:** All component references (Page, props, Root, Html) now follow the same serializable pattern:
-- **String paths**: `"src/CustomRoot.tsx"`
-- **Router functions**: `(url) => "src/pages" + url + "/Root.tsx"`
-- **Async functions**: `async (url) => "src/Root.tsx"`
-
-For direct component references in static builds, use the `components` override (see Type Safety section below).
-
-Because we are using the `.tsx` extension for this file, we can directly define React server components with full type safety. This does not work for the `vite.config.ts` file, because Vite does not support this extension.
 
 ### 2. Create Vite Configuration
 
@@ -98,34 +23,14 @@ Create `vite.config.ts`:
 ```ts
 import { defineConfig } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
-import { config } from "./vite.react.config";
 
 export default defineConfig({
-  plugins: vitePluginReactServer(config),
-});
-```
-
-For client-only config files (optional):
-
-```ts
-import { defineConfig } from "vite";
-import { vitePluginReactServer } from "vite-plugin-react-server/client";
-import { config } from "./vite.react.config";
-
-export default defineConfig({
-  plugins: vitePluginReactServer(config),
-});
-```
-
-For server-only config files (optional):
-
-```ts
-import { defineConfig } from "vite";
-import { vitePluginReactServer } from "vite-plugin-react-server/server";
-import { config } from "./vite.react.config";
-
-export default defineConfig({
-  plugins: vitePluginReactServer(config),
+  plugins: vitePluginReactServer({
+    moduleBase: "src",
+    Page: (url) => `src/page${url}page.tsx`,
+    props: (url) => `src/page${url}props.ts`,
+    build: { pages: ["/", "/about"] }
+  })
 });
 ```
 
@@ -134,7 +39,7 @@ export default defineConfig({
 Create a page component at `src/page/page.tsx`:
 
 ```tsx
-import type { PageProps } from "./props";
+import type { PageProps } from "./props.js";
 
 export const Page = ({ name, title }: PageProps) => {
   return (
@@ -255,42 +160,54 @@ import React from "react";
 import type { RootComponentType } from "vite-plugin-react-server/types";
 
 export const Root: RootComponentType = ({ Page, pageProps = {}, as = "div", cssFiles, ...props }) => {
-  return React.createElement(as as any, {
-    ...props,
-    "data-css-count": cssFiles ? cssFiles.size : 0,
-  }, 
+  return React.createElement(as, props, 
     React.createElement(Page, pageProps)
   );
 };
 ```
 
-### Component Override for Static Builds
+### Component Resolution: Path-based vs Direct Components
 
-For static builds where you want to avoid file resolution, you can use direct component references:
+The plugin supports two ways to provide components:
+
+#### 1. Path-based Resolution (Recommended for Development)
+
+Use string paths that get resolved at runtime:
+
+```ts
+export const config = {
+  // Serializable paths (used by RSC worker mode)
+  Root: "src/CustomRoot.tsx",
+  Html: "src/CustomHtml.tsx",
+  Page: (url) => `src/page${url}/page.tsx`,
+  props: (url) => `src/page${url}/props.ts`,
+  
+  // ... rest of config
+} satisfies StreamPluginOptions;
+```
+
+**When to use:** Development mode, RSC worker mode, when you want hot reloading
+
+#### 2. Direct Component References (For Static Builds)
+
+Use direct component imports to avoid file resolution:
 
 ```ts
 import { CustomRootComponent } from "./src/CustomRoot";
 import { CustomHtmlComponent } from "./src/CustomHtml";
 
 export const config = {
-  // Serializable paths (used by RSC worker mode)
-  Root: "src/CustomRoot.tsx",
-  Html: "src/CustomHtml.tsx",
-  
-  // Or, direct component overrides (used by static builds)
+  // Direct component overrides (used by static builds)
   components: {
     Root: CustomRootComponent,
     Html: CustomHtmlComponent,
+    Page: () => <div>Static Page</div>, // Direct component
   },
   
   // ... rest of config
 } satisfies StreamPluginOptions;
 ```
 
-**Component Resolution Priority:**
-1. **Direct components** (`components.Root`, `components.Html`) - Used in static builds
-2. **Path resolution** (`Root`, `Html` strings/functions) - Used in RSC worker mode
-3. **Default components** - Plugin fallbacks
 
 ### Export Name Configuration
 
@@ -301,6 +218,8 @@ export const config = {
   Root: "src/components.tsx#MyCustomRoot",  // Fragment syntax
   rootExportName: "MyCustomRoot",           // Or global config
   htmlExportName: "MyCustomHtml",
+  pageExportName: "Page",                   // Default
+  propsExportName: "props",                 // Default
   // ... rest of config
 } satisfies StreamPluginOptions;
 ```
@@ -327,82 +246,62 @@ export async function updatePageData(
     };
   } catch (error) {
     console.error("Failed to update page data:", error);
-    return { success: false };
+    return {
+      success: false,
+    };
   }
 }
 ```
 
-## Running the Application
-
-### Development Mode
-
-```sh
-# Run server-side rendering with direct React pipeline
-NODE_OPTIONS='--conditions react-server' npx vite
-# or from paclage.json scripts
-npm run dev
-```
-
-```sh
-# Run client-side development using rsc-worker
-npx vite
-# or from paclage.json scripts
-npm run dev:client
-```
-
-### Building for Production
-
-```sh
-# Build everything
-npm run build
-
-# Or build separately for debugging
-npm run build:static  # Static assets
-npm run build:client  # Client-side rendering modules
-npm run build:server  # Server components and actions
-```
-
-### Testing Your Build
-
-```sh
-# Run development build to see detailed errors
-npm run debug-build
-
-# Test the built application
-npx vite preview
-```
-
-## Verification
-
-After setup, verify everything works:
-
-1. **Development server**: `npm run dev` should start without errors
-2. **Build process**: `npm run build` should complete successfully
-3. **Type checking**: `npx tsc --noEmit` should pass
-4. **Generated files**: Check `dist/` for static, client, and server directories
-
 ## Example Projects
 
-For more examples, check out these projects:
+For complete examples and production implementations:
 
-- **[Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)** - Simple playground with GitHub Pages deployment
-- **[MMC Project](https://github.com/nicobrinkkemper/mmc)** - Production implementation with advanced features
+1. [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official) - Playground example with:
+   - GitHub Pages deployment workflow
+   - API fetching utilities
+   - CSS Modules setup
+   - Client-side navigation
+   - Error boundary
+   - TypeScript configuration
 
-These examples demonstrate various features and configurations of the plugin in real-world applications, including:
+2. [mmcelebration.com](https://github.com/nicobrinkkemper/mmc) - Production implementation with:
+   - GitHub Pages deployment workflow
+   - Advanced routing patterns
+   - Image generation
+   - "white-label" front-end using esm modules
+   - Type-safe props/page routing
 
-- Advanced routing patterns
-- Server actions with database integration
-- Custom CSS handling
-- Type-safe component props
-- Error boundaries and error handling
-- Performance monitoring and metrics
+## Key Concepts
 
-## Next Steps
+### When to Use `components.Page` vs `Page`
 
-- Read [Core Concepts](./core-concepts.md) to understand the architecture
-- Learn about [Server Actions](./server-actions.md) for dynamic functionality
-- Explore [CSS Handling](./css-handling.md) for styling your components
-- Check out [Build Orchestration](./build-orchestration.md) for deployment strategies 
+- **Use `Page` (path-based)**: When you want the plugin to resolve the component from a file path. This enables hot reloading and dynamic loading.
+
+- **Use `components.Page` (direct)**: When you want to provide the component directly, bypassing file resolution. This is useful for static builds or when you need to avoid the overhead of file loading.
+
+### React Component Structure
+
+**Correct**: Export components as named exports
+```tsx
+// ✅ Good: Named export
+export const Page = ({ title }: PageProps) => {
+  return <div>{title}</div>;
+};
+```
+
+**Incorrect**: Export components at top level without proper structure
+```tsx
+// ❌ Bad: Top-level component without proper export
+const Page = ({ title }: PageProps) => {
+  return <div>{title}</div>;
+};
+```
+
+### Development vs Production
+
+- **Development**: Uses worker threads for RSC processing with hot module replacement
+- **Production**: Generates static HTML and RSC files for optimal performance 
 
 <!-- AUTO-GENERATED-TOC-START -->
 
@@ -425,66 +324,71 @@ These examples demonstrate various features and configurations of the plugin in 
 	- [Routing Configuration](./configuration.md#routing-configuration)
 	- [Build Configuration](./configuration.md#build-configuration)
 
-4. [CSS Handling](./css-handling.md)
+4. [Component Resolution](./component-resolution.md)
+	- [Path-based vs Direct Components](./component-resolution.md#path-based-vs-direct-components)
+	- [When to Use Each Approach](./component-resolution.md#when-to-use-each-approach)
+	- [Migration Guide](./component-resolution.md#migration-guide)
+
+5. [CSS Handling](./css-handling.md)
 	- [CSS Collectors](./css-handling.md#css-collectors)
 	- [Inline CSS](./css-handling.md#inline-css)
 	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
 
-5. [Server Actions](./server-actions.md)
+6. [Server Actions](./server-actions.md)
 	- [Creating Server Actions](./server-actions.md#creating-server-actions)
 	- [Client Integration](./server-actions.md#client-integration)
 	- [Error Handling](./server-actions.md#error-handling)
 	- [Database Integration](./server-actions.md#database-integration)
 
-6. [Static Site Generation](./static-site-generation.md)
+7. [Static Site Generation](./static-site-generation.md)
 	- [Static Plugin](./static-site-generation.md#static-plugin)
 	- [Build Process](./static-site-generation.md#build-process)
 	- [Deployment Strategies](./static-site-generation.md#deployment-strategies)
 
-7. [Build Orchestration](./build-orchestration.md)
+8. [Build Orchestration](./build-orchestration.md)
 	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
 	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
 	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
 
-8. [Architecture](./architecture.md)
+9. [Architecture](./architecture.md)
 	- [Design Philosophy](./architecture.md#design-philosophy)
 	- [Environment Variables](./architecture.md#environment-variables)
 	- [Plugin Composition](./architecture.md#plugin-composition)
 	- [HTML Component Support](./architecture.md#html-component-support)
 
-9. [Advanced Topics](./advanced-topics.md)
+10. [Advanced Topics](./advanced-topics.md)
 	- [Custom Workers](./advanced-topics.md#custom-workers)
 	- [Message System](./advanced-topics.md#message-system)
 	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
 
-10. [API Reference](./api-reference.md)
+11. [API Reference](./api-reference.md)
 	- [Plugin Options](./api-reference.md#plugin-options)
 	- [Component Props](./api-reference.md#component-props)
 	- [Worker Messages](./api-reference.md#worker-messages)
 	- [Type Definitions](./api-reference.md#type-definitions)
 
-11. [Transformations](./transformations.md)
+12. [Transformations](./transformations.md)
 	 - [Code Transformations](./transformations.md#code-transformations)
 	 - [Directive Handling](./transformations.md#directive-handling)
 	 - [Build Output Examples](./transformations.md#build-output-examples)
 
-12. [Loader](./loader.md)
+13. [Loader](./loader.md)
 	 - [React Server Components Loader](./loader.md#react-server-components-loader)
 	 - [Directive Processing](./loader.md#directive-processing)
 	 - [Module Boundaries](./loader.md#module-boundaries)
 	 - [Custom Registration Functions](./loader.md#custom-registration-functions)
 
-13. [Patch System](./patch-system.md)
+14. [Patch System](./patch-system.md)
 	 - [React Version Compatibility](./patch-system.md#react-version-compatibility)
 	 - [Creating Patches](./patch-system.md#creating-patches)
 	 - [Maintenance Guide](./patch-system.md#maintenance-guide)
 
-14. [Practical Guide](./practical-guide.md)
+15. [Practical Guide](./practical-guide.md)
 	 - [Real-world Examples](./practical-guide.md#real-world-examples)
 	 - [Debugging Features](./practical-guide.md#debugging-features)
 	 - [Production Implementations](./practical-guide.md#production-implementations)
 
-15. [Troubleshooting Guide](./troubleshooting-guide.md)
+16. [Troubleshooting Guide](./troubleshooting-guide.md)
 	 - [Common Issues](./troubleshooting-guide.md#common-issues)
 	 - [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
 	 - [Performance Optimization](./troubleshooting-guide.md#performance-optimization)

@@ -1,5 +1,8 @@
-# All configurations:
+# Configuration
+
 > Note: likely to change in the future, but these are all the allowed options and their intended function
+
+## Core Configuration Options
 
 ### moduleBase
 
@@ -36,7 +39,9 @@ publicOrigin: "", // URL parseable origin
 
 `publicOrigin` should be used as a static replacement for location.origin. Defaults to VITE_PUBLIC_ORIGIN or ""
 
-### Page & props
+## Component Configuration
+
+### Page & Props (Path-based Resolution)
 
 ```ts
 const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
@@ -56,51 +61,93 @@ const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
       throw new Error(`Unknown route: ${url}`);
   }
 };
-... later
-  Page: createRouter('page.tsx')
-  props: createRouter('props.ts'),
-  pageExportName: "Page",
-  propsExportName: "props",
+
+// later
+Page: createRouter('page.tsx')
+props: createRouter('props.ts'),
+pageExportName: "Page",
+propsExportName: "props",
 ```
 
 Basically a router for mapping urls to source code. It can be any implementation you want. The props is optional to use, but it's very powerful since anything it returns will be the props for the page component as well as be accessible in the Html component. If you didn't define a props router, you can still define the `props` in the Page file.
 
-### Html
+### Direct Component References
 
-```tsx
-import type { StreamPluginOptions } from "vite-plugin-react-server/types";
-
-export const config = {
-  moduleBase: 'src',
-} satisfies StreamPluginOptions
-```
-
-When the environment allows, you can override the components using the `components` key.
+When the environment allows, you can override the components using the `components` key:
 
 ```tsx
 import React from "react";
-// later
-components: {
-  Html: ({ Root, cssFiles, pageProps, Page }) => (
-    <html>
-      <head>
-        <title>{pageProps?.title || "My App"}</title>
-      </head>
-      <body>
-        <Root
-          as="div"
-          id="root"
-          cssFiles={cssFiles}
-          Page={Page}
-          pageProps={pageProps}
-        />
-      </body>
-    </html>
-  );
-}
+
+export const config = {
+  moduleBase: 'src',
+  components: {
+    Html: ({ Root, cssFiles, pageProps, Page }) => (
+      <html>
+        <head>
+          <title>{pageProps?.title || "My App"}</title>
+        </head>
+        <body>
+          <Root
+            as="div"
+            id="root"
+            cssFiles={cssFiles}
+            Page={Page}
+            pageProps={pageProps}
+          />
+        </body>
+      </html>
+    ),
+    Page: ({ title }) => <div>Hello {title}</div>, // Direct component
+  }
+} satisfies StreamPluginOptions;
 ```
 
 This defines the final wrapper around your Page in production.
+
+### Component Resolution Priority
+
+The plugin resolves components in this order:
+
+1. **Direct components** (`components.Page`, `components.Html`, `components.Root`) - Used in static builds
+2. **Path resolution** (`Page`, `Html`, `Root` strings/functions) - Used in RSC worker mode  
+3. **Default components** - Plugin fallbacks
+
+### When to Use Each Approach
+
+#### Path-based Resolution (`Page`, `Html`, `Root`)
+
+**Use when:**
+- Development mode with hot reloading
+- RSC worker mode
+- Dynamic component loading
+- When you want the plugin to handle file resolution
+
+```ts
+export const config = {
+  Page: (url) => `src/page${url}/page.tsx`,
+  Html: "src/CustomHtml.tsx",
+  Root: "src/CustomRoot.tsx",
+} satisfies StreamPluginOptions;
+```
+
+#### Direct Component References (`components.Page`, `components.Html`, `components.Root`)
+
+**Use when:**
+- Static builds
+- When you want to avoid file resolution overhead
+- When you need to provide components directly
+
+```ts
+import { CustomPage } from "./src/CustomPage";
+import { CustomHtml } from "./src/CustomHtml";
+
+export const config = {
+  components: {
+    Page: CustomPage,
+    Html: CustomHtml,
+  }
+} satisfies StreamPluginOptions;
+```
 
 ### build
 
@@ -252,7 +299,9 @@ dist/static/about/index.html
 dist/static/about/index.rsc
 ```
 
-For an example of this, see the demo.<!-- AUTO-GENERATED-TOC-START -->
+For an example of this, see the demo.
+
+<!-- AUTO-GENERATED-TOC-START -->
 
 ## 📚 Documentation Navigation
 
@@ -273,66 +322,71 @@ For an example of this, see the demo.<!-- AUTO-GENERATED-TOC-START -->
 	- [Routing Configuration](./configuration.md#routing-configuration)
 	- [Build Configuration](./configuration.md#build-configuration)
 
-4. [CSS Handling](./css-handling.md)
+4. [Component Resolution](./component-resolution.md)
+	- [Path-based vs Direct Components](./component-resolution.md#path-based-vs-direct-components)
+	- [When to Use Each Approach](./component-resolution.md#when-to-use-each-approach)
+	- [Migration Guide](./component-resolution.md#migration-guide)
+
+5. [CSS Handling](./css-handling.md)
 	- [CSS Collectors](./css-handling.md#css-collectors)
 	- [Inline CSS](./css-handling.md#inline-css)
 	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
 
-5. [Server Actions](./server-actions.md)
+6. [Server Actions](./server-actions.md)
 	- [Creating Server Actions](./server-actions.md#creating-server-actions)
 	- [Client Integration](./server-actions.md#client-integration)
 	- [Error Handling](./server-actions.md#error-handling)
 	- [Database Integration](./server-actions.md#database-integration)
 
-6. [Static Site Generation](./static-site-generation.md)
+7. [Static Site Generation](./static-site-generation.md)
 	- [Static Plugin](./static-site-generation.md#static-plugin)
 	- [Build Process](./static-site-generation.md#build-process)
 	- [Deployment Strategies](./static-site-generation.md#deployment-strategies)
 
-7. [Build Orchestration](./build-orchestration.md)
+8. [Build Orchestration](./build-orchestration.md)
 	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
 	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
 	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
 
-8. [Architecture](./architecture.md)
+9. [Architecture](./architecture.md)
 	- [Design Philosophy](./architecture.md#design-philosophy)
 	- [Environment Variables](./architecture.md#environment-variables)
 	- [Plugin Composition](./architecture.md#plugin-composition)
 	- [HTML Component Support](./architecture.md#html-component-support)
 
-9. [Advanced Topics](./advanced-topics.md)
+10. [Advanced Topics](./advanced-topics.md)
 	- [Custom Workers](./advanced-topics.md#custom-workers)
 	- [Message System](./advanced-topics.md#message-system)
 	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
 
-10. [API Reference](./api-reference.md)
+11. [API Reference](./api-reference.md)
 	- [Plugin Options](./api-reference.md#plugin-options)
 	- [Component Props](./api-reference.md#component-props)
 	- [Worker Messages](./api-reference.md#worker-messages)
 	- [Type Definitions](./api-reference.md#type-definitions)
 
-11. [Transformations](./transformations.md)
+12. [Transformations](./transformations.md)
 	 - [Code Transformations](./transformations.md#code-transformations)
 	 - [Directive Handling](./transformations.md#directive-handling)
 	 - [Build Output Examples](./transformations.md#build-output-examples)
 
-12. [Loader](./loader.md)
+13. [Loader](./loader.md)
 	 - [React Server Components Loader](./loader.md#react-server-components-loader)
 	 - [Directive Processing](./loader.md#directive-processing)
 	 - [Module Boundaries](./loader.md#module-boundaries)
 	 - [Custom Registration Functions](./loader.md#custom-registration-functions)
 
-13. [Patch System](./patch-system.md)
+14. [Patch System](./patch-system.md)
 	 - [React Version Compatibility](./patch-system.md#react-version-compatibility)
 	 - [Creating Patches](./patch-system.md#creating-patches)
 	 - [Maintenance Guide](./patch-system.md#maintenance-guide)
 
-14. [Practical Guide](./practical-guide.md)
+15. [Practical Guide](./practical-guide.md)
 	 - [Real-world Examples](./practical-guide.md#real-world-examples)
 	 - [Debugging Features](./practical-guide.md#debugging-features)
 	 - [Production Implementations](./practical-guide.md#production-implementations)
 
-15. [Troubleshooting Guide](./troubleshooting-guide.md)
+16. [Troubleshooting Guide](./troubleshooting-guide.md)
 	 - [Common Issues](./troubleshooting-guide.md#common-issues)
 	 - [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
 	 - [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
