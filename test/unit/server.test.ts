@@ -6,7 +6,7 @@ describe('server.ts', () => {
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...originalEnv };
-  }, 30000);
+  });
 
   afterEach(() => {
     process.env = originalEnv;

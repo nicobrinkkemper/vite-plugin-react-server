@@ -4,6 +4,7 @@ export default defineConfig({
   mode: 'development',
   test: {
     globals: true,
+    hookTimeout: 10000,
     environment: 'node',
     setupFiles: ['./test/setup.ts'],
     coverage: {

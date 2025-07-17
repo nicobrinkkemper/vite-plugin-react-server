@@ -60,7 +60,7 @@ describe("Custom Environment Prefix Integration", () => {
       console.error("Error building project with custom env prefix", error);
       throw error;
     }
-  }, 30000);
+  });
 
   afterAll(async () => {
     try {

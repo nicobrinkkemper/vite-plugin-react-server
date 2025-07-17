@@ -41,7 +41,7 @@ describe("Custom Root Component", () => {
     if (htmlEvent) {
       htmlContent = htmlEvent.data.content;
     }
-  }, 30000);
+  });
 
   afterAll(async () => {
     try {

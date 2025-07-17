@@ -55,7 +55,7 @@ export const Root: RootComponentType = ({ Page, pageProps = {}, as: As = React.F
     if (htmlEvent) {
       htmlContent = htmlEvent.data.content;
     }
-  }, 30000);
+  });
 
   afterAll(async () => {
     try {

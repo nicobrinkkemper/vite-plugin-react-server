@@ -63,7 +63,7 @@ describe("Server Action Build Exclusion", () => {
         }
       },
     });
-  }, 30000);
+  });
 
   afterAll(async () => {
     try {

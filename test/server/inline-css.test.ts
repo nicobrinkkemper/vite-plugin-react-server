@@ -44,7 +44,7 @@ describe("Plugin Inline Css Event hooks", () => {
     if (rscDoneEvent) {
       rscContent = rscDoneEvent.data.content;
     }
-  }, 30000);
+  });
   
   afterAll(async () => {
     try {

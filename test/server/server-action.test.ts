@@ -64,7 +64,7 @@ describe("Generic Server Action Build Output", () => {
       console.trace(error);
       throw error;
     }
-  }, 30000);
+  });
 
   afterAll(async () => {
     try {

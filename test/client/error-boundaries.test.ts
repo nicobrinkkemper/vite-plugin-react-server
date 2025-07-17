@@ -11,7 +11,7 @@ describe("RSC Worker Error Streaming", () => {
   let server: ViteDevServer;
   let testDir: string;
   let serverUrl: string;
-  let port: number = 5175;
+  let port: number = 5177;
   beforeAll(async () => {
     // Create test directory in fixtures (like other working tests)
     testDir = resolve(__dirname, "../fixtures/client-error-boundaries.test");
@@ -47,7 +47,7 @@ describe("RSC Worker Error Streaming", () => {
       build: {
         pages: ["/", "/server-error-example", "/client-error-example"],
       },
-    });
+    }, port);
 
     serverUrl = `http://localhost:${server.config.server?.port}${process.env.VITE_BASE_URL ?? "/"}`;
   });
