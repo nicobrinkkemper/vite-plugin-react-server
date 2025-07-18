@@ -1,33 +1,10 @@
-import type { Logger } from "vite";
 import type {
   RscWorkerOutputMessage,
-  RscRenderMessage,
 } from "../worker/rsc/types.js";
 import type { StreamMetrics } from "../types.js";
-import type { Worker as NodeWorker } from "node:worker_threads";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
-
-export type CreateWorkerStreamFn = (props: {
-  worker: NodeWorker;
-  message: Omit<RscRenderMessage, "type" | "id"> &
-    Partial<Pick<RscRenderMessage, "id">> & {
-      type?: "RSC_RENDER";
-    };
-  logger: Logger;
-  handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> & 
-    Partial<
-      Pick<
-        StreamHandlers,
-        | "onError"
-        | "onServerAction"
-        | "onServerActionResponse"
-        | "onCssFile"
-      >
-    >;
-  verbose?: boolean;
-  rscTimeout?: number;
-}) => AsyncGenerator<Uint8Array>;
+import type { CreateWorkerStreamFn } from "./types.js";
 
 /**
  * Creates an async generator that yields RSC chunks from the worker.

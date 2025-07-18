@@ -1,25 +1,13 @@
-import type {
-  SerializedUserOptions,
-} from "../../types.js";
-
-import type { ViteDevServer } from "vite";
-import type { AutoDiscoveredFiles } from "../../types.js";
 import { createWorker } from "../worker/createWorker.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import React from "react";
 import { logError } from "../error/logError.js";
+import type { RestartWorkerFn } from "./types.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
-
-export type RestartWorkerFn = (props: {
-  server: ViteDevServer;
-  autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: SerializedUserOptions;
-  hmrChannel: MessageChannel;
-}) => Promise<Worker | null>;
 
 export const restartWorker: RestartWorkerFn = async function _restartWorker({
   server,

@@ -1,7 +1,5 @@
-import type { PreviewServer } from "vite";
-import type {
-  ResolvedUserOptions,
-  StreamError,
+import type {  
+  StreamError,  
 } from "../types.js";
 import { join } from "node:path";
 import { createReadStream } from "node:fs";
@@ -9,15 +7,7 @@ import { stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { logError } from "../error/logError.js";
-
-export type ConfigurePreviewServerProps<Opt extends ResolvedUserOptions> = {
-  server: PreviewServer;
-  userOptions: Opt;
-};
-
-export type ConfigurePreviewServerFn = <Opt extends ResolvedUserOptions>(
-  props: ConfigurePreviewServerProps<Opt>
-) => Promise<void>;
+import type { ConfigurePreviewServerFn } from "./types.js";
 
 export const configurePreviewServer: ConfigurePreviewServerFn =
   async function _configurePreviewServer({ server, userOptions }) {

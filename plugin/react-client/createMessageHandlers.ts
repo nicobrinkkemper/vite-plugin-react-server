@@ -1,18 +1,11 @@
 import type { RscWorkerOutputMessage } from "../worker/rsc/types.js";
-import type { Logger } from "vite";
-import type { StreamHandlers } from "../worker/types.js";
+import type { CreateMessageHandlerFn } from "./types.js";
 
-type MessageHandlerContext = {
-  handlers: StreamHandlers;
-  logger: Logger;
-  verbose?: boolean;
-};
-
-export function createMessageHandler({
+export const createMessageHandler: CreateMessageHandlerFn = function _createMessageHandler({
   handlers,
   logger,
   verbose = false,
-}: MessageHandlerContext) {
+}) {
   return (message: RscWorkerOutputMessage | undefined) => {
     if (!message) {
       logger.warn("Received undefined message");

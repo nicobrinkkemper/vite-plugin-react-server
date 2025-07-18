@@ -1,21 +1,7 @@
-import type { ViteDevServer } from "vite";
-import type {
-  CreateHandlerOptions,
-} from "../types.js";
 import { logError, toError } from "../error/index.js";
 import { join } from "node:path";
 import { ReactDOMServer } from "../vendor/vendor.server.js";
-import type { IncomingMessage, ServerResponse } from "http";
-
-export type HandleServerActionFn = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  server: ViteDevServer,
-  handlerOptions: Pick<
-    CreateHandlerOptions,
-    "verbose" | "moduleBasePath" | "projectRoot" | "loader"
-  >
-) => Promise<void>;
+import type { HandleServerActionFn } from "./types.js";
 
 export const handleServerAction: HandleServerActionFn =
   async function _handleServerAction(req, res, server, handlerOptions) {

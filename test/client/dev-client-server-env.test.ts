@@ -21,6 +21,7 @@ describe("RSC Worker (Client)", () => {
     server = await createClientDevServer(
       {
         projectRoot: testDir,
+        moduleBaseURL: process.env.VITE_BASE_URL,
       },
       port
     );
@@ -40,7 +41,7 @@ describe("RSC Worker (Client)", () => {
     expect(result).toContain("0:");
     expect(result).toContain("1:");
     expect(result).toContain(
-      `"props":{"MODE":"test","BASE_URL":"/","PROD":false,"DEV":true,"SSR":true,"PUBLIC_ORIGIN":"http://localhost:${port}"}}`
+      `"props":{"MODE":"test","BASE_URL":"${process.env.VITE_BASE_URL}","PROD":false,"DEV":true,"SSR":true,"PUBLIC_ORIGIN":"http://localhost:${port}"}}`
     );
     // console.log(result);
   });

@@ -1,32 +1,7 @@
-import type { Logger } from "vite";
-import type { RscRenderMessage } from "../worker/rsc/types.js";
-import type { StreamHandlers } from "../worker/types.js";
 import { createWorkerStream } from "./createWorkerStream.js";
-import type { Worker as NodeWorker } from "node:worker_threads";
 import { logError } from "../error/logError.js";
+import type { HandleWorkerRscStreamFn } from "./types.js";
 
-export type HandleWorkerRscStreamFn = (props: {
-  worker: NodeWorker;
-  message: Omit<RscRenderMessage, "type" | "id"> &
-    Partial<Pick<RscRenderMessage, "id">> & {
-      type?: "RSC_RENDER";
-    };
-  logger: Logger;
-  handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate"> &
-    Partial<
-      Pick<
-        StreamHandlers,
-        | "onError"
-        | "onData"
-        | "onEnd"
-        | "onServerAction"
-        | "onServerActionResponse"
-        | "onCssFile"
-      >
-    >;
-  verbose?: boolean;
-  rscTimeout?: number;
-}) => ReadableStream<Uint8Array>;
 
 /**
  * Handles the RSC stream from the worker.

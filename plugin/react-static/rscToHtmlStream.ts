@@ -9,7 +9,6 @@
  * 3. Returns a writeable stream of HTML content
  * 4. Handles worker message processing and error cases
  */
-
 import { Transform } from "node:stream";
 import type { CreateHandlerOptions } from "../types.js";
 import type { Worker } from "node:worker_threads";

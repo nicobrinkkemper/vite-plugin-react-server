@@ -18,6 +18,7 @@ export default defineConfig({
       entry: {
         client: resolve(__dirname, "client.ts"),
         server: resolve(__dirname, "server.ts"),
+        static: resolve(__dirname, "static.ts"),
         index: resolve(__dirname, "index.ts"),
         "plugin/react-client/index": resolve(
           __dirname,

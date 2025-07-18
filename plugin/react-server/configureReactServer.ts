@@ -1,9 +1,4 @@
-import type { Manifest, ViteDevServer } from "vite";
 import type { ServerResponse } from "http";
-import type {
-  AutoDiscoveredFiles,
-  ResolvedUserOptions,
-} from "../types.js";
 import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { resolveComponents } from "../helpers/resolveComponents.js";
@@ -15,13 +10,8 @@ import { handleServerAction } from "./handleServerAction.js";
 import { ReactDOMServer } from "../vendor/vendor.server.js";
 import React from "react";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import type { ConfigureReactServerFn } from "./types.js";
 
-export type ConfigureReactServerFn = (options: {
-  server: ViteDevServer;
-  autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions;
-  serverManifest: Manifest;
-}) => void;
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({

@@ -9,27 +9,12 @@
  * 3. Provides a clean interface for RSC handling
  */
 
-import type { PassThrough } from "node:stream";
 import { Transform } from "node:stream";
 import { dirname, join } from "node:path";
 import { mkdir } from "node:fs/promises";
-import type {
-  CreateHandlerOptions,
-  StreamMetrics,
-} from "../types.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { fileWriter } from "./fileWriter.js";
-
-export type CollectRscContentReturn = Promise<{
-  stream: PassThrough;
-  metrics: StreamMetrics;
-  controller: { abort: () => void; destroy: () => void };
-}>;
-
-export type CollectRscContentFn = (
-  rsc: { stream: PassThrough; controller: { abort: () => void; destroy: () => void } },
-  handlerOptions: CreateHandlerOptions
-) => CollectRscContentReturn;
+import type { CollectRscContentFn } from "./types.js";
 
 /**
  * Collects RSC content from the rscHeadless stream

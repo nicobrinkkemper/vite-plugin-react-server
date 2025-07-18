@@ -9,11 +9,7 @@ import {
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
-import type {
-  AutoDiscoveredFiles,
-  BuildTiming,
-  VitePluginFn,
-} from "../types.js";
+import type { BuildTiming, VitePluginFn, AutoDiscoveredFiles } from "../types.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { configureReactServer } from "./configureReactServer.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
@@ -21,7 +17,6 @@ import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { logError } from "../error/logError.js";
 
-let resolvedConfig: ResolvedConfig | null = null;
 
 export const reactServerPlugin: VitePluginFn =
   function _reactServerPlugin(options) {
@@ -29,6 +24,7 @@ export const reactServerPlugin: VitePluginFn =
       start: performance.now(),
     };
 
+    let resolvedConfig: ResolvedConfig | null = null;
     let autoDiscoveredFiles: AutoDiscoveredFiles;
     let serverManifest: Manifest = {};
     let logger: Logger;
@@ -104,7 +100,7 @@ export const reactServerPlugin: VitePluginFn =
         }
         autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
 
-        const resolvedConfig = resolveUserConfig({
+        const resolveUserConfigResult = resolveUserConfig({
           condition: "react-server",
           config,
           configEnv,
@@ -112,16 +108,16 @@ export const reactServerPlugin: VitePluginFn =
           autoDiscoveredFiles,
         });
 
-        if (resolvedConfig.type === "error") {
+        if (resolveUserConfigResult.type === "error") {
           if(userOptions.panicThreshold === 'none') {
-            logError(resolvedConfig.error, logger);
-            return config;
+            logError(resolveUserConfigResult.error, logger);
+            return {};
           } else {
-            throw resolvedConfig.error;
+            throw resolveUserConfigResult.error;
           }
         }
 
-        return resolvedConfig.userConfig;
+        return resolveUserConfigResult.userConfig;
       },
       async writeBundle(options, bundle) {
         if (userOptions.onEvent) {

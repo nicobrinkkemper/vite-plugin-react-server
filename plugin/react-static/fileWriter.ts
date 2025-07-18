@@ -9,11 +9,13 @@
  * 3. Handles file path construction
  * 4. Provides a clean interface for file operations
  */
-import type { FileWriterOptions } from "../types.js";
 import { join } from "node:path";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, unlink } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { type Readable, Transform } from "node:stream";
+import { Transform } from "node:stream";
+import type { FileWriterFn } from "./types.js";
+import { logError } from "../error/logError.js";
+
 
 /**
  * Writes HTML and RSC files for a route using streams
@@ -21,13 +23,15 @@ import { type Readable, Transform } from "node:stream";
  * @param stream The readable stream containing the content
  * @param fileType The type of file being written ("html" or "rsc")
  * @param options The file writer options
+ * @param signal Optional AbortSignal to cancel the file write operation
  * @returns A promise that resolves when the file is written
  */
-export async function fileWriter(
-  stream: Readable,
-  fileType: "html" | "rsc",
-  options: FileWriterOptions
-): Promise<void> {
+export const fileWriter: FileWriterFn = async function _fileWriter(
+  stream,
+  fileType,
+  options,
+  signal
+) {
   const { onEvent } = options;
 
   // Validate stream
@@ -51,7 +55,7 @@ export async function fileWriter(
       { recursive: true }
     );
   } catch (error) {
-    console.error(`Error creating directory: ${error}`);
+    logError(error, options.logger);
   }
 
   // Create write stream
@@ -111,10 +115,36 @@ export async function fileWriter(
       resolve();
     }
 
+    // Handle abort signal
+    if (signal) {
+      signal.addEventListener("abort", () => {
+        if (!finished) {
+          finished = true;
+          // Clean up streams
+          writeStream.destroy();
+          contentCapture.destroy();
+          stream.destroy();
+          
+          // Remove the file if it was created
+          unlink(outputPath, (unlinkError) => {
+            if (unlinkError && unlinkError.code !== 'ENOENT') {
+              // Log error but don't fail the abort operation
+              options.logger.warn(`Failed to remove file ${outputPath}: ${unlinkError.message}`);
+            }
+            resolve();
+          });
+        }
+      });
+    }
+
     writeStream.on("finish", () => done());
     writeStream.on("close", () => done());
     writeStream.on("error", (err) => done(err));
 
+    // Handle errors on input stream and content capture
+    stream.on("error", (err) => done(err));
+    contentCapture.on("error", (err) => done(err));
+
     stream.pipe(contentCapture).pipe(writeStream);
   });
-}
+};

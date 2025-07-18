@@ -92,10 +92,6 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
   staticManifest: Manifest;
   serverActions: Record<string, string>;
 };
-export type FileWriterOptions = Pick<
-  CreateHandlerOptions,
-  "onEvent" | "route" | "build" | "verbose" | "logger"
->;
 
 // Input can be a string path, React component, tuple, or array
 export type NormalizerInput = unknown;
@@ -402,6 +398,7 @@ export type CssComponentType<
 > = (props: {
   cssFiles: Map<string, CssContent<InlineCSS>> | CssContent[];
 }) => R;
+
 
 export type FileWriteEvent = {
   type: "file.write";
@@ -1163,15 +1160,7 @@ export type CreateHandlerResult<InlineCSS extends InlineCssOpt = InlineCssOpt> =
     | { type: "error"; error: Error }
     | { type: "skip" };
 
-export type ReactStaticEvent =
-  | FileWriteEvent
-  | {
-      type: "build.start";
-      data: {
-        pages: string[];
-        files: Array<[string, { page: string; props?: string }]>;
-      };
-    };
+
 
 // Define LoaderContext interface locally
 export type LoaderContext = {

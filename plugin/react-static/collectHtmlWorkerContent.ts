@@ -9,27 +9,14 @@
  * 3. Provides a clean interface for HTML handling
  */
 
-import type { PassThrough } from "node:stream";
-import { Transform } from "node:stream";
-import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import { Transform } from "node:stream";  
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createRscToHtmlStream } from "./rscToHtmlStream.js";
 import { fileWriter } from "./fileWriter.js";
 import type { HtmlWorkerOutputMessage } from "../worker/html/types.js";
 import { logError } from "../error/logError.js";
 import type { CleanupMessage } from "../worker/types.js";
-
-export type CollectHtmlWorkerContentReturn = Promise<{
-  stream: PassThrough;
-  metrics: StreamMetrics;
-}>;
-
-export type CollectHtmlWorkerContentFn = <
-  Opt extends CreateHandlerOptions = CreateHandlerOptions
->(
-  rsc: { stream: PassThrough; controller: { abort: (reason?: any) => void; destroy: () => void } },
-  handlerOptions: Opt
-) => CollectHtmlWorkerContentReturn;
+import type { CollectHtmlWorkerContentFn } from "./types.js";
 
 /**
  * Collects RSC content from the rscFull stream
@@ -75,6 +62,7 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
     let hasError = false;
     let writePromise: Promise<void> | undefined;
     let routeResolved = false;
+    let abortController: AbortController | undefined;
 
     // Create a promise that resolves when the route is complete
     const routeComplete = new Promise<void>((resolve, reject) => {
@@ -129,6 +117,11 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
               }
               logError(msg.error, handlerOptions.logger);
               
+              // Cancel the file write operation
+              if (abortController) {
+                abortController.abort();
+              }
+              
               // End the transform stream properly to allow fileWriter to complete
               htmlTransform.end();
               
@@ -176,6 +169,12 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           if (event.type === "route.error" && !hasError) {
             // Immediately stop the HTML worker when RSC stream encounters an error
             hasError = true;
+            
+            // Cancel the file write operation
+            if (abortController) {
+              abortController.abort();
+            }
+            
             if (handlerOptions.worker) {
               handlerOptions.worker.postMessage({
                 type: "CLEANUP",
@@ -196,14 +195,19 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
       // Pipe RSC through transform to HTML
       rscStream.pipe(rscToHtmlStream);
 
-      // Set up file writing using fileWriter
-      const writePromise = fileWriter(htmlTransform, "html", handlerOptions);
+      // Create AbortController for file write cancellation
+      abortController = new AbortController();
+
+      // Set up file writing using fileWriter with abort signal
+      const writePromise = fileWriter(htmlTransform, "html", handlerOptions, abortController.signal);
 
       // Wait for route to complete
       await routeComplete;
 
-      // Wait for file writing to complete
-      await writePromise;
+      // Wait for file writing to complete (only if no error occurred)
+      if (!hasError) {
+        await writePromise;
+      }
 
       // Ensure streams are properly cleaned up
       rscToHtmlStream.destroy();
@@ -216,6 +220,12 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
       if (rscController && typeof rscController.abort === 'function') {
         rscController.abort();
       }
+      
+      // Cancel file write if it's still in progress
+      if (abortController && !abortController.signal.aborted) {
+        abortController.abort();
+      }
+      
       // Ensure htmlTransform is ended to allow fileWriter to complete
       try {
         htmlTransform.end();
@@ -223,7 +233,7 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
         // Ignore end errors
       }
       
-      // Always wait for fileWriter to complete, even on error
+      // Wait for fileWriter to complete (it should be cancelled by abort signal)
       if (writePromise) {
         try {
           await writePromise;

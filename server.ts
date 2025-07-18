@@ -6,7 +6,9 @@ if(condition !== 'server'){
   throw new Error('Condition mismatch, should be react-server but got ' + condition);
 }
 
-export { vitePluginReactServer } from './plugin/plugin.server.js'
+export * from './plugin/plugin.server.js'
+export * from './plugin/react-server/index.js'
 
 // types
 export type * from './plugin/types.js'
+export type * from './plugin/react-server/types.js'

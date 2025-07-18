@@ -1,24 +1,10 @@
 import { join } from "node:path";
-import type {
-  BuildModuleLoader,
-  ResolvedUserConfig,
-  ResolvedUserOptions,
-} from "../../server.js";
-import type { Manifest } from "vite";
 import { getModuleRef } from "../helpers/moduleRefs.js";
-import type { OutputBundle } from "rollup";
 import { temporaryReferences } from "./temporaryReferences.js";
 import { toError } from "../error/toError.js";
 import { readFile, writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
-
-export type CreateBuildLoaderFn = (props: {
-  userConfig: ResolvedUserConfig;
-  userOptions: ResolvedUserOptions;
-  serverManifest: Manifest;
-  clientManifest: Manifest;
-  staticManifest: Manifest;
-}, bundle: OutputBundle) => BuildModuleLoader;
+import type { CreateBuildLoaderFn } from "./types.js";
 
 /**
  * Creates a loader function for handling module resolution during build.

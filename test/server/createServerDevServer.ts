@@ -1,9 +1,9 @@
 import { createServer } from "vite";
-import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
+import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import { testUserOptions } from "../test-config";
 import type { ViteDevServer } from "vite";
 import { join } from "node:path";
-import type { StreamPluginOptions } from "../../dist/types.js";
+import type { StreamPluginOptions } from "vite-plugin-react-server/types";
 
 /**
  * Starts a dev server with the test config and given options

@@ -1,12 +1,4 @@
-import type { ViteDevServer } from "vite";
-import type {
-  AutoDiscoveredFiles,
-  RenderMetrics,
-  RequestHandler,
-  ResolvedUserOptions,
-  StreamMetrics,
-} from "../types.js";
-import type { MessageChannel } from "node:worker_threads";
+import type { RenderMetrics, RequestHandler, StreamMetrics } from "../types.js";
 import { type Worker } from "node:worker_threads";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
@@ -19,13 +11,7 @@ import { Readable } from "node:stream";
 import type { ReadableStream } from "node:stream/web";
 import { handleWorkerServerAction } from "./handleWorkerServerAction.js";
 import { logError } from "../error/logError.js";
-
-export type ConfigureWorkerRequestHandlerFn = (props: {
-  server: ViteDevServer;
-  autoDiscoveredFiles: AutoDiscoveredFiles;
-  userOptions: ResolvedUserOptions;
-  hmrChannel: MessageChannel;
-}) => void;
+import type { ConfigureWorkerRequestHandlerFn } from "./types.js";
 
 /**
  * Configures the worker request handler.
