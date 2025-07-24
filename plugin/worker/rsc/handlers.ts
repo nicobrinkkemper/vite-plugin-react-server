@@ -1,4 +1,3 @@
-import { sendRscWorkerMessage } from "./sendRscWorkerMessage.js";
 import type { StreamHandlers } from "../types.js";
 import { toError } from "../../error/toError.js";
 import { userOptions } from "./userOptions.js";
@@ -6,6 +5,7 @@ import { addCssFileContent, addModuleId } from "./state.js";
 import { join } from "path";
 import { ReactDOMServer } from "../../vendor/vendor.server.js";
 import { PassThrough } from "node:stream";
+import { sendMessage } from "../sendMessage.js";
 
 // Helper function to serialize errors for worker thread communication
 const serializeError = (error: unknown) => {
@@ -19,42 +19,49 @@ const serializeError = (error: unknown) => {
 
 export const handlers: Required<StreamHandlers> = {
   onError: (id, error, errorInfo) => {
-    sendRscWorkerMessage({
+    sendMessage({
       type: "ERROR",
       id: id,
-      errorInfo,
+      errorInfo: {
+        componentStack:
+          typeof errorInfo?.componentStack === "string"
+            ? errorInfo.componentStack
+            : undefined,
+        digest:
+          typeof errorInfo?.digest === "string" ? errorInfo.digest : undefined,
+      },
       error: serializeError(error),
     });
   },
   onData: (id, data) => {
-    sendRscWorkerMessage({
+    sendMessage({
       type: "RSC_CHUNK",
       id: id,
       chunk: data,
     });
   },
   onEnd: (id) => {
-    sendRscWorkerMessage({
+    sendMessage({
       type: "RSC_END",
       id: id,
     });
   },
   onMetrics: (id, metrics) => {
-    sendRscWorkerMessage({
+    sendMessage({
       type: "RSC_METRICS",
       id: id,
       metrics,
     });
   },
   onHmrAccept: (id, routes) => {
-    sendRscWorkerMessage({
+    sendMessage({
       type: "HMR_ACCEPT",
       id: id,
       routes: routes,
     });
   },
   onHmrUpdate: (id, routes) => {
-    sendRscWorkerMessage({
+    sendMessage({
       type: "HMR_UPDATE",
       id: id,
       routes: routes,
@@ -62,7 +69,7 @@ export const handlers: Required<StreamHandlers> = {
   },
   onServerModule: (id, url, source) => {
     addModuleId(id, url);
-    sendRscWorkerMessage({
+    sendMessage({
       type: "SERVER_MODULE",
       id,
       url,
@@ -80,7 +87,7 @@ export const handlers: Required<StreamHandlers> = {
       userOptions.moduleBasePath,
       {
         onError(error: Error) {
-          sendRscWorkerMessage({
+          sendMessage({
             type: "ERROR",
             id,
             error: serializeError(error),
@@ -93,7 +100,7 @@ export const handlers: Required<StreamHandlers> = {
     stream.pipe(passThrough);
 
     passThrough.on("data", (chunk) => {
-      sendRscWorkerMessage({
+      sendMessage({
         type: "RSC_CHUNK",
         id,
         chunk,
@@ -101,14 +108,16 @@ export const handlers: Required<StreamHandlers> = {
     });
 
     passThrough.on("end", () => {
-      sendRscWorkerMessage({
+      sendMessage({
         type: "RSC_END",
         id,
       });
     });
 
     passThrough.on("error", (error) => {
-      sendRscWorkerMessage({
+      // Only send ERROR message for actual stream errors, not React component errors
+      // React component errors are already handled by the onError callback
+      sendMessage({
         type: "ERROR",
         id,
         error: serializeError(error),
@@ -150,7 +159,7 @@ export const handlers: Required<StreamHandlers> = {
         userOptions.moduleBasePath,
         {
           onError(error: Error) {
-            sendRscWorkerMessage({
+            sendMessage({
               type: "ERROR",
               id,
               error: serializeError(error),
@@ -163,7 +172,7 @@ export const handlers: Required<StreamHandlers> = {
       stream.pipe(passThrough);
 
       passThrough.on("data", (chunk) => {
-        sendRscWorkerMessage({
+        sendMessage({
           type: "RSC_CHUNK",
           id,
           chunk,
@@ -171,14 +180,14 @@ export const handlers: Required<StreamHandlers> = {
       });
 
       passThrough.on("end", () => {
-        sendRscWorkerMessage({
+        sendMessage({
           type: "RSC_END",
           id,
         });
       });
 
       passThrough.on("error", (error) => {
-        sendRscWorkerMessage({
+        sendMessage({
           type: "ERROR",
           id,
           error: serializeError(error),
@@ -195,7 +204,7 @@ export const handlers: Required<StreamHandlers> = {
         userOptions.moduleBasePath,
         {
           onError(error: Error) {
-            sendRscWorkerMessage({
+            sendMessage({
               type: "ERROR",
               id,
               error: serializeError(error),
@@ -208,7 +217,7 @@ export const handlers: Required<StreamHandlers> = {
       stream.pipe(passThrough);
 
       passThrough.on("data", (chunk) => {
-        sendRscWorkerMessage({
+        sendMessage({
           type: "RSC_CHUNK",
           id,
           chunk,
@@ -216,14 +225,14 @@ export const handlers: Required<StreamHandlers> = {
       });
 
       passThrough.on("end", () => {
-        sendRscWorkerMessage({
+        sendMessage({
           type: "RSC_END",
           id,
         });
       });
 
       passThrough.on("error", (error) => {
-        sendRscWorkerMessage({
+        sendMessage({
           type: "ERROR",
           id,
           error: serializeError(error),
@@ -233,7 +242,7 @@ export const handlers: Required<StreamHandlers> = {
   },
   onShutdown: (id: string) => {
     // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
-    sendRscWorkerMessage({
+    sendMessage({
       type: "SHUTDOWN_COMPLETE",
       id: id,
     });
@@ -244,7 +253,7 @@ export const handlers: Required<StreamHandlers> = {
       addCssFileContent(id, code, userOptions);
 
       // Send CSS file message
-      sendRscWorkerMessage({
+      sendMessage({
         type: "CSS_FILE",
         id,
         content: code,

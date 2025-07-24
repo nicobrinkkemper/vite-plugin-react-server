@@ -1,6 +1,7 @@
 import type { Logger, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
+  CreateHandlerOptions,
   MessageHandler,
   ResolvedUserOptions,
   SerializedUserOptions,
@@ -49,9 +50,8 @@ export type HandleWorkerRscStreamFn = (props: {
         | "onCssFile"
       >
     >;
-  verbose?: boolean;
-  rscTimeout?: number;
-}) => ReadableStream<Uint8Array>;
+  
+} & Pick<CreateHandlerOptions, "verbose" | "rscTimeout" | "panicThreshold">) => ReadableStream<Uint8Array>;
 
 export type CreateWorkerStreamFn = (props: {
   worker: Worker;
@@ -67,6 +67,7 @@ export type CreateWorkerStreamFn = (props: {
         "onError" | "onServerAction" | "onServerActionResponse" | "onCssFile"
       >
     >;
+  panicThreshold?: "none" | "critical_errors" | "all_errors";
   verbose?: boolean;
   rscTimeout?: number;
 }) => AsyncGenerator<Uint8Array>;

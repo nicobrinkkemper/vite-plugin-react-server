@@ -634,11 +634,8 @@ export class ErrorBoundary extends React.Component {
   await writeFile(
     resolve(testDir, "src/components/TestError.tsx"),
     `import React from "react";
-
 export function TestError({ throwError }: { throwError: boolean }) {
-  console.log("[TestError] Component called with throwError:", throwError);
   if (throwError) {
-    console.log("[TestError] Throwing error");
     throw new Error("test error example");
   }
   return <div>No error</div>;
@@ -650,13 +647,11 @@ export function TestError({ throwError }: { throwError: boolean }) {
   await writeFile(
     resolve(testDir, "src/page/server-error-example/props.ts"),
     `export const props = (url: string) => {
-  console.log("[server-error-example] Props function called with url:", url);
   const result = {
     throwError: true,
     title: "Server Error Example",
     url
   };
-  console.log("[server-error-example] Props function returning:", result);
   return result;
 };`
   );
@@ -667,7 +662,6 @@ export function TestError({ throwError }: { throwError: boolean }) {
 import { TestError } from "../../components/TestError.js";
 
 export function Page(props: any) {
-  console.log("[server-error-example] Page component called with props:", props);
   return (
     <>
       <title>{props.title}</title>

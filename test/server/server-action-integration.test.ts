@@ -35,6 +35,7 @@ describe("Server Action Integration", () => {
           build: {
             pages: ["/"],
           },
+          panicThreshold: "none",
         }),
       ],
       server: {

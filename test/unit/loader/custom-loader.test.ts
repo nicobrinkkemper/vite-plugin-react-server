@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { createTransformer } from "vite-plugin-react-server/loader";
 import { DEFAULT_LOADER_CONFIG } from "vite-plugin-react-server/config";
-import type { LoaderConfig } from "vite-plugin-react-server/types";
+import type { LoaderConfig } from "vite-plugin-react-server/loader";
 
 const testOptions = (options: Partial<LoaderConfig> = {}) => ({
   options: {

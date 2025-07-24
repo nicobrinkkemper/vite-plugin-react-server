@@ -67,6 +67,8 @@ export const getDirectiveType = (
   return undefined;
 };
 
+export const MODE = getNodeEnv()
+
 // Helper to normalize directive strings
 // const normalizeDirective = (directive: string) => directive.replace(/\s+/g, '').toLowerCase();
 
@@ -84,7 +86,7 @@ export const DEFAULT_LOADER_CONFIG = {
   registerServerReferenceName: "registerServerReference",
   getDirectiveType,
   parse: parse,
-  mode: getNodeEnv(),
+  mode: MODE,
 } as const;
 
 // Define base patterns that can be reused
@@ -113,7 +115,7 @@ export const DEFAULT_CONFIG = {
   CLIENT_ASSETS_DIR: "assets",
   RSC_DIR: "rsc",
   MODULE_BASE: "src",
-  MODULE_BASE_PATH: "/",
+  MODULE_BASE_PATH: "",
   MODULE_BASE_URL: "/",
   PUBLIC_ORIGIN: "",
   PAGE: "page.tsx",
@@ -134,7 +136,8 @@ export const DEFAULT_CONFIG = {
   RSC_EXTENSION: ".rsc",
   ROOT: undefined,
   HTML: undefined,
-  ON_METRICS: () => {},
+  ON_METRICS: undefined,
+  ON_EVENT: undefined,
   DEV_PORT: 5173,
   PREVIEW_PORT: 4173,
   DEV_HOST: "localhost",
@@ -217,7 +220,7 @@ export const DEFAULT_CONFIG = {
   },
   MODULE_ID: (id: string) => id,
   VERBOSE: false,
-  PANIC_THRESHOLD: "none" as const,
+  PANIC_THRESHOLD: (MODE === "development" ? "critical_errors" : "all_errors") as "critical_errors" | "all_errors",
   // Centralized loader config for RSC boundaries
   RSC_LOADER: {
     development: {

@@ -71,6 +71,9 @@ export const collectRscContent: CollectRscContentFn =
 
       return { stream: rscStream, controller: rscController, metrics };
     } catch (error) {
+      if(handlerOptions.verbose) {
+        handlerOptions.logger.info(`[collectRscContent] Error: ${error}`);
+      }
       metricsTransform.destroy();
       throw error;
     }

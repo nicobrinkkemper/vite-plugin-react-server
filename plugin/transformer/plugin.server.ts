@@ -70,7 +70,7 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
     },
     transform: {
       order: "post",
-      async handler(code, id) {
+      async handler(code, id, {ssr} = {}) {
         if (!userOptions.autoDiscover.modulePattern.test(id)) {
           return null;
         }
@@ -103,7 +103,7 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
             verbose: userOptions.verbose,
             panicThreshold: userOptions.panicThreshold,
           },
-          isServerEnvironment: true,
+          isServerEnvironment: ssr,
         });
         // Always transform in server context
         const { code: transformed, map } = await transformer(code, finalID);
@@ -125,7 +125,7 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
               );
             }
             this.environment.logger.info(
-              "[react-server-transform] " + transformed
+              "[react-server-transform] " + transformed.slice(0, 100) + "..."
             );
           }
         return {

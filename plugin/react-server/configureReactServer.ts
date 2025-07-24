@@ -1,16 +1,15 @@
 import type { ServerResponse } from "http";
-import { createEventHandler } from "../helpers/createEventHandler.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { resolveComponents } from "../helpers/resolveComponents.js";
-import { createHandler } from "../helpers/createHandler.js";
+import { createHandler } from "../helpers/createHandler.server.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { logError } from "../error/logError.js";
 import { handleServerAction } from "./handleServerAction.js";
-import { ReactDOMServer } from "../vendor/vendor.server.js";
 import React from "react";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import type { ConfigureReactServerFn } from "./types.js";
+import { handleError } from "../error/handleError.js";
+import { PANIC_SYMBOL } from "../error/shouldPanic.js";
 
 
 export const configureReactServer: ConfigureReactServerFn =
@@ -21,6 +20,8 @@ export const configureReactServer: ConfigureReactServerFn =
     serverManifest,
   }) {
     const activeStreams = new Set<ServerResponse>();
+    const activeControllers = new Map<ServerResponse, { abort: (reason: unknown) => void; destroy: () => void }>();
+    let isRestarting = false;
     const logger = server.config.customLogger || server.config.logger;
     const {
       Html: _UserHtmlComponent,
@@ -36,7 +37,7 @@ export const configureReactServer: ConfigureReactServerFn =
     const define = {
       ...server.config.define,
       "process.env.NODE_ENV": JSON.stringify(
-        process.env["NODE_ENV"] || "development"
+        process.env["NODE_ENV"] || "production"
       ),
     };
     server.config = {
@@ -51,8 +52,19 @@ export const configureReactServer: ConfigureReactServerFn =
         path
       );
 
-      // Close streams with restart message
+      isRestarting = true;
+
+      // Abort all active streams first, then close responses
       for (const res of activeStreams) {
+        const controller = activeControllers.get(res);
+        if (controller) {
+          try {
+            controller.abort("Server restarting");
+          } catch (e) {
+            // Ignore abort errors
+          }
+        }
+        
         res.writeHead(503, {
           "Content-Type": "text/x-component; charset=utf-8",
           "Retry-After": "1",
@@ -62,7 +74,25 @@ export const configureReactServer: ConfigureReactServerFn =
         );
       }
       activeStreams.clear();
+      activeControllers.clear();
     });
+    
+    // Handle restart completion
+    server.ws.on("full-reload", () => {
+      isRestarting = false;
+      logger.info("[vite-plugin-react-server] ✅ Server restart completed");
+    });
+    
+    // Fallback: reset restart flag after a timeout
+    server.ws.on("restart", () => {
+      setTimeout(() => {
+        if (isRestarting) {
+          isRestarting = false;
+          logger.info("[vite-plugin-react-server] ⏰ Restart timeout, resuming normal operation");
+        }
+      }, 5000); // 5 second timeout
+    });
+    
     const loader = async (id: string) => {
       const [moduleID, exportName] = id.split("#");
       const result = await server.ssrLoadModule(moduleID);
@@ -76,7 +106,7 @@ export const configureReactServer: ConfigureReactServerFn =
       }
       return result;
     };
-
+    let panicError: Error | null = null;
     server.middlewares.use(async (req, res, next) => {
       if (!req.url) {
         return next();
@@ -86,7 +116,6 @@ export const configureReactServer: ConfigureReactServerFn =
         moduleBaseURL: server.config.base,
         moduleBasePath: handlerUserOptions.moduleBasePath,
         projectRoot: server.config.root,
-        onEvent: createEventHandler(onEvent),
         css: handlerUserOptions.css,
         loader: loader,
         verbose,
@@ -98,7 +127,22 @@ export const configureReactServer: ConfigureReactServerFn =
       if (info.isServerActionRequest) {
         return handleServerAction(req, res, server, handlerOptions);
       }
-      if (!info.isRscRequest) return next();
+      if (!info.isRscRequest) {
+        return next();
+      }
+      
+      // If server is restarting, return 503 immediately
+      if (isRestarting) {
+        res.writeHead(503, {
+          "Content-Type": "text/x-component; charset=utf-8",
+          "Retry-After": "1",
+        });
+        res.end(
+          `0:E{"digest":"","name":"Error","message":"Server restarting...","stack":"","env":"Server"}`
+        );
+        return;
+      }
+      
       try {
         const routeFiles = await getRouteFiles(
           info.route,
@@ -107,7 +151,15 @@ export const configureReactServer: ConfigureReactServerFn =
           logger
         );
         if (routeFiles.type === "error") {
-          logError(routeFiles.error, logger);
+          const panicError = handleError({
+            error: routeFiles.error,
+            logger: logger,
+            panicThreshold: handlerOptions.panicThreshold,
+            critical: false,
+          });
+          if (panicError!= null) {
+            throw panicError;
+          }
           return next();
         }
         const pagePath = routeFiles.page;
@@ -141,11 +193,11 @@ export const configureReactServer: ConfigureReactServerFn =
 
         const { PageComponent, pageProps, RootComponent } = componentsResult;
 
-        const eventHandler = createEventHandler(onEvent);
+        
         const intermediateHandlerOptions = {
           ...handlerOptions,
           loader: loader,
-          onEvent: eventHandler,
+          onEvent: onEvent,
           route: info.route,
           pagePath,
           propsPath,
@@ -187,42 +239,43 @@ export const configureReactServer: ConfigureReactServerFn =
           // set headers
           res.setHeader("Content-Type", "text/x-component; charset=utf-8");
           rscResult.stream!.pipe(res);
+          
+          // Store the controller for potential abort during restart
+          activeControllers.set(res, rscResult.controller);
+        } else {
+          // Handle panic logic here - throw if panicThreshold is "all_errors"
+          if(verbose) {
+            logger.info(`[configureReactServer] Error: ${JSON.stringify(rscResult)}`);
+          }
+          if (handlerOptions.panicThreshold === "all_errors" && rscResult.error) {
+            throw rscResult.error;
+          }
+          
+          // For other cases, continue to error handling to show a 500 response
+          if(rscResult.error) {
+            throw rscResult.error;
+          }
         }
         activeStreams.add(res);
         res.on("close", () => {
           activeStreams.delete(res);
+          activeControllers.delete(res);
         });
       } catch (error) {
-        logError(error, logger);
+        if(handlerOptions.panicThreshold === "all_errors" || PANIC_SYMBOL in {...error as any}) {
+          throw error;
+        }
+        if(panicError != null) {
+          throw panicError;
+        }
+        if(verbose) {
+          logger.error(`[configureReactServer] Error: ${JSON.stringify(error)}`);
+        }
+        
         res.statusCode = 500;
         res.setHeader("Content-Type", "text/x-component; charset=utf-8");
         res.setHeader("Content-Length", "0"); // Will be updated after streaming
 
-        const { pipe } = ReactDOMServer.renderToPipeableStream(
-          {
-            type: "error",
-            error: {
-              digest: error instanceof Error ? error.message : String(error),
-              name: error instanceof Error ? error.name : "Error",
-            },
-          },
-          handlerOptions.moduleBasePath,
-          {
-            onError(error: Error) {
-              logError(error, logger);
-              res.statusCode = 500;
-              res.end();
-            },
-            onAllReady() {
-              // Update content length after streaming is complete
-              const contentLength = res.getHeader("Content-Length");
-              if (contentLength) {
-                res.setHeader("Content-Length", contentLength);
-              }
-            },
-          }
-        );
-        pipe(res);
       }
     });
   };

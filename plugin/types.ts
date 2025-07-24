@@ -33,9 +33,11 @@ import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
-export type OnEvent<Interface extends ViteReactServerComponentsPlugin = DefaultInterface> = (
+export type OnEvent<Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin> = (
   event: PluginEvent<Interface>
 ) => void;
+
+export type OnMetrics = (metrics: RenderMetrics) => void;
 
 export type MessageHandler<
   T extends HtmlWorkerOutputMessage | RscChunkOutputMessage =
@@ -336,7 +338,7 @@ export type ResolvedUserOptions = {
   panicThreshold: "none" | "critical_errors" | "all_errors";
 
   // Optional properties
-  onEvent?: OnEvent<DefaultInterface>;
+  onEvent?: OnEvent<ViteReactServerComponentsPlugin> | undefined;
   props?: StreamPluginOptions["props"];
   clientEntry?: string;
   serverEntry?: string;
@@ -347,7 +349,7 @@ export type ResolvedUserOptions = {
   Root: StreamPluginOptions["Root"]; // Unresolved: can be string, function
   normalizer: InputNormalizer;
   moduleID: ((id: string) => string) | undefined;
-  onMetrics: (metrics: RenderMetrics) => void;
+  onMetrics: OnMetrics | undefined;
   pipeableStreamOptions: ReactServerDomEsmOptions;
   autoDiscover: Required<AutoDiscoverConfig>;
   loader?: Required<LoaderConfig> | undefined;
@@ -420,20 +422,16 @@ export type FileWriteDoneEvent = {
   };
 };
 
-export type RouteProcessEvent = {
-  type: "route.process";
-  data: {
-    route: string;
-    pagePath: string;
-    propsPath?: string | undefined;
-  };
-};
-
 export type RouteErrorEvent = {
   type: "route.error";
   data: {
     route: string;
     error?: Error | null;
+    errorInfo?: {
+      componentStack?: string | null;
+      digest?: string | null;
+    };
+    reason?: unknown;
   };
 };
 
@@ -441,7 +439,7 @@ export type RoutePostponeEvent = {
   type: "route.postpone";
   data: {
     route: string;
-    reason?: string | null;
+    reason?: unknown;
   };
 };
 
@@ -511,10 +509,9 @@ export type BuildWriteBundleEvent =
   | BuildWriteBundleEventStaticClient
   | BuildWriteBundleEventStaticServer;
 
-export type PluginEvent<Interface extends ViteReactServerComponentsPlugin = DefaultInterface> =
+export type PluginEvent<Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin> =
   | FileWriteEvent
   | FileWriteDoneEvent
-  | RouteProcessEvent
   | RouteErrorEvent
   | RoutePostponeEvent
   | PropsLoadEvent
@@ -820,7 +817,11 @@ export type CreateHandlerOptions<
   | "moduleID"
   | "verbose"
   | "components"
+  | "panicThreshold"
+  | "projectRoot"
+  | "rscTimeout"
 > & {
+  signal?: AbortSignal;
   logger: Logger;
   loader: BuildModuleLoader | GenericModuleLoader;
   pagePath: string;
@@ -834,7 +835,7 @@ export type CreateHandlerOptions<
     Interface["As"],
     Interface["InlineCSS"],
     R
-  >;
+  > |  typeof React.Fragment;
   HtmlComponent: HtmlComponentType<
     Interface["PageProps"],
     Interface["As"],
@@ -1043,7 +1044,7 @@ export type HtmlProps<
   moduleRootPath: string;
   cssFiles: Map<string, CssContent<InlineCSS>>;
   manifest: Manifest;
-  Root: RootComponentType<PageProps, As, InlineCSS, R>;
+  Root: RootComponentType<PageProps, As, InlineCSS, R> | typeof React.Fragment;
   globalCss: Map<string, CssContent<InlineCSS>>;
   as?: As;
 };
@@ -1099,9 +1100,8 @@ export type HtmlRenderState = {
 export type RenderPagesResult =
   | {
       type: "error";
-      error: Error;
-      failedRoutes: Set<string>;
       completedRoutes: Set<string>;
+      failedRoutes: Map<string, unknown>;
       htmlSizes: Map<string, number>;
       rscSizes: Map<string, number>;
       streamMetrics: StreamMetrics;
@@ -1120,7 +1120,7 @@ export type RenderPagesResult =
   | {
       type: "success";
       completedRoutes: Set<string>;
-      failedRoutes?: never;
+      failedRoutes?: Map<string, Error>;
       htmlSizes: Map<string, number>;
       rscSizes: Map<string, number>;
       streamMetrics: StreamMetrics;

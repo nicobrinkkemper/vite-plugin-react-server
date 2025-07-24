@@ -65,6 +65,8 @@ export default defineConfig({
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
         "plugin/env/plugin": resolve(__dirname, "plugin/env/plugin.ts"),
         "plugin/vendor/index": resolve(__dirname, "plugin/vendor/index.ts"),
+        "plugin/vendor/vendor.server": resolve(__dirname, "plugin/vendor/vendor.server.ts"),
+        "plugin/vendor/vendor.client": resolve(__dirname, "plugin/vendor/vendor.client.ts"),
         "plugin/config/index": resolve(__dirname, "plugin/config/index.ts"),
         "plugin/error/index": resolve(__dirname, "plugin/error/index.ts"),
         "plugin/helpers/index": resolve(__dirname, "plugin/helpers/index.ts"),

@@ -1,8 +1,9 @@
-import type { ParseResult } from "./directives/types.js";  
+import type { ParseResult } from "./directives/types.js";
 import { createSourceMap } from "./sourceMap.js";
 import type { LoaderConfig, TransformResult } from "./types.js";
 import { getNodeEnv } from "../getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { createLogger } from "vite";
 
 /**
  * Transforms a client module by:
@@ -13,8 +14,12 @@ export async function transformClientModule(
   source: string,
   moduleId: string,
   parseResult: ParseResult,
-  loader: Pick<LoaderConfig, "registerClientReferenceName" | "importClientPath"> = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
-  verbose = false
+  loader: Pick<
+    LoaderConfig,
+    "registerClientReferenceName" | "importClientPath"
+  > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
+  verbose = false,
+  logger = createLogger()
 ): Promise<TransformResult> {
   if (!loader) {
     loader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()];
@@ -24,10 +29,12 @@ export async function transformClientModule(
   }
 
   if (verbose) {
-    console.log(
+    logger.info(
       `[transformClientModule] Transforming client module: ${moduleId}`
     );
-    console.log("Found exports:", parseResult.exports);
+    logger.info(
+      `[transformClientModule] Found exports: ${parseResult.exports.exports.size}`
+    );
   }
 
   // Register all exports as client references
@@ -35,7 +42,9 @@ export async function transformClientModule(
   for (const exp of parseResult.exports.exports.values()) {
     if (exp.type === "function" || exp.type === "class") {
       if (verbose) {
-        console.log("Found export info:", exp, "for localName:", exp.localName);
+        logger.info(
+          `[transformClientModule] Found export info: ${exp.localName} for exportName: ${exp.exportName}`
+        );
       }
       registrations.push(
         `export const ${exp.exportName} = ${loader.registerClientReferenceName}(function() { throw new Error("Attempted to call ${exp.exportName}() on the client"); }, "${moduleId}", "${exp.exportName}");`

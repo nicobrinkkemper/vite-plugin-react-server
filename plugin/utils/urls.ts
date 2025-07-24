@@ -174,8 +174,8 @@ export const createPageURL = (
       };
     } catch (error) {
       if (isDev) console.error("Error parsing pageURL", error);
-      let shouldJoin = !to.endsWith("/") && !fileName.startsWith("/");
-      let shouldSlice = to.endsWith("/") && fileName.startsWith("/");
+      const shouldJoin = !to.endsWith("/") && !fileName.startsWith("/");
+      const shouldSlice = to.endsWith("/") && fileName.startsWith("/");
       return {
         indexRSC:
           to +  

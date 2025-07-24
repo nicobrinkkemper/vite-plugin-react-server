@@ -2,9 +2,11 @@ import { join } from "node:path";
 import { getModuleRef } from "../helpers/moduleRefs.js";
 import { temporaryReferences } from "./temporaryReferences.js";
 import { toError } from "../error/toError.js";
+import { handleError } from "../error/handleError.js";
 import { readFile, writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import type { CreateBuildLoaderFn } from "./types.js";
+import { createLogger } from "vite";
 
 /**
  * Creates a loader function for handling module resolution during build.
@@ -21,7 +23,8 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
     clientManifest,
     staticManifest,
   },
-  bundle
+  bundle,
+  logger = createLogger(),
 ) {
   const manifestKeys = Object.keys(serverManifest);
   if (!manifestKeys.length) {
@@ -30,7 +33,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
 
   return async function buildLoader(id) {
     if (userOptions.verbose) {
-      console.log("[buildLoader] id: ", id);
+      logger.info(`[buildLoader] id: ${id}`);
     }
     const [withoutQuery, query] = id.split("?", 2);
     const [moduleId, exportName] = withoutQuery.split("#", 2);
@@ -89,7 +92,15 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
             return { default: serverChunk.code };
           }
         }
-        console.warn("Could not find inline module for: " + normalizedValue);
+        const panicError = handleError({
+          error: new Error(`Could not find inline module for: ${normalizedValue}`),
+          logger,
+          panicThreshold: userOptions.panicThreshold,
+          context: "Build Loader Error (inline)",
+        });
+        if (panicError!= null) {
+          throw panicError;
+        }
         return null;
       }
 
@@ -101,7 +112,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
       if (isClientComponent) {
         const clientEntry = clientManifest[normalizedValue];
         if (userOptions.verbose) {
-          console.log("clientEntry", clientEntry);
+          logger.info(`[buildLoader] clientEntry: ${JSON.stringify(clientEntry)}`);
         }
         if (clientEntry) {
           try {
@@ -116,10 +127,16 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
             temporaryReferences?.set(moduleRef, module);
             return module;
           } catch (error) {
-            const err = toError(error);
-            console.warn("Error loading client module:", err);
+            const panicError = handleError({
+              error: error,
+              logger,
+              panicThreshold: userOptions.panicThreshold,
+              context: "Build Loader Error (client)",
+            });
             temporaryReferences?.delete(moduleRef);
-            throw err;
+            if (panicError!= null) {
+              throw panicError;
+            }
           }
         }
       }
@@ -143,10 +160,16 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
           }
           return module;
         } catch (error) {
-          const err = toError(error);
-          console.warn("Error loading static module:", err);
+          const panicError = handleError({
+            error: error,
+            logger,
+            panicThreshold: userOptions.panicThreshold,
+            context: "Build Loader Error (static)",
+          });
           temporaryReferences?.delete(moduleRef);
-          throw err;
+          if (panicError!= null) {
+            throw panicError;
+          }
         }
       }
 
@@ -171,26 +194,29 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
           return module;
         } catch (error) {
           const err = toError(error);
-          if(userOptions.panicThreshold === "critical_errors") {
-            console.warn("Error loading server module:", err);
-            temporaryReferences?.delete(moduleRef);
-          } else {
-            console.error("Error loading server module:", err);
-            throw err;
+          const panicError = handleError({
+            error: err,
+            logger,
+            panicThreshold: userOptions.panicThreshold,
+            context: "Build Loader Error (server)",
+          });
+          temporaryReferences?.delete(moduleRef);
+          if (panicError!= null) {
+            throw panicError;
           }
         }
       }
 
       // For source files (like custom Root/Html components), try to load directly from filesystem
       const sourceFilePath = join(userOptions.projectRoot, normalizedValue);
-      if (userOptions.verbose) {
-        console.log("[buildLoader] Checking source file:", sourceFilePath, "exists:", existsSync(sourceFilePath));
-      }
+                  if (userOptions.verbose) {
+              logger.info(`[buildLoader] Checking source file: ${sourceFilePath}, exists: ${existsSync(sourceFilePath)}`);
+            }
       if (existsSync(sourceFilePath)) {
         try {
-          if (userOptions.verbose) {
-            console.log("[buildLoader] Loading source file:", sourceFilePath);
-          }
+                      if (userOptions.verbose) {
+              logger.info(`[buildLoader] Loading source file: ${sourceFilePath}`);
+            }
 
           // For TypeScript/TSX files, first check if there's a built version in dist
           if (sourceFilePath.endsWith('.tsx') || sourceFilePath.endsWith('.ts') || sourceFilePath.endsWith('.mts')) {
@@ -218,9 +244,9 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
             }
 
             if (builtModulePath) {
-              if (userOptions.verbose) {
-                console.log("[buildLoader] Found built module:", builtModulePath);
-              }
+                          if (userOptions.verbose) {
+              logger.info(`[buildLoader] Found built module: ${builtModulePath}`);
+            }
               const module = await import(builtModulePath);
               temporaryReferences?.set(moduleRef, module);
               // If we have an export name, make sure it's a key
@@ -232,7 +258,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
 
             // If no built module found, try to compile the source file
             if (userOptions.verbose) {
-              console.log("[buildLoader] No built module found, trying to compile source file");
+              logger.info("[buildLoader] No built module found, trying to compile source file");
             }
 
             // Use esbuild to compile the TypeScript/TSX file
@@ -262,7 +288,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
               } catch (cleanupError) {
                 // Ignore cleanup errors
                 if (userOptions.verbose) {
-                  console.warn("[buildLoader] Failed to cleanup temp file:", cleanupError);
+                  logger.warn(`[buildLoader] Failed to cleanup temp file: ${cleanupError}`);
                 }
               }
             }
@@ -273,8 +299,16 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
           }
         } catch (error) {
           const err = toError(error);
-          console.warn("Error loading source file:", err);
+          const panicError = handleError({
+            error: err,
+            logger,
+            panicThreshold: userOptions.panicThreshold,
+            context: "Build Loader Error (source file)",
+          });
           temporaryReferences?.delete(moduleRef);
+          if (panicError != null) {
+            throw panicError;
+          }
           throw err;
         }
       }

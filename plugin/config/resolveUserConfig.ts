@@ -10,13 +10,14 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "../getNodeEnv.js";
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
-
+let originalConfig: UserConfig | null = null;
 export type ResolveUserConfigProps = {
   condition: "react-client" | "react-server";
   config: UserConfig;
   configEnv: ConfigEnv;
   userOptions: ResolvedUserOptions;
   autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "inputs" | "staticManifest">;
+  forceResolve?: boolean;
 };
 
 export type ResolveUserConfigReturn =
@@ -34,7 +35,16 @@ export const resolveUserConfig: ResolveUserConfigFn =
     configEnv,
     userOptions,
     autoDiscoveredFiles,
+    forceResolve = false,
   }) {
+    if(!forceResolve && originalConfig == null) {
+      originalConfig = config;
+    } else if(originalConfig != null && config !== originalConfig) {
+      if(userOptions.verbose) {
+        console.log("options changed, forcing re-resolve");
+      }
+      forceResolve = true;
+    }
     const ssr =
       typeof config.build?.ssr === "boolean"
         ? config.build?.ssr
@@ -52,7 +62,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         : userOptions.build.server;
     const envId = `${envDir}${ssr ? "-ssr" : ""}`;
 
-    if (stashedUserConfig[envId]) {
+    if (stashedUserConfig[envId] && !forceResolve) {
       return {
         type: "success",
         userConfig: stashedUserConfig[envId],
@@ -151,8 +161,8 @@ export const resolveUserConfig: ResolveUserConfigFn =
         : undefined
       : // find the other asset file names
       hasOtherOutput
-      ? (userDefinedOutput.find((o) => o.assetFileNames) as OutputOptions)
-          .assetFileNames
+      ? (userDefinedOutput.find((o) => o?.assetFileNames) as OutputOptions)
+          ?.assetFileNames
       : undefined;
 
     const userDefinedChunkFileNames = hasValidOutput

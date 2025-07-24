@@ -16,6 +16,7 @@ import type {
 } from "./types.js";
 import type { Node, Program } from "acorn";
 import type { DirectiveOptions } from "../../types.js";
+import { createLogger, type Logger } from "vite";
 
 /**
  * Analyzes directives in the given source and AST, returning directiveInfo.
@@ -23,17 +24,20 @@ import type { DirectiveOptions } from "../../types.js";
 export function analyzeDirectives(
   ast: Program,
   source: string,
-  matches?: DirectiveMatches
+  matches?: DirectiveMatches,
+  logger?: Logger
 ): DirectiveInfo;
 export function analyzeDirectives(
   ast: Program,
   source: string,
-  options?: DirectiveOptions
+  options?: DirectiveOptions,
+  logger?: Logger
 ): DirectiveInfo;
 export function analyzeDirectives(
   ast: Program,
   source: string,
-  optionsOrMatches?: DirectiveMatches | DirectiveOptions
+  optionsOrMatches?: DirectiveMatches | DirectiveOptions,
+  _logger?: Logger
 ): DirectiveInfo {
   const hasOptions =
     optionsOrMatches != null && typeof optionsOrMatches === "object";
@@ -51,9 +55,17 @@ export function analyzeDirectives(
   // Find file-level directives by checking AST
   let foundNonDirective = false;
   let firstDirective: DirectiveMatch | null = null;
-  let verbose =
-    hasOptions && "verbose" in optionsOrMatches && optionsOrMatches.verbose;
-
+  const verbose =
+    hasOptions &&
+    typeof optionsOrMatches === "object" &&
+    "verbose" in optionsOrMatches &&
+    optionsOrMatches.verbose;
+  const logger =
+    hasOptions &&
+    typeof optionsOrMatches === "object" &&
+    "logger" in optionsOrMatches
+      ? optionsOrMatches.logger ?? _logger ?? createLogger()
+      : _logger ?? createLogger();
   // Check if this looks like Vite-injected code
   const isViteInjectedCode =
     source.includes("__vite__createHotContext") ||
@@ -64,17 +76,11 @@ export function analyzeDirectives(
   for (const node of ast.body) {
     // Debug logging
     if (verbose) {
-      console.log("[analyzeDirectives] Processing node:", {
-        type: node.type,
-        start: node.start,
-        end: node.end,
-        directive: "directive" in node ? node.directive : undefined,
-        beforeNode:
-          node.start! > 0
-            ? JSON.stringify(source.slice(0, node.start!))
-            : "none",
-        foundNonDirective,
-      });
+      logger.info(
+        `[analyzeDirectives] Processing node: ${node.type} start: ${node.start} end: ${node.end}
+directive: ${"directive" in node ? node.directive : "none"}
+beforeNode: ${node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)).slice(0, 100) : "none"}`
+      );
     }
 
     // Only check for directives in expression statements
@@ -102,11 +108,11 @@ export function analyzeDirectives(
         if (!firstDirective) {
           firstDirective = { type, range: [node.start!, node.end!] };
           if (verbose) {
-            console.log(
-              "[analyzeDirectives] Found first directive:",
-              directive,
-              "at range:",
-              [node.start!, node.end!]
+            logger.info(
+              `[analyzeDirectives] Found first directive: ${directive} at range: ${[
+                node.start!,
+                node.end!,
+              ]}`
             );
           }
         } else {
@@ -122,13 +128,9 @@ export function analyzeDirectives(
         // if we haven't found the first directive yet
         if (!firstDirective) {
           foundNonDirective = true;
-          if (
-            optionsOrMatches != null &&
-            "verbose" in optionsOrMatches &&
-            optionsOrMatches?.verbose
-          ) {
-            console.log(
-              "[analyzeDirectives] Found non-directive expression before first directive, setting foundNonDirective=true"
+          if (verbose) {
+            logger.info(
+              `[analyzeDirectives] Found non-directive expression before first directive, setting foundNonDirective=true`
             );
           }
         }
@@ -139,10 +141,8 @@ export function analyzeDirectives(
       if (!firstDirective) {
         foundNonDirective = true;
         if (verbose) {
-          console.log(
-            "[analyzeDirectives] Found non-directive node before first directive:",
-            node.type,
-            "setting foundNonDirective=true"
+          logger.info(
+            `[analyzeDirectives] Found non-directive node before first directive: ${node.type}, setting foundNonDirective=true`
           );
         }
       }
@@ -155,10 +155,10 @@ export function analyzeDirectives(
       if (beforeNode.length > 0) {
         foundNonDirective = true;
         if (verbose) {
-          console.log(
-            "[analyzeDirectives] Found content before first directive:",
-            JSON.stringify(beforeNode),
-            "setting foundNonDirective=true"
+          logger.info(
+            `[analyzeDirectives] Found content before first directive: ${JSON.stringify(
+              beforeNode.slice(0, 100)
+            )}, setting foundNonDirective=true`
           );
         }
       }
@@ -175,10 +175,10 @@ export function analyzeDirectives(
       if (beforeDirective.length > 0) {
         foundNonDirective = true;
         if (verbose) {
-          console.log(
-            "[analyzeDirectives] Found content before directive:",
-            JSON.stringify(beforeDirective),
-            "setting foundNonDirective=true for directive"
+          logger.info(
+            `[analyzeDirectives] Found content before directive: ${JSON.stringify(
+              beforeDirective
+            )}, setting foundNonDirective=true for directive`
           );
         }
       }

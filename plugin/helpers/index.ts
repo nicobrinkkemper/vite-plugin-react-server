@@ -1,3 +1,5 @@
+import { getCondition } from "../config/getCondition.js";
+
 // Route and file handling
 export * from "./getRouteFiles.js";
 export * from "./resolvePage.js";
@@ -18,8 +20,7 @@ export * from "./collectViteModuleGraphCss.js";
 export * from "./createCssProps.js";
 
 // Stream and handler creation
-export * from "./createRscStream.js";
-export * from "./createHandler.js";
+export * from "./createHandler.server.js";
 export * from "./createEventHandler.js";
 
 // Hydrate user options
@@ -39,3 +40,10 @@ export * from "./moduleResolver.js";
 
 // Utility functions
 export * from "./stashReturnValue.js";
+
+const condition = getCondition('')
+const dirname = new URL('.', import.meta.url).pathname;
+const createRscStream = await import(`${dirname}/createRscStream.${condition}.js`);
+const createHandler = await import(`${dirname}/createHandler.${condition}.js`);
+
+export { createRscStream, createHandler };

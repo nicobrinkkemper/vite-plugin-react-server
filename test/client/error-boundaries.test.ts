@@ -1,17 +1,18 @@
 import { expect, test, describe, beforeAll, afterAll, vi } from "vitest";
 import { createClientDevServer } from "./createClientDevServer.js";
-import { createLogger, type ViteDevServer } from "vite";
+import { type ViteDevServer } from "vite";
 import { setupErrorBoundaryTestProject } from "../setup.js";
 import { resolve } from "path";
 import { rm } from "fs/promises";
 
-const customLogger = createLogger();
 
 describe("RSC Worker Error Streaming", () => {
   let server: ViteDevServer;
+  let allErrorsServer: ViteDevServer;
   let testDir: string;
   let serverUrl: string;
-  let port: number = 5177;
+  let allErrorsServerUrl: string;
+  let port: number = 5200;
   beforeAll(async () => {
     // Create test directory in fixtures (like other working tests)
     testDir = resolve(__dirname, "../fixtures/client-error-boundaries.test");
@@ -23,9 +24,8 @@ describe("RSC Worker Error Streaming", () => {
     await setupErrorBoundaryTestProject(testDir);
 
     // Start test server with proper page configuration
-    server = await createClientDevServer({
+    const options = {
       projectRoot: testDir,
-      verbose: true,
       Page: (url: string) => {
         if (url === "/server-error-example") {
           return "src/page/server-error-example/page.tsx";
@@ -47,9 +47,16 @@ describe("RSC Worker Error Streaming", () => {
       build: {
         pages: ["/", "/server-error-example", "/client-error-example"],
       },
-    }, port);
+      panicThreshold: "critical_errors" as const,
+    };
+    server = await createClientDevServer(options, port);
+    allErrorsServer = await createClientDevServer({
+      ...options,
+      panicThreshold: "all_errors",
+    }, port + 1);
 
     serverUrl = `http://localhost:${server.config.server?.port}${process.env.VITE_BASE_URL ?? "/"}`;
+    allErrorsServerUrl = `http://localhost:${allErrorsServer.config.server?.port}${process.env.VITE_BASE_URL ?? "/"}`;
   });
 
   afterAll(async () => {
@@ -204,5 +211,31 @@ describe("RSC Worker Error Streaming", () => {
     expect(rsc).toContain(
       `{"digest":"","name":"Error","message":"test error example","stack":[["TestError",`
     );
+  });
+
+  test("should handle all_errors panic threshold", async () => {
+    // Set up error handler to catch the expected unhandled error
+    const unhandledErrors: Error[] = [];
+    const errorHandler = (error: Error) => {
+      if (error.message === "test error example") {
+        unhandledErrors.push(error);
+      }
+    };
+    process.on('uncaughtException', errorHandler);
+
+    try {
+      await fetch(
+        `${allErrorsServerUrl}server-error-example/index.rsc`,
+        {
+          headers: { Accept: "text/x-component" },
+        }
+      );
+    } finally {
+      // Clean up the error handler
+      process.off('uncaughtException', errorHandler);
+    }
+
+    // Verify that the expected unhandled error was not called
+    expect(unhandledErrors).toHaveLength(0);
   });
 });

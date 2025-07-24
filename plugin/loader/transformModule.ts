@@ -13,8 +13,13 @@
 import type { ParseResult } from "./directives/types.js";
 import { transformServerModule } from "./transformServerModule.js";
 import { transformClientModule } from "./transformClientModule.js";
-import type { TransformFunction, TransformOptions, TransformResult } from "./types.js";
+import type {
+  TransformFunction,
+  TransformOptions,
+  TransformResult,
+} from "./types.js";
 import { transformNonServerEnvironment } from "./transformNonServerEnvironment.js";
+import { createLogger } from "vite";
 
 /**
  * Transforms a module for RSC boundaries, handling imports and registrations.
@@ -23,37 +28,70 @@ export const transformModule: TransformFunction = async (
   source: string,
   moduleId: string,
   parseResult: ParseResult,
-  options: TransformOptions
+  {
+    forceServerFunction,
+    forceClientComponent,
+    isServerEnvironment,
+    loader,
+    verbose,
+    logger = createLogger(),
+  }: TransformOptions
 ): Promise<TransformResult> => {
-  if (parseResult.type !== 'success') {
-    if(options.verbose) {
-      console.log(`[transformModule] Parse error:`, parseResult.error);
+  if (parseResult.type !== "success") {
+    if (verbose) {
+      logger.error(`[transformModule] Parse error:`, {
+        error: parseResult.error,
+      });
     }
-    return { code: '', map: null };
+    return { code: "", map: null };
   }
 
-  if (options.verbose) {
-    console.log(`[transformModule] Module: ${moduleId}`);
-    console.log(`[transformModule] Directives:`, parseResult.directiveInfo);
-    console.log(
-      `[transformModule] isServerFunction:`,
-      options.forceServerFunction,
-      `isClientComponent:`,
-      options.forceClientComponent
+  if (verbose) {
+    logger.info(`[transformModule] Module: ${moduleId}`);
+    logger.info(
+      `[transformModule] Directives: fileLevel: ${JSON.stringify(parseResult.directiveInfo.fileLevel)}, functionLevel: ${JSON.stringify(parseResult.directiveInfo.functionLevel)}, warnings: ${parseResult.directiveInfo.warnings.length}`
+    );
+    logger.info(
+      `[transformModule] isServerFunction:` +
+        (forceServerFunction ? "true" : "false")
+    );
+    logger.info(
+      `[transformModule] isClientComponent:` +
+        (forceClientComponent ? "true" : "false")
     );
   }
-  if(!options.isServerEnvironment) {
+  if (!isServerEnvironment) {
     // only remove the directives
-    return transformNonServerEnvironment(source, moduleId, parseResult, options.loader, options.verbose);
+    return transformNonServerEnvironment(
+      source,
+      moduleId,
+      parseResult,
+      loader,
+      verbose
+    );
   }
 
   // Only apply transformation for server functions or client components
-  if (!(options.forceServerFunction || options.forceClientComponent)) {
+  if (!(forceServerFunction || forceClientComponent)) {
     return { code: source, map: null };
   }
 
   // Transform based on module type and return the result directly
-  return options.forceServerFunction
-    ? transformServerModule(source, moduleId, parseResult, options.loader, options.verbose)
-    : transformClientModule(source, moduleId, parseResult, options.loader, options.verbose);
+  return forceServerFunction
+    ? transformServerModule(
+        source,
+        moduleId,
+        parseResult,
+        loader,
+        verbose,
+        logger
+      )
+    : transformClientModule(
+        source,
+        moduleId,
+        parseResult,
+        loader,
+        verbose,
+        logger
+      );
 };

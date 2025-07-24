@@ -1,17 +1,11 @@
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { resolveComponents } from "../helpers/resolveComponents.js";
-import type {
-  RenderPageResult,
-  ReactStreamHandlerFn,
-} from "../types.js";
 import { renderStreams } from "./renderStreams.js";
 import { collectHtmlWorkerContent } from "./collectHtmlWorkerContent.js";
 import { collectRscContent } from "./collectRscContent.js";
 import { routeToURL } from "../utils/routeToURL.js";
-
-export type RenderPageReturn = AsyncGenerator<RenderPageResult, void, unknown>;
-
-export type RenderPageFn = ReactStreamHandlerFn<"RootComponent" | "HtmlComponent" | "PageComponent" | "pageProps" | 'url' | 'onEvent', RenderPageReturn>
+import type { RenderPageFn } from "./types.js";
+import { handleError } from "../error/handleError.js";
 
 export const renderPage: RenderPageFn = async function* _renderPage(
   handlerOptions
@@ -23,8 +17,12 @@ export const renderPage: RenderPageFn = async function* _renderPage(
     };
     return;
   }
-  if(!handlerOptions.url) {
-    handlerOptions.url = routeToURL(handlerOptions.route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath);
+  if (!handlerOptions.url) {
+    handlerOptions.url = routeToURL(
+      handlerOptions.route,
+      handlerOptions.moduleBaseURL,
+      handlerOptions.build.rscOutputPath
+    );
   }
 
   try {
@@ -32,7 +30,9 @@ export const renderPage: RenderPageFn = async function* _renderPage(
 
     // Resolve all components together (alongside component resolution like other places)
     if (handlerOptions.verbose) {
-      handlerOptions.logger.info(`[renderPage] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`);
+      handlerOptions.logger.info(
+        `[renderPage] renderPage - route: ${handlerOptions.route}, rootPath: ${handlerOptions.rootPath}, htmlPath: ${handlerOptions.htmlPath}`
+      );
     }
 
     let PageComponent, pageProps, RootComponent, HtmlComponent;
@@ -41,14 +41,21 @@ export const renderPage: RenderPageFn = async function* _renderPage(
     // 1. handlerOptions.PageComponent (highest priority - for fallback)
     // 2. handlerOptions.components.Page (medium priority - for static builds)
     // 3. Resolved from pagePath (lowest priority - normal resolution)
-    const useProvidedPageComponent = handlerOptions.PageComponent || handlerOptions.components?.Page;
-    
+    const useProvidedPageComponent =
+      handlerOptions.PageComponent || handlerOptions.components?.Page;
+
     if (useProvidedPageComponent) {
       if (handlerOptions.verbose) {
-        const source = handlerOptions.PageComponent ? 'PageComponent' : 'components.Page';
-        handlerOptions.logger.info(`[renderPage] Using provided Page component from ${source} for route: ${handlerOptions.route} (fallback mode: ${!handlerOptions.pagePath ? 'yes' : 'no'})`);
+        const source = handlerOptions.PageComponent
+          ? "PageComponent"
+          : "components.Page";
+        handlerOptions.logger.info(
+          `[renderPage] Using provided Page component from ${source} for route: ${
+            handlerOptions.route
+          } (fallback mode: ${!handlerOptions.pagePath ? "yes" : "no"})`
+        );
       }
-      
+
       // Resolve components - use empty strings to skip page resolution when PageComponent is provided
       const componentsResult = await resolveComponents({
         ...handlerOptions,
@@ -56,8 +63,10 @@ export const renderPage: RenderPageFn = async function* _renderPage(
         pagePath: "",
         propsPath: "",
         // Use direct component overrides if available (for static builds)
-        RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
-        HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
+        RootComponent:
+          handlerOptions.components?.Root || handlerOptions.RootComponent,
+        HtmlComponent:
+          handlerOptions.components?.Html || handlerOptions.HtmlComponent,
       });
 
       if (componentsResult.type === "error") {
@@ -74,12 +83,14 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       pageProps = componentsResult.pageProps || handlerOptions.pageProps || {};
       RootComponent = componentsResult.RootComponent;
       HtmlComponent = componentsResult.HtmlComponent;
-      
+
       // Ensure we have the required components for fallback render
       if (!RootComponent || !HtmlComponent) {
         yield {
           type: "error",
-          error: new Error(`Fallback render failed: missing required components (Root: ${!!RootComponent}, Html: ${!!HtmlComponent})`),
+          error: new Error(
+            `Fallback render failed: missing required components (Root: ${!!RootComponent}, Html: ${!!HtmlComponent})`
+          ),
         };
         return;
       }
@@ -88,8 +99,10 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       const componentsResult = await resolveComponents({
         ...handlerOptions,
         // Use direct component overrides if available (for static builds)
-        RootComponent: handlerOptions.components?.Root || handlerOptions.RootComponent,
-        HtmlComponent: handlerOptions.components?.Html || handlerOptions.HtmlComponent,
+        RootComponent:
+          handlerOptions.components?.Root || handlerOptions.RootComponent,
+        HtmlComponent:
+          handlerOptions.components?.Html || handlerOptions.HtmlComponent,
       });
 
       if (componentsResult.type === "error") {
@@ -100,13 +113,16 @@ export const renderPage: RenderPageFn = async function* _renderPage(
         return;
       }
 
-      ({ PageComponent, pageProps, RootComponent, HtmlComponent } = componentsResult);
-      
+      ({ PageComponent, pageProps, RootComponent, HtmlComponent } =
+        componentsResult);
+
       // Ensure we have all required components
       if (!PageComponent || !RootComponent || !HtmlComponent) {
         yield {
           type: "error",
-          error: new Error(`Component resolution failed: missing required components (Page: ${!!PageComponent}, Root: ${!!RootComponent}, Html: ${!!HtmlComponent})`),
+          error: new Error(
+            `Component resolution failed: missing required components (Page: ${!!PageComponent}, Root: ${!!RootComponent}, Html: ${!!HtmlComponent})`
+          ),
         };
         return;
       }
@@ -123,6 +139,8 @@ export const renderPage: RenderPageFn = async function* _renderPage(
     };
     // Create streams with CSS files
     const [rscFull, rscHeadless] = renderStreams(newHandlerOptions);
+    //
+
     // Handle stream creation errors
     if (rscFull.type !== "success") {
       yield {
@@ -171,59 +189,83 @@ export const renderPage: RenderPageFn = async function* _renderPage(
       };
       return;
     }
-
     // Collect HTML and RSC content
-    const [
-      { stream: rscStream, metrics: rscMetrics },
-      { stream: htmlStream, metrics: htmlMetrics },
-    ] = await Promise.all([
-      collectRscContent(rscHeadless, newHandlerOptions),
-      collectHtmlWorkerContent(rscFull, newHandlerOptions),
-    ]);
+    const  { stream: rscStream, metrics: rscMetrics }= await collectRscContent(rscHeadless, newHandlerOptions)
+    
+    // Handle HTML collection as async generator - simplified usage
+    const htmlResult = await collectHtmlWorkerContent(rscFull, newHandlerOptions).next();
+    if (htmlResult.done && htmlResult.value) {
+      if (htmlResult.value.type === "success") {
+        const htmlStream = htmlResult.value.stream;
+        const htmlMetrics = htmlResult.value.metrics;
+        
+        // Update metrics
+        metrics.htmlSizes.set(handlerOptions.route, htmlMetrics.bytes);
+        metrics.rscSizes.set(handlerOptions.route, rscMetrics.bytes);
+        metrics.htmlSize = htmlMetrics.bytes;
+        metrics.rscSize = rscMetrics.bytes;
 
-    // Update metrics
-    metrics.htmlSizes.set(handlerOptions.route, htmlMetrics.bytes);
-    metrics.rscSizes.set(handlerOptions.route, rscMetrics.bytes);
-    metrics.htmlSize = htmlMetrics.bytes;
-    metrics.rscSize = rscMetrics.bytes;
+        // Combine metrics from both streams
+        metrics.streamMetrics = {
+          ...htmlMetrics,
+          chunks: Math.max(htmlMetrics.chunks, rscMetrics.chunks),
+          bytes: Math.max(htmlMetrics.bytes, rscMetrics.bytes),
+          duration: Math.max(htmlMetrics.duration, rscMetrics.duration),
+          startTime: Math.min(htmlMetrics.startTime, rscMetrics.startTime),
+        };
 
-    // Combine metrics from both streams
-    metrics.streamMetrics = {
-      ...htmlMetrics,
-      chunks: Math.max(htmlMetrics.chunks, rscMetrics.chunks),
-      bytes: Math.max(htmlMetrics.bytes, rscMetrics.bytes),
-      duration: Math.max(htmlMetrics.duration, rscMetrics.duration),
-      startTime: Math.min(htmlMetrics.startTime, rscMetrics.startTime),
-    };
+        metrics.processingTime = metrics.streamMetrics.duration;
+        metrics.chunks = metrics.streamMetrics.chunks;
+        metrics.chunkRate =
+          metrics.streamMetrics.chunks / (metrics.processingTime / 1000);
 
-    metrics.processingTime = metrics.streamMetrics.duration;
-    metrics.chunks = metrics.streamMetrics.chunks;
-    metrics.chunkRate =
-      metrics.streamMetrics.chunks / (metrics.processingTime / 1000);
+        // Emit metrics via callback
+        if (handlerOptions.onMetrics) {
+          handlerOptions.onMetrics(metrics);
+        }
 
-    // Emit metrics via callback
-    if (handlerOptions.onMetrics) {
-      handlerOptions.onMetrics(metrics);
+        yield {
+          type: "success",
+          html: htmlStream,
+          rsc: rscStream,
+          metrics: {
+            rscFull: htmlMetrics,
+            rscHeadless: rscMetrics,
+          },
+        } as const;
+      } else {
+        yield {
+          type: "error",
+          error: htmlResult.value.error || new Error("HTML collection failed"),
+        };
+        return;
+      }
+    } else {
+      yield {
+        type: "error",
+        error: new Error("HTML collection did not complete successfully"),
+      };
+      return;
     }
-
-    yield {
-      type: "success",
-      html: htmlStream,
-      rsc: rscStream,
-      metrics: {
-        rscFull: htmlMetrics,
-        rscHeadless: rscMetrics,
-      },
-    } as const;
   } catch (err) {
+    if (handlerOptions.verbose) {
+      handlerOptions.logger.error(`[renderPage] Error: ${JSON.stringify(err)}`);
+    }
+    const panicError = handleError({
+      error: err,
+      critical: false,
+      logger: handlerOptions.logger,
+      panicThreshold: handlerOptions.panicThreshold,
+      context: `RenderPage Error (${handlerOptions.route})`,
+    });
+    if (panicError != null) {
+      yield {
+        type: "error",
+        error: panicError,
+      };
+    }
     yield {
-      type: "error",
-      error:
-        err instanceof Error
-          ? err
-          : typeof err === "string"
-          ? new Error(err)
-          : (err as Error),
+      type: "skip",
     };
   }
-}
+};

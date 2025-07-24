@@ -8,6 +8,7 @@ import type {
   RenderMetrics,
 } from "vite-plugin-react-server/types";
 import { doBuild } from "./doBuild.js";
+import { build } from "vite";
 
 describe("Plugin build test", () => {
   const testDir = resolve(__dirname, "../fixtures/build.test");
@@ -21,6 +22,7 @@ describe("Plugin build test", () => {
       await setupTestProject(testDir);
       events = await doBuild({
         projectRoot: testDir,
+        verbose: true,
         onMetrics: (m) => {
           metrics.push(m);
         },
@@ -57,8 +59,7 @@ describe("Plugin build test", () => {
   afterAll(async () => {
     try {
       await rm(testDir, { recursive: true, force: true });
-    } catch {
-    }
+    } catch {}
   });
 
   it("emits build events in order", async () => {
@@ -130,35 +131,141 @@ describe("Plugin build test", () => {
   });
 
   it("should generate correct CSS paths without src.css artifacts", async () => {
-    expect(htmlContent).toBeDefined();
-    
+    expect(htmlContent).toBeTruthy();
+
     // Extract all href attributes from link tags
     const linkMatches = htmlContent.match(/href="([^"]*\.css[^"]*)"/g);
-    
+
     if (linkMatches && linkMatches.length > 0) {
-      const hrefs = linkMatches.map(match => {
-        const href = match.match(/href="([^"]*)"/)?.[1];
-        return href;
-      }).filter(Boolean);
+      const hrefs = linkMatches
+        .map((match) => {
+          const href = match.match(/href="([^"]*)"/)?.[1];
+          return href;
+        })
+        .filter(Boolean);
       // Check each CSS href
       for (const href of hrefs) {
-        // Should NOT contain "src.css" patterns  
+        // Should NOT contain "src.css" patterns
         expect(href).not.toMatch(/src/);
-        
+
         // Should have proper CSS path structure: /assets/ for built files
 
-        if(process.env.VITE_BASE_URL) {
-          expect(href?.startsWith(process.env.VITE_BASE_URL + 'assets/')).toBe(true);
+        if (process.env.VITE_BASE_URL) {
+          expect(href?.startsWith(process.env.VITE_BASE_URL + "assets/")).toBe(
+            true
+          );
         } else {
           expect(href).toMatch(/^\/assets\//);
         }
-        
+
         // Should end with .css
         expect(href).toMatch(/\.css$/);
-        
+
         // Should not have double slashes or malformed paths
         expect(href).not.toMatch(/\/\//);
       }
     }
   });
+
+  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/static", async () => {
+    const testEvents = ["build.writeBundle.static-server", "build.start"];
+
+    for (const testEvent of testEvents) {
+      const errString = "Build cancelled (" + testEvent + ")";
+      const events = doBuild({
+        projectRoot: testDir,
+        build: {
+          pages: ["/"],
+        },
+        onEvent: (event) => {
+          console.log(
+            "onEvent",
+            event.type,
+            testEvent,
+            event.type === testEvent
+          );
+          if (event.type === testEvent) {
+            throw new Error(errString);
+          }
+        },
+      });
+      await expect(events).rejects.toThrow(
+        "[vite:plugin-react-server/static] " + errString
+      );
+    }
+  });
+
+  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/client", async () => {
+    const testEvents = [
+      // client is the ssr-client build
+      "build.writeBundle.client",
+      // static-client is the browser build
+      "build.writeBundle.static-client",
+    ];
+
+    for (const testEvent of testEvents) {
+      const errString = "Build cancelled (" + testEvent + ")";
+      const events = doBuild({
+        projectRoot: testDir,
+        build: {
+          pages: ["/"],
+        },
+        onEvent: (event) => {
+          if (event.type === testEvent) {
+            throw new Error(errString);
+          }
+        },
+      });
+      await expect(events).rejects.toThrow(
+        "[vite:plugin-react-server/client] " + errString
+      );
+    }
+  });
+
+  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/server", async () => {
+    const testEvents = [
+      "build.writeBundle.server",
+      // server-static is handled by the static plugin
+    ];
+
+    for (const testEvent of testEvents) {
+      const errString = "Build cancelled (" + testEvent + ")";
+      const events = doBuild({
+        projectRoot: testDir,
+        build: {
+          pages: ["/"],
+        },
+        onEvent: (event) => {
+          if (event.type === testEvent) {
+            throw new Error(errString);
+          }
+        },
+      });
+      await expect(events).rejects.toThrow(
+        "[vite:plugin-react-server/server] " + errString
+      );
+    }
+  });
+
+  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/static during file.write, file.write.done", async () => {
+    const testEvents = ["file.write", "file.write.done"];
+
+    for (const testEvent of testEvents) {
+      const errString = "Build cancelled (" + testEvent + ")";
+      await expect(
+        doBuild({
+          projectRoot: testDir,
+          build: {
+            pages: ["/"],
+          },
+          onEvent: (event) => {
+            if (event.type === testEvent) {
+              throw new Error(errString);
+            }
+          },
+        })
+      ).rejects.toThrow("[vite:plugin-react-server/static] " + errString);
+    }
+  });
+
 });

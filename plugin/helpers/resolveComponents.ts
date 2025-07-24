@@ -168,6 +168,8 @@ export const resolveComponents = async ({
       loader,
       moduleBaseURL,
       build,
+      verbose,
+      logger,
     });
 
     if (pageAndPropsResult.type !== "success") {

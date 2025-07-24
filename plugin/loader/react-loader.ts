@@ -92,7 +92,7 @@ export function initialize(
           mode: getNodeEnv(),
         },
         verbose: false,
-        panicThreshold: "none",
+        panicThreshold: "critical_errors", 
       },
     });
   }
@@ -159,7 +159,7 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     if (userOptions?.verbose) {
       let startPreviewIndex = 0;
       let startLine = 0;
-      let lines = source.split("\n");
+      const lines = source.split("\n");
       while (
         lines[startLine].trim() === "" || lines[startLine].trim() === "\r" ||
         // comment lines

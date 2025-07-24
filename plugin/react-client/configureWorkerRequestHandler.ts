@@ -139,7 +139,9 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
                   htmlSizes: new Map(),
                   rscSizes: new Map([[info.route, metrics.bytes]]),
                 } satisfies RenderMetrics;
-                handlerOptions.onMetrics(formattedMetrics);
+                if(typeof handlerOptions.onMetrics === 'function') {
+                  handlerOptions.onMetrics(formattedMetrics);
+                }
               }
             : () => {};
         const startTime = performance.now();
@@ -176,7 +178,6 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
             cssFiles: new Map(),
             globalCss: new Map(),
           },
-          logger,
           handlers: {
             onMetrics: (id, metrics) => {
               metrics.route = id;
@@ -191,17 +192,52 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
               // console.log("onHmrUpdate", routes);
             },
           },
-          verbose: handlerOptions.verbose,
-          rscTimeout: handlerOptions.rscTimeout,
+          ...handlerOptions,
         });
 
-        // Pipe the stream to the response
+        // Pipe the stream to the response with error handling
         if (res.writable) {
-          Readable.fromWeb(stream as unknown as ReadableStream).pipe(res);
+          const readable = Readable.fromWeb(stream as unknown as ReadableStream);
+          let headersSent = false;
+
+          readable.on('data', (chunk) => {
+            if (!headersSent) {
+              // Only send headers when first chunk arrives
+              res.setHeader("Content-Type", info.contentType);
+              res.setHeader("Transfer-Encoding", "chunked");
+              res.setHeader("Connection", "keep-alive");
+              headersSent = true;
+            }
+            res.write(chunk);
+          });
+
+          readable.on('end', () => {
+            res.end();
+          });
+
+          readable.on('error', (error) => {
+            logError(error, logger);
+            if (handlerOptions.verbose) {
+              logger.info(`[react-client] Stream error caught, headersSent: ${headersSent}, setting status to 500`);
+            }
+            if (!headersSent) {
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+              res.end();
+            } else {
+              // If error after headers, just end the response
+              res.end();
+            }
+          });
         }
         // wait for timeout
       } catch (error) {
         logError(error, logger);
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+        }
+        res.end();
       }
       let timeout: NodeJS.Timeout;
       try {

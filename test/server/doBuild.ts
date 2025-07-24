@@ -26,7 +26,9 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
       );
       events.push(event);
       if (optionOverrides?.onEvent) {
+        console.log('calling custom test event');
         optionOverrides.onEvent(event);
+        console.log('called custom test event');
       }
     },
     build: {
@@ -43,7 +45,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
   const distDir = resolve(options.projectRoot ?? "", "dist");
   await rm(distDir, { recursive: true, force: true });
 
-  // Do the builds
+// Do the builds
   await build({  
     mode: "test",
     plugins: [vitePluginReactClient(options)],

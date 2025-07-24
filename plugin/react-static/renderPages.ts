@@ -13,47 +13,15 @@
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { renderPage } from "./renderPage.js";
 import type { PassThrough } from "node:stream";
-import type {
-  StreamMetrics,
-  RenderPagesResult,
-  AutoDiscoveredFiles,
-  CssContent,
-  CreateHandlerOptions,
-} from "../types.js";
-
-export type RenderPagesReturn = AsyncGenerator<
-  RenderPagesResult,
-  RenderPagesResult,
-  unknown
->;
-
-export type RenderPagesHandlerOptions = Omit<
-  CreateHandlerOptions,
-  | "pagePath"
-  | "route"
-  | "cssFiles"
-  | "propsPath"
-  | "rootPath"
-  | "htmlPath"
-  | "pageProps"
-  | "PageComponent"
-  | "RootComponent"
-  | "HtmlComponent"
-  | "url"
-> & {
-  autoDiscoveredFiles: AutoDiscoveredFiles;
-  cssFilesByPage: Map<string, Map<string, CssContent>>;
-};
-
-export type RenderPagesFn = (
-  routes: string[]
-) => (handlerOptions: RenderPagesHandlerOptions) => RenderPagesReturn;
+import type { RenderPagesResult, StreamMetrics } from "../types.js";
+import type { RenderPagesFn } from "./types.js";
+import { handleError } from "../error/handleError.js";
 
 export const renderPages: RenderPagesFn = (routes) => {
   return (handlerOptions) => {
     const { autoDiscoveredFiles, cssFilesByPage, ...options } = handlerOptions;
     const completedRoutes = new Set<string>();
-    const failedRoutes = new Set<string>();
+    const failedRoutes = new Map<string, unknown>();
     const baseMetrics = createRenderMetrics(routes[0]);
     const results = new Map<
       string,
@@ -66,7 +34,6 @@ export const renderPages: RenderPagesFn = (routes) => {
         };
       }
     >();
-    const errors: Error[] = [];
 
     if (!autoDiscoveredFiles.urlMap) {
       throw new Error("No urlMap provided to renderPages");
@@ -94,11 +61,11 @@ export const renderPages: RenderPagesFn = (routes) => {
             if (result.type === "skip") continue;
 
             if (result.type === "error") {
-              failedRoutes.add(route);
-              errors.push(result.error);
+              failedRoutes.set(route, result.error);
               yield {
                 type: "error",
                 error: result.error,
+                route: route,
                 failedRoutes,
                 completedRoutes,
                 htmlSizes: baseMetrics.htmlSizes,
@@ -151,63 +118,55 @@ export const renderPages: RenderPagesFn = (routes) => {
             }
           }
         } catch (err) {
-          failedRoutes.add(route);
-          errors.push(err instanceof Error ? err : new Error(String(err)));
+          const panicError = handleError({
+            error: err,
+            logger: options.logger,
+            panicThreshold: options.panicThreshold,
+            context: `renderPages(${route})`,
+          });
+          if (panicError != null) {
+            failedRoutes.set(route, panicError);
+          } else {
+            failedRoutes.set(route, err);
+          }
           yield {
             type: "error",
-            error: err instanceof Error ? err : new Error(String(err)),
             failedRoutes,
             completedRoutes,
             htmlSizes: baseMetrics.htmlSizes,
             rscSizes: baseMetrics.rscSizes,
             streamMetrics: baseMetrics.streamMetrics,
             results,
-          } as const;
+          } satisfies RenderPagesResult;
         }
       }
-
-
 
       if (options.verbose) {
-        options.logger.info(`[renderPages] Final state - completedRoutes: ${completedRoutes.size}, failedRoutes: ${failedRoutes.size}`);
-      }
-      
-      if (failedRoutes.size > 0) {
-        if (options.verbose) {
-          options.logger.warn(`[renderPages] Returning error result due to ${failedRoutes.size} failed routes`);
-        }
-        if (options.verbose) {
-          options.logger.info(`[renderPages] About to return error result`);
-        }
-        return {
-          type: "error",
-          error: errors[0],
-          failedRoutes,
-          completedRoutes,
-          htmlSizes: baseMetrics.htmlSizes,
-          rscSizes: baseMetrics.rscSizes,
-          streamMetrics: baseMetrics.streamMetrics,
-          results,
-        } as const;
+        options.logger.info(
+          `[renderPages] Final state - completedRoutes: ${completedRoutes.size}, failedRoutes: ${failedRoutes.size}`
+        );
       }
 
       if (options.verbose) {
         options.logger.info(`[renderPages] Returning success result`);
       }
-      
+
       if (options.verbose) {
         options.logger.info(`[renderPages] About to return success result`);
       }
-      
+
+      const isError =
+        options.panicThreshold === "all_errors" && failedRoutes.size > 0;
+
       return {
-        type: "success",
+        type: isError ? "error" : "success",
         completedRoutes,
-        failedRoutes: undefined,
+        failedRoutes: failedRoutes,
         htmlSizes: baseMetrics.htmlSizes,
         rscSizes: baseMetrics.rscSizes,
         streamMetrics: baseMetrics.streamMetrics,
         results,
-      } as const;
+      } as RenderPagesResult;
     })();
   };
 };

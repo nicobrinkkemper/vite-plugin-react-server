@@ -1,17 +1,24 @@
-import { parentPort } from "node:worker_threads";
-import type { HtmlWorkerInputMessage, HtmlWorkerRenderState, HtmlWorkerOutputMessage } from "../html/types.js";
+import { parentPort, workerData } from "node:worker_threads";
+import type {
+  HtmlWorkerInputMessage,
+  HtmlWorkerRenderState,
+  HtmlWorkerOutputMessage,
+} from "../html/types.js";
 import { createHtmlWorkerRenderState } from "./createHtmlWorkerRenderState.js";
-import { toError } from "../../error/toError.js";
 import { serializeError } from "../../error/serializeError.js";
+import { createLogger } from "vite";
+import { PassThrough } from "node:stream";
+import { handleError } from "../../error/handleError.js";
 
 // Track active renders
 const activeRenders = new Map<string, HtmlWorkerRenderState>();
 // Track which renders have encountered errors to prevent duplicate processing
 const errorRenders = new Set<string>();
+const logger = createLogger(workerData.resolvedConfig.logLevel ?? "info");
 
 function sendMessage(msg: HtmlWorkerOutputMessage) {
   // Send the original message
-  if ("error" in msg) {
+  if (typeof msg === "object" && msg != null && "error" in msg) {
     parentPort?.postMessage({
       ...msg,
       error: serializeError(msg.error),
@@ -21,17 +28,24 @@ function sendMessage(msg: HtmlWorkerOutputMessage) {
   }
 }
 
-function cleanup(id: string) {
+function cleanup(id: string, reason: unknown) {
   const renderState = activeRenders.get(id);
   if (!renderState) {
     // Already cleaned up
     return;
   }
-  try {
-    renderState.stream.abort('cleanup requested');
-  } catch (e) {}
+
+  // CRITICAL: Destroy the RSC stream FIRST to prevent malformed chunks from being sent
+  // This prevents React from sending chunks with reason: null through the stream
+
   renderState.rscStream.destroy();
+
+  // Then abort the React stream
+  renderState.stream.abort(reason ?? "cleanup requested");
+
   renderState.htmlTransform?.destroy();
+
+  // Remove from tracking maps
   activeRenders.delete(id);
   errorRenders.delete(id);
 
@@ -50,19 +64,28 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         if (existingRenderState) {
           // Abort the React stream first to stop it from sending messages
           try {
-            existingRenderState.stream.abort('route ready cleanup');
+            existingRenderState.stream.abort("route ready cleanup");
           } catch (e) {
-            console.warn('Failed to abort stream', e);
+            console.warn("Failed to abort stream", e);
             // Ignore abort errors
           }
+
+          // Destroy streams in the correct order to prevent cross-contamination
           existingRenderState.rscStream.destroy();
           existingRenderState.htmlTransform?.destroy();
+
+          // Remove from tracking maps
           activeRenders.delete(id);
           errorRenders.delete(id);
         }
-        
+
         // Create new render state with fresh streams
-        const renderState = createHtmlWorkerRenderState(msg, sendMessage);
+        const renderState = createHtmlWorkerRenderState(
+          msg,
+          sendMessage,
+          new PassThrough(),
+          logger
+        );
         activeRenders.set(id, renderState);
         break;
       }
@@ -80,6 +103,8 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
 
         // Check if the render state has encountered an error
         if (renderState.hasError) {
+          // Add to error renders to prevent further processing
+          errorRenders.add(id);
           return;
         }
 
@@ -89,24 +114,32 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
           return;
         }
 
-        try {
-          // Write RSC chunk to the RSC stream
-          renderState.rscStream.write(msg.chunk);
-          sendMessage({
-            type: "CHUNK_PROCESSED",
-            id,
-            success: true,
-          });
-        } catch (error) {
-          const err = toError(error);
-          errorRenders.add(id);
-          sendMessage({
-            type: "ERROR",
-            id,
-            error: err,
-          });
-          cleanup(id);
+        // Write RSC chunk to the RSC stream
+        renderState.rscStream.write(msg.chunk, (error) => {
+          if (error != null) {
+            sendMessage({
+              type: "ERROR",
+              id,
+              error: error,
+            });
+            return;
+          }
+        });
+        if (workerData.userOptions.verbose) {
+          // show first 100 and last 100 characters of the chunk
+          const str = Buffer.from(msg.chunk).toString();
+          logger.info(
+            `[${id}] RSC chunk preview: ${str.slice(
+              0,
+              200
+            )}\n...\n${str.slice(-200)}`
+          );
         }
+        sendMessage({
+          type: "CHUNK_PROCESSED",
+          id,
+          success: true,
+        });
         break;
       }
       case "RSC_END": {
@@ -129,17 +162,17 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         if (renderState && renderState.setError) {
           renderState.setError();
         }
-        cleanup(id);
+        cleanup(id, "cleanup requested");
         break;
       }
       case "SHUTDOWN": {
         // If id is "*", clean up all render states
         if (id === "*") {
           for (const [renderId] of activeRenders) {
-            cleanup(renderId);
+            cleanup(renderId, "shutdown requested");
           }
         } else {
-          cleanup(id);
+          cleanup(id, "shutdown requested");
         }
         // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
         sendMessage({
@@ -150,10 +183,15 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       }
     }
   } catch (error) {
-    sendMessage({
-      type: "ERROR",
-      id,
-      error: toError(error),
+    const panicError = handleError({
+      error: error,
+      logger: logger,
+      panicThreshold: workerData.userOptions.panicThreshold,
+      critical: false,
+      context: `Message handler error for route ${id}`,
     });
+    if (panicError != null) {
+      cleanup("*", "Message handler error");
+    }
   }
 }

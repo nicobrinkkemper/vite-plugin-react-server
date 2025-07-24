@@ -18,7 +18,8 @@ import type {
   RscEndMessage,
   CleanupMessage
 } from '../types.js';
-import type { CssFileMessage, RscChunkOutputMessage, RscMetricsMessage } from "../rsc/types.js";
+import type { CssFileMessage, InitializedCssLoaderMessage, RscChunkOutputMessage, RscMetricsMessage } from "../rsc/types.js";
+import type { Logger } from "vite";
 
 // HTML-specific metrics
 export type HtmlWorkerStreamMetrics = {
@@ -59,6 +60,14 @@ export type HtmlCompleteMessage = {
   metrics?: StreamMetrics;
 }
 
+export type RouteFailedMessage = {
+  type: "ROUTE_FAILED";
+  id: string;
+  reason: string;
+}
+
+
+
 export type HtmlWorkerInputMessage =
   | RouteReadyMessage
   | RscChunkOutputMessage
@@ -73,6 +82,7 @@ export type HtmlWorkerInputMessage =
 
 export type HtmlWorkerOutputMessage =
   | HtmlCompleteMessage
+  | RouteFailedMessage
   | ErrorMessage
   | ShellReadyMessage
   | ChunkProcessedMessage
@@ -86,3 +96,17 @@ export type HtmlWorkerOutputMessage =
   | ServerActionMessage
   | ServerActionResponseMessage
   | CleanupCompleteMessage
+  | InitializedCssLoaderMessage
+
+  
+
+export type CreateHtmlWorkerRenderStateFn = (
+  msg: RouteReadyMessage,
+  sendMessage?: (msg: HtmlWorkerOutputMessage) => void,
+  rscStream?: PassThrough,
+  logger?: Logger
+) => HtmlWorkerRenderState;
+
+
+
+export type CallServerCallback = (id: string, args: unknown[]) => Promise<unknown>;

@@ -14,7 +14,7 @@ describe('createWorkerStream', () => {
     id: '/test',
     route: '/test',
     moduleBase: 'src',
-    moduleRootPath: 'dist/client',
+    moduleRootPath: 'dist/client/',
     moduleBasePath: '/',
     moduleBaseURL: '/',
     projectRoot: '/',
@@ -27,6 +27,8 @@ describe('createWorkerStream', () => {
     propsPath: 'src/pages/test.props.ts',
     pipeableStreamOptions: {},
     verbose: false,
+    panicThreshold: 'none',
+    rscTimeout: 1000,
     css: {
       inlineCss: undefined,
       inlineThreshold: 4096,
@@ -160,7 +162,7 @@ describe('createWorkerStream', () => {
             messageHandler({ 
               type: 'ERROR', 
               id: '/test', 
-              error: new Error('Worker error'),
+              error: new Error('createWorkerStream.test.ts Worker error'),
               errorInfo: { componentStack: 'test stack' }
             });
             messageHandler({ type: 'RSC_END', id: '/test' });
@@ -185,7 +187,7 @@ describe('createWorkerStream', () => {
     expect(mockHandlers.onError).toHaveBeenCalledWith(
       '/test',
       expect.objectContaining({
-        message: 'Worker error',
+        message: 'createWorkerStream.test.ts Worker error',
         name: 'Error'
       }),
       { componentStack: 'test stack' }

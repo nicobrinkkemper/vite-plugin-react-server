@@ -9,12 +9,11 @@
  * 3. Provides a clean interface for HTML handling
  */
 
-import { Transform } from "node:stream";  
+import { Transform } from "node:stream";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createRscToHtmlStream } from "./rscToHtmlStream.js";
 import { fileWriter } from "./fileWriter.js";
 import type { HtmlWorkerOutputMessage } from "../worker/html/types.js";
-import { logError } from "../error/logError.js";
 import type { CleanupMessage } from "../worker/types.js";
 import type { CollectHtmlWorkerContentFn } from "./types.js";
 
@@ -22,165 +21,214 @@ import type { CollectHtmlWorkerContentFn } from "./types.js";
  * Collects RSC content from the rscFull stream
  *
  * @param rscFull The stream containing the RSC content
- * @returns A promise that resolves with the complete RSC content
+ * @returns An async generator that yields progress updates and chunks, then returns the complete RSC content
  */
 export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
-  async function _collectHtmlWorkerContent(rsc, handlerOptions) {
+  async function* _collectHtmlWorkerContent(rsc, handlerOptions) {
     const rscStream = rsc.stream;
     const rscController = rsc.controller;
-    if (!handlerOptions.worker) {
-      throw new Error("Worker is not a valid worker");
-    }
+    const worker = handlerOptions.worker;
+    if (!worker) throw new Error("Worker is not a valid worker");
     const metrics = createStreamMetrics();
     const startTime = performance.now();
-
-    // Create RSC to HTML transform stream
+    let abortController = new AbortController();
     const rscToHtmlStream = createRscToHtmlStream({
-      worker: handlerOptions.worker,
-      route: handlerOptions.route,
-      moduleRootPath: handlerOptions.moduleRootPath,
-      moduleBaseURL: handlerOptions.moduleBaseURL,
-      pipeableStreamOptions: handlerOptions.pipeableStreamOptions,
-      build: handlerOptions.build,
-      cssFiles: handlerOptions.cssFiles,
-      projectRoot: handlerOptions.projectRoot,
+      ...handlerOptions,
+      signal: abortController.signal,
     });
-
-    // Create transform stream to handle HTML chunks and file writing
     const htmlTransform = new Transform({
       transform(chunk, _encoding, callback) {
         metrics.chunks++;
-        callback(null, chunk);
+        if (handlerOptions.verbose) {
+          handlerOptions.logger.info(
+            `[collectHtmlWorkerContent] Transform chunk: ${chunk.length} bytes`
+          );
+        }
+        callback(htmlTransform.errored, chunk);
       },
       flush(callback) {
         metrics.duration = performance.now() - startTime;
+        if (handlerOptions.verbose) {
+          handlerOptions.logger.info(
+            `[collectHtmlWorkerContent] Transform flush: ${metrics.chunks} chunks, ${metrics.duration}ms`
+          );
+        }
         callback();
       },
     });
-
-    let isComplete = false;
-    let hasError = false;
     let writePromise: Promise<void> | undefined;
-    let routeResolved = false;
-    let abortController: AbortController | undefined;
+    let finished = false;
 
-    // Create a promise that resolves when the route is complete
+    // Main promise for route completion or error
     const routeComplete = new Promise<void>((resolve, reject) => {
-      if (!handlerOptions.worker) {
-        throw new Error("Worker is not a valid worker");
-      }
+      let hasError = false;
+      
+      // Listen for abort signal
+      abortController.signal.addEventListener('abort', () => {
+        if (handlerOptions.verbose) {
+          handlerOptions.logger.info(
+            `[collectHtmlWorkerContent:${handlerOptions.route}] Abort signal received, canceling build`
+          );
+        }
+        reject(new Error(abortController.signal.reason || "Build aborted"));
+      });
+      
       const messageHandler = (msg: HtmlWorkerOutputMessage) => {
-        if (!handlerOptions.worker) {
-          reject(new Error("Worker is not a valid worker"));
+        if (!worker) return reject(new Error("Worker is not a valid worker"));
+        if (handlerOptions.verbose)
+          handlerOptions.logger.info(
+            `[collectHtmlWorkerContent:${handlerOptions.route}] Message received: ${msg.type}`
+          );
+
+        // If we've already encountered an error, ignore subsequent messages
+        if (hasError) {
+          if (msg.type === "SHELL_ERROR") {
+            htmlTransform.end();
+            // The shell error is critical, and it comes after the error event.
+            // it should upgrade the error to critical
+            if (handlerOptions.verbose)
+              handlerOptions.logger.info(
+                `[collectHtmlWorkerContent:${handlerOptions.route}] SHELL_ERROR received, upgrading error to critical`
+              );
+            reject(msg.error);
+            return;
+          }
+          if (msg.type === "ALL_READY") {
+            finished = true;
+            if (handlerOptions.verbose)
+              handlerOptions.logger.info(
+                `[collectHtmlWorkerContent:${handlerOptions.route}] Recovered from error.`
+              );
+            resolve();
+            return;
+          }
+          if (handlerOptions.verbose)
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] Ignoring ${msg.type} message due to previous error`
+            );
           return;
         }
-        if(handlerOptions.verbose
-        ) {
-          handlerOptions.logger.info(`[collectHtmlWorkerContent] Message received: ${msg.type}`);
-          if(msg.type === "HTML_CHUNK") {
-            handlerOptions.logger.info(`[collectHtmlWorkerContent] HTML_CHUNK: ${Buffer.from(msg.chunk).toString("utf-8").slice(0, 200)}`);
+
+        if (msg.type === "ERROR") {
+          hasError = true;
+          if (handlerOptions.verbose)
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] ERROR received, rejecting with error`
+            );
+          // Mark this route as failed for build tracking
+          if (handlerOptions.onEvent) {
+            const error =
+              typeof msg.error === "string" ? new Error(msg.error) : msg.error;
+            handlerOptions.onEvent({
+              type: "route.error",
+              data: {
+                route: handlerOptions.route,
+                error: error,
+                errorInfo: msg.errorInfo,
+              },
+            });
           }
+          // reject(msg.error);
+          return;
         }
-        switch (msg.type) {
-          case "HTML_CHUNK":
-            if (!isComplete) {
-              htmlTransform.write(msg.chunk);
-            }
-            break;
-          case "HTML_COMPLETE":
-            isComplete = true;
-            // End the transform stream
-            htmlTransform.end();
-            if (handlerOptions.verbose) {
-              handlerOptions.logger.info(`[collectHtmlWorkerContent] HTML_COMPLETE received, ended htmlTransform`);
-            }
-            // Send cleanup message to worker
-            handlerOptions.worker.postMessage({
+
+        if (msg.type === "ALL_READY") {
+          if (handlerOptions.verbose)
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] ALL_READY received`
+            );
+          resolve();
+        }
+        if (msg.type === "HTML_CHUNK" && !finished) {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent] Writing HTML chunk: ${msg.chunk.length} bytes`
+            );
+          }
+          const writeResult = htmlTransform.write(msg.chunk);
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent] Write result: ${writeResult}`
+            );
+          }
+        } else if (msg.type === "HTML_COMPLETE") {
+          finished = true;
+          htmlTransform.end();
+          if (handlerOptions.verbose)
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] HTML_COMPLETE received, ended htmlTransform`
+            );
+
+          // Check if the HTML generation was successful
+          if (msg.success === false) {
+            if (handlerOptions.verbose)
+              handlerOptions.logger.info(
+                `[collectHtmlWorkerContent:${handlerOptions.route}] HTML_COMPLETE indicates failure, rejecting`
+              );
+            reject(
+              new Error(
+                `HTML generation failed for route ${handlerOptions.route}`
+              )
+            );
+            return;
+          }
+
+          if (worker)
+            worker.postMessage({
               type: "CLEANUP",
               id: handlerOptions.route,
-            } satisfies CleanupMessage);
-            break;
-          case "CLEANUP_COMPLETE":
-            if (!routeResolved) {
-              routeResolved = true;
-              handlerOptions.worker.removeListener("message", messageHandler);
-              resolve();
-            }
-            break;
-          case "ERROR":
-            if (!hasError) {
-              hasError = true;
-              
-              // Log the error with proper formatting and errorInfo
-              if (msg.errorInfo?.componentStack) {
-                logError(msg.errorInfo.componentStack, handlerOptions.logger);
-              }
-              logError(msg.error, handlerOptions.logger);
-              
-              // Cancel the file write operation
-              if (abortController) {
-                abortController.abort();
-              }
-              
-              // End the transform stream properly to allow fileWriter to complete
-              htmlTransform.end();
-              
-              // Destroy the RSC to HTML transform stream to stop sending chunks to worker
-              rscToHtmlStream.destroy();
-              
-              // Abort the RSC stream at the source to prevent further chunks and stale content
-              if (rscController && typeof rscController.abort === 'function') {
-                rscController.abort('HTML worker encountered error');
-              }
-              
-              handlerOptions.worker.removeListener("message", messageHandler);
-              
-              // Send cleanup message to worker to clear its state
-              handlerOptions.worker.postMessage({
-                type: "CLEANUP",
-                id: handlerOptions.route,
-              } satisfies CleanupMessage);
-              
-              // Reject with the error to signal failure
-              if (!routeResolved) {
-                routeResolved = true;
-                reject(msg.error);
-              }
-            } else {
-              // Debug: Log when we receive duplicate errors
-              if (handlerOptions.verbose) {
-                handlerOptions.logger.info(`[collectHtmlWorkerContent] Duplicate ERROR message received for route: ${handlerOptions.route}`);
-              }
-            }
-            break;
+            } as CleanupMessage);
+        } else if (msg.type === "ROUTE_FAILED") {
+          if (handlerOptions.verbose)
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] ROUTE_FAILED received: ${msg.reason}`
+            );
+          reject(new Error(`Route failed: ${msg.reason}`));
+          return;
+        } else if (msg.type === "CLEANUP_COMPLETE") {
+          cleanup();
+          resolve();
         }
       };
-      handlerOptions.worker.on("message", messageHandler);
+      worker.on("message", messageHandler);
+      function cleanup() {
+        if (worker) worker.removeListener("message", messageHandler);
+        finished = true;
+      }
     });
 
     try {
-      // Set up event handler to capture content length
       if (handlerOptions.onEvent) {
         const originalOnEvent = handlerOptions.onEvent;
         handlerOptions.onEvent = (event) => {
-          if(handlerOptions.verbose) {
-            handlerOptions.logger.info(`[collectHtmlWorkerContent] Event: ${event.type}`);
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] Event: ${event.type}`
+            );
+            switch (event.type) {
+              case "route.error":
+                handlerOptions.logger.error(
+                  `[collectHtmlWorkerContent:${
+                    handlerOptions.route
+                  }] Route error: ${JSON.stringify(event.data.error)}`
+                );
+                break;
+              case "file.write.done":
+                handlerOptions.logger.info(
+                  `[collectHtmlWorkerContent:${handlerOptions.route}] File write done: ${event.data.fileType}`
+                );
+                handlerOptions.logger.info(
+                  `[collectHtmlWorkerContent:${
+                    handlerOptions.route
+                  }] Preview: ${event.data.content.slice(0, 100)}...`
+                );
+            }
           }
-          if (event.type === "route.error" && !hasError) {
-            // Immediately stop the HTML worker when RSC stream encounters an error
-            hasError = true;
-            
-            // Cancel the file write operation
-            if (abortController) {
-              abortController.abort();
-            }
-            
-            if (handlerOptions.worker) {
-              handlerOptions.worker.postMessage({
-                type: "CLEANUP",
-                id: handlerOptions.route,
-              } satisfies CleanupMessage);
-            }
+          if (event.type === "route.error") {
+            if (abortController && event.data.error)
+              abortController.abort(
+                event.data.error.message ?? "Stream aborted"
+              );
           }
           if (
             event.type === "file.write.done" &&
@@ -192,59 +240,54 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
         };
       }
 
-      // Pipe RSC through transform to HTML
       rscStream.pipe(rscToHtmlStream);
-
-      // Create AbortController for file write cancellation
       abortController = new AbortController();
+      writePromise = fileWriter(
+        htmlTransform,
+        "html",
+        handlerOptions,
+        abortController.signal
+      );
 
-      // Set up file writing using fileWriter with abort signal
-      const writePromise = fileWriter(htmlTransform, "html", handlerOptions, abortController.signal);
-
-      // Wait for route to complete
       await routeComplete;
-
-      // Wait for file writing to complete (only if no error occurred)
-      if (!hasError) {
-        await writePromise;
-      }
-
-      // Ensure streams are properly cleaned up
+      if (writePromise) await writePromise;
       rscToHtmlStream.destroy();
       htmlTransform.destroy();
 
-      return { stream: rscStream, metrics };
+      return { type: "success", stream: rscStream, metrics };
     } catch (error) {
-      // Clean up streams on error
+      if (handlerOptions.verbose)
+        handlerOptions.logger.info(
+          `[collectHtmlWorkerContent:${
+            handlerOptions.route
+          }] Error: ${JSON.stringify(error)}`
+        );
       rscToHtmlStream.destroy();
-      if (rscController && typeof rscController.abort === 'function') {
-        rscController.abort();
-      }
-      
-      // Cancel file write if it's still in progress
-      if (abortController && !abortController.signal.aborted) {
-        abortController.abort();
-      }
-      
-      // Ensure htmlTransform is ended to allow fileWriter to complete
+      if (rscController && typeof rscController.abort === "function")
+        rscController.abort(new Error("RSC Stream aborted"));
+      if (abortController && !abortController.signal.aborted)
+        abortController.abort(new Error("AbortController aborted"));
       try {
         htmlTransform.end();
-      } catch (e) {
-        // Ignore end errors
+      } catch {
+        return {
+          type: "error",
+          error: error as Error,
+        };
       }
-      
-      // Wait for fileWriter to complete (it should be cancelled by abort signal)
       if (writePromise) {
         try {
           await writePromise;
-        } catch (writeError) {
-          // Log write error but don't throw it - the original error is more important
-          if (handlerOptions.verbose) {
-            handlerOptions.logger.warn(`[collectHtmlWorkerContent] File write error during cleanup: ${writeError}`);
-          }
+        } catch {
+          return {
+            type: "error",
+            error: error as Error,
+          };
         }
       }
-      
-      throw error;
+      return {
+        type: "error",
+        error: error as Error,
+      };
     }
   };

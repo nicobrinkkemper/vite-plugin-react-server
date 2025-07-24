@@ -10,6 +10,7 @@ import type {
   FunctionDeclaration,
   FunctionExpression,
 } from "acorn";
+import { createLogger } from "vite";
 
 /**
  * Transforms a server module by:
@@ -25,7 +26,8 @@ export async function transformServerModule(
     LoaderConfig,
     "registerServerReferenceName" | "importServerPath" | "parse"
   > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
-  verbose = false
+  verbose = false,
+  logger = createLogger(),
 ): Promise<TransformResult> {
   if (!loader) {
     loader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()];
@@ -123,7 +125,11 @@ export async function transformServerModule(
   walkFunctionDirectives(ast);
 
   if (verbose) {
-    console.log(`[transformServerModule] Ranges to remove:`, rangesToRemove);
+    for (const range of rangesToRemove) {
+      logger.info(
+        `[transformServerModule] Ranges to remove: start: ${range.start}, end: ${range.end}, source: ${source.slice(range.start, range.end)}`
+      );
+    }
   }
 
   // Remove directives from the source code using the shared utility

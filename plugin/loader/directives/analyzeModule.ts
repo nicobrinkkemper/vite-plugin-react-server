@@ -53,7 +53,7 @@ export async function analyzeModule(
       logger.info("[analyzeModule] warnings:\n" + directiveInfo.warnings.join("\n"));
     }
   }
-  let { code = source, map, ast, exports: _, ...rest } = result;
+  const { code = source, map, ast, exports: _, ...rest } = result;
   return {
     type: "success",
     ...rest,

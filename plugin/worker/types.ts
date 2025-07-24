@@ -1,4 +1,8 @@
-import type { CssContent, StreamMetrics } from "../types.js";
+import type { MessagePort } from "node:worker_threads";
+import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import type { HtmlWorkerOutputMessage } from "./html/types.js";
+import type { RscWorkerOutputMessage } from "./rsc/types.js";
+import type { PANIC_SYMBOL } from "../error/shouldPanic.js";
 
 // Base message types
 export type WorkerMessage = {
@@ -20,6 +24,8 @@ export type ErrorMessage = {
         stack?: string | undefined;
         name: string;
         cause?: unknown;
+        breadcrumbs?: string[];
+        [PANIC_SYMBOL]?: boolean;
       };
   id: string;
 } & WorkerMessage
@@ -106,37 +112,25 @@ export type RscEndMessage = {
 
 export type RouteReadyMessage = {
   type: "ROUTE_READY";
-  moduleRootPath: string;
-  moduleBaseURL: string;
-  cssFiles: Map<string, CssContent>;
-  pipeableStreamOptions: {
-    identifierPrefix?: string;
-    namespaceURI?: string;
-    nonce?: string;
-    bootstrapScriptContent?: string;
-    bootstrapScripts?: Array<
-      | string
-      | {
-          src: string;
-          integrity?: string | undefined;
-          crossOrigin?: string | undefined;
-        }
-    >;
-    bootstrapModules?: Array<
-      | string
-      | {
-          src: string;
-          integrity?: string | undefined;
-          crossOrigin?: string | undefined;
-        }
-    >;
-    progressiveChunkSize?: number;
-  };
-  projectRoot: string;
-} & WorkerMessage
+  abortSignal?: AbortSignal;
+} & WorkerMessage & Pick<
+CreateHandlerOptions,
+| "projectRoot"
+| "moduleRootPath"
+| "moduleBasePath"
+| "moduleBaseURL"
+| "pipeableStreamOptions"
+| "route"
+| "url"
+| "verbose"
+| "panicThreshold"
+| "cssFiles"
+| "globalCss"
+>
 
 export type CleanupMessage = {
   type: "CLEANUP";
+  reason?: unknown;
 } & WorkerMessage
 
 // Common handlers
@@ -182,3 +176,9 @@ export type ReactServerDomEsmOptions = {
   }) => void;
   onPostpone?: (reason: string) => void;
 }
+
+
+export type SendMessageFn = (
+  msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage,
+  port?: Pick<MessagePort, 'postMessage'> | null
+) => void;

@@ -14,7 +14,7 @@ export const Root: RootComponentType = ({
   ...props
 }) => (
   <As {...(As !== React.Fragment ? props : {})}>
-    <Page {...pageProps} />
+    <Page {...(Page !== React.Fragment ? pageProps : {})} />
     <Css cssFiles={cssFiles!} />
   </As>
 );

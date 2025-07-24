@@ -127,7 +127,7 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
               );
             }
             this.environment.logger.info(
-              "[react-client-transform] " + transformed
+              "[react-client-transform] " + transformed.slice(0, 100) + "..."
             );
           }
         return {

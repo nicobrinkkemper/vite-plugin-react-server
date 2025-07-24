@@ -8,7 +8,6 @@ import { setupTestProjectEnv } from "../setup.js";
 
 describe("Custom Environment Prefix Integration", () => {
   const testDir = resolve(__dirname, "../fixtures/custom-env-prefix.test");
-  const originalEnv = process.env;
   let events: PluginEvent[] = [];
 
   beforeAll(async () => {
@@ -51,6 +50,8 @@ describe("Custom Environment Prefix Integration", () => {
             onEvent: (event: PluginEvent) => {
               events.push(event);
             },
+            // we do not need static manifest for this test
+            panicThreshold: "critical_errors",
           })
         ],
       });

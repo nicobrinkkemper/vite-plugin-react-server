@@ -8,13 +8,9 @@ import { join } from "node:path";
 import { workerData } from "node:worker_threads";
 import { sendMessage } from "../sendMessage.js";
 import { createLogger } from "vite";
-import { logError } from "../../error/logError.js";
+import { handleError } from "../../error/handleError.js";
 
-// In test mode, we want errors to propagate up immediately
-const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
-const isDevEnv = process.env["NODE_ENV"] !== "production";
-
-const logger = createLogger(workerData.resolvedConfig.logLevel ?? 'info');
+const logger = createLogger(workerData.resolvedConfig.logLevel ?? "info");
 
 export async function messageHandler(
   msg: RscWorkerInputMessage,
@@ -58,7 +54,9 @@ export async function messageHandler(
       case "MODULE_REQUEST": {
         const { id, path } = msg;
         try {
-          const module = await import(join(workerData.userOptions.projectRoot, path));
+          const module = await import(
+            join(workerData.userOptions.projectRoot, path)
+          );
           handlers.onServerModule(id, path, module);
         } catch (error) {
           handlers.onError(id, toError(error));
@@ -85,20 +83,26 @@ export async function messageHandler(
       }
     }
   } catch (error) {
-    const err = toError(error);
-    // In dev mode, try to send error message before exiting
-    if (parentPort) {
-      sendMessage({
-        type: "ERROR",
-        id: "rsc-worker",
-        error: err,
-      }, port);
-    }
-    if (!isDevEnv || isTestEnv) {
-      // In test mode or production mode, just throw the error to fail fast
-      throw err;
-    } else {
-      logError(err, logger);
+    // Handle panic threshold logic
+    const panicError = handleError({
+      error: error,
+      logger: logger,
+      panicThreshold: workerData.userOptions.panicThreshold,
+      critical: false,
+      context: "RSC Worker Error",
+    });
+    if (panicError != null) {
+      if (port) {
+        sendMessage(
+          {
+            type: "ERROR",
+            id: "rsc-worker",
+            error: panicError,
+          },
+          port
+        );
+      }
+      throw panicError;
     }
   }
 }

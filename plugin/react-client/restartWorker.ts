@@ -59,7 +59,7 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
       },
       transferList: [workerHmrChannel.port2],
     });
-
+    
     if (workerResult.type === "success") {
       currentWorker = workerResult.worker;
       if (userOptions.verbose)

@@ -2,13 +2,13 @@ import { resolveComponents } from "../../helpers/resolveComponents.js";
 import type { RscRenderMessage } from "./types.js";
 import type { StreamHandlers } from "../types.js";
 import { activeStreams, cssFiles } from "./state.js";
-import { createRscStream } from "../../helpers/createRscStream.js";
+import { createRscStream } from "../../helpers/createRscStream.server.js";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { workerData } from "node:worker_threads";
 import { hmrState } from "./state.js";
 import { performance } from "node:perf_hooks";
-import type { BuildModuleLoader, ResolvedUserOptions } from "../../types.js";
+import type { BuildModuleLoader, ResolvedUserOptions, CssContent } from "../../types.js";
 import React from "react";
 import { routeToURL } from "../../utils/routeToURL.js";
 import { createLogger, type Logger} from "vite";
@@ -93,16 +93,25 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     const finalHtmlComponent = React.Fragment;
 
 
+    // Create page-specific CSS collection to prevent CSS sharing between pages
+    const pageCssFiles = new Map<string, CssContent>();
+    
+    // Add any CSS files from the message to the page-specific collection
     if (messageCssFiles && messageCssFiles.size > 0) {
-      // if any css is added to the message, add it to the cssFiles map
       for (const [id, cssContent] of messageCssFiles.entries()) {
-        cssFiles.set(id, cssContent);
+        pageCssFiles.set(id, cssContent);
       }
     }
+    
     const url = routeToURL(route, moduleBaseURL, build.rscOutputPath);
-
+    
+    // add cssFiles module to pageCssFiles
+    for (const [id, cssContent] of cssFiles.entries()) {
+      pageCssFiles.set(id, cssContent);
+    }
 
     // Create stream
+    const passThrough = new PassThrough();
     const streamResult = createRscStream({
       url: url,
       projectRoot: projectRoot,
@@ -116,32 +125,29 @@ export const handleRender: HandleRenderFn = async function _handleRender(
       moduleBaseURL,
       manifest: {},
       route,
-      cssFiles,
+      cssFiles: pageCssFiles, // Use page-specific CSS instead of global CSS
       globalCss,
       pipeableStreamOptions: pipeableStreamOptions,
       verbose,
       logger,
-      onEvent: (event, data) => {
-        if (event === "error" && data?.error) {
-          handlers.onError(id, data.error, data.errorInfo);
+      panicThreshold: workerData.userOptions.panicThreshold,
+      onEvent: (event) => {
+        if (event.type === "route.error" && event.data?.error) {
+          handlers.onError(id, event.data.error, event.data.errorInfo);
           // Don't return here - let the stream continue so React can include the error entry
         }
       },
-    });
+    }, passThrough);
 
     if (streamResult.type !== "success") {
       handlers.onError(id, streamResult.error);
       return; // Don't create stream for setup errors
     }
 
-    const { stream, metrics } = streamResult;
+    const { metrics } = streamResult;
 
     // Create pass-through stream
-    const passThrough = new PassThrough();
     activeStreams.set(id, passThrough);
-
-    // Pipe stream to pass-through
-    stream.pipe(passThrough);
 
     // Handle data chunks
     passThrough.on("data", (chunk) => {

@@ -1,7 +1,7 @@
 import { createWorkerStream } from "./createWorkerStream.js";
-import { logError } from "../error/logError.js";
 import type { HandleWorkerRscStreamFn } from "./types.js";
-
+import { getNodeEnv } from "../getNodeEnv.js";
+import { handleError } from "../error/handleError.js";
 
 /**
  * Handles the RSC stream from the worker.
@@ -19,6 +19,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
     handlers,
     verbose = false,
     rscTimeout,
+    panicThreshold = "none",
   }) {
     // Create a ReadableStream from the async generator
     let isFlowing = false;
@@ -27,30 +28,6 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
 
     return new ReadableStream<Uint8Array>({
       async start(controller) {
-        const handleError = (
-          error: unknown,
-          errorInfo?: Record<string, unknown>
-        ) => {
-          if (hasError) return; // Prevent double error handling
-          hasError = true;
-          
-          // Use logError for smart error formatting
-          logError(error, logger);
-          
-          // Log errorInfo if provided
-          if (errorInfo != null && typeof errorInfo === "object") {
-            if('reason' in errorInfo && typeof errorInfo["reason"] === "string") {
-              logger.error(errorInfo["reason"]);  
-            }
-            if('componentStack' in errorInfo && typeof errorInfo["componentStack"] === "string") {
-              logger.error(errorInfo["componentStack"]);
-            }
-          }
-          
-          // Don't close the stream immediately on error - let React include the error entry
-          // The stream will be closed naturally when all chunks are processed
-        };
-
         try {
           if (verbose) logger.info("[react-client] Starting stream");
 
@@ -72,7 +49,27 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
                 error: unknown,
                 errorInfo?: Record<string, unknown>
               ) => {
-                handleError(error, errorInfo);
+                if(!hasError) {
+                  hasError = true;
+                  
+                  // Handle error with panic threshold logic
+                  const panicError = handleError({
+                    error: error,
+                    logger: logger,
+                    mode: getNodeEnv(),
+                    panicThreshold: panicThreshold,
+                    critical: false, // React component errors are not critical infrastructure errors
+                  });
+                  
+                  // If handleError returns an error due to panicThreshold, close the stream immediately
+                  if (panicError != null) {
+                    if (!isClosed) {
+                      isClosed = true;
+                      controller.error(panicError);
+                    }
+                    return;
+                  }
+                }
                 if (handlers.onError) {
                   handlers.onError(id, error, errorInfo);
                 }
@@ -80,6 +77,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
             },
             verbose,
             rscTimeout,
+            panicThreshold,
           })) {
             // Process chunks directly from generator
             if (!isFlowing) {
@@ -112,7 +110,24 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
             handlers.onEnd(message?.id ?? message.route);
           }
         } catch (error) {
-          handleError(error);
+          if (!hasError) {
+            hasError = true;
+            const panicError = handleError({
+              error: error,
+              logger: logger,
+              mode: getNodeEnv(),
+              panicThreshold: panicThreshold,
+            });
+            
+            // If handleError returns an error due to panicThreshold, close the stream immediately
+            if (panicError != null) {
+              if (!isClosed) {
+                isClosed = true;
+                controller.error(panicError);
+              }
+              return;
+            }
+          }
         }
       },
     });

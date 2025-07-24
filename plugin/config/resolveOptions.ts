@@ -30,7 +30,8 @@ export type ResolveOptionsReturn =
   | { type: "error"; error: Error; userOptions?: never };
 
 export type ResolveOptionsFn = (
-  options: StreamPluginOptions
+  options: StreamPluginOptions,
+  forceResolve?: boolean
 ) => ResolveOptionsReturn;
 
 // /**
@@ -78,7 +79,7 @@ const registerPath = (path: string, pattern?: RegExp, ext?: string) => {
 // ============================================================================
 
 const stashedUserOptions: Record<string, ResolvedUserOptions | null> = {};
-
+let originalOptions: any | null = null;
 /**
  * Resolves the user options for the plugin.
  *
@@ -86,12 +87,26 @@ const stashedUserOptions: Record<string, ResolvedUserOptions | null> = {};
  * @returns The resolved options.
  */
 export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
-  options
+  options,
+  forceResolve = false
 ) {
-  const envId = process.env.NODE_ENV ?? "development";
+  if (!forceResolve && originalOptions == null) {
+    originalOptions = options;
+  } else if (originalOptions != null && options !== originalOptions) {
+    if (options.verbose) {
+      console.log("options changed, forcing re-resolve");
+    }
+    forceResolve = true;
+  }
+  const panicThreshold =
+    typeof options.panicThreshold === "string"
+      ? options.panicThreshold
+      : DEFAULT_CONFIG.PANIC_THRESHOLD;
+  // since panicThreshold affects the behavior of the plugin, we need to re-resolve the options if it changes
+  const envId = panicThreshold + (process.env.NODE_ENV ?? "production");
 
   // Return stashed options if available
-  if (stashedUserOptions[envId]) {
+  if (stashedUserOptions[envId] && !forceResolve) {
     return {
       type: "success",
       userOptions: stashedUserOptions[envId] as never,
@@ -112,13 +127,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const preserveModulesRoot =
     options.build?.preserveModulesRoot ??
     DEFAULT_CONFIG.BUILD.preserveModulesRoot;
-  
+
   // Rollup's preserveModulesRoot works in reverse of what you'd expect:
   // - When user wants preservation (true): pass undefined to Rollup (don't strip anything)
   // - When user wants stripping (false): pass moduleBase to Rollup (strip this path)
-  const preserveModulesRootString = preserveModulesRoot === false
-    ? moduleBase  // Strip src/ from output paths
-    : undefined;  // Keep src/ in output paths
+  const preserveModulesRootString =
+    preserveModulesRoot === false
+      ? moduleBase // Strip src/ from output paths
+      : undefined; // Keep src/ in output paths
 
   const client =
     typeof options.build?.client === "string"
@@ -166,8 +182,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     typeof options.loaderPath === "string"
       ? join(projectRoot, options.loaderPath)
       : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
-
-
 
   const jsExtension =
     typeof options.build?.jsExtension === "string"
@@ -370,19 +384,20 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       moduleBasePath,
       moduleBaseURL,
     });
-  // File naming functions
-  const entryFile = (n: PreRenderedChunk, ssr: boolean) => {
-    return hash(getOutputPath(normalizer(n.name)[0]), ssr);
-  };
+  // File naming functions - defined as regular functions to avoid closure issues
+  function entryFile(n: PreRenderedChunk, ssr: boolean): string {
+    const normalizedName = normalizer(n.name)[0];
+    const outputPath = getOutputPath(normalizedName);
+    return hash(outputPath, ssr);
+  }
 
-  const chunkFile = (n: PreRenderedChunk, ssr: boolean) => {
-    return hash(getOutputPath(normalizer(n.name)[0]), ssr);
-  };
+  function chunkFile(n: PreRenderedChunk, ssr: boolean): string {
+    const normalizedName = normalizer(n.name)[0];
+    const outputPath = getOutputPath(normalizedName);
+    return hash(outputPath, ssr);
+  }
 
-  const assetFile: (n: PreRenderedAsset, ssr?: boolean) => string = (
-    n: PreRenderedAsset,
-    ssr = false
-  ) => {
+  function assetFile(n: PreRenderedAsset, ssr: boolean = false): string {
     if (n.names.length > 1) {
       return n.names.map((name) => hash(name, ssr)).join(",");
     }
@@ -420,7 +435,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
     // For other assets, apply the extension mapping if needed
     return hash(getOutputPath(firstName), false);
-  };
+  }
 
   /**
    * pages
@@ -580,8 +595,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       publicOrigin,
       build: build,
       verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
-      onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
-      onEvent: options.onEvent,
+      onMetrics:
+        typeof options.onMetrics === "function"
+          ? options.onMetrics
+          : DEFAULT_CONFIG.ON_METRICS,
+      onEvent:
+        typeof options.onEvent === "function" ? options.onEvent : DEFAULT_CONFIG.ON_EVENT,
       Page: options.Page,
       props: options.props,
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
@@ -631,10 +650,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         typeof options.rscWorkerStartupTimeout === "number"
           ? options.rscWorkerStartupTimeout
           : DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT,
-      panicThreshold:
-        typeof options.panicThreshold === "string"
-          ? options.panicThreshold
-          : DEFAULT_CONFIG.PANIC_THRESHOLD,
+      panicThreshold: panicThreshold,
     };
 
     // Stash the resolved options

@@ -43,7 +43,6 @@ export const vitePluginReactServer: VitePluginMainFn =
       // in this case we do not need the static plugin at all
       return basePlugins 
     }
-    
     // Add static plugin for static builds
     return [
       ...basePlugins,

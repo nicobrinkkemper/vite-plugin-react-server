@@ -6,7 +6,7 @@
  */
 export function getArgValue(argName: string, shortForm?: string): string | undefined {
   const args = process.argv;
-  let foundValues: string[] = [];
+  const foundValues: string[] = [];
 
   // Check for --arg=value format first (all occurrences)
   for (const arg of args) {

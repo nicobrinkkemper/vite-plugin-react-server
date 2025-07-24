@@ -14,19 +14,9 @@
  * 3. Sets up stream handlers with proper wrappers and options
  * 4. Returns streams for renderPages to process
  */
-import { createHandler } from "../helpers/createHandler.js";
+import { createHandler } from "../helpers/createHandler.server.js";
 import React from "react";
-import type { ReactStreamHandlerFn } from "../types.js";
-import { PassThrough } from "stream";
-
-// The return type for the function
-export type RenderStreamsReturn = [
-  { type: "success"; stream: PassThrough; controller: { abort: () => void; destroy: () => void }; error?: never } | { type: "error"; error: Error; stream?: never; controller?: never },
-  { type: "success"; stream: PassThrough; controller: { abort: () => void; destroy: () => void }; error?: never } | { type: "error"; error: Error; stream?: never; controller?: never }
-];
-
-// The function signature type
-export type RenderStreamsFn = ReactStreamHandlerFn<never, RenderStreamsReturn>;
+import type { RenderStreamsFn } from "./types.js";
 
 /**
  * Creates handlers for both document and RSC streams

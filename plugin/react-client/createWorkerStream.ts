@@ -5,6 +5,9 @@ import type { StreamMetrics } from "../types.js";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
 import type { CreateWorkerStreamFn } from "./types.js";
+import { logError } from "../error/logError.js";
+import { handleError } from "../error/handleError.js";
+import { getNodeEnv } from "../getNodeEnv.js";
 
 /**
  * Creates an async generator that yields RSC chunks from the worker.
@@ -31,6 +34,7 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
   },
   verbose = false,
   rscTimeout = 5000,
+  panicThreshold = "none",
 }) {
   if (!worker) {
     throw new Error("Worker is not running");
@@ -43,8 +47,31 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
   const handlers: StreamHandlers = {
     onError: (id, error, errorInfo) => {
       // isStreamClosed = true;
+      // Handle panic threshold logic here
+      // For other panic thresholds, just call the onError handler
       if (typeof onError === "function") {
         onError(id, error, errorInfo);
+      }
+      if (verbose) {
+        logger.info(`[react-client] Panic threshold '${panicThreshold}' triggered in createWorkerStream. ${panicThreshold === "all_errors" ? "Throwing error" : "Logging error"}`);
+      }
+      if(errorInfo) {
+        logError(errorInfo, logger); // This will cause the generator to fail
+      }
+      const panicError = handleError({
+        error: error,
+        logger: logger,
+        mode: getNodeEnv(),
+        panicThreshold: panicThreshold,
+        critical: false, // React component errors are not critical infrastructure errors
+      });
+      
+      // If handleError returns an error due to panicThreshold, throw it to stop the generator
+      if (panicError) {
+        if('terminate' in worker && typeof worker.terminate === 'function') {
+          worker.terminate(); // Ensure worker is cleaned up
+        }
+        throw panicError;
       }
     },
     onData: (id: string, chunk: Uint8Array) => {
@@ -55,11 +82,7 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
         currentResolve = null;
       }
       if (verbose) {
-        logger.info(
-          `[react-client] received chunk ${id} ${
-            Buffer.from(chunk).byteLength
-          } bytes`
-        );
+        logger.info(`[react-client] received chunk ${id} ${Buffer.from(chunk).byteLength} bytes`);
       }
     },
     onEnd: () => {
@@ -69,48 +92,58 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
         currentResolve = null;
       }
       // isStreamClosed = true;
-      if (verbose) logger.info(`[react-client] received end`);
+      if (verbose) {
+        logger.info(`[react-client] received end`);
+      }
       if (messageHandler) {
         worker.removeListener("message", messageHandler);
         messageHandler = null;
       }
     },
     onMetrics: (id: string, metrics: StreamMetrics) => {
-      if (verbose)
+      if (verbose) {
         logger.info(`[react-client] received chunks ${metrics.chunks}`);
+      }
       if (typeof onMetrics === "function") {
         onMetrics(id, metrics);
       }
     },
     onHmrAccept: (id: string, routes?: string[]) => {
-      if (verbose)
+      if (verbose) {
         logger.info(`[react-client] received hmr accept ${routes?.join(", ")}`);
+      }
       if (typeof onHmrAccept === "function") {
         onHmrAccept(id, routes);
       }
     },
     onHmrUpdate: (id: string, routes?: string[]) => {
-      if (verbose)
+      if (verbose) {
         logger.info(`[react-client] received hmr update ${routes?.join(", ")}`);
+      }
       if (typeof onHmrUpdate === "function") {
         onHmrUpdate(id, routes);
       }
     },
     onCssFile: (id: string, code: string) => {
-      if (verbose) logger.info(`[react-client] received css file ${id}`);
+      if (verbose) {
+        logger.info(`[react-client] received css file ${id}`);
+      }
       if (typeof onCssFile === "function") {
         onCssFile(id, code);
       }
     },
     onServerAction: (id: string, args: unknown[]) => {
-      if (verbose) logger.info(`[react-client] received server action ${id}`);
+      if (verbose) {
+        logger.info(`[react-client] received server action ${id}`);
+      }
       if (typeof onServerAction === "function") {
         onServerAction(id, args);
       }
     },
     onServerActionResponse: (id: string, result?: unknown, error?: string) => {
-      if (verbose)
+      if (verbose) {
         logger.info(`[react-client] received server action response ${id}`);
+      }
       if (typeof onServerActionResponse === "function") {
         onServerActionResponse(id, result, error);
       }
@@ -123,19 +156,24 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
       worker.removeListener("message", messageHandler);
       messageHandler = null;
     }
-    if (verbose) logger.info(`[react-client] sending message RSC_RENDER`);
+    if (verbose) {
+      logger.info(`[react-client] sending message RSC_RENDER`);
+    }
     worker.postMessage({
       ...message,
       type: "RSC_RENDER",
       id: message?.id ?? message.route,
     });
 
-    if (verbose) logger.info(`[react-client] waiting for message handler`);
+    if (verbose) {
+      logger.info(`[react-client] waiting for message handler`);
+    }
     let workerTimeout: NodeJS.Timeout | null = null;
     const initialChunk = await new Promise<Uint8Array | null>((resolve) => {
       workerTimeout = setTimeout(() => {
-        if (verbose) logger.info(`worker timeout`);
-        worker.terminate();
+        if (verbose) {
+          logger.info(`worker timeout`);
+        }
       }, rscTimeout);
       currentResolve = (chunk: Uint8Array | null) => {
         resolve(chunk);
@@ -150,7 +188,9 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
     if (workerTimeout) {
       clearTimeout(workerTimeout);
     }
-    if (verbose) logger.info(`[react-client] received message handler`);
+    if (verbose) {
+      logger.info(`[react-client] received message handler`);
+    }
     
     // Only yield the initial chunk if it's not null
     if (initialChunk !== null) {

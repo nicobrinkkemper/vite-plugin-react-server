@@ -1,15 +1,25 @@
+import { PANIC_SYMBOL } from "./shouldPanic.js";
+
 export function serializeError(error: unknown): {
-  message: string;
+  message?: string;
   stack?: string | undefined;
-  name: string;
+  name?: string;
   cause?: unknown;
+  breadcrumbs?: string[];
+  [PANIC_SYMBOL]?: boolean;
 } {
   if (error instanceof Error) {
-  return {
-    message: error.message,
-      stack: error.stack,
-      name: error.name,
-      cause: error.cause,
+    const { message, stack, name, cause, ...rest } = error;
+    return {
+      message: message,
+      stack: stack,
+      name: name,
+      cause: cause,
+      breadcrumbs:
+        (error as Error & { breadcrumbs: string[] })["breadcrumbs"] ?? [],
+      [PANIC_SYMBOL]:
+        (error as Error & { PANIC_SYMBOL: boolean })["PANIC_SYMBOL"] ?? false,
+      ...rest,
     };
   }
   if (typeof error === "string") {
@@ -17,18 +27,32 @@ export function serializeError(error: unknown): {
       message: error,
       stack: undefined,
       name: "Unknown React Stream Error",
+      breadcrumbs: [],
+      [PANIC_SYMBOL]: false,
     };
   }
   if (typeof error === "object" && error !== null) {
+    const {
+      message = "Unknown React Stream Error",
+      stack,
+      name,
+      cause,
+      ...rest
+    } = error as Error;
     return {
-      message: "Unknown React Stream Error",
-      stack: undefined,
-      name: "Unknown React Stream Error",
+      message: message,
+      stack: stack,
+      name: name,
+      breadcrumbs: [],
+      [PANIC_SYMBOL]: false,
+      ...rest,
     };
   }
   return {
     message: "Unknown React Stream Error",
     stack: undefined,
     name: "Unknown React Stream Error",
+    breadcrumbs: [],
+    [PANIC_SYMBOL]: false,
   };
 }

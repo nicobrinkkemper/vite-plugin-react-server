@@ -20,9 +20,8 @@ describe('hydrateUserOptions', () => {
   });
 
   it('should call resolveOptions with correct parameters for success case', () => {
-    const userOptions = { verbose: true, pages: 'src/pages' };
+    const userOptions = { pages: 'src/pages' };
     const mockResolvedOptions = { 
-      verbose: true, 
       pages: { pattern: 'src/pages/**/*.{ts,tsx}' },
       // ... other resolved options
     } as any;
@@ -41,7 +40,7 @@ describe('hydrateUserOptions', () => {
   });
 
   it('should handle resolveOptions returning an error', () => {
-    const userOptions = { verbose: true };
+    const userOptions = { };  
     const mockError = new Error('Configuration error');
     
     const expectedResult = {
@@ -58,7 +57,7 @@ describe('hydrateUserOptions', () => {
   });
 
   it('should handle resolveOptions throwing an error', () => {
-    const userOptions = { verbose: true };
+    const userOptions = {  };
     const mockError = new Error('Configuration error');
     
     const expectedResult = {

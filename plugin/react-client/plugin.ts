@@ -1,4 +1,4 @@
-import { createLogger, type ConfigEnv } from "vite";
+import { createLogger, type ConfigEnv, type ResolvedConfig, type Logger } from "vite";
 import type {
   AutoDiscoveredFiles,
   ResolvedUserConfig,
@@ -10,6 +10,8 @@ import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.
 import { configureWorkerRequestHandler } from "./configureWorkerRequestHandler.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { MessageChannel } from "node:worker_threads";
+import { handleError } from "../error/handleError.js";
+import { logError } from "../error/logError.js";
 
 export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
   options
@@ -19,16 +21,20 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
   let root: string;
   let autoDiscoveredFiles: AutoDiscoveredFiles;
   let hmrChannel: MessageChannel | null = null;
+  let currentUserOptions: any;
+  let resolvedConfig: ResolvedConfig | null = null;
+  let logger: Logger;
 
+  // Initial options resolution
   const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     throw resolvedOptions.error;
   }
-  const userOptions = resolvedOptions.userOptions;
-  root = userOptions.projectRoot;
+  currentUserOptions = resolvedOptions.userOptions;
+  root = currentUserOptions.projectRoot;
 
   return {
-    name: "vite:react-client",
+    name: "vite:plugin-react-server/client",
 
     async config(config, viteConfigEnv) {
       configEnv = viteConfigEnv;
@@ -39,26 +45,37 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
         config.root !== ""
       ) {
         root = config.root;
-        userOptions.projectRoot = root;
+        currentUserOptions.projectRoot = root;
       }
       const logger = config.customLogger || createLogger();
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,
-        userOptions,
+        userOptions: currentUserOptions,
         condition: "react-client",
         logger,
       });
       if (autoDiscoverResult.type === "error") {
-        throw autoDiscoverResult.error;
+        const panicError = handleError({
+          error: autoDiscoverResult.error,
+          logger,
+          panicThreshold: currentUserOptions.panicThreshold
+        });
+        if (panicError != null) {
+          throw panicError;
+        }
+        return;
       }
       autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
+      if (!autoDiscoveredFiles) {
+        throw new Error("Failed to find autoDiscoveredFiles");
+      }
 
       const resolvedConfig = resolveUserConfig({
         condition: "react-client",
         config,
         configEnv,
-        userOptions,
+        userOptions: currentUserOptions,
         autoDiscoveredFiles,
       });
 
@@ -69,15 +86,22 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
       userConfig = resolvedConfig.userConfig;
       return userConfig;
     },
+    configResolved(viteResolvedConfig) {
+      if(currentUserOptions.verbose) {
+        logger?.info("configResolved");
+      }
+      resolvedConfig = viteResolvedConfig;
+      logger = resolvedConfig.customLogger || resolvedConfig.logger;
+    },
     async configurePreviewServer(server) {
       await configurePreviewServer({
         server,
-        userOptions,
+        userOptions: currentUserOptions,
       });
     },
     async writeBundle(options, bundle) {
-      if (userOptions.onEvent) {
-        userOptions.onEvent({
+      if (currentUserOptions.onEvent) {
+        currentUserOptions.onEvent({
           type: `build.writeBundle.${
             userConfig.build.ssr ? "client" : "static-client"
           }`,
@@ -93,10 +117,29 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
     configureServer(server) {
       // Create HMR message channel
       hmrChannel = new MessageChannel();
+      
+      // Set up restart listener to re-resolve options when config changes
+      server.ws.on('restart', () => {
+        const logger = server.config.customLogger || server.config.logger;
+        logger?.info('[vite-plugin-react-server] Server restarting, re-resolving options...');
+        
+        // Re-resolve options with forceResolve flag
+        const newResolvedOptions = resolveOptions(options, true);
+        if (newResolvedOptions.type === "error") {
+          logError(newResolvedOptions.error, logger);
+          return;
+        }
+        
+        // Update current options
+        currentUserOptions = newResolvedOptions.userOptions;
+        
+        logger?.info('[vite-plugin-react-server] Options re-resolved successfully');
+      });
+
       configureWorkerRequestHandler({
         server,
         autoDiscoveredFiles,
-        userOptions,
+        userOptions: currentUserOptions,
         hmrChannel,
       });
     },
@@ -104,11 +147,11 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
     async handleHotUpdate({ file, server, timestamp, ...ctx }) {
       try {
         // Check if the file is a page or props file
-        const isPageFile = userOptions.autoDiscover.modulePattern.test(file);
+        const isPageFile = currentUserOptions.autoDiscover.modulePattern.test(file);
         if (!isPageFile) return;
 
         // Get the route for this file
-        const [, value] = userOptions.normalizer(file);
+        const [, value] = currentUserOptions.normalizer(file);
 
         // Find all routes affected by this file change
         const affectedRoutes = autoDiscoveredFiles.routeMap.get(value) || [];

@@ -120,10 +120,11 @@ export const fileWriter: FileWriterFn = async function _fileWriter(
       signal.addEventListener("abort", () => {
         if (!finished) {
           finished = true;
-          // Clean up streams
-          writeStream.destroy();
-          contentCapture.destroy();
-          stream.destroy();
+          // Clean up streams with abort reason
+          const reason = signal.reason ?? new Error("Aborted");
+          writeStream.destroy(reason);
+          contentCapture.destroy(reason);
+          stream.destroy(reason);
           
           // Remove the file if it was created
           unlink(outputPath, (unlinkError) => {

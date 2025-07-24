@@ -11,7 +11,7 @@ import type { Logger, Manifest } from "vite";
 import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
 import { customWorkerFiles } from "./customWorkerFiles.js";
 import { pageAndPropFiles } from "./pageAndPropFiles.js";
-import { logError } from "../../error/logError.js";
+import { handleError } from "../../error/handleError.js";
 
 const clientFiles = createGlobAutoDiscover("**/*.client.*");
 const serverFiles = createGlobAutoDiscover("**/*.server.*");
@@ -135,18 +135,19 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       } else if (configEnv.command === "build") {
         // in dev mode the static manifest is not needed
         // without ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
+       
         if (staticManifestResult.type === "error") {
-          if(userOptions.panicThreshold === 'critical_errors') {
-            throw staticManifestResult.error;
-          } else {
-            logError(staticManifestResult.error, logger);
+          const panicError = handleError({
+            error: staticManifestResult.error,
+            logger,
+            panicThreshold: userOptions.panicThreshold,
+            context: "Static Manifest Error (build)",
+          });
+          if (panicError != null) {
+            throw panicError;
           }
         }
-        if(userOptions.panicThreshold === 'all_errors') {
-          throw new Error( "Failed to find static manifest." );
-        } else {
-          logger.warn("Continuing without static manifest");
-        }
+        logger.warn("Continuing without static manifest");
         // this can still work, but, it won't be able to look up any client-side assets
       }
     }

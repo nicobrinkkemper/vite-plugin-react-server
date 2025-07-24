@@ -14,12 +14,12 @@ export const routeToURL = (
   fileName: string = "index.rsc"
 ) => {
   let url = !route || route === "" ? "/" : route;
-  let shouldRemoveBaseURL =
+  const shouldRemoveBaseURL =
     baseURL !== "" && url.startsWith(baseURL);
   if (shouldRemoveBaseURL) {
     url = url.slice(baseURL.length);
   }
-  let shouldRemoveFileName = url.endsWith(fileName);
+  const shouldRemoveFileName = url.endsWith(fileName);
   if (shouldRemoveFileName) {
     url = url.slice(0, -fileName.length);
   }

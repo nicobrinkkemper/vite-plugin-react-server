@@ -9,58 +9,41 @@ import { resolvePage } from "./resolvePage.js";
 import { resolveProps } from "./resolveProps.js";
 import { routeToURL } from "../utils/routeToURL.js";
 
-type ResolvePageAndPropsResult<T extends PagePropOpt = PagePropOpt> =
-  | {
-      type: "success";
-      error?: never;
-      PageComponent: PageComponentType<T>;
-      pageProps: T;
-    }
-  | {
-      type: "error";
-      error: Error;
-      PageComponent?: never;
-      pageProps?: never;
-    }
-  | {
-      type: "skip";
-      error?: never;
-      PageComponent?: never;
-      pageProps?: never;
-    };
-
-export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
-  options: Pick<
-    CreateHandlerOptions,
-    | "pagePath"
-    | "pageExportName"
-    | "propsPath"
-    | "propsExportName"
-    | "route"
-    | "loader"
-    | "moduleBaseURL"
-    | "build"
-  >
-) => Promise<ResolvePageAndPropsResult<T>>;
-
+/**
+ * Resolves the page and props for a given route, works in combination with resolveComponents
+ * The special thing it does is that if the props is already in the page module, it will fallback to that.
+ * @param handlerOptions - The handler options.
+ * @returns The resolved page and props.
+ */
 export const resolvePageAndProps: ResolvePageAndPropsFn =
   async function _resolvePageAndProps(handlerOptions) {
     try {
-      const url = routeToURL(handlerOptions.route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath);
- 
+      const url = routeToURL(
+        handlerOptions.route,
+        handlerOptions.moduleBaseURL,
+        handlerOptions.build.rscOutputPath
+      );
+
       // Load the page component
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
-        exportName: handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
+        exportName:
+          handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
         loader: handlerOptions.loader,
       });
-      const resolvePropsPromise = resolveProps({  
+      const resolvePropsPromise = resolveProps({
         url,
         id: handlerOptions.propsPath || handlerOptions.pagePath,
-        exportName: handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+        exportName:
+          handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
         loader: async () => {
           const resolvePageResult = await resolvePagePromise;
           if (resolvePageResult.type === "error") {
+            if (handlerOptions.verbose) {
+              handlerOptions.logger?.error("resolveProps", {
+                error: resolvePageResult.error,
+              });
+            }
             throw resolvePageResult.error;
           }
           if (
@@ -68,7 +51,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
             handlerOptions.propsExportName in resolvePageResult.module
           ) {
             // return the module
-            return resolvePageResult.module
+            return resolvePageResult.module;
           }
           if (handlerOptions.propsPath) {
             return handlerOptions.loader(handlerOptions.propsPath);
@@ -104,3 +87,39 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       };
     }
   };
+
+type ResolvePageAndPropsResult<T extends PagePropOpt = PagePropOpt> =
+  | {
+      type: "success";
+      error?: never;
+      PageComponent: PageComponentType<T>;
+      pageProps: T;
+    }
+  | {
+      type: "error";
+      error: Error;
+      PageComponent?: never;
+      pageProps?: never;
+    }
+  | {
+      type: "skip";
+      error?: never;
+      PageComponent?: never;
+      pageProps?: never;
+    };
+
+export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
+  options: Pick<
+    CreateHandlerOptions,
+    | "pagePath"
+    | "pageExportName"
+    | "propsPath"
+    | "propsExportName"
+    | "route"
+    | "loader"
+    | "moduleBaseURL"
+    | "build"
+    | "verbose"
+    | "logger"
+  >
+) => Promise<ResolvePageAndPropsResult<T>>;

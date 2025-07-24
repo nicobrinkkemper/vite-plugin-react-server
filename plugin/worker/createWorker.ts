@@ -12,11 +12,11 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { createLogger, type Logger } from "vite";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import type { RscWorkerOutputMessage } from "./rsc/types.js";
-import { toError } from "../error/toError.js";
 import type {
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";
+import { handleError } from "../error/handleError.js";
 
 type CreateWorkerSuccess = {
   type: "success";
@@ -29,7 +29,7 @@ type CreateWorkerSuccess = {
 type CreateWorkerError = {
   type: "error";
   workerPath: string;
-  error: Error;
+  error: Error | null;
   worker?: never;
   reason?: never;
 };
@@ -153,74 +153,94 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
 
     worker.setMaxListeners(maxListeners);
 
-    // Wait for worker to be ready
-    return await new Promise<CreateWorkerSuccess | CreateWorkerSkip>(
-      (resolve, reject) => {
-        // Use appropriate timeout based on worker type
-        const workerType = reverseCondition === "react-server" ? "rsc" : "html";
-        const startupTimeout = workerType === "rsc" 
-          ? options.workerData.userOptions.rscWorkerStartupTimeout 
-          : options.workerData.userOptions.htmlWorkerStartupTimeout;
-        
-        const timeout = setTimeout(() => {
-          reject({ type: "error", error: new Error("Worker ready timeout") });
-        }, startupTimeout);
-        const exitHandler = (code: number) => {
+    return await new Promise<CreateWorkerSuccess | CreateWorkerSkip>((resolve, reject) => {
+      // Use appropriate timeout based on worker type
+      const workerType = reverseCondition === "react-server" ? "rsc" : "html";
+      const startupTimeout = workerType === "rsc" 
+        ? options.workerData.userOptions.rscWorkerStartupTimeout 
+        : options.workerData.userOptions.htmlWorkerStartupTimeout;
+      
+      const timeout = setTimeout(() => {
+        reject({ type: "error", error: new Error("Worker ready timeout") });
+      }, startupTimeout);
+      const exitHandler = (code: number) => {
+        clearTimeout(timeout);
+        worker.removeListener("message", messageHandler);
+        // Do not remove exit handler here, let it fire if needed
+        if (code !== 0) {
+          reject({
+            type: "error",
+            error: new Error(`[create:${id}] Worker exited with code ${code}`),
+            workerPath: workerPathWithDefault,
+          });
+        }
+      };
+      const messageHandler = (
+        msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage
+      ) => {
+        if (verbose)
+          logger.info(`[create:${id}] Initial worker message ${msg.type}`);
+        if (msg.type === "READY") {
+          if (verbose)
+            logger.info(`[create:${id}] Worker running for ${msg.env}`);
           clearTimeout(timeout);
           worker.removeListener("message", messageHandler);
           worker.removeListener("exit", exitHandler);
-          if (code === 0) {
-            resolve({
-              type: "skip",
-              reason: "Worker exited with code 0",
-              workerPath: workerPathWithDefault,
-            } satisfies CreateWorkerSkip);
-          } else {
-            const error = `[create:${id}] exited with code ${code}`;
-            resolve({
-              type: "skip",
-              reason: error,
-              workerPath: workerPathWithDefault,
-            } satisfies CreateWorkerSkip);
-          }
-        };
-        const messageHandler = (
-          msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage
-        ) => {
-          if (verbose)
-            logger.info(`[create:${id}] Initial worker message ${msg.type}`);
-          if (msg.type === "READY") {
+          if (msg.env !== nodeEnv) {
             if (verbose)
-              logger.info(`[create:${id}] Worker running for ${msg.env}`);
-            clearTimeout(timeout);
-            worker.removeListener("message", messageHandler);
-            worker.removeListener("exit", exitHandler);
-            if (msg.env !== nodeEnv) {
-              if (verbose)
-                logger.info(`[create:${id}] Worker environment mismatch.`);
-              reject({
-                type: "error",
-                error: new Error(
-                  `Worker environment mismatch: ${msg.env} !== ${nodeEnv}`
-                ),
-                workerPath: workerPathWithDefault,
-              } satisfies CreateWorkerError);
-            }
-            resolve({
-              type: "success",
-              worker,
+              logger.info(`[create:${id}] Worker environment mismatch.`);
+            reject({
+              type: "error",
+              error: new Error(
+                `Worker environment mismatch: ${msg.env} !== ${nodeEnv}`
+              ),
               workerPath: workerPathWithDefault,
-            } satisfies CreateWorkerSuccess);
+            } satisfies CreateWorkerError);
           }
-        };
-        worker.once("message", messageHandler);
-        worker.once("exit", exitHandler);
-      }
-    );
+          resolve({
+            type: "success",
+            worker,
+            workerPath: workerPathWithDefault,
+          } satisfies CreateWorkerSuccess);
+        }
+      };
+      worker.once("message", messageHandler);
+      worker.once("exit", exitHandler);
+      worker.on('error', (err) => {
+        const panicError = handleError({
+          error: err,
+          logger: logger,
+          panicThreshold: workerData.userOptions.panicThreshold,
+          critical: false,
+          context: `Worker thread error for route ${id}`,
+        });
+        if(panicError != null) {
+          reject({
+            type: "error",
+            error: err,
+            workerPath: workerPathWithDefault,
+          });
+        }
+      });
+    });
   } catch (error) {
+    const panicError = handleError({
+      error: error,
+      logger: logger,
+      panicThreshold: workerData.userOptions.panicThreshold,
+      critical: false,
+      context: `Worker thread error for route ${id}`,
+    });
+    if(panicError != null) {
+      return {
+        type: "error",
+        error: panicError,
+        workerPath: workerPathWithDefault,
+      };
+    }
     return {
       type: "error",
-      error: toError(error),
+      error: error as Error,
       workerPath: workerPathWithDefault,
     };
   }
