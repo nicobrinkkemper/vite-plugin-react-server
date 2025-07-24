@@ -22,7 +22,6 @@ describe("Plugin build test", () => {
       await setupTestProject(testDir);
       events = await doBuild({
         projectRoot: testDir,
-        verbose: true,
         onMetrics: (m) => {
           metrics.push(m);
         },

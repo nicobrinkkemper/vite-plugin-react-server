@@ -150,7 +150,6 @@ describe("RSC Build Error Handling", () => {
         plugins: [
           vitePluginReactServer({
             ...buildOptions,
-            verbose: true,
             panicThreshold: "all_errors" as const,
           }),
         ],

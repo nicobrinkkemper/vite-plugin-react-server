@@ -55,7 +55,6 @@ describe("RSC Worker Error Streaming", () => {
     servers[String(port)] = await createServerDevServer(
       {
         projectRoot: testDir,
-        verbose: true,
         Page: (url: string) => {
           if (url === "/server-error-example") {
             return "src/page/server-error-example/page.tsx";
