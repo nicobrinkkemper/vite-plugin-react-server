@@ -73,7 +73,6 @@ export type HtmlWorkerInputMessage =
 
 export type HtmlWorkerOutputMessage =
   | HtmlCompleteMessage
-  | RouteFailedMessage
   | ErrorMessage
   | ShellReadyMessage
   | ChunkProcessedMessage
