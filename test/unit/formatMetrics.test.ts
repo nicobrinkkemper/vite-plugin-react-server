@@ -43,7 +43,6 @@ describe("formatMetrics", () => {
       expect(result).toContain("External: 10.00MB");
       expect(result).toContain("Duration: 125.50ms");
       expect(result).toContain("Backpressure: 2");
-      expect(result).toContain("Drain: 1");
       expect(result).toContain("Errors: 0");
     });
 

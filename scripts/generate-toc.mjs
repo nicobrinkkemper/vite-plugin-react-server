@@ -11,8 +11,8 @@ const DOCS_DIR = join(__dirname, '../docs');
 const README_PATH = join(DOCS_DIR, 'README.md');
 
 // Markers for TOC injection
-const TOC_START = '<!-- AUTO-GENERATED-TOC-START -->';
-const TOC_END = '<!-- AUTO-GENERATED-TOC-END -->';
+const TOC_START = '<!-- TOC START -->';
+const TOC_END = '<!-- TOC END -->';
 
 function extractTOCFromReadme() {
   const readmeContent = readFileSync(README_PATH, 'utf8');
@@ -63,8 +63,8 @@ function extractTOCFromReadme() {
     tocWithLinks.push(line);
   }
 
-  // Add navigation note
-  const tocWithNav = `${TOC_START}\n\n## 📚 Documentation Navigation\n\n${tocWithLinks.join('\n')}\n\n### Quick Links\n- [🏠 Main Documentation](./README.md)\n- [🚀 Getting Started](./getting-started.md)\n- [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)\n- [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)\n\n---\n\n${TOC_END}`;
+  // Add navigation note (without the Table of Contents header or auto-generated comment)
+  const tocWithNav = `${tocWithLinks.join('\n')}\n\n### Quick Links\n- [🏠 Main Documentation](./README.md)\n- [🚀 Getting Started](./getting-started.md)\n- [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)\n- [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)\n\n---`;
   
   return tocWithNav;
 }
@@ -98,9 +98,20 @@ function injectTOCIntoFile(filePath, toc) {
 
   if (hasMarkers) {
     // Always replace everything between markers
-    const beforeTOC = content.substring(0, content.indexOf(TOC_START));
-    const afterTOC = content.substring(content.indexOf(TOC_END) + TOC_END.length);
-    const newContent = beforeTOC + tocWithHere + afterTOC;
+    const startIndex = content.indexOf(TOC_START);
+    const endIndex = content.indexOf(TOC_END);
+    
+    if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+      console.log(`⚠️  Invalid marker positions in ${filePath}`);
+      return 'error';
+    }
+    
+    // Remove everything between the markers (including the markers themselves)
+    const beforeTOC = content.substring(0, startIndex);
+    const afterTOC = content.substring(endIndex + TOC_END.length);
+    
+    // Add the new content with markers
+    const newContent = beforeTOC + TOC_START + '\n\n## 📚 Documentation Navigation\n\n<!-- Auto-generated TOC - Do not edit manually -->\n\n## Table of Contents\n\n<!-- Auto-generated TOC - Do not edit manually -->\n\n' + tocWithHere + '\n\n' + TOC_END + afterTOC;
     writeFileSync(filePath, newContent, 'utf8');
     return 'updated';
   } else {
@@ -124,8 +135,8 @@ function injectTOCIntoFile(filePath, toc) {
         break;
       }
     }
-    // Insert TOC at the safe position
-    lines.splice(insertIndex, 0, '', tocWithHere);
+    // Insert TOC at the safe position with markers
+    lines.splice(insertIndex, 0, '', TOC_START + '\n\n## 📚 Documentation Navigation\n\n<!-- Auto-generated TOC - Do not edit manually -->\n\n## Table of Contents\n\n<!-- Auto-generated TOC - Do not edit manually -->\n\n' + tocWithHere + '\n\n' + TOC_END);
     const newContent = lines.join('\n');
     writeFileSync(filePath, newContent, 'utf8');
     return 'inserted';
@@ -156,21 +167,30 @@ function generateMainReadmeTable() {
       const title = match[1];
       const filename = match[2];
       
-      // Find the description on the next line(s)
+      // Find the first sub-item as the description
       let description = '';
+      let descriptionAnchor = '';
       const lineIndex = lines.indexOf(line);
       for (let i = lineIndex + 1; i < lines.length; i++) {
         const nextLine = lines[i].trim();
         if (nextLine.startsWith('-')) {
-          description = nextLine.substring(1).trim();
+          // Extract the text and anchor from the first sub-item link
+          const subMatch = nextLine.match(/^-\s*\[([^\]]+)\]\([^)]+#([^)]+)\)/);
+          if (subMatch) {
+            description = subMatch[1];
+            descriptionAnchor = subMatch[2];
+          } else {
+            description = nextLine.substring(1).trim();
+            descriptionAnchor = description.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+          }
           break;
-        } else if (nextLine && !nextLine.startsWith('[') && !nextLine.match(/^\d+\./)) {
-          description = nextLine;
+        } else if (nextLine.match(/^\d+\./)) {
+          // We've reached the next main item, stop looking
           break;
         }
       }
       
-      entries.push({ title, filename, description });
+      entries.push({ title, filename, description, descriptionAnchor });
     }
   }
   
@@ -179,7 +199,9 @@ function generateMainReadmeTable() {
   table += '|-------|-------------|\n';
   
   for (const entry of entries) {
-    table += `| [${entry.title}](./docs/${entry.filename}) | ${entry.description} |\n`;
+    // Use the extracted anchor or fallback to generated one
+    const anchor = entry.descriptionAnchor || entry.description.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+    table += `| [${entry.title}](./docs/${entry.filename}) | [${entry.description}](./docs/${entry.filename}#${anchor}) |\n`;
   }
   
   return table;
@@ -206,6 +228,74 @@ function updateMainReadmeTable() {
   
   // Insert the documentation table just before License
   const newContent = beforeLicense + '## Documentation\n\n' + newTable + '\n\n' + licenseSection;
+  writeFileSync(mainReadmePath, newContent, 'utf8');
+  
+  return true;
+}
+
+function updateMainReadmeTOC() {
+  const mainReadmePath = join(__dirname, '../docs/README.md');
+  let content = readFileSync(mainReadmePath, 'utf8');
+  
+  // Find the table of contents section - look for the first occurrence
+  const tocStartIndex = content.indexOf('## Table of Contents');
+  const tocEndIndex = content.indexOf('## Plugin Architecture Documentation');
+  
+  if (tocStartIndex === -1 || tocEndIndex === -1) {
+    console.log('⚠️  Could not find Table of Contents section in docs/README.md');
+    return false;
+  }
+  
+  const beforeTOC = content.substring(0, tocStartIndex);
+  const afterTOC = content.substring(tocEndIndex);
+  
+  // Generate the TOC with tab-based formatting
+  const tocSection = content.slice(tocStartIndex, tocEndIndex).trim();
+  const lines = tocSection.split('\n');
+  let currentFile = null;
+  let currentNumber = 1;
+  let tocWithTabs = [];
+  const anchor = (text) => text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+
+  for (let line of lines) {
+    // Main section: "1. [Getting Started](./getting-started.md)"
+    const mainMatch = line.match(/^(\d+)\. \[([^\]]+)\]\(\.\/([^)]+)\)/);
+    if (mainMatch) {
+      const number = parseInt(mainMatch[1]);
+      const title = mainMatch[2];
+      const filename = mainMatch[3];
+      currentFile = filename;
+      currentNumber = number;
+      
+      // Always use 1 tab between number and bracket to account for 2-digit numbers
+      tocWithTabs.push(`${number}.\t[${title}](./${filename})`);
+      continue;
+    }
+    // Sub-item: "   - Installation and Setup"
+    const subMatch = line.match(/^(\s*)- (.+)$/);
+    if (subMatch && currentFile) {
+      const text = subMatch[2];
+      const link = `./${currentFile}#${anchor(text)}`;
+      
+      // Always use 1 tab for sub-items
+      const indent = '\t';
+      
+      tocWithTabs.push(`${indent}- [${text}](${link})`);
+      continue;
+    }
+    // Skip duplicate "## Table of Contents" headers and auto-generated comments
+    if (line.trim() === '## Table of Contents' || line.trim() === '<!-- Auto-generated TOC - Do not edit manually -->') {
+      continue;
+    }
+    // Skip empty lines that might be between duplicate headers
+    if (line.trim() === '') {
+      continue;
+    }
+    tocWithTabs.push(line);
+  }
+  
+  const newTOC = `## Table of Contents\n\n<!-- Auto-generated TOC - Do not edit manually -->\n\n${tocWithTabs.join('\n')}\n`;
+  const newContent = beforeTOC + newTOC + afterTOC;
   writeFileSync(mainReadmePath, newContent, 'utf8');
   
   return true;
@@ -239,6 +329,13 @@ function main() {
     const mainReadmeUpdated = updateMainReadmeTable();
     if (mainReadmeUpdated) {
       console.log('   ✅ Main README.md documentation table updated');
+    }
+    
+    // Update docs README.md TOC with tab-based formatting
+    console.log('\n📝 Updating docs README.md TOC formatting...');
+    const docsTOCUpdated = updateMainReadmeTOC();
+    if (docsTOCUpdated) {
+      console.log('   ✅ Docs README.md TOC formatting updated');
     }
     
     console.log('\n✅ Table of contents generation complete!');
