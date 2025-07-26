@@ -58,13 +58,6 @@ export type HtmlCompleteMessage = {
   metrics?: StreamMetrics;
 }
 
-export type RouteFailedMessage = {
-  type: "ROUTE_FAILED";
-  id: string;
-  reason: string;
-}
-
-
 
 export type HtmlWorkerInputMessage =
   | RouteReadyMessage

@@ -21,7 +21,6 @@ export * from "./createCssProps.js";
 
 // Stream and handler creation
 export * from "./createHandler.server.js";
-export * from "./createEventHandler.js";
 
 // Hydrate user options
 export * from "./hydrateUserOptions.js";

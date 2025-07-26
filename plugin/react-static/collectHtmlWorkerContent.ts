@@ -57,14 +57,7 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
       },
     });
 
-    // Track when the stream drains
-    htmlTransform.on("drain", () => {
-      if (handlerOptions.verbose) {
-        handlerOptions.logger.info(
-          `[collectHtmlWorkerContent] Stream drained`
-        );
-      }
-    });
+
     let writePromise: Promise<void> | undefined;
     let finished = false;
 
@@ -281,13 +274,6 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
               type: "CLEANUP",
               id: handlerOptions.route,
             } as CleanupMessage);
-        } else if (msg.type === "ROUTE_FAILED") {
-          if (handlerOptions.verbose)
-            handlerOptions.logger.info(
-              `[collectHtmlWorkerContent:${handlerOptions.route}] ROUTE_FAILED received: ${msg.reason}`
-            );
-          reject(new Error(`Route failed: ${msg.reason}`));
-          return;
         } else if (msg.type === "CLEANUP_COMPLETE") {
           cleanup();
           // Don't resolve here - we should already have resolved on HTML_COMPLETE
