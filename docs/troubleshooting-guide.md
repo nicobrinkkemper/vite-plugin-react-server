@@ -148,6 +148,7 @@ export const config = {
   htmlWorkerStartupTimeout: 10000, // 10 seconds for HTML worker startup
   rscWorkerStartupTimeout: 10000,  // 10 seconds for RSC worker startup  
   rscTimeout: 10000,               // 10 seconds for RSC request completion
+  htmlTimeout: 30000,              // 30 seconds for HTML generation completion
 };
 ```
 

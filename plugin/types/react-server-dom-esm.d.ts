@@ -12,6 +12,19 @@ declare module 'react-server-dom-esm/client' {
     options?: Options
   ): Promise<any>;
 
+  export function createFromNodeStream(
+    stream: NodeJS.ReadableStream,
+    moduleRootPath: string,
+    moduleBaseURL: string,
+    options?: {
+      encodeFormAction?: (id: string, boundPromise: Promise<unknown>) => string;
+      nonce?: string;
+      findSourceMapURL?: (url: string) => string;
+      replayConsoleLogs?: boolean;
+      environmentName?: string;
+    }
+  ): Promise<any>;
+  
   export function createFromReadableStream(
     stream: ReadableStream,
     options?: Options

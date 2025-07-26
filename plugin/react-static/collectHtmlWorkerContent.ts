@@ -56,11 +56,35 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
         callback();
       },
     });
+
+    // Track when the stream drains
+    htmlTransform.on("drain", () => {
+      if (handlerOptions.verbose) {
+        handlerOptions.logger.info(
+          `[collectHtmlWorkerContent] Stream drained`
+        );
+      }
+    });
     let writePromise: Promise<void> | undefined;
     let finished = false;
 
     // Main promise for route completion or error
-    const routeComplete = new Promise<void>((resolve, reject) => {
+    let routeComplete: Promise<void>;
+    let errorTimeout: NodeJS.Timeout | null = null;
+    let generalTimeout: NodeJS.Timeout | null = null;
+    
+    routeComplete = new Promise<void>((resolve, reject) => {
+      // Add a general timeout to prevent hanging indefinitely
+      generalTimeout = setTimeout(() => {
+        if (!finished) {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] General timeout reached, rejecting`
+            );
+          }
+          reject(new Error(`Route processing timeout for ${handlerOptions.route}`));
+        }
+      }, handlerOptions.htmlTimeout); // Use configurable timeout
       let hasError = false;
       
       // Listen for abort signal
@@ -70,11 +94,34 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
             `[collectHtmlWorkerContent:${handlerOptions.route}] Abort signal received, canceling build`
           );
         }
+        
+        // Clear any pending timeouts
+        if (errorTimeout) {
+          clearTimeout(errorTimeout);
+          errorTimeout = null;
+        }
+        if (generalTimeout) {
+          clearTimeout(generalTimeout);
+          generalTimeout = null;
+        }
+        
         reject(new Error(abortController.signal.reason || "Build aborted"));
       });
       
       const messageHandler = (msg: HtmlWorkerOutputMessage) => {
         if (!worker) return reject(new Error("Worker is not a valid worker"));
+        
+        // CRITICAL: Only process messages for this specific route
+        // This prevents race conditions when multiple routes are processed simultaneously
+        if (msg.id !== handlerOptions.route) {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] Ignoring message for route ${msg.id}: ${msg.type}`
+            );
+          }
+          return;
+        }
+        
         if (handlerOptions.verbose)
           handlerOptions.logger.info(
             `[collectHtmlWorkerContent:${handlerOptions.route}] Message received: ${msg.type}`
@@ -94,12 +141,12 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
             return;
           }
           if (msg.type === "ALL_READY") {
-            finished = true;
             if (handlerOptions.verbose)
               handlerOptions.logger.info(
-                `[collectHtmlWorkerContent:${handlerOptions.route}] Recovered from error.`
+                `[collectHtmlWorkerContent:${handlerOptions.route}] ALL_READY received in error state`
               );
-            resolve();
+            // Don't resolve here - even in error state, we should wait for HTML_COMPLETE
+            // The worker might still be able to generate HTML despite the error
             return;
           }
           if (handlerOptions.verbose)
@@ -113,7 +160,7 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           hasError = true;
           if (handlerOptions.verbose)
             handlerOptions.logger.info(
-              `[collectHtmlWorkerContent:${handlerOptions.route}] ERROR received, rejecting with error`
+              `[collectHtmlWorkerContent:${handlerOptions.route}] ERROR received`
             );
           // Mark this route as failed for build tracking
           if (handlerOptions.onEvent) {
@@ -128,7 +175,27 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
               },
             });
           }
-          // reject(msg.error);
+          
+          // Set a timeout to reject if HTML_COMPLETE doesn't come within a reasonable time
+          // This prevents hanging when the worker fails to send HTML_COMPLETE
+          errorTimeout = setTimeout(() => {
+            if (!finished) {
+              if (handlerOptions.verbose) {
+                handlerOptions.logger.info(
+                  `[collectHtmlWorkerContent:${handlerOptions.route}] Error timeout reached, rejecting`
+                );
+              }
+              const errorMessage = typeof msg.error === 'string' 
+                ? msg.error 
+                : msg.error?.message || 'Unknown error';
+              reject(
+                new Error(
+                  `HTML generation failed for route ${handlerOptions.route}: ${errorMessage}`
+                )
+              );
+            }
+          }, 5000); // 5 second timeout
+          
           return;
         }
 
@@ -137,7 +204,8 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
             handlerOptions.logger.info(
               `[collectHtmlWorkerContent:${handlerOptions.route}] ALL_READY received`
             );
-          resolve();
+          // Don't resolve here - wait for HTML_COMPLETE to ensure all chunks are processed
+          // ALL_READY just means React is ready to stream, but chunks may still be coming
         }
         if (msg.type === "HTML_CHUNK" && !finished) {
           if (handlerOptions.verbose) {
@@ -151,8 +219,25 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
               `[collectHtmlWorkerContent] Write result: ${writeResult}`
             );
           }
+          // If write returns false, it means the stream is backpressured
+          // We should wait for the 'drain' event before continuing
+          if (!writeResult) {
+            if (handlerOptions.verbose) {
+              handlerOptions.logger.info(
+                `[collectHtmlWorkerContent] Stream backpressured, waiting for drain`
+              );
+            }
+          }
         } else if (msg.type === "HTML_COMPLETE") {
           finished = true;
+          
+          // Clear the error timeout if it exists
+          if (errorTimeout) {
+            clearTimeout(errorTimeout);
+            errorTimeout = null;
+          }
+          
+          // End the htmlTransform stream to signal that all chunks have been sent
           htmlTransform.end();
           if (handlerOptions.verbose)
             handlerOptions.logger.info(
@@ -173,6 +258,24 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
             return;
           }
 
+          // If we had an error but HTML_COMPLETE indicates success, log it but continue
+          if (hasError) {
+            if (handlerOptions.verbose)
+              handlerOptions.logger.info(
+                `[collectHtmlWorkerContent:${handlerOptions.route}] HTML_COMPLETE succeeded despite previous error`
+              );
+          }
+
+          // Clear the general timeout
+          if ((routeComplete as any).generalTimeout) {
+            clearTimeout((routeComplete as any).generalTimeout);
+            (routeComplete as any).generalTimeout = null;
+          }
+          
+          // Resolve the promise here since all HTML chunks have been processed
+          // The file writer will complete when the stream ends
+          resolve();
+
           if (worker)
             worker.postMessage({
               type: "CLEANUP",
@@ -187,13 +290,24 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           return;
         } else if (msg.type === "CLEANUP_COMPLETE") {
           cleanup();
-          resolve();
+          // Don't resolve here - we should already have resolved on HTML_COMPLETE
+          // This is just cleanup confirmation
         }
       };
       worker.on("message", messageHandler);
       function cleanup() {
         if (worker) worker.removeListener("message", messageHandler);
         finished = true;
+        
+        // Clear any pending timeouts
+        if (errorTimeout) {
+          clearTimeout(errorTimeout);
+          errorTimeout = null;
+        }
+        if (generalTimeout) {
+          clearTimeout(generalTimeout);
+          generalTimeout = null;
+        }
       }
     });
 

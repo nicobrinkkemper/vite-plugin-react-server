@@ -38,8 +38,6 @@ export type HtmlWorkerRenderState = {
   stream: ReactDOMServer.PipeableStream;
   abort?: () => void;
   shellReady?: boolean;
-  hasError?: boolean;
-  setError?: () => void;
   currentRoute?: string;
 }
 

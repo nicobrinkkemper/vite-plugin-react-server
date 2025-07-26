@@ -151,7 +151,11 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
               error: error,
               logger: logger,
               panicThreshold: panicThreshold,
-              errorInfo: errorInfo,
+              errorInfo: {
+                ...errorInfo,
+                componentStack: errorInfo?.componentStack,
+                digest: errorInfo?.digest,
+              },
               context: `createRscStream(${route})`,
             }) ?? error
             // if the onEvent function is defined, create the object and pass it to the onEvent function
@@ -161,6 +165,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
                 route,
                 error: loggedError,
                 errorInfo: {
+                  ...errorInfo,
                   componentStack: errorInfo?.componentStack,
                   digest: errorInfo?.digest,
                 },

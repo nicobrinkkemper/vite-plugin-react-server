@@ -34,6 +34,7 @@ export const config = {
 | `css` | `CssOptions` | CSS handling configuration | - |
 | `verbose` | `boolean` | Enable verbose logging | `true` |
 | `rscTimeout` | `number` | Timeout in milliseconds for RSC operations | `5000` |
+| `htmlTimeout` | `number` | Timeout in milliseconds for HTML generation operations | `15000` |
 | `htmlWorkerStartupTimeout` | `number` | Timeout in milliseconds for HTML worker startup | `5000` |
 | `rscWorkerStartupTimeout` | `number` | Timeout in milliseconds for RSC worker startup | `5000` |
 | `onMetrics` | `(metrics: RenderMetrics) => void` | Callback for build metrics | - |

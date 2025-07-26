@@ -209,6 +209,7 @@ export type StringKeys =
 
 export type NumberKeys =
   | "rscTimeout"
+  | "htmlTimeout"
   | "htmlWorkerStartupTimeout"
   | "rscWorkerStartupTimeout";
 
@@ -333,6 +334,7 @@ export type ResolvedUserOptions = {
   envLoaderPath?: string;
   verbose: boolean;
   rscTimeout: number;
+  htmlTimeout: number;
   htmlWorkerStartupTimeout: number;
   rscWorkerStartupTimeout: number;
   panicThreshold: "none" | "critical_errors" | "all_errors";
@@ -772,6 +774,7 @@ export interface StreamPluginOptions<
   moduleID?: (id: string) => string;
   verbose?: boolean;
   rscTimeout?: number; // Timeout in milliseconds for RSC operations
+  htmlTimeout?: number; // Timeout in milliseconds for HTML generation operations
   htmlWorkerStartupTimeout?: number; // Timeout in milliseconds for HTML worker startup
   rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
   panicThreshold?: "none" | "critical_errors" | "all_errors";
@@ -820,6 +823,7 @@ export type CreateHandlerOptions<
   | "panicThreshold"
   | "projectRoot"
   | "rscTimeout"
+  | "htmlTimeout"
 > & {
   signal?: AbortSignal;
   logger: Logger;

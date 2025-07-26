@@ -642,6 +642,10 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         typeof options.rscTimeout === "number"
           ? options.rscTimeout
           : DEFAULT_CONFIG.RSC_TIMEOUT,
+      htmlTimeout:
+        typeof options.htmlTimeout === "number"
+          ? options.htmlTimeout
+          : DEFAULT_CONFIG.HTML_TIMEOUT,
       htmlWorkerStartupTimeout:
         typeof options.htmlWorkerStartupTimeout === "number"
           ? options.htmlWorkerStartupTimeout

@@ -1,16 +1,14 @@
 import type {
-  CallServerCallback,
   CreateHtmlWorkerRenderStateFn,
   HtmlCompleteMessage,
 } from "./types.js";
 import { PassThrough } from "stream";
-import { workerData, parentPort } from "node:worker_threads";
+import { workerData} from "node:worker_threads";
 import { type ErrorInfo } from "react";
 import type { HtmlWorkerOutputMessage } from "./types.js";
 import { join } from "node:path";
 import type { StreamMetrics } from "../../types.js";
 import { ReactDOMServer, ReactDOMClient } from "../../vendor/vendor.client.js";
-import { toError } from "../../error/toError.js";
 import type { ShellErrorMessage } from "../types.js";
 import { createLogger } from "vite";
 import { sendMessage as sendMessageToMainThread } from "../sendMessage.js";
@@ -28,6 +26,7 @@ const createMetrics = (): StreamMetrics => {
     startTime: 0,
   };
 };
+
 
 export const createHtmlWorkerRenderState: CreateHtmlWorkerRenderStateFn =
   function _createHtmlWorkerRenderState(
@@ -61,38 +60,22 @@ export const createHtmlWorkerRenderState: CreateHtmlWorkerRenderStateFn =
         ReactDOMClient.createFromNodeStream(
           rscStream,
           moduleRootPath,
-          moduleBaseURL,
-          {
-            callServer: (async (id: string, args: unknown[]) => {
-              // Forward server action calls back to the main thread
-              sendMessage({
-                type: "SERVER_ACTION",
-                id,
-                args,
-              } as HtmlWorkerOutputMessage);
-              // Wait for response
-              return new Promise((resolve, reject) => {
-                const handler = (msg: HtmlWorkerOutputMessage) => {
-                  if (msg.type === "SERVER_ACTION_RESPONSE" && msg.id === id) {
-                    parentPort?.removeListener("message", handler);
-                    if (msg.error) {
-                      reject(toError(msg.error));
-                    } else {
-                      resolve(msg.result);
-                    }
-                  }
-                };
-                parentPort?.on("message", handler);
-              });
-            }) as CallServerCallback,
-          }
+          moduleBaseURL
         )
       );
     const metrics = createMetrics();
     const htmlTransform = new PassThrough();
 
     htmlTransform.on("data", (chunk) => {
-
+      // Don't send HTML chunks if there's an error
+      if (hasError) {
+        if (verbose) {
+          logger.info(
+            `[html-worker:${id}] Ignoring HTML chunk due to error state`
+          );
+        }
+        return;
+      }
 
       metrics.chunks++;
       metrics.bytes += chunk.length;
@@ -115,8 +98,18 @@ export const createHtmlWorkerRenderState: CreateHtmlWorkerRenderStateFn =
     });
 
     const sendHtmlComplete = () => {
-      // Always send HTML_COMPLETE so the HTML content gets written to the file
-      // The error handling happens at the build level, not here
+      // Send HTML_COMPLETE with appropriate success state
+      // If there's an error and no chunks were sent, don't send HTML_COMPLETE
+      // as the error handling will be done through ERROR messages
+      if (hasError && metrics.chunks === 0) {
+        if (verbose) {
+          logger.info(
+            `[html-worker:${id}] Skipping HTML_COMPLETE due to error with no chunks`
+          );
+        }
+        return;
+      }
+      
       sendMessage({
         type: "HTML_COMPLETE",
         id,
@@ -142,8 +135,9 @@ export const createHtmlWorkerRenderState: CreateHtmlWorkerRenderStateFn =
           logger.info(`[html-worker:${id}] All ready`);
         }
 
-        // Don't send HTML_COMPLETE here - wait for the stream to actually end
-        // This ensures all chunks are processed before we signal completion
+        // ALL_READY means React has finished rendering and is ready to stream
+        // But HTML chunks may still be coming through the stream
+        // HTML_COMPLETE will be sent when the stream actually ends
       },
       onError: (error: unknown, errorInfo: ErrorInfo) => {
         if (hasError) return;

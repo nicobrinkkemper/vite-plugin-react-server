@@ -77,6 +77,12 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
           // Remove from tracking maps
           activeRenders.delete(id);
           errorRenders.delete(id);
+          
+          // Send cleanup complete message for the previous render state
+          sendMessage({
+            type: "CLEANUP_COMPLETE",
+            id,
+          });
         }
 
         // Create new render state with fresh streams
@@ -101,13 +107,6 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
           return;
         }
 
-        // Check if the render state has encountered an error
-        if (renderState.hasError) {
-          // Add to error renders to prevent further processing
-          errorRenders.add(id);
-          return;
-        }
-
         // Only process RSC chunks for the current route
         // This prevents processing stale chunks from previous routes
         if (renderState.currentRoute !== id) {
@@ -122,7 +121,6 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
               id,
               error: error,
             });
-            return;
           }
         });
         if (workerData.userOptions.verbose) {
@@ -158,10 +156,6 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       }
       case "CLEANUP": {
         // Set error state to prevent HTML chunks from being sent
-        const renderState = activeRenders.get(id);
-        if (renderState && renderState.setError) {
-          renderState.setError();
-        }
         cleanup(id, "cleanup requested");
         break;
       }
