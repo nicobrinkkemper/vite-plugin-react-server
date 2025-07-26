@@ -72,15 +72,14 @@ rscStream.pipe(htmlStream);
 
 The plugin uses worker threads for RSC processing:
 
-#### RSC Worker (`react-server` condition)
-- Renders React Server Components
+#### RSC Worker
+- Renders React Server Components when `react-server` condition is not present
 - Handles server actions
 - Manages module loading with server conditions
-- Streams RSC payload to HTML worker
+- Streams RSC payload to main thread
 
 #### HTML Worker (client environment)
-- Receives RSC stream from RSC worker
-- Transforms RSC to HTML using `ReactDOMServer.renderToPipeableStream`
+- Transforms RSC to HTML
 - Handles CSS collection and asset processing
 - Outputs final HTML
 
