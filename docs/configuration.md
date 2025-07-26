@@ -18,10 +18,10 @@ const config = {
 ### moduleBasePath
 
 ```ts
-  moduleBasePath: "/", // import prefix
+  moduleBasePath: "", // import prefix
 ```
 
-`moduleBasePath` is used as the second argument to React's `renderToPipeableStream` for server-side rendering. Defaults to VITE_BASE_URL or "/"
+`moduleBasePath` is used as the second argument to React's `renderToPipeableStream` for server-side rendering. Defaults to "".
 
 ### moduleBaseURL
 
@@ -29,9 +29,9 @@ const config = {
   moduleBaseURL: "/", // url prefix
 ```
 
-`moduleBaseURL` should be same as moduleBasePath in most cases. The url equivalant. Defaults to VITE_BASE_URL or "/"
+`moduleBaseURL`. Defaults to VITE_BASE_URL or "/"
 
-> Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL and moduleBasePath matches your base path - or leave empty and use VITE_BASE_URL.
+> Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL matches your base path.
 
 ```ts
 publicOrigin: "", // URL parseable origin

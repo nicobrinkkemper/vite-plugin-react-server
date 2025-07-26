@@ -36,7 +36,7 @@ export const handleRender: HandleRenderFn = async function _handleRender(
     projectRoot = workerData.userOptions.projectRoot,
     moduleRootPath = workerData.userOptions.moduleRootPath,
     moduleBaseURL = workerData.userOptions.moduleBaseURL ?? "/",
-    moduleBasePath = workerData.userOptions.moduleBasePath ?? "/",
+    moduleBasePath = workerData.userOptions.moduleBasePath ?? "",
     moduleBase = workerData.userOptions.moduleBase,
     pipeableStreamOptions = workerData.userOptions.pipeableStreamOptions,
     cssFiles: messageCssFiles,

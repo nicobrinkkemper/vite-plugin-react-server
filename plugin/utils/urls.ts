@@ -136,7 +136,7 @@ export const folderName = (path: string, withBaseURL: string) => {
  * );
  * ```
  *
- * The moduleBasePath being set at the config level as "/",
+ * The moduleBasePath being set at the config level as "",
  * then we pass it to create a stream `renderToPipeableStream(elements, moduleBasePath)`, and we see
  * ```text
  * 2:I["src/components/Clickable.client-Dx9diOqr.js","ClientClickable"]
