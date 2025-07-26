@@ -70,7 +70,7 @@ rscStream.pipe(htmlStream);
 
 ### Worker Architecture
 
-The plugin uses worker threads for RSC processing:
+The plugin uses worker threads to make the other React paradigm available.
 
 #### RSC Worker
 - Renders React Server Components when `react-server` condition is not present

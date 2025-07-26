@@ -37,9 +37,11 @@ If the data returned from a prop file or function isn't actually static, then yo
 
 If the props are static on a route by route basis, the template examples should offer
 enough inspiration. Of course there's no real rule for the props or page files and 
-you're free to implement any kind of strategy here.## Debugging
+you're free to implement any kind of strategy here.
 
-The debugging features for React server components are very advanced, but there are some caveats.
+## Debugging
+
+The debugging features for React server components are advanced, but there are some caveats.
 Please keep in mind that the dependencies that are used are experimental and may change in the future.
 
 Caveats:

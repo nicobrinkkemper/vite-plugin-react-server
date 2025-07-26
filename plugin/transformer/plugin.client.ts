@@ -12,25 +12,9 @@ import { join } from "node:path";
  * Plugin for transforming React Client Components.
  *
  * Core responsibilities:
- * 1. Detects "use client" directives
- * 2. Transforms client components for RSC boundaries
- * 3. Adds client reference metadata for RSC
- *
- * When a component is marked with "use client", it:
- * - Gets transformed into a client reference
- * - Maintains module ID for RSC boundaries
- * - Preserves class/function behavior
- *
- * @example
- * ```ts
- * export default defineConfig({
- *   plugins: [
- *     viteReactClientTransformPlugin({
- *       projectRoot: process.cwd(),
- *     })
- *   ]
- * });
- * ```
+ * 1. Strips "use client" directives
+ * 2. Removes accidental server code imports
+ * 
  */
 export const reactTransformPlugin: VitePluginFn = (options) => {
   const resolvedOptionsResult = resolveOptions(options);
@@ -71,8 +55,6 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
     transform: {
       order: "post",
       async handler(code, id) {
-        // Debug logging for the problematic file
-
         if (!userOptions.autoDiscover.modulePattern.test(id)) {
           return null;
         }
