@@ -411,6 +411,7 @@ loader: {
 ```
 
 The custom loader system provides the flexibility to adapt the plugin to virtually any React Server Components implementation or build setup while maintaining type safety and performance.
+
 <!-- AUTO-GENERATED-TOC-START -->
 
 ## 📚 Documentation Navigation

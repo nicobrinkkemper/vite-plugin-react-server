@@ -481,7 +481,53 @@ import { Css } from "vite-plugin-react-server/components";
 
 ```typescript
 import { getCondition } from "vite-plugin-react-server/config";
-```<!-- AUTO-GENERATED-TOC-START -->
+
+## Metric Watcher
+
+The plugin includes a built-in metric watcher that monitors build performance and backpressure:
+
+```ts
+import { metricWatcher } from "vite-plugin-react-server/metrics";
+
+// Default configuration (enabled by default)
+const defaultWatcher = metricWatcher({
+  maxTime: 200,        // Warn if processing takes > 200ms
+  maxBackpressure: 0,  // Warn if any backpressure occurs
+});
+
+// Custom configuration
+const customWatcher = metricWatcher({
+  maxTime: 500,           // Warn if processing takes > 500ms
+  maxBackpressure: 5,     // Warn if > 5 backpressure occurrences
+  warnOnly: true,         // Only show warnings, not info messages
+});
+// or simply
+export const config = {
+  moduleBase: "src",
+  onMetrics: metricWatcher()
+}
+```
+
+### Metric Watcher Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `maxTime` | `number` | `200` | Maximum processing time in milliseconds before warning |
+| `maxBackpressure` | `number` | `0` | Maximum backpressure occurrences before warning |
+| `warnOnly` | `boolean` | `false` | Only show warnings, suppress info messages |
+| `warn` | `function` | `console.warn` | Custom warning function |
+| `info` | `function` | `console.info` | Custom info function |
+
+### Backpressure Monitoring
+
+The metric watcher automatically monitors stream backpressure, which occurs when:
+- The file writer is slower than the HTML generation
+- The worker communication queue is full
+- System resources are constrained
+
+Backpressure warnings help identify performance bottlenecks and potential memory issues.
+
+<!-- AUTO-GENERATED-TOC-START -->
 
 ## 📚 Documentation Navigation
 

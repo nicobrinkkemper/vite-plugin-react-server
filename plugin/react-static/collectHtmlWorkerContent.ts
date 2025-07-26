@@ -60,6 +60,7 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
 
     let writePromise: Promise<void> | undefined;
     let finished = false;
+    let backpressureCount = 0; // Track backpressure occurrences
 
     // Main promise for route completion or error
     let routeComplete: Promise<void>;
@@ -213,13 +214,12 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
             );
           }
           // If write returns false, it means the stream is backpressured
-          // We should wait for the 'drain' event before continuing
+          // In practice, this rarely happens since fileWriter processes chunks quickly
           if (!writeResult) {
-            if (handlerOptions.verbose) {
-              handlerOptions.logger.info(
-                `[collectHtmlWorkerContent] Stream backpressured, waiting for drain`
-              );
-            }
+            backpressureCount++;
+            handlerOptions.logger.warn(
+              `[collectHtmlWorkerContent] stream backpressured (unusual) - count: ${backpressureCount}`
+            );
           }
         } else if (msg.type === "HTML_COMPLETE") {
           finished = true;
@@ -268,6 +268,8 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           // Resolve the promise here since all HTML chunks have been processed
           // The file writer will complete when the stream ends
           resolve();
+
+
 
           if (worker)
             worker.postMessage({
@@ -353,6 +355,9 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
       if (writePromise) await writePromise;
       rscToHtmlStream.destroy();
       htmlTransform.destroy();
+
+      // Update metrics with backpressure count
+      metrics.backpressureCount = backpressureCount;
 
       return { type: "success", stream: rscStream, metrics };
     } catch (error) {

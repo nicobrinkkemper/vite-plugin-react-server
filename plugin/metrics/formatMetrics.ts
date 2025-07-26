@@ -26,26 +26,33 @@ Memory:
   Heap Used: ${formatMemory(memoryUsage.heapUsed)}
   External: ${formatMemory(memoryUsage.external)}
 Stream:
-  Duration: ${streamMetrics.duration.toFixed(2)}ms
-  Backpressure: ${streamMetrics.backpressureCount}
-  Drain: ${streamMetrics.drainCount}
-  Errors: ${streamMetrics.errorCount}
+      Duration: ${streamMetrics.duration.toFixed(2)}ms
+    Backpressure: ${streamMetrics.backpressureCount}
+    Errors: ${streamMetrics.errorCount}
 `.trim();
 }
 
 export function metricWatcher({
   maxTime = 200,
+  maxBackpressure = 0,
   warnOnly = false,
   warn = console.warn,
   info = console.info,
 }: {
   maxTime?: number;
+  maxBackpressure?: number;
   warnOnly?: boolean;
   warn?: (...args: unknown[]) => void;
   info?: (...args: unknown[]) => void;
 }) {
   return (metrics: RenderMetrics) => {
-    if (metrics.processingTime > maxTime) {
+    // Check for backpressure first (more critical)
+    if (metrics.streamMetrics.backpressureCount > maxBackpressure) {
+      warn(`Backpressure detected on ${metrics.route}: ${metrics.streamMetrics.backpressureCount} occurrences`);
+      warn(formatMetrics(metrics));
+    }
+    // Check for slow processing
+    else if (metrics.processingTime > maxTime) {
       warn(`It took over ${maxTime}ms to render ${metrics.route}`);
       warn(formatMetrics(metrics));
     } else if (!warnOnly) {

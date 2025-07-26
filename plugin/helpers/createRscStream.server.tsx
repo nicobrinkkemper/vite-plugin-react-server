@@ -8,6 +8,7 @@ import { performance } from "node:perf_hooks";
 import { handleError } from "../error/handleError.js";
 import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
+import { createStreamMetrics } from "./metrics.js";
 
 export type CreateRscStreamOptions = Pick<
   CreateHandlerOptions<ResolvedUserOptions>,
@@ -85,15 +86,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
         type: "error",
         stream: passThrough,
         error: new Error("PageComponent is required"),
-        metrics: {
-          chunks: 0,
-          bytes: 0,
-          backpressureCount: 0,
-          drainCount: 0,
-          errorCount: 1,
-          duration: 0,
-          startTime: 0,
-        },
+        metrics: createStreamMetrics({ errorCount: 1 }),
       } satisfies CreateRscStreamReturn & { stream: typeof passThrough };
     }
     if (!RootComponent) {
@@ -101,15 +94,7 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
         type: "error",
         error: new Error("RootComponent is required"),
         stream: passThrough,
-        metrics: {
-          chunks: 0,
-          bytes: 0,
-          backpressureCount: 0,
-          drainCount: 0,
-          errorCount: 1,
-          duration: 0,
-          startTime: 0,
-        },
+        metrics: createStreamMetrics({ errorCount: 1 }),
       } satisfies CreateRscStreamReturn & { stream: typeof passThrough };
     }
 
@@ -147,17 +132,18 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
           ...pipeableStreamOptions,
           onError(error: Error, errorInfo?: any) {
             errorCount++;
-            const loggedError = handleError({
-              error: error,
-              logger: logger,
-              panicThreshold: panicThreshold,
-              errorInfo: {
-                ...errorInfo,
-                componentStack: errorInfo?.componentStack,
-                digest: errorInfo?.digest,
-              },
-              context: `createRscStream(${route})`,
-            }) ?? error
+            const loggedError =
+              handleError({
+                error: error,
+                logger: logger,
+                panicThreshold: panicThreshold,
+                errorInfo: {
+                  ...errorInfo,
+                  componentStack: errorInfo?.componentStack,
+                  digest: errorInfo?.digest,
+                },
+                context: `createRscStream(${route})`,
+              }) ?? error;
             // if the onEvent function is defined, create the object and pass it to the onEvent function
             onEvent?.({
               type: "route.error",
@@ -200,23 +186,20 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
 
       return {
         type: "error",
-        error: handleError({
-          error: renderError as Error,
-          critical: false,
-          logger: logger,
-          panicThreshold: panicThreshold,
-          context: `createRscStream(${route})`,
-        }) ?? renderError,
+        error:
+          handleError({
+            error: renderError as Error,
+            critical: false,
+            logger: logger,
+            panicThreshold: panicThreshold,
+            context: `createRscStream(${route})`,
+          }) ?? renderError,
         stream: passThrough,
-        metrics: {
-          chunks: 0,
-          bytes: 0,
-          backpressureCount: 0,
-          drainCount: 0,
+        metrics: createStreamMetrics({
           errorCount,
           duration: Date.now() - startTime,
           startTime,
-        },
+        }),
       } satisfies CreateRscStreamReturn & { stream: typeof passThrough };
     }
     // Pipe React stream directly to PassThrough
@@ -248,15 +231,11 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
       type: "success",
       stream: passThrough,
       controller,
-      metrics: {
-        chunks: 0,
-        bytes: 0,
-        backpressureCount: 0,
-        drainCount: 0,
+      metrics: createStreamMetrics({
         errorCount,
         duration: Date.now() - startTime,
-        startTime: startTime,
-      },
+        startTime,
+      }),
     } satisfies CreateRscStreamReturn & { stream: typeof passThrough };
   } catch (error) {
     const panicError = handleError({
@@ -279,15 +258,11 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
       type: "error",
       error: panicError,
       stream: passThrough,
-      metrics: {
-        chunks: 0,
-        bytes: 0,
-        backpressureCount: 0,
-        drainCount: 0,
+      metrics: createStreamMetrics({
         errorCount: errorCount + 1,
         duration: Date.now() - startTime,
-        startTime: startTime,
-      },
+        startTime,
+      }),
     } satisfies CreateRscStreamReturn & { stream: typeof passThrough };
   }
 };

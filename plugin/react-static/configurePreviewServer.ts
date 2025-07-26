@@ -77,9 +77,7 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
                   // File not found
                   res.statusCode = 404;
                   logError(streamError, logger);
-                  if (userOptions.verbose) {
-                    console.log("File not found: ", filePath);
-                  }
+
                   res.end("File not found");
                 } else {
                   // Server error

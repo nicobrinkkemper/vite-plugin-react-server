@@ -395,11 +395,8 @@ This allows you to:
 - Quickly test with different settings
 - Prevent "poisoned entries" during test and development
 
-## Examples
 
-### Server Action with Class Methods
-
-```<!-- AUTO-GENERATED-TOC-START -->
+<!-- AUTO-GENERATED-TOC-START -->
 
 ## 📚 Documentation Navigation
 

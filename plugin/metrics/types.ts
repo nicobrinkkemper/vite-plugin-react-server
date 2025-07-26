@@ -3,7 +3,6 @@ export type StreamMetrics = {
   chunks: number;
   bytes: number;
   backpressureCount: number;
-  drainCount: number;
   errorCount: number;
   duration: number;
   startTime: number;
@@ -22,3 +21,7 @@ export type RenderMetrics = {
   htmlSizes: Map<string, number>;
   rscSizes: Map<string, number>;
 };
+
+export type CreateStreamMetricsFn = (
+  metrics?: Partial<StreamMetrics>
+) => StreamMetrics;

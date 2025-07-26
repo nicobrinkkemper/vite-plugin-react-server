@@ -432,7 +432,9 @@ This configuration will:
 - Inline files smaller than 2KB
 - Always inline critical, module, and inline CSS files
 - Always link vendor and large CSS files
-- Use a custom Root component<!-- AUTO-GENERATED-TOC-START -->
+- Use a custom Root component
+
+<!-- AUTO-GENERATED-TOC-START -->
 
 ## 📚 Documentation Navigation
 

@@ -195,9 +195,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
               userOptions.build.entryFile,
               ssr
             );
-            if (userOptions.verbose) {
-              console.log("entryFileNames", input, r);
-            }
+
             stashedReturns[inputId] = r ?? info.name;
           }
           // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
@@ -221,9 +219,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
                 ssr
               );
               
-              if (userOptions.verbose) {
-                console.log("assetFileNames", input, r);
-              }
+
               stashedReturns[inputId] = r ?? join(userOptions.build.assetsDir, userOptions.normalizer(input)[0]);
             }
             // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
@@ -248,9 +244,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
               ssr
             );
 
-            if (userOptions.verbose) {
-              console.log("chunkFileNames", input, stashedReturns[inputId]);
-            }
+
             stashedReturns[inputId] = r ?? info.name;
           }
           // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here

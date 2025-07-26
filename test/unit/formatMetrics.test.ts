@@ -22,7 +22,6 @@ describe("formatMetrics", () => {
       bytes: 2048,
       duration: 125.5,
       backpressureCount: 2,
-      drainCount: 1,
       errorCount: 0,
       startTime: Date.now()
     },
@@ -68,7 +67,6 @@ describe("formatMetrics", () => {
           bytes: 0,
           duration: 0,
           backpressureCount: 0,
-          drainCount: 0,
           errorCount: 0,
           startTime: Date.now()
         },
@@ -117,7 +115,6 @@ describe("formatMetrics", () => {
           bytes: 1536,
           duration: 99.999,
           backpressureCount: 1,
-          drainCount: 0,
           errorCount: 2,
           startTime: Date.now()
         }

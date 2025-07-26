@@ -184,12 +184,10 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
               userOnMetrics(metrics);
             },
             onHmrAccept: () => {
-              // TODO: implement
-              // console.log("onHmrAccept", routes);
+              // TODO: implement HMR accept handler
             },
             onHmrUpdate: () => {
-              // TODO: implement
-              // console.log("onHmrUpdate", routes);
+              // TODO: implement HMR update handler
             },
           },
           ...handlerOptions,

@@ -140,7 +140,9 @@ export const config = {
 
 ## Build Requirements
 
-First `vite build`, then `vite build --ssr` and then `NODE_OPTIONS="--conditions=react-server" vite build`<!-- AUTO-GENERATED-TOC-START -->
+First `vite build`, then `vite build --ssr` and then `NODE_OPTIONS="--conditions=react-server" vite build`
+
+<!-- AUTO-GENERATED-TOC-START -->
 
 ## 📚 Documentation Navigation
 

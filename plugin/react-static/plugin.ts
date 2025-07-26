@@ -163,7 +163,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       }
       if (userOptions.onEvent) {
         try {
-          console.log("build.writeBundle.static-server");
+  
           userOptions.onEvent({
             type: "build.writeBundle.static-server",
             data: {

@@ -248,15 +248,12 @@ export default defineConfig({
 ```
 
 This custom loader:
-1. **Accepts string source code** (as you mentioned)
+1. **Accepts string source code**
 2. **Parses for "use client"/"use server" directives**
 3. **Transforms client modules** to register client references  
 4. **Transforms server modules** to register server references
 5. **Maintains the same behavior** as the default React loader
 
-The key requirement you mentioned is correct - the source must be a string, and this loader handles that properly while replicating the core RSC transformation logic.
-
-// ... existing code ... 
 
 <!-- AUTO-GENERATED-TOC-START -->
 

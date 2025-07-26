@@ -7,25 +7,14 @@ import { workerData} from "node:worker_threads";
 import { type ErrorInfo } from "react";
 import type { HtmlWorkerOutputMessage } from "./types.js";
 import { join } from "node:path";
-import type { StreamMetrics } from "../../types.js";
 import { ReactDOMServer, ReactDOMClient } from "../../vendor/vendor.client.js";
 import type { ShellErrorMessage } from "../types.js";
 import { createLogger } from "vite";
 import { sendMessage as sendMessageToMainThread } from "../sendMessage.js";
 import { handleError } from "../../error/handleError.js";
 import { React } from "../../vendor/vendor.client.js";
+import { createStreamMetrics } from "../../metrics/createStreamMetrics.js";
 
-const createMetrics = (): StreamMetrics => {
-  return {
-    chunks: 0,
-    bytes: 0,
-    backpressureCount: 0,
-    drainCount: 0,
-    errorCount: 0,
-    duration: 0,
-    startTime: 0,
-  };
-};
 
 
 export const createHtmlWorkerRenderState: CreateHtmlWorkerRenderStateFn =
@@ -63,7 +52,7 @@ export const createHtmlWorkerRenderState: CreateHtmlWorkerRenderStateFn =
           moduleBaseURL
         )
       );
-    const metrics = createMetrics();
+    const metrics = createStreamMetrics();
     const htmlTransform = new PassThrough();
 
     htmlTransform.on("data", (chunk) => {

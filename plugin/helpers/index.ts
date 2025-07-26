@@ -14,7 +14,6 @@ export * from "./cleanObject.js";
 export * from "./inputNormalizer.js";
 
 // CSS handling
-export * from "./collectBundleManifestCss.js";
 export * from "./collectManifestCss.js";
 export * from "./collectViteModuleGraphCss.js";
 export * from "./createCssProps.js";
