@@ -27,28 +27,36 @@ function extractTOCFromReadme() {
   
   const tocSection = readmeContent.slice(tocStartIndex, tocEndIndex).trim();
 
-  // Parse the TOC and build clickable links for sub-items
+    // Parse the TOC and build clickable links for sub-items
   const lines = tocSection.split('\n');
   let currentFile = null;
+  let currentNumber = 1;
   let tocWithLinks = [];
   const anchor = (text) => text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
 
   for (let line of lines) {
     // Main section: "1. [Getting Started](./getting-started.md)"
-    const mainMatch = line.match(/^\d+\. \[([^\]]+)\]\(\.\/([^)]+)\)/);
+    const mainMatch = line.match(/^(\d+)\. \[([^\]]+)\]\(\.\/([^)]+)\)/);
     if (mainMatch) {
-      const title = mainMatch[1];
-      const filename = mainMatch[2];
+      const number = parseInt(mainMatch[1]);
+      const title = mainMatch[2];
+      const filename = mainMatch[3];
       currentFile = filename;
-      tocWithLinks.push(`${line}`);
+      currentNumber = number;
+      
+      // Always use 1 tab between number and bracket to account for 2-digit numbers
+      tocWithLinks.push(`${number}.\t[${title}](./${filename})`);
       continue;
     }
     // Sub-item: "   - Installation and Setup"
     const subMatch = line.match(/^(\s*)- (.+)$/);
     if (subMatch && currentFile) {
-      const indent = subMatch[1].replace(/   /g, '\t'); // convert 3 spaces to tab
       const text = subMatch[2];
       const link = `./${currentFile}#${anchor(text)}`;
+      
+      // Always use 1 tab for sub-items
+      const indent = '\t';
+      
       tocWithLinks.push(`${indent}- [${text}](${link})`);
       continue;
     }
@@ -72,13 +80,16 @@ function injectTOCIntoFile(filePath, toc) {
   let tocLines = toc.split('\n');
   // Highlight the current file in the TOC
   tocLines = tocLines.map(line => {
-    // Match main TOC entry: "1. [Getting Started](./getting-started.md)"
-    const mainMatch = line.match(/^(\d+\. )\[([^\]]+)\]\(\.\/([^)]+)\)/);
+    // Match main TOC entry: "1. [Getting Started](./getting-started.md)" or "10. [Advanced Topics](./advanced-topics.md)"
+    const mainMatch = line.match(/^(\d+)\.(\s*)\[([^\]]+)\]\(\.\/([^)]+)\)/);
     if (mainMatch) {
-      const entryFile = mainMatch[3];
+      const number = parseInt(mainMatch[1]);
+      const spacing = mainMatch[2];
+      const title = mainMatch[3];
+      const entryFile = mainMatch[4];
       if (entryFile === fileName) {
-        // Bold and add indicator
-        return `${mainMatch[1]}**[${mainMatch[2]}](./${entryFile}) ← you are here**`;
+        // Bold and add indicator, maintaining the spacing
+        return `${number}.${spacing}**[${title}](./${entryFile}) ← you are here**`;
       }
     }
     return line;

@@ -34,7 +34,7 @@ Stream:
 
 export function metricWatcher({
   maxTime = 200,
-  maxBackpressure = 0,
+  maxBackpressure = 1, // Default to 1 - warn if more than 1 backpressure occurrence
   warnOnly = false,
   warn = console.warn,
   info = console.info,
