@@ -332,7 +332,7 @@ The transformation pipeline ensures that:
 4. Static generation (if enabled) happens after all transformations
 
 It also gives you the ability to override all the above behavior by either composing
-your plugins or developing a entirely new rsc-worker for your application that can then be used during your development process - which gives you full control over the node.js environment including it's loaders, etc.
+your plugins or developing an entirely new rsc-worker for your application that can then be used during your development process - which gives you full control over the node.js environment including its loaders, etc.
 
 <!-- TOC START -->
 

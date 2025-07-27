@@ -244,9 +244,9 @@ export default defineConfig(() => {
 
 ## Client plugin
 
-The server command enables the rsc-worker development mode. The plugin will handle sending messages to the worker and the rsc-worker handles the React server paradigm using familiar vite defaults. The worker receices the plugin's and vite's own resolved configuration. Functions are removed from the objects before sending them to the worker.
+The server command enables the rsc-worker development mode. The plugin will handle sending messages to the worker and the rsc-worker handles the React server paradigm using familiar vite defaults. The worker receives the plugin's and vite's own resolved configuration. Functions are removed from the objects before sending them to the worker.
 
-Functions defined in the config will never reach the worker. The string results of the Page, props, Root and Html functions are send with each RSC_RENDER message and are called in the main thread. Vite's resolved config is as the third argument for processCss.
+Functions defined in the config will never reach the worker. The string results of the Page, props, Root and Html functions are sent with each RSC_RENDER message and are called in the main thread. Vite's resolved config is as the third argument for processCss.
 
 ```typescript
 // css-loader.tsx
@@ -281,7 +281,7 @@ It requires NodeJS version 23.7.0 or higher.
 ## Server plugin
 
 When running the server plugin in dev mode, it will pipe the react stream directly to the response. This will use
-vite's `ssrLoadModule` to load modules and therefor support anything that vite supports. Hot-reloading
+vite's `ssrLoadModule` to load modules and therefore support anything that vite supports. Hot-reloading
 is supported for defined route files, hot module replacement is only supported for client-side modules.
 
 ```sh

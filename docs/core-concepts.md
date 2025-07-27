@@ -48,11 +48,11 @@ Headless means that it will only include the `Root` component.
 
 During development, it streams headless mode for `text/x-component` requests. Alternatively, you can use the `.rsc` extension for the request.
 
-During a build, the headless streams are written to the a file at `${route}/index.rsc`.
+During a build, the headless streams are written to a file at `${route}/index.rsc`.
 
 #### Full RSC streams
 
-Full means they include the document html structure. `Html` and `Root` component. This full RSC document is send to the `html-worker` during a build. The worker transforms it to html and streams the result back. The plugin will then write the results to `${route}/index.html`.
+Full means they include the document html structure. `Html` and `Root` component. This full RSC document is sent to the `html-worker` during a build. The worker transforms it to html and streams the result back. The plugin will then write the results to `${route}/index.html`.
 
 ```typescript
 // RSC worker generates stream
@@ -290,7 +290,7 @@ import { Css } from "vite-plugin-react-server/components";
 import type { RootProps } from "vite-plugin-react-server/types";
 import { mainTheme, themes } from "./config/themeConfig.js";
 
-const removeableCSS = [
+const removableCSS = [
   "/src/css/4ymm.module.css",
   "/src/css/5-6ymm.module.css",
   "/src/css/7mmc.module.css",
@@ -300,9 +300,9 @@ const removeableCSS = [
 
 const createFilter = (theme: Theme) => {
   if (theme === "5ymm" || theme === "6ymm") {
-    return [theme, removeableCSS.filter((css) => css.includes("5-6ymm"))];
+    return [theme, removableCSS.filter((css) => css.includes("5-6ymm"))];
   }
-  return [theme, removeableCSS.filter((css) => css.includes(theme))];
+  return [theme, removableCSS.filter((css) => css.includes(theme))];
 };
 
 const filters = Object.fromEntries(themes.map(createFilter)) as {
@@ -324,7 +324,7 @@ export const MmcRoot = ({
     cssArray
       .filter(
         (file) =>
-          !removeableCSS.includes(file.id) || filters[theme].includes(file.id)
+          !removableCSS.includes(file.id) || filters[theme].includes(file.id)
       )
       .map((file) => [file.id, file])
   );

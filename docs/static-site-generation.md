@@ -11,7 +11,7 @@ Static site generation with this plugin:
 4. Fully customize production html using the react `Html` component
 5. Fully customize production css using the react `Root` component
 
-Direct references to React components (like `components.Html` and `componnents.Root`) are only used in `react-server` mode.
+Direct references to React components (like `components.Html` and `components.Root`) are only used in `react-server` mode.
 
 ### Output Structure
 
