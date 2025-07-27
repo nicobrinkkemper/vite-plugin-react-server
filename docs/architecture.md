@@ -322,11 +322,6 @@ The plugins are executed in a specific order to ensure proper transformation and
    - Page Renderer: Exports headless & full html pages, emits events
    - Stream Handler: Manages RSC to HTML stream conversion
 
-5. **Preserver Plugin**
-   - Preserves "use client" and "use server" directives in build output
-   - Handles file preservation for client/server boundaries
-   - Ensures directives are available for the transformer
-
 This modular approach allows for easy maintenance and potential future improvements without affecting the entire system. Each plugin and sub-plugin
 can be replaced or modified independently, making it easier to adapt to new requirements or fix issues without touching the entire codebase.
 

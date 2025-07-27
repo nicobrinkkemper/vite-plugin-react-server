@@ -289,8 +289,7 @@ vite build
 NODE_OPTIONS='--conditions react-server' npx vite build
 ```
 
-Above should now output specific static html for each page in the dist/client directory. This client can, given the right entrypoint,
-work as a static site.
+Above should now output specific static html for each page at `dist/static/${route}`.
 
 ```sh
 dist/static/index.html
@@ -299,7 +298,7 @@ dist/static/about/index.html
 dist/static/about/index.rsc
 ```
 
-For an example of this, see the demo.
+This client can - given the right entrypoint - work as a static site. For an example of this, see the demo.
 
 <!-- TOC START -->
 

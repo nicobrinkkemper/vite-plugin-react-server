@@ -52,7 +52,7 @@ During a build, the headless streams are written to the a file at `${route}/inde
 
 #### Full RSC streams
 
-Full means they include the document html structure. `Html` and `Root` component. This stream is intended to be written to a file during the `build` process.   
+Full means they include the document html structure. `Html` and `Root` component. This full RSC document is send to the `html-worker` during a build. The worker transforms it to html and streams the result back. The plugin will then write the results to `${route}/index.html`.
 
 ```typescript
 // RSC worker generates stream
