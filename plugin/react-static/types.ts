@@ -7,7 +7,6 @@ import type {
   ReactStreamHandlerFn,
   RenderPageResult,
   RenderPagesResult,
-  ResolvedUserConfig,
   ResolvedUserOptions,
   StreamMetrics,
 } from "../types.js";
@@ -16,7 +15,7 @@ import type { OutputBundle } from "rollup";
 
 export type FileWriterOptions = Pick<
   CreateHandlerOptions,
-  "onEvent" | "route" | "build" | "verbose" | "logger"
+  "onEvent" | "route" | "build" | "verbose" | "logger" | "panicThreshold"
 >;
 
 export type FileWriterFn = (
@@ -28,10 +27,8 @@ export type FileWriterFn = (
 
 export type CreateBuildLoaderFn = (
   props: {
-    userConfig: ResolvedUserConfig;
     userOptions: ResolvedUserOptions;
     serverManifest: Manifest;
-    clientManifest: Manifest;
     staticManifest: Manifest;
   },
   bundle: OutputBundle,

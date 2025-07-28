@@ -1,4 +1,4 @@
-import { getNodeEnv } from "../../getNodeEnv.js";
+import { getNodeEnv } from "../../config/getNodeEnv.js";
 
 const envName = getNodeEnv() === "production" ? "production" : "development";
 

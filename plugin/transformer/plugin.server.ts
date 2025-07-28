@@ -1,12 +1,11 @@
 import { resolveOptions } from "../config/resolveOptions.js";
 import type { Manifest } from "vite";
 import { tryManifest } from "../helpers/tryManifest.js";
-import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
+import { getNodeEnv, isValidEnv } from "../config/getNodeEnv.js";
 import { createTransformer } from "../loader/createTransformer.js";
 import type { VitePluginFn } from "../types.js";
 import type { Program } from "acorn";
 import { join } from "node:path";
-
 
 /**
  * Plugin for transforming React Client Components.
@@ -42,7 +41,7 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
   let staticManifest: Manifest = {};
   let isBuild = true;
   let isSSR = true;
-  const nodeEnv = getNodeEnv();
+  const nodeEnv = getNodeEnv(process.env.NODE_ENV);
   let mode = nodeEnv;
 
   return {

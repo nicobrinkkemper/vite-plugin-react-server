@@ -57,7 +57,7 @@ describe("Plugin build test", () => {
 
   afterAll(async () => {
     try {
-      await rm(testDir, { recursive: true, force: true });
+    //  await rm(testDir, { recursive: true, force: true });
     } catch {}
   });
 
@@ -176,6 +176,7 @@ describe("Plugin build test", () => {
         build: {
           pages: ["/"],
         },
+        panicThreshold: "all_errors",
         onEvent: (event) => {
           console.log(
             "onEvent",
@@ -256,7 +257,9 @@ describe("Plugin build test", () => {
           projectRoot: testDir,
           build: {
             pages: ["/"],
-          },
+          },  
+          verbose: true,
+          panicThreshold: "all_errors",
           onEvent: (event) => {
             if (event.type === testEvent) {
               throw new Error(errString);

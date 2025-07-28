@@ -58,6 +58,16 @@ export type HtmlCompleteMessage = {
   metrics?: StreamMetrics;
 }
 
+export type LogErrorMessage = {
+  type: "LOG_ERROR";
+  id: string;
+  message: string;
+  error: {
+    name: string;
+    message: string;
+    stack: string;
+  };
+}
 
 export type HtmlWorkerInputMessage =
   | RouteReadyMessage
@@ -87,6 +97,7 @@ export type HtmlWorkerOutputMessage =
   | ServerActionResponseMessage
   | CleanupCompleteMessage
   | InitializedCssLoaderMessage
+  | LogErrorMessage
 
   
 

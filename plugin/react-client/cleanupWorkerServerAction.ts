@@ -1,11 +1,12 @@
 import type { Logger } from "vite";
-import type { Worker } from "node:worker_threads";
-import { logError } from "../error/logError.js";
+import { workerData, type Worker } from "node:worker_threads";
 import type { MessageHandler } from "../types.js";
 import type { ServerResponse } from "node:http";
 import type { RscChunkOutputMessage } from "../worker/rsc/types.js";
 import type { PassThrough } from "node:stream";
 import type { CleanupWorkerServerActionFn } from "./types.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
+import { handleError } from "../error/handleError.js";
 
 /**
  * Handles cleanup of worker server action resources
@@ -26,8 +27,18 @@ export const cleanupWorkerServerAction: CleanupWorkerServerActionFn =
     passThrough.end();
 
     // Log error if provided
-    if (error && logger) {
-      logError(error, logger);
+    if (error) {
+      const panicError = handleError({
+        error,
+        logger,
+        mode: getNodeEnv(workerData?.resolvedConfig?.mode),
+        panicThreshold: workerData?.userOptions?.panicThreshold,
+        critical: false,
+        context: "cleanupWorkerServerAction",
+      });
+      if (panicError != null) {
+        throw panicError;
+      }
     }
 
     // End the response

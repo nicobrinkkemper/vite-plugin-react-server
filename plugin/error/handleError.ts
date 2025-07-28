@@ -1,6 +1,6 @@
 import { createLogger } from "vite";
 import { toError } from "./toError.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 import { logError } from "./logError.js";
 import { PANIC_SYMBOL } from "./shouldPanic.js";
 import type { HandleErrorFn } from "./types.js";
@@ -32,9 +32,11 @@ export const handleError: HandleErrorFn = function _handleError(
     context = "unknown", // Add context parameter
   } = options;
 
-  if (errorInfo != null && errorInfo.componentStack != null) {
+  if (errorInfo != null && errorInfo.componentStack != null && errorInfo.digest != null) {
+    const err = new Error(errorInfo.digest ?? "Unknown error");
+    err.stack = errorInfo.componentStack;
     // always log errorInfo and then ignore it for the rest of the function
-    logError(errorInfo.componentStack, logger, mode);
+    logError(err, logger, mode);
   }
   const err = toError(error, errorInfo);
 
@@ -47,7 +49,8 @@ export const handleError: HandleErrorFn = function _handleError(
       // Always throw an error instead of exiting the process
       throw new Error("Max error repeat reached in " + context);
     }
-    return null;
+    logger.warn(`(${prevErrorRepeat}) ${context} re-throwing error: \"${errorKey}\"`);
+    return error as Error;
   } else {
     prevErrorRepeat = 0;
   }

@@ -211,7 +211,9 @@ export type NumberKeys =
   | "rscTimeout"
   | "htmlTimeout"
   | "htmlWorkerStartupTimeout"
-  | "rscWorkerStartupTimeout";
+  | "rscWorkerStartupTimeout"
+  | "fileWriteTimeout"
+  | "workerShutdownTimeout";
 
 export type BooleanKeys = "verbose";
 
@@ -337,6 +339,8 @@ export type ResolvedUserOptions = {
   htmlTimeout: number;
   htmlWorkerStartupTimeout: number;
   rscWorkerStartupTimeout: number;
+  fileWriteTimeout: number;
+  workerShutdownTimeout: number;
   panicThreshold: "none" | "critical_errors" | "all_errors";
 
   // Optional properties
@@ -777,6 +781,8 @@ export interface StreamPluginOptions<
   htmlTimeout?: number; // Timeout in milliseconds for HTML generation operations
   htmlWorkerStartupTimeout?: number; // Timeout in milliseconds for HTML worker startup
   rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
+  fileWriteTimeout?: number; // Timeout in milliseconds for file write operations
+  workerShutdownTimeout?: number; // Timeout in milliseconds for worker shutdown operations
   panicThreshold?: "none" | "critical_errors" | "all_errors";
 }
 
@@ -824,6 +830,8 @@ export type CreateHandlerOptions<
   | "projectRoot"
   | "rscTimeout"
   | "htmlTimeout"
+  | "fileWriteTimeout"
+  | "workerShutdownTimeout"
 > & {
   signal?: AbortSignal;
   logger: Logger;

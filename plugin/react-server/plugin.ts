@@ -19,8 +19,8 @@ import { configureReactServer } from "./configureReactServer.js";
 import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
-import { logError } from "../error/logError.js";
 import { handleError } from "../error/handleError.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 
 export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
   options
@@ -204,7 +204,17 @@ export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
           }
         }
       } catch (error) {
-        logError(error, logger || createLogger());
+        const panicError = handleError({
+          error,
+          logger: logger || createLogger(),
+          mode: getNodeEnv(),
+          panicThreshold: userOptions.panicThreshold,
+          critical: false,
+          context: "handleHotUpdate",
+        });
+        if (panicError != null) {
+          throw panicError;
+        }
       }
       return ctx.modules;
     },

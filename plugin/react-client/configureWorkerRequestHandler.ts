@@ -12,6 +12,8 @@ import type { ReadableStream } from "node:stream/web";
 import { handleWorkerServerAction } from "./handleWorkerServerAction.js";
 import { logError } from "../error/logError.js";
 import type { ConfigureWorkerRequestHandlerFn } from "./types.js";
+import { handleError } from "../error/handleError.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 
 /**
  * Configures the worker request handler.
@@ -214,7 +216,17 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
           });
 
           readable.on('error', (error) => {
-            logError(error, logger);
+            const panicError = handleError({
+              error,
+              logger,
+              mode: getNodeEnv(server.config.mode),
+              panicThreshold: handlerOptions.panicThreshold,
+              critical: false,
+              context: "configureWorkerRequestHandler",
+            });
+            if (panicError != null) {
+              throw panicError;
+            }
             if (handlerOptions.verbose) {
               logger.info(`[react-client] Stream error caught, headersSent: ${headersSent}, setting status to 500`);
             }
@@ -230,7 +242,17 @@ export const configureWorkerRequestHandler: ConfigureWorkerRequestHandlerFn =
         }
         // wait for timeout
       } catch (error) {
-        logError(error, logger);
+        const panicError = handleError({
+          error,
+          logger,
+          mode: getNodeEnv(server.config.mode),
+          panicThreshold: handlerOptions.panicThreshold,
+          critical: false,
+          context: "configureWorkerRequestHandler",
+        });
+        if (panicError != null) {
+          throw panicError;
+        }
         if (!res.headersSent) {
           res.statusCode = 500;
           res.setHeader("Content-Type", "text/x-component; charset=utf-8");

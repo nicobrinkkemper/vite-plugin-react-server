@@ -3,7 +3,7 @@ import { createSourceMap } from "./sourceMap.js";
 import type { LoaderConfig, TransformResult } from "./types.js";
 import { removeDirectives } from "./removeDirectives.js";
 import * as acorn from "acorn";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import type {
   ArrowFunctionExpression,

@@ -3,8 +3,9 @@ import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import React from "react";
-import { logError } from "../error/logError.js";
 import type { RestartWorkerFn } from "./types.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
+import { handleError } from "../error/handleError.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
@@ -67,8 +68,17 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
           `[react-client] Set max listeners to ${maxListeners} for ${routeCount} routes`
         );
     } else if (workerResult.type === "error") {
-      logError(workerResult.error, server.config.customLogger || server.config.logger);
-      throw workerResult.error;
+      const panicError = handleError({
+        error: workerResult.error,
+        logger: server.config.customLogger || server.config.logger,
+        mode: getNodeEnv(server.config.mode),
+        panicThreshold: userOptions.panicThreshold,
+        critical: false,
+        context: "restartWorker",
+      });
+      if (panicError != null) {
+        throw panicError;
+      }
     }
   } finally {
     isRestarting = false;

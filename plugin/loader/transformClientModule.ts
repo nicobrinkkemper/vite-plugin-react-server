@@ -1,7 +1,7 @@
 import type { ParseResult } from "./directives/types.js";
 import { createSourceMap } from "./sourceMap.js";
 import type { LoaderConfig, TransformResult } from "./types.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { createLogger } from "vite";
 

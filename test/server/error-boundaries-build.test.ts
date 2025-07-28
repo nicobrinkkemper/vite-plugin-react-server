@@ -9,7 +9,7 @@ import { vitePluginReactClient } from "vite-plugin-react-server/client";
 
 import { build } from "vite";
 import * as handleErrorModule from "../../dist/plugin/error/handleError.js";
-import { isMainThread } from "node:worker_threads";
+
 describe("RSC Build Error Handling", () => {
   let testDir: string = resolve(
     __dirname,
@@ -54,6 +54,7 @@ describe("RSC Build Error Handling", () => {
   test('should build successfully with panicThreshold: "none" when page has server errors', async () => {
     const events = await doBuild({
       projectRoot: testDir,
+      verbose: true,
       panicThreshold: "none",
       build: {
         pages: ["/", "/server-error-example"],
@@ -107,9 +108,6 @@ describe("RSC Build Error Handling", () => {
       panicThreshold: "all_errors" as const,
       build: {
         pages: ["/", "/server-error-example"],
-      },
-      onEvent: (event) => {
-        console.log("onEvent", event);
       },
       ...options,
     };

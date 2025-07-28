@@ -27,7 +27,6 @@ import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { createBuildLoader } from "./createBuildLoader.js";
 import type {
   BuildTiming,
-  ResolvedUserConfig,
   PluginEvent,
   RenderPagesResult,
   AutoDiscoveredFiles,
@@ -50,12 +49,12 @@ import { baseURL } from "../utils/envUrls.node.js";
 import { readFile } from "node:fs/promises";
 import { handleError } from "../error/handleError.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
+import { PANIC_SYMBOL } from "../error/shouldPanic.js";
 
 export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
   options
 ) {
   let worker: Worker;
-  let userConfig: ResolvedUserConfig;
   let logger: Logger;
   let resolvedConfig: ResolvedConfig;
   let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
@@ -116,7 +115,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         throw resolvedConfig.error;
       }
 
-      userConfig = resolvedConfig.userConfig;
       timing.configResolved = Date.now();
     },
     configResolved(config) {
@@ -144,11 +142,12 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             error,
             logger: logger,
             panicThreshold: userOptions.panicThreshold,
+            context: "buildStart",
           });
           if (panicError != null) {
-            this.error(panicError);
+           throw panicError;
           } else {
-            this.error(error as any);
+            this.warn(error as any);
           }
         }
       }
@@ -173,16 +172,12 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             },
           });
         } catch (error) {
-          const panicError = handleError({
+          throw handleError({
             error,
             logger: logger,
             panicThreshold: userOptions.panicThreshold,
-          });
-          if (panicError != null) {
-            this.error(panicError);
-          } else {
-            this.error(error as any);
-          }
+            context: "writeBundle",
+          }) ?? error;
         }
       }
       try {
@@ -211,11 +206,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
         const buildLoader = createBuildLoader(
           {
-            userConfig,
             userOptions: userOptions,
             serverManifest: serverManifest ?? {},
-            staticManifest: autoDiscoveredFiles?.staticManifest ?? {},
-            clientManifest: {},
+            staticManifest: autoDiscoveredFiles?.staticManifest ?? {}
           },
           bundle,
           logger
@@ -298,7 +291,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
           // Add page-specific styles
           for (const [key, value] of Object.entries(cssInputs)) {
-            try {
               const cssContent = await buildLoader(`${value}?inline`).then(
                 (r) => String(r.default)
               );
@@ -319,20 +311,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
                   })
                 );
               }
-            } catch (error) {
-              const panicError = handleError({
-                error,
-                logger: logger,
-                panicThreshold: userOptions.panicThreshold,
-              });
-              if (panicError != null) {
-                this.error(panicError);
-                return;
-              }
-              continue;
             }
-          }
-          cssFilesByPage.set(url, pageCssMap);
+            cssFilesByPage.set(url, pageCssMap);
         }
 
         const staticManifest = autoDiscoveredFiles?.staticManifest ?? {};
@@ -391,20 +371,24 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         const fileWritePromises: Promise<void>[] = [];
         let onEventError: Error | null = null;
 
+        // Create abort controller for immediate cancellation
+        const abortController = new AbortController();
+        
         // this will render the routes
         const renderPagesGenerator = renderPages(routes)({
           ...handlerOptions,
           loader: buildLoader,
           worker: worker,
           logger: createLogger(),
+          signal: abortController.signal,
           onEvent: async (event: PluginEvent) => {
             try {
               if (onEvent) {
                 onEvent(event);
               }
 
-              // Track file write promises to ensure they complete
-              if (event.type === "file.write") {
+              // Only track file write promises if no error has occurred yet
+              if (onEventError == null && event.type === "file.write") {
                 const fileWritePromise = event.data.onComplete();
                 if (
                   fileWritePromise &&
@@ -414,8 +398,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
                 }
               }
             } catch (error) {
-              // Store the error to be thrown after all file operations complete
+              // Store the error and abort the build immediately
               onEventError = error as Error;
+              abortController.abort(error as Error);
               if (userOptions.verbose) {
                 logger.error(
                   `[react-static] Error in onEvent callback: ${error}`
@@ -433,11 +418,29 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         // Process render results
         let finalResult: RenderPagesResult | undefined;
         for await (const result of renderPagesGenerator) {
-          if (userOptions.panicThreshold === "all_errors" && result.type === "error") {
-            throw result.failedRoutes.values().next().value;
-          } else if (result.type === "success") {
-            finalResult = result;
+          // Check for abort signal
+          if (abortController.signal.aborted) {
+            throw abortController.signal.reason || new Error("Build aborted");
           }
+          
+          if (userOptions.panicThreshold === "all_errors") {
+            // For "all_errors", check both error type results and success results with failed routes
+            if (result.type === "error" || (result.type === "success" && result.failedRoutes && result.failedRoutes.size > 0)) {
+              // Get the first error from failed routes
+              const failedRoutes = result.type === "error" ? result.failedRoutes : result.failedRoutes!;
+              const firstError = failedRoutes.values().next().value;
+              throw firstError;
+            }
+          }
+          // For "none" and "critical_errors" panic thresholds, continue processing
+          // and use the last result (whether success or error)
+          finalResult = result;
+        }
+
+        // Check for errors thrown in onEvent callbacks first
+        if (onEventError != null) {
+          // Re-throw the error to ensure Vite catches it properly
+          throw onEventError;
         }
 
         if (!finalResult) {
@@ -447,67 +450,124 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           performance.now() - finalResult.streamMetrics.startTime
         );
 
-        logger.info(
+        this.info(
           `Rendered ${finalResult.completedRoutes.size} unique routes in ${finalResult.streamMetrics.duration}ms`
         );
 
         // Log failed routes if any
         if (finalResult.failedRoutes && finalResult.failedRoutes.size > 0) {
           for (const [route, error] of finalResult.failedRoutes) {
-            this.error(
+            this.warn(
               new Error("Failed to render route: " + route, { cause: error })
             );
           }
         }
 
-
-        // Wait for all file write promises to complete before checking for onEvent errors
+        // Wait for all file write promises to complete, but check for abort signal
         if (fileWritePromises.length > 0) {
-          await Promise.all(fileWritePromises);
-        }
-
-        // Check for errors thrown in onEvent callbacks
-        if (onEventError) {
-          if (userOptions.verbose) {
-            logger.error(
-              `[react-static] Error from onEvent callback: ${
-                (onEventError as Error).message
-              }`
-            );
+          try {
+            await Promise.race([
+              Promise.all(fileWritePromises),
+              new Promise((_, reject) => {
+                if (abortController.signal.aborted) {
+                  reject(abortController.signal.reason || new Error("Build aborted"));
+                }
+                abortController.signal.addEventListener('abort', () => {
+                  reject(abortController.signal.reason || new Error("Build aborted"));
+                });
+              }),
+              // Add timeout for file writes to prevent hanging
+              new Promise((_, reject) => {
+                const fileWriteTimeout = setTimeout(() => {
+                  reject(new Error("File write timeout"));
+                }, userOptions.fileWriteTimeout);
+                
+                // Clear timeout if file writes complete successfully
+                Promise.all(fileWritePromises).then(() => {
+                  clearTimeout(fileWriteTimeout);
+                }).catch(() => {
+                  clearTimeout(fileWriteTimeout);
+                });
+              })
+            ]);
+          } catch (error) {
+            // If file writes fail or timeout, log but don't hang
+            this.warn(`File write error: ${error instanceof Error ? error.message : String(error)}`);
           }
-          throw onEventError;
         }
 
         if (process.env["NODE_ENV"] !== "production") {
-          logger.warn(
-            `THIS IS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env["NODE_ENV"]})`
+          this.warn(
+            `THIS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env["NODE_ENV"]})`
           );
         }
 
         // Update timing
         timing.render = Date.now() - (timing.renderStart ?? timing.start);
       } catch (error) {
+        // If this is a panic error that was already thrown from renderPages, 
+        // don't process it again - just re-throw it
+        if (error instanceof Error && (error as any)[PANIC_SYMBOL]) {
+          throw error;
+        }
+        
         const panicError = handleError({
           error,
           logger: logger,
           panicThreshold: userOptions.panicThreshold,
           context: "writeBundle",
         });
-        // terminate worker
-        if (worker) {
-          worker.terminate();
-        }
         if (panicError != null) {
           this.error(panicError);
         } else {
-          this.error(error as any);
+          this.warn(error as any);
         }
+        // Let the finally block handle the shutdown
       } finally {
-        // terminate worker
+        // Graceful worker shutdown
         if (worker) {
-          worker.terminate();
+          try {
+            await Promise.race([
+              new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                  reject(new Error("Worker shutdown timeout"));
+                }, userOptions.workerShutdownTimeout);
+                
+                const backupTimeout = setTimeout(() => {
+                  reject(new Error("Worker shutdown backup timeout"));
+                }, Math.floor(userOptions.workerShutdownTimeout * 0.6)); // 60% of main timeout
+                
+                const messageHandler = (message: any) => {
+                  if (message.type === "SHUTDOWN_COMPLETE") {
+                    clearTimeout(timeout);
+                    clearTimeout(backupTimeout);
+                    worker.removeListener("message", messageHandler);
+                    // Remove all other event listeners as well
+                    worker.removeAllListeners();
+                    resolve();
+                  }
+                };
+                
+                worker.on("message", messageHandler);
+                
+                // Send shutdown message
+                worker.postMessage({
+                  type: "SHUTDOWN",
+                  id: "*",
+                });
+              })
+            ]);
+          } catch (error) {
+            // If shutdown protocol fails, force terminate
+            this.warn("Worker shutdown protocol failed, forcing termination: " + (error instanceof Error ? error.message : String(error)));
+            
+          } finally {
+            worker.removeAllListeners();
+            worker.terminate();
+          }
         }
       }
+      this.info("Done");
     },
   } as const;
 };

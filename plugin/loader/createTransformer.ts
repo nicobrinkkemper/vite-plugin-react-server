@@ -5,7 +5,7 @@ import { findDirectiveMatches } from "./directives/findDirectiveMatches.js";
 import type { DirectiveMatch } from "./directives/types.js";
 import type { TransformerFactory, TransformResult } from "./types.js";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 import { createLogger } from "vite";
 import pkg from "picocolors";
 const { red, underline } = pkg;

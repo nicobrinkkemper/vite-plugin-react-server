@@ -1,6 +1,6 @@
 import { createWorkerStream } from "./createWorkerStream.js";
 import type { HandleWorkerRscStreamFn } from "./types.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
 
 /**
@@ -59,6 +59,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
                     mode: getNodeEnv(),
                     panicThreshold: panicThreshold,
                     critical: false, // React component errors are not critical infrastructure errors
+                    context: "handleWorkerRscStream",
                   });
                   
                   // If handleError returns an error due to panicThreshold, close the stream immediately
@@ -117,6 +118,7 @@ export const handleWorkerRscStream: HandleWorkerRscStreamFn =
               logger: logger,
               mode: getNodeEnv(),
               panicThreshold: panicThreshold,
+              context: "handleWorkerRscStream",
             });
             
             // If handleError returns an error due to panicThreshold, close the stream immediately

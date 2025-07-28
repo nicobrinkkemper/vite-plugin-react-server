@@ -75,6 +75,16 @@ export async function messageHandler(
           activeStreams.delete(msg.id);
         }
         handlers.onShutdown(msg.id);
+        // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
+        if (port) {
+          sendMessage(
+            {
+              type: "SHUTDOWN_COMPLETE",
+              id: msg.id,
+            },
+            port
+          );
+        }
         return;
       }
       default: {
@@ -98,6 +108,14 @@ export async function messageHandler(
             type: "ERROR",
             id: "rsc-worker",
             error: panicError,
+          },
+          port
+        );
+        // Send SHUTDOWN_COMPLETE even on error to prevent hanging
+        sendMessage(
+          {
+            type: "SHUTDOWN_COMPLETE",
+            id: "*",
           },
           port
         );

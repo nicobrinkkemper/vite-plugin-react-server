@@ -5,9 +5,8 @@ import type { StreamMetrics } from "../types.js";
 import type { StreamHandlers } from "../worker/types.js";
 import { createMessageHandler } from "./createMessageHandlers.js";
 import type { CreateWorkerStreamFn } from "./types.js";
-import { logError } from "../error/logError.js";
 import { handleError } from "../error/handleError.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 
 /**
  * Creates an async generator that yields RSC chunks from the worker.
@@ -46,6 +45,19 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
   // let isStreamClosed = false;
   const handlers: StreamHandlers = {
     onError: (id, error, errorInfo) => {
+      const panicError = handleError({
+        error: error,
+        logger: logger,
+        mode: getNodeEnv(),
+        panicThreshold: panicThreshold,
+        critical: false, // React component errors are not critical infrastructure errors
+        context: "createWorkerStream",
+      });
+      
+      // If handleError returns an error due to panicThreshold, throw it to stop the generator
+      if (panicError) {
+        throw panicError;
+      }
       // isStreamClosed = true;
       // Handle panic threshold logic here
       // For other panic thresholds, just call the onError handler
@@ -54,24 +66,6 @@ export const createWorkerStream: CreateWorkerStreamFn = async function* _createW
       }
       if (verbose) {
         logger.info(`[react-client] Panic threshold '${panicThreshold}' triggered in createWorkerStream. ${panicThreshold === "all_errors" ? "Throwing error" : "Logging error"}`);
-      }
-      if(errorInfo) {
-        logError(errorInfo, logger); // This will cause the generator to fail
-      }
-      const panicError = handleError({
-        error: error,
-        logger: logger,
-        mode: getNodeEnv(),
-        panicThreshold: panicThreshold,
-        critical: false, // React component errors are not critical infrastructure errors
-      });
-      
-      // If handleError returns an error due to panicThreshold, throw it to stop the generator
-      if (panicError) {
-        if('terminate' in worker && typeof worker.terminate === 'function') {
-          worker.terminate(); // Ensure worker is cleaned up
-        }
-        throw panicError;
       }
     },
     onData: (id: string, chunk: Uint8Array) => {

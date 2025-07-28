@@ -11,7 +11,7 @@ export interface HandleErrorOptions {
   mode?: "development" | "production" | "test";
   panicThreshold?: "none" | "critical_errors" | "all_errors";
   critical?: boolean;
-  context?: string; // Add context parameter for better DX
+  context: string; // Add context parameter for better DX
 }
 
 export type HandleErrorFn = (options: HandleErrorOptions) => Error | null;

@@ -1,6 +1,6 @@
 import type { ResolvedUserOptions } from "../types.js";
 import { replaceExtension } from "./extMap.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "./getNodeEnv.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { ConfigEnv } from "vite";
 import { sep } from "node:path";

@@ -14,7 +14,8 @@ import { createWriteStream, unlink } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { Transform } from "node:stream";
 import type { FileWriterFn } from "./types.js";
-import { logError } from "../error/logError.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
+import { handleError } from "../error/handleError.js";
 
 
 /**
@@ -55,7 +56,17 @@ export const fileWriter: FileWriterFn = async function _fileWriter(
       { recursive: true }
     );
   } catch (error) {
-    logError(error, options.logger);
+    const panicError = handleError({
+      error,
+      logger: options.logger,
+      mode: getNodeEnv(),
+      panicThreshold: options.panicThreshold,
+      critical: false,
+      context: "fileWriter",
+    });
+    if (panicError != null) {
+      throw panicError;
+    }
   }
 
   // Create write stream

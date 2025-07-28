@@ -20,7 +20,6 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
   {
     userOptions,
     serverManifest,
-    clientManifest,
     staticManifest,
   },
   bundle,
@@ -61,7 +60,6 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
         const serverChunk =
           bundle[serverManifest[normalizedValue]?.file] ??
           bundle[staticManifest[normalizedValue]?.file] ??
-          bundle[clientManifest[normalizedValue]?.file] ??
           bundle[withoutQuery] ??
           bundle[normalizedValue] ??
           Object.entries(bundle).find(
@@ -104,42 +102,7 @@ export const createBuildLoader: CreateBuildLoaderFn = function _createBuildLoade
         return null;
       }
 
-      // Determine if this is a client component
-      const isClientComponent =
-        userOptions.autoDiscover.clientPattern.test(normalizedValue);
 
-      // For client components, use client manifest
-      if (isClientComponent) {
-        const clientEntry = clientManifest[normalizedValue];
-        if (userOptions.verbose) {
-          logger.info(`[buildLoader] clientEntry: ${JSON.stringify(clientEntry)}`);
-        }
-        if (clientEntry) {
-          try {
-            const module = await import(
-              join(
-                userOptions.projectRoot,
-                userOptions.build.outDir,
-                userOptions.build.client,
-                clientEntry.file
-              )
-            );
-            temporaryReferences?.set(moduleRef, module);
-            return module;
-          } catch (error) {
-            const panicError = handleError({
-              error: error,
-              logger,
-              panicThreshold: userOptions.panicThreshold,
-              context: "Build Loader Error (client)",
-            });
-            temporaryReferences?.delete(moduleRef);
-            if (panicError!= null) {
-              throw panicError;
-            }
-          }
-        }
-      }
 
       // For static assets, use static manifest
       const staticEntry = staticManifest[normalizedValue];

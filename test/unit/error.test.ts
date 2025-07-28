@@ -127,7 +127,7 @@ describe("Error Handling", () => {
       const mockLogger = createMockLogger();
       const error = { message: "Test error" };
 
-      logError(error, mockLogger);
+      logError(toError(error), mockLogger);
 
       // The error object will be converted to an Error instance by toError()
       // and since toError() creates a new Error instance, it will have a stack

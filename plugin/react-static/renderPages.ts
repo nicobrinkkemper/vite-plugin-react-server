@@ -42,6 +42,10 @@ export const renderPages: RenderPagesFn = (routes) => {
     return (async function* _renderPages() {
       // First pass: render all routes normally
       for (const route of routes) {
+        // Check for abort signal
+        if (options.signal?.aborted) {
+          throw options.signal.reason || new Error("Build aborted");
+        }
         const { page, props, root, html } =
           autoDiscoveredFiles.urlMap.get(route) || {};
         if (!page) continue;

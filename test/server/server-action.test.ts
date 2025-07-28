@@ -24,6 +24,7 @@ describe("Generic Server Action Build Output", () => {
       events = await doBuild({
         ...testUserOptions,
         projectRoot: testDir,
+        moduleBasePath: '/',
         Page: "src/page/page.tsx",
         build: {
           pages: ["/"],

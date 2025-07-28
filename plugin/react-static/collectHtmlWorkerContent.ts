@@ -16,6 +16,8 @@ import { fileWriter } from "./fileWriter.js";
 import type { HtmlWorkerOutputMessage } from "../worker/html/types.js";
 import type { CleanupMessage } from "../worker/types.js";
 import type { CollectHtmlWorkerContentFn } from "./types.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
+import { handleError } from "../error/handleError.js";
 
 /**
  * Collects RSC content from the rscFull stream
@@ -31,7 +33,10 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
     if (!worker) throw new Error("Worker is not a valid worker");
     const metrics = createStreamMetrics();
     const startTime = performance.now();
-    let abortController = new AbortController();
+    // Use the signal from handlerOptions if provided, otherwise create a new one
+    let abortController = handlerOptions.signal
+      ? { signal: handlerOptions.signal, abort: () => {} } // Dummy abort for external signal
+      : new AbortController();
     const rscToHtmlStream = createRscToHtmlStream({
       ...handlerOptions,
       signal: abortController.signal,
@@ -57,7 +62,6 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
       },
     });
 
-
     let writePromise: Promise<void> | undefined;
     let finished = false;
     let backpressureCount = 0; // Track backpressure occurrences
@@ -66,7 +70,7 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
     let routeComplete: Promise<void>;
     let errorTimeout: NodeJS.Timeout | null = null;
     let generalTimeout: NodeJS.Timeout | null = null;
-    
+
     routeComplete = new Promise<void>((resolve, reject) => {
       // Add a general timeout to prevent hanging indefinitely
       generalTimeout = setTimeout(() => {
@@ -76,19 +80,21 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
               `[collectHtmlWorkerContent:${handlerOptions.route}] General timeout reached, rejecting`
             );
           }
-          reject(new Error(`Route processing timeout for ${handlerOptions.route}`));
+          reject(
+            new Error(`Route processing timeout for ${handlerOptions.route}`)
+          );
         }
       }, handlerOptions.htmlTimeout); // Use configurable timeout
       let hasError = false;
-      
+
       // Listen for abort signal
-      abortController.signal.addEventListener('abort', () => {
+      abortController.signal.addEventListener("abort", () => {
         if (handlerOptions.verbose) {
           handlerOptions.logger.info(
             `[collectHtmlWorkerContent:${handlerOptions.route}] Abort signal received, canceling build`
           );
         }
-        
+
         // Clear any pending timeouts
         if (errorTimeout) {
           clearTimeout(errorTimeout);
@@ -98,16 +104,29 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           clearTimeout(generalTimeout);
           generalTimeout = null;
         }
-        
+
+        // Abort the RSC stream if possible
+        if (rscController && typeof rscController.abort === "function") {
+          rscController.abort(new Error("Build aborted"));
+        }
+
         reject(new Error(abortController.signal.reason || "Build aborted"));
       });
-      
+
       const messageHandler = (msg: HtmlWorkerOutputMessage) => {
         if (!worker) return reject(new Error("Worker is not a valid worker"));
-        
+
+        if (msg.type === "LOG_ERROR") {
+          handlerOptions.logger.error(msg.message, { error: msg.error });
+          return;
+        }
         // CRITICAL: Only process messages for this specific route
         // This prevents race conditions when multiple routes are processed simultaneously
-        if (msg.id !== handlerOptions.route) {
+        // However, allow SHUTDOWN_COMPLETE messages with id "*" as they apply to all routes
+        if (
+          msg.id !== handlerOptions.route &&
+          !(msg.type === "SHUTDOWN_COMPLETE" && msg.id === "*")
+        ) {
           if (handlerOptions.verbose) {
             handlerOptions.logger.info(
               `[collectHtmlWorkerContent:${handlerOptions.route}] Ignoring message for route ${msg.id}: ${msg.type}`
@@ -115,13 +134,20 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           }
           return;
         }
-        
+
         if (handlerOptions.verbose)
           handlerOptions.logger.info(
             `[collectHtmlWorkerContent:${handlerOptions.route}] Message received: ${msg.type}`
           );
 
+        if (msg.type === "SHUTDOWN_COMPLETE") {
+          // Worker is shutting down, complete this route even after error
+          cleanup();
+          resolve();
+          return;
+        }
         // If we've already encountered an error, ignore subsequent messages
+        // However, allow SHUTDOWN_COMPLETE messages to complete the function even after errors
         if (hasError) {
           if (msg.type === "SHELL_ERROR") {
             htmlTransform.end();
@@ -152,6 +178,17 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
 
         if (msg.type === "ERROR") {
           hasError = true;
+          const panicError = handleError({
+            error: msg.error,
+            logger: handlerOptions.logger,
+            mode: getNodeEnv(),
+            panicThreshold: handlerOptions.panicThreshold,
+            critical: true,
+            context: "collectHtmlWorkerContent",
+          });
+          if (panicError != null) {
+            reject(panicError);
+          }
           if (handlerOptions.verbose)
             handlerOptions.logger.info(
               `[collectHtmlWorkerContent:${handlerOptions.route}] ERROR received`
@@ -169,28 +206,6 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
               },
             });
           }
-          
-          // Set a timeout to reject if HTML_COMPLETE doesn't come within a reasonable time
-          // This prevents hanging when the worker fails to send HTML_COMPLETE
-          errorTimeout = setTimeout(() => {
-            if (!finished) {
-              if (handlerOptions.verbose) {
-                handlerOptions.logger.info(
-                  `[collectHtmlWorkerContent:${handlerOptions.route}] Error timeout reached, rejecting`
-                );
-              }
-              const errorMessage = typeof msg.error === 'string' 
-                ? msg.error 
-                : msg.error?.message || 'Unknown error';
-              reject(
-                new Error(
-                  `HTML generation failed for route ${handlerOptions.route}: ${errorMessage}`
-                )
-              );
-            }
-          }, 5000); // 5 second timeout
-          
-          return;
         }
 
         if (msg.type === "ALL_READY") {
@@ -223,13 +238,13 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           }
         } else if (msg.type === "HTML_COMPLETE") {
           finished = true;
-          
+
           // Clear the error timeout if it exists
           if (errorTimeout) {
             clearTimeout(errorTimeout);
             errorTimeout = null;
           }
-          
+
           // End the htmlTransform stream to signal that all chunks have been sent
           htmlTransform.end();
           if (handlerOptions.verbose)
@@ -239,10 +254,9 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
 
           // Check if the HTML generation was successful
           if (msg.success === false) {
-            if (handlerOptions.verbose)
-              handlerOptions.logger.info(
-                `[collectHtmlWorkerContent:${handlerOptions.route}] HTML_COMPLETE indicates failure, rejecting`
-              );
+            handlerOptions.logger.info(
+              `[collectHtmlWorkerContent:${handlerOptions.route}] HTML_COMPLETE indicates failure, rejecting`
+            );
             reject(
               new Error(
                 `HTML generation failed for route ${handlerOptions.route}`
@@ -260,16 +274,14 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
           }
 
           // Clear the general timeout
-          if ((routeComplete as any).generalTimeout) {
-            clearTimeout((routeComplete as any).generalTimeout);
-            (routeComplete as any).generalTimeout = null;
+          if (generalTimeout) {
+            clearTimeout(generalTimeout);
+            generalTimeout = null;
           }
-          
+
           // Resolve the promise here since all HTML chunks have been processed
           // The file writer will complete when the stream ends
           resolve();
-
-
 
           if (worker)
             worker.postMessage({
@@ -284,9 +296,11 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
       };
       worker.on("message", messageHandler);
       function cleanup() {
+        if (cleanupCalled) return; // Prevent double cleanup
+        cleanupCalled = true;
         if (worker) worker.removeListener("message", messageHandler);
         finished = true;
-        
+
         // Clear any pending timeouts
         if (errorTimeout) {
           clearTimeout(errorTimeout);
@@ -298,6 +312,8 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
         }
       }
     });
+
+    let cleanupCalled = false;
 
     try {
       if (handlerOptions.onEvent) {
@@ -358,6 +374,16 @@ export const collectHtmlWorkerContent: CollectHtmlWorkerContentFn =
 
       // Update metrics with backpressure count
       metrics.backpressureCount = backpressureCount;
+
+      // Clear any pending timeouts on success
+      if (errorTimeout) {
+        clearTimeout(errorTimeout);
+        errorTimeout = null;
+      }
+      if (generalTimeout) {
+        clearTimeout(generalTimeout);
+        generalTimeout = null;
+      }
 
       return { type: "success", stream: rscStream, metrics };
     } catch (error) {

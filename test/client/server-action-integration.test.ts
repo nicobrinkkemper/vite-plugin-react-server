@@ -31,6 +31,7 @@ describe("Client Server Action Integration", () => {
         vitePluginReactClient({
           ...testUserOptions,
           projectRoot: testDir,
+          moduleBasePath: '/',
           Page: "src/page/page.tsx",
           build: {
             pages: ["/todos"],

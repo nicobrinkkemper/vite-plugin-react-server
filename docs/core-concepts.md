@@ -1,24 +1,109 @@
 # Core Concepts
 This document explains the fundamental concepts and architecture of the Vite React Server Plugin.
 
-## Client-Server Separation
+## Development Modes & Conditions
 
-The plugin operates with a clear separation between client and server contexts:
+The plugin provides two development modes that offer **identical user experiences** but differ in their internal architecture:
 
-### Environment Detection
+### Development Modes
+
+Both modes start your application in the browser and provide the same development experience. The difference is purely internal - how the plugin handles React Server Components processing.
+
+#### **RSC Worker Mode** (Default)
+**Condition:** `null` (no special condition)  
+**Command:** `vite` or `npm run dev:client`  
+**Internal Architecture:** Uses RSC worker thread
+
+```mermaid
+graph TD
+    A[RSC Worker Mode<br/>Condition: null<br/>Command: vite] --> B[Main Thread: Standard Node.js]
+    B --> C[RSC Worker Thread<br/>Condition: react-server]
+    C --> D[React Server Components Processing]
+    C --> E[Server Actions]
+    C --> F[Module Loading with react-server condition]
+    D --> G[Stream RSC to Main Thread]
+    E --> G
+    F --> G
+    G --> H[Browser: Same User Experience]
+```
+
+**Why use this mode:**
+- Default Vite behavior (no special setup)
+- Worker thread isolation for RSC processing
+- Good for testing client-side behavior
+
+#### **Direct Server Mode** (Optimized)
+**Condition:** `react-server`  
+**Command:** `NODE_OPTIONS="--conditions react-server" vite` or `npm run dev`  
+**Internal Architecture:** Direct main thread processing
+
+```mermaid
+graph TD
+    A[Direct Server Mode<br/>Condition: react-server<br/>Command: NODE_OPTIONS="--conditions react-server" vite] --> B[Main Thread: RSC Environment]
+    B --> C[Direct React Server Components Processing]
+    B --> D[Server Actions in Main Thread]
+    B --> E[Module Loading with react-server condition]
+    C --> F[Stream RSC Directly]
+    D --> F
+    E --> F
+    F --> G[Browser: Same User Experience]
+```
+
+**Why use this mode:**
+- No worker thread overhead
+- Direct RSC processing in main thread
+- Better debugging experience for server components
+- More efficient for server-side development
+
+### Build Environment (Static Generation)
+**Condition:** `react-server` (for final build step)  
+**Command:** `npm run build` (runs all three builds)  
+**Purpose:** Static site generation
+
+```mermaid
+graph TD
+    A[Build Environment<br/>Condition: react-server<br/>Command: npm run build] --> B[Static Build<br/>vite build]
+    A --> C[Client Build<br/>vite build --ssr]
+    A --> D[Server Build<br/>NODE_OPTIONS="--conditions react-server" vite build --ssr]
+    
+    B --> E[dist/static/]
+    C --> F[dist/client/]
+    D --> G[dist/server/]
+    
+    D --> H[HTML Worker<br/>Only during builds]
+    H --> I[index.html + index.rsc]
+    I --> E
+```
+
+**Build Sequence:**
+1. **Static Build:** `vite build` → `dist/static/`
+2. **Client Build:** `vite build --ssr` → `dist/client/`
+3. **Server Build:** `NODE_OPTIONS="--conditions react-server" vite build --ssr` → `dist/server/` + final `dist/static/`
+
+**Note:** The HTML worker is only used during builds, not during development. There's no RSC worker → HTML worker communication in development mode.
+
+## Environment Detection
 
 The plugin uses Node.js conditions to determine execution context:
 
 ```typescript
 import { getCondition } from "vite-plugin-react-server/config";
 
-const condition = getCondition();
-// Returns: "react-server" | "react-client" | null
+const condition = getCondition('')
+const dirname = new URL('.', import.meta.url).pathname;
+const createRscStream = await import(`${dirname}/createRscStream.${condition}.js`);
+const createHandler = await import(`${dirname}/createHandler.${condition}.js`);
+
+export { createRscStream, createHandler };
 ```
 
 - **`react-server`**: Server-side rendering and React Server Components
 - **`react-client`**: Client-side rendering and hydration
 - **`null`**: Standard browser environment
+
+## Client-Server Separation
+
+The plugin operates with a clear separation between client and server contexts:
 
 ### Execution Modes
 
@@ -457,10 +542,6 @@ The plugin tracks performance metrics throughout the build process to help ident
 <!-- TOC START -->
 
 ## 📚 Documentation Navigation
-
-<!-- Auto-generated TOC - Do not edit manually -->
-
-## Table of Contents
 
 <!-- Auto-generated TOC - Do not edit manually -->
 

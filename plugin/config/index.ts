@@ -18,3 +18,4 @@ export * from './extMap.js';
 export * from './resolveAllowedDirectives.js';
 export * from './resolveOptions.js';
 export * from './resolveUrlOption.js';
+export * from './getNodeEnv.js';

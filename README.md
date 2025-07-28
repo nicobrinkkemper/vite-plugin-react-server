@@ -47,6 +47,14 @@ export const Page = ({ url }: { url: string }) => {
 
 ## Development & Build
 
+The plugin provides two development modes and a build environment:
+
+- **RSC Worker Mode**: Uses RSC worker thread (default Vite behavior)
+- **Direct Server Mode**: Direct main thread processing (no worker overhead)  
+- **Build Environment**: Static site generation with HTML worker
+
+### Development Scripts
+
 ```json
 {
   "type": "module",
@@ -65,18 +73,38 @@ export const Page = ({ url }: { url: string }) => {
 }
 ```
 
-With the above scripts in our package.json:
+### Development Modes
 
-- **`npm run dev`**: 
-    - Develop `react-server` components on the main thread
-- **`npm run dev:client`**: 
-    - Develop `react-server` components using the worker thread (`rsc-worker`)
-- **`npm run build`**: 
-    - `npm run build:static` -> `dist/static` 
-    - `npm run build:client` -> `dist/client`
-    - `npm run build:server` -> `dist/server`
-      + `use client`/`use server`  boundary transformations
-      + `index.html` and `index.rsc` to `dist/static/${route}` for each `build.pages`
+Both development modes provide **identical user experiences** - they both start your application and it will work the same way in the browser. The difference is purely internal architecture.
+
+| Mode | Condition | Command | Internal Architecture | Benefits |
+|------|-----------|---------|----------------------|----------|
+| **RSC Worker** | `null` | `npm run dev:client` | RSC Worker Thread | Default Vite behavior, worker isolation |
+| **Direct Server** | `react-server` | `npm run dev` | Direct Main Thread | No worker overhead, better debugging |
+
+### Development Mode Details
+
+- **`npm run dev`** (Direct Server Mode):
+  - Condition: `react-server`
+  - Direct RSC processing in main thread (no worker overhead)
+  - Better debugging experience for server components
+  - More efficient for server-side development
+
+- **`npm run dev:client`** (RSC Worker Mode):
+  - Condition: `null` (default)
+  - Uses RSC worker thread for server component processing
+  - Worker thread isolation
+  - Good for testing client-side behavior
+
+### Build Process
+
+- **`npm run build`** (Build Environment):
+  1. **Static Build:** `vite build` → `dist/static/`
+  2. **Client Build:** `vite build --ssr` → `dist/client/`
+  3. **Server Build:** `NODE_OPTIONS="--conditions react-server" vite build --ssr` → `dist/server/` + final `dist/static/`
+     - `use client`/`use server` boundary transformations
+     - `index.html` and `index.rsc` to `dist/static/${route}` for each `build.pages`
+
 - **`npm run dev-build`**:
   - Debug the build process
   - Avoids the "this error message is hidden in production" and shows the full error
@@ -85,7 +113,7 @@ With the above scripts in our package.json:
 
 ## Environment-Based Execution
 
-The plugin uses environment detection to determine execution context:
+The plugin uses Node.js conditions to determine execution context:
 
 ```typescript
 import { getCondition } from "vite-plugin-react-server/config";
@@ -95,8 +123,26 @@ if (getCondition() !== "react-server") {
 }
 ```
 
-- **Client Mode** (default): Uses worker threads for RSC requests
-- **Server Mode** (`NODE_OPTIONS="--conditions react-server"`): Direct React pipeline
+### Execution Modes
+
+- **RSC Worker Mode** (Condition: `null`):
+  - Command: `vite` or `npm run dev:client`
+  - Uses RSC worker thread for server component processing
+  - Worker thread isolation
+  - Good for testing client-side behavior
+
+- **Direct Server Mode** (Condition: `react-server`):
+  - Command: `NODE_OPTIONS="--conditions react-server" vite` or `npm run dev`
+  - Direct React Server Components processing in main thread
+  - No worker thread overhead
+  - Better debugging experience for server components
+  - More efficient for server-side development
+
+- **Build Mode** (Condition: `react-server` for final step):
+  - Command: `npm run build`
+  - Build-time environment for static generation
+  - Runs all three build steps in sequence
+  - HTML worker only used during builds (not development)
 
 ## Advanced Features
 

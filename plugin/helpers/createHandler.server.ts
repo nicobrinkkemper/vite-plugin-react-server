@@ -1,27 +1,8 @@
-import type { ReactStreamHandlerFn } from "../types.js";
 import { createRscStream } from "./createRscStream.server.js";
 import { PassThrough } from "node:stream";
 import { routeToURL } from "../utils/routeToURL.js";
 import { handleError } from "../error/index.js";
-
-export type CreateHandlerReturn =
-  | {
-      type: "success";
-      stream: PassThrough;
-      controller: { abort: (reason: unknown) => void; destroy: () => void };
-      error?: never;
-    }
-  | {
-      type: "error";
-      error: unknown;
-      stream?: never;
-      controller?: never;
-    };
-
-export type CreateHandlerFn = ReactStreamHandlerFn<
-  "url",
-  CreateHandlerReturn
->;
+import type { CreateHandlerFn } from "./createHandler.types.js";
 
 export const createHandler: CreateHandlerFn = (handlerOptions) => {
   try {

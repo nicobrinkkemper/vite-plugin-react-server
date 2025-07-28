@@ -9,8 +9,6 @@ import React from "react";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import type { ConfigureReactServerFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
-import { PANIC_SYMBOL } from "../error/shouldPanic.js";
-
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({
@@ -20,7 +18,10 @@ export const configureReactServer: ConfigureReactServerFn =
     serverManifest,
   }) {
     const activeStreams = new Set<ServerResponse>();
-    const activeControllers = new Map<ServerResponse, { abort: (reason: unknown) => void; destroy: () => void }>();
+    const activeControllers = new Map<
+      ServerResponse,
+      { abort: (reason: unknown) => void; destroy: () => void }
+    >();
     let isRestarting = false;
     const logger = server.config.customLogger || server.config.logger;
     const {
@@ -64,7 +65,7 @@ export const configureReactServer: ConfigureReactServerFn =
             // Ignore abort errors
           }
         }
-        
+
         res.writeHead(503, {
           "Content-Type": "text/x-component; charset=utf-8",
           "Retry-After": "1",
@@ -76,23 +77,25 @@ export const configureReactServer: ConfigureReactServerFn =
       activeStreams.clear();
       activeControllers.clear();
     });
-    
+
     // Handle restart completion
     server.ws.on("full-reload", () => {
       isRestarting = false;
       logger.info("[vite-plugin-react-server] ✅ Server restart completed");
     });
-    
+
     // Fallback: reset restart flag after a timeout
     server.ws.on("restart", () => {
       setTimeout(() => {
         if (isRestarting) {
           isRestarting = false;
-          logger.info("[vite-plugin-react-server] ⏰ Restart timeout, resuming normal operation");
+          logger.info(
+            "[vite-plugin-react-server] ⏰ Restart timeout, resuming normal operation"
+          );
         }
       }, 5000); // 5 second timeout
     });
-    
+
     const loader = async (id: string) => {
       const [moduleID, exportName] = id.split("#");
       const result = await server.ssrLoadModule(moduleID);
@@ -106,7 +109,6 @@ export const configureReactServer: ConfigureReactServerFn =
       }
       return result;
     };
-    let panicError: Error | null = null;
     server.middlewares.use(async (req, res, next) => {
       if (!req.url) {
         return next();
@@ -130,7 +132,7 @@ export const configureReactServer: ConfigureReactServerFn =
       if (!info.isRscRequest) {
         return next();
       }
-      
+
       // If server is restarting, return 503 immediately
       if (isRestarting) {
         res.writeHead(503, {
@@ -142,7 +144,7 @@ export const configureReactServer: ConfigureReactServerFn =
         );
         return;
       }
-      
+
       try {
         const routeFiles = await getRouteFiles(
           info.route,
@@ -156,8 +158,9 @@ export const configureReactServer: ConfigureReactServerFn =
             logger: logger,
             panicThreshold: handlerOptions.panicThreshold,
             critical: false,
+            context: "configureReactServer",
           });
-          if (panicError!= null) {
+          if (panicError != null) {
             throw panicError;
           }
           return next();
@@ -173,10 +176,14 @@ export const configureReactServer: ConfigureReactServerFn =
           propsPath,
           rootPath,
           htmlPath,
-          pageExportName: handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-          propsExportName: handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-          rootExportName: handlerOptions.rootExportName ?? DEFAULT_CONFIG.ROOT_EXPORT_NAME,
-          htmlExportName: handlerOptions.htmlExportName ?? DEFAULT_CONFIG.HTML_EXPORT_NAME,
+          pageExportName:
+            handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
+          propsExportName:
+            handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+          rootExportName:
+            handlerOptions.rootExportName ?? DEFAULT_CONFIG.ROOT_EXPORT_NAME,
+          htmlExportName:
+            handlerOptions.htmlExportName ?? DEFAULT_CONFIG.HTML_EXPORT_NAME,
           route: info.route,
           loader: loader,
           verbose,
@@ -185,7 +192,6 @@ export const configureReactServer: ConfigureReactServerFn =
           logger: logger,
           HtmlComponent: React.Fragment,
           RootComponent: handlerOptions.components?.Root,
-          
         });
         if (componentsResult.type === "error") {
           throw componentsResult.error;
@@ -193,7 +199,6 @@ export const configureReactServer: ConfigureReactServerFn =
 
         const { PageComponent, pageProps, RootComponent } = componentsResult;
 
-        
         const intermediateHandlerOptions = {
           ...handlerOptions,
           loader: loader,
@@ -239,20 +244,19 @@ export const configureReactServer: ConfigureReactServerFn =
           // set headers
           res.setHeader("Content-Type", "text/x-component; charset=utf-8");
           rscResult.stream!.pipe(res);
-          
+
           // Store the controller for potential abort during restart
           activeControllers.set(res, rscResult.controller);
         } else {
-          // Handle panic logic here - throw if panicThreshold is "all_errors"
-          if(verbose) {
-            logger.info(`[configureReactServer] Error: ${JSON.stringify(rscResult)}`);
-          }
-          if (handlerOptions.panicThreshold === "all_errors" && rscResult.error) {
+          if (
+            handlerOptions.panicThreshold === "all_errors" &&
+            rscResult.error
+          ) {
             throw rscResult.error;
           }
-          
+
           // For other cases, continue to error handling to show a 500 response
-          if(rscResult.error) {
+          if (rscResult.error) {
             throw rscResult.error;
           }
         }
@@ -262,20 +266,20 @@ export const configureReactServer: ConfigureReactServerFn =
           activeControllers.delete(res);
         });
       } catch (error) {
-        if(handlerOptions.panicThreshold === "all_errors" || PANIC_SYMBOL in {...error as any}) {
-          throw error;
-        }
-        if(panicError != null) {
+        const panicError = handleError({
+          error,
+          logger,
+          panicThreshold: handlerOptions.panicThreshold,
+          critical: false,
+          context: "configureReactServer",
+        });
+        if (panicError != null) {
           throw panicError;
         }
-        if(verbose) {
-          logger.error(`[configureReactServer] Error: ${JSON.stringify(error)}`);
-        }
-        
+
         res.statusCode = 500;
         res.setHeader("Content-Type", "text/x-component; charset=utf-8");
         res.setHeader("Content-Length", "0"); // Will be updated after streaming
-
       }
     });
   };

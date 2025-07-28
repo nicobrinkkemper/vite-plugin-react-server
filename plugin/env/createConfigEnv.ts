@@ -1,5 +1,5 @@
 import type { ConfigEnv } from "vite";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 import { getArgValue } from "./getArgValue.js";
 
 /**

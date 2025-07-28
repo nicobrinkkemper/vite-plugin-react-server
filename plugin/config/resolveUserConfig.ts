@@ -7,7 +7,7 @@ import type {
 import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "./getNodeEnv.js";
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;

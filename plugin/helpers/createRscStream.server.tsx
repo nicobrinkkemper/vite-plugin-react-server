@@ -1,54 +1,13 @@
 import { React, ReactDOMServer } from "../vendor/vendor.server.js";
-import type {
-  CreateHandlerOptions,
-  StreamMetrics,
-  ResolvedUserOptions,
-} from "../types.js";
 import { performance } from "node:perf_hooks";
 import { handleError } from "../error/handleError.js";
 import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
 import { createStreamMetrics } from "./metrics.js";
-
-export type CreateRscStreamOptions = Pick<
-  CreateHandlerOptions<ResolvedUserOptions>,
-  | "url"
-  | "HtmlComponent"
-  | "PageComponent"
-  | "RootComponent"
-  | "pageProps"
-  | "moduleBase"
-  | "moduleRootPath"
-  | "moduleBasePath"
-  | "moduleBaseURL"
-  | "cssFiles"
-  | "route"
-  | "pipeableStreamOptions"
-  | "globalCss"
-  | "manifest"
-  | "projectRoot"
-  | "verbose"
-  | "as"
-  | "logger"
-  | "panicThreshold"
-  | "onEvent"
->;
-
-export type CreateRscStreamReturn =
-  | {
-      type: "success";
-      controller: { abort: (reason: unknown) => void; destroy: () => void };
-      metrics: StreamMetrics;
-    }
-  | { type: "error"; error: unknown | null; metrics: StreamMetrics };
-
-export type CreateRscStreamFn = <
-  Opt extends CreateRscStreamOptions = CreateRscStreamOptions,
-  Stream extends NodeJS.WritableStream | PassThrough = PassThrough
->(
-  options: Opt,
-  passThrough: Stream
-) => CreateRscStreamReturn & { stream: Stream };
+import type {
+  CreateRscStreamFn,
+  CreateRscStreamReturn,
+} from "./createRscStream.types.js";
 
 export const createRscStream: CreateRscStreamFn = function _createRscStream(
   {
@@ -97,36 +56,43 @@ export const createRscStream: CreateRscStreamFn = function _createRscStream(
         metrics: createStreamMetrics({ errorCount: 1 }),
       } satisfies CreateRscStreamReturn & { stream: typeof passThrough };
     }
+    let Shell = () => {
+      const result = htmlIsFragment ? (
+        <RootComponent
+          key={route}
+          as={React.Fragment}
+          cssFiles={cssFiles}
+          pageProps={pageProps}
+          Page={PageComponent}
+        />
+      ) : (
+        <HtmlComponent
+          moduleBase={moduleBase}
+          moduleBaseURL={moduleBaseURL}
+          moduleBasePath={moduleBasePath}
+          moduleRootPath={moduleRootPath}
+          projectRoot={projectRoot}
+          url={url}
+          route={route}
+          pageProps={pageProps}
+          cssFiles={cssFiles}
+          globalCss={globalCss}
+          Root={RootComponent}
+          manifest={manifest}
+          Page={PageComponent}
+          as={as}
+        />
+      );
+      if (result instanceof Promise) {
+        return React.use(result);
+      }
+      return result;
+    };
 
     let reactStream;
     try {
       reactStream = ReactDOMServer.renderToPipeableStream(
-        htmlIsFragment ? (
-          <RootComponent
-            key={route}
-            as={React.Fragment}
-            cssFiles={cssFiles}
-            pageProps={pageProps}
-            Page={PageComponent}
-          />
-        ) : (
-          <HtmlComponent
-            moduleBase={moduleBase}
-            moduleBaseURL={moduleBaseURL}
-            moduleBasePath={moduleBasePath}
-            moduleRootPath={moduleRootPath}
-            projectRoot={projectRoot}
-            url={url}
-            route={route}
-            pageProps={pageProps}
-            cssFiles={cssFiles}
-            globalCss={globalCss}
-            Root={RootComponent}
-            manifest={manifest}
-            Page={PageComponent}
-            as={as}
-          />
-        ),
+        <Shell />,
         moduleBasePath,
         {
           ...pipeableStreamOptions,

@@ -1,4 +1,6 @@
 import { getCondition } from "../config/getCondition.js";
+import type { CreateHandlerFn } from "./createHandler.types.js";
+import type { CreateRscStreamFn } from "./createRscStream.types.js";
 
 // Route and file handling
 export * from "./getRouteFiles.js";
@@ -39,9 +41,17 @@ export * from "./moduleResolver.js";
 // Utility functions
 export * from "./stashReturnValue.js";
 
-const condition = getCondition('')
-const dirname = new URL('.', import.meta.url).pathname;
-const createRscStream = await import(`${dirname}/createRscStream.${condition}.js`);
-const createHandler = await import(`${dirname}/createHandler.${condition}.js`);
-
+const condition = getCondition("");
+const dirname = new URL(".", import.meta.url).pathname;
+// use server as the base type for the import
+const { createRscStream } = (await import(
+  `${dirname}/createRscStream.${condition}.js`
+)) as {
+  createRscStream: CreateRscStreamFn
+};
+const { createHandler } = (await import(
+  `${dirname}/createHandler.${condition}.js`
+)) as {
+  createHandler: CreateHandlerFn
+};
 export { createRscStream, createHandler };

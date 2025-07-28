@@ -1,6 +1,8 @@
 import { getCondition } from './config/getCondition.js';
 import type { VitePluginMainFn } from './types.js';
+import { getNodeEnv } from './config/getNodeEnv.js';
 
-const condition = getCondition('');
+export const nodeEnv = getNodeEnv(process.env.NODE_ENV);
+export const condition = getCondition('');
 
 export const { vitePluginReactServer } = (await import(`./plugin.${condition}.js`)) as { vitePluginReactServer: VitePluginMainFn };

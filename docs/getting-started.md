@@ -312,10 +312,6 @@ const Page = ({ title }: PageProps) => {
 
 <!-- Auto-generated TOC - Do not edit manually -->
 
-## Table of Contents
-
-<!-- Auto-generated TOC - Do not edit manually -->
-
 1.	**[Getting Started](./getting-started.md) ← you are here**
 	- [Installation and Setup](./getting-started.md#installation-and-setup)
 	- [Basic Configuration](./getting-started.md#basic-configuration)

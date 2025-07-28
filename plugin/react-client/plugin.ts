@@ -59,7 +59,8 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
         const panicError = handleError({
           error: autoDiscoverResult.error,
           logger,
-          panicThreshold: currentUserOptions.panicThreshold
+          panicThreshold: currentUserOptions.panicThreshold,
+          context: "config(autoDiscover)",
         });
         if (panicError != null) {
           throw panicError;

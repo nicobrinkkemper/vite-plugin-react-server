@@ -133,10 +133,6 @@ See the [CSS Handling](./css-handling.md) document for more details.
 
 <!-- Auto-generated TOC - Do not edit manually -->
 
-## Table of Contents
-
-<!-- Auto-generated TOC - Do not edit manually -->
-
 1.	[Getting Started](./getting-started.md)
 	- [Installation and Setup](./getting-started.md#installation-and-setup)
 	- [Basic Configuration](./getting-started.md#basic-configuration)

@@ -16,7 +16,7 @@ import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import type { LoadHook, ResolveHook } from "node:module";
 import type { RawSourceMap } from "source-map";
 import { createTransformer } from "./createTransformer.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 
 export type LoaderOptions = {
   id: string;

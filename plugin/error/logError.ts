@@ -1,19 +1,18 @@
 import { createLogger, type Logger } from "vite";
-import { toError } from "./toError.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
+import { isMainThread } from "node:worker_threads";
 /**
  * Simple error logging function focused purely on logging errors
  * without any deduplication or complex formatting logic
  */
 export function logError(
-  error: unknown,
+  err: Error,
   logger: Logger | Console = createLogger(),
-  mode: "development" | "production" | "test" = getNodeEnv(),
+  mode: "development" | "production" | "test" = getNodeEnv()
 ) {
-  if(logger == null || typeof logger.error !== "function") {
+  if (!isMainThread || (logger == null || typeof logger.error !== "function")) {
     return;
   }
-  const err = toError(error);
   const errorOptions = {
     error: err,
     clear: mode === "development",
@@ -24,15 +23,15 @@ export function logError(
   if (mode !== "production") {
     if (
       err.stack &&
-      err.message.length > 0 &&
+      (err.message?.length ?? 0) > 0 &&
       err.stack.includes(err.message)
     ) {
       logger.error(err.stack, errorOptions);
-    } else if (err.stack && err.stack.length > 0 && err.message.length > 0) {
+    } else if ((err.stack?.length ?? 0) > 0 && (err.message?.length ?? 0) > 0) {
       logger.error(err.message + "\n" + err.stack, errorOptions);
-    } else if (err.stack && err.stack.length > 0) {
+    } else if ((err.stack?.length ?? 0) > 0 && typeof err.stack === "string") {
       logger.error(err.stack, errorOptions);
-    } else if (err.message.length > 0) {
+    } else if ((err.message?.length ?? 0) > 0) {
       logger.error(err.message, errorOptions);
     } else {
       logger.error("Unknown error", errorOptions);

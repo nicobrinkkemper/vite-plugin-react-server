@@ -28,7 +28,7 @@ function sendMessage(msg: HtmlWorkerOutputMessage) {
   }
 }
 
-function cleanup(id: string, reason: unknown) {
+async function cleanup(id: string, reason: unknown) {
   const renderState = activeRenders.get(id);
   if (!renderState) {
     // Already cleaned up
@@ -62,27 +62,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         // Clean up any existing render state for this route
         const existingRenderState = activeRenders.get(id);
         if (existingRenderState) {
-          // Abort the React stream first to stop it from sending messages
-          try {
-            existingRenderState.stream.abort("route ready cleanup");
-          } catch (e) {
-            console.warn("Failed to abort stream", e);
-            // Ignore abort errors
-          }
-
-          // Destroy streams in the correct order to prevent cross-contamination
-          existingRenderState.rscStream.destroy();
-          existingRenderState.htmlTransform?.destroy();
-
-          // Remove from tracking maps
-          activeRenders.delete(id);
-          errorRenders.delete(id);
-          
-          // Send cleanup complete message for the previous render state
-          sendMessage({
-            type: "CLEANUP_COMPLETE",
-            id,
-          });
+          await cleanup(id, "route ready cleanup");
         }
 
         // Create new render state with fresh streams
@@ -156,17 +136,19 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       }
       case "CLEANUP": {
         // Set error state to prevent HTML chunks from being sent
-        cleanup(id, "cleanup requested");
+        await cleanup(id, "cleanup requested");
         break;
       }
       case "SHUTDOWN": {
         // If id is "*", clean up all render states
         if (id === "*") {
+          const cleanupPromises = [];
           for (const [renderId] of activeRenders) {
-            cleanup(renderId, "shutdown requested");
+            cleanupPromises.push(cleanup(renderId, "shutdown requested"));
           }
+          await Promise.all(cleanupPromises);
         } else {
-          cleanup(id, "shutdown requested");
+          await cleanup(id, "shutdown requested");
         }
         // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
         sendMessage({
@@ -185,7 +167,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       context: `Message handler error for route ${id}`,
     });
     if (panicError != null) {
-      cleanup("*", "Message handler error");
+      await cleanup("*", panicError);
     }
   }
 }

@@ -1,7 +1,7 @@
 import { resolveOptions } from "../config/resolveOptions.js";
 import type { Manifest } from "vite";
 import { tryManifest } from "../helpers/tryManifest.js";
-import { getNodeEnv, isValidEnv } from "../getNodeEnv.js";
+import { getNodeEnv, isValidEnv } from "../config/getNodeEnv.js";
 import { createTransformer } from "../loader/createTransformer.js";
 import type { VitePluginFn } from "../types.js";
 import type { Program } from "acorn";

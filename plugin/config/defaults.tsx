@@ -2,7 +2,7 @@ import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
 import { parse } from "../loader/parse.js";
 import { pluginRoot } from "../root.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "./getNodeEnv.js";
 
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
@@ -148,6 +148,8 @@ export const DEFAULT_CONFIG = {
   HTML_TIMEOUT: 15000, // 15 seconds default timeout for HTML generation operations
   HTML_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for HTML worker startup
   RSC_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for RSC worker startup
+  FILE_WRITE_TIMEOUT: 10000, // 10 seconds default timeout for file write operations
+  WORKER_SHUTDOWN_TIMEOUT: 5000, // 5 seconds default timeout for worker shutdown operations
   COMPONENTS: {
     Html: Html,
     Root: Root,

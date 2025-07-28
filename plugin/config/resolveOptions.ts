@@ -87,7 +87,7 @@ let originalOptions: any | null = null;
  * @returns The resolved options.
  */
 export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
-  options,
+  options = {} as StreamPluginOptions,
   forceResolve = false
 ) {
   if (!forceResolve && originalOptions == null) {
@@ -654,6 +654,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         typeof options.rscWorkerStartupTimeout === "number"
           ? options.rscWorkerStartupTimeout
           : DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT,
+      fileWriteTimeout:
+        typeof options.fileWriteTimeout === "number"
+          ? options.fileWriteTimeout
+          : DEFAULT_CONFIG.FILE_WRITE_TIMEOUT,
+      workerShutdownTimeout:
+        typeof options.workerShutdownTimeout === "number"
+          ? options.workerShutdownTimeout
+          : DEFAULT_CONFIG.WORKER_SHUTDOWN_TIMEOUT,
       panicThreshold: panicThreshold,
     };
 

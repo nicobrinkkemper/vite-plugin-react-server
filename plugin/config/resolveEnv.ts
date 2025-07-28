@@ -1,7 +1,7 @@
 import { loadEnv, type ResolvedConfig } from "vite";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getCondition } from "./getCondition.js";
-import { getNodeEnv } from "../getNodeEnv.js";
+import { getNodeEnv } from "./getNodeEnv.js";
 import { getEnvKey } from "../env/getEnvKey.js";
 
 type NestedEnv = {

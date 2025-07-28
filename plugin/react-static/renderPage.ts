@@ -192,8 +192,19 @@ export const renderPage: RenderPageFn = async function* _renderPage(
     // Collect HTML and RSC content
     const  { stream: rscStream, metrics: rscMetrics }= await collectRscContent(rscHeadless, newHandlerOptions)
     
-    // Handle HTML collection as async generator - simplified usage
-    const htmlResult = await collectHtmlWorkerContent(rscFull, newHandlerOptions).next();
+    // Handle HTML collection as async generator - properly consume the generator
+    const htmlGenerator = collectHtmlWorkerContent(rscFull, newHandlerOptions);
+    let htmlResult;
+    try {
+      htmlResult = await htmlGenerator.next();
+    } finally {
+      // Ensure the generator is properly closed
+      try {
+        await htmlGenerator.return?.({ type: "error", error: null });
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
     if (htmlResult.done && htmlResult.value) {
       if (htmlResult.value.type === "success") {
         const htmlStream = htmlResult.value.stream;
