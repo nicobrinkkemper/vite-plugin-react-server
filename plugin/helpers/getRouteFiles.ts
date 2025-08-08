@@ -3,7 +3,6 @@ import type { PageName, PropsName, ResolvedUserOptions } from "../types.js";
 import { resolveUrlOption } from "../config/resolveUrlOption.js";
 import type { AutoDiscoveredFiles } from "../types.js";
 import { createLogger } from "vite";
-import { logError } from "../error/logError.js";
 
 type GetRouteFilesSuccess = {
   type: "success";
@@ -15,7 +14,7 @@ type GetRouteFilesSuccess = {
 
 type GetRouteFilesError = {
   type: "error";
-  error: Error;
+  error: unknown;
 };
 
 /**
@@ -123,9 +122,6 @@ export const getRouteFiles = async (
     route
   );
   if (type === "error") {
-    if (userOptions.verbose) {
-      logError(error, logger);
-    }
     return { type: "error", error };
   }
   if (userOptions.verbose) {
@@ -181,9 +177,6 @@ export const getRouteFiles = async (
   } = await resolveUrlOption(userOptions, "props", route);
 
   if (propsType === "error") {
-    if (userOptions.verbose) {
-      logError(propsError, logger);
-    }
     return { type: "error", error: propsError };
   }
   if (userOptions.verbose) {

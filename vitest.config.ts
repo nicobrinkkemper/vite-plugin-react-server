@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { getCondition } from "vite-plugin-react-server/config";
 
 export default defineConfig({
   mode: "development",
@@ -15,10 +16,7 @@ export default defineConfig({
       include: ["dist"],
     },
     include: [
-      "test/**/*.test.ts",
-      "test/**/*.spec.ts",
-      "test/**/*.test.tsx",
-      "test/**/*.spec.tsx",
+      "test/**/*.test.*",
     ],
     exclude: [
       "**/node_modules/**",
@@ -26,8 +24,8 @@ export default defineConfig({
       "**/cypress/**",
       "**/.{idea,git,cache,output,temp}/**",
       // these folders require the server condition
-      ...(!process.env["NODE_OPTIONS"]?.includes("react-server")
-        ? ["test/unit/*", "test/server/*"]
+      ...(getCondition() !== "react-server"
+        ? ["test/unit/**/*.test.*", "test/server/**/*.test.*"]
         : []),
     ],
     typecheck: {

@@ -19,6 +19,8 @@ describe("Custom Environment Prefix Integration", () => {
     process.env.CUSTOM_SSR = "true";
     process.env.CUSTOM_BASE_URL = "/custom-app";
     process.env.CUSTOM_PUBLIC_ORIGIN = "https://custom.example.com";
+    
+
 
     try {
       await mkdir(testDir, { recursive: true });

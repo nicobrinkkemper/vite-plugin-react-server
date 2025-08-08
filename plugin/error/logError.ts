@@ -1,6 +1,5 @@
 import { createLogger, type Logger } from "vite";
 import { getNodeEnv } from "../config/getNodeEnv.js";
-import { isMainThread } from "node:worker_threads";
 /**
  * Simple error logging function focused purely on logging errors
  * without any deduplication or complex formatting logic
@@ -10,7 +9,9 @@ export function logError(
   logger: Logger | Console = createLogger(),
   mode: "development" | "production" | "test" = getNodeEnv()
 ) {
-  if (!isMainThread || (logger == null || typeof logger.error !== "function")) {
+  // Remove the isMainThread check to allow logging from worker threads
+  // when a proper logger is provided
+  if (logger == null || typeof logger.error !== "function") {
     return;
   }
   const errorOptions = {

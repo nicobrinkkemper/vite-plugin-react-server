@@ -4,22 +4,25 @@
  * PURPOSE: Creates specialized streams for React Server Components (RSC) rendering
  *
  * This module:
- * 1. Creates RSC stream (React.Fragment wrapper) for client-side navigation
+ * 1. Creates Headless RSC stream (React.Fragment wrapper) for client-side navigation
  *    - This stream is saved to .rsc files and used when navigating between pages
  *    - The Fragment wrapper allows the browser to update only the necessary parts of the DOM
  *    - This is more efficient than reloading the entire HTML document
- * 2. Creates Document stream (Html wrapper) for initial page loads
+ * 2. Creates Full Document stream (Html wrapper) for initial page loads
  *    - This stream includes the full HTML document structure
  *    - Used for the initial page load when the browser needs the complete HTML
  * 3. Sets up stream handlers with proper wrappers and options
  * 4. Returns streams for renderPages to process
  */
-import { createHandler } from "../helpers/createHandler.server.js";
 import React from "react";
+import { createHandler } from "../helpers/createHandler.server.js";
 import type { RenderStreamsFn } from "./types.js";
+import { assertReactServer } from "../config/getCondition.js";
+
+assertReactServer()
 
 /**
- * Creates handlers for both document and RSC streams
+ * Creates handlers for both Full RSC and Headless RSC streams
  */
 export const renderStreams: RenderStreamsFn = (handler) => {
   return [

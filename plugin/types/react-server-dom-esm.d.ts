@@ -1,5 +1,6 @@
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare module 'react-server-dom-esm/client' {
+declare module 'react-server-dom-esm/client.node' {
   export type Options = {
     callServer?: (id: string, args: any[]) => Promise<any>;
     moduleBaseURL?: string;
@@ -57,10 +58,7 @@ declare module 'react-server-dom-esm/server' {
     moduleBasePath?: string;
   }
 
-  export function createTemporaryReferenceSet(): {
-    add: (value: any) => void;
-    has: (value: any) => boolean;
-  };
+  export function createTemporaryReferenceSet(): WeakMap<any, any>;
 
   export function decodeAction(
     body: Uint8Array | string,
@@ -101,7 +99,10 @@ declare module 'react-server-dom-esm/server' {
     /**
      * Called when a React error occurs during streaming (including thrown errors in components).
      */
-    onError?: (error: Error) => void;
+    onError?: (error: unknown, errorInfo?: {
+      componentStack?: string | null;
+      digest?: string | null;
+    }) => void;
     /**
      * Called when all content is ready to be streamed (for SSR).
      */
@@ -113,7 +114,7 @@ declare module 'react-server-dom-esm/server' {
     /**
      * Called if the shell cannot be rendered at all (critical error).
      */
-    onShellError?: (error: Error) => void;
+    onShellError?: (error: unknown) => void;
     /**
      * Called if a component is postponed (React Flight/experimental).
      */
@@ -145,12 +146,8 @@ declare module 'react-server-dom-esm/server' {
     moduleBasePath: string,
     options?: RenderToPipeableStreamOptions
   ): {
-    pipe: (writable: NodeJS.WritableStream) => void;
-    /**
-     * Aborts the stream. The reason can be any value, including Error, string, or Promise.
-     * Passing an Error or object with a message is recommended.
-     */
-    abort: (reason: unknown) => void;
+    pipe: (destination: NodeJS.WritableStream) => void;
+    abort: (reason?: unknown) => void;
   };
 
   export function unstable_prerenderToNodeStream(
@@ -161,7 +158,7 @@ declare module 'react-server-dom-esm/server' {
 }
 
 declare module 'react-server-dom-esm/client.browser' {
-  export function createFromFetch<R extends unknown>(
+  export function createFromFetch<R>(
     promiseForResponse: Promise<Response>,
     options?: {
       callServer?: (id: string, args: any[]) => Promise<R>;
@@ -195,15 +192,7 @@ declare module 'react-server-dom-esm/server.node' {
     element: any,
     moduleBasePath: string,
     options?: RenderToPipeableStreamOptions
-  ): {
-    pipe: (writable: NodeJS.WritableStream) => void;
-    /**
-     * Aborts the stream. The reason can be any value, but passing an Error or an object with a message property is recommended.
-     * If a string or other value is passed, it will be wrapped as an Error internally by React.
-     * This matches the React implementation, which allows any value for the abort reason.
-     */
-    abort: (reason: unknown) => void;
-  };
+  ): PipeableStream;
 
   export function decodeReply(
     body: Uint8Array | string,
@@ -238,26 +227,4 @@ declare module 'react-server-dom-esm/server.node' {
       callClient?: (id: string, args: any[]) => Promise<any>;
     }
   ): NodeJS.ReadableStream;
-}
-
-declare module 'react-server-dom-esm/client.node' {
-  
-  export type CreateFromNodeStreamOptions = {
-    nonce?: string;
-    encodeFormAction?: (id: string, boundPromise: Promise<unknown>) => string;
-    callServer?: (id: string, args: unknown[]) => Promise<unknown>;
-  }
-  export function createFromNodeStream(
-    stream: NodeJS.ReadableStream,
-    options?: {
-      moduleMap?: Record<string, any>;
-      moduleLoading?: {
-        loadModule: (id: string) => Promise<any>;
-      };
-    }
-  ): Promise<any>;
-}
-
-declare module 'react-server-dom-esm/client' {
-  // No exports
 }

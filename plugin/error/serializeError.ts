@@ -4,6 +4,7 @@ export function serializeError(error: unknown): {
   message?: string;
   stack?: string | undefined;
   name?: string;
+  environment?: string;
   cause?: unknown;
   breadcrumbs?: string[];
   [PANIC_SYMBOL]?: boolean;

@@ -1,0 +1,205 @@
+import { logError, toError } from "../error/index.js";
+import { join } from "node:path";
+import type { Logger } from "vite";
+import type { ServerResponse } from "node:http";
+import type { IncomingMessage } from "node:http";
+
+export type ServerActionHandlerOptions = {
+  projectRoot: string;
+  verbose?: boolean;
+  logger?: Logger;
+  ssrLoadModule?: (path: string) => Promise<any>;
+};
+
+export type ServerActionRequest = {
+  id: string;
+  args: unknown[];
+};
+
+/**
+ * Parses a server action request from the request body and URL
+ */
+export async function parseServerActionRequest(
+  req: IncomingMessage,
+  verbose = false,
+  logger?: Logger
+): Promise<ServerActionRequest> {
+  let id = req.url?.split("?")[0] ?? "";
+  
+  if (verbose) {
+    logger?.info(`[handleServerActionHelper] Parsing request at ${req.url}`);
+  }
+
+  // Parse the request body
+  let args: unknown[];
+  try {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const body = Buffer.concat(chunks).toString();
+    
+    if (verbose) {
+      logger?.info(`[handleServerActionHelper] Request body: ${body}`);
+    }
+
+    const parsed = JSON.parse(body);
+    if (Array.isArray(parsed)) {
+      // Format 1: Direct args array
+      args = parsed;
+      // Get the action ID from the request URL
+      if (verbose) {
+        logger?.info(`[handleServerActionHelper] Using action ID from URL: ${id}`);
+      }
+    } else if (parsed && typeof parsed === "object" && "id" in parsed) {
+      // Format 2: Object with id and args
+      id = parsed.id;
+      args = parsed.args ?? [];
+    } else {
+      throw new Error("Invalid server action request format");
+    }
+  } catch (error: unknown) {
+    throw new Error(`Failed to parse server action request`, {
+      cause: error,
+    });
+  }
+
+  if (!id) {
+    throw new Error("Server action ID is required");
+  }
+
+  if (verbose) {
+    logger?.info(
+      `[handleServerActionHelper] Server action request for ${id} with args: ${JSON.stringify(args)}`
+    );
+  }
+
+  return { id, args };
+}
+
+/**
+ * Resolves a server action ID to file path and export name
+ */
+export function resolveServerAction(
+  id: string,
+  projectRoot: string,
+  verbose = false,
+  logger?: Logger
+): { filePath: string; exportName: string; fullPath: string } {
+  // Parse the server action ID to get the file path and export name
+  const [filePath, exportName] = id.split("#");
+  if (!filePath || !exportName) {
+    throw new Error(
+      `Invalid server action ID format: ${id}. Expected format: "path/to/file.ts#exportName"`
+    );
+  }
+
+  // Convert the server action ID to a file path
+  const actionPath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+  const fullPath = join(projectRoot, actionPath);
+  
+  if (verbose) {
+    logger?.info(
+      `[handleServerActionHelper] Resolved file path: id=${id}, actionPath=${actionPath}, projectRoot=${projectRoot}, filePath=${fullPath}, exportName=${exportName}`
+    );
+  }
+
+  return { filePath: actionPath, exportName, fullPath };
+}
+
+/**
+ * Loads and validates a server action from a module
+ */
+export async function loadServerAction(
+  fullPath: string,
+  exportName: string,
+  ssrLoadModule: (path: string) => Promise<any>,
+  verbose = false,
+  logger?: Logger
+): Promise<Function> {
+  if (verbose) {
+    logger?.info(`[handleServerActionHelper] Loading module: ${fullPath}`);
+  }
+  
+  const module = await ssrLoadModule(fullPath);
+  
+  if (verbose) {
+    logger?.info(
+      `[handleServerActionHelper] Looking for action: ${exportName} in module with exports: ${Object.keys(module).join(", ")}`
+    );
+  }
+  
+  const action = module[exportName];
+
+  if (typeof action !== "function") {
+    if (verbose) {
+      logger?.info(
+        `[handleServerActionHelper] Export ${exportName} is not a function: ${typeof action}`
+      );
+    }
+    throw new Error(
+      `Server action ${exportName} is not a function. Found: ${typeof action}`
+    );
+  }
+
+  return action;
+}
+
+/**
+ * Executes a server action with the given arguments
+ */
+export async function executeServerAction(
+  action: Function,
+  args: unknown[],
+  verbose = false,
+  logger?: Logger
+): Promise<unknown> {
+  if (verbose) {
+    logger?.info(`[handleServerActionHelper] Executing action with args: ${JSON.stringify(args)}`);
+  }
+
+  const result = await action(...args);
+  
+  if (verbose) {
+    logger?.info(`[handleServerActionHelper] Action executed successfully: ${JSON.stringify(result)}`);
+  }
+
+  return result;
+}
+
+/**
+ * Sends a server action response
+ */
+export function sendServerActionResponse(
+  res: ServerResponse,
+  result: unknown,
+  verbose = false,
+  logger?: Logger
+): void {
+  if (verbose) {
+    logger?.info(`[handleServerActionHelper] Sending response: ${JSON.stringify(result)}`);
+  }
+
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(result));
+}
+
+/**
+ * Handles server action errors
+ */
+export function handleServerActionError(
+  error: unknown,
+  res: ServerResponse,
+  logger?: Logger
+): void {
+  const err = toError(error);
+  logError(err, logger);
+  
+  res.statusCode = 500;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify({ 
+    success: false, 
+    error: err.message,
+    stack: err.stack 
+  }));
+} 

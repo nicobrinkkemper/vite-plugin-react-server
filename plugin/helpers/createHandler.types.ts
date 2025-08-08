@@ -1,21 +1,57 @@
-import type { ReactStreamHandlerFn } from "../types.js";
-import type { PassThrough } from "node:stream";
+import type { ReactStreamHandlerFn, StreamMetrics } from "../types.js";
 
-export type CreateHandlerReturn =
-  | {
-      type: "success";
-      stream: PassThrough;
-      controller: { abort: (reason: unknown) => void; destroy: () => void };
-      error?: never;
-    }
-  | {
-      type: "error";
-      error: unknown;
-      stream?: never;
-      controller?: never;
-    };
+export type CreateHandlerReturn<
+  Env extends "client" | "server" = "client" | "server"
+> = {
+  type: Env;
+  pipe: <Writable extends NodeJS.WritableStream>(
+    destination: Writable
+  ) => Writable;
+  abort: (reason?: unknown) => void;
+  elements: React.ReactElement;
+  metrics: StreamMetrics;
+  stream?: NodeJS.ReadableStream; // Optional for backward compatibility
+};
 
-export type CreateHandlerFn = ReactStreamHandlerFn<
-  "url",
-  CreateHandlerReturn
+export type CreateHandlerFn<
+  Env extends "client" | "server" = "client" | "server"
+> = ReactStreamHandlerFn<
+  // make those optional which we can handle later or ignore
+  | "url"
+  | "pageExportName"
+  | "propsExportName"
+  | "rootExportName"
+  | "htmlExportName"
+  | "moduleBaseURL"
+  | "moduleRootPath"
+  | "moduleBasePath"
+  | "moduleID"
+  | "css"
+  | "normalizer"
+  | "onMetrics"
+  | "htmlTimeout"
+  | "fileWriteTimeout"
+  | "workerShutdownTimeout"
+  | "rscWorkerPath"
+  | "htmlWorkerPath"
+  | "panicThreshold"
+  | "logger"
+  | "serverPipeableStreamOptions"
+  | "clientPipeableStreamOptions"
+  | "verbose"
+  | "onEvent"
+  | "autoDiscover"
+  | "moduleBase"
+  | "publicOrigin"
+  | "projectRoot"
+  | "rscTimeout"
+  | "loader"
+  | "PageComponent"
+  | "RootComponent"
+  | "HtmlComponent"
+  | "manifest"
+  | "cssFiles"
+  | "globalCss"
+  | "build",
+  CreateHandlerReturn<Env>
 >;

@@ -20,6 +20,10 @@ import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
 import type { LoaderConfig } from "../loader/types.js";
+import { handleError } from "../error/handleError.js";
+import { createLogger, type Logger } from "vite";
+import { getCondition } from "./getCondition.js";
+import { stashUserOptions, getStashedUserOptions } from "./stashedOptionsState.js";
 
 export type ResolveOptionsReturn =
   | {
@@ -27,11 +31,12 @@ export type ResolveOptionsReturn =
       userOptions: ResolvedUserOptions;
       error?: never;
     }
-  | { type: "error"; error: Error; userOptions?: never };
+  | { type: "error"; error: unknown; userOptions?: never };
 
 export type ResolveOptionsFn = (
   options: StreamPluginOptions,
-  forceResolve?: boolean
+  forceResolve?: boolean,
+  logger?: Logger
 ) => ResolveOptionsReturn;
 
 // /**
@@ -78,7 +83,6 @@ const registerPath = (path: string, pattern?: RegExp, ext?: string) => {
 // Main Options Resolver
 // ============================================================================
 
-const stashedUserOptions: Record<string, ResolvedUserOptions | null> = {};
 let originalOptions: any | null = null;
 /**
  * Resolves the user options for the plugin.
@@ -88,13 +92,16 @@ let originalOptions: any | null = null;
  */
 export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   options = {} as StreamPluginOptions,
-  forceResolve = false
+  forceResolve = false,
+  logger = createLogger(!options.verbose ? "error" : "info", {
+    prefix: "vite:plugin-react-server/config#resolveOptions",
+  })
 ) {
   if (!forceResolve && originalOptions == null) {
     originalOptions = options;
   } else if (originalOptions != null && options !== originalOptions) {
     if (options.verbose) {
-      console.log("options changed, forcing re-resolve");
+      logger.info("options changed, forcing re-resolve");
     }
     forceResolve = true;
   }
@@ -103,13 +110,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       ? options.panicThreshold
       : DEFAULT_CONFIG.PANIC_THRESHOLD;
   // since panicThreshold affects the behavior of the plugin, we need to re-resolve the options if it changes
-  const envId = panicThreshold + (process.env.NODE_ENV ?? "production");
+  const envId = getCondition() + "." + (process.env.NODE_ENV ?? "production");
 
   // Return stashed options if available
-  if (stashedUserOptions[envId] && !forceResolve) {
+  const stashedOptions = getStashedUserOptions(envId);
+  if (stashedOptions && !forceResolve) {
     return {
       type: "success",
-      userOptions: stashedUserOptions[envId] as never,
+      userOptions: stashedOptions as never,
     };
   }
 
@@ -600,7 +608,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
           ? options.onMetrics
           : DEFAULT_CONFIG.ON_METRICS,
       onEvent:
-        typeof options.onEvent === "function" ? options.onEvent : DEFAULT_CONFIG.ON_EVENT,
+        typeof options.onEvent === "function"
+          ? options.onEvent
+          : DEFAULT_CONFIG.ON_EVENT,
       Page: options.Page,
       props: options.props,
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
@@ -666,7 +676,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     };
 
     // Stash the resolved options
-    stashedUserOptions[envId] = userOptions;
+    stashUserOptions(envId, userOptions);
 
     return {
       type: "success",
@@ -675,8 +685,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   } catch (error) {
     return {
       type: "error",
-      error:
-        error instanceof Error ? error : new Error("Failed to resolve options"),
+      error: handleError({
+        error,
+        logger: logger,
+        panicThreshold,
+        context: "config(resolveOptions)",
+      }),
     };
   }
 };
+
+

@@ -1,14 +1,19 @@
 "use strict";
 
-const condition = process.env['NODE_OPTIONS']?.match(/--conditions[= ]react-server/) ? 'server' : 'client'
+import { getCondition } from "./plugin/config/getCondition.js";
+import type { VitePluginMainFn } from "./plugin/types.js";
 
-if(condition !== 'server'){
-  throw new Error('Condition mismatch, should be react-server but got ' + condition);
-}
+const condition = getCondition("");
+// no trailing slash
+const dir = new URL("./", import.meta.url).pathname.replace(/\/$/, "");
 
-export * from './plugin/plugin.server.js'
-export * from './plugin/react-server/index.js'
+export const { vitePluginReactServer, vitePluginReactClient } = (await import(
+  `${dir}/plugin/plugin.${condition}.js`
+)) as {
+  vitePluginReactServer: VitePluginMainFn;
+  vitePluginReactClient: VitePluginMainFn;
+};
 
 // types
-export type * from './plugin/types.js'
-export type * from './plugin/react-server/types.js'
+export type * from "./plugin/types.js";
+export type * from "./plugin/react-server/types.js";

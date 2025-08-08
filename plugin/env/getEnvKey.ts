@@ -45,6 +45,18 @@ export function setEnvValue(key: EnvKey, value: string, prefix: string = DEFAULT
 }
 
 /**
+ * Checks if the SSR environment variable is enabled
+ * @param prefix The environment prefix (optional)
+ * @returns true if SSR is enabled, false otherwise
+ */
+export function isSsrEnabled(prefix: string = DEFAULT_CONFIG.ENV_PREFIX): boolean {
+  const ssrValue = getEnvValue("SSR", prefix);
+  return typeof ssrValue === "string"
+    ? ssrValue === "true" || ssrValue === "1"
+    : Boolean(ssrValue);
+}
+
+/**
  * Creates an object with all standard environment variable keys for the given prefix
  * @param prefix The environment prefix
  * @returns Object with all environment variable names

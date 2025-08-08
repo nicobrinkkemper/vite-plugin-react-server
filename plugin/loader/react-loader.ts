@@ -4,7 +4,8 @@ import type {
   SerializedUserOptions,
 } from "../types.js";
 import type { ModuleInfo } from "rollup";
-import { MessagePort } from "node:worker_threads";
+import type { MessagePort} from "node:worker_threads";
+import { parentPort } from "node:worker_threads";
 import type {
   InitializedReactLoaderMessage,
   ServerModuleMessage,
@@ -16,7 +17,8 @@ import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import type { LoadHook, ResolveHook } from "node:module";
 import type { RawSourceMap } from "source-map";
 import { createTransformer } from "./createTransformer.js";
-import { getNodeEnv } from "../config/getNodeEnv.js";
+
+import { createLogger, type Logger } from "vite";
 
 export type LoaderOptions = {
   id: string;
@@ -32,7 +34,7 @@ export type LoaderFunction = (options: LoaderOptions) => Promise<ModuleInfo>;
 
 let initialized = false;
 let userOptions: ResolvedUserOptions;
-let loaderPort: MessagePort | undefined;
+let loaderPort: MessagePort | null;
 let isServerFunction:
   | RegExpMatchArray
   | RegExp
@@ -44,62 +46,56 @@ let isClientComponent:
   | RegExp
   | ((source: string, url: string) => boolean)
   | null = DEFAULT_LOADER_CONFIG.isClientComponentCode;
-
+let logger: Logger;
+let verbose: boolean;
 let transformer: (
   source: string,
   moduleId: string
 ) => Promise<{ code: string; map: RawSourceMap | null }>;
 
-export function initialize(
-  data: {
-    id: string;
-    port: MessagePort;
-    userOptions: SerializedUserOptions | null;
-    resolvedConfig: SerializedResolvedConfig | null;
-  } = {
-    id: "react-loader",
-    port: new MessagePort(),
-    userOptions: null,
-    resolvedConfig: null,
+export function initialize(data: {
+  id: string;
+  port: MessagePort;
+  userOptions: SerializedUserOptions;
+  resolvedConfig: SerializedResolvedConfig;
+}) {
+  const {
+    id,
+    port,
+    userOptions: serializedUserOptions,
+    resolvedConfig: serializedResolvedConfig,
+  } = data;
+  
+  verbose = serializedUserOptions?.verbose ?? false;
+  logger = createLogger(serializedResolvedConfig?.logLevel ?? "info", {
+    prefix: id,
+  });
+  
+  if (verbose) {
+    logger.info(`Initializing with options: ${id}`);
   }
-) {
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Initializing with options:", data.id);
+  loaderPort = port;
+  
+  // when user options are provided, use the user options using the hydrateUserOptions function
+  const resolvedUserOptions = hydrateUserOptions(serializedUserOptions);
+  if (resolvedUserOptions.type === "error") {
+    throw resolvedUserOptions.error;
   }
-  loaderPort = data.port;
-  if (data.userOptions) {
-    // when user options are provided, use the user options using the hydrateUserOptions function
-    const resolvedUserOptions = hydrateUserOptions(data.userOptions);
-    if (resolvedUserOptions.type === "error") {
-      throw new Error(resolvedUserOptions.error.message);
-    }
 
-    // Use the hydrated user options directly (includes recreated functions)
-    userOptions = resolvedUserOptions.userOptions;
+  // Use the hydrated user options directly (includes recreated functions)
+  userOptions = resolvedUserOptions.userOptions;
 
-    isServerFunction = userOptions.loader?.isServerFunctionCode ?? DEFAULT_LOADER_CONFIG.isServerFunctionCode;
-    isClientComponent = userOptions.loader?.isClientComponentCode ?? DEFAULT_LOADER_CONFIG.isClientComponentCode;
-    
-    transformer = createTransformer({
-      options: userOptions,
-    });
-  } else {
-    // when no user options are provided, use the default loader config
-    transformer = createTransformer({
-      options: {
-        loader: {
-          ...DEFAULT_LOADER_CONFIG,
-          mode: getNodeEnv(),
-        },
-        verbose: false,
-        panicThreshold: "critical_errors", 
-      },
-    });
-  }
+  isServerFunction = userOptions.loader?.isServerFunctionCode ?? DEFAULT_LOADER_CONFIG.isServerFunctionCode;
+  isClientComponent = userOptions.loader?.isClientComponentCode ?? DEFAULT_LOADER_CONFIG.isClientComponentCode;
+  
+  transformer = createTransformer({
+    options: userOptions,
+  });
+  
   if (!initialized && loaderPort) {
     loaderPort.postMessage({
       type: "INITIALIZED_REACT_LOADER",
-      id: data.id,
+      id,
     } satisfies InitializedReactLoaderMessage);
   }
   initialized = true;
@@ -107,28 +103,41 @@ export function initialize(
 
 export const load: LoadHook = async (url, context, nextLoad) => {
   if (!initialized) {
-    initialize(context as never);
+    // Fallback initialization when not properly set up
+    // This should not happen in normal usage, but provides a basic fallback
+    initialize({
+      id: "react-loader",
+      port: parentPort!,
+      userOptions: {} as any,
+      resolvedConfig: {} as any,
+    });
   }
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Attempting to load:", url);
-    console.log("[react-loader] Context:", {
+  const verbose = userOptions?.verbose ?? false;
+  if (verbose) {
+    logger.info(`Attempting to load: ${url}`);
+    logger.info(`Context: ${JSON.stringify({
       format: context.format,
       conditions: context.conditions,
-    });
+    })}`);
   }
 
   const { format } = context;
   if (format === "module" || format === "module-typescript") {
-    if (userOptions?.verbose) {
-      console.log("[react-loader] Loading module:", url);
+    if (verbose) {
+      logger.info(`Loading module: ${url}`);
     }
-    const result = await nextLoad(url, context);
-    if (userOptions?.verbose) {
-      console.log("[react-loader] Next load result:", {
+    
+    let result;
+      
+    // Load the URL normally
+    result = await nextLoad(url, context);
+    
+    if (verbose) {
+      logger.info(`Next load result: ${JSON.stringify({
         format: result.format,
         shortCircuit: result.shortCircuit,
         source: typeof result.source,
-      });
+      })}`);
     }
 
     const source =
@@ -156,7 +165,7 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         ? isClientComponent(source, url)
         : false);
 
-    if (userOptions?.verbose) {
+    if (verbose) {
       let startPreviewIndex = 0;
       let startLine = 0;
       const lines = source.split("\n");
@@ -170,7 +179,7 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         startPreviewIndex += lines[startLine].length;
         startLine++;
       }
-      console.log("[react-loader] Module analysis:", {
+      logger.info(`Module analysis: ${JSON.stringify({
         url,
         isServer,
         isClient,
@@ -178,23 +187,20 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         hasFileLevelClientDirective,
         sourceLength: source.length,
         sourcePreview: source.slice(startPreviewIndex, startPreviewIndex + 100) + "...",
-      });
+      })}`);
     }
 
     if (!isServer && !isClient) {
-      if (userOptions?.verbose) {
-        console.log(
-          "[react-loader] Skipping non-server/non-client module:",
-          url
-        );
+      if (verbose) {
+        logger.info(`Skipping non-server/non-client module: ${url}`);
       }
       return result;
     }
 
     // Handle file URLs
     const filePath = url.startsWith("file://") ? fileURLToPath(url) : url;
-    if (userOptions?.verbose) {
-      console.log("[react-loader] File path:", filePath);
+    if (verbose) {
+      logger.info(`File path: ${filePath}`);
     }
 
     // Normalize the URL using the same logic as plugin.server.ts
@@ -204,25 +210,25 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       const [, value] = userOptions.normalizer(filePath);
       moduleID = join(userOptions.moduleBasePath, value);
       finalID = userOptions.moduleID?.(moduleID) || moduleID;
-      if (userOptions?.verbose) {
-        console.log("[react-loader] Normalized IDs:", { moduleID, finalID });
+      if (verbose) {
+        logger.info(`Normalized IDs: ${moduleID} -> ${finalID}`);
       }
     }
 
     const { code: transformed, map } = await transformer(source, finalID);
 
-    if (userOptions?.verbose) {
-      console.log("[react-loader] Transformation result:", {
+    if (verbose) {
+      logger.info(`Transformation result: ${JSON.stringify({
         originalLength: source.length,
         transformedLength: transformed.length,
         wasTransformed: source !== transformed,
         hasSourceMap: !!map,
-      });
+      })}`);
     }
 
     if (loaderPort) {
-      if (userOptions?.verbose) {
-        console.log("[react-loader] Sending SERVER_MODULE message");
+      if (verbose) {
+        logger.info("Sending SERVER_MODULE message");
       }
       loaderPort.postMessage({
         type: "SERVER_MODULE",
@@ -239,20 +245,21 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     };
   }
 
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Skipping non-module format:", format);
+  if (verbose) {
+    logger.info(`Skipping non-module format: ${format}`);
   }
   return nextLoad(url, context);
 };
 
 export const resolve: ResolveHook = async (specifier, context, nextResolve) => {
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Resolving:", specifier);
-    console.log("[react-loader] Resolve context:", context);
+  verbose = userOptions?.verbose ?? false;
+  if (verbose) {
+    logger.info(`Resolving: ${specifier}`);
+    logger.info(`Resolve context: ${JSON.stringify(context)}`);
   }
   const result = await nextResolve(specifier, context);
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Resolve result:", result);
+  if (verbose) {
+    logger.info(`Resolve result: ${JSON.stringify(result)}`);
   }
   return result;
 };

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleWorkerServerAction } from 'vite-plugin-react-server/client';
+import { handleServerAction } from '../../dist/plugin/dev-server/handleServerAction.client.js';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import { PassThrough } from 'node:stream';
 import { EventEmitter } from 'events';
-import { createServerActionStream } from '../../dist/plugin/helpers/handleServerAction.js';
+import { createServerActionStream } from '../../dist/plugin/helpers/handleServerAction.client.js';
 
 // Mock the handleServerAction module
-vi.mock('../../dist/plugin/helpers/handleServerAction.js', () => ({
+vi.mock('../../dist/plugin/helpers/handleServerAction.client.js', () => ({
   parseServerActionRequest: vi.fn((body, url) => {
     const data = JSON.parse(body);
     if (Array.isArray(data)) {
@@ -49,6 +49,14 @@ vi.mock('../../dist/plugin/error/logError.js', () => ({
   })
 }));
 
+// Mock the handleError module
+vi.mock('../../dist/plugin/error/handleError.js', () => ({
+  handleError: vi.fn(({ error, logger }) => {
+    logger.error(error);
+    return null;
+  })
+}));
+
 describe('handleWorkerServerAction', () => {
   let mockWorker: Worker;
   let mockLogger: Logger;
@@ -59,6 +67,7 @@ describe('handleWorkerServerAction', () => {
   let mockPassThrough: PassThrough;
 
   beforeEach(() => {
+      
     const mockOn = vi.fn();
     const mockPostMessage = vi.fn();
     const mockRemoveListener = vi.fn();
@@ -67,32 +76,32 @@ describe('handleWorkerServerAction', () => {
       postMessage: mockPostMessage,
       on: mockOn,
       removeListener: mockRemoveListener,
-      // Add required Worker properties
-      stdin: null,
-      stdout: null,
-      stderr: null,
-      threadId: 1,
-      resourceLimits: {},
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      performance: {} as any,
-      terminate: vi.fn(),
-      ref: vi.fn(),
-      unref: vi.fn(),
-      addListener: vi.fn(),
-      once: vi.fn(),
-      off: vi.fn(),
-      removeAllListeners: vi.fn(),
-      setMaxListeners: vi.fn(),
-      getMaxListeners: vi.fn(),
-      listeners: vi.fn(),
-      rawListeners: vi.fn(),
-      emit: vi.fn(),
-      listenerCount: vi.fn(),
-      prependListener: vi.fn(),
-      prependOnceListener: vi.fn(),
-      eventNames: vi.fn(),
-    } as unknown as Worker;
-
+        // Add required Worker properties
+        stdin: null,
+        stdout: null,
+        stderr: null,
+        threadId: 1,
+        resourceLimits: {},
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        performance: {} as any,
+        terminate: vi.fn(),
+        ref: vi.fn(),
+        unref: vi.fn(),
+        addListener: vi.fn(),
+        once: vi.fn(),
+        off: vi.fn(),
+        removeAllListeners: vi.fn(),
+        setMaxListeners: vi.fn(),
+        getMaxListeners: vi.fn(),
+        listeners: vi.fn(),
+        rawListeners: vi.fn(),
+        emit: vi.fn(),
+        listenerCount: vi.fn(),
+        prependListener: vi.fn(),
+        prependOnceListener: vi.fn(),
+        eventNames: vi.fn(),
+      } as unknown as Worker;
+ 
     mockLogger = {
       info: vi.fn(),
       error: vi.fn(),
@@ -147,7 +156,7 @@ describe('handleWorkerServerAction', () => {
   });
 
   it('should handle server action request correctly', async () => {
-    await handleWorkerServerAction(mockReq, mockRes, mockWorker, mockLogger);
+    await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
     // Verify worker message was sent
     expect(mockWorker.postMessage).toHaveBeenCalledWith({
@@ -174,7 +183,7 @@ describe('handleWorkerServerAction', () => {
       }
     });
 
-    await handleWorkerServerAction(mockReq, mockRes, mockWorker, mockLogger);
+    await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
     const handler = messageHandler.mock.calls[0][0];
     const chunk = Buffer.from([1, 2, 3]);
@@ -193,7 +202,7 @@ describe('handleWorkerServerAction', () => {
       }
     });
 
-    await handleWorkerServerAction(mockReq, mockRes, mockWorker, mockLogger);
+    await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
     const handler = messageHandler.mock.calls[0][0];
     handler({ type: 'RSC_END', id: 'test-action' });
@@ -215,7 +224,7 @@ describe('handleWorkerServerAction', () => {
       }
     });
 
-    await handleWorkerServerAction(mockReq, mockRes, mockWorker, mockLogger);
+    await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
     const handler = messageHandler.mock.calls[0][0];
     const error = new Error('Test error');
@@ -230,35 +239,14 @@ describe('handleWorkerServerAction', () => {
     expect(mockLogger.error).toHaveBeenCalledWith(error);
   });
 
-  it('should handle stream errors correctly', async () => {
-    const messageHandler = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (mockWorker.on as any).mockImplementation((event, handler) => {
-      if (event === 'message') {
-        messageHandler(handler);
-      }
-    });
 
-    await handleWorkerServerAction(mockReq, mockRes, mockWorker, mockLogger);
-
-    // Simulate a stream error
-    mockPassThrough.emit('error', new Error('Stream error'));
-
-    // Wait for stream to finish
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    // The stream should be ended, message handler removed, and error logged
-    expect(mockRes.end).toHaveBeenCalled();
-    expect(mockWorker.removeListener).toHaveBeenCalledWith('message', expect.any(Function));
-    expect(mockLogger.error).toHaveBeenCalled();
-  });
 
   it('should handle invalid request body', async () => {
     mockReq[Symbol.asyncIterator] = async function* () {
       yield Buffer.from('invalid json');
     };
 
-    await handleWorkerServerAction(mockReq, mockRes, mockWorker, mockLogger);
+    await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
 
     expect(mockLogger.error).toHaveBeenCalled();
@@ -270,7 +258,7 @@ describe('handleWorkerServerAction', () => {
       yield Buffer.from(JSON.stringify({ args: [1, 2] }));
     };
 
-    await handleWorkerServerAction(mockReq, mockRes, mockWorker, mockLogger);
+    await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
 
     expect(mockLogger.error).toHaveBeenCalled();

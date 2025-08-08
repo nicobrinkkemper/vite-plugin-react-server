@@ -3,8 +3,6 @@ import type { ErrorInfo } from "react";
 export function toError(error: unknown, errorInfo?: ErrorInfo): Error {
   if (typeof error === "string") {
     const err = new Error(error, { cause: errorInfo });
-    // Capture stack trace, excluding this function from the trace
-    // Error.captureStackTrace(err, toError);
     return err;
   }
   if (error == null ) {
@@ -94,7 +92,7 @@ export function toError(error: unknown, errorInfo?: ErrorInfo): Error {
       return err;
     }
     
-    const err = new Error(message, { cause: errorInfo });
+    const err = new Error(message ?? "Unknown React Stream Error", { cause: errorInfo });
     // Error.captureStackTrace(err, toError);
     return err;
   }

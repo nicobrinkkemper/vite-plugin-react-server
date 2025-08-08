@@ -12,8 +12,10 @@ import type {
   InitializedReactLoaderMessage,
   RscWorkerInputMessage,
 } from "./types.js";
-import { toError } from "../../error/toError.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
+import { createLogger } from "vite";
+import { handleError } from "../../error/handleError.js";
+import { sendMessage } from "../sendMessage.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -21,16 +23,16 @@ if (!parentPort) {
 }
 
 // In test mode, we want errors to propagate up immediately
-const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
-const isDevEnv = process.env["NODE_ENV"] !== "production";
 const verbose = workerData.verbose;
-
+const logger = createLogger(workerData.resolvedConfig.logLevel, {
+  prefix: "rsc-worker",
+});
 const developmentMessageHandler = (msg: RscWorkerInputMessage) => {
   if (verbose) {
     if (msg.type === "RSC_RENDER") {
-      console.log(`[rsc-worker:${msg.type}] Render ${msg.pagePath}}`);
+      logger.info(`Render ${msg.pagePath}}`);
     } else {
-      console.log(`[rsc-worker:${msg.type}] ${JSON.stringify(msg)}`);
+      logger.info(`RscWorker: ${JSON.stringify(msg)}`);
     }
   }
   messageHandler(msg);
@@ -38,7 +40,7 @@ const developmentMessageHandler = (msg: RscWorkerInputMessage) => {
 
 const developmentCssLoaderMessageHandler = (msg: CssFileMessage) => {
   if (verbose) {
-    console.log(`[css-loader:${msg.type}] ${JSON.stringify(msg)}`);
+    logger.info(`CssLoader: ${JSON.stringify(msg)}`);
   }
   messageHandler(msg);
 };
@@ -47,7 +49,7 @@ const developmentEnvLoaderMessageHandler = (
   msg: InitializedEnvLoaderMessage
 ) => {
   if (verbose) {
-    console.log(`[env-loader:${msg.type}] ${JSON.stringify(msg)}`);
+    logger.info(`EnvLoader: ${JSON.stringify(msg)}`);
   }
   messageHandler(msg);
 };
@@ -56,7 +58,7 @@ const developmentReactLoaderMessageHandler = (
   msg: InitializedReactLoaderMessage
 ) => {
   if (verbose) {
-    console.log(`[react-loader:${msg.type}] ${JSON.stringify(msg)}`);
+    logger.info(`${JSON.stringify(msg)}`);
   }
   messageHandler(msg);
 };
@@ -70,7 +72,7 @@ try {
   // Set up message handlers before transferring ports
   reactLoaderChannel.port2.on("message", developmentReactLoaderMessageHandler);
   reactLoaderChannel.port2.on("messageerror", (error: Error) => {
-    console.error("[rsc-worker] React loader message serialization failed:", error);
+    logger.error("React loader message serialization failed.", { error });
     if (parentPort) {
       parentPort.postMessage({
         type: "ERROR",
@@ -83,10 +85,10 @@ try {
       });
     }
   });
-  
+
   cssLoaderChannel.port2.on("message", developmentCssLoaderMessageHandler);
   cssLoaderChannel.port2.on("messageerror", (error: Error) => {
-    console.error("[rsc-worker] CSS loader message serialization failed:", error);
+    logger.error("CSS loader message serialization failed.", { error });
     if (parentPort) {
       parentPort.postMessage({
         type: "ERROR",
@@ -99,10 +101,10 @@ try {
       });
     }
   });
-  
+
   envLoaderChannel.port2.on("message", developmentEnvLoaderMessageHandler);
   envLoaderChannel.port2.on("messageerror", (error: Error) => {
-    console.error("[rsc-worker] Env loader message serialization failed:", error);
+    logger.error("Env loader message serialization failed.", { error });
     if (parentPort) {
       parentPort.postMessage({
         type: "ERROR",
@@ -119,61 +121,113 @@ try {
   const reactLoaderPath =
     "file://" +
     (workerData.userOptions.reactLoaderPath
-      ? resolve(workerData.resolvedConfig.root, workerData.userOptions.reactLoaderPath)
-      : resolve(workerData.resolvedConfig.root, DEFAULT_CONFIG.REACT_LOADER_PATH));
+      ? resolve(
+          workerData.resolvedConfig.root,
+          workerData.userOptions.reactLoaderPath
+        )
+      : resolve(
+          workerData.resolvedConfig.root,
+          DEFAULT_CONFIG.REACT_LOADER_PATH
+        ));
+  logger.info(`Using reactLoaderPath: ${reactLoaderPath}`);
   const cssLoaderPath =
     "file://" +
     (workerData.userOptions.cssLoaderPath
-      ? resolve(workerData.resolvedConfig.root, workerData.userOptions.cssLoaderPath)
-      : resolve(workerData.resolvedConfig.root, DEFAULT_CONFIG.CSS_LOADER_PATH));
+      ? resolve(
+          workerData.resolvedConfig.root,
+          workerData.userOptions.cssLoaderPath
+        )
+      : resolve(
+          workerData.resolvedConfig.root,
+          DEFAULT_CONFIG.CSS_LOADER_PATH
+        ));
   const envLoaderPath =
     "file://" +
     (workerData.userOptions.envLoaderPath
-      ? resolve(workerData.resolvedConfig.root, workerData.userOptions.envLoaderPath)
-      : resolve(workerData.resolvedConfig.root, DEFAULT_CONFIG.ENV_LOADER_PATH));
+      ? resolve(
+          workerData.resolvedConfig.root,
+          workerData.userOptions.envLoaderPath
+        )
+      : resolve(
+          workerData.resolvedConfig.root,
+          DEFAULT_CONFIG.ENV_LOADER_PATH
+        ));
 
-  register(cssLoaderPath, {
-    parentURL: pluginRoot,
-    data: {
-      id: "css-loader",
-      port: cssLoaderChannel.port1,
-      userOptions: workerData.userOptions,
-      resolvedConfig: workerData.resolvedConfig,
-    },
-    transferList: [cssLoaderChannel.port1],
-  });
+  try {
+    register(cssLoaderPath, {
+      parentURL: pluginRoot,
+      data: {
+        id: "css-loader",
+        port: cssLoaderChannel.port1,
+        userOptions: workerData.userOptions,
+        resolvedConfig: workerData.resolvedConfig,
+      },
+      transferList: [cssLoaderChannel.port1],
+    });
+  } catch (e) {
+    const handledError = handleError({
+      error: e,
+      logger,
+      panicThreshold: workerData.userOptions.panicThreshold,
+      context: `register(${cssLoaderPath})`,
+    });
+    if (handledError != null) throw handledError;
+  }
 
   // Register tsx
   registerTsx();
 
-  // Register loaders with their ports
-  register(reactLoaderPath, {
-    parentURL: pluginRoot,
-    data: {
-      id: "react-loader",
-      port: reactLoaderChannel.port1,
-      userOptions: workerData.userOptions,
-      resolvedConfig: workerData.resolvedConfig,
-    },
-    transferList: [reactLoaderChannel.port1],
-  });
+  try {
+    // Register loaders with their ports
+    register(reactLoaderPath, {
+      parentURL: pluginRoot,
+      data: {
+        id: "react-loader",
+        port: reactLoaderChannel.port1,
+        userOptions: workerData.userOptions,
+        resolvedConfig: workerData.resolvedConfig,
+      },
+      transferList: [reactLoaderChannel.port1],
+    });
+  } catch (e) {
+    const handledError = handleError({
+      error: e,
+      logger,
+      panicThreshold: workerData.userOptions.panicThreshold,
+      context: `register(${reactLoaderPath})`,
+    });
+    if (handledError != null) throw handledError;
+  }
 
   // Register env-loader (ensure this the last)
-  register(envLoaderPath, {
-    parentURL: pluginRoot,
-    data: {
-      id: "env-loader",
-      port: envLoaderChannel.port1,
-      resolvedConfig: workerData.resolvedConfig,
-      userOptions: workerData.userOptions,
-    },
-    transferList: [envLoaderChannel.port1],
-  });
+  try {
+    register(envLoaderPath, {
+      parentURL: pluginRoot,
+      data: {
+        id: "env-loader",
+        port: envLoaderChannel.port1,
+        resolvedConfig: workerData.resolvedConfig,
+        userOptions: workerData.userOptions,
+      },
+      transferList: [envLoaderChannel.port1],
+    });
+  } catch (e) {
+    const handledError = handleError({
+      error: e,
+      logger,
+      panicThreshold: workerData.userOptions.panicThreshold,
+      context: `register(${envLoaderPath})`,
+    });
+    if (handledError != null) throw handledError;
+  }
 
   // Set up message handling
   parentPort!.on("message", developmentMessageHandler);
   parentPort!.on("messageerror", (error: Error) => {
-    console.error("[rsc-worker] Parent port message serialization failed:", error);
+    console.error(
+      "[rsc-worker] Parent port message serialization failed:",
+      error
+    );
     // Can't send via parentPort since that's what failed, so just log
   });
 
@@ -200,10 +254,10 @@ try {
         } satisfies HmrAcceptMessage);
       }
     });
-    
+
     // Handle HMR port message errors
     hmrPort.on("messageerror", (error: Error) => {
-      console.error("[rsc-worker] HMR port message serialization failed:", error);
+      logger.error("HMR port message serialization failed.", { error });
       if (parentPort) {
         parentPort.postMessage({
           type: "ERROR",
@@ -230,24 +284,18 @@ try {
     throw new Error("This module should not run in production mode.");
   }
 } catch (error: unknown) {
-  if (isDevEnv) {
-    console.error(error);
-  }
+  const handledError = handleError({
+    error,
+    logger,
+    panicThreshold: workerData.userOptions.panicThreshold,
+    context: "rsc-worker",
+  });
   // In dev mode, try to send error message before exiting
-  if (parentPort) {
-    const err = toError(error);
-    parentPort?.postMessage({
+  if (parentPort && handledError != null) {
+    sendMessage({
       type: "ERROR",
       id: "rsc-worker",
-      error: {
-        message: err.message,
-        stack: err.stack,
-        name: err.name,
-      },
-    });
-  }
-  if (!isDevEnv || isTestEnv) {
-    // In test mode or production mode, just throw the error to fail fast
-    throw error;
+      error: handledError,
+    }, parentPort);
   }
 }

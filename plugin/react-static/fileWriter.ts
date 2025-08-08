@@ -33,7 +33,6 @@ export const fileWriter: FileWriterFn = async function _fileWriter(
   options,
   signal
 ) {
-  const { onEvent } = options;
 
   // Validate stream
   if (!stream) {
@@ -72,23 +71,32 @@ export const fileWriter: FileWriterFn = async function _fileWriter(
   // Create write stream
   const writeStream = createWriteStream(outputPath);
 
+  // Collect chunks for content
+  const chunks: Buffer[] = [];
+
+  if (options.logger) {
+    options.logger.info(`[fileWriter] Starting file write for ${fileType} on route ${options.route}`);
+  }
+
   // Create transform stream to capture content
   const contentCapture = new Transform({
     transform(chunk, _encoding, callback) {
+      // Collect the chunk
+      const buffer = Buffer.from(chunk);
+      chunks.push(buffer);
+      if (options.logger) {
+        options.logger.info(`[fileWriter:${fileType}] Captured chunk: ${buffer.length} bytes, total chunks: ${chunks.length}`);
+        // 100 char preview
+        options.logger.info(`[fileWriter:${fileType}] Preview: ${buffer.slice(0, 100).toString("utf-8")}`);
+      }
       // Pass through the chunk
       callback(null, chunk);
     },
   });
 
-  // Collect chunks for content
-  const chunks: Buffer[] = [];
-  contentCapture.on("data", (chunk) => {
-    chunks.push(Buffer.from(chunk));
-  });
-
   // Emit file.write events if onEvent is provided
-  if (onEvent) {
-    onEvent({
+  if (options.onEvent) {
+    options.onEvent({
       type: "file.write",
       data: {
         fileType: fileType,
@@ -112,14 +120,28 @@ export const fileWriter: FileWriterFn = async function _fileWriter(
       const content = Buffer.concat(chunks).toString("utf-8");
       const trimmedContent = content.trim();
 
+      if (options.logger && options.verbose) {
+        options.logger.info(`[fileWriter:${fileType}] Final content: ${content.length} bytes, chunks: ${chunks.length}, trimmed: ${trimmedContent.length} bytes`);
+      }
+
+      // If the file is empty, do not emit file.write.done or write the file
+      if (content.length === 0) {
+        if (options.logger && options.verbose) {
+          options.logger.info(`[fileWriter:${fileType}] Skipping empty file write for route=${options.route}`);
+        }
+        // Remove the file if it was created (defensive, in case of partial write)
+        unlink(outputPath, () => {});
+        return resolve();
+      }
+
       // Emit file.write.done event with content (even if empty)
-      if (onEvent) {
-        onEvent({
+      if (options.onEvent) {
+        options.onEvent({
           type: "file.write.done",
           data: {
             fileType: fileType,
             route: options.route,
-            content: trimmedContent ? content : "",
+            content: content,
           },
         });
       }
@@ -154,7 +176,7 @@ export const fileWriter: FileWriterFn = async function _fileWriter(
     writeStream.on("error", (err) => done(err));
 
     // Handle errors on input stream and content capture
-    stream.on("error", (err) => done(err));
+    stream?.on?.("error", (err) => done(err));
     contentCapture.on("error", (err) => done(err));
 
     stream.pipe(contentCapture).pipe(writeStream);

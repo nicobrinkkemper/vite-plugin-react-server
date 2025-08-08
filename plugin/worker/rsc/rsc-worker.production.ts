@@ -57,6 +57,7 @@ register(reactLoaderPath, {
     port: reactLoaderChannel.port1,
     userOptions: workerData.userOptions,
     resolvedConfig: workerData.resolvedConfig,
+    serverManifest: workerData.serverManifest,
   },
   transferList: [reactLoaderChannel.port1],
 });

@@ -10,8 +10,6 @@
  */
 
 import { Transform } from "node:stream";
-import { dirname, join } from "node:path";
-import { mkdir } from "node:fs/promises";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { fileWriter } from "./fileWriter.js";
 import type { CollectRscContentFn } from "./types.js";
@@ -25,56 +23,109 @@ import type { CollectRscContentFn } from "./types.js";
  */
 export const collectRscContent: CollectRscContentFn =
   async function _collectRscContent(rsc, handlerOptions) {
-    const rscStream = rsc.stream;
-    const rscController = rsc.controller;
     const metrics = createStreamMetrics();
     const startTime = performance.now();
 
-    const outputPath = join(
-      handlerOptions.build.outDir,
-      handlerOptions.build.static,
-      handlerOptions.route,
-      handlerOptions.build.rscOutputPath
-    );
+    // Buffer to store RSC content for reuse
+    const rscBuffer: Buffer[] = [];
 
-    const dir = dirname(outputPath);
-    // Ensure directory exists
-    await mkdir(join(handlerOptions.projectRoot, dir), { recursive: true });
-
-    // Create transform to track metrics
+    // Create transform to track metrics and buffer content
     const metricsTransform = new Transform({
       transform(chunk, _encoding, callback) {
         metrics.chunks++;
         metrics.bytes += chunk.length;
+        // Buffer the chunk for reuse
+        rscBuffer.push(Buffer.from(chunk));
         callback(null, chunk);
       },
       flush(callback) {
         metrics.duration = performance.now() - startTime;
+        if (handlerOptions.verbose) {
+          handlerOptions.logger.info(`[collectRscContent] Transform flush: ${metrics.chunks} chunks, ${metrics.duration}ms`);
+        }
         callback();
       },
     });
 
+    let writePromise: Promise<void> | undefined;
+
     try {
+      // Set up error handling for route.error events
+      if (handlerOptions.onEvent) {
+        const originalOnEvent = handlerOptions.onEvent;
+        handlerOptions.onEvent = (event) => {
+          if (event.type === "route.error") {
+            if (handlerOptions.verbose) {
+              handlerOptions.logger.info(`[collectRscContent:${handlerOptions.route}] Route error: ${JSON.stringify(event.data.error)}`);
+            }
+            // Don't abort the stream immediately - let it complete naturally
+            // The error will be handled by the error handling logic in the build process
+          }
+          originalOnEvent(event);
+        };
+      }
+
       // Pipe RSC stream through metrics tracking
-      rscStream.pipe(metricsTransform);
+      rsc.pipe(metricsTransform);
 
       // Set up file writing using fileWriter
-      const writePromise = fileWriter(metricsTransform, "rsc", handlerOptions);
+      writePromise = fileWriter(metricsTransform, "rsc", handlerOptions, handlerOptions.signal);
 
-      // Wait for stream to complete
-      await new Promise<void>((resolve) => {
-        metricsTransform.on("end", resolve);
+      // Wait for stream to complete with timeout
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(`[collectRscContent] Stream timeout reached, forcing completion`);
+          }
+          resolve();
+        }, 3000); // 3 second timeout
+
+        metricsTransform.on("end", () => {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(`[collectRscContent] Stream ended with ${metrics.bytes} bytes`);
+          }
+          clearTimeout(timeout);
+          resolve();
+        });
+
+        metricsTransform.on("error", (error) => {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.info(`[collectRscContent] Stream error: ${error}`);
+          }
+          clearTimeout(timeout);
+          reject(error);
+        });
       });
 
       // Wait for file writing to complete
-      await writePromise;
+      if (writePromise) await writePromise;
 
-      return { stream: rscStream, controller: rscController, metrics };
+      if (handlerOptions.verbose) {
+        handlerOptions.logger.info(`[collectRscContent] File write completed with ${metrics.bytes} bytes`);
+      }
+
+      // Return the same interface as collectHtmlWorkerContent for consistency
+      // Also include the buffered content for reuse
+      return { 
+        pipe: rsc.pipe.bind(rsc), 
+        abort: rsc.abort.bind(rsc), 
+        metrics,
+        // Include buffered content for reuse by collectHtmlContent
+        bufferedContent: rscBuffer
+      };
     } catch (error) {
-      if(handlerOptions.verbose) {
+      if (handlerOptions.verbose) {
         handlerOptions.logger.info(`[collectRscContent] Error: ${error}`);
       }
       metricsTransform.destroy();
+      rsc.abort(new Error("RSC Stream aborted"));
+      if (writePromise) {
+        try {
+          await writePromise;
+        } catch {
+          throw error;
+        }
+      }
       throw error;
     }
   };

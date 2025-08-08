@@ -14,12 +14,13 @@ import type {
   ServerActionResponseMessage,
   CleanupCompleteMessage,
   ShutdownMessage,
-  RouteReadyMessage,
   RscEndMessage,
-  CleanupMessage
+  CleanupMessage,
+  AbortMessage,
+  StreamHandlers
 } from '../types.js';
 import type { CssFileMessage, InitializedCssLoaderMessage, RscChunkOutputMessage, RscMetricsMessage } from "../rsc/types.js";
-import type { Logger } from "vite";
+import type { createLogger, Logger } from "vite";
 
 // HTML-specific metrics
 export type HtmlWorkerStreamMetrics = {
@@ -45,8 +46,7 @@ export type HtmlWorkerRenderState = {
 export type HtmlChunkMessage = {
   type: "HTML_CHUNK";
   id: string;
-  chunk: string;
-  encoding: string;
+  chunk: Uint8Array;
 }
 
 export type HtmlCompleteMessage = {
@@ -56,6 +56,12 @@ export type HtmlCompleteMessage = {
   html?: string;
   chunks?: string[];
   metrics?: StreamMetrics;
+}
+
+export type HtmlMetricsMessage = {
+  type: "HTML_METRICS";
+  id: string;
+  metrics: StreamMetrics;
 }
 
 export type LogErrorMessage = {
@@ -69,17 +75,52 @@ export type LogErrorMessage = {
   };
 }
 
+export type HtmlRenderStartMessage = {
+  type: "HTML_RENDER_START";
+  id: string;
+};
+
+export type HtmlRenderMessage = {
+  type: "HTML_RENDER";
+  id: string;
+  route: string;
+  url?: string;
+  pagePath?: string;
+  propsPath?: string;
+  rootPath?: string;
+  htmlPath?: string;
+  pageExportName?: string;
+  propsExportName?: string;
+  rootExportName?: string;
+  htmlExportName?: string;
+  projectRoot?: string;
+  moduleRootPath?: string;
+  moduleBaseURL?: string;
+  moduleBasePath?: string;
+  moduleBase?: string;
+  clientPipeableStreamOptions?: any;
+  cssFiles?: Map<string, any>;
+  globalCss?: Map<string, any>;
+  verbose?: boolean;
+  build?: any;
+  htmlTimeout?: number;
+  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  publicOrigin?: string;
+}
+
 export type HtmlWorkerInputMessage =
-  | RouteReadyMessage
+  | HtmlRenderMessage
   | RscChunkOutputMessage
   | RscEndMessage
   | ShellReadyMessage
   | AllReadyMessage
   | ErrorMessage
+  | ShellErrorMessage
   | CssFileMessage
   | RscMetricsMessage
   | ShutdownMessage
   | CleanupMessage
+  | AbortMessage
 
 export type HtmlWorkerOutputMessage =
   | HtmlCompleteMessage
@@ -98,11 +139,13 @@ export type HtmlWorkerOutputMessage =
   | CleanupCompleteMessage
   | InitializedCssLoaderMessage
   | LogErrorMessage
+  | HtmlRenderStartMessage
+  | HtmlMetricsMessage
 
   
 
 export type CreateHtmlWorkerRenderStateFn = (
-  msg: RouteReadyMessage,
+  msg: HtmlRenderMessage,
   sendMessage?: (msg: HtmlWorkerOutputMessage) => void,
   rscStream?: PassThrough,
   logger?: Logger
@@ -111,3 +154,20 @@ export type CreateHtmlWorkerRenderStateFn = (
 
 
 export type CallServerCallback = (id: string, args: unknown[]) => Promise<unknown>;
+
+
+export type HandleHtmlRenderFn = (
+  options: {
+    id: string;
+    route: string;
+    rscStream: PassThrough;
+    projectRoot?: string;
+    moduleRootPath?: string;
+    moduleBasePath?: string;
+    moduleBaseURL?: string;
+    verbose?: boolean;
+    htmlTimeout?: number;
+  },
+  handlers: StreamHandlers<'client'>,
+  logger?: ReturnType<typeof createLogger>
+) => void;

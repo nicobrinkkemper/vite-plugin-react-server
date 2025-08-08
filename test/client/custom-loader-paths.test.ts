@@ -1,18 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createClientDevServer } from "./createClientDevServer.js";
+import { createClientDevServer, clearServerCache } from "./createClientDevServer.js";
 import type { ViteDevServer } from "vite";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setupTestProject } from "../setup.js";
-import { handleRSCStream } from "../rsc-stream.js";
 
 let server: ViteDevServer;
 let port = 5178; // Use unique port to avoid conflicts
+
 let pageURL: string;
 const testDir = join(process.cwd(), "test/client/fixtures/custom-loader-paths");
 
 describe("Custom Loader Paths Configuration", () => {
   beforeAll(async () => {
+    // Clear any existing server cache for this port to ensure a fresh start
+    clearServerCache(port);
+    
     // Clean up and create test directory
     await rm(testDir, { recursive: true, force: true });
     await mkdir(testDir, { recursive: true });
@@ -24,9 +27,17 @@ describe("Custom Loader Paths Configuration", () => {
     // This proves the custom loader path is being used without interfering with React's processing
     const customReactLoader = `
 export const load = async (url, context, defaultLoad) => {
-  // Just pass through to the default behavior
-  // The fact that this loader gets called proves custom loader paths work
-  return defaultLoad(url, context);
+  console.log("[custom-react-loader] Called with:", { url, context: { format: context.format, conditions: context.conditions } });
+  try {
+    // Just pass through to the default behavior
+    // The fact that this loader gets called proves custom loader paths work
+    const result = await defaultLoad(url, context);
+    console.log("[custom-react-loader] Success:", { url, result: { format: result.format, shortCircuit: result.shortCircuit } });
+    return result;
+  } catch (error) {
+    console.error("[custom-react-loader] Error:", { url, error: error.message });
+    throw error;
+  }
 };
 `;
 
@@ -78,6 +89,7 @@ export default function TestPage() {
       projectRoot: testDir,
       reactLoaderPath: "./custom-react-loader.js",
       cssLoaderPath: "./custom-css-loader.js",
+      verbose: false,  
     }, port);
     
     port = server.config.server.port!;
@@ -86,6 +98,7 @@ export default function TestPage() {
 
   afterAll(async () => {
     await server?.close();
+    clearServerCache(port); // Clear the cache for this port
     await rm(testDir, { recursive: true, force: true });
   });
 
@@ -116,12 +129,13 @@ export default function TestPage() {
   it("should start RSC worker successfully with custom loader paths", async () => {
     // This test verifies that the RSC system can start and accept requests
     // even when custom loader paths are configured
+    console.log("pageURL", pageURL);
     const response = await fetch(pageURL, {
       headers: {
         Accept: "text/x-component; charset=utf-8",
       },
     });
-    
+    console.log("response", response);
     // The important thing is that the server responds with correct headers
     // Custom loaders may have implementation issues, but the system should start
     expect(response.status).toBe(200);

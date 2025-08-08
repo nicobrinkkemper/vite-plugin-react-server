@@ -1,4 +1,4 @@
-import type { Logger, ViteDevServer } from "vite";
+import type { Logger, Manifest, ResolvedConfig, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   CreateHandlerOptions,
@@ -38,10 +38,10 @@ export type HandleWorkerRscStreamFn = (props: {
       type?: "RSC_RENDER";
     };
   logger: Logger;
-  handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate"> &
+  handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate" | "onShellError"> &
     Partial<
       Pick<
-        StreamHandlers,
+        StreamHandlers<'server'>,
         | "onError"
         | "onData"
         | "onEnd"
@@ -54,23 +54,35 @@ export type HandleWorkerRscStreamFn = (props: {
 } & Pick<CreateHandlerOptions, "verbose" | "rscTimeout" | "panicThreshold">) => ReadableStream<Uint8Array>;
 
 export type CreateWorkerStreamFn = (props: {
-  worker: Worker;
-  message: Omit<RscRenderMessage, "type" | "id"> &
-    Partial<Pick<RscRenderMessage, "id">> & {
-      type?: "RSC_RENDER";
-    };
-  logger: Logger;
-  handlers: Pick<StreamHandlers, "onHmrAccept" | "onHmrUpdate" | "onMetrics"> &
-    Partial<
-      Pick<
-        StreamHandlers,
-        "onError" | "onServerAction" | "onServerActionResponse" | "onCssFile"
-      >
-    >;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  route: string;
+  url: string;
+  projectRoot: string;
+  moduleBasePath: string;
+  moduleBaseURL: string;
+  moduleRootPath: string;
+  cssFiles: Map<string, any>;
+  globalCss: Map<string, any>;
+  manifest: any;
+  serverPipeableStreamOptions?: any;
+  clientPipeableStreamOptions?: any;
   verbose?: boolean;
-  rscTimeout?: number;
-}) => AsyncGenerator<Uint8Array>;
+  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  logger?: any;
+  rscWorkerPath?: string;
+  onEvent?: (event: any) => void;
+  moduleBase: string;
+  HtmlComponent: any;
+  PageComponent: any;
+  RootComponent: any;
+  pageProps: any;
+  as: any;
+}) => {
+  abort: (reason?: unknown) => void;
+  pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => Writable;
+};
+
+
+// Removed GenerateWorkerStreamFn - using CreateWorkerStreamFn from helpers instead
 
 export type CreateMessageHandlerFn = (props: {
   handlers: StreamHandlers;
@@ -82,8 +94,18 @@ export type ConfigureWorkerRequestHandlerFn = (props: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
+  serverManifest: Manifest;
+  resolvedConfig: ResolvedConfig;
   hmrChannel: MessageChannel;
+  onWorkerCreated?: (worker: Worker) => void;
 }) => void;
+
+export type ConfigureRequestHandlerFn = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  worker: Worker,
+  logger: ViteDevServer["config"]["logger"]
+) => Promise<void>;
 
 export type CleanupWorkerServerActionFn = (
   passThrough: PassThrough,

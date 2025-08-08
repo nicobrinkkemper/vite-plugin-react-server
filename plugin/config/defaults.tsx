@@ -198,7 +198,6 @@ export const DEFAULT_CONFIG = {
     inlinePatterns: [] as RegExp[], // Always inline CSS modules
     linkPatterns: [] as RegExp[], // Always link node_modules CSS
   },
-  MODULE_BASE_EXCEPTIONS: [] as string[],
 
   AUTO_DISCOVER: {
     // Pattern matchers

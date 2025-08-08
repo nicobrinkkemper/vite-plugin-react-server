@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { resolve } from "path";
-import { mkdir, rm } from "fs/promises";
+import { mkdir } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type {
   PluginEvent,
@@ -8,7 +8,11 @@ import type {
   RenderMetrics,
 } from "vite-plugin-react-server/types";
 import { doBuild } from "./doBuild.js";
-import { build } from "vite";
+import { getCondition } from "vite-plugin-react-server/config";
+
+if(getCondition() !== "react-server") {
+  throw new Error("This test is only valid in a react-server environment");
+}
 
 describe("Plugin build test", () => {
   const testDir = resolve(__dirname, "../fixtures/build.test");
@@ -22,10 +26,12 @@ describe("Plugin build test", () => {
       await setupTestProject(testDir);
       events = await doBuild({
         projectRoot: testDir,
+        verbose: true,
         onMetrics: (m) => {
           metrics.push(m);
         },
       });
+
 
       // Get HTML content from file.write.done event
       const htmlDoneEvent = events.find(
@@ -258,7 +264,7 @@ describe("Plugin build test", () => {
           build: {
             pages: ["/"],
           },  
-          verbose: true,
+          verbose:  false,
           panicThreshold: "all_errors",
           onEvent: (event) => {
             if (event.type === testEvent) {

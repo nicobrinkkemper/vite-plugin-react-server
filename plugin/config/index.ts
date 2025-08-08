@@ -19,3 +19,8 @@ export * from './resolveAllowedDirectives.js';
 export * from './resolveOptions.js';
 export * from './resolveUrlOption.js';
 export * from './getNodeEnv.js';
+export { createHandlerOptions } from "./createHandlerOptions.js";
+export { resolveOptions } from "./resolveOptions.js";
+export * from "./stashedOptionsState.js";
+
+

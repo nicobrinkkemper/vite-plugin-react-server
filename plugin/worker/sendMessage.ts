@@ -1,6 +1,8 @@
 import { cleanObject } from "../helpers/cleanObject.js";
 import { parentPort } from "node:worker_threads";
 import type { SendMessageFn } from "./types.js";
+import { serializeError } from "../error/serializeError.js";
+import { serializeErrorInfo } from "../error/serializeErrorInfo.js";
 
 export const sendMessage: SendMessageFn = function _sendMessage(
   msg,
@@ -18,37 +20,10 @@ export const sendMessage: SendMessageFn = function _sendMessage(
         "errorInfo" in msg &&
         msg.errorInfo != null &&
         typeof msg.errorInfo === "object";
-      const serializedError =
-        error instanceof Error
-          ? {
-              message: error.message,
-              stack: error.stack,
-              name: error.name,
-              cause: error.cause,
-            }
-          : typeof error === "object" &&
-            error !== null &&
-            "message" in error &&
-            "name" in error
-          ? {
-              message:
-                typeof error.message === "string"
-                  ? error.message
-                  : String(error.message),
-              stack: typeof error.stack === "string" ? error.stack : undefined,
-              name: typeof error.name === "string" ? error.name : "Error",
-              cause: "cause" in error ? error.cause : undefined,
-            }
-          : {
-              message: String(error),
-              name: "Error",
-            };
+      const serializedError = serializeError(error);
 
       const errorInfo = hasErrorInfo
-        ? {
-            componentStack: msg.errorInfo?.componentStack,
-            digest: msg.errorInfo?.digest,
-          }
+        ? serializeErrorInfo(msg.errorInfo)
         : undefined;
       port.postMessage({
         ...cleanObject(msg),

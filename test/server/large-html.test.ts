@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'path';
 import { mkdir, writeFile, rm } from 'fs/promises';
-import { type PluginEvent, type FileWriteDoneEvent } from 'vite-plugin-react-server/client';
+import { type PluginEvent, type FileWriteDoneEvent } from 'vite-plugin-react-server/types';
 import { testUserOptions } from '../test-config.js';
 import { doBuild } from './doBuild.js';
 

@@ -8,7 +8,7 @@ type ResolvePageAndPropsOptionsSuccess<N extends SupportedOptionNames> = {
 
 type ResolvePageAndPropsOptionsError<N extends SupportedOptionNames> = {
   [optionName in N]?: never;
-} & { type: "error"; error: Error };
+} & { type: "error"; error: unknown };
 
 export type ResolvePageAndPropsReturn<N extends SupportedOptionNames> =
   | ResolvePageAndPropsOptionsSuccess<N>

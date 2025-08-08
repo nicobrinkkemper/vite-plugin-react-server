@@ -7,14 +7,13 @@ import type { VitePluginFn } from "../types.js";
 import type { Program } from "acorn";
 import { join } from "node:path";
 
-
 /**
  * Plugin for transforming React Client Components.
  *
  * Core responsibilities:
  * 1. Strips "use client" directives
  * 2. Removes accidental server code imports
- * 
+ *
  */
 export const reactTransformPlugin: VitePluginFn = (options) => {
   const resolvedOptionsResult = resolveOptions(options);
@@ -41,6 +40,12 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
       }
     },
     async buildStart() {
+      console.log(
+        "🔍 Client transformer buildStart called in environment:",
+        this.environment?.name || "unknown"
+      );
+
+
       if (isBuild && isSSR) {
         const manifestResult = await tryManifest({
           root: userOptions.projectRoot,
@@ -55,7 +60,14 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
     transform: {
       order: "post",
       async handler(code, id) {
+
+
         if (!userOptions.autoDiscover.modulePattern.test(id)) {
+          return null;
+        }
+
+        // Skip server files - they should be processed by the server transformer
+        if (userOptions.autoDiscover.serverPattern.test(id)) {
           return null;
         }
 
@@ -88,7 +100,7 @@ export const reactTransformPlugin: VitePluginFn = (options) => {
           },
           isServerEnvironment: false,
         });
-        
+
         // Transform the code
         const { code: transformed, map } = await transformer(code, finalID);
 

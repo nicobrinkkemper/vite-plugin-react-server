@@ -13,7 +13,7 @@ import { toError } from "../error/toError.js";
 import type { CreateHandlerOptions } from "../types.js";
 import { createLogger } from "vite";
 import { logError } from "../error/logError.js";
-import type { React } from "../vendor/vendor.server.js";
+import type React from "react";
 
 export type ResolveComponentsOptions = Pick<
   CreateHandlerOptions,
@@ -33,7 +33,7 @@ export type ResolveComponentsOptions = Pick<
   rootExportName?: string;
   htmlExportName?: string;  
   RootComponent?: RootComponentType | typeof React.Fragment;
-  HtmlComponent?: HtmlComponentType | typeof React.Fragment;
+  HtmlComponent?: HtmlComponentType | typeof React.Fragment | undefined;
 };
 
 export type ResolveComponentsSuccess = {
@@ -41,7 +41,7 @@ export type ResolveComponentsSuccess = {
   PageComponent: PageComponentType<PagePropOpt>;
   pageProps: PagePropOpt;
   RootComponent: RootComponentType | typeof React.Fragment;
-  HtmlComponent: HtmlComponentType | typeof React.Fragment;
+  HtmlComponent: HtmlComponentType | typeof React.Fragment | undefined;
 };
 
 export type ResolveComponentsError = {
@@ -77,6 +77,10 @@ export const resolveComponents = async ({
   logger = createLogger(),
 }: ResolveComponentsOptions): Promise<ResolveComponentsResult> => {
   try {
+    if (verbose) {
+      logger.info(`[resolveComponents] Starting resolution for route: ${route}`);
+    }
+    
     // Handle case where pagePath is undefined (e.g., when PageComponent is provided)
     if (!pagePath) {
       if (verbose) {
@@ -115,8 +119,8 @@ export const resolveComponents = async ({
       }
 
       // Resolve Html component (use override if provided, otherwise resolve from path)
-      let HtmlComponent = overrideHtmlComponent || DefaultHtml;
-      if (!overrideHtmlComponent && htmlPath) {
+      let HtmlComponent: HtmlComponentType | typeof React.Fragment | undefined = overrideHtmlComponent || DefaultHtml;
+      if (!overrideHtmlComponent && htmlPath && htmlPath !== '') {
         if (verbose) {
           logger.info(
             `[resolveComponents] Resolving Html component from path: ${htmlPath}, exportName: ${htmlExportName}`
@@ -141,12 +145,23 @@ export const resolveComponents = async ({
           }
           HtmlComponent = htmlResult.component as HtmlComponentType;
         }
+      } else if (htmlPath === '') {
+        if (verbose) {
+          logger.info(
+            `[resolveComponents] Using React.Fragment for Html component (htmlPath is empty string)`
+          );
+        }
+        HtmlComponent = undefined;
       } else {
         if (verbose) {
           logger.info(
             `[resolveComponents] Using default Html component (override: ${!!overrideHtmlComponent}, htmlPath: ${htmlPath})`
           );
         }
+      }
+
+      if (verbose) {
+        logger.info(`[resolveComponents] Returning success for route: ${route} (no pagePath)`);
       }
 
       return {
@@ -156,6 +171,10 @@ export const resolveComponents = async ({
         RootComponent,
         HtmlComponent,
       };
+    }
+
+    if (verbose) {
+      logger.info(`[resolveComponents] Resolving page and props for route: ${route}`);
     }
 
     // First resolve page and props using existing function
@@ -171,6 +190,10 @@ export const resolveComponents = async ({
       verbose,
       logger,
     });
+
+    if (verbose) {
+      logger.info(`[resolveComponents] Page and props resolution completed for route: ${route}`);
+    }
 
     if (pageAndPropsResult.type !== "success") {
       if (pageAndPropsResult.type === "error") {
@@ -198,6 +221,10 @@ export const resolveComponents = async ({
     }
 
     const { PageComponent, pageProps } = pageAndPropsResult;
+
+    if (verbose) {
+      logger.info(`[resolveComponents] Resolving Root component for route: ${route}`);
+    }
 
     // Resolve Root component (use override if provided, otherwise resolve from path)
     let RootComponent = overrideRootComponent || DefaultRoot;
@@ -228,9 +255,13 @@ export const resolveComponents = async ({
       }
     }
 
+    if (verbose) {
+      logger.info(`[resolveComponents] Resolving Html component for route: ${route}`);
+    }
+
     // Resolve Html component (use override if provided, otherwise resolve from path)
-    let HtmlComponent = overrideHtmlComponent || DefaultHtml;
-    if (!overrideHtmlComponent && htmlPath) {
+    let HtmlComponent: HtmlComponentType | typeof React.Fragment | undefined = overrideHtmlComponent || DefaultHtml;
+    if (!overrideHtmlComponent && htmlPath && htmlPath !== '') {
       if (verbose) {
         logger.info(
           `[resolveComponents] Resolving Html component from path: ${htmlPath}, exportName: ${htmlExportName}`
@@ -255,12 +286,23 @@ export const resolveComponents = async ({
         }
         HtmlComponent = htmlResult.component as HtmlComponentType;
       }
+          } else if (htmlPath === '') {
+        if (verbose) {
+          logger.info(
+            `[resolveComponents] Using undefined for Html component (htmlPath is empty string)`
+          );
+        }
+        HtmlComponent = undefined;
     } else {
       if (verbose) {
         logger.info(
           `[resolveComponents] Using default Html component (override: ${!!overrideHtmlComponent}, htmlPath: ${htmlPath})`
         );
       }
+    }
+
+    if (verbose) {
+      logger.info(`[resolveComponents] Returning success for route: ${route}`);
     }
 
     return {
@@ -271,6 +313,10 @@ export const resolveComponents = async ({
       HtmlComponent,
     };
   } catch (error) {
+    if (verbose) {
+      logger.error(`[resolveComponents] Error in resolveComponents for route ${route}: ${error}`);
+    }
+    
     const enhancedError = enhanceError(
       toError(error),
       resolveComponents,

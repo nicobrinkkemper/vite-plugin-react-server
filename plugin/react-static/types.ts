@@ -1,10 +1,9 @@
-import type { PassThrough, Readable, Transform } from "node:stream";
+import type { Readable, Transform } from "node:stream";
 import type {
   AutoDiscoveredFiles,
   BuildModuleLoader,
   CreateHandlerOptions,
   CssContent,
-  ReactStreamHandlerFn,
   RenderPageResult,
   RenderPagesResult,
   ResolvedUserOptions,
@@ -15,7 +14,14 @@ import type { OutputBundle } from "rollup";
 
 export type FileWriterOptions = Pick<
   CreateHandlerOptions,
-  "onEvent" | "route" | "build" | "verbose" | "logger" | "panicThreshold"
+  | "verbose"
+  | "panicThreshold"
+  | "route"
+  | "build"
+  | "signal"
+  | "worker"
+  | "onEvent"
+  | "logger"
 >;
 
 export type FileWriterFn = (
@@ -32,25 +38,40 @@ export type CreateBuildLoaderFn = (
     staticManifest: Manifest;
   },
   bundle: OutputBundle,
+  temporaryReferences: WeakMap<any, any>,
   logger?: Logger
 ) => BuildModuleLoader;
 
 export type CollectRscContentReturn = {
-  stream: PassThrough;
+  pipe: <Writable extends NodeJS.WritableStream>(
+    destination: Writable
+  ) => Writable;
+  abort: (reason?: unknown) => void;
   metrics: StreamMetrics;
-  controller: { abort: (reason: unknown) => void; destroy: () => void };
+  bufferedContent?: Buffer[];
 };
 
 export type CollectRscContentFn = (
   rsc: {
-    stream: PassThrough;
-    controller: { abort: (reason: unknown) => void; destroy: () => void };
+    abort: (reason?: unknown) => void;
+    pipe: <Writable extends NodeJS.WritableStream>(
+      destination: Writable
+    ) => Writable;
   },
   handlerOptions: CreateHandlerOptions
 ) => Promise<CollectRscContentReturn>;
 
 export type CollectHtmlWorkerContentReturn =
-  | { type: "success"; stream: PassThrough; metrics: StreamMetrics }
+  | {
+      type: "success";
+      stream: {
+        abort: (reason?: unknown) => void;
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => Writable;
+      };
+      metrics: StreamMetrics;
+    }
   | { type: "error"; error: Error | null; stream?: never; metrics?: never };
 
 export type CollectHtmlWorkerContentGenerator = AsyncGenerator<
@@ -61,15 +82,23 @@ export type CollectHtmlWorkerContentGenerator = AsyncGenerator<
   unknown
 >;
 
-export type CollectHtmlWorkerContentFn = <
+export type CollectHtmlContentFn = <
   Opt extends CreateHandlerOptions = CreateHandlerOptions
 >(
   rsc: {
-    stream: PassThrough;
-    controller: { abort: (reason: unknown) => void; destroy: () => void };
+    abort: (reason?: unknown) => void;
+    pipe: <Writable extends NodeJS.WritableStream>(
+      destination: Writable
+    ) => Writable;
   },
   handlerOptions: Opt
-) => CollectHtmlWorkerContentGenerator;
+) => Promise<{
+  pipe: <Writable extends NodeJS.WritableStream>(
+    destination: Writable
+  ) => Writable;
+  abort: (reason?: unknown) => void;
+  metrics: StreamMetrics;
+}>;
 
 export type ConfigurePreviewServerProps<Opt extends ResolvedUserOptions> = {
   server: PreviewServer;
@@ -78,7 +107,7 @@ export type ConfigurePreviewServerProps<Opt extends ResolvedUserOptions> = {
 
 export type ConfigurePreviewServerFn = <Opt extends ResolvedUserOptions>(
   props: ConfigurePreviewServerProps<Opt>
-) => Promise<void>;
+) => void;
 
 export type RenderPagesReturn = AsyncGenerator<
   RenderPagesResult,
@@ -102,58 +131,54 @@ export type RenderPagesHandlerOptions = Omit<
 > & {
   autoDiscoveredFiles: AutoDiscoveredFiles;
   cssFilesByPage: Map<string, Map<string, CssContent>>;
+  serverPipeableStreamOptions: any;
 };
 
 export type RenderPagesFn = (
-  routes: string[]
+  routes: string[],
+  renderPage: RenderPageFn
 ) => (handlerOptions: RenderPagesHandlerOptions) => RenderPagesReturn;
 
 export type RenderPageReturn = AsyncGenerator<RenderPageResult, void, unknown>;
 
-export type RenderPageFn = ReactStreamHandlerFn<
-  | "RootComponent"
-  | "HtmlComponent"
-  | "PageComponent"
-  | "pageProps"
-  | "url"
-  | "onEvent",
-  RenderPageReturn
->;
+export type RenderPageFn = (
+  options: CreateHandlerOptions
+) => RenderPageReturn;
 
 // The return type for the function
 export type RenderStreamsReturn = [
-  (
-    | {
-        type: "success";
-        stream: PassThrough;
-        controller: { abort: (reason: unknown) => void; destroy: () => void };
-        error?: never;
-      }
-    | { type: "error"; error: unknown; stream?: never; controller?: never }
-  ),
-  (
-    | {
-        type: "success";
-        stream: PassThrough;
-        controller: { abort: (reason: unknown) => void; destroy: () => void };
-        error?: never;
-      }
-    | { type: "error"; error: unknown; stream?: never; controller?: never }
-  )
+  {
+    abort: (reason?: unknown) => void;
+    pipe: <Writable extends NodeJS.WritableStream>(
+      destination: Writable
+    ) => Writable;
+  },
+  {
+    abort: (reason?: unknown) => void;
+    pipe: <Writable extends NodeJS.WritableStream>(
+      destination: Writable
+    ) => Writable;
+  }
 ];
 
 // The function signature type
-export type RenderStreamsFn = ReactStreamHandlerFn<never, RenderStreamsReturn>;
+export type RenderStreamsFn = <
+  Opt extends CreateHandlerOptions = CreateHandlerOptions
+>(
+  handler: Opt
+) => RenderStreamsReturn;
 
 export type RscToHtmlOptions = Pick<
   CreateHandlerOptions,
+  | "id"
   | "worker"
   | "route"
   | "url"
   | "moduleRootPath"
   | "moduleBaseURL"
   | "moduleBasePath"
-  | "pipeableStreamOptions"
+  | "serverPipeableStreamOptions"
+  | "clientPipeableStreamOptions"
   | "build"
   | "cssFiles"
   | "projectRoot"
@@ -162,6 +187,8 @@ export type RscToHtmlOptions = Pick<
   | "cssFiles"
   | "globalCss"
   | "signal"
+  | "logger"
+  | "htmlTimeout"
 >;
 
 export type RscToHtmlStreamFn = (options: RscToHtmlOptions) => Transform;

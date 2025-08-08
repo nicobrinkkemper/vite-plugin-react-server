@@ -3,7 +3,7 @@ import type { ResolvedUserOptions, SerializedUserOptions } from "../types.js";
 
 export function hydrateUserOptions(
   options: SerializedUserOptions
-): { type: "success"; userOptions: ResolvedUserOptions } | { type: "error"; error: Error } {
+): { type: "success"; userOptions: ResolvedUserOptions } | { type: "error"; error: unknown } {
   try {
     // resolveOptions already handles regex deserialization through deserializeRegExp()
     // Cast the serialized options back to the expected input format for resolveOptions
@@ -18,6 +18,6 @@ export function hydrateUserOptions(
     
     return { type: "success", userOptions };
   } catch (error) {
-    return { type: "error", error: error instanceof Error ? error : new Error(String(error)) };
+    return { type: "error", error: error };
   }
 }

@@ -272,6 +272,13 @@ export const serializedOptions = (
     pages: _pages,
     ...buildOptions
   } = _build ?? {};
+  // Preserve the build properties that should be serialized
+  const serializedBuild = {
+    ...buildOptions,
+    pages: autoDiscoveredFiles
+      ? Array.from(autoDiscoveredFiles.urlMap.keys())
+      : [],
+  };
   const {
     isServerFunctionCode: _isServerFunctionCode,
     isClientComponentCode: _isClientComponentCode,
@@ -306,12 +313,7 @@ export const serializedOptions = (
     onMetrics: undefined,
     propsExportName: propsExportName,
     pageExportName: pageExportName,
-    build: {
-      ...buildOptions,
-      pages: autoDiscoveredFiles
-        ? Array.from(autoDiscoveredFiles.urlMap.keys())
-        : [],
-    },
+    build: serializedBuild,
     loader: {
       directivePattern: {
         config: {

@@ -10,7 +10,7 @@ import { logError } from "../error/logError.js";
 import type { ConfigurePreviewServerFn } from "./types.js";
 
 export const configurePreviewServer: ConfigurePreviewServerFn =
-  async function _configurePreviewServer({ server, userOptions }) {
+  function _configurePreviewServer({ server, userOptions }) {
     const staticHostDir = join(
       userOptions.projectRoot,
       userOptions.build.outDir,

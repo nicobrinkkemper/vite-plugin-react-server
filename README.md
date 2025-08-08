@@ -227,25 +227,16 @@ This project uses experimental React features and includes a patch system for co
 |-------|-------------|
 | [Getting Started](./docs/getting-started.md) | [Installation and Setup](./docs/getting-started.md#installation-and-setup) |
 | [Core Concepts](./docs/core-concepts.md) | [Client-Server Separation](./docs/core-concepts.md#client-server-separation) |
-| [Configuration](./docs/configuration.md) | [Plugin Options](./docs/configuration.md#plugin-options) |
-| [Component Resolution](./docs/component-resolution.md) | [Path-based vs Direct Components](./docs/component-resolution.md#path-based-vs-direct-components) |
-| [CSS Handling](./docs/css-handling.md) | [CSS Collectors](./docs/css-handling.md#css-collectors) |
+| [Configuration Guide](./docs/configuration.md) | [Plugin Options](./docs/configuration.md#plugin-options) |
+| [CSS & Styling](./docs/css-handling.md) | [CSS Collectors](./docs/css-handling.md#css-collectors) |
 | [Server Actions](./docs/server-actions.md) | [Creating Server Actions](./docs/server-actions.md#creating-server-actions) |
-| [Static Site Generation](./docs/static-site-generation.md) | [Static Plugin](./docs/static-site-generation.md#static-plugin) |
-| [Build Orchestration](./docs/build-orchestration.md) | [Multiple Build Targets](./docs/build-orchestration.md#multiple-build-targets) |
-| [Architecture](./docs/architecture.md) | [Design Philosophy](./docs/architecture.md#design-philosophy) |
-| [Advanced Topics](./docs/advanced-topics.md) | [Custom Workers](./docs/advanced-topics.md#custom-workers) |
+| [Build & Deployment](./docs/build-orchestration.md) | [Multiple Build Targets](./docs/build-orchestration.md#multiple-build-targets) |
+| [Advanced Development](./docs/advanced-topics.md) | [Custom Workers](./docs/advanced-topics.md#custom-workers) |
+| [Plugin Internals](./docs/transformer-plugin.md) | [Plugin Architecture](./docs/transformer-plugin.md#plugin-architecture) |
+| [Worker System](./docs/rsc-worker.md) | [Worker Architecture](./docs/rsc-worker.md#worker-architecture) |
 | [API Reference](./docs/api-reference.md) | [Plugin Options](./docs/api-reference.md#plugin-options) |
-| [Transformations](./docs/transformations.md) | [Code Transformations](./docs/transformations.md#code-transformations) |
-| [Transformer Plugin](./docs/transformer-plugin.md) | [Plugin Architecture](./docs/transformer-plugin.md#plugin-architecture) |
-| [Loader](./docs/loader.md) | [React Server Components Loader](./docs/loader.md#react-server-components-loader) |
-| [Custom Loader](./docs/custom-loader.md) | [Creating Custom Loaders](./docs/custom-loader.md#creating-custom-loaders) |
-| [RSC Worker](./docs/rsc-worker.md) | [Worker Architecture](./docs/rsc-worker.md#worker-architecture) |
-| [HTML Worker](./docs/html-worker.md) | [HTML Generation](./docs/html-worker.md#html-generation) |
-| [React Type Compatibility](./docs/react-type-compatibility.md) | [Type System Overview](./docs/react-type-compatibility.md#type-system-overview) |
-| [Patch System](./docs/patch-system.md) | [React Version Compatibility](./docs/patch-system.md#react-version-compatibility) |
-| [Practical Guide](./docs/practical-guide.md) | [Real-world Examples](./docs/practical-guide.md#real-world-examples) |
-| [Troubleshooting Guide](./docs/troubleshooting-guide.md) | [Common Issues](./docs/troubleshooting-guide.md#common-issues) |
+| [React Compatibility](./docs/react-type-compatibility.md) | [Type System Overview](./docs/react-type-compatibility.md#type-system-overview) |
+| [Troubleshooting](./docs/troubleshooting-guide.md) | [Common Issues](./docs/troubleshooting-guide.md#common-issues) |
 
 
 ## License

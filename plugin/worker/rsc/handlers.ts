@@ -1,35 +1,31 @@
-import type { StreamHandlers } from "../types.js";
-import { toError } from "../../error/toError.js";
-import { userOptions } from "./userOptions.js";
-import { addCssFileContent, addModuleId } from "./state.js";
-import { join } from "path";
-import { ReactDOMServer } from "../../vendor/vendor.server.js";
-import { PassThrough } from "node:stream";
+import type { ServerStreamHandlers } from "../types.js";
 import { sendMessage } from "../sendMessage.js";
+import { serializeError } from "../../error/serializeError.js";
+import { serializeErrorInfo } from "../../error/serializeErrorInfo.js";
 
-// Helper function to serialize errors for worker thread communication
-const serializeError = (error: unknown) => {
-  const err = toError(error);
-  return {
-    message: err.message,
-    name: err.name,
-    stack: err.stack,
-  };
-};
-
-export const handlers: Required<StreamHandlers> = {
+/**
+ * Maps what should happen when a message is received from the worker thread messageHandler
+ * It just sends the message to the main thread.
+ */
+export const handlers: ServerStreamHandlers = {
+  onRscRender: (id) => {
+    sendMessage({
+      type: "RSC_RENDER_START",
+      id: id
+    });
+  },
   onError: (id, error, errorInfo) => {
     sendMessage({
       type: "ERROR",
       id: id,
-      errorInfo: {
-        componentStack:
-          typeof errorInfo?.componentStack === "string"
-            ? errorInfo.componentStack
-            : undefined,
-        digest:
-          typeof errorInfo?.digest === "string" ? errorInfo.digest : undefined,
-      },
+      errorInfo: serializeErrorInfo(errorInfo),
+      error: serializeError(error),
+    });
+  },
+  onShellError: (id, error) => {
+    sendMessage({
+      type: "SHELL_ERROR",
+      id: id,
       error: serializeError(error),
     });
   },
@@ -68,7 +64,8 @@ export const handlers: Required<StreamHandlers> = {
     });
   },
   onServerModule: (id, url, source) => {
-    addModuleId(id, url);
+    // these don't need to be forwarded to the main thread,
+    // but we comunicate the work done should anyone need it
     sendMessage({
       type: "SERVER_MODULE",
       id,
@@ -77,187 +74,30 @@ export const handlers: Required<StreamHandlers> = {
     });
   },
   onServerActionResponse: (id, result) => {
-    const stream = ReactDOMServer.renderToPipeableStream(
-      result && typeof result === "object" && "returnValue" in result
-        ? result
-        : {
-            type: "server-action-response",
-            returnValue: result,
-          },
-      userOptions.moduleBasePath,
-      {
-        onError(error: Error) {
-          sendMessage({
-            type: "ERROR",
-            id,
-            error: serializeError(error),
-          });
-        },
-      }
-    );
-
-    const passThrough = new PassThrough();
-    stream.pipe(passThrough);
-
-    passThrough.on("data", (chunk) => {
-      sendMessage({
-        type: "RSC_CHUNK",
-        id,
-        chunk,
-      });
-    });
-
-    passThrough.on("end", () => {
-      sendMessage({
-        type: "RSC_END",
-        id,
-      });
-    });
-
-    passThrough.on("error", (error) => {
-      // Only send ERROR message for actual stream errors, not React component errors
-      // React component errors are already handled by the onError callback
-      sendMessage({
-        type: "ERROR",
-        id,
-        error: serializeError(error),
-      });
+    sendMessage({
+      type: "SERVER_ACTION_RESPONSE",
+      id,
+      result,
     });
   },
-  onServerAction: async (id, args) => {
-    try {
-      // Parse the server action ID to get the file path and export name
-      const [filePath, exportName] = id.split("#");
-      if (!filePath || !exportName) {
-        throw new Error(
-          `Invalid server action ID format: ${id}. Expected format: "path/to/file.ts#exportName"`
-        );
-      }
-      // Convert the server action ID to a file path
-      const actionPath = filePath.startsWith(userOptions.moduleBasePath)
-        ? filePath.slice(userOptions.moduleBasePath.length)
-        : filePath;
-      const fullPath = join(userOptions.projectRoot, actionPath);
-
-      // Load the server action module
-      const module = await import(fullPath);
-      const action = module[exportName];
-
-      if (typeof action !== "function") {
-        throw new Error(`Server action not found: ${id}`);
-      }
-
-      // Execute the server action
-      const result = await action(...args);
-
-      // Send success response using RSC stream
-      const stream = ReactDOMServer.renderToPipeableStream(
-        {
-          type: "server-action-response",
-          returnValue: result,
-        },
-        userOptions.moduleBasePath,
-        {
-          onError(error: Error) {
-            sendMessage({
-              type: "ERROR",
-              id,
-              error: serializeError(error),
-            });
-          },
-        }
-      );
-
-      const passThrough = new PassThrough();
-      stream.pipe(passThrough);
-
-      passThrough.on("data", (chunk) => {
-        sendMessage({
-          type: "RSC_CHUNK",
-          id,
-          chunk,
-        });
-      });
-
-      passThrough.on("end", () => {
-        sendMessage({
-          type: "RSC_END",
-          id,
-        });
-      });
-
-      passThrough.on("error", (error) => {
-        sendMessage({
-          type: "ERROR",
-          id,
-          error: serializeError(error),
-        });
-      });
-    } catch (error: unknown) {
-      const errorMessage = serializeError(error).message;
-      // Send error response using RSC stream
-      const stream = ReactDOMServer.renderToPipeableStream(
-        {
-          type: "server-action-response",
-          returnValue: { success: false, error: errorMessage },
-        },
-        userOptions.moduleBasePath,
-        {
-          onError(error: Error) {
-            sendMessage({
-              type: "ERROR",
-              id,
-              error: serializeError(error),
-            });
-          },
-        }
-      );
-
-      const passThrough = new PassThrough();
-      stream.pipe(passThrough);
-
-      passThrough.on("data", (chunk) => {
-        sendMessage({
-          type: "RSC_CHUNK",
-          id,
-          chunk,
-        });
-      });
-
-      passThrough.on("end", () => {
-        sendMessage({
-          type: "RSC_END",
-          id,
-        });
-      });
-
-      passThrough.on("error", (error) => {
-        sendMessage({
-          type: "ERROR",
-          id,
-          error: serializeError(error),
-        });
-      });
-    }
+  onServerAction: (id, args) => {
+    sendMessage({
+      type: "SERVER_ACTION",
+      id,
+      args,
+    });
   },
   onShutdown: (id: string) => {
-    // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
     sendMessage({
       type: "SHUTDOWN_COMPLETE",
       id: id,
     });
   },
   onCssFile: (id, code) => {
-    if (id) {
-      // Add to CSS registry
-      addCssFileContent(id, code, userOptions);
-
-      // Send CSS file message
-      sendMessage({
-        type: "CSS_FILE",
-        id,
-        content: code,
-      });
-    }
+    sendMessage({
+      type: "CSS_FILE",
+      id,
+      content: code,
+    });
   },
 };

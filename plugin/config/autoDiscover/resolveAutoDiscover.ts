@@ -1,8 +1,5 @@
 import { type ConfigEnv, type UserConfig } from "vite";
-import type {
-  AutoDiscoveredFiles,
-  ResolvedUserOptions,
-} from "../../types.js";
+import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../../types.js";
 import { join } from "path";
 import { resolveBuildPages } from "./resolveBuildPages.js";
 import { resolvePages } from "../resolvePages.js";
@@ -12,6 +9,8 @@ import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
 import { customWorkerFiles } from "./customWorkerFiles.js";
 import { pageAndPropFiles } from "./pageAndPropFiles.js";
 import { handleError } from "../../error/handleError.js";
+import { envPrefixFromConfig } from "../envPrefixFromConfig.js";
+import { isSsrEnabled } from "../../env/getEnvKey.js";
 
 const clientFiles = createGlobAutoDiscover("**/*.client.*");
 const serverFiles = createGlobAutoDiscover("**/*.server.*");
@@ -37,13 +36,14 @@ type ResolveAutoDiscoverProps = {
     | "pageExportName"
     | "propsExportName"
     | "htmlExportName"
-    | "rootExportName"  
+    | "rootExportName"
     | "Root"
     | "Html"
     | "verbose"
     | "panicThreshold"
   >;
   condition: "react-server" | "react-client";
+  ssr?: boolean;
   logger: Logger;
 };
 
@@ -56,7 +56,7 @@ type ResolveAutoDiscoverReturn =
     }
   | {
       type: "error";
-      error: Error;
+      error: unknown;
       id: string;
       autoDiscoveredFiles?: never;
     };
@@ -72,8 +72,17 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     userOptions,
     condition,
     logger,
+    ssr = undefined,
   }) {
-    const ssr = configEnv.isSsrBuild || condition === "react-server";
+    const envPrefix = envPrefixFromConfig(config);
+    ssr =
+      typeof ssr === "boolean"
+        ? ssr
+        : typeof config.build?.ssr === "boolean"
+        ? config.build?.ssr
+        : Boolean(configEnv.isSsrBuild) ||
+          condition === "react-server" ||
+          isSsrEnabled(envPrefix);
     const envDir =
       condition === "react-server"
         ? userOptions.build.server
@@ -135,12 +144,13 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       } else if (configEnv.command === "build") {
         // in dev mode the static manifest is not needed
         // without ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
-       
+
         if (staticManifestResult.type === "error") {
           const panicError = handleError({
             error: staticManifestResult.error,
             logger,
             panicThreshold: userOptions.panicThreshold,
+            critical: false, // Missing manifest is not a critical error during server build
             context: "Static Manifest Error (build)",
           });
           if (panicError != null) {
@@ -182,13 +192,19 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
 
     // Add custom Root and Html components to inputs
     const customComponentInputs: Record<string, string> = {};
-    if (typeof userOptions.Root === "string") {
-      const [rootKey] = userOptions.normalizer(userOptions.Root);
-      customComponentInputs[rootKey] = userOptions.Root;
+
+    // Add Root components from resolved build pages
+    for (const [rootKey, rootValue] of files.rootMap) {
+      if (!customComponentInputs[rootKey]) {
+        customComponentInputs[rootKey] = rootValue;
+      }
     }
-    if (typeof userOptions.Html === "string") {
-      const [htmlKey] = userOptions.normalizer(userOptions.Html);
-      customComponentInputs[htmlKey] = userOptions.Html;
+
+    // Add Html components from resolved build pages
+    for (const [htmlKey, htmlValue] of files.htmlMap) {
+      if (!customComponentInputs[htmlKey]) {
+        customComponentInputs[htmlKey] = htmlValue;
+      }
     }
 
     const agnosticInputs = {

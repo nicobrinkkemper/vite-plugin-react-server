@@ -32,7 +32,7 @@ describe('transformModuleIfNeeded', () => {
     expect(result).toHaveProperty('map');
     
     // There are 2 console.log calls: one from createTransformer and one from transformModuleIfNeeded
-    expect(consoleSpy).toHaveBeenCalledWith('[createTransformer] Loading: test-module.js');
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Loading: test-module.js'));
    
     
     consoleSpy.mockRestore();

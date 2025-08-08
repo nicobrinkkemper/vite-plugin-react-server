@@ -16,6 +16,8 @@ import type {
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";
+import type { Manifest } from "vite";
+import type { OutputBundle } from "rollup";
 import { handleError } from "../error/handleError.js";
 
 type CreateWorkerSuccess = {
@@ -65,6 +67,8 @@ export type CreateWorkerOptions = {
     resolvedConfig: SerializedResolvedConfig;
     reactVersion?: string;
     id?: string;
+    serverManifest?: Manifest;
+    bundle?: OutputBundle;
   };
   transferList?: TransferListItem[];
   logger?: Logger;
@@ -113,6 +117,8 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     resolvedConfig: options.workerData.resolvedConfig,
     reactVersion: options.workerData.reactVersion ?? React.version,
     id: options.workerData.id ?? id,
+    serverManifest: options.workerData.serverManifest,
+    bundle: options.workerData.bundle,
   };
 
   try {
@@ -120,6 +126,12 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     const isTestEnv =
       process.env["VITEST"] || process.env["NODE_ENV"] === "test";
     const nodeEnv = isTestEnv ? "test" : mode;
+
+    if (verbose) {
+      logger.info(`[create:${id}] Creating worker with path: ${workerPathWithDefault}`);
+      logger.info(`[create:${id}] Node environment: ${nodeEnv}`);
+      logger.info(`[create:${id}] Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`);
+    }
 
     const env = {
       [envPrefix + "DEV"]: mode === "development" ? "1" : "0",
@@ -143,6 +155,11 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       HTML_CHUNK_SIZE: htmlChunkSize.toString(),
     };
 
+    if (verbose) {
+      logger.info(`[create:${id}] Environment variables: ${Object.keys(env).join(', ')}`);
+      logger.info(`[create:${id}] NODE_OPTIONS: ${env.NODE_OPTIONS}`);
+    }
+
     // Create worker with proper environment and loaders
     const worker = new Worker(workerPathWithDefault, {
       env,
@@ -152,6 +169,10 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     });
 
     worker.setMaxListeners(maxListeners);
+
+    if (verbose) {
+      logger.info(`[create:${id}] Worker created, waiting for READY message...`);
+    }
 
     return await new Promise<CreateWorkerSuccess | CreateWorkerSkip>((resolve, reject) => {
       // Use appropriate timeout based on worker type
@@ -176,7 +197,7 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
         }
       };
       const messageHandler = (
-        msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage
+        msg: RscWorkerOutputMessage | HtmlWorkerOutputMessage
       ) => {
         if (verbose)
           logger.info(`[create:${id}] Initial worker message ${msg.type}`);
@@ -207,6 +228,9 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       worker.once("message", messageHandler);
       worker.once("exit", exitHandler);
       worker.on('error', (err) => {
+        if (verbose) {
+          logger.error(`[create:${id}] Worker error: ${err.message}`, { error: err });
+        }
         const panicError = handleError({
           error: err,
           logger: logger,
@@ -215,6 +239,9 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
           context: `Worker thread error for route ${id}`,
         });
         if(panicError != null) {
+          if (verbose) {
+            logger.error(`[create:${id}] Panic error detected: ${panicError.message}`, { error: panicError });
+          }
           reject({
             type: "error",
             error: err,
@@ -224,6 +251,10 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       });
     });
   } catch (error) {
+    if (verbose) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`[create:${id}] Caught error during worker creation: ${errorMessage}`, { error: error instanceof Error ? error : new Error(String(error)) });
+    }
     const panicError = handleError({
       error: error,
       logger: logger,
@@ -232,6 +263,9 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       context: `Worker thread error for route ${id}`,
     });
     if(panicError != null) {
+      if (verbose) {
+        logger.error(`[create:${id}] Panic error in catch block: ${panicError.message}`, { error: panicError });
+      }
       return {
         type: "error",
         error: panicError,
@@ -240,7 +274,7 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     }
     return {
       type: "error",
-      error: error as Error,
+      error: error instanceof Error ? error : new Error(String(error)),
       workerPath: workerPathWithDefault,
     };
   }

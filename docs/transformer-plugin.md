@@ -1,387 +1,589 @@
-# Vite React Transform Plugin
+# Plugin Internals
 
-This plugin provides the core transformation functionality for React Server Components (RSC) in Vite. It handles both client and server-side transformations, enabling seamless integration between React Server Components and Vite's build system.
+This guide covers the internal workings of the Vite React Server Plugin, including the transformation process, loader system, and custom loaders.
 
-> **Part of**: [Vite React Server Plugin](../../../README.md)  
-> **Documentation**: [Plugin Architecture Overview](../../../docs/README.md#plugin-architecture-documentation)
+## Transformation Process
 
-## Key Features
+The transformer plugin is the core component that handles React Server Components transformation logic.
 
-- **Intelligent Directive Validation**: Context-aware validation with specific error messages
-- **AST-Based Transformation**: Preserves module structure and source maps
-- **Environment-Specific Processing**: Handles both client and server modules appropriately
-- **Error Handling Configuration**: Configurable `panicThreshold` for development vs production
+### Plugin Architecture
 
-## Module Transformation Strategy
+The transformer plugin operates in the "post" enforcement phase to handle transformations at the last moment:
 
-The plugin uses a sophisticated approach to transform modules while preserving their structure. Each loader (client and server) handles BOTH client and server modules, but in their respective environments:
-
-### Environment-Specific Transformations
-
-#### Client Environment Loader
-Handles both:
-1. Client Modules ("use client")
-   - Registers client components for RSC boundaries
-   - Preserves client-side functionality
-
-2. Server Modules ("use server")
-   - Transforms server actions into client-side references
-   - Creates proxies for server function calls
-   - Handles server action imports
-
-#### Server Environment Loader
-Handles both:
-1. Server Modules ("use server")
-   - Registers server actions for RSC boundaries
-   - Preserves server-side functionality
-   - Handles server action imports
-
-2. Client Modules ("use client")
-   - Registers client components for RSC boundaries
-   - Creates server-side references for client components
-   - Ensures proper server-side rendering
-
-### Directive Validation
-
-The transformer includes intelligent directive validation with context-aware error detection:
-
-#### Valid Directive Placement
 ```typescript
-// ✅ File-level server directive
-"use server";
-export async function add(a, b) {
-  return a + b;
-}
-
-// ✅ File-level client directive  
-"use client"
-import React from 'react';
-export function ClientComponent() { 
-  return <div>Interactive</div>; 
-}
-
-// ✅ Function-level server directive
-export async function add(a, b) {
-  "use server";
-  return a + b;
-}
-```
-
-#### Invalid Directive Placement
-```typescript
-// ❌ Nested function - detected and reported
-export function outer() {
-  function inner() { 
-    "use server"; 
-    return 1; 
-  }
-}
-
-// ❌ Class method - detected and reported
-export class Calculator {
-  async add(a, b) { 
-    "use server"; 
-    return a + b; 
-  }
-}
-```
-
-#### Error Handling Configuration
-```typescript
-// Configure error handling behavior
-const config = {
-  loader: {
-    panicThreshold: 'none' | 'critical_errors' | 'all_errors'
-  }
-};
-```
-
-### AST-Based Transformation
-
-Both loaders use Abstract Syntax Trees (AST) to:
-1. Validate directive placement and context
-2. Find the first export declaration
-3. Split source code into before/after exports
-4. Insert registration code in the right place
-5. Preserve original exports
-
-This ensures:
-- Proper directive validation with helpful error messages
-- Imports stay at the top
-- Registration code is added in the right place
-- Original exports are preserved
-- No duplicate exports
-
-### Example Transformations
-
-#### Client Environment
-
-Client Module:
-```ts
-// Original
-"use client"
-import { useState } from 'react';
-export function Counter() { ... }
-
-// Transformed
-"use client"
-import { useState } from 'react';
-
-// Register client components
-if (typeof Counter === "function") {
-  const clientReference = registerClientReference(Counter, "url", "Counter", {...});
-  Counter = clientReference;
-}
-
-export function Counter() { ... }
-```
-
-Server Module:
-```ts
-// Original
-"use server"
-export async function add(a: number, b: number) { ... }
-
-// Transformed
-"use server"
-
-// Transform server action into client reference
-const add = function(...args) {
-  const serverReference = registerServerReference("url#add", add);
-  return serverReference.apply(null, args);
-};
-Object.defineProperties(add, {
-  $$typeof: { value: Symbol.for("react.server.reference") },
-  $$id: { value: "url#add" },
-  $$bound: { value: null },
-  $$name: { value: "add" }
-});
-
-export { add };
-```
-
-#### Server Environment
-
-Server Module:
-```ts
-// Original
-"use server"
-export async function add(a: number, b: number) { ... }
-
-// Transformed
-"use server"
-
-// Register server actions
-if (typeof add === "function") {
-  const serverReference = registerServerReference(add, "url", "add", {...});
-  add = serverReference;
-}
-
-export async function add(a: number, b: number) { ... }
-```
-
-Client Module:
-```ts
-// Original
-"use client"
-import { useState } from 'react';
-export function Counter() { ... }
-
-// Transformed
-"use client"
-import { useState } from 'react';
-
-// Register client components
-if (typeof Counter === "function") {
-  const clientReference = registerClientReference(Counter, "url", "Counter", {...});
-  Counter = clientReference;
-}
-
-export function Counter() { ... }
-```
-
-### Key Benefits
-
-1. **Intelligent Directive Validation**
-   - Context-aware error detection (nested functions, class methods)
-   - Specific, actionable error messages
-   - Configurable error handling (`panicThreshold`)
-   - Function type detection (arrow functions, class methods, etc.)
-
-2. **Environment-Aware Transformations**
-   - Each loader handles both module types
-   - Transformations are environment-specific
-   - Proper RSC boundary handling
-
-3. **Preserves Module Structure**
-   - Maintains original import order
-   - Keeps exports in their original location
-   - Preserves source maps
-
-4. **Handles Complex Cases**
-   - Server action imports from .server files
-   - Client component registration
-   - Proper metadata for RSC boundaries
-   - Environment-specific transformations
-
-5. **Avoids Common Pitfalls**
-   - No duplicate exports
-   - No broken source maps
-   - No mangled imports
-   - Proper environment isolation
-   - Clear validation errors prevent runtime issues
-
-## Usage
-
-When using this plugin, you need to set the `react-server` condition in your Vite configuration:
-
-```json
-{ 
-    "scripts": {
-        "build": "NODE_OPTIONS='--conditions react-server' vite build",
-        "dev": "NODE_OPTIONS='--conditions react-server' vite"
+export function reactTransformPlugin(options: StreamPluginOptions): Plugin {
+  return {
+    name: "vite-plugin-react-server:transformer",
+    enforce: "post",
+    
+    transform(code, id) {
+      return transformModuleIfNeeded(code, id, options);
+    },
+    
+    generateBundle(options, bundle) {
+      // Handle bundle generation
     }
+  };
 }
 ```
 
-## Architecture
+### Transformation Process
 
-### Environment Separation
+The transformation process follows these steps:
 
-The plugin maintains a clear separation between different environments and uses dedicated workers for each scenario:
+1. **Module Identification**: Determine if a module needs transformation
+2. **AST Parsing**: Parse the code into an Abstract Syntax Tree
+3. **Directive Detection**: Identify "use client" and "use server" directives
+4. **Code Transformation**: Apply appropriate transformations
+5. **Code Generation**: Generate the final transformed code
 
-1. **Client-Side Scenario**
-   - Main Thread (Vite)
-     - Runs with Vite's default conditions
-     - Handles client-side module transformation
-     - Manages the client build pipeline
-   - HTML Worker Thread
-     - Runs in a clean Node environment
-     - Handles HTML rendering
-     - Uses `react-dom/server` for server-side rendering
-     - Uses `react-server-dom-esm/client.node` for client-side RSC
-     - Processes static HTML generation
-
-2. **Server-Side Scenario**
-   - Main Thread (Vite)
-     - Runs with `react-server` condition
-     - Handles server-side module transformation
-     - Manages the server build pipeline
-   - RSC Worker Thread
-     - Runs in a clean Node environment
-     - Handles RSC streaming
-     - Uses `react-server-dom-esm/server.node`
-     - Processes server component requests
-
-3. **Browser Environment**
-   - Client-side React components
-   - Uses `react-dom/client`
-   - Handles hydration and client-side updates
-
-### RSC Stream Flow
-
-#### Client-Side Flow
-```
-Main Thread (Vite)     HTML Worker Thread (Clean Node)        Browser
----------------        ---------------------                 ---------------------
-Client Modules →       HTML Rendering                        React Client
-                     (react-dom/server)                      (react-dom/client)
-                     (react-server-dom-esm/client.node)      (react-server-dom-esm/client.browser)
-```
-
-#### Server-Side Flow
-```
-Main Thread (Vite)     RSC Worker Thread (Clean Node)         Static Output
----------------        ---------------------                 ---------------------
-Server Modules →       RSC Streaming                         Static Files
-(react-server) →       (react-server-dom-esm/server.node)    (HTML + RSC)
-```
-
-## Key Features
-
-1. **Module Transformation**
-   - Transforms "use client" and "use server" directives
-   - Handles client/server component boundaries
-   - Manages module resolution and imports
-
-2. **Request Handling**
-   - Processes HTML and directory requests
-   - Skips Vite's internal requests
-   - Handles static file serving
-
-3. **Module Resolution**
-   - Maintains proper import maps for client components
-   - Resolves dependencies using Vite's module system
-   - Handles bootstrap module resolution
-
-## Common Pitfalls
-
-1. **Environment Conflicts**
-   - Don't use `react-dom/server.node` in the main thread
-   - Avoid mixing React server/client conditions
-   - Keep worker thread environments clean
-   - Ensure proper worker thread isolation
-
-2. **Stream Handling**
-   - Be careful with stream handling between threads
-   - Ensure proper error handling in streams
-   - Monitor stream backpressure
-   - Handle worker thread communication properly
-
-3. **Module Resolution**
-   - Watch for proper module resolution in both environments
-   - Ensure consistent module IDs across client/server
-   - Handle path normalization correctly
-   - Maintain proper module boundaries between workers
-
-## Best Practices
-
-1. **Development**
-   - Use the `react-server` condition for development
-   - Monitor stream metrics for performance
-   - Use proper error boundaries
-   - Test both client and server scenarios
-
-2. **Production**
-   - Ensure proper build order (client → server → static)
-   - Monitor bundle sizes
-   - Test RSC boundaries thoroughly
-   - Verify worker thread performance
-
-3. **Debugging**
-   - Use source maps for debugging
-   - Monitor stream metrics
-   - Check module resolution paths
-   - Debug worker thread issues separately
-
-## Configuration
-
-The plugin can be configured through Vite's plugin system:
+### Module Transformation
 
 ```typescript
-import { defineConfig } from 'vite';
-import { reactTransformPlugin } from './plugin/transformer';
+function transformModuleIfNeeded(
+  code: string, 
+  id: string, 
+  options: StreamPluginOptions
+): string | null {
+  // Check if module needs transformation
+  if (!shouldTransform(id, options)) {
+    return null;
+  }
+  
+  // Parse AST
+  const ast = parse(code, {
+    sourceType: "module",
+    ecmaVersion: "latest",
+    plugins: ["jsx", "typescript"]
+  });
+  
+  // Transform directives
+  const transformedAst = transformDirectives(ast, options);
+  
+  // Generate code
+  return generate(transformedAst, {
+    retainLines: true,
+    retainFunctionParens: true
+  }).code;
+}
+```
+
+## Loader System
+
+The plugin includes a comprehensive loader system for handling different module types and environments.
+
+### React Server Components Loader
+
+The RSC loader handles server-side React components:
+
+```typescript
+// rsc-loader.js
+import { register } from "vite-plugin-react-server/loader";
+
+export function rscLoader(url, context, nextLoad) {
+  if (url.endsWith('.server.js') || url.endsWith('.server.tsx')) {
+    return {
+      format: 'module',
+      source: `
+        import { registerServerReference } from 'react-server-dom-esm/server';
+        ${context.source}
+      `,
+    };
+  }
+  return nextLoad(url, context);
+}
+
+register(rscLoader);
+```
+
+### CSS Loader
+
+The CSS loader handles CSS modules and preprocessing:
+
+```typescript
+// css-loader.js
+import { preprocessCSS } from "vite";
+
+export async function cssLoader(url, context, nextLoad) {
+  if (url.endsWith('.css') || url.endsWith('.module.css')) {
+    const processed = await preprocessCSS(context.source, url, context.config);
+    return {
+      format: 'module',
+      source: `export default ${JSON.stringify(processed)};`,
+    };
+  }
+  return nextLoad(url, context);
+}
+```
+
+### Environment Loader
+
+The environment loader handles environment variables:
+
+```typescript
+// env-loader.js
+export function envLoader(url, context, nextLoad) {
+  if (url === 'virtual:env') {
+    return {
+      format: 'module',
+      source: `
+        export const env = ${JSON.stringify(process.env)};
+        export const mode = '${context.mode}';
+      `,
+    };
+  }
+  return nextLoad(url, context);
+}
+```
+
+## Directive Processing
+
+The plugin processes React directives to determine module boundaries with intelligent context-aware validation.
+
+### Directive Detection
+
+```typescript
+const DIRECTIVE_PATTERNS = {
+  server: /^["']use server["'];?\s*$/gm,
+  client: /^["']use client["'];?\s*$/gm,
+  general: /^["']use (server|client)["'];?\s*$/gm
+};
+
+function detectDirectives(code: string): DirectiveInfo[] {
+  const directives: DirectiveInfo[] = [];
+  
+  // Detect server directives
+  const serverMatches = code.matchAll(DIRECTIVE_PATTERNS.server);
+  for (const match of serverMatches) {
+    directives.push({
+      type: 'server',
+      index: match.index!,
+      line: getLineNumber(code, match.index!),
+      context: getContext(code, match.index!)
+    });
+  }
+  
+  // Detect client directives
+  const clientMatches = code.matchAll(DIRECTIVE_PATTERNS.client);
+  for (const match of clientMatches) {
+    directives.push({
+      type: 'client',
+      index: match.index!,
+      line: getLineNumber(code, match.index!),
+      context: getContext(code, match.index!)
+    });
+  }
+  
+  return directives;
+}
+```
+
+### Context-Aware Validation
+
+The plugin provides comprehensive validation with context-aware error messages:
+
+```typescript
+const DIRECTIVE_CONFIGS = {
+  client: {
+    functionLevel: false,
+    validate: (params) => params.index === 0, // Must be at file start
+    warning: "'use client' directive is only allowed at the top of a file"
+  },
+  server: {
+    functionLevel: true,
+    validate: (params) => {
+      const before = params.code.slice(0, params.index).trim();
+      return before === '' || before.endsWith('\n');
+    },
+    warning: "File-level directives must be at the top of the file"
+  }
+};
+
+function validateDirective(directive: DirectiveInfo, code: string): ValidationResult {
+  const config = DIRECTIVE_CONFIGS[directive.type];
+  
+  if (!config.validate({ ...directive, code })) {
+    return {
+      valid: false,
+      error: config.warning,
+      context: getErrorContext(directive, code)
+    };
+  }
+  
+  return { valid: true };
+}
+```
+
+### Error Detection Categories
+
+The plugin provides specific, actionable error messages for:
+
+- **Nested Functions**: Detects directives in functions inside other functions
+- **Class Methods**: Identifies directives in class method definitions  
+- **Non-async Server Functions**: Validates that server directives are in async functions
+- **Function Type Detection**: Provides context-specific messages for arrow functions, class methods, etc.
+
+## Module Boundaries
+
+The plugin manages client/server boundaries through module transformation.
+
+### Client Boundary Management
+
+```typescript
+function createClientBoundary(code: string, options: LoaderOptions): string {
+  const { registerClientReferenceName } = options;
+  
+  return `
+    import { ${registerClientReferenceName} } from '${options.importClientPath}';
+    
+    // Register client reference
+    ${registerClientReferenceName}(module.exports, '${getModuleId(code)}');
+    
+    ${code}
+  `;
+}
+```
+
+### Server Boundary Management
+
+```typescript
+function createServerBoundary(code: string, options: LoaderOptions): string {
+  const { registerServerReferenceName } = options;
+  
+  return `
+    import { ${registerServerReferenceName} } from '${options.importServerPath}';
+    
+    // Register server reference
+    ${registerServerReferenceName}(module.exports, '${getModuleId(code)}');
+    
+    ${code}
+  `;
+}
+```
+
+### Custom Registration Functions
+
+You can customize the registration functions:
+
+```typescript
+export const config = {
+  // ... other options
+  loader: {
+    registerClientReferenceName: "registerClientComponent",
+    registerServerReferenceName: "registerServerAction",
+    importServerPath: "react-server-dom-esm/server.node",
+    importClientPath: "react-server-dom-esm/client.node",
+  }
+};
+```
+
+## Custom Loaders
+
+The plugin supports custom loaders for specialized file types and processing needs.
+
+### Creating Custom Loaders
+
+```typescript
+// custom-loader.js
+export function customLoader(url, context, nextLoad) {
+  // Check if this loader should handle the URL
+  if (!shouldHandle(url)) {
+    return nextLoad(url, context);
+  }
+  
+  try {
+    // Process the module
+    const processed = await processModule(url, context);
+    
+    return {
+      format: 'module',
+      source: processed.source,
+      shortCircuit: true, // Prevent other loaders from processing
+    };
+  } catch (error) {
+    // Handle errors
+    throw new Error(`Custom loader error: ${error.message}`);
+  }
+}
+
+function shouldHandle(url) {
+  return url.endsWith('.custom') || url.startsWith('custom:');
+}
+
+async function processModule(url, context) {
+  // Custom processing logic
+  const content = await readFile(url);
+  const processed = await transform(content);
+  
+  return {
+    source: `export default ${JSON.stringify(processed)};`
+  };
+}
+```
+
+### Loader Configuration
+
+Configure custom loaders in your plugin options:
+
+```typescript
+export const config = {
+  // ... other options
+  loader: {
+    customLoaders: [
+      {
+        name: "custom-loader",
+        pattern: /\.custom$/,
+        loader: "./loaders/custom-loader.js"
+      },
+      {
+        name: "markdown-loader",
+        pattern: /\.md$/,
+        loader: "./loaders/markdown-loader.js"
+      }
+    ]
+  }
+};
+```
+
+### Advanced Loader Examples
+
+#### Markdown Loader
+
+```typescript
+// markdown-loader.js
+import { marked } from 'marked';
+
+export function markdownLoader(url, context, nextLoad) {
+  if (url.endsWith('.md')) {
+    const html = marked(context.source);
+    return {
+      format: 'module',
+      source: `
+        import React from 'react';
+        export default function MarkdownContent() {
+          return React.createElement('div', {
+            dangerouslySetInnerHTML: { __html: ${JSON.stringify(html)} }
+          });
+        }
+      `,
+    };
+  }
+  return nextLoad(url, context);
+}
+```
+
+#### JSON Schema Loader
+
+```typescript
+// schema-loader.js
+import { validate } from 'jsonschema';
+
+export function schemaLoader(url, context, nextLoad) {
+  if (url.endsWith('.schema.json')) {
+    const schema = JSON.parse(context.source);
+    
+    return {
+      format: 'module',
+      source: `
+        export const schema = ${JSON.stringify(schema)};
+        export function validate(data) {
+          return validate(data, schema);
+        }
+      `,
+    };
+  }
+  return nextLoad(url, context);
+}
+```
+
+#### Virtual Module Loader
+
+```typescript
+// virtual-loader.js
+export function virtualLoader(url, context, nextLoad) {
+  if (url.startsWith('virtual:')) {
+    const moduleName = url.slice(8); // Remove 'virtual:' prefix
+    
+    switch (moduleName) {
+      case 'config':
+        return {
+          format: 'module',
+          source: `
+            export const config = ${JSON.stringify(context.config)};
+            export const mode = '${context.mode}';
+          `,
+        };
+      
+      case 'routes':
+        return {
+          format: 'module',
+          source: `
+            export const routes = ${JSON.stringify(getRoutes())};
+          `,
+        };
+      
+      default:
+        return nextLoad(url, context);
+    }
+  }
+  return nextLoad(url, context);
+}
+```
+
+## Loader Integration
+
+### Integration with Vite
+
+Custom loaders integrate seamlessly with Vite's module system:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server";
 
 export default defineConfig({
   plugins: [
-    reactTransformPlugin({
-      // Plugin options
+    vitePluginReactServer({
+      // ... other options
+      loader: {
+        customLoaders: [
+          {
+            name: "my-loader",
+            pattern: /\.my$/,
+            loader: "./loaders/my-loader.js"
+          }
+        ]
+      }
     })
   ]
 });
 ```
 
-## Contributing
+### Loader Chaining
 
-When contributing to this plugin:
+Loaders can be chained for complex processing:
 
-1. Maintain environment separation
-2. Follow the established stream flow
-3. Test in all environments
-4. Update documentation for changes
-5. Consider performance implications
-6. Test both worker scenarios
-7. Ensure proper worker thread isolation
+```typescript
+// loader-chain.js
+export async function chainedLoader(url, context, nextLoad) {
+  // First loader: Process TypeScript
+  if (url.endsWith('.ts') || url.endsWith('.tsx')) {
+    const tsResult = await processTypeScript(url, context);
+    
+    // Second loader: Process React components
+    if (tsResult.source.includes('React')) {
+      const reactResult = await processReact(tsResult.source, context);
+      return reactResult;
+    }
+    
+    return tsResult;
+  }
+  
+  return nextLoad(url, context);
+}
+```
+
+### Error Handling
+
+Implement robust error handling in custom loaders:
+
+```typescript
+export function robustLoader(url, context, nextLoad) {
+  try {
+    // Loader logic
+    return processModule(url, context);
+  } catch (error) {
+    // Log error for debugging
+    console.error(`Loader error for ${url}:`, error);
+    
+    // Fallback to next loader
+    return nextLoad(url, context);
+  }
+}
+```
+
+## Performance Optimization
+
+### Loader Caching
+
+Implement caching for expensive loader operations:
+
+```typescript
+const loaderCache = new Map();
+
+export function cachedLoader(url, context, nextLoad) {
+  const cacheKey = `${url}-${context.mode}`;
+  
+  if (loaderCache.has(cacheKey)) {
+    return loaderCache.get(cacheKey);
+  }
+  
+  const result = processModule(url, context);
+  loaderCache.set(cacheKey, result);
+  
+  return result;
+}
+```
+
+### Lazy Loading
+
+Implement lazy loading for large modules:
+
+```typescript
+export function lazyLoader(url, context, nextLoad) {
+  if (url.endsWith('.large')) {
+    return {
+      format: 'module',
+      source: `
+        export default import('${url}').then(m => m.default);
+      `,
+    };
+  }
+  return nextLoad(url, context);
+}
+```
+
+## Testing Loaders
+
+### Unit Testing
+
+Test custom loaders in isolation:
+
+```typescript
+// loader.test.js
+import { describe, it, expect } from 'vitest';
+import { customLoader } from './custom-loader.js';
+
+describe('Custom Loader', () => {
+  it('should process custom files', async () => {
+    const result = await customLoader(
+      'test.custom',
+      { source: 'test content', mode: 'development' },
+      () => Promise.resolve({ format: 'module', source: 'fallback' })
+    );
+    
+    expect(result.format).toBe('module');
+    expect(result.source).toContain('processed');
+  });
+  
+  it('should fallback for non-custom files', async () => {
+    const fallback = { format: 'module', source: 'fallback' };
+    const nextLoad = () => Promise.resolve(fallback);
+    
+    const result = await customLoader(
+      'test.js',
+      { source: 'test content', mode: 'development' },
+      nextLoad
+    );
+    
+    expect(result).toBe(fallback);
+  });
+});
+```
+
+### Integration Testing
+
+Test loaders in the context of the full plugin:
 
 <!-- TOC START -->
 
@@ -393,6 +595,7 @@ When contributing to this plugin:
 
 <!-- Auto-generated TOC - Do not edit manually -->
 
+
 1.	[Getting Started](./getting-started.md)
 	- [Installation and Setup](./getting-started.md#installation-and-setup)
 	- [Basic Configuration](./getting-started.md#basic-configuration)
@@ -401,83 +604,45 @@ When contributing to this plugin:
 	- [Client-Server Separation](./core-concepts.md#client-server-separation)
 	- [React Server Components](./core-concepts.md#react-server-components)
 	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
-3.	[Configuration](./configuration.md)
+3.	[Configuration Guide](./configuration.md)
 	- [Plugin Options](./configuration.md#plugin-options)
 	- [Routing Configuration](./configuration.md#routing-configuration)
 	- [Build Configuration](./configuration.md#build-configuration)
-4.	[Component Resolution](./component-resolution.md)
-	- [Path-based vs Direct Components](./component-resolution.md#path-based-vs-direct-components)
-	- [When to Use Each Approach](./component-resolution.md#when-to-use-each-approach)
-	- [Migration Guide](./component-resolution.md#migration-guide)
-5.	[CSS Handling](./css-handling.md)
+4.	[CSS & Styling](./css-handling.md)
 	- [CSS Collectors](./css-handling.md#css-collectors)
 	- [Inline CSS](./css-handling.md#inline-css)
 	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
-6.	[Server Actions](./server-actions.md)
+5.	[Server Actions](./server-actions.md)
 	- [Creating Server Actions](./server-actions.md#creating-server-actions)
 	- [Client Integration](./server-actions.md#client-integration)
 	- [Error Handling](./server-actions.md#error-handling)
 	- [Database Integration](./server-actions.md#database-integration)
-7.	[Static Site Generation](./static-site-generation.md)
-	- [Static Plugin](./static-site-generation.md#static-plugin)
-	- [Build Process](./static-site-generation.md#build-process)
-	- [Deployment Strategies](./static-site-generation.md#deployment-strategies)
-8.	[Build Orchestration](./build-orchestration.md)
+6.	[Build & Deployment](./build-orchestration.md)
 	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
 	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
 	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
-9.	[Architecture](./architecture.md)
-	- [Design Philosophy](./architecture.md#design-philosophy)
-	- [Environment Variables](./architecture.md#environment-variables)
-	- [Plugin Composition](./architecture.md#plugin-composition)
-	- [HTML Component Support](./architecture.md#html-component-support)
-10.	[Advanced Topics](./advanced-topics.md)
+7.	[Advanced Development](./advanced-topics.md)
 	- [Custom Workers](./advanced-topics.md#custom-workers)
 	- [Message System](./advanced-topics.md#message-system)
 	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
-11.	[API Reference](./api-reference.md)
+8.	**[Plugin Internals](./transformer-plugin.md) ← you are here**
+	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
+	- [Transformation Process](./transformer-plugin.md#transformation-process)
+	- [Directive Handling](./transformer-plugin.md#directive-handling)
+9.	[Worker System](./rsc-worker.md)
+	- [Worker Architecture](./rsc-worker.md#worker-architecture)
+	- [Message Handling](./rsc-worker.md#message-handling)
+	- [Performance Optimization](./rsc-worker.md#performance-optimization)
+10.	[API Reference](./api-reference.md)
 	- [Plugin Options](./api-reference.md#plugin-options)
 	- [Component Props](./api-reference.md#component-props)
 	- [Worker Messages](./api-reference.md#worker-messages)
 	- [Type Definitions](./api-reference.md#type-definitions)
-12.	[Transformations](./transformations.md)
-	- [Code Transformations](./transformations.md#code-transformations)
-	- [Directive Handling](./transformations.md#directive-handling)
-	- [Build Output Examples](./transformations.md#build-output-examples)
-13.	**[Transformer Plugin](./transformer-plugin.md) ← you are here**
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
-14.	[Loader](./loader.md)
-	- [React Server Components Loader](./loader.md#react-server-components-loader)
-	- [Directive Processing](./loader.md#directive-processing)
-	- [Module Boundaries](./loader.md#module-boundaries)
-	- [Custom Registration Functions](./loader.md#custom-registration-functions)
-15.	[Custom Loader](./custom-loader.md)
-	- [Creating Custom Loaders](./custom-loader.md#creating-custom-loaders)
-	- [Loader Configuration](./custom-loader.md#loader-configuration)
-	- [Integration Examples](./custom-loader.md#integration-examples)
-16.	[RSC Worker](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
-17.	[HTML Worker](./html-worker.md)
-	- [HTML Generation](./html-worker.md#html-generation)
-	- [Stream Processing](./html-worker.md#stream-processing)
-	- [Worker Communication](./html-worker.md#worker-communication)
-18.	[React Type Compatibility](./react-type-compatibility.md)
+11.	[React Compatibility](./react-type-compatibility.md)
 	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
 	- [Generic Types](./react-type-compatibility.md#generic-types)
 	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
-19.	[Patch System](./patch-system.md)
-	- [React Version Compatibility](./patch-system.md#react-version-compatibility)
-	- [Creating Patches](./patch-system.md#creating-patches)
-	- [Maintenance Guide](./patch-system.md#maintenance-guide)
-20.	[Practical Guide](./practical-guide.md)
-	- [Real-world Examples](./practical-guide.md#real-world-examples)
-	- [Debugging Features](./practical-guide.md#debugging-features)
-	- [Production Implementations](./practical-guide.md#production-implementations)
-21.	[Troubleshooting Guide](./troubleshooting-guide.md)
+12.	[Troubleshooting](./troubleshooting-guide.md)
 	- [Common Issues](./troubleshooting-guide.md#common-issues)
 	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
 	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
@@ -491,4 +656,40 @@ When contributing to this plugin:
 ---
 
 <!-- TOC END -->
+
+
+
+
+
+```typescript
+// integration.test.js
+import { build } from 'vite';
+import { defineConfig } from 'vite';
+import { vitePluginReactServer } from 'vite-plugin-react-server';
+
+describe('Loader Integration', () => {
+  it('should process custom files in build', async () => {
+    const config = defineConfig({
+      plugins: [
+        vitePluginReactServer({
+          loader: {
+            customLoaders: [
+              {
+                name: "test-loader",
+                pattern: /\.custom$/,
+                loader: "./test-loader.js"
+              }
+            ]
+          }
+        })
+      ]
+    });
+    
+    const result = await build(config);
+    expect(result).toBeDefined();
+  });
+});
+```
+
+
 

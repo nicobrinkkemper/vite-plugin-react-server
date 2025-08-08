@@ -1,5 +1,6 @@
-# Advanced Topics
-This document covers advanced topics for the Vite React Server Plugin, including custom workers, the message system, and extending the plugin.
+# Advanced Development
+
+This document covers advanced topics for the Vite React Server Plugin, including custom workers, the message system, stream helpers, and extending the plugin.
 
 ## Custom Workers
 
@@ -326,11 +327,317 @@ interface BaseMessage {
    - Monitor worker memory usage
    - Implement proper cleanup to prevent memory leaks
 
+## Stream Helpers
+
+The plugin provides stream helper utilities for working with React Server Components streams.
+
+### Overview
+
+Stream helpers provide a simple interface for creating and managing RSC streams:
+
+```typescript
+import { createRscStream, createHtmlStream } from "vite-plugin-react-server/stream-helpers";
+
+// Create RSC stream
+const rscStream = createRscStream({
+  element: <MyComponent />,
+  moduleBaseURL: "/",
+  cssFiles: new Map(),
+});
+
+// Create HTML stream
+const htmlStream = createHtmlStream({
+  rscStream,
+  htmlTemplate: "<!DOCTYPE html><html><body><div id='root'></div></body></html>",
+});
+```
+
+### Architecture
+
+Stream helpers are built on top of React's streaming APIs:
+
+```typescript
+// Core stream creation
+export function createRscStream(options: RscStreamOptions): ReadableStream {
+  const { element, moduleBaseURL, cssFiles } = options;
+  
+  return renderToReadableStream(element, {
+    moduleBaseURL,
+    // Additional options...
+  });
+}
+
+// HTML transformation
+export function createHtmlStream(options: HtmlStreamOptions): ReadableStream {
+  const { rscStream, htmlTemplate } = options;
+  
+  return new ReadableStream({
+    start(controller) {
+      // Transform RSC to HTML
+    }
+  });
+}
+```
+
+### API Reference
+
+#### createRscStream
+
+Creates a React Server Components stream:
+
+```typescript
+interface RscStreamOptions {
+  element: React.ReactElement;
+  moduleBaseURL: string;
+  cssFiles?: Map<string, CssContent>;
+  pipeableStreamOptions?: RenderToPipeableStreamOptions;
+}
+
+function createRscStream(options: RscStreamOptions): ReadableStream;
+```
+
+#### createHtmlStream
+
+Transforms RSC stream to HTML:
+
+```typescript
+interface HtmlStreamOptions {
+  rscStream: ReadableStream;
+  htmlTemplate?: string;
+  cssFiles?: Map<string, CssContent>;
+}
+
+function createHtmlStream(options: HtmlStreamOptions): ReadableStream;
+```
+
+#### createRscToHtmlStream
+
+Combines RSC and HTML creation:
+
+```typescript
+interface RscToHtmlStreamOptions {
+  element: React.ReactElement;
+  htmlTemplate?: string;
+  moduleBaseURL: string;
+  cssFiles?: Map<string, CssContent>;
+}
+
+function createRscToHtmlStream(options: RscToHtmlStreamOptions): ReadableStream;
+```
+
+### Usage Examples
+
+#### Basic RSC Stream
+
+```typescript
+import { createRscStream } from "vite-plugin-react-server/stream-helpers";
+
+const stream = createRscStream({
+  element: <MyPage />,
+  moduleBaseURL: "/",
+});
+
+// Use the stream
+const reader = stream.getReader();
+const chunks = [];
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  chunks.push(value);
+}
+```
+
+#### HTML Transformation
+
+```typescript
+import { createHtmlStream } from "vite-plugin-react-server/stream-helpers";
+
+const htmlStream = createHtmlStream({
+  rscStream: myRscStream,
+  htmlTemplate: `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>My App</title>
+      </head>
+      <body>
+        <div id="root"></div>
+      </body>
+    </html>
+  `,
+});
+```
+
+#### Combined Stream
+
+```typescript
+import { createRscToHtmlStream } from "vite-plugin-react-server/stream-helpers";
+
+const stream = createRscToHtmlStream({
+  element: <MyPage />,
+  moduleBaseURL: "/",
+  htmlTemplate: "<!DOCTYPE html><html><body><div id='root'></div></body></html>",
+});
+```
+
+#### Custom CSS Handling
+
+```typescript
+import { createRscStream } from "vite-plugin-react-server/stream-helpers";
+
+const cssFiles = new Map([
+  ["styles.css", { href: "/styles.css", rel: "stylesheet" }],
+  ["inline.css", { content: "body { margin: 0; }", as: "style" }],
+]);
+
+const stream = createRscStream({
+  element: <MyPage />,
+  moduleBaseURL: "/",
+  cssFiles,
+});
+```
+
+### Error Handling
+
+Stream helpers include comprehensive error handling:
+
+```typescript
+import { createRscStream } from "vite-plugin-react-server/stream-helpers";
+
+try {
+  const stream = createRscStream({
+    element: <MyPage />,
+    moduleBaseURL: "/",
+  });
+  
+  // Handle stream errors
+  stream.catch(error => {
+    console.error("Stream error:", error);
+  });
+} catch (error) {
+  console.error("Creation error:", error);
+}
+```
+
+### Performance Optimization
+
+Stream helpers are optimized for performance:
+
+- **Lazy Evaluation**: Streams are created on-demand
+- **Memory Efficiency**: Minimal memory footprint during streaming
+- **Backpressure Handling**: Proper backpressure management
+- **Resource Cleanup**: Automatic cleanup of resources
+
 ## Worker Best Practices
 
 1. **Environment-Specific Code**: Use separate implementations for development and production to optimize performance and debugging capabilities as well as loaders configuration. Since we build our files to plain javascript for production, you likely don't need loaders for production.
 
 2. **Resource Management**: Always clean up resources properly:
+
+```typescript
+// Clean up streams and render states
+function cleanup(id: string) {
+  if (renderStates.has(id)) {
+    const state = renderStates.get(id);
+    state.stream?.cancel();
+    renderStates.delete(id);
+  }
+}
+```
+
+3. **Error Boundaries**: Implement proper error boundaries in workers:
+
+```typescript
+process.on('uncaughtException', (error) => {
+  sendMessage({
+    type: "ERROR",
+    id: "worker",
+    error: error.message,
+  });
+  process.exit(1);
+});
+```
+
+4. **Performance Monitoring**: Track metrics and performance:
+
+```typescript
+const metrics = {
+  startTime: Date.now(),
+  chunks: 0,
+  bytes: 0,
+};
+
+// Update metrics during processing
+metrics.chunks++;
+metrics.bytes += chunk.byteLength;
+```
+
+## Extending the Plugin
+
+### Custom Transformers
+
+You can extend the plugin with custom transformers:
+
+```typescript
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server";
+
+export default defineConfig({
+  plugins: [
+    vitePluginReactServer(config),
+    {
+      name: "custom-transformer",
+      transform(code, id) {
+        // Custom transformation logic
+        return code;
+      },
+    },
+  ],
+});
+```
+
+### Custom Loaders
+
+Create custom loaders for specific file types:
+
+```typescript
+// custom-loader.js
+export function customLoader(url, context, nextLoad) {
+  if (url.endsWith('.custom')) {
+    return {
+      format: 'module',
+      source: 'export default "custom content";',
+    };
+  }
+  return nextLoad(url, context);
+}
+```
+
+### Custom Workers
+
+Implement custom workers for specialized processing:
+
+```typescript
+// custom-worker.js
+import { parentPort } from "worker_threads";
+
+parentPort?.on("message", (message) => {
+  switch (message.type) {
+    case "CUSTOM_PROCESS":
+      // Custom processing logic
+      parentPort?.postMessage({
+        type: "CUSTOM_RESULT",
+        id: message.id,
+        result: "processed",
+      });
+      break;
+  }
+});
+```
+
+### Plugin Composition
+
+Compose multiple plugins for complex workflows:
 
 <!-- TOC START -->
 
@@ -342,6 +649,7 @@ interface BaseMessage {
 
 <!-- Auto-generated TOC - Do not edit manually -->
 
+
 1.	[Getting Started](./getting-started.md)
 	- [Installation and Setup](./getting-started.md#installation-and-setup)
 	- [Basic Configuration](./getting-started.md#basic-configuration)
@@ -350,83 +658,45 @@ interface BaseMessage {
 	- [Client-Server Separation](./core-concepts.md#client-server-separation)
 	- [React Server Components](./core-concepts.md#react-server-components)
 	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
-3.	[Configuration](./configuration.md)
+3.	[Configuration Guide](./configuration.md)
 	- [Plugin Options](./configuration.md#plugin-options)
 	- [Routing Configuration](./configuration.md#routing-configuration)
 	- [Build Configuration](./configuration.md#build-configuration)
-4.	[Component Resolution](./component-resolution.md)
-	- [Path-based vs Direct Components](./component-resolution.md#path-based-vs-direct-components)
-	- [When to Use Each Approach](./component-resolution.md#when-to-use-each-approach)
-	- [Migration Guide](./component-resolution.md#migration-guide)
-5.	[CSS Handling](./css-handling.md)
+4.	[CSS & Styling](./css-handling.md)
 	- [CSS Collectors](./css-handling.md#css-collectors)
 	- [Inline CSS](./css-handling.md#inline-css)
 	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
-6.	[Server Actions](./server-actions.md)
+5.	[Server Actions](./server-actions.md)
 	- [Creating Server Actions](./server-actions.md#creating-server-actions)
 	- [Client Integration](./server-actions.md#client-integration)
 	- [Error Handling](./server-actions.md#error-handling)
 	- [Database Integration](./server-actions.md#database-integration)
-7.	[Static Site Generation](./static-site-generation.md)
-	- [Static Plugin](./static-site-generation.md#static-plugin)
-	- [Build Process](./static-site-generation.md#build-process)
-	- [Deployment Strategies](./static-site-generation.md#deployment-strategies)
-8.	[Build Orchestration](./build-orchestration.md)
+6.	[Build & Deployment](./build-orchestration.md)
 	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
 	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
 	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
-9.	[Architecture](./architecture.md)
-	- [Design Philosophy](./architecture.md#design-philosophy)
-	- [Environment Variables](./architecture.md#environment-variables)
-	- [Plugin Composition](./architecture.md#plugin-composition)
-	- [HTML Component Support](./architecture.md#html-component-support)
-10.	**[Advanced Topics](./advanced-topics.md) ← you are here**
+7.	**[Advanced Development](./advanced-topics.md) ← you are here**
 	- [Custom Workers](./advanced-topics.md#custom-workers)
 	- [Message System](./advanced-topics.md#message-system)
 	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
-11.	[API Reference](./api-reference.md)
+8.	[Plugin Internals](./transformer-plugin.md)
+	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
+	- [Transformation Process](./transformer-plugin.md#transformation-process)
+	- [Directive Handling](./transformer-plugin.md#directive-handling)
+9.	[Worker System](./rsc-worker.md)
+	- [Worker Architecture](./rsc-worker.md#worker-architecture)
+	- [Message Handling](./rsc-worker.md#message-handling)
+	- [Performance Optimization](./rsc-worker.md#performance-optimization)
+10.	[API Reference](./api-reference.md)
 	- [Plugin Options](./api-reference.md#plugin-options)
 	- [Component Props](./api-reference.md#component-props)
 	- [Worker Messages](./api-reference.md#worker-messages)
 	- [Type Definitions](./api-reference.md#type-definitions)
-12.	[Transformations](./transformations.md)
-	- [Code Transformations](./transformations.md#code-transformations)
-	- [Directive Handling](./transformations.md#directive-handling)
-	- [Build Output Examples](./transformations.md#build-output-examples)
-13.	[Transformer Plugin](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
-14.	[Loader](./loader.md)
-	- [React Server Components Loader](./loader.md#react-server-components-loader)
-	- [Directive Processing](./loader.md#directive-processing)
-	- [Module Boundaries](./loader.md#module-boundaries)
-	- [Custom Registration Functions](./loader.md#custom-registration-functions)
-15.	[Custom Loader](./custom-loader.md)
-	- [Creating Custom Loaders](./custom-loader.md#creating-custom-loaders)
-	- [Loader Configuration](./custom-loader.md#loader-configuration)
-	- [Integration Examples](./custom-loader.md#integration-examples)
-16.	[RSC Worker](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
-17.	[HTML Worker](./html-worker.md)
-	- [HTML Generation](./html-worker.md#html-generation)
-	- [Stream Processing](./html-worker.md#stream-processing)
-	- [Worker Communication](./html-worker.md#worker-communication)
-18.	[React Type Compatibility](./react-type-compatibility.md)
+11.	[React Compatibility](./react-type-compatibility.md)
 	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
 	- [Generic Types](./react-type-compatibility.md#generic-types)
 	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
-19.	[Patch System](./patch-system.md)
-	- [React Version Compatibility](./patch-system.md#react-version-compatibility)
-	- [Creating Patches](./patch-system.md#creating-patches)
-	- [Maintenance Guide](./patch-system.md#maintenance-guide)
-20.	[Practical Guide](./practical-guide.md)
-	- [Real-world Examples](./practical-guide.md#real-world-examples)
-	- [Debugging Features](./practical-guide.md#debugging-features)
-	- [Production Implementations](./practical-guide.md#production-implementations)
-21.	[Troubleshooting Guide](./troubleshooting-guide.md)
+12.	[Troubleshooting](./troubleshooting-guide.md)
 	- [Common Issues](./troubleshooting-guide.md#common-issues)
 	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
 	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
@@ -441,3 +711,23 @@ interface BaseMessage {
 
 <!-- TOC END -->
 
+
+
+
+
+```typescript
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server";
+
+export default defineConfig({
+  plugins: [
+    // Core plugin
+    vitePluginReactServer(config),
+    
+    // Custom extensions
+    customTransformerPlugin(),
+    customLoaderPlugin(),
+    customWorkerPlugin(),
+  ],
+});
+```

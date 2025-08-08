@@ -1,12 +1,12 @@
-import type { RenderToPipeableStreamOptions } from "react-dom/server";
+import type { Logger } from "vite";
 import type {
   CreateHandlerOptions,
   ResolvedUserOptions,
+  SerializableRecord,
   StreamMetrics,
 } from "../../types.js";
 import type {
   WorkerMessage,
-  ReactServerDomEsmOptions,
   ErrorMessage,
   ShellReadyMessage,
   AllReadyMessage,
@@ -17,13 +17,22 @@ import type {
   ServerActionResponseMessage,
   CleanupCompleteMessage,
   ShutdownMessage,
+  AbortMessage,
+  StreamHandlers,
 } from "../types.js";
+import type { PassThrough } from "node:stream";
+
+export type HandleRscRenderOptions = RscRenderOpt & {logger?: Logger; stream?: PassThrough};
+
+export type HandleRscRenderFn = <Opt extends HandleRscRenderOptions = HandleRscRenderOptions>(
+  options: Opt,
+  handlers: StreamHandlers,
+  overrideStream?: PassThrough
+) => void;
+
 
 // Combined options type that includes both React DOM and React Server DOM ESM options
-export type SerializeableRenderToPipeableStreamOptions = Omit<
-  RenderToPipeableStreamOptions,
-  "onShellReady" | "onShellError" | "onAllReady" | "onError" | "onPostpone"
->;
+export type SerializeableRenderToPipeableStreamOptions = SerializableRecord;
 
 export type RscRenderState = {
   id: string;
@@ -33,7 +42,12 @@ export type RscRenderState = {
   rscOutputPath: string;
   componentImport: string;
   propsImport: string;
-  pipeableStreamOptions: ReactServerDomEsmOptions;
+  serverPipeableStreamOptions: SerializableRecord;
+};
+
+export type RscRenderStartMessage = {
+  type: "RSC_RENDER_START";
+  id: string;
 };
 
 // RSC-specific messages
@@ -64,12 +78,20 @@ export type CssFileMessage = {
   usedClasses?: string[];
 };
 
+export type ShellErrorMessage = {
+  type: "SHELL_ERROR";
+  id: string;
+  error: unknown
+} & WorkerMessage;
+
 export type RscWorkerOutputMessage =
+  | RscRenderStartMessage
   | RscChunkOutputMessage
   | RscEndMessage
   | ShellReadyMessage
   | AllReadyMessage
   | ErrorMessage
+  | ShellErrorMessage
   | CssFileMessage
   | RscMetricsMessage
   | HmrAcceptMessage
@@ -85,30 +107,27 @@ export type RscWorkerOutputMessage =
 export type RscRenderOpt = WorkerMessage & {
   type: "RSC_RENDER";
 } & Omit<
-  CreateHandlerOptions<ResolvedUserOptions>,
-  | "onEvent"
-  | "onMetrics"
-  | "loader"
-  | "logger"
-  | "build"
-  | "autoDiscover"
-  | "normalizer"
-  | "moduleID"
-  | "HtmlComponent"
-  | "RootComponent"
-  | "PageComponent"
-  | "url"
-> & {
-  url?: string;
-  build: Omit<
-    CreateHandlerOptions<ResolvedUserOptions>["build"],
-    "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
-  > & { pages: string[] };
-};
+    CreateHandlerOptions<ResolvedUserOptions>,
+    // omitted because they are not needed for the worker
+    | "onEvent"
+    | "onMetrics"
+    | "loader"
+    | "build"
+    | "autoDiscover"
+    | "normalizer"
+    | "moduleID"
+    | "PageComponent"
+    | "url"
+    | "logger"
+  > & {
+    url?: string;
+    build: Omit<
+      CreateHandlerOptions<ResolvedUserOptions>["build"],
+      "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
+    > & { pages: string[] };
+  };
 
-export type RscRenderMessage<
-  Opt extends RscRenderOpt = RscRenderOpt
-> = Opt;
+export type RscRenderMessage<Opt extends RscRenderOpt = RscRenderOpt> = Opt;
 
 export type ChunkProcessedMessage = {
   type: "CHUNK_PROCESSED";
@@ -184,4 +203,5 @@ export type RscWorkerInputMessage =
   | CleanupCompleteMessage
   | ServerActionMessage
   | ServerActionResponseMessage
-  | ServerModuleMessage;
+  | ServerModuleMessage
+  | AbortMessage;

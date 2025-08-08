@@ -11,23 +11,38 @@
  * 5. Retries failed routes with no-op Page component for minimal HTML shells
  */
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
-import { renderPage } from "./renderPage.js";
-import type { PassThrough } from "node:stream";
-import type { RenderPagesResult, StreamMetrics } from "../types.js";
-import type { RenderPagesFn } from "./types.js";
-import { handleError } from "../error/handleError.js";
 
-export const renderPages: RenderPagesFn = (routes) => {
+import type { RenderPagesResult, StreamMetrics } from "../types.js";
+import type { RenderPagesFn} from "./types.js";
+import { handleError } from "../error/handleError.js";
+import { routeToURL } from "../utils/routeToURL.js";
+import type { Manifest } from "vite";
+
+// Helper function to resolve paths using manifest
+function resolvePathWithManifest(path: string, manifest: Manifest): string {
+  // Check if the path exists in the manifest
+  const manifestEntry = manifest[path];
+  if (manifestEntry && manifestEntry.file) {
+    // Return the compiled file path
+    return manifestEntry.file;
+  }
+  
+  // If not found in manifest, return the original path
+  // The build loader will handle finding the compiled version
+  return path;
+}
+
+export const renderPages: RenderPagesFn = (routes, renderPage) => {
   return (handlerOptions) => {
-    const { autoDiscoveredFiles, cssFilesByPage, ...options } = handlerOptions;
+    const { autoDiscoveredFiles, cssFilesByPage, manifest = {}, ...options } = handlerOptions;
     const completedRoutes = new Set<string>();
     const failedRoutes = new Map<string, unknown>();
     const baseMetrics = createRenderMetrics(routes[0]);
     const results = new Map<
       string,
       {
-        html: PassThrough;
-        rsc: PassThrough;
+        html: { abort: (reason?: unknown) => void; pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => Writable; };
+        rsc: { abort: (reason?: unknown) => void; pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => Writable; };
         metrics: {
           rscFull: StreamMetrics;
           rscHeadless: StreamMetrics;
@@ -51,14 +66,35 @@ export const renderPages: RenderPagesFn = (routes) => {
         if (!page) continue;
 
         try {
+          
+          const resolvedPagePath = page ? resolvePathWithManifest(page, manifest) : undefined;
+          const resolvedPropsPath = props ? resolvePathWithManifest(props, manifest) : undefined;
+          const resolvedRootPath = root ? resolvePathWithManifest(root, manifest) : undefined;
+          const resolvedHtmlPath = html ? resolvePathWithManifest(html, manifest) : undefined;
+
+          if (options.verbose) {
+            options.logger?.info(`[renderPages] Resolved paths for route ${route}:`);
+            options.logger?.info(`  page: ${page} -> ${resolvedPagePath}`);
+            options.logger?.info(`  props: ${props} -> ${resolvedPropsPath}`);
+            options.logger?.info(`  root: ${root} -> ${resolvedRootPath}`);
+            options.logger?.info(`  html: ${html} -> ${resolvedHtmlPath}`);
+          }
+
           const pageRenderer = renderPage({
             ...options,
+            manifest,
             route,
-            pagePath: page as string,
-            propsPath: props as string,
-            rootPath: root as string,
-            htmlPath: html as string,
+            pagePath: resolvedPagePath as string,
+            propsPath: resolvedPropsPath as string,
+            rootPath: resolvedRootPath as string,
+            htmlPath: resolvedHtmlPath as string,
             cssFiles: cssFilesByPage.get(route) ?? new Map(),
+            // Add required fields that are missing from RenderPagesHandlerOptions
+            PageComponent: undefined as any,
+            RootComponent: undefined as any,
+            HtmlComponent: undefined as any,
+            url: routeToURL(route, options.moduleBaseURL, options.build.rscOutputPath),
+            pageProps: undefined,
           });
 
           for await (const result of pageRenderer) {
@@ -76,7 +112,7 @@ export const renderPages: RenderPagesFn = (routes) => {
                 rscSizes: baseMetrics.rscSizes,
                 streamMetrics: baseMetrics.streamMetrics,
                 results,
-              } as const;
+              } as RenderPagesResult;
               continue;
             }
 
@@ -114,11 +150,12 @@ export const renderPages: RenderPagesFn = (routes) => {
               yield {
                 type: "success",
                 completedRoutes,
+                failedRoutes,
                 htmlSizes: baseMetrics.htmlSizes,
                 rscSizes: baseMetrics.rscSizes,
                 streamMetrics: baseMetrics.streamMetrics,
                 results,
-              } as const;
+              } as RenderPagesResult;
             }
           }
         } catch (err) {
@@ -142,6 +179,15 @@ export const renderPages: RenderPagesFn = (routes) => {
             streamMetrics: baseMetrics.streamMetrics,
             results,
           } satisfies RenderPagesResult;
+          
+          // For panicThreshold: "none", stop processing additional routes when there's an error
+          // This prevents the build from continuing with broken pages
+          if (options.panicThreshold === "none") {
+            if (options.verbose) {
+              options.logger.info(`[renderPages] Stopping render loop due to error with panicThreshold: "none"`);
+            }
+            break;
+          }
         }
       }
 

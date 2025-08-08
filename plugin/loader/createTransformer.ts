@@ -26,7 +26,7 @@ export const createTransformer: TransformerFactory = ({
       loader = DEFAULT_LOADER_CONFIG,
     } = options;
     if (verbose) {
-      logger.info(`[createTransformer] Loading: ${moduleId}`);
+      logger.info(`[createTransformer:${isServerEnvironment ? "server" : "client"}] Loading: ${moduleId}`);
     }
 
     // Fast-path: skip parsing and transformation if no directives are present

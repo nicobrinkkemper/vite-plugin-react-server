@@ -317,7 +317,8 @@ export async function deleteTodo(id: number): Promise<{ success: boolean }> {
     resolve(testDir, "src/components/TodoList.client.tsx"),
     `"use client";
 
-import React, { useState } from 'react';
+import React from 'react';
+const { useState } = React;
 
 type Todo = {
   id: number;

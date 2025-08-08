@@ -1,8 +1,9 @@
-import type {
-  EnvironmentModuleGraph,
-  EnvironmentModuleNode,
-  ModuleGraph,
-  ModuleNode,
+import {
+  createLogger,
+  type EnvironmentModuleGraph,
+  type EnvironmentModuleNode,
+  type ModuleGraph,
+  type ModuleNode,
 } from "vite";
 import type {
   CreateHandlerOptions,
@@ -22,7 +23,7 @@ type CollectViteModuleGraphCssResult =
     }
   | {
       type: "error";
-      error: Error;
+      error: unknown;
       cssFiles?: never;
       metrics: {
         cssFiles: number;
@@ -48,6 +49,8 @@ export type CollectViteModuleGraphCssOptions = Pick<
   | "normalizer"
   | "moduleID"
   | "publicOrigin"
+  | "logger"
+  | "verbose"
 >;
 
 export type CollectViteModuleGraphCssFn = <
@@ -78,12 +81,33 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
       normalizer,
       moduleID,
     } = handlerOptions;
-    if (!pagePath) return { type: "skip" };
+    const logger = handlerOptions.logger ?? createLogger  ();
+    const verbose = handlerOptions.verbose ?? false;
+    if(handlerOptions.verbose) {
+      logger.info(`Starting CSS collection for pagePath: ${pagePath}`);
+    }
+    
+    if (!pagePath) {        
+      if(verbose) {
+        logger.info(`No pagePath, skipping`);
+      }
+      return { type: "skip" };
+    }
 
     const cssFiles = new Map<string, CssContent>();
+    if(verbose) {
+      logger.info(`Getting module by URL: ${pagePath}`);
+    }
     const pageModule = await moduleGraph.getModuleByUrl(pagePath, true);
     if (!pageModule) {
+      if(verbose) {
+        logger.info(`No page module found, skipping`);
+      }
       return { type: "skip" };
+    }
+
+    if(verbose) {
+      logger.info(`Page module found, starting walk`);
     }
 
     const seen = new Set<string>();
@@ -106,8 +130,15 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
       }
 
       processing.add(mod.id);
+      if(verbose) {
+        logger.info(`Processing module: ${mod.id}`);
+      }
+      
       // Processing module
       if (mod.id.endsWith(".css")) {
+          if(verbose) {
+          logger.info(`Loading CSS module: ${mod.id}?inline`);
+        }
         const string = await loader(`${mod.id}?inline`).then(
           (m) => m?.["default"] ?? ""
         );
@@ -119,6 +150,9 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
           throw new Error(
             `CSS module ${mod.id}?inline returned an empty string`
           );
+        }
+        if(verbose) {
+          logger.info(`CSS loaded successfully: ${mod.id}`);
         }
         const cssContent = createCssProps({
           id: mod?.id,
@@ -139,12 +173,18 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
       }
 
       if (mod.importedModules) {
+        if(verbose) {
+          logger.info(`Processing imports for module: ${mod.id}`);
+        }
         // Processing imports for module
         const importedModules = Array.from(
           mod.importedModules?.values() as Iterable<
             ModuleNode | EnvironmentModuleNode
           >
-        );
+        );  
+        if(verbose) {
+          logger.info(`Found ${importedModules.length} imported modules`);
+        }
         // Found imported modules
         for (const importedMod of importedModules) {
           if (typeof importedMod === "object" && importedMod != null) {
@@ -168,8 +208,17 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
     };
 
     try {
+      if(verbose) {
+        logger.info(`Starting module walk`);
+      }
       await walkModule(pageModule);
+      if(verbose) {
+        logger.info(`Module walk completed successfully`);
+      }
     } catch (error) {
+      if(verbose) {
+        logger.error(`Error during module walk: ${(error as Error)?.message ?? 'no message'}`);
+      }
       return {
         type: "error",
         error: error as Error,
@@ -178,6 +227,10 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
           processing: processing.size,
         },
       };
+    }
+    
+    if(verbose) {
+      logger.info(`CSS collection completed, found ${cssFiles.size} CSS files`);
     }
     return {
       type: "success",

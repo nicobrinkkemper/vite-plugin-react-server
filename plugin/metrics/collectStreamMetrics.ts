@@ -1,5 +1,4 @@
 import { Transform } from "node:stream";
-import type { PipeableStream } from "react-dom/server";
 import { createStreamMetrics } from "./createStreamMetrics.js";
 import type { StreamMetrics } from "./types.js";
 
@@ -8,7 +7,7 @@ import type { StreamMetrics } from "./types.js";
  * @param stream The stream to collect metrics from
  * @returns A promise that resolves with the metrics when the stream ends
  */
-export function collectStreamMetrics(stream: PipeableStream | NodeJS.ReadableStream): Promise<StreamMetrics> {
+export function collectStreamMetrics(stream: any | NodeJS.ReadableStream): Promise<StreamMetrics> {
   const metrics = createStreamMetrics();
   const startTime = performance.now()
 

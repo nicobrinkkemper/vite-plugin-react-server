@@ -45,7 +45,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
   const distDir = resolve(options.projectRoot ?? "", "dist");
   await rm(distDir, { recursive: true, force: true });
 
-// Do the builds
+// Do the builds - client first
   await build({  
     mode: "test",
     plugins: [vitePluginReactClient(options)],
@@ -54,6 +54,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     },
   });
 
+  // Client SSR build
   await build({
     mode: "test",
     plugins: [vitePluginReactClient(options)],
@@ -62,6 +63,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     },
   });
 
+  // Server build (generates manifest and includes static plugin)
   await build({
     mode: "test",
     plugins: [vitePluginReactServer(options)],

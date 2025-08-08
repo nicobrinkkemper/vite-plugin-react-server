@@ -31,11 +31,10 @@ import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
-import type { ReactServerDomEsmOptions } from "./worker/types.js";
 
-export type OnEvent<Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin> = (
-  event: PluginEvent<Interface>
-) => void;
+export type OnEvent<
+  Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin
+> = (event: PluginEvent<Interface>) => void;
 
 export type OnMetrics = (metrics: RenderMetrics) => void;
 
@@ -71,15 +70,26 @@ export type HmrState = {
 export type RenderPageResult =
   | {
       type: "skip";
+      reason?: unknown;
     }
   | {
       type: "error";
-      error: Error;
+      error: unknown;
     }
   | {
       type: "success";
-      html: PassThrough;
-      rsc: PassThrough;
+      html: {
+        abort: (reason?: unknown) => void;
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => Writable;
+      };
+      rsc: {
+        abort: (reason?: unknown) => void;
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => Writable;
+      };
       metrics: {
         rscFull: StreamMetrics;
         rscHeadless: StreamMetrics;
@@ -222,7 +232,9 @@ export type NestedConfigKeys =
   | "autoDiscover"
   | "loader"
   | "css"
-  | "pipeableStreamOptions";
+  | "pipeableStreamOptions"
+  | "serverPipeableStreamOptions"
+  | "clientPipeableStreamOptions";
 
 export type EventKeys = "onMetrics" | "onEvent";
 
@@ -356,7 +368,11 @@ export type ResolvedUserOptions = {
   normalizer: InputNormalizer;
   moduleID: ((id: string) => string) | undefined;
   onMetrics: OnMetrics | undefined;
-  pipeableStreamOptions: ReactServerDomEsmOptions;
+  // different for client/server so can't be typed
+  pipeableStreamOptions: any;
+  // Separate pipeable stream options for different environments
+  serverPipeableStreamOptions?: any; // For dev server and RSC worker
+  clientPipeableStreamOptions?: any; // For HTML worker
   autoDiscover: Required<AutoDiscoverConfig>;
   loader?: Required<LoaderConfig> | undefined;
   build: Required<BuildConfig>;
@@ -407,7 +423,6 @@ export type CssComponentType<
   cssFiles: Map<string, CssContent<InlineCSS>> | CssContent[];
 }) => R;
 
-
 export type FileWriteEvent = {
   type: "file.write";
   data: {
@@ -432,7 +447,7 @@ export type RouteErrorEvent = {
   type: "route.error";
   data: {
     route: string;
-    error?: Error | null;
+    error?: unknown | null;
     errorInfo?: {
       componentStack?: string | null;
       digest?: string | null;
@@ -441,11 +456,33 @@ export type RouteErrorEvent = {
   };
 };
 
+export type RouteShellErrorEvent = {
+  type: "route.shellError";
+  data: {
+    route: string;
+    error: unknown;
+  };
+};
+
 export type RoutePostponeEvent = {
   type: "route.postpone";
   data: {
     route: string;
     reason?: unknown;
+  };
+};
+
+export type RouteShellReadyEvent = {
+  type: "route.shellReady";
+  data: {
+    route: string;
+  };
+};
+
+export type RouteAllReadyEvent = {
+  type: "route.allReady";
+  data: {
+    route: string;
   };
 };
 
@@ -515,15 +552,20 @@ export type BuildWriteBundleEvent =
   | BuildWriteBundleEventStaticClient
   | BuildWriteBundleEventStaticServer;
 
-export type PluginEvent<Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin> =
+export type PluginEvent<
+  Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin
+> =
   | FileWriteEvent
   | FileWriteDoneEvent
   | RouteErrorEvent
+  | RouteShellErrorEvent
   | RoutePostponeEvent
   | PropsLoadEvent
   | CssProcessEvent<Interface>
   | BuildStartEvent
-  | BuildWriteBundleEvent;
+  | BuildWriteBundleEvent
+  | RouteShellReadyEvent
+  | RouteAllReadyEvent;
 
 export type PluginEventType = PluginEvent["type"];
 
@@ -763,15 +805,14 @@ export interface StreamPluginOptions<
       Interface["InlineCSS"],
       Interface["ReactType"]
     >;
-    Page?: PageComponentType<
-      Interface["PageProps"],
-      Interface["ReactType"]
-    >;
+    Page?: PageComponentType<Interface["PageProps"], Interface["ReactType"]>;
   };
   build?: BuildConfig;
   css?: RootOptions<Interface["InlineCSS"]>;
   // moduleBaseExceptions?: string[];
-  pipeableStreamOptions?: ReactServerDomEsmOptions;
+  pipeableStreamOptions?: any; // Legacy - kept for backward compatibility
+  serverPipeableStreamOptions?: any; // For dev server and RSC worker
+  clientPipeableStreamOptions?: any; // For HTML worker
   onMetrics?: (metrics: RenderMetrics) => void;
   onEvent?: OnEvent<Interface>;
   normalizer?: InputNormalizer;
@@ -832,7 +873,10 @@ export type CreateHandlerOptions<
   | "htmlTimeout"
   | "fileWriteTimeout"
   | "workerShutdownTimeout"
+  | "rscWorkerPath"
+  | "htmlWorkerPath"
 > & {
+  id?: string;
   signal?: AbortSignal;
   logger: Logger;
   loader: BuildModuleLoader | GenericModuleLoader;
@@ -841,19 +885,25 @@ export type CreateHandlerOptions<
   rootPath?: string;
   htmlPath?: string;
   pageProps?: Interface["PageProps"];
-  PageComponent: PageComponentType<Interface["PageProps"], R>;
-  RootComponent: RootComponentType<
-    Interface["PageProps"],
-    Interface["As"],
-    Interface["InlineCSS"],
-    R
-  > |  typeof React.Fragment;
-  HtmlComponent: HtmlComponentType<
-    Interface["PageProps"],
-    Interface["As"],
-    Interface["InlineCSS"],
-    R
-  > | typeof React.Fragment;
+  PageComponent?: PageComponentType<Interface["PageProps"], R> | typeof React.Fragment;
+  RootComponent?:
+    | RootComponentType<
+        Interface["PageProps"],
+        Interface["As"],
+        Interface["InlineCSS"],
+        R
+      >
+    | typeof React.Fragment;
+  HtmlComponent:
+    | HtmlComponentType<
+        Interface["PageProps"],
+        Interface["As"],
+        Interface["InlineCSS"],
+        R
+      >
+    | typeof React.Fragment
+    
+    | undefined;
   route: string;
   url: string;
   as?: Interface["As"];
@@ -863,7 +913,8 @@ export type CreateHandlerOptions<
   importedCss?: Set<string>;
   cssFiles: Map<string, InterfaceAwareCssContent<Interface>>;
   globalCss: Map<string, InterfaceAwareCssContent<Interface>>;
-  pipeableStreamOptions: ReactServerDomEsmOptions;
+  serverPipeableStreamOptions?: any;
+  clientPipeableStreamOptions?: any;
   build: Pick<
     ResolvedUserOptions["build"],
     | "outDir"
@@ -887,7 +938,6 @@ export type ResolvePropsOptions = {
   propsExportName: string;
   url: string;
 };
-
 
 export type StreamResult =
   | {
@@ -1016,7 +1066,7 @@ export type ResolvedBuildPages = {
     string,
     { props?: string; page: string; root?: string; html?: string }
   >;
-  errors: Error[];
+  errors: unknown[];
 };
 
 // Add branded types for safety
@@ -1102,52 +1152,55 @@ export type HtmlRenderState = {
   progressStream: PassThrough;
   errorTransform: Transform;
   htmlChunks: string[];
-  pipeableStreamOptions: Omit<
-    ReactServerDomEsmOptions,
-    "onError" | "onPostpone"
-  >;
+  pipeableStreamOptions: any;
   streamState: StreamMetrics;
 };
 
+
+
+// Metadata type for tracking render progress
+export type RenderPagesMetadata = {
+  completedRoutes: Set<string>;
+  failedRoutes: Map<string, unknown>;
+  htmlSizes: Map<string, number>;
+  rscSizes: Map<string, number>;
+  streamMetrics: StreamMetrics;
+  results: Map<
+    string,
+    {
+      html: {
+        abort: (reason?: unknown) => void;
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => Writable;
+      };
+      rsc: {
+        abort: (reason?: unknown) => void;
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => Writable;
+      };
+      metrics: {
+        rscFull: StreamMetrics;
+        rscHeadless: StreamMetrics;
+      };
+    }
+  >;
+};
+
+// Simplified result type for the entire render process
 export type RenderPagesResult =
   | {
       type: "error";
-      completedRoutes: Set<string>;
-      failedRoutes: Map<string, unknown>;
-      htmlSizes: Map<string, number>;
-      rscSizes: Map<string, number>;
-      streamMetrics: StreamMetrics;
-      results: Map<
-        string,
-        {
-          html: PassThrough;
-          rsc: PassThrough;
-          metrics: {
-            rscFull: StreamMetrics;
-            rscHeadless: StreamMetrics;
-          };
-        }
-      >;
-    }
+      error?: unknown;
+      route?: string;
+    } & RenderPagesMetadata
   | {
       type: "success";
-      completedRoutes: Set<string>;
-      failedRoutes?: Map<string, Error>;
-      htmlSizes: Map<string, number>;
-      rscSizes: Map<string, number>;
-      streamMetrics: StreamMetrics;
-      results: Map<
-        string,
-        {
-          html: PassThrough;
-          rsc: PassThrough;
-          metrics: {
-            rscFull: StreamMetrics;
-            rscHeadless: StreamMetrics;
-          };
-        }
-      >;
-    };
+    } & RenderPagesMetadata
+  | {
+      type: "skip";
+    } & RenderPagesMetadata;
 
 export type HandlerAssets<InlineCSS extends InlineCssOpt = InlineCssOpt> = {
   css: CssContent<InlineCSS>[];
@@ -1169,10 +1222,8 @@ export type CreateHandlerResult<InlineCSS extends InlineCssOpt = InlineCssOpt> =
         route: string;
         metrics: StreamMetrics;
       }
-    | { type: "error"; error: Error }
+    | { type: "error"; error: unknown }
     | { type: "skip" };
-
-
 
 // Define LoaderContext interface locally
 export type LoaderContext = {
@@ -1347,7 +1398,11 @@ declare global {
 // Default interface implementation
 export interface DefaultInterface<
   T extends React.ComponentProps<any> = React.ComponentProps<any>,
-  As extends React.JSXElementConstructor<any> | keyof React.JSX.IntrinsicElements = React.JSXElementConstructor<any> | keyof React.JSX.IntrinsicElements
+  As extends
+    | React.JSXElementConstructor<any>
+    | keyof React.JSX.IntrinsicElements =
+    | React.JSXElementConstructor<any>
+    | keyof React.JSX.IntrinsicElements
 > extends ViteReactServerComponentsPlugin {
   ReactType: InferReactType;
   PageProps: T;
@@ -1397,26 +1452,43 @@ export type HtmlComponentType<
   As extends ViteReactServerComponentsPlugin["As"] = DefaultInterface["As"],
   InlineCSS extends ViteReactServerComponentsPlugin["InlineCSS"] = DefaultInterface["InlineCSS"],
   R = DefaultInterface["ReactType"]
-> = ((props: HtmlProps<T, InlineCSS, As, R>) => R);
+> = (props: HtmlProps<T, InlineCSS, As, R>) => R;
 
 // Interface-aware type aliases for better type safety
-export type InterfaceAwareCssContent<Interface extends ViteReactServerComponentsPlugin> =
-  CssContent<Interface["InlineCSS"]>;
+export type InterfaceAwareCssContent<
+  Interface extends ViteReactServerComponentsPlugin
+> = CssContent<Interface["InlineCSS"]>;
 
-export type InterfaceAwareRootOptions<Interface extends ViteReactServerComponentsPlugin> =
-  RootOptions<Interface["InlineCSS"]>;
+export type InterfaceAwareRootOptions<
+  Interface extends ViteReactServerComponentsPlugin
+> = RootOptions<Interface["InlineCSS"]>;
 
 export type InterfaceAwareCssComponentType<
   Interface extends ViteReactServerComponentsPlugin,
   R = Interface["ReactType"]
 > = CssComponentType<Interface["InlineCSS"], R>;
 
-export type InterfaceAwareCssProps<Interface extends ViteReactServerComponentsPlugin> = CssProps<
-  Interface["InlineCSS"]
->;
+export type InterfaceAwareCssProps<
+  Interface extends ViteReactServerComponentsPlugin
+> = CssProps<Interface["InlineCSS"]>;
 
-export type InterfaceAwareHandlerAssets<Interface extends ViteReactServerComponentsPlugin> =
-  HandlerAssets<Interface["InlineCSS"]>;
+export type InterfaceAwareHandlerAssets<
+  Interface extends ViteReactServerComponentsPlugin
+> = HandlerAssets<Interface["InlineCSS"]>;
 
-export type InterfaceAwareCreateHandlerResult<Interface extends ViteReactServerComponentsPlugin> =
-  CreateHandlerResult<Interface["InlineCSS"]>;
+export type InterfaceAwareCreateHandlerResult<
+  Interface extends ViteReactServerComponentsPlugin
+> = CreateHandlerResult<Interface["InlineCSS"]>;
+
+
+export type VitePluginReactClientFn = <
+  Opt extends StreamPluginOptions = StreamPluginOptions
+>(
+  options: Opt
+) => Plugin[];
+
+export type VitePluginReactServerFn = <
+  Opt extends StreamPluginOptions = StreamPluginOptions
+>(
+  options: Opt
+) => Plugin[];

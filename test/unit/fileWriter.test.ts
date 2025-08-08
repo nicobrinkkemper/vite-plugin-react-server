@@ -46,6 +46,7 @@ describe('fileWriter', () => {
         server: 'server',
         client: 'client'
       },
+      panicThreshold: 'all_errors' as const,
       onEvent: () => {},
       verbose: false,
       logger
@@ -77,6 +78,7 @@ describe('fileWriter', () => {
         server: 'server',
         client: 'client'
       },
+      panicThreshold: 'all_errors' as const,
       onEvent: () => {},
       verbose: false,
       logger
@@ -104,6 +106,7 @@ describe('fileWriter', () => {
         server: 'server',
         client: 'client'
       },
+      panicThreshold: 'all_errors' as const,
       onEvent: () => {},
       verbose: false,
       logger
@@ -132,6 +135,7 @@ describe('fileWriter', () => {
         server: 'server',
         client: 'client'
       },
+      panicThreshold: 'all_errors' as const,
       onEvent: (event: any) => {
         events.push(event);
       },

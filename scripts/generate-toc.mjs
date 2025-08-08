@@ -19,7 +19,7 @@ function extractTOCFromReadme() {
   
   // Find the table of contents section
   const tocStartIndex = readmeContent.indexOf('## Table of Contents');
-  const tocEndIndex = readmeContent.indexOf('## Plugin Architecture Documentation');
+  const tocEndIndex = readmeContent.indexOf('## Quick Links');
   
   if (tocStartIndex === -1 || tocEndIndex === -1) {
     throw new Error('Could not find Table of Contents section in README.md');
@@ -27,7 +27,7 @@ function extractTOCFromReadme() {
   
   const tocSection = readmeContent.slice(tocStartIndex, tocEndIndex).trim();
 
-    // Parse the TOC and build clickable links for sub-items
+  // Parse the TOC and build clickable links for sub-items
   const lines = tocSection.split('\n');
   let currentFile = null;
   let currentNumber = 1;
@@ -60,7 +60,10 @@ function extractTOCFromReadme() {
       tocWithLinks.push(`${indent}- [${text}](${link})`);
       continue;
     }
-    tocWithLinks.push(line);
+    // Only include lines that are part of the TOC (numbered items, sub-items, or empty lines)
+    if (line.trim() === '' || line.match(/^\d+\./) || line.match(/^\s*-/)) {
+      tocWithLinks.push(line);
+    }
   }
 
   // Add navigation note (without the Table of Contents header or auto-generated comment)

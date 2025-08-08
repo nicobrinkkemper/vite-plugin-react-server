@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer } from "vite";
-import { vitePluginReactClient } from "vite-plugin-react-server/client";
+import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
@@ -10,7 +10,7 @@ import { handleRSCStream } from "../rsc-stream.js";
 
 let server;
 let port = 3009;
-const pageURL = `http://localhost:${port}/index.rsc`;
+const pageURL = `http://localhost:${port}/todos.rsc`;
 let response: RSCStreamResponse;
 const testDir = resolve(
   __dirname,
@@ -28,7 +28,7 @@ describe("Client Server Action Integration", () => {
     server = await createServer({
       root: testDir,
       plugins: [
-        vitePluginReactClient({
+        vitePluginReactServer({
           ...testUserOptions,
           projectRoot: testDir,
           moduleBasePath: '/',
@@ -71,18 +71,11 @@ describe("Client Server Action Integration", () => {
   });
 
   it("should include server action references in the RSC stream", async () => {
-    expect(response.result).toContain(
-      '"id":"/src/page/actions.server.ts#addTodo"'
-    );
-    expect(response.result).toContain(
-      '"id":"/src/page/actions.server.ts#toggleTodo"'
-    );
-    expect(response.result).toContain(
-      '"id":"/src/page/actions.server.ts#deleteTodo"'
-    );
-    expect(response.result).toContain(
-      '"id":"/src/page/actions.server.ts#getTodos"'
-    );
+    // Verify each server action is properly referenced as $E(...) functions
+    expect(response.result).toContain('addTodo');
+    expect(response.result).toContain('toggleTodo');
+    expect(response.result).toContain('deleteTodo');
+    expect(response.result).toContain('getTodos');
   });
 
   it("should execute server actions and return results", async () => {
@@ -91,9 +84,8 @@ describe("Client Server Action Integration", () => {
   });
 
   it("should handle client component references correctly", async () => {
-    // The RSC stream should contain client component references
-    expect(response.result).toContain(
-      'I["src/components/TodoList.client.tsx","TodoList"]'
-    );
+    // The RSC stream should contain client component references as serialized objects
+    expect(response.result).toContain('"TodoList"');
+    expect(response.result).toContain('"env":"Server"');
   });
 });

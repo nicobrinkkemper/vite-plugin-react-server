@@ -1,6 +1,6 @@
-# Configuration
+# Configuration Guide
 
-> Note: likely to change in the future, but these are all the allowed options and their intended function
+This guide covers all configuration options and component resolution strategies for the Vite React Server Plugin.
 
 ## Core Configuration Options
 
@@ -39,7 +39,200 @@ publicOrigin: "", // URL parseable origin
 
 `publicOrigin` should be used as a static replacement for location.origin. Defaults to VITE_PUBLIC_ORIGIN or ""
 
-## Component Configuration
+## Component Resolution
+
+The plugin supports two main approaches for providing components:
+
+1. **Path-based Resolution** (`Page`, `Html`, `Root`) - Components are resolved from file paths
+2. **Direct Component References** (`components.Page`, `components.Html`, `components.Root`) - Components are provided directly
+
+### Path-based Resolution
+
+#### When to Use
+
+- **Development mode** with hot reloading
+- **RSC worker mode** for dynamic component loading
+- When you want the plugin to handle file resolution
+- When you need to support different components per route
+
+#### Configuration
+
+```ts
+export const config = {
+  moduleBase: "src",
+  
+  // Page components - resolved from file paths
+  Page: (url) => `src/page${url}/page.tsx`,
+  props: (url) => `src/page${url}/props.ts`,
+  
+  // Layout components - can be static paths or functions
+  Html: "src/CustomHtml.tsx",
+  Root: "src/CustomRoot.tsx",
+  
+  // Custom export names (optional)
+  pageExportName: "Page",
+  propsExportName: "props",
+  htmlExportName: "Html",
+  rootExportName: "Root",
+  
+  build: { pages: ["/", "/about"] }
+} satisfies StreamPluginOptions;
+```
+
+#### How It Works
+
+1. The plugin resolves the file path using the provided function or string
+2. Loads the module and extracts the named export
+3. Uses the component in the rendering pipeline
+4. Supports hot reloading in development
+
+#### Example File Structure
+
+```
+src/
+├── page/
+│   ├── page.tsx          # Home page component
+│   └── props.ts          # Home page props
+├── about/
+│   ├── page.tsx          # About page component
+│   └── props.ts          # About page props
+├── CustomHtml.tsx        # HTML wrapper component
+└── CustomRoot.tsx        # Root wrapper component
+```
+
+#### Page Component Example
+
+```tsx
+// src/page/page.tsx
+import type { PageProps } from "./props";
+
+export const Page = ({ title, content }: PageProps) => {
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>{content}</p>
+    </div>
+  );
+};
+```
+
+### Direct Component References
+
+#### When to Use
+
+- **Static builds** where you want to avoid file resolution overhead
+- When you need to provide components directly without file loading
+- When you want to use the same component for all routes
+- Performance-critical scenarios
+
+#### Configuration
+
+```ts
+import { CustomPage } from "./src/CustomPage";
+import { CustomHtml } from "./src/CustomHtml";
+import { CustomRoot } from "./src/CustomRoot";
+
+export const config = {
+  moduleBase: "src",
+  
+  // Direct component references
+  components: {
+    Page: CustomPage,
+    Html: CustomHtml,
+    Root: CustomRoot,
+  },
+  
+  build: { pages: ["/", "/about"] }
+} satisfies StreamPluginOptions;
+```
+
+#### How It Works
+
+1. Components are provided directly to the plugin
+2. No file resolution is performed
+3. The same component is used for all routes
+4. Faster build times but no hot reloading
+
+#### Example Direct Components
+
+```tsx
+// src/CustomPage.tsx
+export const CustomPage = ({ title }: { title: string }) => {
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>This is a static page component</p>
+    </div>
+  );
+};
+
+// src/CustomHtml.tsx
+import React from "react";
+import { Css, type HtmlProps } from "vite-plugin-react-server/components";
+
+export const CustomHtml = ({
+  Root,
+  cssFiles,
+  globalCss,
+  pageProps = {},
+  Page,
+}: HtmlProps) => {
+  return (
+    <html>
+      <head>
+        <Css cssFiles={globalCss} />
+        <title>{pageProps.title || "My App"}</title>
+      </head>
+      <body>
+        <Root
+          as="div"
+          id="root"
+          cssFiles={cssFiles}
+          Page={Page}
+          pageProps={pageProps}
+        />
+      </body>
+    </html>
+  );
+};
+```
+
+### Component Resolution Priority
+
+The plugin resolves components in this specific order:
+
+1. **Direct components** (`components.Page`, `components.Html`, `components.Root`) - Highest priority
+2. **Path resolution** (`Page`, `Html`, `Root` strings/functions) - Medium priority
+3. **Default components** - Plugin fallbacks (lowest priority)
+
+### Example with Mixed Configuration
+
+```ts
+export const config = {
+  moduleBase: "src",
+  
+  // Path-based resolution for pages
+  Page: (url) => `src/page${url}/page.tsx`,
+  props: (url) => `src/page${url}/props.ts`,
+  
+  // Direct component for HTML wrapper
+  components: {
+    Html: CustomHtml,
+  },
+  
+  // Path-based resolution for Root (fallback)
+  Root: "src/CustomRoot.tsx",
+  
+  build: { pages: ["/", "/about"] }
+} satisfies StreamPluginOptions;
+```
+
+In this example:
+- `Page` components are resolved from file paths (enabling per-route components)
+- `Html` component is provided directly (static, no file resolution)
+- `Root` component falls back to path resolution
+
+## Routing Configuration
 
 ### Page & Props (Path-based Resolution)
 
@@ -71,83 +264,7 @@ propsExportName: "props",
 
 Basically a router for mapping urls to source code. It can be any implementation you want. The props is optional to use, but it's very powerful since anything it returns will be the props for the page component as well as be accessible in the Html component. If you didn't define a props router, you can still define the `props` in the Page file.
 
-### Direct Component References
-
-When the environment allows, you can override the components using the `components` key:
-
-```tsx
-import React from "react";
-
-export const config = {
-  moduleBase: 'src',
-  components: {
-    Html: ({ Root, cssFiles, pageProps, Page }) => (
-      <html>
-        <head>
-          <title>{pageProps?.title || "My App"}</title>
-        </head>
-        <body>
-          <Root
-            as="div"
-            id="root"
-            cssFiles={cssFiles}
-            Page={Page}
-            pageProps={pageProps}
-          />
-        </body>
-      </html>
-    ),
-    Page: ({ title }) => <div>Hello {title}</div>, // Direct component
-  }
-} satisfies StreamPluginOptions;
-```
-
-This defines the final wrapper around your Page in production.
-
-### Component Resolution Priority
-
-The plugin resolves components in this order:
-
-1. **Direct components** (`components.Page`, `components.Html`, `components.Root`) - Used in static builds
-2. **Path resolution** (`Page`, `Html`, `Root` strings/functions) - Used in RSC worker mode  
-3. **Default components** - Plugin fallbacks
-
-### When to Use Each Approach
-
-#### Path-based Resolution (`Page`, `Html`, `Root`)
-
-**Use when:**
-- Development mode with hot reloading
-- RSC worker mode
-- Dynamic component loading
-- When you want the plugin to handle file resolution
-
-```ts
-export const config = {
-  Page: (url) => `src/page${url}/page.tsx`,
-  Html: "src/CustomHtml.tsx",
-  Root: "src/CustomRoot.tsx",
-} satisfies StreamPluginOptions;
-```
-
-#### Direct Component References (`components.Page`, `components.Html`, `components.Root`)
-
-**Use when:**
-- Static builds
-- When you want to avoid file resolution overhead
-- When you need to provide components directly
-
-```ts
-import { CustomPage } from "./src/CustomPage";
-import { CustomHtml } from "./src/CustomHtml";
-
-export const config = {
-  components: {
-    Page: CustomPage,
-    Html: CustomHtml,
-  }
-} satisfies StreamPluginOptions;
-```
+## Build Configuration
 
 ### build
 
@@ -165,6 +282,87 @@ export const config = {
   }
 ```
 
+### preserveModulesRoot Behavior
+
+The `build.preserveModulesRoot` option controls how the `moduleBase` directory appears in build output paths:
+
+#### When `preserveModulesRoot: true` (preserve paths)
+- **Input:** `src/page/home.tsx`
+- **Output:** `dist/client/src/page/home.js`
+- **Behavior:** The `src/` directory is **preserved** in the output path
+
+#### When `preserveModulesRoot: false` (strip paths - default)
+- **Input:** `src/page/home.tsx`  
+- **Output:** `dist/client/page/home.js`
+- **Behavior:** The `src/` directory is **removed** from the output path
+
+This option is useful when you want to maintain your source directory structure in the build output, especially for debugging or when integrating with tools that expect specific path structures.
+
+## CSS Configuration
+
+```ts
+export const config = {
+  // ... other config
+  css: {
+    inlineCss: true,           // Global flag to enable/disable inlining
+    inlineThreshold: 4096,     // Size threshold in bytes (4KB)
+    inlinePatterns: [          // RegExp patterns to force inlining
+      /\.inline\.css$/,
+    ],
+    linkPatterns: [            // RegExp patterns to force linking
+      /^node_modules/,
+      /^@/           
+    ]
+  }
+};
+```
+
+## Advanced Options
+
+### Worker Configuration
+
+```ts
+export const config = {
+  // ... other config
+  htmlWorkerPath: "./path/to/custom/html-worker.js",
+  rscWorkerPath: "./path/to/custom/rsc-worker.js",
+  rscTimeout: 5000,
+  htmlTimeout: 15000,
+  htmlWorkerStartupTimeout: 5000,
+  rscWorkerStartupTimeout: 5000,
+};
+```
+
+### Event Handling
+
+```ts
+export const config = {
+  // ... other config
+  verbose: true,
+  onMetrics: (metrics: RenderMetrics) => {
+    console.log('Build metrics:', metrics);
+  },
+  onEvent: (event: PluginEvent) => {
+    console.log('Plugin event:', event);
+  },
+};
+```
+
+### Custom Normalizers
+
+```ts
+export const config = {
+  // ... other config
+  normalizer: {
+    // Custom input normalization
+  },
+  moduleID: (id: string) => {
+    // Custom module ID transformation
+    return id.replace(/\.tsx?$/, '.js');
+  },
+};
+```
+
 ## EXAMPLE SETUP
 
 Example `package.json` setup:
@@ -179,8 +377,6 @@ Example `package.json` setup:
   "build:static": "vite build"
 }
 ```
-
-> For `NODE_OPTIONS='--conditions react-server' vite build`, the `--ssr` is implied (default)
 
 ### ./src/my-page.tsx
 
@@ -242,63 +438,103 @@ export default defineConfig(() => {
 });
 ```
 
-## Client plugin
+## Migration Guide
 
-The server command enables the rsc-worker development mode. The plugin will handle sending messages to the worker and the rsc-worker handles the React server paradigm using familiar vite defaults. The worker receives the plugin's and vite's own resolved configuration. Functions are removed from the objects before sending them to the worker.
+### From Path-based to Direct Components
 
-Functions defined in the config will never reach the worker. The string results of the Page, props, Root and Html functions are sent with each RSC_RENDER message and are called in the main thread. Vite's resolved config is as the third argument for processCss.
+If you want to optimize for static builds:
 
-```typescript
-// css-loader.tsx
-import { preprocessCSS, resolveConfig } from "vite";
-import { workerData } from "node:worker_threads";
+```ts
+// Before: Path-based resolution
+export const config = {
+  Page: (url) => `src/page${url}/page.tsx`,
+  Html: "src/CustomHtml.tsx",
+  Root: "src/CustomRoot.tsx",
+};
 
-const viteConfig = await resolveConfig(
-  {
-    ...workerData.resolvedConfig,
-    // do-not re-resolve the config file as it would import the plugin again which we do not need.
-    configFile: false,
+// After: Direct component references
+import { CustomPage } from "./src/CustomPage";
+import { CustomHtml } from "./src/CustomHtml";
+import { CustomRoot } from "./src/CustomRoot";
+
+export const config = {
+  components: {
+    Page: CustomPage,
+    Html: CustomHtml,
+    Root: CustomRoot,
   },
-  "serve"
-);
-function processCssFile(file: string) {
-  // Convert file URL to path if needed
-  const path = filePath.startsWith("file://")
-    ? fileURLToPath(filePath)
-    : filePath;
-
-  // Process CSS using Vite's preprocessCSS
-  return await preprocessCSS(await readFile(path, "utf-8"), path, viteConfig);
-}
+};
 ```
 
-The worker thread registers hooks to support TypeScript, css modules and react server components.
-Handling of TypeScript is done by the `tsx` dependency. (same as vite)
-React is handled using a customized version of react's node-loader, that is tailored to a more recent nodejs version (23.7). The css loader is fine-tuned to work with the aforementioned preprocessCSS function.
+### From Direct Components to Path-based
 
-It requires NodeJS version 23.7.0 or higher.
+If you want to enable hot reloading and per-route components:
 
-## Server plugin
+```ts
+// Before: Direct components
+export const config = {
+  components: {
+    Page: CustomPage,
+    Html: CustomHtml,
+    Root: CustomRoot,
+  },
+};
 
-When running the server plugin in dev mode, it will pipe the react stream directly to the response. This will use
-vite's `ssrLoadModule` to load modules and therefore support anything that vite supports. Hot-reloading
-is supported for defined route files, hot module replacement is only supported for client-side modules.
-
-```sh
-vite build
-NODE_OPTIONS='--conditions react-server' npx vite build
+// After: Path-based resolution
+export const config = {
+  Page: (url) => `src/page${url}/page.tsx`,
+  props: (url) => `src/page${url}/props.ts`,
+  Html: "src/CustomHtml.tsx",
+  Root: "src/CustomRoot.tsx",
+};
 ```
 
-Above should now output specific static html for each page at `dist/static/${route}`.
+## Best Practices
 
-```sh
-dist/static/index.html
-dist/static/index.rsc
-dist/static/about/index.html
-dist/static/about/index.rsc
+### Development vs Production
+
+- **Development**: Use path-based resolution for hot reloading and debugging
+- **Production**: Consider direct components for static builds to improve performance
+
+### Type Safety
+
+Always use TypeScript for better type safety:
+
+```tsx
+// Define proper types for your components
+import type { PageProps } from "./props";
+
+export const Page = ({ title, content }: PageProps) => {
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>{content}</p>
+    </div>
+  );
+};
 ```
 
-This client can - given the right entrypoint - work as a static site. For an example of this, see the demo.
+### Error Handling
+
+Provide fallbacks for component resolution:
+
+```ts
+export const config = {
+  Page: (url) => {
+    try {
+      return `src/page${url}/page.tsx`;
+    } catch {
+      return "src/page/404/page.tsx"; // Fallback page
+    }
+  },
+};
+```
+
+### Performance Considerations
+
+- **Path-based**: Slower builds but better development experience
+- **Direct components**: Faster builds but no hot reloading
+- **Mixed approach**: Best of both worlds for specific use cases
 
 <!-- TOC START -->
 
@@ -310,6 +546,7 @@ This client can - given the right entrypoint - work as a static site. For an exa
 
 <!-- Auto-generated TOC - Do not edit manually -->
 
+
 1.	[Getting Started](./getting-started.md)
 	- [Installation and Setup](./getting-started.md#installation-and-setup)
 	- [Basic Configuration](./getting-started.md#basic-configuration)
@@ -318,83 +555,45 @@ This client can - given the right entrypoint - work as a static site. For an exa
 	- [Client-Server Separation](./core-concepts.md#client-server-separation)
 	- [React Server Components](./core-concepts.md#react-server-components)
 	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
-3.	**[Configuration](./configuration.md) ← you are here**
+3.	**[Configuration Guide](./configuration.md) ← you are here**
 	- [Plugin Options](./configuration.md#plugin-options)
 	- [Routing Configuration](./configuration.md#routing-configuration)
 	- [Build Configuration](./configuration.md#build-configuration)
-4.	[Component Resolution](./component-resolution.md)
-	- [Path-based vs Direct Components](./component-resolution.md#path-based-vs-direct-components)
-	- [When to Use Each Approach](./component-resolution.md#when-to-use-each-approach)
-	- [Migration Guide](./component-resolution.md#migration-guide)
-5.	[CSS Handling](./css-handling.md)
+4.	[CSS & Styling](./css-handling.md)
 	- [CSS Collectors](./css-handling.md#css-collectors)
 	- [Inline CSS](./css-handling.md#inline-css)
 	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
-6.	[Server Actions](./server-actions.md)
+5.	[Server Actions](./server-actions.md)
 	- [Creating Server Actions](./server-actions.md#creating-server-actions)
 	- [Client Integration](./server-actions.md#client-integration)
 	- [Error Handling](./server-actions.md#error-handling)
 	- [Database Integration](./server-actions.md#database-integration)
-7.	[Static Site Generation](./static-site-generation.md)
-	- [Static Plugin](./static-site-generation.md#static-plugin)
-	- [Build Process](./static-site-generation.md#build-process)
-	- [Deployment Strategies](./static-site-generation.md#deployment-strategies)
-8.	[Build Orchestration](./build-orchestration.md)
+6.	[Build & Deployment](./build-orchestration.md)
 	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
 	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
 	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
-9.	[Architecture](./architecture.md)
-	- [Design Philosophy](./architecture.md#design-philosophy)
-	- [Environment Variables](./architecture.md#environment-variables)
-	- [Plugin Composition](./architecture.md#plugin-composition)
-	- [HTML Component Support](./architecture.md#html-component-support)
-10.	[Advanced Topics](./advanced-topics.md)
+7.	[Advanced Development](./advanced-topics.md)
 	- [Custom Workers](./advanced-topics.md#custom-workers)
 	- [Message System](./advanced-topics.md#message-system)
 	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
-11.	[API Reference](./api-reference.md)
+8.	[Plugin Internals](./transformer-plugin.md)
+	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
+	- [Transformation Process](./transformer-plugin.md#transformation-process)
+	- [Directive Handling](./transformer-plugin.md#directive-handling)
+9.	[Worker System](./rsc-worker.md)
+	- [Worker Architecture](./rsc-worker.md#worker-architecture)
+	- [Message Handling](./rsc-worker.md#message-handling)
+	- [Performance Optimization](./rsc-worker.md#performance-optimization)
+10.	[API Reference](./api-reference.md)
 	- [Plugin Options](./api-reference.md#plugin-options)
 	- [Component Props](./api-reference.md#component-props)
 	- [Worker Messages](./api-reference.md#worker-messages)
 	- [Type Definitions](./api-reference.md#type-definitions)
-12.	[Transformations](./transformations.md)
-	- [Code Transformations](./transformations.md#code-transformations)
-	- [Directive Handling](./transformations.md#directive-handling)
-	- [Build Output Examples](./transformations.md#build-output-examples)
-13.	[Transformer Plugin](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
-14.	[Loader](./loader.md)
-	- [React Server Components Loader](./loader.md#react-server-components-loader)
-	- [Directive Processing](./loader.md#directive-processing)
-	- [Module Boundaries](./loader.md#module-boundaries)
-	- [Custom Registration Functions](./loader.md#custom-registration-functions)
-15.	[Custom Loader](./custom-loader.md)
-	- [Creating Custom Loaders](./custom-loader.md#creating-custom-loaders)
-	- [Loader Configuration](./custom-loader.md#loader-configuration)
-	- [Integration Examples](./custom-loader.md#integration-examples)
-16.	[RSC Worker](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
-17.	[HTML Worker](./html-worker.md)
-	- [HTML Generation](./html-worker.md#html-generation)
-	- [Stream Processing](./html-worker.md#stream-processing)
-	- [Worker Communication](./html-worker.md#worker-communication)
-18.	[React Type Compatibility](./react-type-compatibility.md)
+11.	[React Compatibility](./react-type-compatibility.md)
 	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
 	- [Generic Types](./react-type-compatibility.md#generic-types)
 	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
-19.	[Patch System](./patch-system.md)
-	- [React Version Compatibility](./patch-system.md#react-version-compatibility)
-	- [Creating Patches](./patch-system.md#creating-patches)
-	- [Maintenance Guide](./patch-system.md#maintenance-guide)
-20.	[Practical Guide](./practical-guide.md)
-	- [Real-world Examples](./practical-guide.md#real-world-examples)
-	- [Debugging Features](./practical-guide.md#debugging-features)
-	- [Production Implementations](./practical-guide.md#production-implementations)
-21.	[Troubleshooting Guide](./troubleshooting-guide.md)
+12.	[Troubleshooting](./troubleshooting-guide.md)
 	- [Common Issues](./troubleshooting-guide.md#common-issues)
 	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
 	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
@@ -408,4 +607,10 @@ This client can - given the right entrypoint - work as a static site. For an exa
 ---
 
 <!-- TOC END -->
+
+
+
+
+
+
 

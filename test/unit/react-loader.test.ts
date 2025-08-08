@@ -4,6 +4,7 @@ import { load } from "vite-plugin-react-server/loader";
 import { createDefaultLoader } from "vite-plugin-react-server/loader";
 
 const loadReact = async (source: string, url = "test.js") => {
+  const loader = createDefaultLoader(source, url);
   return await load(
     url,
     {
@@ -11,7 +12,7 @@ const loadReact = async (source: string, url = "test.js") => {
       conditions: ["react-server"],
       importAttributes: {},
     },
-    createDefaultLoader(source, url)
+    loader
   );
 };
 

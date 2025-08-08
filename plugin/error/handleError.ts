@@ -4,20 +4,15 @@ import { getNodeEnv } from "../config/getNodeEnv.js";
 import { logError } from "./logError.js";
 import { PANIC_SYMBOL } from "./shouldPanic.js";
 import type { HandleErrorFn } from "./types.js";
+import { isMainThread } from "node:worker_threads";
 
+let errRepeat = 0;
+let lastError: Error | null = null;
 /**
- * Error deduplication state
- */
-let prevError: string = "";
-let prevErrorRepeat: number = 0;
-
-/**
- * Comprehensive error handling function that composes:
- * - Error deduplication
- * - Error formatting
- * - Error logging
- * - Process termination for repeated errors
- * - Panic threshold handling
+ * Simplified error handling function that:
+ * - Formats and logs errors
+ * - Handles panic thresholds
+ * - Returns error to throw or null to continue
  */
 export const handleError: HandleErrorFn = function _handleError(
   options
@@ -29,57 +24,41 @@ export const handleError: HandleErrorFn = function _handleError(
     mode = getNodeEnv(),
     panicThreshold = "none",
     critical = false,
-    context = "unknown", // Add context parameter
+    log = isMainThread,
   } = options;
-
-  if (errorInfo != null && errorInfo.componentStack != null && errorInfo.digest != null) {
-    const err = new Error(errorInfo.digest ?? "Unknown error");
-    err.stack = errorInfo.componentStack;
-    // always log errorInfo and then ignore it for the rest of the function
-    logError(err, logger, mode);
+  // Handle React error info if present
+  if (errorInfo != null) {
+    const errInfo = new Error(`Digest: ${errorInfo.digest}`);
+    errInfo.stack = errorInfo.componentStack ?? undefined;
+    errInfo.name = "ErrorInfo";
+    if (log) logError(errInfo, logger, mode);
   }
+
   const err = toError(error, errorInfo);
 
+  // Simple panic threshold logic
+  if (panicThreshold === "all_errors" || (critical && panicThreshold === "critical_errors")) {
+    // Mark error for panic and return it to be thrown
+    (err as any)[PANIC_SYMBOL] = true;
+    return err;
+  }
 
-  // Handle error logging, when you dont need logging dont pass logger
-  const errorKey = err.message;
-  if (prevError === errorKey) {
-    prevErrorRepeat++;
-    if (prevErrorRepeat > 100) {
-      // Always throw an error instead of exiting the process
-      throw new Error("Max error repeat reached in " + context);
+  if (log) {
+    if (
+      lastError?.message === (error as Error)?.message &&
+      lastError?.stack === (error as Error)?.stack
+    ) {
+      errRepeat++;
+      const repeatedFrom = new Error("Error repeated", { cause: err });
+      repeatedFrom.stack = err.stack;
+      logger.error(`${err.message} (${errRepeat})`, { error: repeatedFrom });
+    } else {
+      errRepeat = 0;
+      lastError = error as Error;
+      logError(err, logger, mode);
     }
-    logger.warn(`(${prevErrorRepeat}) ${context} re-throwing error: \"${errorKey}\"`);
-    return error as Error;
-  } else {
-    prevErrorRepeat = 0;
-  }
-  prevError = errorKey;
-  prevErrorRepeat = 0;
-
-  if(prevErrorRepeat === 0) {
-    logError(err, logger, mode);
-  } else if(logger != null && typeof logger.error === "function") {
-    logger.error(`(x${prevErrorRepeat}) ${context} ${String(err.stack)}`, { 
-      error: err,
-      clear: false,
-      timestamp: true,
-    });
   }
 
-  // For panic thresholds, check if this error has already been processed
-  if (panicThreshold === "all_errors") {
-    // Add PANIC_SYMBOL to the error so assertPanic will throw it
-    (err as any)[PANIC_SYMBOL] = true;
-    // Return the original error to preserve stack trace
-    return err;
-  }
-
-  if (critical && panicThreshold === "critical_errors") {
-    // Add PANIC_SYMBOL to the error so assertPanic will throw it
-    (err as any)[PANIC_SYMBOL] = true;
-    return err;
-  }
-  // Delegate to logError for actual error logging
+  // For "none" or non-critical errors, continue processing
   return null;
 };

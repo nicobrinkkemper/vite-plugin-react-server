@@ -1,59 +1,49 @@
 import type { MessagePort } from "node:worker_threads";
 import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
-import type { RscWorkerOutputMessage } from "./rsc/types.js";
-import type { PANIC_SYMBOL } from "../error/shouldPanic.js";
+import type { RscRenderMessage, RscWorkerOutputMessage } from "./rsc/types.js";
 
 // Base message types
 export type WorkerMessage = {
   type: string;
   id: string;
-}
+};
 
 // Common message types used across workers
 export type ErrorMessage = {
   type: "ERROR";
-  errorInfo?: {
+  errorInfo?: null | {
     componentStack?: string | null;
     digest?: string | null;
   };
-  error:
-    | string
-    | {
-        message: string;
-        stack?: string | undefined;
-        name: string;
-        cause?: unknown;
-        breadcrumbs?: string[];
-        [PANIC_SYMBOL]?: boolean;
-      };
+  error: unknown;
   id: string;
-} & WorkerMessage
+} & WorkerMessage;
 
 export type ReadyMessage = {
   type: "READY";
   id: string;
   env?: string;
   pid?: number;
-}
+};
 
 export type ShutdownMessage = {
   type: "SHUTDOWN";
-} & WorkerMessage
+} & WorkerMessage;
 
 export type ShutdownCompleteMessage = {
   type: "SHUTDOWN_COMPLETE";
   id: string;
-}
+};
 
 export type ShellReadyMessage = {
   type: "SHELL_READY";
-} & WorkerMessage
+} & WorkerMessage;
 
 export type AllReadyMessage = {
   type: "ALL_READY";
   id: string;
-} & WorkerMessage
+} & WorkerMessage;
 
 export type ShellErrorMessage = {
   type: "SHELL_ERROR";
@@ -64,121 +54,134 @@ export type ShellErrorMessage = {
     name: string;
     cause?: unknown;
   };
-} & WorkerMessage
+} & WorkerMessage;
 
 export type ChunkProcessedMessage = {
   type: "CHUNK_PROCESSED";
   success: boolean;
   sequence?: number;
-} & WorkerMessage
+} & WorkerMessage;
 
 export type ChunkErrorMessage = {
   type: "CHUNK_ERROR";
   error: string;
   sequence?: number;
-} & WorkerMessage
+} & WorkerMessage;
 
 export type CleanupCompleteMessage = {
   type: "CLEANUP_COMPLETE";
   id: string;
-} & WorkerMessage
+} & WorkerMessage;
 
 export type ServerActionMessage = {
   type: "SERVER_ACTION";
   args: unknown[];
-} & WorkerMessage
+} & WorkerMessage;
 
 export type ServerActionResponseMessage = {
   type: "SERVER_ACTION_RESPONSE";
   id: string;
   result?: unknown;
   error?: string;
-} & WorkerMessage
+} & WorkerMessage;
 
 export type HmrAcceptMessage = {
   type: "HMR_ACCEPT";
   routes?: string[];
-} & WorkerMessage
+} & WorkerMessage;
 
 export type RscChunkMessage = {
   type: "RSC_CHUNK";
   chunk: Uint8Array;
   sequence?: number;
-} & WorkerMessage
+} & WorkerMessage;
 
 export type RscEndMessage = {
   type: "RSC_END";
-} & WorkerMessage
+} & WorkerMessage;
 
-export type RouteReadyMessage = {
-  type: "ROUTE_READY";
+export type HtmlRenderMessage = {
+  type: "HTML_RENDER";
   abortSignal?: AbortSignal;
-} & WorkerMessage & Pick<
-CreateHandlerOptions,
-| "projectRoot"
-| "moduleRootPath"
-| "moduleBasePath"
-| "moduleBaseURL"
-| "pipeableStreamOptions"
-| "route"
-| "url"
-| "verbose"
-| "panicThreshold"
-| "cssFiles"
-| "globalCss"
->
+} & WorkerMessage &
+  Pick<
+    CreateHandlerOptions,
+    | "projectRoot"
+    | "moduleRootPath"
+    | "moduleBasePath"
+    | "moduleBaseURL"
+    | "serverPipeableStreamOptions"
+    | "clientPipeableStreamOptions"
+    | "route"
+    | "url"
+    | "verbose"
+    | "panicThreshold"
+    | "cssFiles"
+    | "globalCss"
+  >;
+
+export type AbortMessage = {
+  type: "ABORT";
+  id: string;
+  reason?: string;
+} & WorkerMessage;
 
 export type CleanupMessage = {
   type: "CLEANUP";
   reason?: unknown;
-} & WorkerMessage
+} & WorkerMessage;
 
-// Common handlers
-export type StreamHandlers = {
-  onError: (id: string, error: unknown, errorInfo?: {
-    componentStack?: string | null;
-    digest?: string | null;
-  } | Record<string, unknown>) => void;
-  onData: (id: string, data: Uint8Array) => void;
-  onEnd: (id: string) => void;
-  onMetrics: (id: string, metrics: StreamMetrics) => void;
-  onHmrAccept: (id: string, routes?: string[]) => void;
-  onHmrUpdate: (id: string, routes?: string[]) => void;
+export type ClientOnlyStreamHandlers = {
+  onHtmlRender: (id: string, message: HtmlRenderMessage) => void;
+  onClientModule?: (id: string, url: string, source: string) => void;
+  onError: (
+    id: string,
+    error: unknown,
+    errorInfo?: {
+      componentStack?: string | null;
+      digest?: string | null;
+    }
+  ) => void;
+};
+
+export type ServerOnlyStreamHandlers = {
+  onRscRender: (id: string, message: RscRenderMessage) => void;
+  onServerModule?: (id: string, url: string, source: string) => void;
   onServerAction?: (id: string, args: unknown[]) => void;
   onServerActionResponse?: (
     id: string,
     result?: unknown,
     error?: string
   ) => void;
-  onServerModule?: (id: string, url: string, source: string) => void;
-  onShutdown?: (id: string) => void;
-  onCssFile?: (id: string, code: string) => void;
+  onError: (
+    id: string,
+    error: unknown,
+    errorInfo?: never
+  ) => void;
 };
 
-// Common options
-export type ReactServerDomEsmOptions = {
-  identifierPrefix?: string;
-  namespaceURI?: string;
-  nonce?: string;
-  bootstrapScriptContent?: string;
-  bootstrapScripts?: string[];
-  bootstrapModules?: string[];
-  progressiveChunkSize?: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  temporaryReferences?: WeakMap<any, any>;
-  moduleBaseURL?: string;
-  importMap?: {
-    imports?: Record<string, string>;
-  };
-  onError?: (error: Error, errorInfo?: {
-    componentStack?: string | null;
-    digest?: string | null;
-  }) => void;
-  onPostpone?: (reason: string) => void;
-}
+// Common handlers
+export type StreamHandlers<
+  Env extends "client" | "server" = "client" | "server"
+> = (Env extends "client"
+  ? ClientOnlyStreamHandlers
+  : ServerOnlyStreamHandlers) & {
+  // these are available in both environments
+  onShellError: (id: string, error: unknown) => void;
+  onData: (id: string, data: Uint8Array) => void;
+  onEnd: (id: string) => void;
+  onMetrics: (id: string, metrics: StreamMetrics) => void;
+  onHmrAccept: (id: string, routes?: string[]) => void;
+  onHmrUpdate: (id: string, routes?: string[]) => void;
+  onShutdown?: (id: string) => void;
+  onCssFile?: (id: string, code: string) => void;
+  onCleanup?: (id: string) => void;
+};
 
+export type ClientStreamHandlers = StreamHandlers<'client'>;
+export type ServerStreamHandlers = StreamHandlers<'server'>;
 
 export type SendMessageFn = (
   msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage,
-  port?: Pick<MessagePort, 'postMessage'> | null
+  port?: Pick<MessagePort, "postMessage"> | null
 ) => void;

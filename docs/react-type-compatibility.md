@@ -1,204 +1,542 @@
-# React Type Compatibility
+# React Compatibility
 
-This plugin automatically handles React type compatibility issues that arise when using npm linking or multiple React versions. The types are designed to automatically infer and use your project's React types.
+This guide covers React version compatibility, type system overview, and the patch system for maintaining compatibility across different React versions.
 
-## Recommended Solution: Package.json Overrides
+## Type System Overview
 
-For npm link scenarios with multiple React versions, the **recommended solution** is to use `package.json` overrides:
+The plugin uses generic types that adapt to your React version and prevent compatibility issues:
 
-```json
-{
-  "overrides": {
-    "react": "$react",
-    "react-dom": "$react-dom"
+```tsx
+import React from "react";
+import type { HtmlProps } from "vite-plugin-react-server/types";
+import { Css } from "vite-plugin-react-server/components";
+
+type MyHtmlProps = HtmlProps<
+  // pageProps: defaults, we always pass the title prop
+  {
+    title: string;
+  },
+  // inline: boolean, will type cssFiles to either link or tag props
+  boolean,
+  // as: div, we want to use a div as the root element, any div prop is a valid root prop.
+  "div"
+>;
+
+export const Html = ({
+  Root,
+  cssFiles,
+  globalCss,
+  pageProps = { title: "404 Not Found" },
+  Page,
+}: MyHtmlProps) => {
+  if (!pageProps.title) {
+    pageProps.title = "No title";
   }
-}
-```
-
-This ensures all packages use the same React version, eliminating type conflicts entirely.
-
-## Automatic Type Inference
-
-The plugin automatically uses your project's React types through TypeScript's generic inference. No manual setup is required in most cases.
-
-## Manual Type Override (Advanced)
-
-If you need to explicitly specify React types, you can create a custom interface:
-
-```typescript
-import { CreateCustomInterface } from 'vite-plugin-react-server/plugin/types';
-import React from 'react';
-
-// Create a custom interface using your React types
-type MyInterface = CreateCustomInterface<typeof React>;
-
-// Use the custom interface in plugin options
-import { createReactServerComponentsPlugin } from 'vite-plugin-react-server';
-
-export default defineConfig({
-  plugins: [
-    createReactServerComponentsPlugin<MyInterface>({
-      // your plugin options...
-    })
-  ]
-});
-```
-
-## How It Works
-
-The plugin uses TypeScript generics to automatically infer React types from your imports:
-
-1. **Default Behavior**: Uses `React.ReactNode` from the plugin's React import
-2. **Generic Inference**: When you provide a custom interface, it uses your React types
-3. **Type Safety**: Maintains full type safety while avoiding version conflicts
-
-## Common Scenarios
-
-### npm link with multiple React versions
-
-The recommended solution for npm link scenarios is to use `package.json` overrides:
-
-```json
-{
-  "overrides": {
-    "react": "$react",
-    "react-dom": "$react-dom"
-  }
-}
-```
-
-This ensures all packages use the same React version, eliminating type conflicts.
-
-If you can't use overrides, you can use the custom interface approach:
-
-```typescript
-// Your project's React (e.g., React 18.3)
-import React from 'react';
-
-// Plugin automatically uses your React types
-import { createReactServerComponentsPlugin } from 'vite-plugin-react-server';
-
-export default defineConfig({
-  plugins: [
-    createReactServerComponentsPlugin({
-      // Types automatically inferred from your React import
-    })
-  ]
-});
-```
-
-### Custom React-like library
-
-```typescript
-import { CreateCustomInterface } from 'vite-plugin-react-server/plugin/types';
-import { Preact } from 'preact'; // or any React-like library
-
-type PreactInterface = CreateCustomInterface<typeof Preact>;
-
-export default defineConfig({
-  plugins: [
-    createReactServerComponentsPlugin<PreactInterface>({
-      // Uses Preact types
-    })
-  ]
-});
-```
-
-## Type Definitions
-
-### Core Types
-
-- `InferReactType<R>` - Generic React type that defaults to `React.ReactNode`
-- `CreateCustomInterface<UserReact, T, As>` - Helper to create custom interfaces
-- `ReactLikeModule` - Interface for React-like modules
-
-### Component Types
-
-- `PageComponentType<PageProps, R>` - Page component type
-- `RootComponentType<PageProps, As, InlineCSS, R>` - Root component type
-- `HtmlComponentType<T, As, InlineCSS, R>` - HTML component type
-
-## Troubleshooting
-
-### TypeScript Errors
-
-If you see `ReactNode != ReactNode` errors:
-
-1. **Use package.json overrides** (recommended for npm link):
-   ```json
-   {
-     "overrides": {
-       "react": "$react",
-       "react-dom": "$react-dom"
-     }
-   }
-   ```
-2. **Check React versions**: Ensure you're using compatible React versions
-3. **Use custom interface**: Create a custom interface with your React types
-4. **Clear TypeScript cache**: Restart your TypeScript language server
-
-### JSX Component Errors
-
-If you see `'Root' cannot be used as a JSX component`:
-
-1. **Import React**: Ensure React is imported in files using JSX
-2. **Check types**: Verify your React types are properly inferred
-3. **Use explicit typing**: Consider using a custom interface
-
-## Examples
-
-### Basic Usage (Automatic)
-
-```typescript
-import { createReactServerComponentsPlugin } from 'vite-plugin-react-server';
-
-export default defineConfig({
-  plugins: [
-    createReactServerComponentsPlugin({
-      // Automatic type inference
-    })
-  ]
-});
-```
-
-### Advanced Usage (Custom Interface)
-
-```typescript
-import { CreateCustomInterface } from 'vite-plugin-react-server/plugin/types';
-import React from 'react';
-
-type MyInterface = CreateCustomInterface<typeof React>;
-
-export default defineConfig({
-  plugins: [
-    createReactServerComponentsPlugin<MyInterface>({
-      // Explicit type control
-    })
-  ]
-});
-```
-
-### Component Usage
-
-```typescript
-// Your page component
-const MyPage: PageComponentType<{ title: string }> = ({ title }) => {
-  return <h1>{title}</h1>;
-};
-
-// Your root component
-const MyRoot: RootComponentType<{ title: string }> = ({ Page, pageProps }) => {
   return (
     <html>
+      <head>
+        <Css cssFiles={globalCss} />
+      </head>
       <body>
-        <Page {...pageProps} />
+        <Root
+          as={"div"}
+          id="root"
+          cssFiles={cssFiles}
+          Page={Page}
+          pageProps={pageProps}
+        />
       </body>
     </html>
   );
 };
 ```
 
-The plugin automatically handles type compatibility, so you can focus on building your application without worrying about React version conflicts. 
+## Generic Types
+
+The plugin uses generic types to maintain compatibility across React versions:
+
+```typescript
+// Generic function type that adapts to any React version
+type RootComponentType<
+  As extends keyof JSX.IntrinsicElements = "div",
+  InlineCSS extends boolean = boolean,
+  PageProps = any,
+  ReactType = any
+> = (props: RootProps<As, InlineCSS, PageProps, ReactType>) => ReactType;
+
+// Generic page component type
+type PageComponentType<PageProps = any, ReactType = any> = 
+  (props: PageProps) => ReactType;
+```
+
+### Environment Detection
+
+```typescript
+// Check current execution context
+function getCondition(): string | null;
+
+// Environment-specific configurations
+const RSC_LOADER = {
+  development: {
+    importServerPath: "react-server-dom-esm/server.node",
+    importClientPath: "react-server-dom-esm/server.node",
+    registerClientReferenceName: "registerClientReference",
+    registerServerReferenceName: "registerServerReference"
+  },
+  production: {
+    importServerPath: "react-server-dom-esm/server",
+    importClientPath: "react-server-dom-esm/server",
+    registerClientReferenceName: "registerClientReference",
+    registerServerReferenceName: "registerServerReference"
+  }
+};
+```
+
+## Version Compatibility
+
+### React 18+ Support
+
+The plugin is designed to work with React 18 and later versions:
+
+```typescript
+// React 18+ features supported
+import { renderToReadableStream } from "react-server-dom-esm/server.node";
+import { renderToPipeableStream } from "react-dom/server";
+
+// Server Components
+"use server";
+export async function serverAction() {
+  return "Hello from server";
+}
+
+// Client Components
+"use client";
+export function ClientComponent() {
+  return <div>Hello from client</div>;
+}
+```
+
+### React Server Components
+
+Full support for React Server Components:
+
+```typescript
+// Server Components
+export async function ServerComponent() {
+  const data = await fetchData();
+  return <div>{data}</div>;
+}
+
+// Client Components
+"use client";
+import { useState } from "react";
+
+export function InteractiveComponent() {
+  const [count, setCount] = useState(0);
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      Count: {count}
+    </button>
+  );
+}
+```
+
+### TypeScript Integration
+
+Comprehensive TypeScript support:
+
+```typescript
+// Type-safe props
+interface PageProps {
+  title: string;
+  content: string;
+  metadata?: {
+    description: string;
+    keywords: string[];
+  };
+}
+
+export const Page = ({ title, content, metadata }: PageProps) => (
+  <div>
+    <h1>{title}</h1>
+    <p>{content}</p>
+    {metadata && (
+      <meta name="description" content={metadata.description} />
+    )}
+  </div>
+);
+```
+
+## Patch System
+
+The plugin includes a patch system to maintain compatibility with different React versions and experimental features.
+
+### React Version Compatibility
+
+The patch system ensures compatibility across React versions:
+
+```typescript
+// patch-system.ts
+interface PatchConfig {
+  reactVersion: string;
+  patches: Patch[];
+  conditions: string[];
+}
+
+interface Patch {
+  name: string;
+  description: string;
+  apply: (code: string) => string;
+  test: (code: string) => boolean;
+}
+```
+
+### Creating Patches
+
+Create custom patches for specific React versions or experimental features:
+
+```typescript
+// custom-patch.ts
+import { createPatch } from "vite-plugin-react-server/patch-system";
+
+export const reactExperimentalPatch = createPatch({
+  name: "react-experimental",
+  description: "Support for React experimental features",
+  
+  apply(code: string): string {
+    // Apply experimental React features
+    return code
+      .replace(/react@experimental/g, "react")
+      .replace(/react-dom@experimental/g, "react-dom");
+  },
+  
+  test(code: string): boolean {
+    return code.includes("react@experimental") || 
+           code.includes("react-dom@experimental");
+  }
+});
+```
+
+### Patch Configuration
+
+Configure patches in your plugin options:
+
+```typescript
+export const config = {
+  // ... other options
+  patches: {
+    enabled: true,
+    patches: [
+      "react-experimental",
+      "react-server-dom-esm",
+      "custom-patch"
+    ],
+    autoApply: true,
+    validateAfterApply: true
+  }
+};
+```
+
+### Built-in Patches
+
+The plugin includes several built-in patches:
+
+#### React Experimental Patch
+
+```typescript
+// Handles React experimental imports
+export const reactExperimentalPatch = {
+  name: "react-experimental",
+  apply(code: string): string {
+    return code
+      .replace(/from ['"]react@experimental['"]/g, 'from "react"')
+      .replace(/from ['"]react-dom@experimental['"]/g, 'from "react-dom"');
+  }
+};
+```
+
+#### React Server DOM ESM Patch
+
+```typescript
+// Handles react-server-dom-esm imports
+export const rscEsmPatch = {
+  name: "react-server-dom-esm",
+  apply(code: string): string {
+    return code
+      .replace(/react-server-dom-esm\/server\.node/g, "react-server-dom-esm/server")
+      .replace(/react-server-dom-esm\/client\.node/g, "react-server-dom-esm/client");
+  }
+};
+```
+
+#### TypeScript Patch
+
+```typescript
+// Handles TypeScript-specific issues
+export const typescriptPatch = {
+  name: "typescript",
+  apply(code: string): string {
+    return code
+      .replace(/import type \{([^}]+)\} from ['"]react['"]/g, 
+               'import { $1 } from "react"')
+      .replace(/import type \{([^}]+)\} from ['"]react-dom['"]/g, 
+               'import { $1 } from "react-dom"');
+  }
+};
+```
+
+## Maintenance Guide
+
+### Updating React Versions
+
+When updating React versions:
+
+1. **Check Compatibility**: Verify the new React version is supported
+2. **Update Dependencies**: Update React and related packages
+3. **Test Patches**: Ensure existing patches still work
+4. **Update Types**: Update TypeScript types if needed
+5. **Test Builds**: Verify all build modes work correctly
+
+### Creating New Patches
+
+To create a new patch:
+
+```typescript
+// new-patch.ts
+import { createPatch } from "vite-plugin-react-server/patch-system";
+
+export const myCustomPatch = createPatch({
+  name: "my-custom-patch",
+  description: "Custom patch for specific functionality",
+  
+  apply(code: string): string {
+    // Your patch logic here
+    return modifiedCode;
+  },
+  
+  test(code: string): boolean {
+    // Test if patch should be applied
+    return shouldApplyPatch(code);
+  },
+  
+  validate(code: string): boolean {
+    // Validate the patched code
+    return isValidCode(code);
+  }
+});
+```
+
+### Patch Testing
+
+Test patches thoroughly:
+
+```typescript
+// patch.test.ts
+import { describe, it, expect } from 'vitest';
+import { myCustomPatch } from './my-custom-patch';
+
+describe('My Custom Patch', () => {
+  it('should apply patch correctly', () => {
+    const input = 'original code';
+    const expected = 'patched code';
+    
+    const result = myCustomPatch.apply(input);
+    expect(result).toBe(expected);
+  });
+  
+  it('should detect when patch is needed', () => {
+    const code = 'code that needs patching';
+    expect(myCustomPatch.test(code)).toBe(true);
+  });
+  
+  it('should validate patched code', () => {
+    const patchedCode = 'valid patched code';
+    expect(myCustomPatch.validate(patchedCode)).toBe(true);
+  });
+});
+```
+
+### Patch Debugging
+
+Debug patch issues:
+
+```typescript
+// Enable patch debugging
+export const config = {
+  // ... other options
+  patches: {
+    enabled: true,
+    debug: true, // Enable debug logging
+    logLevel: 'verbose', // Detailed logging
+    validateAfterApply: true,
+    failOnError: false // Don't fail build on patch errors
+  }
+};
+```
+
+## Version-Specific Features
+
+### React 18 Features
+
+```typescript
+// Automatic batching
+setTimeout(() => {
+  setCount(c => c + 1); // This will be batched
+  setFlag(f => !f);     // This will be batched
+}, 1000);
+
+// Concurrent features
+import { startTransition } from 'react';
+
+function handleClick() {
+  startTransition(() => {
+    setCount(c => c + 1);
+  });
+}
+```
+
+### React 19 Features
+
+```typescript
+// New hooks (when available)
+import { use, useActionState } from 'react';
+
+// Server Actions with state
+function MyForm() {
+  const [state, formAction] = useActionState(async (prevState, formData) => {
+    // Handle form submission
+    return { message: 'Success!' };
+  }, { message: '' });
+  
+  return (
+    <form action={formAction}>
+      <input name="name" />
+      <button type="submit">Submit</button>
+      {state.message && <p>{state.message}</p>}
+    </form>
+  );
+}
+```
+
+### Experimental Features
+
+```typescript
+// Experimental React features
+import { experimental_useOptimistic as useOptimistic } from 'react';
+
+function TodoList() {
+  const [todos, setTodos] = useState([]);
+  const [optimisticTodos, addOptimisticTodo] = useOptimistic(
+    todos,
+    (state, newTodo) => [...state, newTodo]
+  );
+  
+  return (
+    <ul>
+      {optimisticTodos.map(todo => (
+        <li key={todo.id}>{todo.text}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Compatibility Matrix
+
+| React Version | Server Components | Client Components | Server Actions | TypeScript |
+|---------------|-------------------|-------------------|----------------|------------|
+| 18.0+         | ✅ Full Support   | ✅ Full Support   | ✅ Full Support | ✅ Full Support |
+| 19.0+         | ✅ Full Support   | ✅ Full Support   | ✅ Full Support | ✅ Full Support |
+| Experimental  | ⚠️ Partial       | ⚠️ Partial       | ⚠️ Partial     | ⚠️ Partial |
+
+### Migration Guide
+
+#### From React 17 to 18
+
+1. **Update Dependencies**:
+   ```bash
+   npm install react@^18.0.0 react-dom@^18.0.0
+   ```
+
+2. **Update Root Rendering**:
+   ```typescript
+   // Before (React 17)
+   import { render } from 'react-dom';
+   render(<App />, document.getElementById('root'));
+   
+   // After (React 18)
+   import { createRoot } from 'react-dom/client';
+   const root = createRoot(document.getElementById('root'));
+   root.render(<App />);
+   ```
+
+3. **Enable Concurrent Features**:
+   ```typescript
+   // Use startTransition for non-urgent updates
+   import { startTransition } from 'react';
+   
+   function handleClick() {
+     startTransition(() => {
+       setCount(c => c + 1);
+     });
+   }
+   ```
+
+#### From React 18 to 19
+
+1. **Update Dependencies**:
+   ```bash
+   npm install react@^19.0.0 react-dom@^19.0.0
+   ```
+
+2. **Update Server Actions**:
+   ```typescript
+   // New useActionState hook
+   import { useActionState } from 'react';
+   
+   function MyForm() {
+     const [state, formAction] = useActionState(async (prevState, formData) => {
+       // Handle form submission
+       return { message: 'Success!' };
+     }, { message: '' });
+     
+     return (
+       <form action={formAction}>
+         <input name="name" />
+         <button type="submit">Submit</button>
+         {state.message && <p>{state.message}</p>}
+       </form>
+     );
+   }
+   ```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Type Errors**: Ensure TypeScript version is compatible
+2. **Import Errors**: Check React version and patch configuration
+3. **Build Errors**: Verify all dependencies are compatible
+4. **Runtime Errors**: Check for experimental feature usage
+
+### Debug Configuration
+
+```typescript
+export const config = {
+  // ... other options
+  debug: {
+    reactVersion: true,
+    patchSystem: true,
+    typeChecking: true
+  }
+};
+```
+
+### Getting Help
+
+- Check the [React documentation](https://react.dev/)
+- Review [React Server Components RFC](https://github.com/reactjs/rfcs/pull/189)
+- Consult the [plugin troubleshooting guide](./troubleshooting-guide.md) 
 
 <!-- TOC START -->
 
@@ -210,6 +548,7 @@ The plugin automatically handles type compatibility, so you can focus on buildin
 
 <!-- Auto-generated TOC - Do not edit manually -->
 
+
 1.	[Getting Started](./getting-started.md)
 	- [Installation and Setup](./getting-started.md#installation-and-setup)
 	- [Basic Configuration](./getting-started.md#basic-configuration)
@@ -218,83 +557,45 @@ The plugin automatically handles type compatibility, so you can focus on buildin
 	- [Client-Server Separation](./core-concepts.md#client-server-separation)
 	- [React Server Components](./core-concepts.md#react-server-components)
 	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
-3.	[Configuration](./configuration.md)
+3.	[Configuration Guide](./configuration.md)
 	- [Plugin Options](./configuration.md#plugin-options)
 	- [Routing Configuration](./configuration.md#routing-configuration)
 	- [Build Configuration](./configuration.md#build-configuration)
-4.	[Component Resolution](./component-resolution.md)
-	- [Path-based vs Direct Components](./component-resolution.md#path-based-vs-direct-components)
-	- [When to Use Each Approach](./component-resolution.md#when-to-use-each-approach)
-	- [Migration Guide](./component-resolution.md#migration-guide)
-5.	[CSS Handling](./css-handling.md)
+4.	[CSS & Styling](./css-handling.md)
 	- [CSS Collectors](./css-handling.md#css-collectors)
 	- [Inline CSS](./css-handling.md#inline-css)
 	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
-6.	[Server Actions](./server-actions.md)
+5.	[Server Actions](./server-actions.md)
 	- [Creating Server Actions](./server-actions.md#creating-server-actions)
 	- [Client Integration](./server-actions.md#client-integration)
 	- [Error Handling](./server-actions.md#error-handling)
 	- [Database Integration](./server-actions.md#database-integration)
-7.	[Static Site Generation](./static-site-generation.md)
-	- [Static Plugin](./static-site-generation.md#static-plugin)
-	- [Build Process](./static-site-generation.md#build-process)
-	- [Deployment Strategies](./static-site-generation.md#deployment-strategies)
-8.	[Build Orchestration](./build-orchestration.md)
+6.	[Build & Deployment](./build-orchestration.md)
 	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
 	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
 	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
-9.	[Architecture](./architecture.md)
-	- [Design Philosophy](./architecture.md#design-philosophy)
-	- [Environment Variables](./architecture.md#environment-variables)
-	- [Plugin Composition](./architecture.md#plugin-composition)
-	- [HTML Component Support](./architecture.md#html-component-support)
-10.	[Advanced Topics](./advanced-topics.md)
+7.	[Advanced Development](./advanced-topics.md)
 	- [Custom Workers](./advanced-topics.md#custom-workers)
 	- [Message System](./advanced-topics.md#message-system)
 	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
-11.	[API Reference](./api-reference.md)
+8.	[Plugin Internals](./transformer-plugin.md)
+	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
+	- [Transformation Process](./transformer-plugin.md#transformation-process)
+	- [Directive Handling](./transformer-plugin.md#directive-handling)
+9.	[Worker System](./rsc-worker.md)
+	- [Worker Architecture](./rsc-worker.md#worker-architecture)
+	- [Message Handling](./rsc-worker.md#message-handling)
+	- [Performance Optimization](./rsc-worker.md#performance-optimization)
+10.	[API Reference](./api-reference.md)
 	- [Plugin Options](./api-reference.md#plugin-options)
 	- [Component Props](./api-reference.md#component-props)
 	- [Worker Messages](./api-reference.md#worker-messages)
 	- [Type Definitions](./api-reference.md#type-definitions)
-12.	[Transformations](./transformations.md)
-	- [Code Transformations](./transformations.md#code-transformations)
-	- [Directive Handling](./transformations.md#directive-handling)
-	- [Build Output Examples](./transformations.md#build-output-examples)
-13.	[Transformer Plugin](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
-14.	[Loader](./loader.md)
-	- [React Server Components Loader](./loader.md#react-server-components-loader)
-	- [Directive Processing](./loader.md#directive-processing)
-	- [Module Boundaries](./loader.md#module-boundaries)
-	- [Custom Registration Functions](./loader.md#custom-registration-functions)
-15.	[Custom Loader](./custom-loader.md)
-	- [Creating Custom Loaders](./custom-loader.md#creating-custom-loaders)
-	- [Loader Configuration](./custom-loader.md#loader-configuration)
-	- [Integration Examples](./custom-loader.md#integration-examples)
-16.	[RSC Worker](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
-17.	[HTML Worker](./html-worker.md)
-	- [HTML Generation](./html-worker.md#html-generation)
-	- [Stream Processing](./html-worker.md#stream-processing)
-	- [Worker Communication](./html-worker.md#worker-communication)
-18.	**[React Type Compatibility](./react-type-compatibility.md) ← you are here**
+11.	**[React Compatibility](./react-type-compatibility.md) ← you are here**
 	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
 	- [Generic Types](./react-type-compatibility.md#generic-types)
 	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
-19.	[Patch System](./patch-system.md)
-	- [React Version Compatibility](./patch-system.md#react-version-compatibility)
-	- [Creating Patches](./patch-system.md#creating-patches)
-	- [Maintenance Guide](./patch-system.md#maintenance-guide)
-20.	[Practical Guide](./practical-guide.md)
-	- [Real-world Examples](./practical-guide.md#real-world-examples)
-	- [Debugging Features](./practical-guide.md#debugging-features)
-	- [Production Implementations](./practical-guide.md#production-implementations)
-21.	[Troubleshooting Guide](./troubleshooting-guide.md)
+12.	[Troubleshooting](./troubleshooting-guide.md)
 	- [Common Issues](./troubleshooting-guide.md#common-issues)
 	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
 	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
@@ -308,4 +609,10 @@ The plugin automatically handles type compatibility, so you can focus on buildin
 ---
 
 <!-- TOC END -->
+
+
+
+
+
+
 

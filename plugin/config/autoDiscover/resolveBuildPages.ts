@@ -8,9 +8,23 @@ import type {
 } from "../../types.js";
 import { resolveUrlOption } from "../resolveUrlOption.js";
 import type { Logger } from "vite";
+import type { Manifest } from "vite";
 
 let stashedBuildPages: ResolvedBuildPages | null = null;
 let stashedPages: string[] | null = null;
+
+// Helper function to resolve paths using manifest
+function resolvePathWithManifest(path: string, manifest: Manifest): string {
+  // Check if the path exists in the manifest
+  const manifestEntry = manifest[path];
+  if (manifestEntry && manifestEntry.file) {
+    // Return the compiled file path
+    return manifestEntry.file;
+  }
+  
+  // If not found in manifest, return the original path
+  return path;
+}
 
 /**
  * Resolves build pages by calling resolveUrlOption for each page in build.pages.
@@ -39,6 +53,7 @@ export async function resolveBuildPages({
   pages,
   userOptions,
   logger,
+  manifest = {},
 }: {
   pages: string[];
   userOptions: Pick<
@@ -59,6 +74,7 @@ export async function resolveBuildPages({
     | "verbose"
   >;
   logger: Logger;
+  manifest?: Manifest;
 }): Promise<ResolvedBuildPages> {
   if (userOptions.verbose) {
     logger.info(
@@ -86,7 +102,7 @@ export async function resolveBuildPages({
       );
     }
   }
-  const errors: Error[] = [];
+  const errors: unknown[] = [];
   const pageMap = new Map<string, string>();
   const propsMap = new Map<string, string>();
   const rootMap = new Map<string, string>();
@@ -104,6 +120,7 @@ export async function resolveBuildPages({
       continue;
     }
     const [pageKey, pageValue] = userOptions.normalizer(pageResult.Page);
+    const manifestResolvedPageValue = resolvePathWithManifest(pageValue, manifest);
 
     // Resolve Root component path if defined
     let rootValue: string | undefined;
@@ -116,9 +133,10 @@ export async function resolveBuildPages({
       const rootResult = await resolveUrlOption(userOptions, "Root", page);
       if (rootResult.type === "error") {
         if (userOptions.verbose) {
-          logger.error(
-            `[resolveBuildPages] resolveBuildPages - Root resolution failed.`,
-            { error: rootResult.error }
+          logger.info(
+            `[resolveBuildPages] resolveBuildPages - Root resolution failed with error message: \"${
+              (rootResult.error as Error)?.message
+            }\"`
           );
         }
         errors.push(rootResult.error);
@@ -126,13 +144,14 @@ export async function resolveBuildPages({
         const [rootKey, resolvedRootValue] = userOptions.normalizer(
           rootResult.Root
         );
+        const manifestResolvedRootValue = resolvePathWithManifest(resolvedRootValue, manifest);
         if (userOptions.verbose) {
           logger.info(
-            `[resolveBuildPages] resolveBuildPages - Root resolved: ${rootResult.Root} -> ${resolvedRootValue}`
+            `[resolveBuildPages] resolveBuildPages - Root resolved: ${rootResult.Root} -> ${resolvedRootValue} -> ${manifestResolvedRootValue}`
           );
         }
-        rootValue = resolvedRootValue;
-        rootMap.set(rootKey, resolvedRootValue);
+        rootValue = manifestResolvedRootValue;
+        rootMap.set(rootKey, manifestResolvedRootValue);
       }
     }
 
@@ -147,9 +166,10 @@ export async function resolveBuildPages({
       const htmlResult = await resolveUrlOption(userOptions, "Html", page);
       if (htmlResult.type === "error") {
         if (userOptions.verbose) {
-          logger.error(
-            `[resolveBuildPages] resolveBuildPages - Html resolution failed.`,
-            { error: htmlResult.error }
+          logger.info(
+            `[resolveBuildPages] resolveBuildPages - Html resolution failed with error message: \"${
+              (htmlResult.error as Error)?.message
+            }\"`
           );
         }
         errors.push(htmlResult.error);
@@ -157,34 +177,35 @@ export async function resolveBuildPages({
         const [htmlKey, resolvedHtmlValue] = userOptions.normalizer(
           htmlResult.Html
         );
+        const manifestResolvedHtmlValue = resolvePathWithManifest(resolvedHtmlValue, manifest);
         if (userOptions.verbose) {
           logger.info(
-            `[resolveBuildPages] resolveBuildPages - Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue}`
+            `[resolveBuildPages] resolveBuildPages - Html resolved: ${htmlResult.Html} -> ${resolvedHtmlValue} -> ${manifestResolvedHtmlValue}`
           );
         }
-        htmlValue = resolvedHtmlValue;
-        htmlMap.set(htmlKey, resolvedHtmlValue);
+        htmlValue = manifestResolvedHtmlValue;
+        htmlMap.set(htmlKey, manifestResolvedHtmlValue);
       }
     }
 
     if (!userOptions.props) {
       urlMap.set(page, {
         props: undefined,
-        page: pageValue,
+        page: manifestResolvedPageValue,
         root: rootValue,
         html: htmlValue,
       });
-      pageMap.set(pageKey, pageValue);
+      pageMap.set(pageKey, manifestResolvedPageValue);
       // Add to routeMap
-      const routes = routeMap.get(pageValue) || [];
+      const routes = routeMap.get(manifestResolvedPageValue) || [];
       routes.push(page);
-      routeMap.set(pageValue, routes);
+      routeMap.set(manifestResolvedPageValue, routes);
       continue;
     }
     try {
-      await access(join(userOptions.projectRoot, pageValue));
+      await access(join(userOptions.projectRoot, manifestResolvedPageValue));
     } catch {
-      errors.push(new Error(`Page file not found: ${pageValue}`));
+      errors.push(new Error(`Page file not found: ${manifestResolvedPageValue}`));
     }
     const propsResult = await resolveUrlOption(userOptions, "props", page);
     if (propsResult.type === "error") {
@@ -195,45 +216,46 @@ export async function resolveBuildPages({
     // If propsPath is defined, check if it exists
     if (propsResult.props) {
       const [propsKey, propsValue] = userOptions.normalizer(propsResult.props);
-      if (propsValue !== pageValue) {
+      const manifestResolvedPropsValue = resolvePathWithManifest(propsValue, manifest);
+      if (manifestResolvedPropsValue !== manifestResolvedPageValue) {
         try {
-          await access(join(userOptions.projectRoot, propsValue));
+          await access(join(userOptions.projectRoot, manifestResolvedPropsValue));
         } catch {
-          errors.push(new Error(`Props file not found: ${propsValue}`));
+          errors.push(new Error(`Props file not found: ${manifestResolvedPropsValue}`));
         }
       }
       urlMap.set(page, {
-        props: propsValue,
-        page: pageValue,
+        props: manifestResolvedPropsValue,
+        page: manifestResolvedPageValue,
         root: rootValue,
         html: htmlValue,
       });
-      propsMap.set(propsKey, propsValue);
+      propsMap.set(propsKey, manifestResolvedPropsValue);
 
       // Add to routeMap for both page and props files
-      const pageRoutes = routeMap.get(pageValue) || [];
+      const pageRoutes = routeMap.get(manifestResolvedPageValue) || [];
       pageRoutes.push(page);
-      routeMap.set(pageValue, pageRoutes);
+      routeMap.set(manifestResolvedPageValue, pageRoutes);
 
-      const propsRoutes = routeMap.get(propsValue) || [];
+      const propsRoutes = routeMap.get(manifestResolvedPropsValue) || [];
       propsRoutes.push(page);
-      routeMap.set(propsValue, propsRoutes);
+      routeMap.set(manifestResolvedPropsValue, propsRoutes);
     } else {
       // If no props path, use the page path for both
       urlMap.set(page, {
         props: undefined,
-        page: pageValue,
+        page: manifestResolvedPageValue,
         root: rootValue,
         html: htmlValue,
       });
 
       // Add to routeMap for page file only
-      const routes = routeMap.get(pageValue) || [];
+      const routes = routeMap.get(manifestResolvedPageValue) || [];
       routes.push(page);
-      routeMap.set(pageValue, routes);
+      routeMap.set(manifestResolvedPageValue, routes);
     }
 
-    pageMap.set(pageKey, pageValue);
+    pageMap.set(pageKey, manifestResolvedPageValue);
   }
 
   // If there are no pages but custom components are defined, resolve them for a default route

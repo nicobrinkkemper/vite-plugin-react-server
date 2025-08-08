@@ -5,4 +5,4 @@ import { getNodeEnv } from './config/getNodeEnv.js';
 export const nodeEnv = getNodeEnv(process.env.NODE_ENV);
 export const condition = getCondition('');
 
-export const { vitePluginReactServer } = (await import(`./plugin.${condition}.js`)) as { vitePluginReactServer: VitePluginMainFn };
+export const { vitePluginReactServer, vitePluginReactClient } = (await import(`./plugin.${condition}.js`)) as { vitePluginReactServer: VitePluginMainFn, vitePluginReactClient: VitePluginMainFn };

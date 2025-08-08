@@ -9,7 +9,7 @@ type ServerActionResponse<R> = {
   error?: string;
 }
 
-export const createCallServer = <R extends unknown>(moduleBaseURL: string) => {
+export const createCallServer = <R>(moduleBaseURL: string) => {
   const callServer = async (id: string, args: unknown[]): Promise<R> => {
     const response = await createFromFetch(
       fetch(moduleBaseURL, {

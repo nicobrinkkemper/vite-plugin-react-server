@@ -1,14 +1,15 @@
-import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "vite-plugin-react-server/types";
+import type {  StreamPluginOptions } from "vite-plugin-react-server/types";
 
-const resolvedTestConfig = {
+
+export const testUserOptions = {
   moduleBase: "src",
   Page: "src/page/page.tsx",
   props: "src/page/props.ts",
   pageExportName: "Page",
   propsExportName: "props",
-  moduleBasePath: '',
+  moduleBasePath: '/',
   moduleBaseURL: process.env.VITE_BASE_URL || '/',
-  verbose: false,
+  verbose: true,
   rscTimeout: 720,
   rscWorkerStartupTimeout: 2000,
   htmlWorkerStartupTimeout: 2000,
@@ -23,8 +24,6 @@ const resolvedTestConfig = {
   css: {
     inlineCss: false,
   },
-} satisfies StreamPluginOptions;
-
-export const testUserOptions = resolvedTestConfig;
+} as StreamPluginOptions;
 
 
