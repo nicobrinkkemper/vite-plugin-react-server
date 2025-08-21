@@ -30,26 +30,43 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
   let userConfig: ResolvedUserConfig;
   let configEnv: ConfigEnv;
   let autoDiscoveredFiles: AutoDiscoveredFiles;
-
+  let implicitSsr: boolean | undefined = undefined;
   // Initial options resolution
   const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
-    throw resolvedOptions.error;
+    if(resolvedOptions.error != null) {
+      throw resolvedOptions.error;
+    }
+    throw new Error("React client plugin failed to resolve options");
   }
   const { userOptions } = resolvedOptions;
 
   return {
     name: "vite:plugin-react-server/client",
-
+    applyToEnvironment(env) {
+      // Only apply this plugin in the client environment
+      const envName = (env?.name || "").toLowerCase();
+      if(envName === "client" || envName === "ssr") {
+        return true;
+      }
+      return false;
+    },
     async config(config, viteConfigEnv) {
       configEnv = viteConfigEnv;
+      if(configEnv.command !== "build") {
+        return;
+      }
+      if(typeof config?.build?.ssr === "boolean" || typeof config?.build?.ssr === "string") {
+        implicitSsr = config?.build?.ssr === "true" || config?.build?.ssr === true;
+      } else if(implicitSsr === undefined) {
+        implicitSsr = configEnv.isSsrBuild;
+      }
     
       const logger = config.customLogger || createLogger();
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
         configEnv,
         userOptions: userOptions,
-        condition: "react-client",
         logger,
       });
       if (autoDiscoverResult.type === "error") {
@@ -62,12 +79,10 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
         if (panicError != null) {
           throw panicError;
         }
-        return;
+        throw new Error("Failed to resolve autoDiscoveredFiles");
       }
       autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
-      if (!autoDiscoveredFiles) {
-        throw new Error("Failed to find autoDiscoveredFiles");
-      }
+      
 
       const resolvedConfig = resolveUserConfig({
         condition: "react-client",
@@ -75,28 +90,18 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
         configEnv,
         userOptions: userOptions,
         autoDiscoveredFiles,
+        ssr: implicitSsr,
       });
 
       if (resolvedConfig.type === "error") {
-        throw resolvedConfig.error;
+        if(resolvedConfig.error != null) {
+          throw resolvedConfig.error;
+        }
+        throw new Error("Failed to resolve config");
       }
 
       userConfig = resolvedConfig.userConfig;
       return userConfig;
-    },
-    async writeBundle(options, bundle) {
-      if (userOptions.onEvent) {
-        userOptions.onEvent({
-          type: `build.writeBundle.${
-            userConfig.build.ssr ? "client" : "static-client"
-          }`,
-          data: {
-            pages: [...autoDiscoveredFiles.routeMap.keys()],
-            options,
-            bundle,
-          },
-        });
-      }
     },
   };
 }

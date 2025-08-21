@@ -1,12 +1,10 @@
 import type { ServerResponse } from "http";
+import React from "react";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
-import { resolveComponents } from "../helpers/resolveComponents.js";
-import { createHandler } from "../helpers/createHandler.server.js";
+import { createRenderToPipeableStreamHandler } from "../stream/createRenderToPipeableStreamHandler.server.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { handleServerAction } from "./handleServerAction.js";
-import React from "react";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
 import type { ConfigureReactServerFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
@@ -32,11 +30,13 @@ export const configureReactServer: ConfigureReactServerFn =
       loader: _loaderConfig,
       verbose,
       // we can use these directly to create the handler
-      ...handlerUserOptions
+      ...userHandlerOptions
     } = _userOptions;
 
-
-    server.config = mergeConfig(server.config, resolvedConfig) as ResolvedConfig;
+    server.config = mergeConfig(
+      server.config,
+      resolvedConfig
+    ) as ResolvedConfig;
 
     // Handle Vite server restarts
     server.ws.on("restart", (path) => {
@@ -98,7 +98,7 @@ export const configureReactServer: ConfigureReactServerFn =
         throw new Error(
           `Module \"${moduleID}\" is a module, but does not have any exports so it can't find ${exportName}`
         );
-        
+
       if (exportName && !(exportName in result))
         throw new Error(
           `Module \"${moduleID}\" exists, but does not export \"${exportName}\"`
@@ -110,14 +110,15 @@ export const configureReactServer: ConfigureReactServerFn =
         return next();
       }
       const handlerOptions = {
-        ...handlerUserOptions,
+        ...userHandlerOptions,
         moduleBaseURL: server.config.base,
-        moduleBasePath: handlerUserOptions.moduleBasePath,
+        moduleBasePath: userHandlerOptions.moduleBasePath,
         projectRoot: server.config.root,
-        css: handlerUserOptions.css,
+        css: userHandlerOptions.css,
         loader: loader,
         verbose,
         logger,
+        rscStream: res
       };
       const info = requestInfo(req, handlerOptions, "");
 
@@ -152,7 +153,7 @@ export const configureReactServer: ConfigureReactServerFn =
           const panicError = handleError({
             error: routeFiles.error,
             logger: logger,
-            panicThreshold: handlerOptions.panicThreshold,
+            panicThreshold: userHandlerOptions.panicThreshold,
             critical: false,
             context: "configureReactServer",
           });
@@ -163,8 +164,6 @@ export const configureReactServer: ConfigureReactServerFn =
         }
         const pagePath = routeFiles.page;
         const propsPath = routeFiles.props;
-        const rootPath = routeFiles.root;
-        const htmlPath = routeFiles.html;
 
         // Check if we have a page path - if not, skip this route
         if (!pagePath) {
@@ -174,49 +173,10 @@ export const configureReactServer: ConfigureReactServerFn =
           return next();
         }
 
-        // Resolve all components together
-        const componentsResult = await resolveComponents({
-          pagePath,
-          propsPath,
-          rootPath,
-          htmlPath,
-          pageExportName:
-            handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-          propsExportName:
-            handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-          rootExportName:
-            handlerOptions.rootExportName ?? DEFAULT_CONFIG.ROOT_EXPORT_NAME,
-          htmlExportName:
-            handlerOptions.htmlExportName ?? DEFAULT_CONFIG.HTML_EXPORT_NAME,
-          route: info.route,
-          loader: loader,
-          verbose,
-          moduleBaseURL: server.config.base,
-          build: handlerOptions.build,
-          logger: logger,
-          HtmlComponent: React.Fragment,
-          RootComponent: handlerOptions.components?.Root,
-        });
-        if (componentsResult.type === "error") {
-          return next(componentsResult.error);
-        }
-
-        const { PageComponent, pageProps, RootComponent } = componentsResult;
-
         if (verbose) {
           logger.info(
             `Components resolved successfully for route: ${info.route}`
           );
-        }
-
-        // Check if PageComponent is valid - if not, skip this route
-        if (!PageComponent) {
-          if (verbose) {
-            logger.info(
-              `No PageComponent found for route: ${info.route}, skipping`
-            );
-          }
-          return next();
         }
 
         if (verbose) {
@@ -225,14 +185,18 @@ export const configureReactServer: ConfigureReactServerFn =
           );
         }
 
-        const intermediateHandlerOptions = {
-          ...handlerOptions,
+        const handlerOptions = {
+          ...userHandlerOptions,
           route: info.route,
           pagePath,
           propsPath,
           logger: logger,
           manifest: serverManifest,
           server,
+          moduleBaseURL: server.config.base,
+          projectRoot: server.config.root,
+          loader: loader,
+          verbose: verbose,
         };
 
         if (verbose) {
@@ -242,13 +206,7 @@ export const configureReactServer: ConfigureReactServerFn =
         const cssFilesResult = await collectViteModuleGraphCss({
           moduleGraph: server.moduleGraph,
           parentUrl: pagePath,
-          handlerOptions: {
-            ...handlerOptions,
-            pagePath,
-            moduleBaseURL: server.config.base,
-            moduleBasePath: handlerUserOptions.moduleBasePath,
-            projectRoot: server.config.root,
-          },
+          handlerOptions: handlerOptions,
         });
 
         if (verbose) {
@@ -268,23 +226,18 @@ export const configureReactServer: ConfigureReactServerFn =
           );
         }
 
-        const finalHandlerOptions = Object.assign(intermediateHandlerOptions, {
-          PageComponent: PageComponent,
-          pageProps: pageProps,
-          RootComponent,
-          HtmlComponent: React.Fragment,
-          cssFiles: cssFilesResult.cssFiles ?? new Map(),
-          globalCss: new Map(),
-          serverPipeableStreamOptions:
-            handlerOptions.serverPipeableStreamOptions ?? {},
-        });
-
         if (verbose) {
           logger.info(`Creating RSC handler for route: ${info.route}`);
         }
 
         // Create the headless RSC stream directly
-        const rscResult = createHandler(finalHandlerOptions);
+        const rscResult = createRenderToPipeableStreamHandler({
+          ...handlerOptions,
+          url: handlerOptions.route,
+          PageComponent: React.Fragment, // Headless RSC - no page component
+          RootComponent: React.Fragment, // Headless RSC - no root component  
+          HtmlComponent: React.Fragment, // Headless RSC - no HTML wrapper
+        });
 
         if (verbose) {
           logger.info(
@@ -298,9 +251,20 @@ export const configureReactServer: ConfigureReactServerFn =
           if (verbose) {
             logger.info(`Setting up RSC stream for route: ${info.route}`);
           }
-          
+
           // set headers
           res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+          
+          // Add CORS headers for RSC files
+          const origin = req.headers.origin;
+          if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+            res.setHeader("Access-Control-Allow-Origin", origin);
+          } else {
+            res.setHeader("Access-Control-Allow-Origin", "*");
+          }
+          res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+          res.setHeader("Access-Control-Allow-Headers", "Accept, Content-Type");
+          res.setHeader("Access-Control-Max-Age", "86400");
           rscResult.pipe(res);
 
           // Store the controller for potential abort during restart

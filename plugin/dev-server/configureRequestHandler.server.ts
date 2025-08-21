@@ -41,7 +41,6 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn = async fu
     if (panicError) {
       throw panicError;
     }
-    
-    throw error;
+    throw new Error("Failed to configure request handler");
   }
 }; 

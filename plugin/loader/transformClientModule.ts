@@ -45,6 +45,9 @@ export async function transformClientModule(
         logger.info(
           `[transformClientModule] Found export info: ${exp.localName} for exportName: ${exp.exportName}`
         );
+        logger.info(
+          `[transformClientModule] moduleId: ${moduleId} (type: ${typeof moduleId})`
+        );
       }
       registrations.push(
         `export const ${exp.exportName} = ${loader.registerClientReferenceName}(function() { throw new Error("Attempted to call ${exp.exportName}() on the client"); }, "${moduleId}", "${exp.exportName}");`
@@ -53,11 +56,11 @@ export async function transformClientModule(
   }
 
   const finalCode = `
-    import { ${loader.registerClientReferenceName} } from "${
+import { ${loader.registerClientReferenceName} } from "${
     loader.importClientPath
   }";
-    ${registrations.join("\n")}
-  `;
+${registrations.join("\n")}
+`;
 
   // Create source map
   const map = createSourceMap(finalCode, source, moduleId);

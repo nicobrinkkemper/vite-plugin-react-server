@@ -1,44 +1,87 @@
 # Package Exports
 
-The `vite-plugin-react-server` package provides comprehensive exports for all internal modules, making it easy to use the plugin's functionality in your own projects.
+The `vite-plugin-react-server` package provides comprehensive exports for all internal modules, making it easy to use the plugin's functionality in your own projects. The package uses **React conditions** to automatically provide the optimal implementation for each execution environment.
 
 ## Overview
 
-The package exports are organized into logical groups:
+The package exports are organized into logical groups and automatically adapt to the execution environment:
 
-- **Core Plugins**: Main plugin entry points
+- **Core Plugins**: Main plugin entry points with condition-based loading
 - **Workers**: RSC and HTML worker implementations
-- **Helpers**: Stream creation and utility functions
+- **Helpers**: Stream creation and utility functions with environment-specific implementations
 - **Configuration**: Options resolution and condition detection
 - **Utilities**: React integration and URL handling
 - **Loaders**: Module loading and directive processing
 - **Types**: TypeScript type definitions
 
+## React Conditions
+
+The package automatically detects the execution environment and loads the appropriate implementation:
+
+```typescript
+// Automatic environment detection
+import { getCondition } from 'vite-plugin-react-server/config';
+
+const condition = getCondition(); // Returns 'client' or 'server'
+const { vitePluginReactServer } = await import(`vite-plugin-react-server/plugin.${condition}`);
+```
+
+### Execution Environments
+
+| Environment | Condition | Use Case | Implementation |
+|-------------|-----------|----------|----------------|
+| **Client** | `null` (default) | Browser, client-side builds | Client-specific modules |
+| **Server** | `react-server` | Server-side rendering, RSC processing | Server-specific modules |
+
 ## Core Plugins
 
-### Main Plugin
+### Main Plugin (Condition-Based)
 ```typescript
-import { reactServerPlugin } from 'vite-plugin-react-server';
+// Automatically loads the correct implementation
+import { vitePluginReactServer } from 'vite-plugin-react-server';
 ```
 
 ### Client Plugin
 ```typescript
-import { reactClientPlugin } from 'vite-plugin-react-server/client';
+// Explicitly import client implementation
+import { vitePluginReactClient } from 'vite-plugin-react-server/client';
 ```
 
 ### Server Plugin
 ```typescript
-import { reactServerPlugin } from 'vite-plugin-react-server/server';
+// Explicitly import server implementation
+import { vitePluginReactServer } from 'vite-plugin-react-server/server';
 ```
 
 ### Static Plugin
 ```typescript
-import { reactStaticPlugin } from 'vite-plugin-react-server/static';
+// Condition-based static generation
+import { vitePluginReactStatic } from 'vite-plugin-react-server/static';
+```
+
+## Development Server
+
+### Dev Server (Condition-Based)
+```typescript
+// Automatically loads client or server implementation
+import { configureReactServer } from 'vite-plugin-react-server/dev-server';
+```
+
+### Client Dev Server
+```typescript
+// Explicitly import client dev server
+import { configureReactServer } from 'vite-plugin-react-server/dev-server/client';
+```
+
+### Server Dev Server
+```typescript
+// Explicitly import server dev server
+import { configureReactServer } from 'vite-plugin-react-server/dev-server/server';
 ```
 
 ## Workers
 
-### Worker Architecture
+### Worker System
 
 The plugin supports two types of workers:
 
@@ -94,427 +137,192 @@ import 'vite-plugin-react-server/html-worker';
 
 ## Helpers
 
-### Stream Creation
+### Stream Creation (Condition-Based)
 
 #### createHandler
 ```typescript
+// Automatically loads client or server implementation
 import { createHandler } from 'vite-plugin-react-server/helpers';
-import type { CreateHandlerOptions } from 'vite-plugin-react-server/helpers';
+```
 
-const rscHandler = createHandler({
-  route: '/home',
-  PageComponent: HomePage,
-  // ... options
-});
+#### createRscStream
+```typescript
+// Condition-based RSC stream creation
+import { createRscStream } from 'vite-plugin-react-server/dev-server';
 ```
 
 #### createHtmlStream
 ```typescript
+// Condition-based HTML stream creation
 import { createHtmlStream } from 'vite-plugin-react-server/helpers';
-import type { CreateHtmlStreamOptions } from 'vite-plugin-react-server/helpers';
-
-const htmlHandler = createHtmlStream({
-  route: '/home',
-  rscStream: rscStream,
-  // ... options
-});
 ```
 
-#### createWorkerStream
+### Client-Specific Helpers
 ```typescript
-import { createWorkerStream } from 'vite-plugin-react-server/helpers';
-import type { CreateWorkerStreamOptions } from 'vite-plugin-react-server/helpers';
-
-const workerStream = createWorkerStream({
-  worker: rscWorker,
-  messageType: 'RSC_RENDER',
-  // ... options
-});
+// Explicitly import client implementations
+import { createHandler } from 'vite-plugin-react-server/helpers/client';
+import { createHtmlStream } from 'vite-plugin-react-server/helpers/client';
 ```
 
-### Component Resolution
-
-#### resolveComponents
+### Server-Specific Helpers
 ```typescript
-import { resolveComponents } from 'vite-plugin-react-server/helpers';
-
-const components = await resolveComponents({
-  pagePath: 'src/pages/home.tsx',
-  propsPath: 'src/pages/home.props.ts',
-  // ... options
-});
-```
-
-#### resolveProps
-```typescript
-import { resolveProps } from 'vite-plugin-react-server/helpers';
-
-const props = await resolveProps('src/pages/home.props.ts');
-```
-
-### CSS Handling
-
-#### collectManifestCss
-```typescript
-import { collectManifestCss } from 'vite-plugin-react-server/helpers';
-
-const cssFiles = collectManifestCss(manifest, route);
-```
-
-#### createCssProps
-```typescript
-import { createCssProps } from 'vite-plugin-react-server/helpers';
-
-const cssProps = createCssProps(cssFiles, globalCss);
-```
-
-### Utility Functions
-
-#### stashReturnValue
-```typescript
-import { stashReturnValue, clearStashedReturnValues } from 'vite-plugin-react-server/helpers';
-
-const cachedFn = stashReturnValue(expensiveFunction);
-```
-
-#### hydrateUserOptions
-```typescript
-import { hydrateUserOptions } from 'vite-plugin-react-server/helpers';
-
-const hydratedOptions = hydrateUserOptions(options);
+// Explicitly import server implementations
+import { createHandler } from 'vite-plugin-react-server/helpers/server';
+import { createHtmlStream } from 'vite-plugin-react-server/helpers/server';
 ```
 
 ## Configuration
 
 ### Condition Detection
-
-#### getCondition
 ```typescript
-import { getCondition, isReactServerCondition, isReactClientCondition } from 'vite-plugin-react-server/config';
-
-const condition = getCondition(); // 'react-server' or 'react-client'
-const isServer = isReactServerCondition();
-const isClient = isReactClientCondition();
+import { getCondition } from 'vite-plugin-react-server/config';
+import { getNodeEnv } from 'vite-plugin-react-server/config';
 ```
 
 ### Options Resolution
-
-#### resolveOptions
 ```typescript
 import { resolveOptions } from 'vite-plugin-react-server/config';
-
-const resolved = resolveOptions(userOptions);
+import type { PluginOptions } from 'vite-plugin-react-server/config';
 ```
 
-#### resolveUserConfig
-```typescript
-import { resolveUserConfig } from 'vite-plugin-react-server/config';
+## React Integration
 
-const config = resolveUserConfig({
-  condition: 'react-server',
-  config: viteConfig,
-  // ... options
-});
+### React Components (Condition-Based)
+```typescript
+// Automatically loads appropriate React implementation
+import { createElementWithReact } from 'vite-plugin-react-server/helpers';
 ```
 
-### Module ID Creation
-
-#### createModuleID
+### Client React Integration
 ```typescript
-import { createModuleID } from 'vite-plugin-react-server/config';
-
-const moduleID = createModuleID(options, configEnv, mode);
+// Client-specific React integration
+import { createElementWithReact } from 'vite-plugin-react-server/helpers/client';
 ```
 
-### Auto Discovery
-
-#### resolveAutoDiscover
+### Server React Integration
 ```typescript
-import { resolveAutoDiscover } from 'vite-plugin-react-server/config';
-
-const autoDiscover = await resolveAutoDiscover({
-  config: viteConfig,
-  configEnv,
-  userOptions,
-  condition: 'react-server',
-  logger,
-});
-```
-
-## Utilities
-
-### React Integration
-
-#### createReactFetcher
-```typescript
-import { createReactFetcher } from 'vite-plugin-react-server/utils';
-
-const fetcher = createReactFetcher({
-  baseURL: '/api',
-  // ... options
-});
-```
-
-#### callServer
-```typescript
-import { callServer } from 'vite-plugin-react-server/utils';
-
-const result = await callServer(action, args);
-```
-
-### URL Handling
-
-#### routeToURL
-```typescript
-import { routeToURL } from 'vite-plugin-react-server/utils';
-
-const url = routeToURL('/home', '/api');
-```
-
-#### createCallServer
-```typescript
-import { createCallServer } from 'vite-plugin-react-server/utils';
-
-const callServerFn = createCallServer({
-  baseURL: '/api',
-  // ... options
-});
+// Server-specific React integration
+import { createElementWithReact } from 'vite-plugin-react-server/helpers/server';
 ```
 
 ## Loaders
 
-### React Loader
+### Module Loaders (Condition-Based)
 ```typescript
-import { reactLoader } from 'vite-plugin-react-server/react-loader';
+// Automatically loads appropriate loader implementation
+import { createLoader } from 'vite-plugin-react-server/loader';
 ```
 
-### Environment Loader
+### Client Loaders
 ```typescript
-import { envLoader } from 'vite-plugin-react-server/env-loader';
+// Client-specific module loading
+import { createLoader } from 'vite-plugin-react-server/loader/client';
 ```
 
-### CSS Loader
+### Server Loaders
 ```typescript
-import { cssLoader } from 'vite-plugin-react-server/css-loader';
-```
-
-### Directives
-```typescript
-import { directives } from 'vite-plugin-react-server/directives';
-```
-
-## Error Handling
-
-### Error Utilities
-```typescript
-import { handleError, shouldPanic } from 'vite-plugin-react-server/error';
-import type { PanicThreshold } from 'vite-plugin-react-server/error';
-
-const error = handleError({
-  error: new Error('Something went wrong'),
-  logger,
-  panicThreshold: 'critical_errors',
-  context: 'My function',
-});
-```
-
-## Metrics
-
-### Performance Monitoring
-```typescript
-import { createStreamMetrics, createRenderMetrics } from 'vite-plugin-react-server/metrics';
-
-const streamMetrics = createStreamMetrics();
-const renderMetrics = createRenderMetrics('/home');
+// Server-specific module loading
+import { createLoader } from 'vite-plugin-react-server/loader/server';
 ```
 
 ## Types
 
-### Core Types
+### Shared Types
 ```typescript
-import type {
-  VitePluginFn,
-  CreateHandlerOptions,
-  CreateHtmlStreamOptions,
-  WorkerOptions,
-  // ... many more types
-} from 'vite-plugin-react-server/types';
+// Common type definitions
+import type { PluginOptions, StreamOptions } from 'vite-plugin-react-server/types';
 ```
 
-### Worker Types
+### Environment-Specific Types
 ```typescript
-import type {
-  RscRenderOpt,
-  RscRenderResult,
-  HtmlRenderOpt,
-  HtmlRenderResult,
-} from 'vite-plugin-react-server/worker';
+// Client-specific types
+import type { ClientOptions } from 'vite-plugin-react-server/types/client';
+
+// Server-specific types
+import type { ServerOptions } from 'vite-plugin-react-server/types/server';
 ```
 
 ## Usage Patterns
 
-### Basic Plugin Setup
-```typescript
-import { defineConfig } from 'vite';
-import { reactServerPlugin } from 'vite-plugin-react-server';
+### Automatic Environment Detection
 
-export default defineConfig({
-  plugins: [
-    reactServerPlugin({
-      // ... plugin options
-    }),
-  ],
-});
+The recommended approach is to use the main exports, which automatically detect the environment:
+
+```typescript
+// Automatically uses the correct implementation
+import { vitePluginReactServer } from 'vite-plugin-react-server';
+import { createHandler } from 'vite-plugin-react-server/helpers';
+import { configureReactServer } from 'vite-plugin-react-server/dev-server';
 ```
 
-### Custom Stream Creation
+### Explicit Environment Selection
+
+For advanced use cases, you can explicitly import environment-specific implementations:
+
 ```typescript
-import { createHandler, createHtmlStream } from 'vite-plugin-react-server/helpers';
+// Client environment
+import { vitePluginReactClient } from 'vite-plugin-react-server/client';
+import { createHandler } from 'vite-plugin-react-server/helpers/client';
 
-// Create RSC stream
-const rscHandler = createHandler({
-  route: '/home',
-  PageComponent: HomePage,
-  // ... options
-});
-
-// Create HTML stream from RSC
-const htmlHandler = createHtmlStream({
-  route: '/home',
-  rscStream: rscStream,
-  // ... options
-});
+// Server environment
+import { vitePluginReactServer } from 'vite-plugin-react-server/server';
+import { createHandler } from 'vite-plugin-react-server/helpers/server';
 ```
 
-### Custom Worker Integration
+### Custom Module Development
+
+When creating custom modules that integrate with the plugin, follow the same pattern:
+
 ```typescript
-import { createWorker } from 'vite-plugin-react-server/worker';
-import { createWorkerStream } from 'vite-plugin-react-server/helpers';
-
-const customWorker = createWorker({
-  workerPath: 'path/to/custom-worker.js',
-  // ... options
-});
-
-const workerStream = createWorkerStream({
-  worker: customWorker,
-  messageType: 'CUSTOM_MESSAGE',
-  // ... options
-});
-```
-
-### Condition-Aware Code
-```typescript
+// myModule.ts
 import { getCondition } from 'vite-plugin-react-server/config';
 
 const condition = getCondition();
+const { myFunction } = await import(`./myModule.${condition}.js`);
 
-if (condition === 'react-server') {
-  // Server-specific code
-} else {
-  // Client-specific code
-}
+export { myFunction };
 ```
 
-## Best Practices
+## Environment Variables
 
-### 1. Use Package Exports
-Always import from the package exports rather than relative paths:
+The package respects Node.js conditions for environment detection:
+
+```bash
+# Server environment
+NODE_OPTIONS="--conditions react-server" node your-script.js
+
+# Client environment (default)
+node your-script.js
+```
+
+## Build Optimization
+
+React conditions provide several optimization benefits:
+
+- **Tree shaking**: Unused code is automatically eliminated
+- **Bundle size**: Smaller bundles for client environments
+- **Conditional compilation**: Server-specific features only included when needed
+- **Runtime performance**: No overhead from unused server code in client environments
+
+## Migration Guide
+
+If you're migrating from an older version:
+
+### Before (Single Implementation)
+```typescript
+import { someFunction } from 'vite-plugin-react-server/some-module';
+```
+
+### After (Condition-Based)
 
 ```typescript
-// ✅ Good
-import { createHandler } from 'vite-plugin-react-server/helpers';
+// Recommended: Use main export (automatic detection)
+import { someFunction } from 'vite-plugin-react-server/some-module';
 
-// ❌ Bad
-import { createHandler } from './helpers/createHandler.js';
+// Or explicitly specify environment
+import { someFunction } from 'vite-plugin-react-server/some-module/client';
+import { someFunction } from 'vite-plugin-react-server/some-module/server';
 ```
-
-### 2. Import Only What You Need
-Import specific functions rather than entire modules:
-
-```typescript
-// ✅ Good
-import { createHandler, createHtmlStream } from 'vite-plugin-react-server/helpers';
-
-// ❌ Bad
-import * as helpers from 'vite-plugin-react-server/helpers';
-```
-
-### 3. Use TypeScript Types
-Import types for better development experience:
-
-```typescript
-import { createHandler } from 'vite-plugin-react-server/helpers';
-import type { CreateHandlerOptions } from 'vite-plugin-react-server/helpers';
-
-const options: CreateHandlerOptions = {
-  // ... options
-};
-```
-
-### 4. Handle Conditions Properly
-Use condition detection for environment-specific code:
-
-```typescript
-import { getCondition } from 'vite-plugin-react-server/config';
-
-const condition = getCondition();
-const isServer = condition === 'react-server';
-
-// Use condition-aware logic
-const handler = isServer ? createDirectHandler() : createWorkerHandler();
-```
-
-### 5. Worker Architecture
-Understand the difference between RSC and HTML workers:
-
-```typescript
-// RSC worker for React Server Components
-import 'vite-plugin-react-server/rsc-worker';
-
-// HTML worker for HTML generation
-import 'vite-plugin-react-server/html-worker';
-
-// General worker utilities
-import { createWorker } from 'vite-plugin-react-server/worker';
-```
-
-## Troubleshooting
-
-### Common Import Issues
-
-**Q: Module not found error**
-A: Make sure you're using the correct export path from package.json.
-
-**Q: TypeScript errors**
-A: Import types from the appropriate module:
-```typescript
-import type { CreateHandlerOptions } from 'vite-plugin-react-server/helpers';
-```
-
-**Q: Worker not working**
-A: Ensure you've imported the worker module:
-```typescript
-import 'vite-plugin-react-server/rsc-worker';
-```
-
-### Debugging
-
-Enable verbose logging to debug issues:
-
-```typescript
-import { createHandler } from 'vite-plugin-react-server/helpers';
-
-const handler = createHandler({
-  ...options,
-  verbose: true,
-  logger: console,
-});
-```
-
-### Version Compatibility
-
-Check that you're using compatible versions:
 
 <!-- TOC START -->
 
@@ -527,56 +335,20 @@ Check that you're using compatible versions:
 <!-- Auto-generated TOC - Do not edit manually -->
 
 
+
 1.	[Getting Started](./getting-started.md)
-	- [Installation and Setup](./getting-started.md#installation-and-setup)
-	- [Basic Configuration](./getting-started.md#basic-configuration)
-	- [Example Projects](./getting-started.md#example-projects)
 2.	[Core Concepts](./core-concepts.md)
-	- [Client-Server Separation](./core-concepts.md#client-server-separation)
-	- [React Server Components](./core-concepts.md#react-server-components)
-	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
 3.	[Configuration Guide](./configuration.md)
-	- [Plugin Options](./configuration.md#plugin-options)
-	- [Routing Configuration](./configuration.md#routing-configuration)
-	- [Build Configuration](./configuration.md#build-configuration)
 4.	[CSS & Styling](./css-handling.md)
-	- [CSS Collectors](./css-handling.md#css-collectors)
-	- [Inline CSS](./css-handling.md#inline-css)
-	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
 5.	[Server Actions](./server-actions.md)
-	- [Creating Server Actions](./server-actions.md#creating-server-actions)
-	- [Client Integration](./server-actions.md#client-integration)
-	- [Error Handling](./server-actions.md#error-handling)
-	- [Database Integration](./server-actions.md#database-integration)
 6.	[Build & Deployment](./build-orchestration.md)
-	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
-	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
-	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
 7.	[Advanced Development](./advanced-topics.md)
-	- [Custom Workers](./advanced-topics.md#custom-workers)
-	- [Message System](./advanced-topics.md#message-system)
-	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
 8.	[Plugin Internals](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
 9.	[Worker System](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
 10.	[API Reference](./api-reference.md)
-	- [Plugin Options](./api-reference.md#plugin-options)
-	- [Component Props](./api-reference.md#component-props)
-	- [Worker Messages](./api-reference.md#worker-messages)
-	- [Type Definitions](./api-reference.md#type-definitions)
 11.	[React Compatibility](./react-type-compatibility.md)
-	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
-	- [Generic Types](./react-type-compatibility.md#generic-types)
-	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-	- [Common Issues](./troubleshooting-guide.md#common-issues)
-	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
-	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
+13.	[Testing](./testing.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)
@@ -587,14 +359,5 @@ Check that you're using compatible versions:
 ---
 
 <!-- TOC END -->
-
-
-
-
-
-```typescript
-import { version } from 'vite-plugin-react-server/package.json';
-console.log('Plugin version:', version);
-```
 
  

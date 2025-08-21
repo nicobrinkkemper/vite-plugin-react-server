@@ -1,19 +1,12 @@
 "use strict";
 
-import { getCondition } from "./plugin/config/getCondition.js";
-import type { VitePluginMainFn } from "./plugin/types.js";
+export { vitePluginReactClient, vitePluginReactServer  } from "./plugin/plugin.server.js"
 
-const condition = getCondition("");
-// no trailing slash
-const dir = new URL("./", import.meta.url).pathname.replace(/\/$/, "");
 
-export const { vitePluginReactServer, vitePluginReactClient } = (await import(
-  `${dir}/plugin/plugin.${condition}.js`
-)) as {
-  vitePluginReactServer: VitePluginMainFn;
-  vitePluginReactClient: VitePluginMainFn;
-};
-
+export * from './plugin/react-server/index.js'
+// Export specific dev-server functions for client usage
+export { handleServerAction } from './plugin/dev-server/index.js'
+export { handleRscStream } from './plugin/stream/index.js'
 // types
-export type * from "./plugin/types.js";
-export type * from "./plugin/react-server/types.js";
+export type * from './plugin/types.js'
+export type * from './plugin/react-server/types.js'

@@ -6,8 +6,8 @@ import {
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { pluginRoot } from "../root.js";
-import * as React from "react";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { createLogger, type Logger } from "vite";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
@@ -19,6 +19,7 @@ import type {
 import type { Manifest } from "vite";
 import type { OutputBundle } from "rollup";
 import { handleError } from "../error/handleError.js";
+import { toError } from "../error/toError.js";
 
 type CreateWorkerSuccess = {
   type: "success";
@@ -55,7 +56,7 @@ export type CreateWorkerOptions = {
   nodePath?: string;
   nodeOptions?: string[];
   envPrefix?: string;
-  mode?: "production" | "development";
+  mode?: "production" | "development" | "test";
   reverseCondition?: string;
   maxListeners?: number;
   workerPath?: string;
@@ -106,19 +107,42 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
   let workerPathWithDefault =
     typeof workerPath === "string" ? workerPath : undefined;
   if (!workerPathWithDefault) {
-    workerPathWithDefault = join(pluginRoot, id);
+    // Use the default worker paths that include the full filename
+    const isProduction = mode === "production";
+    const workerFileName = reverseCondition === "react-server" 
+      ? `rsc-worker.${isProduction ? "production" : "development"}.js`
+      : `html-worker.${isProduction ? "production" : "development"}.js`;
+    
+    // Try source directory first
+    let sourcePath = join(pluginRoot, id, workerFileName);
+    
+    // Always log the paths for debugging
+    logger.info(`[create:${id}] Checking paths - Source: ${sourcePath}, PluginRoot: ${pluginRoot}`);
+    
+    // If source path doesn't exist, try built directory
+    if (!existsSync(sourcePath)) {
+      const builtPath = join(pluginRoot.replace("/plugin/", "/dist/plugin/"), id, workerFileName);
+      logger.info(`[create:${id}] Source path doesn't exist, checking built path: ${builtPath}`);
+      
+      if (existsSync(builtPath)) {
+        workerPathWithDefault = builtPath;
+        logger.info(`[create:${id}] Using built worker path: ${builtPath}`);
+      } else {
+        workerPathWithDefault = sourcePath; // Fallback to source path for error message
+        logger.info(`[create:${id}] Neither source nor built path exists. Source: ${sourcePath}, Built: ${builtPath}`);
+      }
+    } else {
+      workerPathWithDefault = sourcePath;
+      logger.info(`[create:${id}] Using source worker path: ${sourcePath}`);
+    }
   }
   if (!workerPathWithDefault.startsWith("/")) {
     workerPathWithDefault = join("./", workerPathWithDefault);
   }
   // Ensure worker uses the same React version
   const workerData = {
-    userOptions: options.workerData.userOptions,
-    resolvedConfig: options.workerData.resolvedConfig,
-    reactVersion: options.workerData.reactVersion ?? React.version,
+    ...options.workerData,
     id: options.workerData.id ?? id,
-    serverManifest: options.workerData.serverManifest,
-    bundle: options.workerData.bundle,
   };
 
   try {
@@ -133,19 +157,52 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       logger.info(`[create:${id}] Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`);
     }
 
+    // Compute execArgv for the worker with exactly one --conditions flag
+    const stripConditionsFromArgv = (argv: string[]) => {
+      const out: string[] = [];
+      for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg === "--conditions" || arg === "-C") {
+          i++; // skip value
+          continue;
+        }
+        if (arg.startsWith("--conditions=")) {
+          continue;
+        }
+        out.push(arg);
+      }
+      return out;
+    };
+    const computedExecArgv = [
+      ...stripConditionsFromArgv(process.execArgv || []),
+      "--conditions",
+      reverseCondition,
+    ];
+    
+    // Always log the condition setup for debugging
+    logger.info(`[create:${id}] Setting up worker with reverse condition: ${reverseCondition}`);
+    logger.info(`[create:${id}] Computed execArgv: ${JSON.stringify(computedExecArgv)}`);
+    logger.info(`[create:${id}] Current NODE_OPTIONS: ${process.env["NODE_OPTIONS"]}`);
+
     const env = {
+      // Inherit all existing environment variables
+      ...process.env,
+      
+      // Override with our specific variables
       [envPrefix + "DEV"]: mode === "development" ? "1" : "0",
       [envPrefix + "MODE"]: mode,
       [envPrefix + "PROD"]: mode === "production" ? "1" : "0",
       [envPrefix + "SSR"]: "true",
       [envPrefix + "BASE_URL"]: workerData.userOptions.moduleBaseURL ?? "",
       [envPrefix + "PUBLIC_ORIGIN"]: workerData.userOptions.publicOrigin ?? "",
-      NODE_ENV: nodeEnv,
+      NODE_ENV: process.env["NODE_ENV"] ?? 'production',
       NODE_PATH: nodePath,
+      
+      // Ensure NODE_OPTIONS has the correct condition
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
         ? process.env["NODE_OPTIONS"]
-        : process.env["NODE_OPTIONS"]?.includes(currentCondition)
-        ? process.env["NODE_OPTIONS"]?.replace(
+        : currentCondition != null && process.env["NODE_OPTIONS"]?.includes(currentCondition)
+        ? process.env["NODE_OPTIONS"]?.replaceAll(
             currentCondition,
             reverseCondition
           )
@@ -155,9 +212,12 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       HTML_CHUNK_SIZE: htmlChunkSize.toString(),
     };
 
+    // Always log the NODE_OPTIONS for debugging
+    logger.info(`[create:${id}] Worker NODE_OPTIONS will be: ${env.NODE_OPTIONS}`);
+
     if (verbose) {
       logger.info(`[create:${id}] Environment variables: ${Object.keys(env).join(', ')}`);
-      logger.info(`[create:${id}] NODE_OPTIONS: ${env.NODE_OPTIONS}`);
+      logger.info(`[create:${id}] execArgv: ${computedExecArgv.join(' ')}`);
     }
 
     // Create worker with proper environment and loaders
@@ -248,12 +308,16 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
             workerPath: workerPathWithDefault,
           });
         }
+        reject({
+          type: "error",
+          error: new Error("Worker thread error", { cause: err }),
+          workerPath: workerPathWithDefault,
+        });
       });
     });
   } catch (error) {
     if (verbose) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[create:${id}] Caught error during worker creation: ${errorMessage}`, { error: error instanceof Error ? error : new Error(String(error)) });
+      logger.error(`[create:${id}] Caught error during worker creation: ${toError(error).message}`, { error: error instanceof Error ? error : new Error(String(error)) });
     }
     const panicError = handleError({
       error: error,

@@ -64,7 +64,10 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
                 error: resolvePageResult.error,
               });
             }
-            throw resolvePageResult.error;
+            if(resolvePageResult.error != null) {
+              throw resolvePageResult.error;
+            }
+            throw new Error("Failed to resolve page in props loader");
           }
           if (
             resolvePageResult.type === "success" &&

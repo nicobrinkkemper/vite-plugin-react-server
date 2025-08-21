@@ -3,7 +3,7 @@ import { resolve } from "path";
 import {  rm, writeFile } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
-import { doBuild } from "./doBuild.js";
+import { doBuild } from "../doBuild.js";
 
 describe("Custom Root Component - Function Path", () => {
   const testDir = resolve(__dirname, "../fixtures/custom-root-function.test");

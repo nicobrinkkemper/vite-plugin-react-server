@@ -14,21 +14,23 @@ export const pageAndPropFiles = ({
   }) => {
     if (!files) return inputs;
   
-    // Add page files without extra prefix
-    for (const [key, value] of files.pageMap) {
-      if (!inputs[key]) {
-        inputs[key] = value;
+    // Add page files using the file path as the key (not the normalized key)
+    for (const [, value] of files.pageMap) {
+      // Use the file path as the key so Vite can process it as an entry point
+      if (!inputs[value]) {
+        inputs[value] = value;
       } else {
-        console.warn(`[RSC] Page file already exists: ${key}`);
+        console.warn(`[RSC] Page file already exists: ${value}`);
       }
     }
   
-    // Add props files without extra prefix
-    for (const [key, value] of files.propsMap) {
-      if (!inputs[key]) {
-        inputs[key] = value;
+    // Add props files using the file path as the key (not the normalized key)
+    for (const [, value] of files.propsMap) {
+      // Use the file path as the key so Vite can process it as an entry point
+      if (!inputs[value]) {
+        inputs[value] = value;
       } else {
-        console.warn(`[RSC] Props file already exists: ${key}`);
+        console.warn(`[RSC] Props file already exists: ${value}`);
       }
     }
   

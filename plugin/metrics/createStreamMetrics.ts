@@ -1,4 +1,5 @@
 import type { CreateStreamMetricsFn } from "./types.js";
+import { performance } from "node:perf_hooks";
 
 export const createStreamMetrics: CreateStreamMetricsFn =
   function _createStreamMetrics(metrics) {

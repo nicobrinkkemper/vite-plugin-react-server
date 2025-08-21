@@ -61,8 +61,10 @@ export async function transformNonServerEnvironment(
   for (const node of ast.body) {
     if (node.type === "ExpressionStatement") {
       if (node.directive === "use client") {
+        // Remove "use client" directives in client environment
         rangesToRemove.push({ start: node.start, end: node.end });
       } else if (node.directive === "use server") {
+        // Throw error when "use server" directive is found in client environment
         throw new Error(
           "use server directive found in client module: " + moduleId
         );

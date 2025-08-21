@@ -1,6 +1,7 @@
-import React from "react";
 import type { HtmlComponentType, HtmlProps } from "../types.js";
 import { Css } from "./css.js";
+import React from 'react'
+
 
 export const Html: HtmlComponentType<any, any, any, any> = ({
   Root,

@@ -1,25 +1,25 @@
 /**
- * rscHandler.ts
+ * collectRscContent.ts
  *
- * PURPOSE: Handles collecting RSC content from the rscHeadless stream
+ * PURPOSE: Collects RSC content from a stream with metrics
  *
  * This module:
- * 1. Collects RSC content from the rscHeadless stream
- * 2. Returns the complete RSC content when the stream is done
- * 3. Provides a clean interface for RSC handling
+ * 1. Collects RSC content from the provided stream
+ * 2. Tracks metrics (chunks, bytes, duration)
+ * 3. Returns buffered content and metrics
+ * 4. Does NOT write files - that's the caller's responsibility
  */
 
 import { Transform } from "node:stream";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
-import { fileWriter } from "./fileWriter.js";
 import type { CollectRscContentFn } from "./types.js";
 
 /**
- * Collects RSC content from the rscHeadless stream
+ * Collects RSC content from a stream with metrics
  *
- * @param rscStream The stream containing the RSC content
+ * @param rsc The stream containing the RSC content
  * @param handlerOptions The options for the handler
- * @returns A promise that resolves with the complete RSC content and metrics
+ * @returns A promise that resolves with buffered content and metrics
  */
 export const collectRscContent: CollectRscContentFn =
   async function _collectRscContent(rsc, handlerOptions) {
@@ -41,77 +41,82 @@ export const collectRscContent: CollectRscContentFn =
       flush(callback) {
         metrics.duration = performance.now() - startTime;
         if (handlerOptions.verbose) {
-          handlerOptions.logger.info(`[collectRscContent] Transform flush: ${metrics.chunks} chunks, ${metrics.duration}ms`);
+          handlerOptions.logger.info(
+            `[collectRscContent] Transform flush: ${metrics.chunks} chunks, ${metrics.duration}ms`
+          );
         }
         callback();
       },
     });
 
-    let writePromise: Promise<void> | undefined;
-
     try {
-      // Set up error handling for route.error events
-      if (handlerOptions.onEvent) {
-        const originalOnEvent = handlerOptions.onEvent;
-        handlerOptions.onEvent = (event) => {
-          if (event.type === "route.error") {
-            if (handlerOptions.verbose) {
-              handlerOptions.logger.info(`[collectRscContent:${handlerOptions.route}] Route error: ${JSON.stringify(event.data.error)}`);
-            }
-            // Don't abort the stream immediately - let it complete naturally
-            // The error will be handled by the error handling logic in the build process
-          }
-          originalOnEvent(event);
-        };
-      }
-
-      // Pipe RSC stream through metrics tracking
-      rsc.pipe(metricsTransform);
-
-      // Set up file writing using fileWriter
-      writePromise = fileWriter(metricsTransform, "rsc", handlerOptions, handlerOptions.signal);
+      // Create a PassThrough stream to consume the transform
+      const { PassThrough } = await import("node:stream");
+      const consumer = new PassThrough();
+      
+      // Pipe RSC stream through metrics tracking to consumer
+      rsc.pipe(metricsTransform).pipe(consumer);
 
       // Wait for stream to complete with timeout
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           if (handlerOptions.verbose) {
-            handlerOptions.logger.info(`[collectRscContent] Stream timeout reached, forcing completion`);
+            handlerOptions.logger.info(
+              `[collectRscContent] Stream timeout reached, forcing completion`
+            );
           }
           resolve();
-        }, 3000); // 3 second timeout
+        }, handlerOptions.rscTimeout || 5000); // 5 second timeout
 
-        metricsTransform.on("end", () => {
+        consumer.on("end", () => {
           if (handlerOptions.verbose) {
-            handlerOptions.logger.info(`[collectRscContent] Stream ended with ${metrics.bytes} bytes`);
+            handlerOptions.logger.info(
+              `[collectRscContent] Stream ended with ${metrics.bytes} bytes`
+            );
           }
           clearTimeout(timeout);
           resolve();
         });
 
-        metricsTransform.on("error", (error) => {
+        consumer.on("error", (error) => {
           if (handlerOptions.verbose) {
-            handlerOptions.logger.info(`[collectRscContent] Stream error: ${error}`);
+            handlerOptions.logger.info(
+              `[collectRscContent] Stream error: ${error}`
+            );
           }
           clearTimeout(timeout);
           reject(error);
         });
       });
 
-      // Wait for file writing to complete
-      if (writePromise) await writePromise;
-
       if (handlerOptions.verbose) {
-        handlerOptions.logger.info(`[collectRscContent] File write completed with ${metrics.bytes} bytes`);
+        handlerOptions.logger.info(
+          `[collectRscContent] Collection completed with ${metrics.bytes} bytes`
+        );
       }
 
-      // Return the same interface as collectHtmlWorkerContent for consistency
-      // Also include the buffered content for reuse
-      return { 
-        pipe: rsc.pipe.bind(rsc), 
-        abort: rsc.abort.bind(rsc), 
+      // Create a readable stream from the buffered content that can be piped multiple times
+      const { Readable } = await import("node:stream");
+      const readableStream = new Readable({
+        read() {
+          // Push all buffered content
+          for (const chunk of rscBuffer) {
+            this.push(chunk);
+          }
+          this.push(null); // End the stream
+        }
+      });
+
+      // Return buffered content and metrics - file writing is caller's responsibility
+      return {
+        pipe: readableStream.pipe.bind(readableStream),
+        abort: (reason?: unknown) => {
+          rsc.abort(reason);
+          readableStream.destroy(reason as Error);
+        },
         metrics,
-        // Include buffered content for reuse by collectHtmlContent
-        bufferedContent: rscBuffer
+        // Include buffered content for reuse
+        bufferedContent: rscBuffer,
       };
     } catch (error) {
       if (handlerOptions.verbose) {
@@ -119,13 +124,9 @@ export const collectRscContent: CollectRscContentFn =
       }
       metricsTransform.destroy();
       rsc.abort(new Error("RSC Stream aborted"));
-      if (writePromise) {
-        try {
-          await writePromise;
-        } catch {
-          throw error;
-        }
+      if (error != null) {
+        throw error;
       }
-      throw error;
+      throw new Error("Failed to collect RSC content");
     }
   };

@@ -1,23 +1,57 @@
-import type {  VitePluginReactClientFn } from "../types.js";
+import type { VitePluginReactClientFn, StreamPluginOptions } from "../types.js";
+import type { Plugin } from "vite";
+import { resolveOptions } from "./config/resolveOptions.js";
+import { envPlugin } from "./env/plugin.client.js";
+import { createEnvironmentPlugin } from "./environments/createEnvironmentPlugin.js";
 import { reactClientPlugin } from "./react-client/plugin.client.js";
 import { reactServerPlugin } from "./react-server/plugin.client.js";
-import { envPlugin } from "./env/plugin.js";
-import { reactTransformPlugin } from "./transformer/plugin.client.js";
+import { createTransformerPlugin } from "./transformer/createTransformerPlugin.js";
 import { reactStaticPlugin } from "./react-static/plugin.client.js";
+import { createBuildEventPlugin } from "./environments/createBuildEventPlugin.js";
 
+// Build plugin - agnostic to condition
+function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
+  const resolvedOptionsResult = resolveOptions(options);
+  if (resolvedOptionsResult.type === "error") {
+    throw resolvedOptionsResult.error;
+  }
+  const userOptions = resolvedOptionsResult.userOptions;
+  
+  const plugins = [
+    envPlugin(options),
+    createEnvironmentPlugin(options),
+    createTransformerPlugin({
+      name: "client",
+      defaultEnvironment: "client",
+      allowedEnvironments: ["client", "ssr"], // Client transformer for static and client boundary
+    })(options),
+    reactClientPlugin(options),
+    createTransformerPlugin({
+      name: "server", 
+      defaultEnvironment: "server",
+      allowedEnvironments: ["server"], // Server transformer only for server components
+    })(options),
+    reactServerPlugin(options),
+    createBuildEventPlugin(options),
+  ];
+
+  // Add static generation support
+  if (userOptions.build?.pages) {
+    plugins.push(reactStaticPlugin(options));
+  }
+  
+  return plugins;
+}
 
 /**
- * Semantic import logic.
- * 
- * This is the main entrypoint for the client plugin, which helps to keep the namespace vitePluginReactServer
- * re-usable across all conditions. However, this is only the applied when using the MAIN entrypointm
- * when a user directly wrote vite-plugin-react-server/client it should assert the condition is react-client
- * 
- * Vite plugin for the React client, use same name to support dynamic import.
- * Includes:
- * - envPlugin
- * - reactClientPlugin
- * - reactStaticPlugin (handles static assets)
+ * Main entrypoint for React Server Components in client environment.
+ *
+ * This plugin adapts its behavior based on the build context:
+ * - In single builds: includes client plugin for client-side rendering
+ * - In app mode (--app): includes both client and server plugins for full RSC support
+ * - With static pages: adds static generation plugin when appropriate
+ *
+ * Use this for the most common case where you want RSC support in client environments.
  * @param options
  * @returns
  */
@@ -26,18 +60,9 @@ export const vitePluginReactServer: VitePluginReactClientFn =
     if (options == null) {
       throw new Error("options is required");
     }
-    
-    const plugins = [
-      envPlugin(),
-      reactTransformPlugin(options),
-      reactServerPlugin(options),
-    ];
-    // since this is the server plugin but it runs on the client, we need to add the react-client-static plugin
-    if (options.build?.pages) {
-      plugins.push(reactStaticPlugin(options));
-    }
-    
-    return plugins;
+
+    // Always include all plugins - they will be conditionally activated
+    return createBuildPlugin(options);
   };
 
 /**
@@ -49,16 +74,19 @@ export const vitePluginReactServer: VitePluginReactClientFn =
  * @returns
  */
 export const vitePluginReactClient: VitePluginReactClientFn =
-function _vitePluginReactClient(options) {
-  if (options == null) {
-    throw new Error("options is required");
-  }
-  
-  const plugins = [
-    envPlugin(),
-    reactTransformPlugin(options),
-    reactClientPlugin(options),
-  ];
-  
-  return plugins;
-};
+  function _vitePluginReactClient(options) {
+    if (options == null) {
+      throw new Error("options is required");
+    }
+
+    const plugins = [
+      envPlugin(options),
+      createTransformerPlugin({
+        name: "client",
+        defaultEnvironment: "client",
+      })(options),
+      reactClientPlugin(options),
+    ];
+
+    return plugins;
+  };

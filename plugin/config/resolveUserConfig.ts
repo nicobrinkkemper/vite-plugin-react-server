@@ -1,4 +1,4 @@
-import type { ConfigEnv, UserConfig } from "vite";
+import { createLogger, type ConfigEnv, type UserConfig } from "vite";
 import type {
   ResolvedUserConfig,
   ResolvedUserOptions,
@@ -8,8 +8,7 @@ import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
-import { envPrefixFromConfig } from "./envPrefixFromConfig.js";
-import { getEnvValue, setEnvValue, isSsrEnabled } from "../env/getEnvKey.js";
+import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
@@ -18,7 +17,7 @@ export type ResolveUserConfigProps = {
   config: UserConfig;
   configEnv: ConfigEnv;
   userOptions: ResolvedUserOptions;
-  autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "inputs" | "staticManifest">;
+  autoDiscoveredFiles: AutoDiscoveredFiles;
   forceResolve?: boolean;
   ssr?: boolean;
 };
@@ -44,20 +43,26 @@ export const resolveUserConfig: ResolveUserConfigFn =
     if (!forceResolve && originalConfig == null) {
       originalConfig = config;
     } else if (originalConfig != null && config !== originalConfig) {
-      if (userOptions.verbose) {
-        console.log("options changed, forcing re-resolve");
-      }
       forceResolve = true;
     }
-    const envPrefix = envPrefixFromConfig(config);
+    
     ssr =
       typeof ssr === "boolean"
         ? ssr
         : typeof config.build?.ssr === "boolean"
         ? config.build?.ssr
-        : Boolean(configEnv.isSsrBuild) ||
-          condition === "react-server" ||
-          isSsrEnabled(envPrefix);
+        : condition === "react-server"
+        ? true
+        : typeof configEnv.isSsrBuild === "boolean"
+        ? configEnv.isSsrBuild
+        : false;
+    
+    if (condition === "react-server" && !ssr) {
+      const logger = config.customLogger ?? createLogger();
+      logger.warn(
+        "react-server build should be ssr, but is was manually set to false. This may not work as expected."
+      );
+    }
     const envDir =
       condition === "react-client" && ssr
         ? userOptions.build.client
@@ -93,10 +98,9 @@ export const resolveUserConfig: ResolveUserConfigFn =
       if (value.startsWith(userOptions.moduleBasePath)) {
         value = value.slice(userOptions.moduleBasePath.length);
       }
-      const entry = autoDiscoveredFiles.staticManifest[value];
-      if (entry) {
-        return entry.file;
-      }
+      
+      // For now, just use the fallback since static manifest loading is complex
+      // The static manifest will be handled separately in the build process
       return fallback(info, true);
     };
 
@@ -124,27 +128,13 @@ export const resolveUserConfig: ResolveUserConfigFn =
 
       // First check if we have a static manifest entry for consistent module ID resolution
       const normalized = userOptions.normalizer(input);
-      const id = normalized[0];
       let value = normalized[1];
       if (value.startsWith(userOptions.moduleBasePath)) {
         value = value.slice(userOptions.moduleBasePath.length);
       }
 
-      const entry = autoDiscoveredFiles.staticManifest[value];
-      if (entry) {
-        // For CSS files, look for a specific CSS file that matches our normalized ID
-        if (entry?.name && userOptions.autoDiscover.cssPattern.test(value)) {
-          const found = entry.css?.find((css) => css.startsWith(id as string));
-          if (found) {
-            return join(userOptions.build.assetsDir, found);
-          } else {
-            return join(userOptions.build.assetsDir, entry.file);
-          }
-        } else {
-          // For other assets, use the entry file
-          return entry.file;
-        }
-      }
+      // Note: staticManifest is not available during auto-discovery phase
+      // It's loaded later during the build process
 
       // Fall back to the user's assetFile function for consistent behavior
       return fallback(info, ssr);
@@ -181,10 +171,16 @@ export const resolveUserConfig: ResolveUserConfigFn =
       : undefined;
 
     const stashedReturns: Record<string, string> = {};
+    // Rollup's preserveModulesRoot works in reverse of what you'd expect:
+    // - When user wants preservation (true): pass undefined to Rollup (don't strip anything)
+    // - When user wants stripping (false): pass moduleBase to Rollup (strip this path)
+    const preserveModulesRootString =
+      userOptions.build.preserveModulesRoot === false
+        ? userOptions.moduleBase // Strip src/ from output paths
+        : undefined; // Keep src/ in output paths
+
     const pluginOutput = {
-      preserveModulesRoot: userOptions.build.preserveModulesRoot
-        ? userOptions.moduleBase
-        : undefined,
+      preserveModulesRoot: preserveModulesRootString,
       entryFileNames:
         userDefinedEntryFileNames ??
         ((info) => {
@@ -208,9 +204,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
             Number(stashedReturns[inputId].startsWith("/"))
           );
         }),
-      assetFileNames: process.env["VITEST"]
-        ? undefined
-        : userDefinedAssetFileNames ??
+      assetFileNames: userDefinedAssetFileNames ??
           ((info) => {
             const input = info.originalFileNames[0];
             const inputId = input + (ssr ? "-ssr" : "");
@@ -273,16 +267,17 @@ export const resolveUserConfig: ResolveUserConfigFn =
     const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
 
     // Get environment variables (env vars take precedence over config)
-    const primaryPrefix = typeof vitePrefix === "string" ? vitePrefix : vitePrefix[0];
+    const primaryPrefix =
+      typeof vitePrefix === "string" ? vitePrefix : vitePrefix[0];
     const envBaseUrl = getEnvValue("BASE_URL", primaryPrefix);
-    const effectiveModuleBaseURL = envBaseUrl != null && envBaseUrl !== "" 
-      ? envBaseUrl 
-      : userOptions.moduleBaseURL;
-    
+    const effectiveModuleBaseURL =
+      envBaseUrl != null && envBaseUrl !== ""
+        ? envBaseUrl
+        : userOptions.moduleBaseURL;
+
     const envPublicOrigin = getEnvValue("PUBLIC_ORIGIN", primaryPrefix);
-    const effectivePublicOrigin = envPublicOrigin != null 
-      ? envPublicOrigin 
-      : userOptions.publicOrigin;
+    const effectivePublicOrigin =
+      envPublicOrigin != null ? envPublicOrigin : userOptions.publicOrigin;
 
     const nodeEnv = getNodeEnv();
     let mode =
@@ -299,10 +294,11 @@ export const resolveUserConfig: ResolveUserConfigFn =
     }
 
     // Calculate effective values based on command and environment
-    const effectiveProjectRoot = typeof config.root === "string" && userOptions.projectRoot !== config.root
-      ? config.root
-      : userOptions.projectRoot;
-    
+    const effectiveProjectRoot =
+      typeof config.root === "string" && userOptions.projectRoot !== config.root
+        ? config.root
+        : userOptions.projectRoot;
+
     // Calculate moduleRootPath based on command and environment
     // During serve (development): use moduleBasePath (source paths)
     // During build (production): use build output paths
@@ -329,9 +325,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         effectiveModuleRootPath = join(
           effectiveModuleRootPath,
           userOptions.moduleBase,
-          (userOptions.moduleBasePath === ""
-            ? "/"
-            : userOptions.moduleBasePath)
+          userOptions.moduleBasePath === "" ? "/" : userOptions.moduleBasePath
         );
       }
     }
@@ -365,9 +359,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         ? config.server?.host
         : "localhost";
     const base =
-      effectiveModuleBaseURL ??
-      config.base ??
-      DEFAULT_CONFIG.MODULE_BASE_URL;
+      effectiveModuleBaseURL ?? config.base ?? DEFAULT_CONFIG.MODULE_BASE_URL;
     if (configEnv.command === "serve" && !configEnv.isPreview) {
       if (strictPort) {
         publicOrigin = `http${
@@ -377,14 +369,16 @@ export const resolveUserConfig: ResolveUserConfigFn =
         publicOrigin = "";
       }
     }
-    const ssrDefine = {};
+    const ssrDefine = {
+      [`process.env.${primaryPrefix}BASE_URL`]: `"${base}"`,
+      [`process.env.${primaryPrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
+    };
     const define = {
       ...config.define,
       [`import.meta.env.BASE_URL`]: `"${base}"`,
       [`import.meta.env.PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
       ...ssrDefine,
     };
-
     // Set process.env values to ensure they're available in process.env for server-side code
     if (!getEnvValue("BASE_URL", primaryPrefix)) {
       setEnvValue("BASE_URL", base, primaryPrefix);
@@ -437,8 +431,14 @@ export const resolveUserConfig: ResolveUserConfigFn =
           minify: minify,
           rollupOptions: {
             ...config.build?.rollupOptions,
+            // Use HTML + client entries for non-SSR client builds (static)
+            // and pure client module entries for SSR client builds.
             input: Object.fromEntries(
-              Object.entries(autoDiscoveredFiles.inputs).map(([key, value]) => [
+              Object.entries(
+                ssr
+                  ? autoDiscoveredFiles.clientInputs
+                  : autoDiscoveredFiles.staticInputs
+              ).map(([key, value]) => [
                 key,
                 value.slice(Number(value.startsWith("/"))),
               ])
@@ -447,6 +447,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
             preserveEntrySignatures:
               config.build?.rollupOptions?.preserveEntrySignatures ??
               "exports-only",
+            external: config.build?.rollupOptions?.external ?? ["fsevents"],
           },
           ssr: ssr,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
@@ -494,6 +495,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
             typeof config.build?.ssrEmitAssets === "boolean"
               ? config.build?.ssrEmitAssets
               : true,
+
           copyPublicDir:
             typeof config.build?.copyPublicDir === "boolean"
               ? config.build?.copyPublicDir
@@ -506,10 +508,49 @@ export const resolveUserConfig: ResolveUserConfigFn =
               : true,
           rollupOptions: {
             ...config.build?.rollupOptions,
-            input: autoDiscoveredFiles.inputs,
+            input: autoDiscoveredFiles.serverInputs,
             preserveEntrySignatures:
               config.build?.rollupOptions?.preserveEntrySignatures ?? "strict",
-            output: newOutput,
+            // Externalize core React deps for the server bundle
+            external: config.build?.rollupOptions?.external ?? [
+              "react",
+              "react/jsx-runtime",
+              "react/jsx-dev-runtime",
+              "react-dom",
+              "react-server-dom-esm/server.node",
+            ],
+            // Server output should be stable and un-hashed; do not remap via client manifest
+            output: {
+              ...((Array.isArray(config.build?.rollupOptions?.output)
+                ? undefined
+                : (config.build?.rollupOptions?.output as any)) || {}),
+              entryFileNames: (info: any) => `${info.name}.js`,
+              chunkFileNames: (info: any) => `${info.name}.js`,
+              assetFileNames: (info: any) =>
+                join(
+                  userOptions.build.assetsDir,
+                  info.names?.[0] ?? info.name ?? "asset"
+                ),
+            },
+            // Configure Rollup context for server builds to use react-server conditions
+            context: "module",
+            // Set Node.js conditions for server builds
+            plugins: [
+              ...(Array.isArray(config.build?.rollupOptions?.plugins) 
+                ? config.build.rollupOptions.plugins 
+                : config.build?.rollupOptions?.plugins 
+                ? [config.build.rollupOptions.plugins] 
+                : []),
+              {
+                name: "react-server-conditions",
+                buildStart() {
+                  // Ensure react-server condition is available during server builds
+                  if (condition === "react-server") {
+                  //  process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || "") + " --conditions react-server";
+                  }
+                }
+              }
+            ],
           },
         },
       } satisfies ResolvedUserConfig;

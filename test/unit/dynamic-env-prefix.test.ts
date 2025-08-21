@@ -280,6 +280,13 @@ describe('Dynamic Environment Prefix System', () => {
       expect(getEnvValue('MODE', 'custom_')).toBe(undefined);
       expect(getEnvValue('MODE', 'CUSTOM_')).toBe('uppercase');
     });
+    it('should be case sensitive', () => {
+      process.env.custom_mode = 'lowercase';
+      process.env.CUSTOM_MODE = 'uppercase';
+
+      expect(getEnvValue('MODE', 'custom_')).toBe(undefined);
+      expect(getEnvValue('MODE', 'CUSTOM_')).toBe('uppercase');
+    });
   });
 
   describe('Constants validation', () => {

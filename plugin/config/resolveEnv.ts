@@ -102,10 +102,7 @@ export function resolveEnv(
         mergedEnv[modeKey] = modeValue;
       } else {
         // Fallback to default mode
-        mergedEnv[modeKey] =
-          process.env["NODE_ENV"] === "production"
-            ? "production"
-            : "development";
+        mergedEnv[modeKey] = getNodeEnv();
       }
     }
   }

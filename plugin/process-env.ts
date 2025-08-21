@@ -6,6 +6,9 @@ declare global {
     interface ProcessEnv {
       // Base environment variables (these use the configured prefix)
       [key: string]: string | undefined;
+      
+      // React Server Components conditions
+      NODE_OPTIONS?: string;
     }
   }
 }

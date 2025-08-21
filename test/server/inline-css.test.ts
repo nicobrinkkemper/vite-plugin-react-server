@@ -3,7 +3,7 @@ import { resolve } from "path";
 import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
-import { doBuild } from "./doBuild.js";
+import { doBuild } from "../doBuild.js";
 
 describe("Plugin Inline Css Event hooks", () => {
   const testDir = resolve(__dirname, '../fixtures/inline-css.test');
@@ -48,7 +48,7 @@ describe("Plugin Inline Css Event hooks", () => {
   
   afterAll(async () => {
     try {
-      await rm(testDir, { recursive: true, force: true });
+      // await rm(testDir, { recursive: true, force: true });
     } catch {
     }
   });

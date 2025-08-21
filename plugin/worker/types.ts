@@ -1,7 +1,8 @@
 import type { MessagePort } from "node:worker_threads";
-import type { CreateHandlerOptions, StreamMetrics } from "../types.js";
+import type { CreateHandlerOptions, RenderMetrics } from "../types.js";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import type { RscRenderMessage, RscWorkerOutputMessage } from "./rsc/types.js";
+import type { ModuleResolutionMetrics, WorkerStartupMetrics } from "../metrics/types.js";
 
 // Base message types
 export type WorkerMessage = {
@@ -116,8 +117,6 @@ export type HtmlRenderMessage = {
     | "url"
     | "verbose"
     | "panicThreshold"
-    | "cssFiles"
-    | "globalCss"
   >;
 
 export type AbortMessage = {
@@ -153,11 +152,7 @@ export type ServerOnlyStreamHandlers = {
     result?: unknown,
     error?: string
   ) => void;
-  onError: (
-    id: string,
-    error: unknown,
-    errorInfo?: never
-  ) => void;
+  onError: (id: string, error: unknown, errorInfo?: never) => void;
 };
 
 // Common handlers
@@ -170,7 +165,7 @@ export type StreamHandlers<
   onShellError: (id: string, error: unknown) => void;
   onData: (id: string, data: Uint8Array) => void;
   onEnd: (id: string) => void;
-  onMetrics: (id: string, metrics: StreamMetrics) => void;
+  onMetrics: (id: string, metrics: RenderMetrics<'rsc-full' | 'rsc-headless' | 'html'> | WorkerStartupMetrics | ModuleResolutionMetrics) => void;
   onHmrAccept: (id: string, routes?: string[]) => void;
   onHmrUpdate: (id: string, routes?: string[]) => void;
   onShutdown?: (id: string) => void;
@@ -178,8 +173,8 @@ export type StreamHandlers<
   onCleanup?: (id: string) => void;
 };
 
-export type ClientStreamHandlers = StreamHandlers<'client'>;
-export type ServerStreamHandlers = StreamHandlers<'server'>;
+export type ClientStreamHandlers = StreamHandlers<"client">;
+export type ServerStreamHandlers = StreamHandlers<"server">;
 
 export type SendMessageFn = (
   msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage,

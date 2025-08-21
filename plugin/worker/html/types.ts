@@ -1,5 +1,5 @@
 import type { PassThrough, Transform } from "stream";
-import type { StreamMetrics } from "../../types.js";
+import type { RenderMetrics, StreamMetrics } from "../../types.js";
 import type { 
   ErrorMessage,
   ShellReadyMessage,
@@ -61,7 +61,7 @@ export type HtmlCompleteMessage = {
 export type HtmlMetricsMessage = {
   type: "HTML_METRICS";
   id: string;
-  metrics: StreamMetrics;
+  metrics: RenderMetrics & { type: "html" };
 }
 
 export type LogErrorMessage = {
@@ -161,6 +161,7 @@ export type HandleHtmlRenderFn = (
     id: string;
     route: string;
     rscStream: PassThrough;
+    htmlStream: PassThrough;
     projectRoot?: string;
     moduleRootPath?: string;
     moduleBasePath?: string;

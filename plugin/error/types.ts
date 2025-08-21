@@ -6,7 +6,7 @@ import type { Logger } from "vite";
  */
 export interface HandleErrorOptions {
   error: unknown;
-  errorInfo?: ErrorInfo;
+  errorInfo?: ErrorInfo | null;
   logger?: Logger | Console;
   mode?: "development" | "production" | "test";
   panicThreshold?: "none" | "critical_errors" | "all_errors";

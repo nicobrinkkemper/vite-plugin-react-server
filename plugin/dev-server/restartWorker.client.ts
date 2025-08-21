@@ -57,7 +57,7 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
         resolvedConfig: serializedDevServerConfig(server.config),
         reactVersion: React.version,
         id: "worker/rsc",
-        serverManifest: autoDiscoveredFiles.staticManifest || {},
+        serverManifest: {}, // staticManifest removed from AutoDiscoveredFiles
       },
       transferList: [workerHmrChannel.port2],
     });

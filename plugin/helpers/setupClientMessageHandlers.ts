@@ -1,6 +1,7 @@
 import type { RscWorkerOutputMessage } from "../worker/rsc/types.js";
 import { getStashedRscStream, clearStashedRscStream } from "../config/stashedOptionsState.js";
 import type { Logger } from "vite";
+import { toError } from "../error/toError.js";
 
 export type SetupClientMessageHandlersOptions = {
   worker: any; // Worker thread
@@ -83,7 +84,7 @@ export const setupClientMessageHandlers: SetupClientMessageHandlersFn = function
         const errorMessage = typeof message.error === 'object' && message.error !== null && 'message' in message.error 
           ? String(message.error.message) 
           : 'Unknown error';
-        logger?.error(`Worker error for ${message.id}: ${errorMessage}`);
+        logger?.error(`Worker error for ${message.id}: ${errorMessage}`, {error: toError(message.error)});
         break;
       }
 

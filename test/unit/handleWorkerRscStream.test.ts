@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleRscStream } from '../../dist/plugin/dev-server/handleRscStream.client.js';
+import { handleRscStream } from '../../dist/plugin/stream/handleRscStream.client.js';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import type { StreamHandlers } from '../../dist/plugin/worker/types.js';
-import type { RscRenderOpt } from '../../dist/plugin/worker/rsc/types.js';
 
 // Mock the stashed options state module
 vi.mock('../../dist/plugin/config/stashedOptionsState.js', () => ({
@@ -41,7 +40,7 @@ vi.mock('../../dist/plugin/config/getNodeEnv.js', () => ({
 describe('handleWorkerRscStream', () => {
   let mockWorker: Worker;
   let mockLogger: Logger;
-  let mockHandlers: StreamHandlers;
+  let mockHandlers: StreamHandlers<"server">;
   let mockMessageHandler: (msg: unknown) => void;
 
   beforeEach(() => {
@@ -75,8 +74,6 @@ describe('handleWorkerRscStream', () => {
       onMetrics: vi.fn(),
       onHmrAccept: vi.fn(),
       onHmrUpdate: vi.fn(),
-      onServerAction: vi.fn(),
-      onServerActionResponse: vi.fn(),
       onCssFile: vi.fn(),
       onShellError: vi.fn(),
       onRscRender: vi.fn(),
@@ -87,7 +84,7 @@ describe('handleWorkerRscStream', () => {
     vi.clearAllMocks();
   });
 
-  const createMessage = (route: string): RscRenderOpt => ({
+  const createMessage = (route: string) => ({
     route,
     moduleBase: 'src',
     moduleRootPath: 'dist/client/',
@@ -101,10 +98,11 @@ describe('handleWorkerRscStream', () => {
     htmlExportName: 'Html',
     pagePath: 'src/pages/test.tsx',
     propsPath: 'src/pages/test.props.ts',
+    HtmlComponent: undefined, // Add missing required property
     serverPipeableStreamOptions: {},
     clientPipeableStreamOptions: {},
     verbose: false,
-    panicThreshold: 'none',
+    panicThreshold: 'none' as const,
     rscTimeout: 1000,
     rscWorkerPath: 'dist/worker/rsc-worker.js',
     htmlTimeout: 1000,
@@ -129,8 +127,8 @@ describe('handleWorkerRscStream', () => {
     manifest: {},
     cssFiles: new Map(),
     globalCss: new Map(),
-    type: 'RSC_RENDER',
-    id: expect.stringContaining(`${route}-`),
+    type: 'RSC_RENDER' as const,
+    id: expect.stringMatching(new RegExp(`^${route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d+-[a-z0-9]+$`)),
   });
 
   it('should handle RSC stream correctly', async () => {
@@ -140,11 +138,11 @@ describe('handleWorkerRscStream', () => {
     // Call the function and get the stream
     const stream = handleRscStream({
       worker: mockWorker,
-      message,
+      options: message,
       logger: mockLogger,
       handlers: mockHandlers,
       verbose: false,
-      panicThreshold: 'none',
+      panicThreshold: 'none' as const,
       rscTimeout: 1000
     });
 
@@ -227,7 +225,7 @@ describe('handleWorkerRscStream', () => {
 
     const stream = handleRscStream({
       worker: mockWorker,
-      message,
+      options: message,
       logger: mockLogger,
       handlers: mockHandlers,
       verbose: false,
@@ -316,7 +314,7 @@ describe('handleWorkerRscStream', () => {
 
     const stream = handleRscStream({
       worker: mockWorker,
-      message,
+      options: message,
       logger: mockLogger,
       handlers: mockHandlers,
       verbose: false,

@@ -47,7 +47,7 @@ export const handlers: ClientStreamHandlers = {
     sendMessage({
       type: "HTML_METRICS",
       id: id,
-      metrics: metrics,
+      metrics: metrics as any,
     });
   },
   onHmrAccept: (id, routes) => {

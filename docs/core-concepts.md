@@ -1,10 +1,33 @@
 # Core Concepts
 
-This document explains the fundamental concepts and architecture of the Vite React Server Plugin.
+This document explains the fundamental concepts and implementation of the Vite React Server Plugin, which uses **React conditions** to provide optimal execution environments for both client and server contexts.
+
+## React Conditions
+
+The plugin uses Node.js conditions to dynamically load the appropriate implementation for each execution environment:
+
+### Condition-Based Module Loading
+
+The plugin automatically detects the execution environment and loads the correct implementation:
+
+```typescript
+// Automatic condition detection and module loading
+import { getCondition } from './config/getCondition.js';
+
+const condition = getCondition(); // Returns 'client' or 'server'
+const { vitePluginReactServer, vitePluginReactClient } = await import(`./plugin.${condition}.js`);
+```
+
+### Execution Environments
+
+| Environment | Condition | Use Case | Implementation |
+|-------------|-----------|----------|----------------|
+| **Client** | `null` (default) | Browser, client-side builds | Client-specific modules |
+| **Server** | `react-server` | Server-side rendering, RSC processing | Server-specific modules |
 
 ## Development Modes & Conditions
 
-The plugin provides two development modes that offer **identical user experiences** but differ in their internal architecture:
+The plugin provides two development modes that offer **identical user experiences** but differ in their internal implementation:
 
 ### Development Modes
 
@@ -13,7 +36,7 @@ Both modes start your application in the browser and provide the same developmen
 #### **RSC Worker Mode** (Default)
 **Condition:** `null` (no special condition)  
 **Command:** `vite` or `npm run dev:client`  
-**Internal Architecture:** Uses RSC worker thread
+**Internal Implementation:** Uses RSC worker thread
 
 ```mermaid
 graph TD
@@ -36,7 +59,7 @@ graph TD
 #### **Direct Server Mode** (Optimized)
 **Condition:** `react-server`  
 **Command:** `NODE_OPTIONS="--conditions react-server" vite` or `npm run dev`  
-**Internal Architecture:** Direct main thread processing
+**Internal Implementation:** Direct main thread processing
 
 ```mermaid
 graph TD
@@ -83,6 +106,53 @@ graph TD
 
 **Note:** The HTML worker is only used during builds, not during development. There's no RSC worker → HTML worker communication in development mode.
 
+## Module Structure
+
+The plugin uses React conditions with the following structure:
+
+### Core Plugin Modules
+
+```
+plugin/
+├── index.ts                    # Main entry point with condition detection
+├── plugin.client.ts            # Client environment implementation
+├── plugin.server.ts            # Server environment implementation
+├── plugin.ts                   # Condition-based module loader
+└── types.ts                    # Shared type definitions
+```
+
+### Feature-Specific Modules
+
+Each feature area follows the same pattern:
+
+```
+plugin/dev-server/
+├── index.ts                    # Condition-based loader
+├── index.client.ts             # Client implementation
+├── index.server.ts             # Server implementation
+├── configureReactServer.ts     # Condition-based loader
+├── configureReactServer.client.ts
+├── configureReactServer.server.ts
+├── createRscStream.ts          # Condition-based loader
+├── createRscStream.client.ts
+├── createRscStream.server.ts
+└── types.ts                    # Shared types
+```
+
+### Condition Detection
+
+The plugin automatically detects the execution environment:
+
+```typescript
+import { getCondition } from './config/getCondition.js';
+
+// Returns 'client' or 'server' based on Node.js conditions
+const condition = getCondition();
+
+// Dynamically import the appropriate implementation
+const implementation = await import(`./module.${condition}.js`);
+```
+
 ## Environment Detection
 
 The plugin uses Node.js conditions to determine execution context:
@@ -90,7 +160,7 @@ The plugin uses Node.js conditions to determine execution context:
 ```typescript
 import { getCondition } from "vite-plugin-react-server/config";
 
-const condition = getCondition('')
+const condition = getCondition();
 const dirname = new URL('.', import.meta.url).pathname;
 const createRscStream = await import(`${dirname}/createRscStream.${condition}.js`);
 const createHandler = await import(`${dirname}/createHandler.${condition}.js`);
@@ -98,23 +168,33 @@ const createHandler = await import(`${dirname}/createHandler.${condition}.js`);
 export { createRscStream, createHandler };
 ```
 
-- **`react-server`**: Server-side rendering and React Server Components
-- **`react-client`**: Client-side rendering and hydration
-- **`null`**: Standard browser environment
+### Condition Resolution
 
-## Client-Server Separation
+The plugin resolves conditions based on the following hierarchy:
 
-The plugin operates with a clear separation between client and server contexts:
+1. **Explicit condition**: When `NODE_OPTIONS="--conditions react-server"` is set
+2. **Default condition**: `null` (client environment) when no explicit condition is set
+3. **Build-time detection**: Automatic detection during build processes
 
-### Execution Modes
+### Module Loading Strategy
 
-```bash
-# Server mode - direct React pipeline
-NODE_OPTIONS="--conditions react-server" vite
+Each module follows this pattern:
 
-# Client mode - uses worker threads
-vite
+```typescript
+// module.ts - Condition-based loader
+import { getCondition } from './config/getCondition.js';
+
+const condition = getCondition();
+const { defaultImplementation } = await import(`./module.${condition}.js`);
+
+export default defaultImplementation;
 ```
+
+This approach ensures that:
+- **Client environments** get lightweight, browser-compatible implementations
+- **Server environments** get full-featured RSC processing capabilities
+- **Build processes** automatically use the correct implementation
+- **No runtime overhead** from unused server code in client environments
 
 ## React Server Components (RSC)
 
@@ -126,7 +206,7 @@ The plugin processes RSC streams through a pipeline:
 2. **Stream Transformation**: RSC stream converted to HTML via workers
 3. **HTML Output**: Final HTML written to bundle
 
-There's two type of streams the plugin is able to generate:
+There are two types of streams the plugin can generate:
 
 #### Headless RSC streams
 
@@ -154,7 +234,7 @@ const htmlStream = createRscToHtmlStream({
 rscStream.pipe(htmlStream);
 ```
 
-## Plugin Architecture
+## Plugin Implementation
 
 ### Core Components
 
@@ -490,56 +570,20 @@ The plugin tracks performance metrics throughout the build process to help ident
 <!-- Auto-generated TOC - Do not edit manually -->
 
 
+
 1.	[Getting Started](./getting-started.md)
-	- [Installation and Setup](./getting-started.md#installation-and-setup)
-	- [Basic Configuration](./getting-started.md#basic-configuration)
-	- [Example Projects](./getting-started.md#example-projects)
 2.	**[Core Concepts](./core-concepts.md) ← you are here**
-	- [Client-Server Separation](./core-concepts.md#client-server-separation)
-	- [React Server Components](./core-concepts.md#react-server-components)
-	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
 3.	[Configuration Guide](./configuration.md)
-	- [Plugin Options](./configuration.md#plugin-options)
-	- [Routing Configuration](./configuration.md#routing-configuration)
-	- [Build Configuration](./configuration.md#build-configuration)
 4.	[CSS & Styling](./css-handling.md)
-	- [CSS Collectors](./css-handling.md#css-collectors)
-	- [Inline CSS](./css-handling.md#inline-css)
-	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
 5.	[Server Actions](./server-actions.md)
-	- [Creating Server Actions](./server-actions.md#creating-server-actions)
-	- [Client Integration](./server-actions.md#client-integration)
-	- [Error Handling](./server-actions.md#error-handling)
-	- [Database Integration](./server-actions.md#database-integration)
 6.	[Build & Deployment](./build-orchestration.md)
-	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
-	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
-	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
 7.	[Advanced Development](./advanced-topics.md)
-	- [Custom Workers](./advanced-topics.md#custom-workers)
-	- [Message System](./advanced-topics.md#message-system)
-	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
 8.	[Plugin Internals](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
 9.	[Worker System](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
 10.	[API Reference](./api-reference.md)
-	- [Plugin Options](./api-reference.md#plugin-options)
-	- [Component Props](./api-reference.md#component-props)
-	- [Worker Messages](./api-reference.md#worker-messages)
-	- [Type Definitions](./api-reference.md#type-definitions)
 11.	[React Compatibility](./react-type-compatibility.md)
-	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
-	- [Generic Types](./react-type-compatibility.md#generic-types)
-	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-	- [Common Issues](./troubleshooting-guide.md#common-issues)
-	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
-	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
+13.	[Testing](./testing.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

@@ -2,6 +2,7 @@ import type { ServerStreamHandlers } from "../types.js";
 import { sendMessage } from "../sendMessage.js";
 import { serializeError } from "../../error/serializeError.js";
 import { serializeErrorInfo } from "../../error/serializeErrorInfo.js";
+import type { RenderMetrics } from "../../types.js";
 
 /**
  * Maps what should happen when a message is received from the worker thread messageHandler
@@ -43,10 +44,13 @@ export const handlers: ServerStreamHandlers = {
     });
   },
   onMetrics: (id, metrics) => {
+    if(metrics.type === "html") {
+      return;
+    }
     sendMessage({
       type: "RSC_METRICS",
       id: id,
-      metrics,
+      metrics: metrics as RenderMetrics & { type: "rsc-full" | "rsc-headless" },
     });
   },
   onHmrAccept: (id, routes) => {

@@ -1,14 +1,18 @@
 import { getCondition } from "./plugin/config/getCondition.js";
-import type { VitePluginMainFn } from "./plugin/types.js";
+import type {
+  VitePluginReactClientFn,
+  VitePluginReactServerFn,
+} from "./plugin/types.js";
 
 const condition = getCondition("");
-const dir = new URL(".", import.meta.url.split("/").slice(0, -1).join("/"))
-  .pathname;
+// no trailing slash
+const dir = new URL("./", import.meta.url).pathname.replace(/\/$/, "");
 
-export const vitePluginReactServer = (await import(
+export const { vitePluginReactServer, vitePluginReactClient } = (await import(
   `${dir}/plugin/plugin.${condition}.js`
 )) as {
-  vitePluginReactServer: VitePluginMainFn;
+  vitePluginReactServer: VitePluginReactServerFn;
+  vitePluginReactClient: VitePluginReactClientFn;
 };
 
 // types

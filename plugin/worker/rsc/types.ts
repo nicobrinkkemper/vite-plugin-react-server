@@ -1,9 +1,10 @@
 import type { Logger } from "vite";
 import type {
   CreateHandlerOptions,
+  CssContent,
+  RenderMetrics,
   ResolvedUserOptions,
   SerializableRecord,
-  StreamMetrics,
 } from "../../types.js";
 import type {
   WorkerMessage,
@@ -22,11 +23,11 @@ import type {
 } from "../types.js";
 import type { PassThrough } from "node:stream";
 
-export type HandleRscRenderOptions = RscRenderOpt & {logger?: Logger; stream?: PassThrough};
+export type HandleRscRenderOptions = RscRenderOpt & {logger?: Logger; stream?: PassThrough, url: string, id: string, route: string};
 
 export type HandleRscRenderFn = <Opt extends HandleRscRenderOptions = HandleRscRenderOptions>(
   options: Opt,
-  handlers: StreamHandlers,
+  handlers: StreamHandlers<"server">,
   overrideStream?: PassThrough
 ) => void;
 
@@ -66,7 +67,7 @@ export type RscEndMessage = {
 export type RscMetricsMessage = {
   type: "RSC_METRICS";
   id: string;
-  metrics: StreamMetrics;
+  metrics: RenderMetrics & { type: "rsc-full" | "rsc-headless" };
 } & WorkerMessage;
 
 export type CssFileMessage = {
@@ -120,6 +121,8 @@ export type RscRenderOpt = WorkerMessage & {
     | "url"
     | "logger"
   > & {
+    cssFiles?: Map<string, CssContent>;
+    globalCss?: Map<string, CssContent>;
     url?: string;
     build: Omit<
       CreateHandlerOptions<ResolvedUserOptions>["build"],
@@ -186,6 +189,13 @@ export type ServerModuleMessage = {
   source: string;
 } & WorkerMessage;
 
+export type StoreHeadlessElementsMessage = {
+  type: "STORE_HEADLESS_ELEMENTS";
+  id: string;
+  route: string;
+  elements: Uint8Array; // Serialized React elements from headless stream
+} & WorkerMessage;
+
 export type RscWorkerInputMessage =
   | RscRenderMessage
   | CssFileMessage
@@ -204,4 +214,5 @@ export type RscWorkerInputMessage =
   | ServerActionMessage
   | ServerActionResponseMessage
   | ServerModuleMessage
-  | AbortMessage;
+  | AbortMessage
+  | StoreHeadlessElementsMessage;

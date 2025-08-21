@@ -4,7 +4,7 @@ This document covers advanced topics for the Vite React Server Plugin, including
 
 ## Custom Workers
 
-The plugin uses a worker-based architecture for processing React Server Components and generating HTML. You can customize these workers to add your own functionality.
+The plugin uses a worker-based system for processing React Server Components and generating HTML. You can customize these workers to add your own functionality.
 
 ### Worker Types
 
@@ -352,7 +352,7 @@ const htmlStream = createHtmlStream({
 });
 ```
 
-### Architecture
+### Implementation
 
 Stream helpers are built on top of React's streaming APIs:
 
@@ -650,56 +650,20 @@ Compose multiple plugins for complex workflows:
 <!-- Auto-generated TOC - Do not edit manually -->
 
 
+
 1.	[Getting Started](./getting-started.md)
-	- [Installation and Setup](./getting-started.md#installation-and-setup)
-	- [Basic Configuration](./getting-started.md#basic-configuration)
-	- [Example Projects](./getting-started.md#example-projects)
 2.	[Core Concepts](./core-concepts.md)
-	- [Client-Server Separation](./core-concepts.md#client-server-separation)
-	- [React Server Components](./core-concepts.md#react-server-components)
-	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
 3.	[Configuration Guide](./configuration.md)
-	- [Plugin Options](./configuration.md#plugin-options)
-	- [Routing Configuration](./configuration.md#routing-configuration)
-	- [Build Configuration](./configuration.md#build-configuration)
 4.	[CSS & Styling](./css-handling.md)
-	- [CSS Collectors](./css-handling.md#css-collectors)
-	- [Inline CSS](./css-handling.md#inline-css)
-	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
 5.	[Server Actions](./server-actions.md)
-	- [Creating Server Actions](./server-actions.md#creating-server-actions)
-	- [Client Integration](./server-actions.md#client-integration)
-	- [Error Handling](./server-actions.md#error-handling)
-	- [Database Integration](./server-actions.md#database-integration)
 6.	[Build & Deployment](./build-orchestration.md)
-	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
-	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
-	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
 7.	**[Advanced Development](./advanced-topics.md) ← you are here**
-	- [Custom Workers](./advanced-topics.md#custom-workers)
-	- [Message System](./advanced-topics.md#message-system)
-	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
 8.	[Plugin Internals](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
 9.	[Worker System](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
 10.	[API Reference](./api-reference.md)
-	- [Plugin Options](./api-reference.md#plugin-options)
-	- [Component Props](./api-reference.md#component-props)
-	- [Worker Messages](./api-reference.md#worker-messages)
-	- [Type Definitions](./api-reference.md#type-definitions)
 11.	[React Compatibility](./react-type-compatibility.md)
-	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
-	- [Generic Types](./react-type-compatibility.md#generic-types)
-	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-	- [Common Issues](./troubleshooting-guide.md#common-issues)
-	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
-	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
+13.	[Testing](./testing.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

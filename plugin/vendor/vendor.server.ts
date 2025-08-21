@@ -1,11 +1,7 @@
-import { workerData } from "node:worker_threads";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { assertReactServer } from "../config/getCondition.js";
 
-assertReactServer()
-
-const projectRoot = workerData?.projectRoot || process.env["npm_config_local_prefix"] || process.cwd();
+const projectRoot = process.env["npm_config_local_prefix"] || process.cwd();
 const nodeRequire = createRequire(join(projectRoot, "package.json"));
 
 // Import ReactDOM from the project's node_modules

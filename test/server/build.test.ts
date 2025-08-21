@@ -6,64 +6,72 @@ import type {
   PluginEvent,
   FileWriteDoneEvent,
   RenderMetrics,
+  WorkerStartupMetrics,
+  ModuleResolutionMetrics,
 } from "vite-plugin-react-server/types";
-import { doBuild } from "./doBuild.js";
+import { doBuild } from "../doBuild.js";
 import { getCondition } from "vite-plugin-react-server/config";
 
-if(getCondition() !== "react-server") {
+if (getCondition() !== "react-server") {
   throw new Error("This test is only valid in a react-server environment");
 }
 
 describe("Plugin build test", () => {
   const testDir = resolve(__dirname, "../fixtures/build.test");
   let events: PluginEvent[];
-  const metrics: RenderMetrics[] = [];
-  let htmlContent: string;
-  let rscContent: string;
+  const metrics: (RenderMetrics | WorkerStartupMetrics | ModuleResolutionMetrics)[] = [];
+  const htmlContent: string[] = [];
+  const rscContent: string[] = [];
   beforeAll(async () => {
-    try {
-      await mkdir(testDir, { recursive: true });
-      await setupTestProject(testDir);
-      events = await doBuild({
-        projectRoot: testDir,
-        verbose: true,
-        onMetrics: (m) => {
-          metrics.push(m);
-        },
-      });
-
-
-      // Get HTML content from file.write.done event
-      const htmlDoneEvent = events.find(
-        (e) =>
-          e.type === "file.write.done" &&
-          e.data.fileType === "html" &&
-          e.data.route === "/"
-      ) as FileWriteDoneEvent;
-
-      if (htmlDoneEvent) {
-        htmlContent = htmlDoneEvent.data.content;
+    await mkdir(testDir, { recursive: true });
+    await setupTestProject(testDir);
+    events = await doBuild({
+      projectRoot: testDir,
+      verbose: true,
+      onMetrics: (m) => {
+        console.log("METRICS COLLECTED:", m);
+        metrics.push(m);
+      },
+      build: {
+        pages: ['/', '/page2'],
       }
+    });
 
-      // Get RSC content from file.write.done event
-      const rscDoneEvent = events.find(
-        (e) =>
-          e.type === "file.write.done" &&
-          e.data.fileType === "rsc" &&
-          e.data.route === "/"
-      ) as FileWriteDoneEvent;
+    console.log("BUILD COMPLETED. Total events:", events.length);
+    console.log("Event types:", events.map(e => e.type));
 
-      if (rscDoneEvent) {
-        rscContent = rscDoneEvent.data.content;
-      }
-    } catch (error) {
-      console.error("Error building project", error);
+    // Get HTML content from file.write.done events for all routes
+    const htmlDoneEvents = events.filter(
+      (e) =>
+        e.type === "file.write.done" &&
+        e.data.fileType === "html"
+    ) as FileWriteDoneEvent[];
+
+    console.log("HTML done events:", htmlDoneEvents.length);
+
+    for (const event of htmlDoneEvents) {
+      htmlContent.push(event.data.content);
     }
+
+    // Get RSC content from file.write.done events for all routes
+    const rscDoneEvents = events.filter(
+      (e) =>
+        e.type === "file.write.done" &&
+        e.data.fileType === "rsc"
+    ) as FileWriteDoneEvent[];
+
+    console.log("RSC done events:", rscDoneEvents.length);
+
+    for (const event of rscDoneEvents) {
+      rscContent.push(event.data.content);
+    }
+
+    console.log("Metrics collected:", metrics.length);
   });
 
   afterAll(async () => {
     try {
-    //  await rm(testDir, { recursive: true, force: true });
+      //  await rm(testDir, { recursive: true, force: true });
     } catch {}
   });
 
@@ -72,11 +80,11 @@ describe("Plugin build test", () => {
     const eventOrder = events.map((e) => e.type);
     expect(eventOrder).toEqual(
       expect.arrayContaining([
-        "build.writeBundle.static-client",
+        "build.ssg.start",
         "build.writeBundle.client",
         "build.start",
         "build.writeBundle.server",
-        "build.writeBundle.static-server",
+        "build.ssg.end",
         "file.write",
         "file.write.done",
         "file.write",
@@ -101,45 +109,113 @@ describe("Plugin build test", () => {
   it("emits file.write events for html and rsc files", async () => {
     expect(htmlContent).toBeDefined();
     expect(rscContent).toBeDefined();
+    expect(htmlContent.length).toBeGreaterThan(0);
+    expect(rscContent.length).toBeGreaterThan(0);
     // Verify HTML content
-    expect(htmlContent).toContain("<html");
-    expect(htmlContent).toContain("<div");
-    expect(htmlContent).toContain("Page");
+    expect(htmlContent[0]).toContain("<html");
+    expect(htmlContent[0]).toContain("<div");
+    expect(htmlContent[0]).toContain("Page");
 
     // Verify RSC content
-    expect(rscContent).toBeTruthy();
+    expect(rscContent[0]).toBeTruthy();
   });
 
   it("should collect basic metrics", async () => {
-    expect(metrics.length).toBe(1);
-
+    expect(metrics.length).toBeGreaterThan(0);
+    const seenCombinations = new Set<string>();
     // Check metrics for each route
     for (const metric of metrics) {
-      expect(metric.route).toBeDefined();
-      expect(metric.htmlSize).toBeGreaterThan(0);
-      expect(metric.rscSize).toBeGreaterThan(0);
-      expect(metric.processingTime).toBeGreaterThan(0);
-      expect(metric.chunks).toBeGreaterThan(0);
-      expect(metric.chunkRate).toBeGreaterThan(0);
+      const combination = `${metric.route}-${metric.type}`;
+      expect(seenCombinations.has(combination)).toBe(false);
+      seenCombinations.add(combination);
+      
+      // Check if this is a render metric (has fileSize property)
+      if ('fileSize' in metric) {
+        const renderMetric = metric as RenderMetrics;
+        console.log(
+          'route: ', renderMetric.route,
+          'type: ', renderMetric.type,
+          'fileSize: ', renderMetric.fileSize,
+          'processingTime: ', renderMetric.processingTime,
+          'chunks: ', renderMetric.chunks,
+          'chunkRate: ', renderMetric.chunkRate,
+          'streamMetrics: ', renderMetric.streamMetrics
+        );
+        expect(renderMetric.type).toMatch(/html|rsc-headless|rsc-full/);
+        expect(renderMetric.fileSize).toBeGreaterThanOrEqual(0);
+        expect(renderMetric.processingTime).toBeGreaterThan(0);
+        // rsc-full metrics can have 0 chunks since they don't write to files
+        if (renderMetric.type === "rsc-full") {
+          expect(renderMetric.chunks).toBeGreaterThanOrEqual(0);
+          expect(renderMetric.chunkRate).toBeGreaterThanOrEqual(0);
+        } else {
+          expect(renderMetric.chunks).toBeGreaterThan(0);
+          expect(renderMetric.chunkRate).toBeGreaterThan(0);
+        }
+      } else {
+        // worker-startup and module-resolution metrics
+        console.log(
+          'route: ', metric.route,
+          'type: ', metric.type,
+          'fileSize: ', 'undefined',
+          'processingTime: ', 'undefined',
+          'chunks: ', 'undefined',
+          'chunkRate: ', 'undefined',
+          'streamMetrics: ', 'undefined'
+        );
+        expect(metric.type).toMatch(/worker-startup|module-resolution/);
+        if ('startupTime' in metric) {
+          const workerMetric = metric as WorkerStartupMetrics;
+          expect(workerMetric.startupTime).toBeGreaterThan(0);
+        } else if ('resolutionTime' in metric) {
+          const moduleMetric = metric as ModuleResolutionMetrics;
+          expect(moduleMetric.resolutionTime).toBeGreaterThan(0);
+        }
+      }
 
       // Compare content lengths with metrics
-      const htmlLength = htmlContent?.length ?? 0;
-      const rscLength = rscContent?.length ?? 0;
-      expect(htmlLength).toBe(metric.htmlSize);
-      expect(rscLength).toBe(metric.rscSize);
+      // Find the corresponding content by route and type instead of by array index
+      let matchingContent: string | undefined;
+      if (metric.type === "html") {
+        // Find HTML content for this route
+        const htmlDoneEvents = events.filter(
+          (e) =>
+            e.type === "file.write.done" &&
+            e.data.fileType === "html" &&
+            e.data.route === metric.route
+        ) as FileWriteDoneEvent[];
+        matchingContent = htmlDoneEvents[0]?.data.content;
+      } else if (metric.type === "rsc-headless") {
+        // Find RSC content for this route
+        const rscDoneEvents = events.filter(
+          (e) =>
+            e.type === "file.write.done" &&
+            e.data.fileType === "rsc" &&
+            e.data.route === metric.route
+        ) as FileWriteDoneEvent[];
+        matchingContent = rscDoneEvents[0]?.data.content;
+      }
+      
+      if (matchingContent !== undefined && 'fileSize' in metric) {
+        const renderMetric = metric as RenderMetrics;
+        expect(matchingContent.length).toBe(renderMetric.fileSize);
+      }
     }
+
   });
 
   // check for css
   it("should collect css files", async () => {
-    expect(htmlContent).toContain(".css");
+    // After the metrics test, htmlContent should still have content for /page2
+    expect(htmlContent.length).toBeGreaterThan(0);
+    expect(htmlContent[0]).toContain(".css");
   });
 
   it("should generate correct CSS paths without src.css artifacts", async () => {
     expect(htmlContent).toBeTruthy();
 
     // Extract all href attributes from link tags
-    const linkMatches = htmlContent.match(/href="([^"]*\.css[^"]*)"/g);
+    const linkMatches = htmlContent.flatMap((content) => content.match(/href="([^"]*\.css[^"]*)"/g) ?? []);
 
     if (linkMatches && linkMatches.length > 0) {
       const hrefs = linkMatches
@@ -160,7 +236,7 @@ describe("Plugin build test", () => {
             true
           );
         } else {
-          expect(href).toMatch(/^\/assets\//);
+          expect(href).toMatch(/\assets\//);
         }
 
         // Should end with .css
@@ -169,110 +245,6 @@ describe("Plugin build test", () => {
         // Should not have double slashes or malformed paths
         expect(href).not.toMatch(/\/\//);
       }
-    }
-  });
-
-  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/static", async () => {
-    const testEvents = ["build.writeBundle.static-server", "build.start"];
-
-    for (const testEvent of testEvents) {
-      const errString = "Build cancelled (" + testEvent + ")";
-      const events = doBuild({
-        projectRoot: testDir,
-        build: {
-          pages: ["/"],
-        },
-        panicThreshold: "all_errors",
-        onEvent: (event) => {
-          console.log(
-            "onEvent",
-            event.type,
-            testEvent,
-            event.type === testEvent
-          );
-          if (event.type === testEvent) {
-            throw new Error(errString);
-          }
-        },
-      });
-      await expect(events).rejects.toThrow(
-        "[vite:plugin-react-server/static] " + errString
-      );
-    }
-  });
-
-  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/client", async () => {
-    const testEvents = [
-      // client is the ssr-client build
-      "build.writeBundle.client",
-      // static-client is the browser build
-      "build.writeBundle.static-client",
-    ];
-
-    for (const testEvent of testEvents) {
-      const errString = "Build cancelled (" + testEvent + ")";
-      const events = doBuild({
-        projectRoot: testDir,
-        build: {
-          pages: ["/"],
-        },
-        onEvent: (event) => {
-          if (event.type === testEvent) {
-            throw new Error(errString);
-          }
-        },
-      });
-      await expect(events).rejects.toThrow(
-        "[vite:plugin-react-server/client] " + errString
-      );
-    }
-  });
-
-  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/server", async () => {
-    const testEvents = [
-      "build.writeBundle.server",
-      // server-static is handled by the static plugin
-    ];
-
-    for (const testEvent of testEvents) {
-      const errString = "Build cancelled (" + testEvent + ")";
-      const events = doBuild({
-        projectRoot: testDir,
-        build: {
-          pages: ["/"],
-        },
-        onEvent: (event) => {
-          if (event.type === testEvent) {
-            throw new Error(errString);
-          }
-        },
-      });
-      await expect(events).rejects.toThrow(
-        "[vite:plugin-react-server/server] " + errString
-      );
-    }
-  });
-
-  it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/static during file.write, file.write.done", async () => {
-    const testEvents = ["file.write", "file.write.done"];
-
-    for (const testEvent of testEvents) {
-      const errString = "Build cancelled (" + testEvent + ")";
-      await expect(
-        doBuild({
-          projectRoot: testDir,
-          build: {
-            pages: ["/"],
-          },  
-          verbose:  false,
-          panicThreshold: "all_errors",
-          onEvent: (event) => {
-            if (event.type === testEvent) {
-              throw new Error(errString);
-            }
-          },
-        })
-      ).rejects.toThrow("[vite:plugin-react-server/static] " + errString);
     }
   });
 

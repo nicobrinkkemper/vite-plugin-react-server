@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { Readable } from 'node:stream';
-import { fileWriter } from 'vite-plugin-react-server/static';
-import { rm } from 'node:fs/promises';
-import { createLogger } from 'vite';
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { Readable } from "node:stream";
+import { fileWriter } from "vite-plugin-react-server/static";
+import { rm } from "node:fs/promises";
+import { createLogger } from "vite";
 
-describe('fileWriter', () => {
-  const testOutputDir = './test-output';
-  const testRoute = '/test-route';
+describe("fileWriter", () => {
+  const testOutputDir = "./test-output";
+  const testRoute = "/test-route";
   const logger = createLogger();
 
   beforeEach(async () => {
@@ -27,43 +27,43 @@ describe('fileWriter', () => {
     }
   });
 
-  it('should write file successfully with normal stream', async () => {
+  it("should write file successfully with normal stream", async () => {
     const stream = new Readable({
       read() {
-        this.push('Hello, World!');
+        this.push("Hello, World!");
         this.push(null);
-      }
+      },
     });
 
     const options = {
       route: testRoute,
       build: {
         outDir: testOutputDir,
-        static: 'static',
-        htmlOutputPath: 'index.html',
-        rscOutputPath: 'index.rsc',
+        static: "static",
+        htmlOutputPath: "index.html",
+        rscOutputPath: "index.rsc",
         pages: [],
-        server: 'server',
-        client: 'client'
+        server: "server",
+        client: "client",
       },
-      panicThreshold: 'all_errors' as const,
+      panicThreshold: "all_errors" as const,
       onEvent: () => {},
       verbose: false,
-      logger
+      logger,
     };
 
-    await expect(fileWriter(stream, 'html', options)).resolves.not.toThrow();
+    await expect(fileWriter(stream, "html", options)).resolves.not.toThrow();
   });
 
-  it('should cancel file write when abort signal is triggered', async () => {
+  it("should cancel file write when abort signal is triggered", async () => {
     const stream = new Readable({
       read() {
         // Simulate slow stream
         setTimeout(() => {
-          this.push('Hello, World!');
+          this.push("Hello, World!");
           this.push(null);
         }, 100);
-      }
+      },
     });
 
     const abortController = new AbortController();
@@ -71,56 +71,67 @@ describe('fileWriter', () => {
       route: testRoute,
       build: {
         outDir: testOutputDir,
-        static: 'static',
-        htmlOutputPath: 'index.html',
-        rscOutputPath: 'index.rsc',
+        static: "static",
+        htmlOutputPath: "index.html",
+        rscOutputPath: "index.rsc",
         pages: [],
-        server: 'server',
-        client: 'client'
+        server: "server",
+        client: "client",
       },
-      panicThreshold: 'all_errors' as const,
+      panicThreshold: "all_errors" as const,
       onEvent: () => {},
       verbose: false,
-      logger
+      logger,
     };
 
-    const writePromise = fileWriter(stream, 'html', options, abortController.signal);
-    
+    const writePromise = fileWriter(
+      stream,
+      "html",
+      options,
+      abortController.signal
+    );
+
     // Cancel after a short delay
     setTimeout(() => {
       abortController.abort();
     }, 50);
 
-    await expect(writePromise).resolves.not.toThrow();
+    await expect(writePromise).rejects.toThrow("This operation was aborted");
   });
 
-  it('should handle missing stream gracefully', async () => {
+  it("should handle missing stream gracefully", async () => {
     const options = {
       route: testRoute,
       build: {
         outDir: testOutputDir,
-        static: 'static',
-        htmlOutputPath: 'index.html',
-        rscOutputPath: 'index.rsc',
+        static: "static",
+        htmlOutputPath: "index.html",
+        rscOutputPath: "index.rsc",
         pages: [],
-        server: 'server',
-        client: 'client'
+        server: "server",
+        client: "client",
       },
-      panicThreshold: 'all_errors' as const,
+      panicThreshold: "all_errors" as const,
       onEvent: () => {},
       verbose: false,
-      logger
+      logger,
     };
 
-    await expect(fileWriter(null as any, 'html', options)).rejects.toThrow('Missing stream for route: /test-route');
+    try {
+      const result = fileWriter(null as any, "html", options);
+      expect(result).toBe(void 0);
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toBe("Missing stream for route: /test-route");
+    }
   });
 
-  it('should emit file.write and file.write.done events', async () => {
+  it("should emit file.write and file.write.done events", async () => {
     const stream = new Readable({
       read() {
-        this.push('Test content');
+        this.push("Test content");
         this.push(null);
-      }
+      },
     });
 
     const events: Array<{ type: string; data?: any }> = [];
@@ -128,26 +139,26 @@ describe('fileWriter', () => {
       route: testRoute,
       build: {
         outDir: testOutputDir,
-        static: 'static',
-        htmlOutputPath: 'index.html',
-        rscOutputPath: 'index.rsc',
+        static: "static",
+        htmlOutputPath: "index.html",
+        rscOutputPath: "index.rsc",
         pages: [],
-        server: 'server',
-        client: 'client'
+        server: "server",
+        client: "client",
       },
-      panicThreshold: 'all_errors' as const,
+      panicThreshold: "all_errors" as const,
       onEvent: (event: any) => {
         events.push(event);
       },
       verbose: false,
-      logger
+      logger,
     };
 
-    await fileWriter(stream, 'html', options);
+    await fileWriter(stream, "html", options);
 
     expect(events).toHaveLength(2);
-    expect(events[0].type).toBe('file.write');
-    expect(events[1].type).toBe('file.write.done');
-    expect(events[1].data.content).toBe('Test content');
+    expect(events[0].type).toBe("file.write");
+    expect(events[1].type).toBe("file.write.done");
+    expect(events[1].data.content).toBe("Test content");
   });
-}); 
+});

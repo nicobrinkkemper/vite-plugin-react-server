@@ -22,7 +22,7 @@ describe("RSC Worker Error Streaming", () => {
   afterAll(async () => {
     try {
       // Clean up all cached servers
-      for (const [port, server] of Object.entries(servers)) {
+      for (const [, server] of Object.entries(servers)) {
         try {
           await server.close();
         } catch (error) {
@@ -32,7 +32,7 @@ describe("RSC Worker Error Streaming", () => {
       // Clear the servers cache
       Object.keys(servers).forEach((key) => delete servers[key]);
 
-      await rm(testDir, { recursive: true, force: true });
+      // await rm(testDir, { recursive: true, force: true });
     } catch {}
   });
 

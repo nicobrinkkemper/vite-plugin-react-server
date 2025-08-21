@@ -1,4 +1,4 @@
-import type { Readable, Transform } from "node:stream";
+import type { PassThrough, Readable, Transform } from "node:stream";
 import type {
   AutoDiscoveredFiles,
   BuildModuleLoader,
@@ -132,12 +132,14 @@ export type RenderPagesHandlerOptions = Omit<
   autoDiscoveredFiles: AutoDiscoveredFiles;
   cssFilesByPage: Map<string, Map<string, CssContent>>;
   serverPipeableStreamOptions: any;
+  staticManifest?: Manifest; // Static manifest for consistent module IDs
 };
 
 export type RenderPagesFn = (
   routes: string[],
+  handlerOptions: RenderPagesHandlerOptions,
   renderPage: RenderPageFn
-) => (handlerOptions: RenderPagesHandlerOptions) => RenderPagesReturn;
+) => RenderPagesReturn;
 
 export type RenderPageReturn = AsyncGenerator<RenderPageResult, void, unknown>;
 
@@ -152,12 +154,14 @@ export type RenderStreamsReturn = [
     pipe: <Writable extends NodeJS.WritableStream>(
       destination: Writable
     ) => Writable;
+    rscStream: PassThrough; 
   },
   {
     abort: (reason?: unknown) => void;
     pipe: <Writable extends NodeJS.WritableStream>(
       destination: Writable
     ) => Writable;
+    rscStream: PassThrough;
   }
 ];
 
@@ -180,15 +184,13 @@ export type RscToHtmlOptions = Pick<
   | "serverPipeableStreamOptions"
   | "clientPipeableStreamOptions"
   | "build"
-  | "cssFiles"
   | "projectRoot"
   | "panicThreshold"
   | "verbose"
-  | "cssFiles"
-  | "globalCss"
   | "signal"
   | "logger"
   | "htmlTimeout"
+  | "onMetrics"
 >;
 
 export type RscToHtmlStreamFn = (options: RscToHtmlOptions) => Transform;

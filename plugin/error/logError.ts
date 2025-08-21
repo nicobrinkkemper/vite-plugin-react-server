@@ -9,10 +9,9 @@ export function logError(
   logger: Logger | Console = createLogger(),
   mode: "development" | "production" | "test" = getNodeEnv()
 ) {
-  // Remove the isMainThread check to allow logging from worker threads
   // when a proper logger is provided
   if (logger == null || typeof logger.error !== "function") {
-    return;
+    logger = console;
   }
   const errorOptions = {
     error: err,

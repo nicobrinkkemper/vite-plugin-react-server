@@ -3,7 +3,7 @@ import { createCallServer } from "./createCallServer.js";
 import { env } from "./env.js";
 import { createPageURL } from "./urls.js";
 
-export function createReactFetcher<R>({
+export function createReactFetcher({
   moduleBaseURL = env.BASE_URL,
   publicOrigin = env.PUBLIC_ORIGIN,
   url = window.location.pathname,
@@ -17,14 +17,18 @@ export function createReactFetcher<R>({
   publicOrigin?: string;
   indexRSC?: string;
   headers?: HeadersInit;
-} = {}): Promise<R> {
-  const parsedURL = createPageURL(moduleBaseURL, publicOrigin, env.DEV)(url, indexRSC);
-  return createFromFetch<R>(
+} = {}) {
+  const parsedURL = createPageURL(
+    moduleBaseURL,
+    publicOrigin,
+    env.DEV
+  )(url, indexRSC);
+  return createFromFetch(
     fetch(parsedURL.indexRSC, {
       headers: headers,
     }),
     {
-      callServer: createCallServer<R>(parsedURL.moduleBaseURL),
+      callServer: createCallServer(parsedURL.moduleBaseURL),
       moduleBaseURL: parsedURL.moduleBaseURL,
     }
   );

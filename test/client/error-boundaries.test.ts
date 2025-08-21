@@ -26,7 +26,7 @@ describe("RSC Worker Error Streaming", () => {
     // Start test server with proper page configuration
     const options = {
       projectRoot: testDir,
-      verbose: true,
+      verbose: false,
       Page: (url: string) => {
         if (url === "/server-error-example") {
           return "src/page/server-error-example/page.tsx";
@@ -56,8 +56,8 @@ describe("RSC Worker Error Streaming", () => {
       panicThreshold: "all_errors",
     }, port + 1);
 
-    serverUrl = `http://localhost:${server.config.server?.port}${process.env.VITE_BASE_URL ?? "/"}`;
-    allErrorsServerUrl = `http://localhost:${allErrorsServer.config.server?.port}${process.env.VITE_BASE_URL ?? "/"}`;
+    serverUrl = `http://localhost:${server.config.server?.port}${process.env.VITE_BASE_URL || "/"}`;
+    allErrorsServerUrl = `http://localhost:${allErrorsServer.config.server?.port}${process.env.VITE_BASE_URL || "/"}`;
   });
 
   afterAll(async () => {

@@ -1,167 +1,46 @@
-import type { CreateHandlerOptions, AutoDiscoveredFiles } from "../types.js";
-import type { Logger, UserConfig, ConfigEnv } from "vite";
-import { resolveComponents } from "../helpers/resolveComponents.js";
-import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { routeToURL } from "../utils/routeToURL.js";
-import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
-import {
-  getStashedUserOptions,
-  getStashedHandlerOptions,
-  stashHandlerOptions,
-  getEnvironmentId,
-} from "./stashedOptionsState.js";
-import { getNodeEnv } from "./getNodeEnv.js";
-import { createLogger } from "vite";
+import { getCondition } from "./getCondition.js";
+import type { CreateHandlerOptionsServerFn, CreateHandlerOptionsClientFn } from "./createHandlerOptions.types.js";
 
-export async function createHandlerOptions(
-  route: string,
-  options: {
-    mode?: "production" | "development" | "test";
-    condition?: "react-server" | "react-client" | "";
-    logger?: Logger;
-    defaults?: any;
-    config?: UserConfig;
-    configEnv?: ConfigEnv;
-    userOptions?: any;
-    autoDiscoveredFiles?: AutoDiscoveredFiles;
-    id?: string;
-  } = {},
-): Promise<CreateHandlerOptions> {
-  const {
-    mode = getNodeEnv(),
-    condition = "react-server",
-    logger = createLogger(),
-    config,
-    configEnv,
-    id,
-  } = options;
+/**
+ * Main createHandlerOptions function that automatically selects the appropriate implementation.
+ * 
+ * WHAT IT DOES:
+ * - Uses Node.js conditions to determine the current environment (react-server vs react-client)
+ * - Dynamically imports the correct implementation (.server.ts or .client.ts)
+ * - Provides a unified API that works in both environments
+ * - Automatically handles the environment-specific differences
+ * 
+ * HOW IT WORKS:
+ * - In react-server environment: Uses createHandlerOptionsServer (for RSC streams)
+ * - In react-client environment: Uses createHandlerOptionsClient (for HTML streams)
+ * - The selection is automatic based on the Node.js condition
+ * 
+ * USAGE:
+ * ```typescript
+ * // Works in both environments automatically
+ * const handlerOptions = await createHandlerOptions("/about", options);
+ * // In react-server: Returns options for RSC stream creation
+ * // In react-client: Returns options for HTML stream creation
+ * ```
+ * 
+ * @param route - The route path (e.g., "/", "/about")
+ * @param options - Configuration options
+ * @returns Promise<CreateHandlerOptions> - Environment-appropriate handler options
+ */
+// Use Node.js conditions to determine which implementation to use
+const condition = getCondition("");
+const dirname = new URL("./", import.meta.url).pathname.replace(/\/$/, "");
 
-  // Early return if already cached
-  const cachedOptions = getStashedHandlerOptions(route);
-  if (cachedOptions) {
-    return cachedOptions;
-  }
+// Dynamically import the appropriate createHandlerOptions implementation
+export const { createHandlerOptions } = (await import(
+  `${dirname}/createHandlerOptions.${condition}.js`
+)) as {
+  createHandlerOptions: CreateHandlerOptionsServerFn | CreateHandlerOptionsClientFn
+};
 
-  // Get the stashed userOptions for the current environment
-  const envId = getEnvironmentId(condition, mode);
-  const stashedOptions = getStashedUserOptions(envId);
-
-  if (!stashedOptions) {
-    throw new Error(
-      `No stashed userOptions found for environment: ${envId}. Make sure resolveOptions() has been called first.`
-    );
-  }
-
-  let { autoDiscoveredFiles } = options;
-
-  if (!autoDiscoveredFiles) {
-    const autoDiscoveredFilesResult = await resolveAutoDiscover({
-      config: config || {},
-      configEnv: configEnv || { mode: 'production', command: 'build' },    
-      userOptions: stashedOptions,
-      condition: condition === "react-server" ? "react-server" : "react-client",
-      logger,
-    });
-    if (autoDiscoveredFilesResult.type === "error") {
-      throw autoDiscoveredFilesResult.error;
-    }
-    autoDiscoveredFiles = autoDiscoveredFilesResult.autoDiscoveredFiles;
-  }
-
-  const url = routeToURL(
-    route,
-    stashedOptions.moduleBaseURL,
-    stashedOptions.build.rscOutputPath
-  );
-
-  // Resolve actual file paths for this route
-  const routeFilesResult = await getRouteFiles(
-    route,
-    autoDiscoveredFiles,
-    stashedOptions,
-    logger
-  );
-
-  if (routeFilesResult.type === "error") {
-    throw routeFilesResult.error;
-  }
-
-  const {
-    page: pagePath,
-    props: propsPath,
-    root: rootPath,
-    html: htmlPath,
-  } = routeFilesResult;
-
-  // Determine the environment for loader creation
-  const intermediateOptions = {
-    pagePath,
-    propsPath,
-    rootPath,
-    htmlPath,
-    pageExportName: stashedOptions.pageExportName,
-    propsExportName: stashedOptions.propsExportName,
-    rootExportName: stashedOptions.rootExportName,
-    htmlExportName: stashedOptions.htmlExportName,
-    route,
-    loader:
-      condition === "react-server"
-        ? async (moduleId: string) => {
-            // we should at least handle the # Fragment validity check here, but dont change
-            // the imported module, just verify its there and throw if its not.
-            if (moduleId.includes("#")) {
-              const [modulePath, fragment] = moduleId.split("#");
-              const mod = await import(modulePath);
-              if (!fragment.length) {
-                return mod;
-              }
-              if (mod == null || typeof mod !== "object") {
-                throw new Error(`${modulePath} is not a valid module`);
-              }
-              if (!(fragment in mod)) {
-                throw new Error(
-                  `${modulePath} does not export \"${fragment}\"`
-                );
-              }
-              return mod[fragment];
-            }
-            return await import(moduleId);
-          }
-        : ((() => Promise.resolve({})) as any), // react-client doesn't import server modules
-    verbose: stashedOptions.verbose,
-    moduleBaseURL: stashedOptions.moduleBaseURL,
-    build: stashedOptions.build,
-    logger: logger,
-    // Use component overrides from stashed options if available
-    RootComponent: stashedOptions.components?.Root,
-    HtmlComponent: stashedOptions.components?.Html,
-  };
-
-  // Resolve components using the intermediate options
-  const componentsResult = await resolveComponents(intermediateOptions);
-
-  if (componentsResult.type === "error") {
-    throw componentsResult.error;
-  }
-
-  // Construct proper CreateHandlerOptions with all required properties
-  const handlerOptions: CreateHandlerOptions = {
-    ...stashedOptions,
-    ...componentsResult,
-    ...intermediateOptions, // Use the intermediateOptions instead of duplicating
-    id, // Add the unique ID for worker communication
-    url,
-    cssFiles: new Map(), // Will be populated by the handler
-    globalCss: new Map(), // Will be populated by the handler
-    manifest: {}, // Will be populated by the handler
-    // Ensure required components are set (componentsResult has the resolved ones)
-    RootComponent: componentsResult.RootComponent,
-    HtmlComponent: componentsResult.HtmlComponent,
-  };
-
-  // Cache the handler options
-  stashHandlerOptions(route, handlerOptions);
-
-  // Return the resolved handler options
-  return handlerOptions;
-} 
+// Re-export the types for convenience
+export type {
+  CreateHandlerOptionsParams,
+  CreateHandlerOptionsServerFn,
+  CreateHandlerOptionsClientFn,
+} from "./createHandlerOptions.types.js";

@@ -28,15 +28,26 @@ import type {
 } from "./helpers/serializeUserOptions.js";
 import type { AllowedDirectives, Program } from "./loader/directives/types.js";
 import type { LoaderConfig, TransformOptions } from "./loader/types.js";
-import type { RenderMetrics, StreamMetrics } from "./metrics/types.js";
+import type {
+  RenderMetrics,
+  StreamMetrics,
+  WorkerStartupMetrics,
+  ModuleResolutionMetrics,
+} from "./metrics/types.js";
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
+import type { WorkerMessage } from "./worker/types.js";
 
 export type OnEvent<
   Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin
 > = (event: PluginEvent<Interface>) => void;
 
-export type OnMetrics = (metrics: RenderMetrics) => void;
+export type OnMetrics = (
+  metrics:
+    | RenderMetrics<"rsc-full" | "rsc-headless" | "html">
+    | WorkerStartupMetrics
+    | ModuleResolutionMetrics
+) => void;
 
 export type MessageHandler<
   T extends HtmlWorkerOutputMessage | RscChunkOutputMessage =
@@ -71,10 +82,20 @@ export type RenderPageResult =
   | {
       type: "skip";
       reason?: unknown;
+      metrics: {
+        rscFull: RenderMetrics & { type: "rsc-full" };
+        rscHeadless: RenderMetrics & { type: "rsc-headless" };
+        html: RenderMetrics & { type: "html" };
+      };
     }
   | {
       type: "error";
       error: unknown;
+      metrics: {
+        rscFull: RenderMetrics & { type: "rsc-full" };
+        rscHeadless: RenderMetrics & { type: "rsc-headless" };
+        html: RenderMetrics & { type: "html" };
+      };
     }
   | {
       type: "success";
@@ -91,8 +112,9 @@ export type RenderPageResult =
         ) => Writable;
       };
       metrics: {
-        rscFull: StreamMetrics;
-        rscHeadless: StreamMetrics;
+        rscFull: RenderMetrics & { type: "rsc-full" };
+        rscHeadless: RenderMetrics & { type: "rsc-headless" };
+        html: RenderMetrics & { type: "html" };
       };
     };
 
@@ -100,8 +122,9 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
   workerPaths: Record<string, string>;
   serverEntry: Record<string, string> | null;
   clientEntry: Record<string, string>;
-  inputs: Record<string, string>;
-  staticManifest: Manifest;
+  clientInputs: Record<string, string>;
+  staticInputs: Record<string, string>;
+  serverInputs: Record<string, string>;
   serverActions: Record<string, string>;
 };
 
@@ -254,6 +277,11 @@ export type OptKey =
   | SourceURLKeys;
 
 export type AutoDiscoverConfig = {
+  clientEntry: string;
+  serverEntry: string;
+  cssEntry: string;
+  jsonEntry: string;
+  htmlEntry: string;
   modulePattern: RegExp;
   serverPattern: RegExp;
   clientPattern: RegExp;
@@ -440,6 +468,11 @@ export type FileWriteDoneEvent = {
     route: string;
     fileType: "html" | "rsc";
     content: string;
+    chunks: number;
+    path: string;
+    fileName: string;
+    baseDir: string;
+    routePath: string;
   };
 };
 
@@ -453,6 +486,7 @@ export type RouteErrorEvent = {
       digest?: string | null;
     };
     reason?: unknown;
+    isPanic?: boolean;
   };
 };
 
@@ -528,8 +562,8 @@ export type BuildWriteBundleEventClient = {
   };
 };
 
-export type BuildWriteBundleEventStaticClient = {
-  type: "build.writeBundle.static-client";
+export type BuildWriteBundleEventStatic = {
+  type: "build.writeBundle.static";
   data: {
     pages: string[];
     options: NormalizedOutputOptions;
@@ -537,8 +571,16 @@ export type BuildWriteBundleEventStaticClient = {
   };
 };
 
-export type BuildWriteBundleEventStaticServer = {
-  type: "build.writeBundle.static-server";
+export type BuildEventStaticSiteGenerationStart = {
+  type: "build.ssg.start"; // SSG process starts (from client environment)
+  data: {
+    pages: string[];
+    options: NormalizedOutputOptions;
+    bundle: OutputBundle;
+  };
+};
+export type BuildEventStaticSiteGenerationEnd = {
+  type: "build.ssg.end"; // SSG process ends (from server environment)
   data: {
     pages: string[];
     options: NormalizedOutputOptions;
@@ -549,8 +591,9 @@ export type BuildWriteBundleEventStaticServer = {
 export type BuildWriteBundleEvent =
   | BuildWriteBundleEventServer
   | BuildWriteBundleEventClient
-  | BuildWriteBundleEventStaticClient
-  | BuildWriteBundleEventStaticServer;
+  | BuildEventStaticSiteGenerationStart
+  | BuildEventStaticSiteGenerationEnd
+  | BuildWriteBundleEventStatic;
 
 export type PluginEvent<
   Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin
@@ -574,7 +617,7 @@ export interface StreamPluginOptions<
 > {
   projectRoot?: string; // defaults to process.cwd()
   moduleBase: string; // defaults to 'src'
-  moduleBasePath?: string; // defaults to '/'
+  moduleBasePath?: string; // defaults to ''
   moduleBaseURL?: string; // defaults to '/'
   moduleRootPath?: string; // defaults to client's dist folder
   publicOrigin?: string; // defaults to window.location.origin in client & http://localhost:port in development
@@ -605,6 +648,11 @@ export interface StreamPluginOptions<
   // Auto-discovery (zero-config)
   autoDiscover?:
     | {
+        clientEntry: string;
+        serverEntry: string;
+        cssEntry: string;
+        jsonEntry: string;
+        htmlEntry: string;
         // CSS related
         /**
          * Pattern to match CSS files. If not provided, uses default pattern.
@@ -813,7 +861,7 @@ export interface StreamPluginOptions<
   pipeableStreamOptions?: any; // Legacy - kept for backward compatibility
   serverPipeableStreamOptions?: any; // For dev server and RSC worker
   clientPipeableStreamOptions?: any; // For HTML worker
-  onMetrics?: (metrics: RenderMetrics) => void;
+  onMetrics?: OnMetrics;
   onEvent?: OnEvent<Interface>;
   normalizer?: InputNormalizer;
   moduleID?: (id: string) => string;
@@ -885,7 +933,9 @@ export type CreateHandlerOptions<
   rootPath?: string;
   htmlPath?: string;
   pageProps?: Interface["PageProps"];
-  PageComponent?: PageComponentType<Interface["PageProps"], R> | typeof React.Fragment;
+  PageComponent?:
+    | PageComponentType<Interface["PageProps"], R>
+    | typeof React.Fragment;
   RootComponent?:
     | RootComponentType<
         Interface["PageProps"],
@@ -894,27 +944,29 @@ export type CreateHandlerOptions<
         R
       >
     | typeof React.Fragment;
-  HtmlComponent:
+  HtmlComponent?:
     | HtmlComponentType<
         Interface["PageProps"],
         Interface["As"],
         Interface["InlineCSS"],
         R
       >
-    | typeof React.Fragment
-    
-    | undefined;
+    | typeof React.Fragment;
   route: string;
   url: string;
   as?: Interface["As"];
   manifest: Manifest;
+  staticManifest?: Manifest;
   worker?: Worker;
   server?: ViteDevServer;
   importedCss?: Set<string>;
   cssFiles: Map<string, InterfaceAwareCssContent<Interface>>;
   globalCss: Map<string, InterfaceAwareCssContent<Interface>>;
-  serverPipeableStreamOptions?: any;
-  clientPipeableStreamOptions?: any;
+  serverPipeableStreamOptions?: import("react-server-dom-esm/server.node").RenderToPipeableStreamOptions;
+  clientPipeableStreamOptions?: import("react-dom/server").RenderToPipeableStreamOptions;
+  rscStream?: import("node:stream").Readable; // Optional RSC PassThrough stream to use instead of creating a new one
+  htmlStream?: import("node:stream").Readable; // Optional HTML PassThrough stream to use instead of creating a new one
+  metrics?: import("./metrics/types.js").StreamMetrics; // Optional metrics to use instead of creating new ones
   build: Pick<
     ResolvedUserOptions["build"],
     | "outDir"
@@ -925,6 +977,7 @@ export type CreateHandlerOptions<
     | "rscOutputPath"
     | "htmlOutputPath"
   >;
+  children?: React.ReactNode;
 };
 
 export type ResolvePageOptions = {
@@ -971,6 +1024,8 @@ export type BuildOutput = {
 };
 
 export type BuildConfig = {
+  useRscWorker?: boolean;
+  useHtmlWorker?: boolean;
   pages: string[] | (() => Promise<string[]> | string[]) | Promise<string[]>;
   assetsDir?: string;
   client?: string; // Output directory for client files
@@ -1156,51 +1211,17 @@ export type HtmlRenderState = {
   streamState: StreamMetrics;
 };
 
-
-
 // Metadata type for tracking render progress
-export type RenderPagesMetadata = {
-  completedRoutes: Set<string>;
-  failedRoutes: Map<string, unknown>;
-  htmlSizes: Map<string, number>;
-  rscSizes: Map<string, number>;
-  streamMetrics: StreamMetrics;
-  results: Map<
-    string,
-    {
-      html: {
-        abort: (reason?: unknown) => void;
-        pipe: <Writable extends NodeJS.WritableStream>(
-          destination: Writable
-        ) => Writable;
-      };
-      rsc: {
-        abort: (reason?: unknown) => void;
-        pipe: <Writable extends NodeJS.WritableStream>(
-          destination: Writable
-        ) => Writable;
-      };
-      metrics: {
-        rscFull: StreamMetrics;
-        rscHeadless: StreamMetrics;
-      };
-    }
-  >;
-};
 
 // Simplified result type for the entire render process
-export type RenderPagesResult =
-  | {
-      type: "error";
-      error?: unknown;
-      route?: string;
-    } & RenderPagesMetadata
-  | {
-      type: "success";
-    } & RenderPagesMetadata
-  | {
-      type: "skip";
-    } & RenderPagesMetadata;
+export type RenderPagesResult = {
+  type: "error" | "success" | "skip";
+  error?: unknown;
+  route?: string;
+  completedRoutes: Set<string>;
+  failedRoutes: Map<string, unknown>;
+  results: Map<string, RenderPageResult>;
+};
 
 export type HandlerAssets<InlineCSS extends InlineCssOpt = InlineCssOpt> = {
   css: CssContent<InlineCSS>[];
@@ -1346,26 +1367,173 @@ export type VitePluginFn = <
   options: Opt
 ) => Plugin;
 
+// New types for component resolution strategies
+export type ComponentResolutionStrategy = 
+  | "serializable-path"     // Use a path that can be resolved by the worker
+  | "direct-import"         // Direct import in the worker context
+  | "worker-internal"       // Component is available internally in the worker
+  | "external-reference";   // Reference to external component system
+
+export type SerializableComponentPath = string & { readonly __brand: "SerializableComponentPath" };
+
+export type ComponentResolutionConfig = {
+  strategy: ComponentResolutionStrategy;
+  path?: SerializableComponentPath;
+  moduleId?: string;
+  exportName?: string;
+};
+
+// Enhanced environment-specific options
+export type ClientEnvironmentOptions = {
+  // Client environment cannot accept React components directly
+  PageComponent?: never;
+  RootComponent?: never;
+  HtmlComponent?: never;
+  
+  // Client environment can accept component resolution configs
+  pageComponentConfig?: ComponentResolutionConfig;
+  rootComponentConfig?: ComponentResolutionConfig;
+  htmlComponentConfig?: ComponentResolutionConfig;
+  
+  // Client environment can accept serializable paths
+  pagePath?: string;
+  rootPath?: string;
+  htmlPath?: string;
+};
+
+export type ServerEnvironmentOptions = {
+  // Server environment can accept React components directly
+  PageComponent?: CreateHandlerOptions["PageComponent"];
+  RootComponent?: CreateHandlerOptions["RootComponent"];
+  HtmlComponent?: CreateHandlerOptions["HtmlComponent"];
+  
+  // Server environment can also accept component resolution configs
+  pageComponentConfig?: ComponentResolutionConfig;
+  rootComponentConfig?: ComponentResolutionConfig;
+  htmlComponentConfig?: ComponentResolutionConfig;
+  
+  // Server environment can accept serializable paths
+  pagePath?: string;
+  rootPath?: string;
+  htmlPath?: string;
+};
+
+// Enhanced ReactStreamCommonOptions with proper environment separation
+export type ReactStreamCommonOptions<
+  Env extends "client" | "server" = "client" | "server",
+  Handles extends keyof CreateHandlerOptions = never
+> = Omit<
+  CreateHandlerOptions,
+  Handles | "PageComponent" | "RootComponent" | "HtmlComponent" | "pagePath" | "rootPath" | "htmlPath"
+> &
+  Partial<Pick<CreateHandlerOptions, Handles>> &
+  (Env extends "client" 
+    ? ClientEnvironmentOptions
+    : ServerEnvironmentOptions
+  );
+
+// Enhanced handler function types with proper environment constraints
 export type ReactStreamHandlerFn<
+  Env extends "client" | "server",
   Handles extends keyof CreateHandlerOptions,
   ReturnType
-> = <
-  Opt extends Omit<CreateHandlerOptions, Handles> &
-    Partial<Pick<CreateHandlerOptions, Handles>> = Omit<
-    CreateHandlerOptions,
-    Handles
-  > &
-    Partial<Pick<CreateHandlerOptions, Handles>>
->(
-  options: Opt
+> = (
+  options: ReactStreamCommonOptions<Env, Handles>
 ) => ReturnType;
 
-export type ReactStreamResolvedOptionsFn<ReturnType = void> = (
-  options: ResolvedUserOptions
-) => ReturnType;
+// Type for RSC worker message that enforces serializable constraints
+export type RscWorkerMessage = {
+  // Only serializable data can be passed to workers
+  pageComponentConfig?: ComponentResolutionConfig;
+  rootComponentConfig?: ComponentResolutionConfig;
+  htmlComponentConfig?: ComponentResolutionConfig;
+  
+  // Serializable paths
+  pagePath?: string;
+  rootPath?: string;
+  htmlPath?: string;
+  
+  // Other serializable options
+  route: string;
+  url: string;
+  pageProps?: Record<string, unknown>;
+  cssFiles: Array<[string, unknown]>; // Serialized Map
+  manifest: Record<string, unknown>;
+  
+  // Never allow direct component references
+  PageComponent?: never;
+  RootComponent?: never;
+  HtmlComponent?: never;
+};
+
+// Enhanced RscRenderOpt with proper serialization constraints
+export type RscRenderOpt = WorkerMessage & {
+  type: "RSC_RENDER";
+} & Omit<
+    CreateHandlerOptions<ResolvedUserOptions>,
+    // Omit non-serializable fields
+    | "onEvent"
+    | "onMetrics"
+    | "loader"
+    | "build"
+    | "autoDiscover"
+    | "normalizer"
+    | "moduleID"
+    | "PageComponent"
+    | "RootComponent"
+    | "HtmlComponent"
+    | "url"
+    | "logger"
+    | "cssFiles" // Replace with serializable version
+  > & {
+    url?: string;
+    // Component resolution configs instead of direct components
+    pageComponentConfig?: ComponentResolutionConfig;
+    rootComponentConfig?: ComponentResolutionConfig;
+    htmlComponentConfig?: ComponentResolutionConfig;
+    
+    // Serializable CSS files
+    cssFiles: Array<[string, unknown]>;
+    
+    build: Omit<
+      CreateHandlerOptions<ResolvedUserOptions>["build"],
+      "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
+    > & { pages: string[] };
+  };
+
+// Type for plugin component references
+export type PluginComponentReference = {
+  type: "plugin-component";
+  componentName: "Html" | "Root" | "Css";
+  modulePath: string;
+  exportName: string;
+};
+
+// Enhanced component resolution types
+export type ResolvedComponent<T = unknown> = {
+  type: "success";
+  component: T;
+  source: "direct" | "resolved" | "plugin" | "worker-internal";
+} | {
+  type: "error";
+  error: Error;
+  source: "direct" | "resolved" | "plugin" | "worker-internal";
+};
+
+// Type for worker component loader
+export type WorkerComponentLoader = {
+  loadComponent: (config: ComponentResolutionConfig) => Promise<ResolvedComponent>;
+  loadPluginComponent: (reference: PluginComponentReference) => Promise<ResolvedComponent>;
+  hasInternalComponent: (componentName: string) => boolean;
+};
 
 // re-exorts
-export type { RenderMetrics, StreamMetrics };
+export type {
+  RenderMetrics,
+  StreamMetrics,
+  WorkerStartupMetrics,
+  ModuleResolutionMetrics,
+};
 
 // Generic React type that can be inferred from user's React import
 export type InferReactType<R = React.ReactNode> = R;
@@ -1479,7 +1647,6 @@ export type InterfaceAwareHandlerAssets<
 export type InterfaceAwareCreateHandlerResult<
   Interface extends ViteReactServerComponentsPlugin
 > = CreateHandlerResult<Interface["InlineCSS"]>;
-
 
 export type VitePluginReactClientFn = <
   Opt extends StreamPluginOptions = StreamPluginOptions

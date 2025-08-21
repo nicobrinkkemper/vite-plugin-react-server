@@ -13,7 +13,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_LOADER_CONFIG,
 } from "./defaults.js";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { pluginRoot } from "../root.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
@@ -175,21 +175,21 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       ? options.publicOrigin
       : DEFAULT_CONFIG.PUBLIC_ORIGIN;
 
-  // Worker and loader paths
+
   const rscWorkerPath =
     typeof options.rscWorkerPath === "string"
-      ? join(projectRoot, options.rscWorkerPath)
-      : join(pluginRoot, DEFAULT_CONFIG.RSC_WORKER_PATH);
+      ? resolve(projectRoot, options.rscWorkerPath)
+      : resolve(pluginRoot, DEFAULT_CONFIG.RSC_WORKER_PATH);
 
   const htmlWorkerPath =
     typeof options.htmlWorkerPath === "string"
-      ? join(projectRoot, options.htmlWorkerPath)
-      : join(pluginRoot, DEFAULT_CONFIG.HTML_WORKER_PATH);
+      ? resolve(projectRoot, options.htmlWorkerPath)
+      : resolve(pluginRoot, DEFAULT_CONFIG.HTML_WORKER_PATH);
 
   const loaderPath =
     typeof options.loaderPath === "string"
-      ? join(projectRoot, options.loaderPath)
-      : join(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
+      ? resolve(projectRoot, options.loaderPath)
+      : resolve(pluginRoot, DEFAULT_CONFIG.LOADER_PATH);
 
   const jsExtension =
     typeof options.build?.jsExtension === "string"
@@ -511,10 +511,17 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     rscExtension: rscExtension,
     cssModuleExtension: cssModuleExtension,
     nodeExtension: DEFAULT_CONFIG.BUILD.nodeExtension,
+    useRscWorker: options.build?.useRscWorker ?? DEFAULT_CONFIG.BUILD.useRscWorker,
+    useHtmlWorker: options.build?.useHtmlWorker ?? DEFAULT_CONFIG.BUILD.useHtmlWorker,  
   } satisfies ResolvedUserOptions["build"];
 
   // Auto-discovery configuration
   const autoDiscover = {
+    clientEntry: options.autoDiscover?.clientEntry ?? DEFAULT_CONFIG.AUTO_DISCOVER.clientEntry,
+    serverEntry: options.autoDiscover?.serverEntry ?? DEFAULT_CONFIG.AUTO_DISCOVER.serverEntry,
+    cssEntry: options.autoDiscover?.cssEntry ?? DEFAULT_CONFIG.AUTO_DISCOVER.cssEntry,
+    jsonEntry: options.autoDiscover?.jsonEntry ?? DEFAULT_CONFIG.AUTO_DISCOVER.jsonEntry,
+    htmlEntry: options.autoDiscover?.htmlEntry ?? DEFAULT_CONFIG.AUTO_DISCOVER.htmlEntry,
     modulePattern,
     jsonPattern,
     cssPattern,

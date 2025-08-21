@@ -151,7 +151,7 @@ function generateMainReadmeTable() {
   
   // Find the table of contents section
   const tocStartIndex = readmeContent.indexOf('## Table of Contents');
-  const tocEndIndex = readmeContent.indexOf('## Plugin Architecture Documentation');
+  const tocEndIndex = readmeContent.indexOf('## Plugin Implementation Documentation');
   
   if (tocStartIndex === -1 || tocEndIndex === -1) {
     throw new Error('Could not find Table of Contents section in README.md');
@@ -159,7 +159,7 @@ function generateMainReadmeTable() {
   
   const tocSection = readmeContent.slice(tocStartIndex, tocEndIndex).trim();
   
-  // Parse the TOC to extract file names and descriptions
+  // Parse the TOC to extract file names
   const lines = tocSection.split('\n');
   const entries = [];
   
@@ -169,42 +169,16 @@ function generateMainReadmeTable() {
     if (match) {
       const title = match[1];
       const filename = match[2];
-      
-      // Find the first sub-item as the description
-      let description = '';
-      let descriptionAnchor = '';
-      const lineIndex = lines.indexOf(line);
-      for (let i = lineIndex + 1; i < lines.length; i++) {
-        const nextLine = lines[i].trim();
-        if (nextLine.startsWith('-')) {
-          // Extract the text and anchor from the first sub-item link
-          const subMatch = nextLine.match(/^-\s*\[([^\]]+)\]\([^)]+#([^)]+)\)/);
-          if (subMatch) {
-            description = subMatch[1];
-            descriptionAnchor = subMatch[2];
-          } else {
-            description = nextLine.substring(1).trim();
-            descriptionAnchor = description.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
-          }
-          break;
-        } else if (nextLine.match(/^\d+\./)) {
-          // We've reached the next main item, stop looking
-          break;
-        }
-      }
-      
-      entries.push({ title, filename, description, descriptionAnchor });
+      entries.push({ title, filename });
     }
   }
   
   // Generate the markdown table
-  let table = '| Topic | Description |\n';
-  table += '|-------|-------------|\n';
+  let table = '| Topic |\n';
+  table += '|-------|\n';
   
   for (const entry of entries) {
-    // Use the extracted anchor or fallback to generated one
-    const anchor = entry.descriptionAnchor || entry.description.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
-    table += `| [${entry.title}](./docs/${entry.filename}) | [${entry.description}](./docs/${entry.filename}#${anchor}) |\n`;
+    table += `| [${entry.title}](./docs/${entry.filename}) |\n`;
   }
   
   return table;
@@ -242,7 +216,7 @@ function updateMainReadmeTOC() {
   
   // Find the table of contents section - look for the first occurrence
   const tocStartIndex = content.indexOf('## Table of Contents');
-  const tocEndIndex = content.indexOf('## Plugin Architecture Documentation');
+  const tocEndIndex = content.indexOf('## Plugin Implementation Documentation');
   
   if (tocStartIndex === -1 || tocEndIndex === -1) {
     console.log('⚠️  Could not find Table of Contents section in docs/README.md');
@@ -255,10 +229,7 @@ function updateMainReadmeTOC() {
   // Generate the TOC with tab-based formatting
   const tocSection = content.slice(tocStartIndex, tocEndIndex).trim();
   const lines = tocSection.split('\n');
-  let currentFile = null;
-  let currentNumber = 1;
   let tocWithTabs = [];
-  const anchor = (text) => text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
 
   for (let line of lines) {
     // Main section: "1. [Getting Started](./getting-started.md)"
@@ -267,23 +238,9 @@ function updateMainReadmeTOC() {
       const number = parseInt(mainMatch[1]);
       const title = mainMatch[2];
       const filename = mainMatch[3];
-      currentFile = filename;
-      currentNumber = number;
       
       // Always use 1 tab between number and bracket to account for 2-digit numbers
       tocWithTabs.push(`${number}.\t[${title}](./${filename})`);
-      continue;
-    }
-    // Sub-item: "   - Installation and Setup"
-    const subMatch = line.match(/^(\s*)- (.+)$/);
-    if (subMatch && currentFile) {
-      const text = subMatch[2];
-      const link = `./${currentFile}#${anchor(text)}`;
-      
-      // Always use 1 tab for sub-items
-      const indent = '\t';
-      
-      tocWithTabs.push(`${indent}- [${text}](${link})`);
       continue;
     }
     // Skip duplicate "## Table of Contents" headers and auto-generated comments

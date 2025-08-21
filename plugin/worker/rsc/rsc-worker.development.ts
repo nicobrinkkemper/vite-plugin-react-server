@@ -129,7 +129,6 @@ try {
           workerData.resolvedConfig.root,
           DEFAULT_CONFIG.REACT_LOADER_PATH
         ));
-  logger.info(`Using reactLoaderPath: ${reactLoaderPath}`);
   const cssLoaderPath =
     "file://" +
     (workerData.userOptions.cssLoaderPath

@@ -2,7 +2,7 @@ import { resolve } from "path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { setupTestProject } from "../setup.js";
 import { getCondition } from "vite-plugin-react-server/config";
-import { doBuild } from "./doBuild.js";
+import { doBuild } from "../doBuild.js";
 
 describe("Custom Transform Index HTML - Functional Tests", () => {
   const testDir = resolve(__dirname, "../fixtures/custom-transform.test");

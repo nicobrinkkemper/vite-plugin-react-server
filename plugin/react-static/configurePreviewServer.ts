@@ -16,6 +16,7 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
       userOptions.build.outDir,
       userOptions.build.static
     );
+
     server.middlewares.use(async (req, res, next) => {
       if (!req.url) {
         return next();
@@ -30,6 +31,7 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
         handlerOptions,
         staticHostDir,  
       );
+      
       // Handle static files including CSS
       if (filePath && (isRscRequest)) {
         try {

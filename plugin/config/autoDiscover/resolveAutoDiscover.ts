@@ -1,24 +1,16 @@
 import { type ConfigEnv, type UserConfig } from "vite";
 import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../../types.js";
-import { join } from "path";
 import { resolveBuildPages } from "./resolveBuildPages.js";
 import { resolvePages } from "../resolvePages.js";
-import { tryManifest } from "../../helpers/tryManifest.js";
-import type { Logger, Manifest } from "vite";
+import type { Logger, ResolvedConfig } from "vite";
 import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
 import { customWorkerFiles } from "./customWorkerFiles.js";
 import { pageAndPropFiles } from "./pageAndPropFiles.js";
-import { handleError } from "../../error/handleError.js";
-import { envPrefixFromConfig } from "../envPrefixFromConfig.js";
-import { isSsrEnabled } from "../../env/getEnvKey.js";
 
-const clientFiles = createGlobAutoDiscover("**/*.client.*");
-const serverFiles = createGlobAutoDiscover("**/*.server.*");
-const cssFiles = createGlobAutoDiscover("**/*.css");
-const jsonFiles = createGlobAutoDiscover("**/*.json");
+
 
 type ResolveAutoDiscoverProps = {
-  config: UserConfig;
+  config: UserConfig | ResolvedConfig;
   configEnv: ConfigEnv;
   userOptions: Pick<
     ResolvedUserOptions,
@@ -41,9 +33,8 @@ type ResolveAutoDiscoverProps = {
     | "Html"
     | "verbose"
     | "panicThreshold"
+    | "autoDiscover"
   >;
-  condition: "react-server" | "react-client";
-  ssr?: boolean;
   logger: Logger;
 };
 
@@ -70,26 +61,15 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     config,
     configEnv,
     userOptions,
-    condition,
     logger,
-    ssr = undefined,
   }) {
-    const envPrefix = envPrefixFromConfig(config);
-    ssr =
-      typeof ssr === "boolean"
-        ? ssr
-        : typeof config.build?.ssr === "boolean"
-        ? config.build?.ssr
-        : Boolean(configEnv.isSsrBuild) ||
-          condition === "react-server" ||
-          isSsrEnabled(envPrefix);
-    const envDir =
-      condition === "react-server"
-        ? userOptions.build.server
-        : ssr
-        ? userOptions.build.client
-        : userOptions.build.static;
-    const envId = `${envDir}${ssr ? "-ssr" : ""}`;
+    const envId = `${configEnv.command}-${configEnv.mode}`;
+    
+
+    
+    
+    // Debug logging removed for performance
+
     const configInputRecord = {} as Record<string, string>;
     if (typeof config.build?.rollupOptions?.input === "string") {
       configInputRecord[
@@ -124,6 +104,11 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
         id: envId,
       };
     }
+    const clientFiles = createGlobAutoDiscover(userOptions.autoDiscover.clientEntry);
+    const serverFiles = createGlobAutoDiscover(userOptions.autoDiscover.serverEntry);
+    const cssFiles = createGlobAutoDiscover(userOptions.autoDiscover.cssEntry);
+    const jsonFiles = createGlobAutoDiscover(userOptions.autoDiscover.jsonEntry);
+    const htmlFiles = createGlobAutoDiscover(userOptions.autoDiscover.htmlPattern.source);
 
     const files = await resolveBuildPages({
       pages,
@@ -131,36 +116,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       logger,
     });
 
-    // Load static manifest for client build
-    let staticManifest: Manifest = {};
-    if (ssr && configEnv.command === "build") {
-      const staticManifestResult = await tryManifest({
-        root: userOptions.projectRoot,
-        ssrManifest: false,
-        outDir: join(userOptions.build.outDir, userOptions.build.static),
-      });
-      if (staticManifestResult.type === "success") {
-        staticManifest = staticManifestResult.manifest;
-      } else if (configEnv.command === "build") {
-        // in dev mode the static manifest is not needed
-        // without ssr, WE ARE BUILDING the static manifest, so only warn in the case of a build
-
-        if (staticManifestResult.type === "error") {
-          const panicError = handleError({
-            error: staticManifestResult.error,
-            logger,
-            panicThreshold: userOptions.panicThreshold,
-            critical: false, // Missing manifest is not a critical error during server build
-            context: "Static Manifest Error (build)",
-          });
-          if (panicError != null) {
-            throw panicError;
-          }
-        }
-        logger.warn("Continuing without static manifest");
-        // this can still work, but, it won't be able to look up any client-side assets
-      }
-    }
+ 
 
     const customWorkerInputs = customWorkerFiles({
       inputs: {},
@@ -190,6 +146,11 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       userOptions,
     });
 
+    const htmlInputs = await htmlFiles({
+      inputs: {},
+      userOptions,
+    });
+
     // Add custom Root and Html components to inputs
     const customComponentInputs: Record<string, string> = {};
 
@@ -207,29 +168,27 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       }
     }
 
-    const agnosticInputs = {
+
+    
+    // Separate client and server inputs
+    const clientInputsCollection = {
       ...configInputRecord,
       ...clientInputs,
       ...clientEntry,
       ...cssInputs,
     };
-    // Add inputs based on condition
-    const inputs =
-      condition !== "react-server"
-        ? {
-            ...indexHtmlInputs,
-            ...agnosticInputs,
-          }
-        : {
-            ...configInputRecord,
-            ...customWorkerInputs,
-            ...pageAndPropInputs,
-            ...agnosticInputs,
-            ...serverActions,
-            ...serverEntry,
-            ...jsonInputs,
-            ...customComponentInputs, // Add custom components to server build
-          };
+    
+    const serverInputsCollection = {
+      ...clientInputsCollection,
+      ...customWorkerInputs,
+      ...pageAndPropInputs,
+      ...cssInputs,
+      ...serverActions,
+      ...serverEntry,
+      ...jsonInputs,
+      ...customComponentInputs, // Add custom components to server build
+    };
+
     return {
       type: "success",
       id: envId,
@@ -238,8 +197,13 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
         workerPaths: customWorkerInputs,
         serverEntry,
         clientEntry,
-        staticManifest,
-        inputs,
+        staticInputs: {
+          ...indexHtmlInputs,
+          ...htmlInputs,
+          ...clientInputsCollection
+        },
+        clientInputs: clientInputsCollection,
+        serverInputs: serverInputsCollection,
         serverActions,
       },
     };

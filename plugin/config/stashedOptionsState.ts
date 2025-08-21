@@ -3,7 +3,7 @@ import type { ResolvedUserOptions, CreateHandlerOptions } from "../types.js";
 // Stashed user options for different environments
 const stashedUserOptions: Record<string, ResolvedUserOptions | null> = {};
 
-// Stashed handler options for different routes
+// Stashed handler options for different ids
 const stashedHandlerOptions: Record<string, CreateHandlerOptions | null> = {};
 
 // Stashed RSC streams for client environments
@@ -36,63 +36,63 @@ export function clearStashedUserOptions(envId: string): void {
 }
 
 /**
- * Store handler options for a specific route
+ * Store handler options for a specific id
  */
 export function stashHandlerOptions(
-  route: string,
+  id: string,
   handlerOptions: CreateHandlerOptions
 ): void {
-  stashedHandlerOptions[route] = handlerOptions;
+  stashedHandlerOptions[id] = handlerOptions;
 }
 
 /**
- * Get stashed handler options for a specific route
+ * Get stashed handler options for a specific id
  */
 export function getStashedHandlerOptions(
-  route: string
+  id: string
 ): CreateHandlerOptions | null {
-  return stashedHandlerOptions[route] || null;
+  return stashedHandlerOptions[id] || null;
 }
 
 /**
- * Store RSC stream for a specific route (for client environments)
+ * Store RSC stream for a specific id (for client environments)
  */
 export function stashRscStream(
-  route: string,
+  id: string,
   rscStream: any
 ): void {
-  stashedRscStreams[route] = rscStream;
+  stashedRscStreams[id] = rscStream;
 }
 
 /**
- * Get stashed RSC stream for a specific route
+ * Get stashed RSC stream for a specific id
  */
 export function getStashedRscStream(
-  route: string
+  id: string
 ): any | null {
-  return stashedRscStreams[route] || null;
+  return stashedRscStreams[id] || null;
 }
 
 /**
- * Clear stashed handler options for a specific route
+ * Clear stashed handler options for a specific id
  */
-export function clearStashedHandlerOptions(route: string): void {
-  delete stashedHandlerOptions[route];
+export function clearStashedHandlerOptions(id: string): void {
+  delete stashedHandlerOptions[id];
 }
 
 /**
- * Clear stashed RSC stream for a specific route
+ * Clear stashed RSC stream for a specific id
  */
-export function clearStashedRscStream(route: string): void {
-  delete stashedRscStreams[route];
+export function clearStashedRscStream(id: string): void {
+  delete stashedRscStreams[id];
 }
 
 /**
  * Clear all stashed handler options
  */
 export function clearAllStashedHandlerOptions(): void {
-  Object.keys(stashedHandlerOptions).forEach((route) => {
-    delete stashedHandlerOptions[route];
+  Object.keys(stashedHandlerOptions).forEach((id) => {
+    delete stashedHandlerOptions[id];
   });
 }
 
@@ -100,37 +100,37 @@ export function clearAllStashedHandlerOptions(): void {
  * Clear all stashed RSC streams
  */
 export function clearAllStashedRscStreams(): void {
-  Object.keys(stashedRscStreams).forEach((route) => {
-    delete stashedRscStreams[route];
+  Object.keys(stashedRscStreams).forEach((id) => {
+    delete stashedRscStreams[id];
   });
 }
 
 /**
- * Get all stashed routes
+ * Get all stashed ids
  */
 export function getStashedRoutes(): string[] {
   return Object.keys(stashedHandlerOptions);
 }
 
 /**
- * Get all stashed RSC stream routes
+ * Get all stashed RSC stream ids
  */
 export function getStashedRscStreamRoutes(): string[] {
   return Object.keys(stashedRscStreams);
 }
 
 /**
- * Check if handler options are stashed for a route
+ * Check if handler options are stashed for a id
  */
-export function hasStashedHandlerOptions(route: string): boolean {
-  return route in stashedHandlerOptions;
+export function hasStashedHandlerOptions(id: string): boolean {
+  return id in stashedHandlerOptions;
 }
 
 /**
- * Check if RSC stream is stashed for a route
+ * Check if RSC stream is stashed for a id
  */
-export function hasStashedRscStream(route: string): boolean {
-  return route in stashedRscStreams;
+export function hasStashedRscStream(id: string): boolean {
+  return id in stashedRscStreams;
 }
 
 /**

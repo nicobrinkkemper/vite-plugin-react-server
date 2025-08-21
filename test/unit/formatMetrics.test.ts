@@ -5,8 +5,11 @@ import type { RenderMetrics } from "vite-plugin-react-server/metrics";
 describe("formatMetrics", () => {
   const mockMetrics: RenderMetrics = {
     route: "/test",
-    htmlSize: 5120,
-    rscSize: 2048,
+    type: "html",
+    fromMainThread: true,
+    fromRscWorker: false,
+    fromHtmlWorker: false,
+    fileSize: 2048, // Size of the actual file content that gets written
     chunks: 5,
     chunkRate: 2.5,
     processingTime: 150.75,
@@ -24,9 +27,7 @@ describe("formatMetrics", () => {
       backpressureCount: 2,
       errorCount: 0,
       startTime: Date.now()
-    },
-    htmlSizes: new Map([["test", 5120]]),
-    rscSizes: new Map([["test", 2048]])
+    }
   };
 
   describe("formatMetrics", () => {
@@ -49,8 +50,11 @@ describe("formatMetrics", () => {
     it("should handle zero values correctly", () => {
       const zeroMetrics: RenderMetrics = {
         route: "/",
-        htmlSize: 0,
-        rscSize: 0,
+        type: "html",
+        fromMainThread: true,
+        fromRscWorker: false,
+        fromHtmlWorker: false,
+        fileSize: 0,
         chunks: 0,
         chunkRate: 0,
         processingTime: 0,
@@ -68,9 +72,7 @@ describe("formatMetrics", () => {
           backpressureCount: 0,
           errorCount: 0,
           startTime: Date.now()
-        },
-        htmlSizes: new Map(),
-        rscSizes: new Map()
+        }
       };
 
       const result = formatMetrics(zeroMetrics);
@@ -106,7 +108,7 @@ describe("formatMetrics", () => {
     it("should handle fractional values correctly", () => {
       const fractionalMetrics: RenderMetrics = {
         ...mockMetrics,
-        rscSize: 1536, // 1.5KB
+        fileSize: 1536, // 1.5KB
         chunkRate: 3.333,
         processingTime: 123.456,
         streamMetrics: {

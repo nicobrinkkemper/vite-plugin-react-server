@@ -1,16 +1,19 @@
 # Getting Started
 
-This guide will help you get up and running with the Vite React Server Plugin quickly.
+This guide will help you get up and running with the Vite React Server Plugin quickly. The plugin uses **React conditions** to automatically provide the optimal implementation for each execution environment.
 
 ## Installation
 
 ```bash
-npm install vite-plugin-react-server
+npm install -D vite-plugin-react-server patch-package react@experimental react-dom@experimental react-server-dom-esm
+npm run patch
 ```
 
 ## Basic Setup
 
 ### 1. Create Vite Config
+
+The plugin automatically detects your execution environment and loads the optimal implementation:
 
 ```ts
 // vite.config.ts
@@ -50,12 +53,17 @@ export const props = {
 
 ### 3. Add Package Scripts
 
+The plugin automatically adapts to different environments using Node.js conditions:
+
 ```json
 {
   "scripts": {
     "dev": "NODE_OPTIONS='--conditions react-server' vite",
     "dev:client": "vite",
-    "build": "vite build && vite build --ssr && NODE_OPTIONS='--conditions react-server' vite build",
+    "build": "npm run build:static && npm run build:client && npm run build:server",
+    "build:static": "vite build",
+    "build:client": "vite build --ssr",
+    "build:server": "NODE_OPTIONS='--conditions react-server' vite build --ssr",
     "preview": "vite preview"
   }
 }
@@ -63,45 +71,95 @@ export const props = {
 
 ## Development Modes
 
+The plugin provides two development modes that offer **identical user experiences** but differ in their internal implementation:
+
 ### Direct Server Mode (Recommended)
 ```bash
 npm run dev
 ```
-- No worker overhead
-- Direct RSC processing
-- Better debugging experience
+- **Condition**: `react-server`
+- **Implementation**: Direct main thread processing
+- **Benefits**: No worker overhead, better debugging experience, more efficient for server-side development
 
 ### RSC Worker Mode
 ```bash
 npm run dev:client
 ```
-- Uses worker threads
-- Isolated ESM environment
-- Custom `rsc-worker` development
+- **Condition**: `null` (default)
+- **Implementation**: Uses RSC worker thread
+- **Benefits**: Default Vite behavior, worker isolation, good for testing client-side behavior
+
+### Environment Detection
+
+The plugin automatically detects the execution environment:
+
+```typescript
+// The plugin automatically detects and loads the right implementation
+import { getCondition } from 'vite-plugin-react-server/config';
+
+const condition = getCondition(); // Returns 'client' or 'server'
+```
+
+## React Conditions
+
+The plugin uses Node.js conditions to dynamically load the appropriate implementation:
+
+### Execution Environments
+
+| Environment | Condition | Use Case | Implementation |
+|-------------|-----------|----------|----------------|
+| **Client** | `null` (default) | Browser, client-side builds | Client-specific modules |
+| **Server** | `react-server` | Server-side rendering, RSC processing | Server-specific modules |
+
+### Module Structure
+
+The plugin follows a consistent pattern for all modules:
+
+```
+plugin/
+├── index.ts                    # Main entry point with condition detection
+├── plugin.client.ts            # Client environment implementation
+├── plugin.server.ts            # Server environment implementation
+├── dev-server/
+│   ├── index.ts                # Condition-based loader
+│   ├── index.client.ts         # Client implementation
+│   ├── index.server.ts         # Server implementation
+│   └── ...                     # Other modules follow same pattern
+└── ...
+```
+
+This ensures:
+- **Client environments** get lightweight, browser-compatible implementations
+- **Server environments** get full-featured RSC processing capabilities
+- **No runtime overhead** from unused server code in client environments
 
 ## Common Use Cases
 
 ### Static Site Generation
 
 ```ts
-export const config = {
-  moduleBase: "src",
-  Page: (route) => `src/pages${route}page.tsx`,
-  components: {
-    Html: ({ Root, cssFiles, pageProps, Page }) => (
-      <html>
-        <head>
-          <title>{pageProps?.title || "My App"}</title>
-        </head>
-        <body>
-          <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
-        </body>
-      </html>
-    )
-  },
-  build: { pages: ["/", "/about/", "/contact/"] }
-};
-// ./react.config.tsx
+export default defineConfig({
+  plugins: [
+    vitePluginReactServer({
+      moduleBase: "src",
+      Page: (route) => `src/pages${route}page.tsx`,
+      components: {
+        Html: ({ Root, cssFiles, pageProps, Page }) => (
+          <html>
+            <head>
+              <title>{pageProps?.title || "My App"}</title>
+            </head>
+            <body>
+              <Root as="div" id="root" cssFiles={cssFiles} Page={Page} pageProps={pageProps} />
+            </body>
+          </html>
+        )
+      },
+      build: { pages: ["/", "/about/", "/contact/"] }
+    })
+  ]
+});
+// vite.config.ts
 ```
 
 ### Server Actions
@@ -137,14 +195,14 @@ import { Css } from "vite-plugin-react-server/components";
 import React from 'react';
 
 export const Root = ({ cssFiles, Page, pageProps, ...props }) => {
-  const filteredCss = Array.from(cssFiles).filter(({id})=>'.vars.') 
+  const filteredCss = Array.from(cssFiles).filter(({id}) => id.includes('.vars.'));
   return (
     <div {...props}>
       <Page {...pageProps} />
       <Css cssFiles={filteredCss} />
     </div>
   );
-}
+};
 // src/components/Root.tsx
 ```
 
@@ -163,10 +221,14 @@ This creates:
 
 ### Verbose Logging
 ```ts
-export const config = {
-  verbose: true,
-  // ... other options
-};
+export default defineConfig({
+  plugins: [
+    vitePluginReactServer({
+      verbose: true,
+      // ... other options
+    })
+  ]
+});
 ```
 
 ### Error Boundaries
@@ -194,56 +256,20 @@ The plugin automatically provides detailed error information in development mode
 <!-- Auto-generated TOC - Do not edit manually -->
 
 
+
 1.	**[Getting Started](./getting-started.md) ← you are here**
-	- [Installation and Setup](./getting-started.md#installation-and-setup)
-	- [Basic Configuration](./getting-started.md#basic-configuration)
-	- [Example Projects](./getting-started.md#example-projects)
 2.	[Core Concepts](./core-concepts.md)
-	- [Client-Server Separation](./core-concepts.md#client-server-separation)
-	- [React Server Components](./core-concepts.md#react-server-components)
-	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
 3.	[Configuration Guide](./configuration.md)
-	- [Plugin Options](./configuration.md#plugin-options)
-	- [Routing Configuration](./configuration.md#routing-configuration)
-	- [Build Configuration](./configuration.md#build-configuration)
 4.	[CSS & Styling](./css-handling.md)
-	- [CSS Collectors](./css-handling.md#css-collectors)
-	- [Inline CSS](./css-handling.md#inline-css)
-	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
 5.	[Server Actions](./server-actions.md)
-	- [Creating Server Actions](./server-actions.md#creating-server-actions)
-	- [Client Integration](./server-actions.md#client-integration)
-	- [Error Handling](./server-actions.md#error-handling)
-	- [Database Integration](./server-actions.md#database-integration)
 6.	[Build & Deployment](./build-orchestration.md)
-	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
-	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
-	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
 7.	[Advanced Development](./advanced-topics.md)
-	- [Custom Workers](./advanced-topics.md#custom-workers)
-	- [Message System](./advanced-topics.md#message-system)
-	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
 8.	[Plugin Internals](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
 9.	[Worker System](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
 10.	[API Reference](./api-reference.md)
-	- [Plugin Options](./api-reference.md#plugin-options)
-	- [Component Props](./api-reference.md#component-props)
-	- [Worker Messages](./api-reference.md#worker-messages)
-	- [Type Definitions](./api-reference.md#type-definitions)
 11.	[React Compatibility](./react-type-compatibility.md)
-	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
-	- [Generic Types](./react-type-compatibility.md#generic-types)
-	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-	- [Common Issues](./troubleshooting-guide.md#common-issues)
-	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
-	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
+13.	[Testing](./testing.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

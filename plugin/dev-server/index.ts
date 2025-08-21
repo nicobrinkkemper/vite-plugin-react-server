@@ -1,16 +1,20 @@
 import { getCondition } from "../config/getCondition.js";
+import type { VitePluginFn } from "../types.js";
+import type { ConfigureReactServerFn, ConfigureRequestHandlerFn, HandleServerActionFn, CleanupServerActionFn } from "./types.js";
 
 const dir = new URL("./", import.meta.url).pathname.replace(/\/$/, "");
 const condition = getCondition("");
 
 export const {
+  vitePluginReactDevServer,
   configureReactServer,
   handleServerAction,
-  handleRscStream,
-  createRscStream,
+  cleanupServerAction,
+  configureRequestHandler,
 } = (await import(`${dir}/index.${condition}.js`)) as {
-  configureReactServer?: any;
-  handleServerAction: any;
-  handleRscStream: any;
-  createRscStream: any;
+  vitePluginReactDevServer?: VitePluginFn;
+  configureReactServer?: ConfigureReactServerFn;
+  handleServerAction?: HandleServerActionFn;
+  cleanupServerAction?: CleanupServerActionFn;
+  configureRequestHandler?: ConfigureRequestHandlerFn;
 }; 

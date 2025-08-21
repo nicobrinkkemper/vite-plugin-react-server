@@ -4,7 +4,6 @@ import { getNodeEnv } from "../config/getNodeEnv.js";
 import { logError } from "./logError.js";
 import { PANIC_SYMBOL } from "./shouldPanic.js";
 import type { HandleErrorFn } from "./types.js";
-import { isMainThread } from "node:worker_threads";
 
 let errRepeat = 0;
 let lastError: Error | null = null;
@@ -24,7 +23,7 @@ export const handleError: HandleErrorFn = function _handleError(
     mode = getNodeEnv(),
     panicThreshold = "none",
     critical = false,
-    log = isMainThread,
+    log = false,
   } = options;
   // Handle React error info if present
   if (errorInfo != null) {
@@ -34,7 +33,7 @@ export const handleError: HandleErrorFn = function _handleError(
     if (log) logError(errInfo, logger, mode);
   }
 
-  const err = toError(error, errorInfo);
+  const err = toError(error, errorInfo ?? undefined);
 
   // Simple panic threshold logic
   if (panicThreshold === "all_errors" || (critical && panicThreshold === "critical_errors")) {

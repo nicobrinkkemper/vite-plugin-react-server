@@ -46,7 +46,7 @@ export const createCssProps = ({
   let inline =
     css?.inlineCss !== false &&
     typeof code === "string" &&
-    code.length > (css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold);
+    (css?.inlineThreshold === 0 || code.length <= (css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold));
   // Normalize the ID to be relative to src/
   const [, value] = userOptions.normalizer(id);
   const moduleID = userOptions?.moduleID?.(value) ?? value;

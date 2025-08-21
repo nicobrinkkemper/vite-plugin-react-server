@@ -7,12 +7,9 @@ export const testUserOptions = {
   props: "src/page/props.ts",
   pageExportName: "Page",
   propsExportName: "props",
-  moduleBasePath: '/',
-  moduleBaseURL: process.env.VITE_BASE_URL || '/',
-  verbose: true,
-  rscTimeout: 720,
-  rscWorkerStartupTimeout: 2000,
-  htmlWorkerStartupTimeout: 2000,
+  moduleBasePath: '',
+  moduleBaseURL: typeof process.env.VITE_BASE_URL === 'string' ? process.env.VITE_BASE_URL : '/',
+  verbose: true, // Enable verbose logging to debug CSS loader
   build: {
     pages: ["/"],
     assetsDir: 'assets',

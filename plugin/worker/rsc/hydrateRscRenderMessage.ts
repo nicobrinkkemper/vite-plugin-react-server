@@ -12,6 +12,8 @@ import type { Logger } from "vite";
 import { routeToURL } from "../../utils/routeToURL.js";
 import type { RscRenderMessage } from "./types.js";
 import type { React } from "../../vendor/vendor.server.js";
+import { Html as DefaultHtml } from "../../components/html.js";
+import { Root as DefaultRoot } from "../../components/root.js";
 
 export function hydrateRscRenderMessage(
   {
@@ -24,6 +26,8 @@ export function hydrateRscRenderMessage(
     logger,
     hmrState,
     manifest,
+    cssFiles,
+    globalCss,
   }: {
     message: RscRenderMessage;
     pageProps: PagePropOpt;
@@ -34,6 +38,8 @@ export function hydrateRscRenderMessage(
     logger: Logger;
     hmrState: Map<string, { invalidated: boolean }>;
     manifest: Record<string, { file: string } | string>;
+    cssFiles: Map<string, CssContent>;
+    globalCss: Map<string, CssContent>;
   },
   // defaults
   { userOptions: defaultUserOptions = {} }: any = {}
@@ -69,8 +75,7 @@ export function hydrateRscRenderMessage(
       DEFAULT_CONFIG.MODULE_BASE_PATH,
     moduleBase = defaultUserOptions.moduleBase,
     serverPipeableStreamOptions = defaultUserOptions.serverPipeableStreamOptions,
-    cssFiles = defaultUserOptions.cssFiles,
-    globalCss = defaultUserOptions.globalCsss,
+    
     verbose = defaultUserOptions.verbose ?? DEFAULT_CONFIG.VERBOSE,
     build = defaultUserOptions.build ?? DEFAULT_CONFIG.BUILD,
     rscTimeout = defaultUserOptions.rscTimeout ?? DEFAULT_CONFIG.RSC_TIMEOUT,
@@ -96,11 +101,6 @@ export function hydrateRscRenderMessage(
     }
   }
 
-  // add cssFiles module to pageCssFiles
-  for (const [route, cssContent] of cssFiles.entries()) {
-    pageCssFiles.set(route, cssContent);
-  }
-
   if (verbose) {
     logger.info(`[rsc-worker:${route}] Starting render for route: ${route}`);
   }
@@ -124,16 +124,14 @@ export function hydrateRscRenderMessage(
     moduleBasePath,
     moduleBase,
     serverPipeableStreamOptions,
-    cssFiles,
-    globalCss,
     verbose,
     build,
     rscTimeout,
     panicThreshold,
     publicOrigin,
     pageProps,
-    RootComponent: RootComponent, // Use function parameter, not message value
-    HtmlComponent: HtmlComponent, // Use function parameter, not message value
+    RootComponent: RootComponent || DefaultRoot, // Use function parameter, not message value
+    HtmlComponent: HtmlComponent || DefaultHtml, // Use default HTML component if undefined
     PageComponent,
     loader: createRscWorkerLoader({
       verbose,
@@ -149,5 +147,8 @@ export function hydrateRscRenderMessage(
     autoDiscover: userOptions.autoDiscover,
     onMetrics: undefined,
     ...rest,
+    // Override with function parameters (after spread to ensure they take precedence)
+    cssFiles,
+    globalCss,
   };
 }

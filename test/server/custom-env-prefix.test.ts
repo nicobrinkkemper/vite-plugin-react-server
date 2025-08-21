@@ -22,7 +22,6 @@ describe("Custom Environment Prefix Integration", () => {
     
 
 
-    try {
       await mkdir(testDir, { recursive: true });
       await setupTestProjectEnv(testDir);
 
@@ -59,10 +58,6 @@ describe("Custom Environment Prefix Integration", () => {
       });
 
       process.chdir(originalCwd);
-    } catch (error) {
-      console.error("Error building project with custom env prefix", error);
-      throw error;
-    }
   });
 
   afterAll(async () => {

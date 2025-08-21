@@ -13,8 +13,21 @@ describe('Build configuration', () => {
       configEnv: { command: 'build', mode: 'development', isSsrBuild: true },
       userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [], 
       }
     })
 
@@ -34,8 +47,21 @@ describe('Build configuration', () => {
       configEnv: { command: 'serve', mode: 'development', isSsrBuild: true },
       userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {}, 
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
       }
     })
 
@@ -52,8 +78,21 @@ describe('Build configuration', () => {
       configEnv: { command: 'build', mode: 'development', isSsrBuild: true },
       userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
       }
     })
 
@@ -74,8 +113,21 @@ describe('Build configuration', () => {
       configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
       userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
       }
     })
 
@@ -97,8 +149,21 @@ describe('Build configuration', () => {
       configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
       userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
+        staticInputs: {},
       }
     })
 

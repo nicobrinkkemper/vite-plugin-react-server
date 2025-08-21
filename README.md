@@ -1,6 +1,6 @@
 # Vite React Server Plugin
 
-A Vite plugin that enables React Server Components (RSC) streaming and static HTML page generation. This plugin enables a unique "Native ESM" developer experience based on the React Server Components specifications.
+A Vite plugin that enables React Server Components (RSC) streaming and static HTML page generation. This plugin uses **React conditions** to automatically provide the optimal implementation for each execution environment.
 
 **React Components as part of your build tooling** - not just as a dependency.
 
@@ -11,7 +11,7 @@ A Vite plugin that enables React Server Components (RSC) streaming and static HT
 - **Native ESM for React**: Your React components are true ESM modules that work anywhere
 - **React as Configuration**: Serialize React Server Components for static hosting
 - **On-Demand Loading**: Only streams the pages you're actually developing
-
+- **React condition**: Automatically adapts to client/server environments
 
 ## Quick Start
 
@@ -45,15 +45,62 @@ export const Page = ({ url }: { url: string }) => {
 };
 ```
 
+**Run the Development Server:**
+
+```bash
+NODE_OPTIONS="--conditions react-server" npx vite
+# or
+npx vite
+```
+
+Both these commands show the same application with roughly the same developer experience.
+
+**React Condition System**
+
+The `react-server` condition is needed for the ESM system to consume the React dependencies. What it boils down to is the following semantics:
+
+- When we say we want to "render HTML", it means we need the client environment
+- When we say we want to "render RSC", it means we need the server environment
+
+Just like HTML, RSC is simply a string. It's the serialized product of your React Components. Since it's serialized, we are free to send it back and forth from one thread to another using worker threads. This plugin enables exactly this worker thread approach by managing the React condition for you. This explains why both:
+
+```bash
+NODE_OPTIONS="--conditions react-server" npx vite
+# or
+npx vite
+```
+
+Return the same application, but we now understand that the former will need an `html-worker` and the latter will need the `rsc-worker` to both serialize RSC and HTML.
+
+**Visit your app:** Open `http://localhost:5173` in your browser. You should see "Hello from /" displayed.
+
+**What's Next?**
+- Add more pages to `build.pages` array
+- Create server actions with `"use server"`
+- Add client components with `"use client"`
+- Customize your HTML template
+
 ## Development & Build
 
-The plugin provides two development modes and a build environment:
+The plugin automatically detects your execution environment and provides the optimal implementation:
 
-- **RSC Worker Mode**: Uses RSC worker thread (default Vite behavior)
-- **Direct Server Mode**: Direct main thread processing (no worker overhead)  
-- **Build Environment**: Static site generation with HTML worker
+### Automatic Environment Detection
+
+The plugin uses Node.js conditions to automatically load the correct implementation:
+
+```typescript
+// The plugin automatically detects and loads the right implementation
+import { getCondition } from './config/getCondition.js';
+
+const condition = getCondition(); // Returns 'client' or 'server'
+const { vitePluginReactServer } = await import(`./plugin.${condition}.js`);
+```
 
 ### Development Scripts
+
+#### Traditional approach:
+
+This has the benefit of controlling and debugging each build seperately
 
 ```json
 {
@@ -73,11 +120,20 @@ The plugin provides two development modes and a build environment:
 }
 ```
 
+App build:
+This uses the appBuilder, which is experimental. The plugin will use the main thread condition for all the tasks.
+This means that one task will always run in the "sub optimal" main thread environment.
+
+```json
+{
+  "build": "vite build --app",
+}
+
 ### Development Modes
 
-Both development modes provide **identical user experiences** - they both start your application and it will work the same way in the browser. The difference is purely internal architecture.
+Both development modes provide **identical user experiences** - they both start your application and it will work the same way in the browser. The difference is purely internal implementation.
 
-| Mode | Condition | Command | Internal Architecture | Benefits |
+| Mode | Condition | Command | Internal Implementation | Benefits |
 |------|-----------|---------|----------------------|----------|
 | **RSC Worker** | `null` | `npm run dev:client` | RSC Worker Thread | Default Vite behavior, worker isolation |
 | **Direct Server** | `react-server` | `npm run dev` | Direct Main Thread | No worker overhead, better debugging |
@@ -110,10 +166,11 @@ Both development modes provide **identical user experiences** - they both start 
   - Avoids the "this error message is hidden in production" and shows the full error
   - Development build is not intended for production
 
+## React condition
 
-## Environment-Based Execution
+The plugin automatically adapts to different execution environments using Node.js conditions:
 
-The plugin uses Node.js conditions to determine execution context:
+### Environment Detection
 
 ```typescript
 import { getCondition } from "vite-plugin-react-server/config";
@@ -144,6 +201,28 @@ if (getCondition() !== "react-server") {
   - Runs all three build steps in sequence
   - HTML worker only used during builds (not development)
 
+### Module Structure
+
+The plugin uses condition-based module loading:
+
+```
+plugin/
+├── index.ts                    # Main entry point with condition detection
+├── plugin.client.ts            # Client environment implementation
+├── plugin.server.ts            # Server environment implementation
+├── dev-server/
+│   ├── index.ts                # Condition-based loader
+│   ├── index.client.ts         # Client implementation
+│   ├── index.server.ts         # Server implementation
+│   └── ...                     # Other modules follow same pattern
+└── ...
+```
+
+This ensures:
+- **Client environments** get lightweight, browser-compatible implementations
+- **Server environments** get full-featured RSC processing capabilities
+- **No runtime overhead** from unused server code in client environments
+
 ## Advanced Features
 
 ### Props and Routing
@@ -166,8 +245,6 @@ export default defineConfig({
   }),
 });
 ```
-
-
 
 ### Server Actions
 
@@ -199,16 +276,6 @@ export function Counter() {
 }
 ```
 
-## Build Output
-
-The plugin generates three build targets:
-
-```
-dist/
-├── static/     # Browser-ready static files (HTML + RSC)
-├── client/     # Server-side rendering modules  
-└── server/     # React Server Components modules
-```
 
 
 ## Requirements
@@ -223,20 +290,21 @@ This project uses experimental React features and includes a patch system for co
 
 ## Documentation
 
-| Topic | Description |
-|-------|-------------|
-| [Getting Started](./docs/getting-started.md) | [Installation and Setup](./docs/getting-started.md#installation-and-setup) |
-| [Core Concepts](./docs/core-concepts.md) | [Client-Server Separation](./docs/core-concepts.md#client-server-separation) |
-| [Configuration Guide](./docs/configuration.md) | [Plugin Options](./docs/configuration.md#plugin-options) |
-| [CSS & Styling](./docs/css-handling.md) | [CSS Collectors](./docs/css-handling.md#css-collectors) |
-| [Server Actions](./docs/server-actions.md) | [Creating Server Actions](./docs/server-actions.md#creating-server-actions) |
-| [Build & Deployment](./docs/build-orchestration.md) | [Multiple Build Targets](./docs/build-orchestration.md#multiple-build-targets) |
-| [Advanced Development](./docs/advanced-topics.md) | [Custom Workers](./docs/advanced-topics.md#custom-workers) |
-| [Plugin Internals](./docs/transformer-plugin.md) | [Plugin Architecture](./docs/transformer-plugin.md#plugin-architecture) |
-| [Worker System](./docs/rsc-worker.md) | [Worker Architecture](./docs/rsc-worker.md#worker-architecture) |
-| [API Reference](./docs/api-reference.md) | [Plugin Options](./docs/api-reference.md#plugin-options) |
-| [React Compatibility](./docs/react-type-compatibility.md) | [Type System Overview](./docs/react-type-compatibility.md#type-system-overview) |
-| [Troubleshooting](./docs/troubleshooting-guide.md) | [Common Issues](./docs/troubleshooting-guide.md#common-issues) |
+| Topic |
+|-------|
+| [Getting Started](./docs/getting-started.md) |
+| [Core Concepts](./docs/core-concepts.md) |
+| [Configuration Guide](./docs/configuration.md) |
+| [CSS & Styling](./docs/css-handling.md) |
+| [Server Actions](./docs/server-actions.md) |
+| [Build & Deployment](./docs/build-orchestration.md) |
+| [Advanced Development](./docs/advanced-topics.md) |
+| [Plugin Internals](./docs/transformer-plugin.md) |
+| [Worker System](./docs/rsc-worker.md) |
+| [API Reference](./docs/api-reference.md) |
+| [React Compatibility](./docs/react-type-compatibility.md) |
+| [Troubleshooting](./docs/troubleshooting-guide.md) |
+| [Testing](./docs/testing.md) |
 
 
 ## License

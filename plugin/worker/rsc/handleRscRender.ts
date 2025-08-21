@@ -1,20 +1,19 @@
-
-import { createStreamMetrics } from "../../helpers/metrics.js";
+import { createRenderMetrics } from "../../helpers/metrics.js";
 import { handleError } from "../../error/handleError.js";
 import { workerData } from "node:worker_threads";
-import { createHandler } from "../../helpers/createHandler.server.js";
+import { createRenderToPipeableStreamHandler } from "../../stream/createRenderToPipeableStreamHandler.server.js";
 import { PassThrough } from "node:stream";
 import type { HandleRscRenderFn } from "./types.js";
 import { createLogger } from "vite";
-
+import { join } from "node:path";
 
 /**
  * Handle the render of an RSC stream, creates a pass through stream and
  * calls the provided handlers to handle the stream.
- * 
- * @param handlerOptions 
- * @param handlers 
- * @param logger 
+ *
+ * @param handlerOptions
+ * @param handlers
+ * @param logger
  */
 export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
   handlerOptions,
@@ -33,15 +32,52 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
   try {
     if (verbose) {
       logger?.info(`[rsc-worker:${route}] Creating RSC stream`);
-      logger?.info(`[rsc-worker:${route}] htmlPath in handlerOptions: "${handlerOptions.htmlPath}" (type: ${typeof handlerOptions.htmlPath})`);
+      logger?.info(
+        `[rsc-worker:${route}] htmlPath in handlerOptions: "${
+          handlerOptions.htmlPath
+        }" (type: ${typeof handlerOptions.htmlPath})`
+      );
+      logger?.info(
+        `[rsc-worker:${route}] HtmlComponent in handlerOptions: ${
+          handlerOptions.HtmlComponent ? 'present' : 'undefined'
+        }`
+      );
     }
     const passThrough = rscStreamOverride || new PassThrough();
-    const reactStream = createHandler(handlerOptions);
+    const reactStream = createRenderToPipeableStreamHandler(handlerOptions);
     reactStream.pipe(passThrough);
 
-
     // Set up stream handling using our helper
-    const streamMetrics = createStreamMetrics();
+    const baseDir = join(
+      handlerOptions.build.outDir,
+      handlerOptions.build.static
+    );
+    const hasHtml =
+      handlerOptions.htmlPath !== "" || handlerOptions.HtmlComponent;
+    const renderMetrics = createRenderMetrics({
+      type: hasHtml ? "rsc-full" : "rsc-headless",
+      route,
+      fromMainThread: false,
+      fromRscWorker: true,
+      fromHtmlWorker: false,
+      processingTime: 0,
+      chunks: 0,
+      ...(!hasHtml
+        ? {
+            fileName: hasHtml
+              ? handlerOptions.build.htmlOutputPath
+              : handlerOptions.build.rscOutputPath,
+            outputPath: join(
+              baseDir,
+              route,
+              handlerOptions.build.rscOutputPath
+            ),
+            baseDir,
+            routePath: route.replace(/^\//, ""),
+          }
+        : null // rsc-full isn't written to file directly.
+        ),
+    });
 
     // Add a timeout to ensure the stream completes even if React doesn't end it naturally
     const streamTimeout = setTimeout(() => {
@@ -54,7 +90,7 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       if (!passThrough.destroyed) {
         passThrough.end();
       }
-    }, handlerOptions.rscTimeout || 3000); // 3 second timeout
+    }, handlerOptions.rscTimeout || 5000); // 5 second timeout
 
     passThrough.on("data", (chunk: Buffer) => {
       if (verbose) {
@@ -64,8 +100,8 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       }
       // Always process data - let React handle errors naturally in the stream
       handlers.onData(id, chunk);
-      streamMetrics.chunks++;
-      streamMetrics.bytes += chunk.length;
+      renderMetrics.streamMetrics.chunks++;
+      renderMetrics.streamMetrics.bytes += chunk.length;
     });
 
     passThrough.on("end", () => {
@@ -77,8 +113,9 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
 
       // Always call onEnd to complete the stream
       handlers.onEnd(id);
-      streamMetrics.duration = Date.now() - streamMetrics.startTime;
-      handlers.onMetrics(id, streamMetrics);
+      renderMetrics.streamMetrics.duration =
+        performance.now() - renderMetrics.streamMetrics.startTime;
+      handlers.onMetrics(id, renderMetrics as any);
     });
 
     passThrough.on("pipe", (src) => {
@@ -141,8 +178,10 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
 
     // Always ensure the stream is completed, even when errors occur
     handlers.onEnd(id);
-    
-    // Re-throw the error so the message handler can send SHUTDOWN_COMPLETE
-    throw error;
+
+    if (panicError != null) {
+      throw panicError;
+    }
+    throw new Error("RSC render failed", { cause: error });
   }
 };

@@ -1,6 +1,6 @@
 import type {
   OutputBundle,
-  OutputChunk,
+  // OutputChunk - removed unused import
 } from "rollup";
 import type {  ManifestChunk } from "vite";
 import type { InputNormalizer } from "../types.js";
@@ -54,10 +54,9 @@ export function getBundleManifest<SSR extends boolean>({
             }
           ]
         }
-        const chunkWithFacade = chunk as OutputChunk;
         
         // Get the module ID, preferring facadeModuleId
-        const moduleId = chunkWithFacade.facadeModuleId || chunkWithFacade.moduleIds[0] || originalFileName;
+        const moduleId = chunk.facadeModuleId || chunk.moduleIds[0] || originalFileName;
         
         // Handle commonjs helpers specially - must be done before normalization
         if (moduleId.includes('commonjsHelpers')) {

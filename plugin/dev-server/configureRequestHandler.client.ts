@@ -1,10 +1,9 @@
-import type { RenderMetrics, RequestHandler, StreamMetrics } from "../types.js";
+import type { RequestHandler } from "../types.js";
 import { type Worker } from "node:worker_threads";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
-import { performance } from "node:perf_hooks";
 import { restartWorker } from "./restartWorker.client.js";
-import { handleRscStream } from "./handleRscStream.client.js";
+import { handleRscStream } from "../stream/handleRscStream.client.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import type { RscWorkerInputMessage } from "../worker/rsc/types.js";
 
@@ -143,31 +142,8 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         res.setHeader("Transfer-Encoding", "chunked");
         res.setHeader("Connection", "keep-alive");
 
-        const userOnMetrics =
-          typeof handlerOptions.onMetrics === "function"
-            ? (metrics: StreamMetrics) => {
-                const elapsedTime = performance.now() - startTime;
-                const formattedMetrics = {
-                  route: info.route,
-                  htmlSize: 0,
-                  rscSize: metrics.bytes,
-                  processingTime: elapsedTime,
-                  chunks: metrics.chunks,
-                  chunkRate: metrics.chunks / (elapsedTime / 1000),
-                  memoryUsage: process.memoryUsage(),
-                  streamMetrics: {
-                    ...metrics,
-                    duration: elapsedTime,
-                  },
-                  htmlSizes: new Map(),
-                  rscSizes: new Map([[info.route, metrics.bytes]]),
-                } satisfies RenderMetrics;
-                if(typeof handlerOptions.onMetrics === 'function') {
-                  handlerOptions.onMetrics(formattedMetrics);
-                }
-              }
-            : () => {};
-        const startTime = performance.now();
+        const userOnMetrics = handlerOptions.onMetrics;
+        
         if (!currentWorker) {
           currentWorker = await restartWorker({
             server,
@@ -186,7 +162,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         onWorkerCreated?.(currentWorker);
         const stream = handleRscStream({
           worker: currentWorker,
-          message: {
+          options: {
             ...serializedUserOptions,
             id: info.route,
             type: "RSC_RENDER",
@@ -197,7 +173,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             propsPath: propsPath,
             rootPath: rootPath,
             htmlPath: htmlPath,
-            // Component overrides (undefined for file-based components in dev)
+            // Component overrides (undefined for file-based components in client dev)
             HtmlComponent: undefined,
             RootComponent: undefined,
             // override these at all times to ensure the settings will work for the dev server
@@ -208,7 +184,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
                 ? serializedUserOptions.build.pages
                 : [],
             },
-            manifest: autoDiscoveredFiles.staticManifest,
+            manifest: {},
             cssFiles: new Map(),
             globalCss: new Map(),
             serverPipeableStreamOptions: serializedUserOptions.serverPipeableStreamOptions,
@@ -217,7 +193,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           handlers: {
             onMetrics: (id, metrics) => {
               metrics.route = id;
-              userOnMetrics(metrics);
+              userOnMetrics?.(metrics);
             },
             onHmrAccept: () => {
               // TODO: implement HMR accept handler

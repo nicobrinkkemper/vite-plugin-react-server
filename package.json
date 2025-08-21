@@ -30,12 +30,14 @@
     "./types": "./dist/plugin/types.js",
     "./utils": "./dist/plugin/utils/index.js",
     "./metrics": "./dist/plugin/metrics/index.js",
+    "./stream": "./dist/plugin/stream/index.js",
     "./env": "./dist/plugin/env/plugin.js",
     "./config": "./dist/plugin/config/index.js",
     "./error": "./dist/plugin/error/index.js",
     "./vendor": "./dist/plugin/vendor/index.js",
     "./vendor.server": "./dist/plugin/vendor/vendor.server.js",
     "./vendor.client": "./dist/plugin/vendor/vendor.client.js",
+    "./vendor.static": "./dist/plugin/vendor/vendor.static.js",
     "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
     "./loader": "./dist/plugin/loader/index.js",
     "./helpers": "./dist/plugin/helpers/index.js",
@@ -46,8 +48,8 @@
     "./dev-server": "./dist/plugin/dev-server/index.js",
     "./dev-server/configureReactServer": "./dist/plugin/dev-server/configureReactServer.js",
     "./dev-server/handleServerAction": "./dist/plugin/dev-server/handleServerAction.js",
-    "./dev-server/handleRscStream": "./dist/plugin/dev-server/handleRscStream.js",
-    "./dev-server/createRscStream": "./dist/plugin/dev-server/createRscStream.js",
+    "./stream/handleRscStream": "./dist/plugin/stream/handleRscStream.js",
+    "./stream/createRscStream": "./dist/plugin/stream/createRscStream.js",
     "./dev-server/restartWorker": "./dist/plugin/dev-server/restartWorker.js",
     "./dev-server/cleanupServerAction": "./dist/plugin/dev-server/cleanupServerAction.js",
     "./env-loader": "./dist/plugin/loader/env-loader.js",
@@ -77,6 +79,9 @@
       "metrics": [
         "./dist/plugin/metrics/index.d.ts"
       ],
+      "stream": [
+        "./dist/plugin/stream/index.d.ts"
+      ],
       "config": [
         "./dist/plugin/config/index.d.ts"
       ],
@@ -88,6 +93,9 @@
       ],
       "vendor.client": [
         "./dist/plugin/vendor/vendor.client.d.ts"
+      ],
+      "vendor.static": [
+        "./dist/plugin/vendor/vendor.static.d.ts"
       ],
       "vendor": [
         "./dist/plugin/vendor/index.d.ts"
@@ -122,19 +130,18 @@
       "dev-server/handleServerAction": [
         "./dist/plugin/dev-server/handleServerAction.d.ts"
       ],
-      "dev-server/handleRscStream": [
-        "./dist/plugin/dev-server/handleRscStream.d.ts"
+      "stream/handleRscStream": [
+        "./dist/plugin/stream/handleRscStream.d.ts"
       ],
-      "dev-server/createRscStream": [
-        "./dist/plugin/dev-server/createRscStream.d.ts"
+      "stream/createRscStream": [
+        "./dist/plugin/stream/createRscStream.d.ts"
       ],
-      
       "directives": [
         "./dist/plugin/loader/directives/index.d.ts"
       ],
       "helpers/resolveStreamElements": [
         "./dist/plugin/helpers/resolveStreamElements.d.ts"
-      ] 
+      ]
     }
   },
   "sideEffects": false,
@@ -151,7 +158,7 @@
     "prepublishOnly": "npm run build",
     "lint": "eslint ./plugin --fix",
     "setup:test-fixtures": "npx tsx test/setup.ts",
-    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run test/server/*",
+    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run ./test/server",
     "pretest:client": "npm run build",
     "test:client": "vitest run",
     "test:examples": "NODE_OPTIONS='--conditions react-server' vitest run test/examples/* && vitest run test/examples/*",
@@ -173,6 +180,7 @@
     "test:server-action-integration": "npm run test -- test/server/server-action-integration.test.ts",
     "test:directives": "npm run test -- test/unit/analyzeModule",
     "test:server-action-integration-client": "vitest run test/client/server-action-integration.test.ts",
+    "test:cors": "node test/cors-test.js",
     "test:typecheck": "NODE_OPTIONS='--conditions react-server' vitest run ./test/types --typecheck ",
     "pretest": "npm run build",
     "test-all": "npm run test:server && npm run test:client && npm run test:unit && npm run test:typecheck",
@@ -182,6 +190,7 @@
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
     "test:bidoof-template": "cd ../bidoof-template && npm run build:preview",
     "test:mmc": "cd ../mmc && npm run build",
+    "test:app-build": "cd ../bidoof-template && npx vite build --app; cd -",
     "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
@@ -248,7 +257,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.33.1",
-    "vite": "^6.2.2",
+    "vite": "^6.3.5",
     "vitest": "^3.0.4",
     "webpack-sources": "^3.2.3"
   },

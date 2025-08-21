@@ -1,26 +1,12 @@
 import { performance } from "node:perf_hooks";
 import {
   type ResolvedConfig,
-  type UserConfig,
-  type ViteDevServer,
-  type Manifest,
-  createLogger,
-  type Logger,
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
-import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import type {
   BuildTiming,
   VitePluginFn,
-  AutoDiscoveredFiles,
 } from "../types.js";
-import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
-import { configureReactServer } from "../dev-server/configureReactServer.js";
-import { configurePreviewServer } from "../react-static/configurePreviewServer.js";
-import { getBundleManifest } from "../helpers/getBundleManifest.js";
-import { createDefaultModuleID } from "../config/createModuleID.js";
-import { handleError } from "../error/handleError.js";
-import { getNodeEnv } from "../config/getNodeEnv.js";
 import { assertReactServer } from "../config/getCondition.js";
 
 assertReactServer()
@@ -33,13 +19,13 @@ export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
   };
 
   let resolvedConfig: ResolvedConfig | null = null;
-  let autoDiscoveredFiles: AutoDiscoveredFiles;
-  let serverManifest: Manifest = {};
-  let logger: Logger;
 
   const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
-    throw resolvedOptions.error;
+    if(resolvedOptions.error != null) { 
+      throw resolvedOptions.error;
+    }
+    throw new Error("React server plugin failed to resolve options");
   }
   const userOptions = resolvedOptions.userOptions;
 
@@ -66,116 +52,6 @@ export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
         );
       }
       timing.configResolved = performance.now();
-    },
-
-    async configurePreviewServer(server) {
-      logger = server.config.customLogger || server.config.logger;
-      configurePreviewServer({
-        server,
-        userOptions,
-      });
-    },
-    async configureServer(server: ViteDevServer) {
-      logger = server.config.customLogger || server.config.logger;
-      configureReactServer({
-        server,
-        autoDiscoveredFiles,
-        userOptions,
-        serverManifest,
-      });
-    },
-    async config(config, configEnv): Promise<UserConfig> {
-      // Create the proper moduleID function now that we have ConfigEnv
-      try {
-        if (typeof userOptions.moduleID !== "function") {
-          userOptions.moduleID = createDefaultModuleID(
-            userOptions,
-            configEnv,
-            userOptions.loader?.mode
-          );
-        }
-        if (!logger) {
-          logger = config.customLogger || createLogger();
-        }
-        const autoDiscoverResult = await resolveAutoDiscover({
-          config,
-          configEnv,
-          userOptions,
-          condition: "react-server",
-          logger,
-        });
-        if (autoDiscoverResult.type === "error") {
-          throw (
-            handleError({
-              error: autoDiscoverResult.error,
-              logger,
-              context: "config(autoDiscover)",
-              panicThreshold: userOptions.panicThreshold,
-            }) ?? autoDiscoverResult.error
-          );
-        }
-        autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
-
-        const resolveUserConfigResult = resolveUserConfig({
-          condition: "react-server",
-          config,
-          configEnv,
-          userOptions,
-          autoDiscoveredFiles,
-        });
-
-        if (resolveUserConfigResult.type === "error") {
-          throw (
-            handleError({
-              error: resolveUserConfigResult.error,
-              logger,
-              context: "config(resolveUserConfig)",
-              panicThreshold: userOptions.panicThreshold,
-            }) ?? resolveUserConfigResult.error
-          );
-        }
-
-        return resolveUserConfigResult.userConfig;
-      } catch (error) {
-        throw (
-          handleError({
-            error,
-            logger,
-            context: "config(config)",
-            panicThreshold: userOptions.panicThreshold,
-          }) ?? error
-        );
-      }
-    },
-    async writeBundle(options, bundle) {
-      if (userOptions.onEvent) {
-        try {
-          userOptions.onEvent({
-            type: "build.writeBundle.server",
-            data: {
-              pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
-              options,
-              bundle,
-            },
-          });
-        } catch (error) {
-          throw (
-            handleError({
-              error,
-              logger,
-              context: "onEvent(build.writeBundle.server)",
-              panicThreshold: userOptions.panicThreshold,
-            }) ?? error
-          );
-        }
-      }
-    },
-    async generateBundle(_options, bundle) {
-      // Create manifest entries for each chunk
-      serverManifest = getBundleManifest<false>({
-        bundle,
-        normalizer: userOptions.normalizer,
-      });
     },
     async handleHotUpdate({ file, server, timestamp, ...ctx }) {
       try {
@@ -207,17 +83,11 @@ export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
           }
         }
       } catch (error) {
-        const panicError = handleError({
-          error,
-          logger: logger || createLogger(),
-          mode: getNodeEnv(),
-          panicThreshold: userOptions.panicThreshold,
-          critical: false,
-          context: "handleHotUpdate",
-        });
-        if (panicError != null) {
-          throw panicError;
+        if(error != null) {
+          throw error;
         }
+        throw new Error("Failed to handle hot update");
+        
       }
       return ctx.modules;
     },

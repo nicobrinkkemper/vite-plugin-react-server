@@ -29,9 +29,9 @@ export const createBundleLoader = ({
 }): GenericModuleLoader =>
   async (moduleID: string) => {
     const [withOutQuery, query] = moduleID.split("?");
-    let hashSplit = withOutQuery.split("#");
+    const hashSplit = withOutQuery.split("#");
     let moduleId = typeof hashSplit[0] === "string" ? hashSplit[0] : moduleID;
-    let exportName = typeof hashSplit[1] === "string" ? hashSplit[1] : "";
+    const exportName = typeof hashSplit[1] === "string" ? hashSplit[1] : "";
 
     if (verbose) {
       logger.info(`Loading module from bundle: ${moduleID}`);

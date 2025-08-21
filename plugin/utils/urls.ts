@@ -30,7 +30,14 @@ export const createAbsoluteURL = (
     try {
       return new URL(pathWithBaseURL, withPublicOrigin).toString();
     } catch {
-      return withPublicOrigin + pathWithBaseURL;
+      // Fallback: ensure proper URL construction
+      const publicOrigin = withPublicOrigin.endsWith("/") 
+        ? withPublicOrigin.slice(0, -1) 
+        : withPublicOrigin;
+      const pathPart = pathWithBaseURL.startsWith("/") 
+        ? pathWithBaseURL 
+        : `/${pathWithBaseURL}`;
+      return publicOrigin + pathPart;
     }
   };
 };
@@ -68,6 +75,9 @@ export const createAbsoluteURL = (
  * baseURL "/" + path "https://bidoof.com" -> should not concatenate to /https://bidoof.com"
  */
 export const createBaseURL = (withBaseURL: string) => {
+  if(withBaseURL === ''){
+    return (path: string) => path;
+  }
   if (withBaseURL.endsWith("/")) {
     return (path: string) => {
       if (path === "") return withBaseURL;
@@ -153,15 +163,19 @@ export const createPageURL = (
 ) => {
   return (to: string, fileName: string = "index.rsc") => {
     try {
+      // Ensure withBaseURL is a string
+      const baseURLString = typeof withBaseURL === 'string' ? withBaseURL : String(withBaseURL || '/');
+      
       // Create the base URL first
       const folderName = addTrailingSlash(
         to.replace(/\[index.(html?|rsc|HTML?)]$/, "")
       );
-      const baseURL = createBaseURL(withBaseURL);
+      const baseURL = createBaseURL(baseURLString);
       const rscPath = baseURL(folderName) + fileName;
       // Create moduleBaseURL and normalize it to match input format
-      const moduleBaseURL = parseURL(withBaseURL, withPublicOrigin);
+      const moduleBaseURL = parseURL(baseURLString, withPublicOrigin);
       if (moduleBaseURL.type === "error") {
+        if(isDev) console.error("Error parsing moduleBaseURL", moduleBaseURL.error);
         throw moduleBaseURL.error;
       }
       const indexRSC = parseURL(rscPath, withPublicOrigin);
@@ -181,7 +195,7 @@ export const createPageURL = (
           to +  
           (shouldJoin ? "/" : "") +
           (shouldSlice ? fileName.slice(1) : fileName),
-        moduleBaseURL: withBaseURL,
+        moduleBaseURL: typeof withBaseURL === 'string' ? withBaseURL : String(withBaseURL || '/'),
       };
     }
   };

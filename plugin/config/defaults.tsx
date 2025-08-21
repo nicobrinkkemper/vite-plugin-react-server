@@ -3,6 +3,7 @@ import { Html } from "../components/html.js";
 import { parse } from "../loader/parse.js";
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
+import { getCondition } from "./getCondition.js";
 
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
@@ -190,6 +191,8 @@ export const DEFAULT_CONFIG = {
     rscExtension: BASE_PATTERNS.EXT.RSC,
     cssModuleExtension: BASE_PATTERNS.EXT.CSS_MODULE,
     nodeExtension: BASE_PATTERNS.EXT.NODE,
+    useRscWorker: getCondition() === "react-server" ? false : true,
+    useHtmlWorker: getCondition() === "react-server" ? true : false,
   },
   CSS: {
     inlineCss: undefined,
@@ -200,6 +203,11 @@ export const DEFAULT_CONFIG = {
   },
 
   AUTO_DISCOVER: {
+    clientEntry: "**/*.client.*",
+    serverEntry: "**/*.server.*",
+    cssEntry: "**/*.css",
+    jsonEntry: "**/*.json",
+    htmlEntry: "**/*.html",
     // Pattern matchers
     modulePattern: new RegExp(BASE_PATTERNS.MODULE),
     serverPattern: new RegExp(BASE_PATTERNS.SERVER),

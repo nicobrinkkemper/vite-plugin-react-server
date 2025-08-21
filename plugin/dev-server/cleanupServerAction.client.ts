@@ -4,15 +4,15 @@ import type { MessageHandler } from "../types.js";
 import type { ServerResponse } from "node:http";
 import type { RscChunkOutputMessage } from "../worker/rsc/types.js";
 import type { PassThrough } from "node:stream";
-import type { CleanupWorkerServerActionFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
+import type { CleanupServerActionFn } from "./types.js";
 
 
 /**
  * Handles cleanup of worker server action resources
  */
-export const cleanupServerAction: CleanupWorkerServerActionFn =
+export const cleanupServerAction: CleanupServerActionFn =
   function _cleanupServerAction(
     passThrough: PassThrough,
     worker: Worker,

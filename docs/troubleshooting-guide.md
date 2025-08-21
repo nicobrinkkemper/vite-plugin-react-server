@@ -98,6 +98,58 @@ npm run postinstall
 - Client components imported from server components without `.client.` suffix
 - Client components used as boundaries between server and client code
 
+### 🔧 **Environment API Not Working**
+
+**Problem**: Vite Environment API builds only one environment instead of all configured environments.
+
+**Error**: Only getting `build.writeBundle.client` but not `build.writeBundle.server`, or vice versa.
+
+**Solution**: Use `createBuilder()` instead of `build()` for Environment API:
+
+```typescript
+import { createBuilder } from "vite";
+
+const builder = await createBuilder({
+  plugins: vitePluginReactServer(options),
+  environments: {
+    client: { build: { ssr: false, outDir: "dist/client" } },
+    server: { build: { ssr: true, outDir: "dist/server" } },
+  },
+});
+
+await builder.buildApp();
+```
+
+**Note**: The standard `build()` function doesn't properly support Environment API. Always use `createBuilder()` for multi-environment builds.
+
+### 🌐 **CORS Errors During Preview**
+
+**Problem**: Cross-origin request blocked when accessing RSC files during preview.
+
+**Error Examples**:
+```
+Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://127.0.0.1:4173/vite-plugin-react-server-demo-official/index.rsc. (Reason: CORS header 'Access-Control-Allow-Origin' missing). Status code: 200.
+
+Uncaught TypeError: NetworkError when attempting to fetch resource.
+```
+
+**Solution**: Ensure you're using `localhost` consistently, not `127.0.0.1`.
+
+**Why**: When the `publicOrigin` is set to `localhost` but you access the site via `127.0.0.1`, it creates a cross-origin request that requires CORS headers. It may load and fail, the createReactFetcher utility ensures consistent publicOrigin is used.
+
+**Steps to Fix**:
+1. **Option 1**: Access your preview server using `localhost:4173` instead of `127.0.0.1:4173`
+2. **Option 2**: Configure your `publicOrigin` to match the actual origin being used:
+   ```typescript
+   export default {
+     // ... other config
+     publicOrigin: "http://127.0.0.1:4173", // or whatever origin you prefer
+   } satisfies StreamPluginOptions;
+   ```
+3. Ensure the preview server is running with the correct condition: `NODE_OPTIONS="--conditions=react-server" npm run preview`
+
+**Note**: The plugin automatically adds CORS headers for both `localhost` and `127.0.0.1` origins, but the preview server must be running with the `react-server` condition for these headers to be applied.
+
 **Solution**: 
 1. Ensure client components have `"use client"` as the first line
 2. Use `.client.` suffix in filenames for auto-discovery
@@ -316,56 +368,20 @@ If you're still experiencing issues:
 <!-- Auto-generated TOC - Do not edit manually -->
 
 
+
 1.	[Getting Started](./getting-started.md)
-	- [Installation and Setup](./getting-started.md#installation-and-setup)
-	- [Basic Configuration](./getting-started.md#basic-configuration)
-	- [Example Projects](./getting-started.md#example-projects)
 2.	[Core Concepts](./core-concepts.md)
-	- [Client-Server Separation](./core-concepts.md#client-server-separation)
-	- [React Server Components](./core-concepts.md#react-server-components)
-	- [Plugin Architecture](./core-concepts.md#plugin-architecture)
 3.	[Configuration Guide](./configuration.md)
-	- [Plugin Options](./configuration.md#plugin-options)
-	- [Routing Configuration](./configuration.md#routing-configuration)
-	- [Build Configuration](./configuration.md#build-configuration)
 4.	[CSS & Styling](./css-handling.md)
-	- [CSS Collectors](./css-handling.md#css-collectors)
-	- [Inline CSS](./css-handling.md#inline-css)
-	- [Custom CSS Processing](./css-handling.md#custom-css-processing)
 5.	[Server Actions](./server-actions.md)
-	- [Creating Server Actions](./server-actions.md#creating-server-actions)
-	- [Client Integration](./server-actions.md#client-integration)
-	- [Error Handling](./server-actions.md#error-handling)
-	- [Database Integration](./server-actions.md#database-integration)
 6.	[Build & Deployment](./build-orchestration.md)
-	- [Multiple Build Targets](./build-orchestration.md#multiple-build-targets)
-	- [Plugin Architecture](./build-orchestration.md#plugin-architecture)
-	- [Environment-Specific Builds](./build-orchestration.md#environment-specific-builds)
 7.	[Advanced Development](./advanced-topics.md)
-	- [Custom Workers](./advanced-topics.md#custom-workers)
-	- [Message System](./advanced-topics.md#message-system)
-	- [Extending the Plugin](./advanced-topics.md#extending-the-plugin)
 8.	[Plugin Internals](./transformer-plugin.md)
-	- [Plugin Architecture](./transformer-plugin.md#plugin-architecture)
-	- [Transformation Process](./transformer-plugin.md#transformation-process)
-	- [Directive Handling](./transformer-plugin.md#directive-handling)
 9.	[Worker System](./rsc-worker.md)
-	- [Worker Architecture](./rsc-worker.md#worker-architecture)
-	- [Message Handling](./rsc-worker.md#message-handling)
-	- [Performance Optimization](./rsc-worker.md#performance-optimization)
 10.	[API Reference](./api-reference.md)
-	- [Plugin Options](./api-reference.md#plugin-options)
-	- [Component Props](./api-reference.md#component-props)
-	- [Worker Messages](./api-reference.md#worker-messages)
-	- [Type Definitions](./api-reference.md#type-definitions)
 11.	[React Compatibility](./react-type-compatibility.md)
-	- [Type System Overview](./react-type-compatibility.md#type-system-overview)
-	- [Generic Types](./react-type-compatibility.md#generic-types)
-	- [Version Compatibility](./react-type-compatibility.md#version-compatibility)
 12.	**[Troubleshooting](./troubleshooting-guide.md) ← you are here**
-	- [Common Issues](./troubleshooting-guide.md#common-issues)
-	- [Debugging Tips](./troubleshooting-guide.md#debugging-tips)
-	- [Performance Optimization](./troubleshooting-guide.md#performance-optimization)
+13.	[Testing](./testing.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

@@ -1,70 +1,104 @@
-import { reactStaticPlugin } from "./react-static/plugin.server.js";
-import { reactTransformPlugin } from "./transformer/plugin.server.js";
-import type {
-  VitePluginMainFn,
-  VitePluginReactClientFn,
-} from "./types.js";
+import type { VitePluginMainFn, VitePluginReactClientFn, StreamPluginOptions } from "./types.js";
+import type { Plugin } from "vite";
+import { resolveOptions } from "./config/resolveOptions.js";
+
+import { envPlugin } from "./env/plugin.server.js";
 import { reactServerPlugin } from "./react-server/plugin.server.js";
-import { reactClientPlugin } from "./react-client/plugin.server.js";
-
-import { envPlugin } from "./env/plugin.js";
+import { createTransformerPlugin } from "./transformer/createTransformerPlugin.js";
 import { assertReactServer } from "./config/getCondition.js";
-// import the .client transformer for the reactClientPlugin (it won't throw because there's no assert, but it will transform for the react-client)
-import { reactTransformPlugin as reactTransformPluginClient } from "./transformer/plugin.client.js";
+import { reactClientPlugin } from "./react-client/plugin.server.js";
+import { reactStaticPlugin } from "./react-static/plugin.server.js";
+import { vitePluginReactDevServer } from "./dev-server/plugin.server.js";
+import { createBuildEventPlugin } from "./environments/createBuildEventPlugin.js";
+import { createEnvironmentPlugin } from "./environments/createEnvironmentPlugin.js";
 
-assertReactServer()
+assertReactServer();
+
+// Build plugin - agnostic to condition
+function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
+  const resolvedOptionsResult = resolveOptions(options);
+  if (resolvedOptionsResult.type === "error") {
+    throw resolvedOptionsResult.error;
+  }
+  const userOptions = resolvedOptionsResult.userOptions;
+  
+  const plugins = [
+    envPlugin(options),
+    createEnvironmentPlugin(options),
+    createTransformerPlugin({
+      name: "server",
+      defaultEnvironment: "server",
+      allowedEnvironments: ["server"], // Server transformer only for server components
+    })(options),
+    reactServerPlugin(options),
+    vitePluginReactDevServer(options),
+    createBuildEventPlugin(options),
+  ];
+
+  // Add server-side static generation support if pages are configured
+  if (userOptions.build?.pages) {
+    const explicitRscWorker =
+      typeof userOptions.build?.useRscWorker === "boolean"
+        ? userOptions.build?.useRscWorker
+        : false;
+    const explicitHtmlWorker =
+      typeof userOptions.build?.useHtmlWorker === "boolean"
+        ? userOptions.build?.useHtmlWorker
+        // by default, if non useHtmlWorker and no useRscWorker, the default is to
+        // use the html worker
+        : !explicitRscWorker;
+    if (explicitHtmlWorker) {
+      plugins.push(reactStaticPlugin(options));
+    }
+  }
+  
+  return plugins;
+}
 
 /**
- * Vite plugin for the React server, use same name to support dynamic import.
- * Includes:
- * - envPlugin
- * - reactTransformPlugin
- * - reactServerPlugin
- * - reactStaticPlugin (if build.pages is not empty)
- * - reactPreservePlugin (handles directive removal/preservation)
+ * Main entrypoint for React Server Components in server environment.
+ *
+ * This plugin adapts its behavior based on the build context:
+ * - In single builds: includes server plugin for server-side rendering
+ * - In app mode (--app): includes both server and client plugins for full RSC support
+ * - With static pages: adds static generation plugin when appropriate
+ *
+ * Use this for the most common case where you want RSC support in server environments.
+ * @param options
+ * @returns
  */
 export const vitePluginReactServer: VitePluginMainFn =
-  function _vitePluginReactServer(
-    options
-  ) {
-    if(options == null) {
+  function _vitePluginReactServer(options) {
+    if (options == null) {
       throw new Error("options is required");
     }
-    const basePlugins = [
-      envPlugin(),
-      reactTransformPlugin(options),
-      reactServerPlugin(options),
-    ];
 
-    console.log("🔍 Plugin server: pages configured:", options.build?.pages);
-
-    if (
-      !options.build?.pages ||
-      (Array.isArray(options.build.pages) && options.build.pages.length === 0)
-    ) {
-      // in this case we do not need the static plugin at all
-      console.log("🔍 Plugin server: no pages, returning base plugins only");
-      return basePlugins 
-    }
-    // Add static plugin for static builds
-    console.log("🔍 Plugin server: pages found, adding static plugin");
-    return [
-      ...basePlugins,
-      reactStaticPlugin(options),
-    ]
+    // Always include all plugins - they will be conditionally activated
+    return createBuildPlugin(options);
   };
 
-  export const vitePluginReactClient: VitePluginReactClientFn =
-    function _vitePluginReactClient(options) {
-      if (options == null) {
-        throw new Error("options is required");
-      }
-      
-      const plugins = [
-        envPlugin(),
-        reactTransformPluginClient(options),
-        reactClientPlugin(options),
-      ];
-      
-      return plugins;
+/**
+ * Vite plugin for the React client, use specific name to support static import (that doesn't conflict with vitePluginReactServer)
+ * Includes:
+ * - envPlugin
+ * - reactClientPlugin
+ * @param options
+ * @returns
+ */
+export const vitePluginReactClient: VitePluginReactClientFn =
+  function _vitePluginReactClient(options) {
+    if (options == null) {
+      throw new Error("options is required");
     }
+
+    const plugins = [
+      envPlugin(options),
+      createTransformerPlugin({
+        name: "client",
+        defaultEnvironment: "client",
+      })(options),
+      reactClientPlugin(options),
+    ];
+
+    return plugins;
+  };

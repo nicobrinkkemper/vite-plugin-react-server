@@ -3,7 +3,7 @@ import { join } from 'path';
 import { mkdir, writeFile, rm } from 'fs/promises';
 import { type PluginEvent, type FileWriteDoneEvent } from 'vite-plugin-react-server/types';
 import { testUserOptions } from '../test-config.js';
-import { doBuild } from './doBuild.js';
+import { doBuild } from '../doBuild.js';
 
 // Generate a large component with many nested divs
 const generateLargeComponent = (depth: number, width: number): string => {

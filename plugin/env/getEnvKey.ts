@@ -1,4 +1,5 @@
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 
 /**
  * Standard environment variable keys that should be prefixed
@@ -31,7 +32,13 @@ export function getEnvKey(key: EnvKey, prefix?: string): string {
  * @returns The environment variable value or undefined
  */
 export function getEnvValue(key: EnvKey, prefix: string = DEFAULT_CONFIG.ENV_PREFIX): string | undefined {
-  return process.env[getEnvKey(key, prefix)];
+  const result =  process.env[getEnvKey(key, prefix)];
+
+  if(result == null && prefix === DEFAULT_CONFIG.ENV_PREFIX) {
+    if(key === 'MODE') return getNodeEnv();
+  }
+
+  return result;
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { RscWorkerOutputMessage } from "../worker/rsc/types.js";
 import type { CreateMessageHandlerFn } from "./types.js";
 
+
 export const createMessageHandler: CreateMessageHandlerFn = function _createMessageHandler({
   handlers,
   logger,
@@ -30,7 +31,7 @@ export const createMessageHandler: CreateMessageHandlerFn = function _createMess
         handlers.onEnd(message.id);
         break;
       case "RSC_METRICS":
-        handlers.onMetrics(message.id, message.metrics);
+        handlers.onMetrics(message.id, message.metrics as any);
         break;
       case "HMR_ACCEPT":
         handlers.onHmrAccept(message.id, message.routes);

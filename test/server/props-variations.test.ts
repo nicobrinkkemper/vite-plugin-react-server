@@ -116,7 +116,6 @@ describe("RSC Server", () => {
       expect(response2.result).toContain(
         `{"children":["Home Page for ","/page2/"]}`
       );
-      throw new Error('VITE_BASE_URL is empty string');
     } else {
       expect(response2.result).toContain(
         `{"children":["Home Page for ","${process.env.VITE_BASE_URL}page2/"]}`

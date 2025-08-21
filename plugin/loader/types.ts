@@ -40,6 +40,7 @@ export type TransformOptions = {
   panicThreshold?: 'none' | 'critical_errors' | 'all_errors';
   mode?: "development" | "production" | "test";
   logger?: Logger;
+  moduleBase?: string;
 };
 
 export type TransformResult = {
@@ -51,12 +52,12 @@ export type TransformFunction = (
   source: string,
   moduleId: string,
   parseResult: ParseResult,
-  options: TransformOptions
+  options: TransformOptions,
 ) => Promise<TransformResult>;
 
 export type TransformerFactory = (options: {
   parseFn?: ParseFn;
-  options: Pick<TransformOptions, 'verbose' | 'loader' | 'panicThreshold' | 'logger'>;
+  options: Pick<TransformOptions, 'verbose' | 'loader' | 'panicThreshold' | 'logger' | 'moduleBase'>;
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;
   isServerEnvironment?: boolean;

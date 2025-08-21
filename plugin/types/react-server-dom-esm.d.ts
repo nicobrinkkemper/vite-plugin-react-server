@@ -1,35 +1,159 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare module 'react-server-dom-esm/client.node' {
-  export type Options = {
-    callServer?: (id: string, args: any[]) => Promise<any>;
+
+/**
+ * React Server Components ESM Type Definitions
+ * 
+ * This file contains reverse-engineered type definitions for the experimental
+ * react-server-dom-esm package. The types are based on the actual implementation
+ * and may not match the official React types.
+ * 
+ * Module Structure:
+ * - client.*: Client-side modules for consuming RSC streams in browser/Node.js
+ * - server.*: Server-side modules for dynamic RSC rendering (runtime, interactive)
+ * - static.*: Server-side modules for static pre-rendering (build-time, reusable)
+ * 
+ * This is a ambient module, don't export directly from this file.
+ */
+
+// Client-side modules (browser environment)
+declare module 'react-server-dom-esm/client' {
+  import type { ReactNode } from 'react';
+
+  export type CreateFromFetchOptions = {
     moduleBaseURL?: string;
+    callServer?: (id: string, args: any[]) => Promise<any>;
+    temporaryReferences?: Map<any, any>;
+    findSourceMapURL?: (filename: string, environmentName: string) => string | null;
+    replayConsoleLogs?: boolean;
+    environmentName?: string;
+  };
+
+  export type CreateFromReadableStreamOptions = CreateFromFetchOptions;
+
+  export type EncodeReplyOptions = {
     temporaryReferences?: Map<any, any>;
     signal?: AbortSignal;
-  }
+  };
 
   export function createFromFetch(
     promiseForResponse: Promise<Response>,
-    options?: Options
-  ): Promise<any>;
+    options?: CreateFromFetchOptions
+  ): Promise<ReactNode>;
+
+  export function createFromReadableStream(
+    stream: ReadableStream,
+    options?: CreateFromReadableStreamOptions
+  ): Promise<ReactNode>;
+
+  export function createServerReference(
+    id: string,
+    callServer: (id: string, args: any[]) => Promise<any>,
+    encodeFormAction?: any,
+    findSourceMapURL?: (filename: string, environmentName: string) => string | null,
+    functionName?: string
+  ): Function;
+
+  export function createTemporaryReferenceSet(): Map<any, any>;
+
+  export function encodeReply(
+    value: any,
+    options?: EncodeReplyOptions
+  ): Promise<string | FormData>;
+
+  export function registerServerReference(
+    reference: Function,
+    id: string
+  ): Function;
+}
+
+declare module 'react-server-dom-esm/client.browser' {
+  import type { ReactNode } from 'react';
+
+  // ReactDOM renderToPipeableStream options (for HTML rendering)
+  export type RenderToPipeableStreamOptions = {
+    onError?: (error: unknown) => void;
+    onAllReady?: () => void;
+    onShellReady?: () => void;
+    onShellError?: (error: unknown) => void;
+    onPostpone?: (reason: string) => void;
+    identifierPrefix?: string;
+    environmentName?: string;
+    filterStackFrame?: (stackFrame: string) => string;
+  };
+
+  export function createFromFetch(
+    promiseForResponse: Promise<Response>,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      moduleBaseURL?: string;
+      temporaryReferences?: Map<any, any>;
+      findSourceMapURL?: (filename: string, environmentName: string) => string | null;
+      replayConsoleLogs?: boolean;
+      environmentName?: string;
+    }
+  ): Promise<ReactNode>;
+
+  export function createFromReadableStream(
+    stream: ReadableStream,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      moduleBaseURL?: string;
+      temporaryReferences?: Map<any, any>;
+      findSourceMapURL?: (filename: string, environmentName: string) => string | null;
+      replayConsoleLogs?: boolean;
+      environmentName?: string;
+    }
+  ): Promise<ReactNode>;
+
+  export function encodeReply(
+    value: any,
+    options?: {
+      signal?: AbortSignal;
+      temporaryReferences?: Map<any, any>;
+    }
+  ): Promise<string | FormData>;
+}
+
+// Node.js client module
+declare module 'react-server-dom-esm/client.node' {
+  import type { ReactNode } from 'react';
+
+  export type CreateFromNodeStreamOptions = {
+    encodeFormAction?: (id: string, boundPromise: Promise<unknown>) => string;
+    nonce?: string;
+    findSourceMapURL?: (url: string) => string;
+    replayConsoleLogs?: boolean;
+    environmentName?: string;
+    temporaryReferences?: Map<any, any>;
+  };
+
+  export function createFromFetch(
+    promiseForResponse: Promise<Response>,
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      moduleBaseURL?: string;
+      temporaryReferences?: Map<any, any>;
+      signal?: AbortSignal;
+    }
+  ): Promise<ReactNode>;
 
   export function createFromNodeStream(
     stream: NodeJS.ReadableStream,
     moduleRootPath: string,
     moduleBaseURL: string,
-    options?: {
-      encodeFormAction?: (id: string, boundPromise: Promise<unknown>) => string;
-      nonce?: string;
-      findSourceMapURL?: (url: string) => string;
-      replayConsoleLogs?: boolean;
-      environmentName?: string;
-    }
-  ): Promise<any>;
+    options?: CreateFromNodeStreamOptions
+  ): Promise<ReactNode>;
   
   export function createFromReadableStream(
     stream: ReadableStream,
-    options?: Options
-  ): Promise<any>;
+    options?: {
+      callServer?: (id: string, args: any[]) => Promise<any>;
+      moduleBaseURL?: string;
+      temporaryReferences?: Map<any, any>;
+      signal?: AbortSignal;
+    }
+  ): Promise<ReactNode>;
 
   export function createServerReference(
     id: string,
@@ -52,144 +176,121 @@ declare module 'react-server-dom-esm/client.node' {
   ): void;
 }
 
+/**
+ * Server-side modules for dynamic RSC rendering (runtime, interactive)
+ * 
+ * The server modules are designed for dynamic server-side rendering with real-time data.
+ * They export core RSC functionality for streaming, action handling, and component registration.
+ * 
+ * Key exports:
+ * - renderToPipeableStream: For streaming RSC content
+ * - decodeReply, decodeAction, decodeFormState: For handling client actions
+ * - registerServerReference, registerClientReference: For component registration
+ * - createTemporaryReferenceSet: For managing references
+ */
 declare module 'react-server-dom-esm/server' {
-  export type Options = {
-    callServer?: (id: string, args: any[]) => Promise<any>;
-    moduleBasePath?: string;
-  }
+  import type { ReactElement, ReactNode } from 'react';
+
+  export type RenderToPipeableStreamOptions = {
+    onError?: (error: unknown) => void;
+    identifierPrefix?: string;
+    onPostpone?: (reason: string) => void;
+    temporaryReferences?: WeakMap<any, any>;
+    environmentName?: string;
+    filterStackFrame?: (stackFrame: string) => string;
+  };
+
+  export type PipeableStream = {
+    pipe: (destination: NodeJS.WritableStream) => NodeJS.WritableStream;
+    abort: (reason?: any) => void;
+  };
 
   export function createTemporaryReferenceSet(): WeakMap<any, any>;
 
   export function decodeAction(
-    body: Uint8Array | string,
+    body: FormData,
     serverManifest: any
-  ): Promise<any>;
+  ): Promise<((formData: FormData) => Promise<any>) | null>;
 
   export function decodeFormState(
     actionResult: any,
-    body: Uint8Array | string,
+    body: FormData,
     serverManifest: any
-  ): Promise<any>;
+  ): Promise<[any, string, string, number] | null>;
 
   export function decodeReply(
     body: Uint8Array | string,
     moduleBasePath: string,
-    options?: Options
+    options?: {
+      temporaryReferences?: WeakMap<any, any>;
+    }
   ): Promise<any>;
 
   export function decodeReplyFromBusboy(
     busboy: any,
     moduleBasePath: string,
-    options?: Options
+    options?: {
+      temporaryReferences?: WeakMap<any, any>;
+    }
   ): Promise<any>;
 
   export function registerClientReference(
     reference: any,
     id: string,
     exportName?: string
-  ): void;
+  ): any;
 
   export function registerServerReference(
-    reference: any,
+    reference: Function,
     id: string,
     exportName?: string
-  ): void;
+  ): Function;
 
-  export type RenderToPipeableStreamOptions = {
-    /**
-     * Called when a React error occurs during streaming (including thrown errors in components).
-     */
-    onError?: (error: unknown, errorInfo?: {
-      componentStack?: string | null;
-      digest?: string | null;
-    }) => void;
-    /**
-     * Called when all content is ready to be streamed (for SSR).
-     */
-    onAllReady?: () => void;
-    /**
-     * Called when the shell (HTML frame) is ready to be streamed.
-     */
-    onShellReady?: () => void;
-    /**
-     * Called if the shell cannot be rendered at all (critical error).
-     */
-    onShellError?: (error: unknown) => void;
-    /**
-     * Called if a component is postponed (React Flight/experimental).
-     */
-    onPostpone?: (reason: string) => void;
-    /**
-     * Optionally provide a WeakMap for temporary references (advanced/Flight).
-     */
-    temporaryReferences?: WeakMap<any, any>;
-    /**
-     * Optionally set a string prefix for element IDs (advanced).
-     */
-    identifierPrefix?: string;
-    /**
-     * Optionally set the environment name (for debugging).
-     */
-    environmentName?: string;
-    /**
-     * Optionally filter stack frames (for debugging).
-     */
-    filterStackFrame?: (stackFrame: string) => string;
-  };
-
-  /**
-   * Renders a React element to a Node.js pipeable stream (RSC/SSR).
-   * Only the handlers listed in RenderToPipeableStreamOptions are supported.
-   */
   export function renderToPipeableStream(
-    model: React.ReactNode,
+    element: ReactElement,
     moduleBasePath: string,
     options?: RenderToPipeableStreamOptions
-  ): {
-    pipe: (destination: NodeJS.WritableStream) => void;
-    abort: (reason?: unknown) => void;
-  };
-
-  export function unstable_prerenderToNodeStream(
-    model: React.ReactNode,
-    moduleBasePath: string,
-    options?: Options
-  ): NodeJS.ReadableStream;
+  ): PipeableStream;
 }
 
-declare module 'react-server-dom-esm/client.browser' {
-  export function createFromFetch<R>(
-    promiseForResponse: Promise<Response>,
-    options?: {
-      callServer?: (id: string, args: any[]) => Promise<R>;
-      moduleBaseURL?: string;
-    }
-  ): Promise<R>;
-
-  export function createFromReadableStream<R extends unknown>(
-    stream: ReadableStream,
-    options?: {
-      callServer?: (id: string, args: any[]) => Promise<R>;
-      moduleBaseURL?: string;
-    }
-  ): Promise<R>;
-
-  export function encodeReply(
-    value: unknown,
-    options?: {
-      signal?: AbortSignal;
-      temporaryReferences?: Map<unknown, unknown>;
-    }
-  ): Promise<FormData>;
-}
-
+/**
+ * Server-side Node.js module for dynamic RSC rendering
+ * 
+ * This module exports the same functionality as 'react-server-dom-esm/server'
+ * but is specifically for Node.js environments with the 'react-server' condition.
+ * 
+ * Use case: Dynamic server-side rendering with real-time data and interactive features.
+ */
 declare module 'react-server-dom-esm/server.node' {
   import type { ReactElement, ReactNode } from 'react';
 
-  export function createTemporaryReferenceSet(): Set;
+  export function createTemporaryReferenceSet(): WeakMap<any, any>;
+  
+  export type RenderToPipeableStreamOptions = {
+    onError?: (error: unknown) => void;
+    identifierPrefix?: string;
+    onPostpone?: (reason: string) => void;
+    temporaryReferences?: WeakMap<any, any>;
+    environmentName?: string;
+    filterStackFrame?: (stackFrame: string) => string;
+  };
+
+  export type PrerenderToNodeStreamOptions = {
+    onError?: (error: unknown) => void;
+    identifierPrefix?: string;
+    onPostpone?: (reason: string) => void;
+    temporaryReferences?: WeakMap<any, any>;
+    environmentName?: string;
+    filterStackFrame?: (stackFrame: string) => string;
+  };  
+
+  export type PipeableStream = {
+    pipe: (destination: NodeJS.WritableStream) => NodeJS.WritableStream;
+    abort: (reason?: any) => void;
+  };
 
   export function renderToPipeableStream(
-    element: any,
+    element: ReactElement,
     moduleBasePath: string,
     options?: RenderToPipeableStreamOptions
   ): PipeableStream;
@@ -197,34 +298,74 @@ declare module 'react-server-dom-esm/server.node' {
   export function decodeReply(
     body: Uint8Array | string,
     moduleBasePath: string,
+    options?: {
+      temporaryReferences?: WeakMap<any, any>;
+    }
   ): Promise<any>;
 
   export function decodeAction(
-    body: Uint8Array | string,
+    body: FormData,
     serverManifest: any
-  ): Promise<any>;
+  ): Promise<((formData: FormData) => Promise<any>) | null>;
 
   export function decodeFormState(
     actionResult: any,
-    body: Uint8Array | string,
+    body: FormData,
     serverManifest: any
-  ): Promise<any>;
+  ): Promise<[any, string, string, number] | null>;
 
   export function decodeReplyFromBusboy(
     busboy: any,
     moduleBasePath: string,
     options?: {
-      callServer?: (id: string, args: any[]) => Promise<any>;
-      callClient?: (id: string, args: any[]) => Promise<any>;
+      temporaryReferences?: WeakMap<any, any>;
     }
   ): Promise<any>;
 
+  export function registerServerReference(
+    reference: Function,
+    id: string,
+    exportName?: string
+  ): Function;
+
+  export function registerClientReference(
+    proxyImplementation: any,
+    id: string,
+    exportName: string
+  ): any;
+
+}
+
+/**
+ * Server-side Node.js module for static pre-rendering (build-time, reusable)
+ * 
+ * The static module is specifically designed for static site generation where you want to:
+ * 1. Pre-render RSC content to a stream
+ * 2. Save that stream for later reuse
+ * 3. Use it as input for other renders
+ * 
+ * Key difference from server.* modules:
+ * - server.* = Dynamic rendering (runtime, interactive)
+ * - static.* = Pre-rendering (build-time, reusable streams)
+ * 
+ * Use case: Static site generation, build-time RSC stream creation for reuse
+ */
+declare module 'react-server-dom-esm/static.node' {
+  import type { ReactElement, ReactNode } from 'react';
+
+  export type PrerenderToNodeStreamOptions = {
+    onError?: (error: unknown) => void;
+    identifierPrefix?: string;
+    onPostpone?: (reason: string) => void;
+    temporaryReferences?: WeakMap<any, any>;
+    environmentName?: string;
+    filterStackFrame?: (stackFrame: string) => string;
+    signal?: AbortSignal;
+  };
+
   export function unstable_prerenderToNodeStream(
-    model: React.ReactNode,
+    model: ReactNode,
     moduleBasePath: string,
-    options?: {
-      callServer?: (id: string, args: any[]) => Promise<any>;
-      callClient?: (id: string, args: any[]) => Promise<any>;
-    }
-  ): NodeJS.ReadableStream;
+    options?: PrerenderToNodeStreamOptions
+  ): React.Usable<ReactNode>;
 }

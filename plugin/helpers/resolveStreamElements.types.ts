@@ -1,6 +1,7 @@
 export interface ResolveStreamElementsOptions {
   route: string;
-  moduleRootPath?: string; // Made optional since it can come from userOptions
+  moduleRootPath: string; // Made optional since it can come from userOptions
+  moduleBasePath?: string;
   pagePath?: string;
   propsPath?: string;
   rootPath?: string;
@@ -8,8 +9,7 @@ export interface ResolveStreamElementsOptions {
   moduleBaseURL: string;
   verbose?: boolean;
   logger?: any;
-  // Optional user options for standalone usage
-  userOptions?: any;
+  id: string;
 }
 
 export type ResolveStreamElementsResult = 

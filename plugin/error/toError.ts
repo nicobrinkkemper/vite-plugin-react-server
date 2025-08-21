@@ -51,9 +51,17 @@ export function toError(error: unknown, errorInfo?: ErrorInfo): Error {
     } else if ("error" in error && error.error !== null && error.error !== undefined && typeof error.error === "string") {
       message = error.error;
     } else if ("error" in error && error.error !== null && error.error !== undefined) {
-      // Handle case where error.error exists but is not a string
+      // Improve handling when nested error is an Error instance
+      const nested: any = (error as any).error;
+      if (nested instanceof Error) {
+        const err = new Error(nested.message, { cause: nested });
+        err.name = nested.name || err.name;
+        if (typeof nested.stack === "string") err.stack = nested.stack;
+        return err;
+      }
+      // Fallback when nested error is a non-Error object
       try {
-        message = `Error object: ${JSON.stringify(error.error)}`;
+        message = `Error object: ${JSON.stringify(nested)}`;
       } catch {
         message = `Error object: [object could not be stringified]`;
       }

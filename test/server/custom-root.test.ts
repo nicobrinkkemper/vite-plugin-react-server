@@ -3,7 +3,7 @@ import { resolve } from "path";
 import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type { PluginEvent, FileWriteDoneEvent, RootComponentType } from "vite-plugin-react-server/types";
-import { doBuild } from "./doBuild.js";
+import { doBuild } from "../doBuild.js";
 import React from "react";
 
 describe("Custom Root Component", () => {

@@ -1,7 +1,6 @@
 import type { Logger, Manifest, ResolvedConfig, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
-  CreateHandlerOptions,
   MessageHandler,
   ResolvedUserOptions,
   SerializedUserOptions,
@@ -11,7 +10,6 @@ import type { Worker } from "node:worker_threads";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
   RscChunkOutputMessage,
-  RscRenderMessage,
   RscWorkerOutputMessage,
 } from "../worker/rsc/types.js";
 import type { StreamHandlers } from "../worker/types.js";
@@ -30,28 +28,6 @@ export type HandleWorkerServerActionFn = (
   worker: Worker,
   logger: ViteDevServer["config"]["logger"]
 ) => Promise<void>;
-
-export type HandleWorkerRscStreamFn = (props: {
-  worker: Worker;
-  message: Omit<RscRenderMessage, "type" | "id"> &
-    Partial<Pick<RscRenderMessage, "id">> & {
-      type?: "RSC_RENDER";
-    };
-  logger: Logger;
-  handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate" | "onShellError"> &
-    Partial<
-      Pick<
-        StreamHandlers<'server'>,
-        | "onError"
-        | "onData"
-        | "onEnd"
-        | "onServerAction"
-        | "onServerActionResponse"
-        | "onCssFile"
-      >
-    >;
-  
-} & Pick<CreateHandlerOptions, "verbose" | "rscTimeout" | "panicThreshold">) => ReadableStream<Uint8Array>;
 
 export type CreateWorkerStreamFn = (props: {
   route: string;

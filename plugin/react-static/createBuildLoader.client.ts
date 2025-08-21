@@ -1,3 +1,7 @@
 export function createBuildLoader() {
-    throw new Error("Build Loader is not needed on the client");
+    // In client-static, the RSC worker handles all module loading
+    // The main thread doesn't need to load modules directly
+    return async function buildLoader(_id: string) {
+        return { default: "" };
+    };
 }   

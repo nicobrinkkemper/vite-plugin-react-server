@@ -125,6 +125,10 @@ export function deserializeRegExp<T>(obj: T): Extract<T, SerializableRecord> {
     >;
   }
   if (Array.isArray(obj)) {
+    // Check if this is a serialized Map (array of [key, value] pairs)
+    if (obj.length > 0 && Array.isArray(obj[0]) && obj[0].length === 2) {
+      return new Map(obj) as unknown as Extract<T, SerializableRecord>;
+    }
     return obj.map(deserializeRegExp) as unknown as Extract<
       T,
       SerializableRecord
@@ -149,6 +153,10 @@ export function processForSerialization<T>(
 ): Extract<T, Serializable> {
   if (obj instanceof RegExp) {
     return serializeRegExp(obj) as unknown as Extract<T, Serializable>;
+  }
+  if (obj instanceof Map) {
+    // Convert Map to array of [key, value] pairs for serialization
+    return Array.from(obj.entries()) as unknown as Extract<T, Serializable>;
   }
   if (Array.isArray(obj)) {
     return obj.map(processForSerialization) as unknown as Extract<

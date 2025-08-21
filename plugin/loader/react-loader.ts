@@ -127,10 +127,8 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       logger.info(`Loading module: ${url}`);
     }
     
-    let result;
-      
     // Load the URL normally
-    result = await nextLoad(url, context);
+    const result = await nextLoad(url, context);
     
     if (verbose) {
       logger.info(`Next load result: ${JSON.stringify({

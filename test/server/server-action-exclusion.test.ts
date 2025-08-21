@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { setupTestServerActionJS } from "../setup.js";
-import { doBuild } from "../server/doBuild.js";
+import { doBuild } from "../doBuild.js";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { resolve } from "path";
@@ -67,7 +67,7 @@ describe("Server Action Build Exclusion", () => {
 
   afterAll(async () => {
     try {
-      await rm(testDir, { recursive: true, force: true });
+     // await rm(testDir, { recursive: true, force: true });
     } catch (error) {
     }
   });

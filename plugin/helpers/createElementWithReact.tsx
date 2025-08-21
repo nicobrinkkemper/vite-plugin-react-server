@@ -1,22 +1,25 @@
-import type { StyleCssProps, LinkCssProps } from "../types.js";
+import { createLogger } from "vite";
+import type { CreateHandlerOptions } from "../types.js";
 
-export type CreateElementWithReactOptions = {
-  HtmlComponent?: React.ComponentType<any> | null | undefined;
-  PageComponent?: React.ComponentType<any> | null | undefined;
-  RootComponent?: React.ComponentType<any> | null | undefined;
-  pageProps?: any;
-  moduleBase: string;
-  moduleRootPath: string;
-  moduleBasePath: string;
-  moduleBaseURL: string;
-  cssFiles: Map<string, StyleCssProps | LinkCssProps>;
-  globalCss: Map<string, StyleCssProps | LinkCssProps>;
-  route: string;
-  manifest: any;
-  projectRoot: string;
-  url: string;
-  as?: any;
-};
+export type CreateElementWithReactOptions = Pick<
+  CreateHandlerOptions,
+  | "HtmlComponent"
+  | "PageComponent"
+  | "RootComponent"
+  | "pageProps"
+  | "moduleBase"
+  | "moduleRootPath"
+  | "moduleBasePath"
+  | "moduleBaseURL"
+  | "cssFiles"
+  | "globalCss"
+  | "route"
+  | "manifest"
+  | "projectRoot"
+  | "url"
+  | "as"
+> &
+  Partial<Pick<CreateHandlerOptions, "verbose" | "logger">>;
 
 export type CreateElementWithReactFN = <
   R extends {
@@ -40,9 +43,9 @@ export const createElementWithReact: CreateElementWithReactFN =
       RootComponent,
       pageProps,
       moduleBase,
-      moduleRootPath,
-      moduleBasePath,
       moduleBaseURL,
+      moduleBasePath,
+      moduleRootPath,
       cssFiles = new Map(),
       globalCss = new Map(),
       route,
@@ -50,13 +53,33 @@ export const createElementWithReact: CreateElementWithReactFN =
       projectRoot,
       url,
       as = "div",
+      verbose = false,
+      logger = createLogger("info", {
+        prefix: "vite:plugin-react-server/helpers/createElementWithReact",
+      }),
     }
   ) {
+    // Add debug logging
+    if (verbose) {
+      logger?.info(
+        `[createElementWithReact] Creating element for route: ${route}`
+      );
+      logger?.info(
+        `[createElementWithReact] CSS files: ${cssFiles?.size || 0} files`
+      );
+      logger?.info(
+        `[createElementWithReact] Global CSS: ${globalCss?.size || 0} files`
+      );
+    }
+
     if (
       HtmlComponent != null &&
       HtmlComponent !== React.Fragment &&
       HtmlComponent !== undefined
     ) {
+      if (verbose) {
+        logger?.info(`[createElementWithReact] Returning Full HTML structure`);
+      }
       return (
         <HtmlComponent
           moduleBase={moduleBase}
@@ -69,30 +92,30 @@ export const createElementWithReact: CreateElementWithReactFN =
           pageProps={pageProps}
           cssFiles={cssFiles}
           globalCss={globalCss}
-          Root={RootComponent}
+          Root={RootComponent ? RootComponent : React.Fragment}
           manifest={manifest}
-          Page={PageComponent}
+          Page={PageComponent ? PageComponent : React.Fragment}
           as={as}
         />
       ) as never;
-    } else if (
-      RootComponent != null &&
-      RootComponent !== React.Fragment
-    ) {
+    } else if (RootComponent != null && RootComponent !== React.Fragment) {
+      if (verbose) {
+        logger?.info(`[createElementWithReact] Returning Root only`);
+      }
       return (
         <RootComponent
           key={route}
           as={React.Fragment}
           cssFiles={cssFiles}
           pageProps={pageProps}
-          Page={PageComponent}
+          Page={PageComponent ? PageComponent : React.Fragment}
         />
       ) as never;
-    } else if (
-      PageComponent != null &&
-      PageComponent !== React.Fragment
-    ) {
-      return <PageComponent {...pageProps} /> as never  ;
+    } else if (PageComponent != null && PageComponent !== React.Fragment) {
+      if (verbose) {
+        logger?.info(`[createElementWithReact] Returning Page only`);
+      }
+      return (<PageComponent {...pageProps} />) as never;
     }
     return null as never;
-  }; 
+  };

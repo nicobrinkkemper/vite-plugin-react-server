@@ -160,7 +160,7 @@ export async function transformServerModule(
     registrations.length > 0
       ? `\n      import { ${loader?.registerServerReferenceName} } from "${
           loader?.importServerPath
-        }";\n      ${transformedCode}\n      ${registrations.join("\n")}\n    `
+        }";\n${transformedCode}\n${registrations.join("\n")}\n    `
       : transformedCode;
 
   // Create source map based on the final transformed code

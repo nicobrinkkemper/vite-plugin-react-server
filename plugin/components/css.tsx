@@ -1,6 +1,5 @@
-import React from "react";
 import type { CssComponentType, CssContent } from "../types.js";
-
+import React from 'react'
 
 // Create link elements for each CSS file
 export const Css: CssComponentType = ({ cssFiles }) => {

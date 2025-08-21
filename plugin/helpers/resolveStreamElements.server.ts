@@ -1,9 +1,8 @@
 import type { ResolveStreamElementsOptions } from "./resolveStreamElements.types.js";
 import { React } from "../vendor/vendor.server.js";
 import { createElementWithReact } from "./createElementWithReact.js";
-import { createHandlerOptions } from "../config/createHandlerOptions.js";
+import { createHandlerOptions } from "../config/createHandlerOptions.server.js";
 import {
-  stashUserOptions,
   clearStashedUserOptions,
   getEnvironmentId,
 } from "../config/stashedOptionsState.js";
@@ -20,20 +19,14 @@ import {
 export async function resolveStreamElements(
   options: ResolveStreamElementsOptions
 ) {
-  let shouldClearStashed = false;
+  const shouldClearStashed = false;
   const envId = getEnvironmentId("react-server", "test");
 
-  // If userOptions are provided directly (standalone usage), stash them temporarily
-  if (options.userOptions) {
-    stashUserOptions(envId, options.userOptions);
-    shouldClearStashed = true;
-  }
 
   try {
     // Get proper handler options using the existing infrastructure
     // This already resolves components internally
     const handlerOptions = await createHandlerOptions(options.route, {
-      condition: "react-server",
       logger: options.logger,
     });
     return {

@@ -14,10 +14,10 @@
  * 3. Sets up stream handlers with proper wrappers and options
  * 4. Returns streams for renderPages to process
  */
-import React from "react";
-import { createHandler } from "../helpers/createHandler.server.js";
+import { createRenderToPipeableStreamHandler } from "../stream/createRenderToPipeableStreamHandler.server.js";
 import type { RenderStreamsFn } from "./types.js";
 import { assertReactServer } from "../config/getCondition.js";
+import { React } from "../vendor/vendor.server.js";
 
 assertReactServer()
 
@@ -31,13 +31,13 @@ export const renderStreams: RenderStreamsFn = (handler) => {
      * links are already bubbled up in the static document which required us
      * to include the head in the stream as well
      */
-    createHandler(handler),
+    createRenderToPipeableStreamHandler(handler),
 
     /**
      * This stream is saved to index.rsc file (if configured) and can be used
      * for navigating to pages (without the Html wrapper, but does contain
      * css/head information that can bubble up to the browser's dom)
      */
-    createHandler({ ...handler, HtmlComponent: React.Fragment }),
+    createRenderToPipeableStreamHandler({ ...handler, HtmlComponent: React.Fragment }),
   ];
 };

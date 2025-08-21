@@ -1,6 +1,7 @@
 import type { ConfigEnv } from "vite";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { getArgValue } from "./getArgValue.js";
+import { getCondition } from "../config/getCondition.js";
 
 /**
  * Extended ConfigEnv that includes our custom properties
@@ -21,11 +22,7 @@ export const createConfigEnv = (
   // Detect command from argv
   if (argv.includes("build")) {
     command = "build";
-  } else if (
-    argv.includes("dev") ||
-    argv.includes("serve") ||
-    argv.includes("preview")
-  ) {
+  } else {
     command = "serve";
   }
 
@@ -37,11 +34,21 @@ export const createConfigEnv = (
 
   // Detect SSR build
   const ssrArg = getArgValue("ssr");
-  const isSsrBuild = ssrArg === "true" || ssrArg === "1";
+  let isSsrBuild = ssrArg === "true" || ssrArg === "1";
 
-  // Detect app mode (--app flag)
+  // In --app mode, check the current environment to determine if it's SSR
   const appArg = getArgValue("app");
   const isAppMode = appArg === "true" || appArg === "1" || argv.includes("--app");
+  
+  if (isAppMode) {
+    // Check if we're in an SSR environment by looking at the current environment
+    const currentEnvironment = getCondition('')
+    if (currentEnvironment === "server") {
+      isSsrBuild = true;
+    } else if (currentEnvironment === "client") {
+      isSsrBuild = false;
+    }
+  }
 
   return {
     command,
