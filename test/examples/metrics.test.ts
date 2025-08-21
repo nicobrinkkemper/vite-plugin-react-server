@@ -12,7 +12,7 @@ import type {
 } from "vite-plugin-react-server/types";
 import { metricWatcher } from "vite-plugin-react-server/metrics";
 
-const testDir = resolve(__dirname, "../fixtures/client-metrics.test");
+const testDir = resolve(__dirname, "../fixtures/metrics.test");
 let events: PluginEvent[];
 const metrics: (
   | RenderMetrics<"html" | "rsc-headless" | "rsc-full">
@@ -24,7 +24,7 @@ const userMetricWatcher = metricWatcher({
   warnOnly: false,
 });
 
-describe("Client Metrics Collection", () => {
+describe("Metrics Collection", () => {
   beforeAll(async () => {
     // Clean up test directory
     await rm(testDir, { recursive: true, force: true });
@@ -33,7 +33,7 @@ describe("Client Metrics Collection", () => {
     // Build with metrics collection
     events = await doBuild({
       projectRoot: testDir,
-      verbose: false,
+      verbose: true,
       onMetrics: (m) => {
         userMetricWatcher(m);
         metrics.push(m);

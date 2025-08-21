@@ -1,6 +1,6 @@
 import type { StreamMetrics } from "../helpers/metrics.js";
 import type { Stream } from "node:stream";
-import type { OnMetrics } from "../types.js";
+import type { OnMetrics, PanicThreshold } from "../types.js";
 
 /**
  * Base RSC Stream Result - common interface for both client and server
@@ -54,7 +54,7 @@ export interface ClientRscStreamOptions {
   moduleRootPath?: string;
   moduleBasePath?: string;
   verbose?: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;
@@ -95,7 +95,7 @@ export interface ServerRscStreamOptions {
   moduleBasePath: string;
   moduleBaseURL: string;
   verbose: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;

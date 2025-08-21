@@ -1,5 +1,6 @@
-import type { CreateHandlerOptions, ResolvedUserOptions } from "../types.js";
-import type { PassThrough } from "node:stream";
+import type { Manifest } from "vite";
+import type { CreateHandlerOptions, CssContent, PanicThreshold, ResolvedUserOptions } from "../types.js";
+import type { PassThrough, Readable } from "node:stream";
 
 /**
  * HTML Stream Options - for client-rendered pipeable React
@@ -21,13 +22,13 @@ export type CreateHtmlStreamOptions = Pick<
   | "id"
 > & {
   // RSC stream that will be converted to HTML
-  rscStream: PassThrough;
+  rscStream: PassThrough | Readable;
   // Additional properties from working examples
   url?: string;
-  cssFiles?: any;
-  globalCss?: any;
-  manifest?: any;
-  panicThreshold?: any;
+  cssFiles?: Map<string, CssContent>;
+  globalCss?: Map<string, CssContent>;
+  manifest?: Manifest;
+  panicThreshold?: PanicThreshold;
   pagePath?: string;
   propsPath?: string;
   rootPath?: string;
@@ -38,12 +39,12 @@ export type CreateHtmlStreamOptions = Pick<
   htmlExportName?: string;
   moduleBase?: string;
   publicOrigin?: string;
-  rscTimeout?: any;
-  htmlTimeout?: any;
-  fileWriteTimeout?: any;
-  workerShutdownTimeout?: any;
-  css?: any;
-  build?: any;
+  rscTimeout?: number;
+  htmlTimeout?: number;
+  fileWriteTimeout?: number;
+  workerShutdownTimeout?: number;
+  css?: CreateHandlerOptions["css"];
+  build?: CreateHandlerOptions["build"];
 };
 
 /**

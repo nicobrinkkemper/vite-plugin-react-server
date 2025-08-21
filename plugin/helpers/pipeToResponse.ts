@@ -4,6 +4,7 @@ import type { ReadableStream } from "node:stream/web";
 import { handleError } from "../error/handleError.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import type { Logger } from "vite";
+import type { PanicThreshold } from "../types.js";
 
 export interface PipeToResponseOptions {
   stream: ReadableStream<Uint8Array> | any; // Allow any for now to handle type mismatches
@@ -11,7 +12,7 @@ export interface PipeToResponseOptions {
   contentType: string;
   logger: Logger;
   verbose?: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   context?: string;
 }
 

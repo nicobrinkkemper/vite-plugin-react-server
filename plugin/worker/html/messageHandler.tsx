@@ -86,6 +86,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
             moduleBaseURL: workerData.userOptions.moduleBaseURL,
             verbose: Boolean(workerData.userOptions.verbose),
             htmlTimeout: workerData.userOptions.htmlTimeout,
+
           },
           handlers,
           logger

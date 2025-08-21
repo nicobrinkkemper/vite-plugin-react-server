@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import type { PanicThreshold } from "../types.js";
 
 
 
@@ -27,7 +28,7 @@ export interface ClientWorkerStreamOptions {
   moduleBaseURL?: string;
   moduleRootPath?: string;
   verbose?: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   pagePath?: string;
   propsPath?: string;
   rootPath?: string;
@@ -74,7 +75,7 @@ export interface ServerWorkerStreamOptions {
   moduleBaseURL?: string;
   moduleRootPath?: string;
   verbose?: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   pagePath?: string;
   propsPath?: string;
   rootPath?: string;

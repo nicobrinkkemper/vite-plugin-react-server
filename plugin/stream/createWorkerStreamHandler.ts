@@ -3,6 +3,7 @@ import type { Worker } from "node:worker_threads";
 import type { ViteDevServer } from "vite";
 import { handleError } from "../error/handleError.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
+import type { PanicThreshold } from "../types.js";
 
 export interface WorkerStreamHandlerOptions {
   worker: Worker | ViteDevServer;
@@ -10,7 +11,7 @@ export interface WorkerStreamHandlerOptions {
   timeout: number;
   signal?: AbortSignal;
   verbose?: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   logger: Logger;
   context?: string;
   onMessage: (message: any) => void;

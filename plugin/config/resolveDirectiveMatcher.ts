@@ -1,6 +1,5 @@
-import type { RegExpOpt, DeserializedRegExp } from "../types.js";
-import { parsePattern } from "./parsePattern.js";
-
+import type { RegExpOpt } from "../types.js";
+import { createPatternMatcher } from "../helpers/createPatternMatcher.js";
 
 /**
  * Resolves a pattern to a RegExp or function, handling string, RegExp, and function inputs.
@@ -12,46 +11,26 @@ import { parsePattern } from "./parsePattern.js";
  * @example
  * ```ts
  * // String patterns
- * resolveDirectiveMatcher("*.js").test("file.js")     // true
- * resolveDirectiveMatcher("*.{js,ts}").test("file.ts") // true
+ * resolveDirectiveMatcher("*.js")("file.js")     // true
+ * resolveDirectiveMatcher("*.{js,ts}")("file.ts") // true
  *
  * // RegExp patterns
- * resolveDirectiveMatcher(/\.js$/).test("file.js")    // true
- * resolveDirectiveMatcher(/\.js$/i).test("file.JS")   // true
+ * resolveDirectiveMatcher(/\.js$/)("file.js")    // true
+ * resolveDirectiveMatcher(/\.js$/i)("file.JS")   // true
  *
  * // Default patterns
- * resolveDirectiveMatcher(undefined, "*.js").test("file.js")     // true
- * resolveDirectiveMatcher(undefined, /\.js$/).test("file.js")    // true
+ * resolveDirectiveMatcher(undefined, "*.js")("file.js")     // true
+ * resolveDirectiveMatcher(undefined, /\.js$/)("file.js")    // true
  * ```
  */
 export function resolveDirectiveMatcher(
   pattern?: RegExpOpt,
   defaultPattern: RegExpOpt | ((source: string, moduleId?: string) => boolean) = () => false
 ): (source: string, moduleId?: string) => boolean {
-  if (typeof pattern === "function") {
-    return pattern;
-  } else if (pattern instanceof RegExp) {
-    return (source: string, _moduleId?: string) => pattern.test(source);
-  } else if (typeof pattern === "string") {
-    const regex = parsePattern(pattern);
-    return (source: string, _moduleId?: string) => regex.test(source);
-  } else if (
-    typeof pattern === "object" &&
-    pattern != null &&
-    "__isRegExp" in pattern
-  ) {
-    const deserialized = pattern as DeserializedRegExp;
-    const regex = new RegExp(deserialized.source, deserialized.flags);
-    return (source: string, _moduleId?: string) => regex.test(source);
-  } else if (typeof defaultPattern === "function") {
-    return defaultPattern;
-  } else if (defaultPattern instanceof RegExp) {
-    return (source: string, _moduleId?: string) => defaultPattern.test(source);
-  } else if (typeof defaultPattern === "string") {
-    const regex = parsePattern(defaultPattern);
-    return (source: string, _moduleId?: string) => regex.test(source);
-  } else {
-    return () => false;
-  }
+  return createPatternMatcher(pattern, defaultPattern, {
+    handleDeserialized: true,
+    fallback: () => false,
+    throwOnInvalid: false
+  });
 }
 

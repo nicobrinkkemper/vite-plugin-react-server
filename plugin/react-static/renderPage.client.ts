@@ -1,3 +1,44 @@
+/**
+ * renderPage.client.ts
+ *
+ * PURPOSE: Client-side static page rendering for React Server Components
+ *
+ * ARCHITECTURE OVERVIEW:
+ * 
+ * CLIENT-SIDE vs SERVER-SIDE:
+ * - Server-side: RSC generation in main thread, HTML generation in worker
+ * - Client-side: RSC generation in worker, HTML generation in main thread
+ * 
+ * FLOW:
+ * 1. RSC Worker generates RSC content with HTML wrapper
+ * 2. RSC content is buffered to allow dual consumption
+ * 3. Buffered RSC stream is consumed twice:
+ *    - For RSC file writing (index.rsc)
+ *    - For HTML transformation (index.html)
+ * 4. HTML transform processes RSC content in main thread
+ * 5. Both files are written to filesystem
+ * 
+ * KEY INSIGHT: Node.js streams can only be consumed once, so we buffer the RSC
+ * content to allow it to be used for both RSC file generation and HTML transformation.
+ * This follows the pattern from collectRscContent.ts.
+ * 
+ * HELPER FUNCTIONS:
+ * - createBufferedRscStream: Creates a buffered stream for dual consumption
+ * - createRscToHtmlStream: Transforms RSC content to HTML in main thread
+ * 
+ * USAGE:
+ * ```typescript
+ * const result = await renderPage({
+ *   route: "/",
+ *   pagePath: "src/page/page.tsx",
+ *   // ... other options
+ * });
+ * 
+ * // result.html.pipe(htmlFileWriter);
+ * // result.rsc.pipe(rscFileWriter);
+ * ```
+ */
+
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import type { RenderMetrics } from "../metrics/types.js";
 import { routeToURL } from "../utils/routeToURL.js";
@@ -7,13 +48,11 @@ import { assertNonReactServer } from "../config/getCondition.js";
 
 import { createRscStream } from "../stream/createRscStream.client.js";
 
-
-
-
 import { join } from "node:path";
 import { createModuleResolutionMetrics } from "../metrics/createModuleResolutionMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { performance } from "node:perf_hooks";
+import { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
 
 
 assertNonReactServer();
@@ -139,6 +178,9 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       // should be resolved in react-server environment
       pageProps: undefined,
       PageComponent: undefined,
+      // Pass CSS information to the RSC worker and HTML transform
+      cssFiles: handlerOptions.cssFiles || new Map(),
+      globalCss: handlerOptions.globalCss || new Map(),
       RootComponent: undefined,
       HtmlComponent: undefined,
     };
@@ -173,7 +215,15 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       handlerOptions.onMetrics(moduleResolutionMetric);
     }
 
-    // Step 2: Create full RSC stream using RSC worker (REVERSE from server)
+    // Step 2: Create single RSC stream using RSC worker (REVERSE from server)
+    // 
+    // ARCHITECTURE OVERVIEW:
+    // - Server-side: RSC generation in main thread, HTML generation in worker
+    // - Client-side: RSC generation in worker, HTML generation in main thread
+    // 
+    // The RSC worker generates the full RSC content with HTML wrapper.
+    // We need to consume this stream twice: once for RSC file, once for HTML transformation.
+    // Since Node.js streams can only be consumed once, we buffer the content.
     fullRscStream = createRscStream({
       ...newHandlerOptions,
       id: `${handlerOptions.route}-full-${uniqueId}`,
@@ -183,11 +233,27 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       htmlPath: htmlPath || undefined,
     });
 
-    // Step 3: THIS IS THE FUNCTION THAT CREATES THE HTML STREAM THAT CONSUMES THE RSC-FULL
-    // Use the same worker-based approach as server-side but in main thread
-    // Server-side: RSC stream -> HTML worker -> HTML stream
-    // Client-side: RSC stream -> Main thread HTML transform -> HTML stream
-    const { createRscToHtmlStream } = await import("../react-static/rscToHtmlStream.client.js");
+    // Step 3: Create a buffered RSC stream factory for dual consumption
+    // 
+    // PROBLEM: Node.js streams can only be consumed once, but we need to:
+    // 1. Write the RSC content to index.rsc file
+    // 2. Transform the RSC content to HTML for index.html file
+    // 
+    // SOLUTION: Buffer all RSC chunks and create a factory that can generate
+    // multiple readable streams from the same buffered data
+    const { createBufferedRscStream } = await import("../helpers/createBufferedRscStream.js");
+    const bufferedRscStreamFactory = createBufferedRscStream(fullRscStream.rscStream, {
+      route: handlerOptions.route,
+      logger: handlerOptions.logger,
+      verbose: handlerOptions.verbose,
+    });
+
+    // Step 4: Create HTML transform stream that will consume the buffered RSC stream
+    // 
+    // FLOW: RSC Worker -> RSC Stream -> Buffer -> HTML Transform -> HTML Stream
+    // This mirrors the server-side flow but with roles reversed:
+    // - Server: RSC Stream -> HTML Worker -> HTML Stream  
+    // - Client: RSC Stream -> Main Thread HTML Transform -> HTML Stream
     
     const htmlTransformStream = createRscToHtmlStream({
       ...newHandlerOptions,
@@ -197,6 +263,12 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       verbose: handlerOptions.verbose,
     });
     
+    // Create a separate stream from the factory for HTML transformation
+    const htmlRscStream = bufferedRscStreamFactory.createStream();
+    
+    // Pipe the HTML RSC stream to the HTML transform
+    htmlRscStream.pipe(htmlTransformStream);
+
     htmlHandler = {
       htmlStream: htmlTransformStream,
       abort: () => {
@@ -207,23 +279,36 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
 
 
     // Create stream wrappers that match server-side API but with reverse conditions
-    // Client-side: RSC from worker, HTML from main thread
+    // 
+    // CLIENT-SIDE ARCHITECTURE:
+    // - RSC generation: Worker thread (via createRscStream)
+    // - HTML generation: Main thread (via createRscToHtmlStream)
+    // - File writing: Main thread (via fileWriter)
+    // 
+    // The buffered RSC stream allows us to consume the same RSC content twice:
+    // 1. For RSC file writing (index.rsc)
+    // 2. For HTML transformation (index.html)
     const rscStreamWrapper = {
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
         // Collect metrics from the RSC stream as it flows
         const streamMetrics = createStreamMetrics();
         streamMetrics.startTime = performance.now();
 
-        headlessRscStream.rscStream.on("data", (chunk: Buffer) => {
+        // Create a separate stream from the factory for RSC file generation
+        const rscFileStream = bufferedRscStreamFactory.createStream();
+
+        // Use the buffered RSC stream for RSC file generation
+        // This stream contains the same content as the HTML transform
+        rscFileStream.on("data", (chunk: Buffer) => {
           streamMetrics.chunks++;
           streamMetrics.bytes += chunk.length;
         });
 
-        headlessRscStream.rscStream.on("end", () => {
+        rscFileStream.on("end", () => {
           streamMetrics.duration = performance.now() - streamMetrics.startTime;
           streamMetrics.endTime = performance.now();
 
-          // Update the metrics object
+          // Update the metrics object for RSC file generation
           rscHeadlessMetrics.streamMetrics = streamMetrics;
           rscHeadlessMetrics.chunkRate =
             streamMetrics.chunks / (streamMetrics.duration / 1000);
@@ -232,12 +317,13 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
           rscHeadlessMetrics.chunks = streamMetrics.chunks;
         });
 
-        // Pipe the RSC stream to the destination (file writer)
-        headlessRscStream.pipe(destination);
+        // Pipe the RSC file stream to the destination (RSC file writer)
+        // This is a separate stream from the HTML transform stream
+        rscFileStream.pipe(destination);
         return destination;
       },
       abort: () => {
-        headlessRscStream.abort();
+        fullRscStream.abort();
       },
     };
 
@@ -256,18 +342,37 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
           streamMetrics.duration = performance.now() - streamMetrics.startTime;
           streamMetrics.endTime = performance.now();
 
-          // Update the metrics object
-          htmlMetrics.streamMetrics = streamMetrics;
-          htmlMetrics.chunkRate =
-            streamMetrics.chunks / (streamMetrics.duration / 1000);
-          htmlMetrics.processingTime = streamMetrics.duration;
-          htmlMetrics.memoryUsage = process.memoryUsage();
-          htmlMetrics.chunks = streamMetrics.chunks;
-        });
+                  // Update the metrics object for HTML generation
+        htmlMetrics.streamMetrics = streamMetrics;
+        htmlMetrics.chunkRate =
+          streamMetrics.chunks / (streamMetrics.duration / 1000);
+        htmlMetrics.processingTime = streamMetrics.duration;
+        htmlMetrics.memoryUsage = process.memoryUsage();
+        htmlMetrics.chunks = streamMetrics.chunks;
+      });
 
-        // Pipe the full RSC stream through the HTML transform stream to the destination
-        // This matches the server-side pattern: RSC stream -> HTML transform -> destination
-        return fullRscStream.rscStream.pipe(htmlHandler.htmlStream).pipe(destination);
+      // Add debugging to see if HTML stream is being piped correctly
+      if (handlerOptions.verbose) {
+        handlerOptions.logger?.info(
+          `[renderPage.client] Piping HTML stream to destination for route: ${handlerOptions.route}`
+        );
+        
+        htmlHandler.htmlStream.on("data", (chunk: Buffer) => {
+          handlerOptions.logger?.info(
+            `[renderPage.client] HTML stream chunk: ${chunk.length} bytes`
+          );
+        });
+        
+        htmlHandler.htmlStream.on("end", () => {
+          handlerOptions.logger?.info(
+            `[renderPage.client] HTML stream ended for route: ${handlerOptions.route}`
+          );
+        });
+      }
+
+      // Pipe the HTML transform stream to the destination (HTML file writer)
+      // This stream contains the transformed HTML content from the RSC stream
+      return htmlHandler.htmlStream.pipe(destination);
       },
       abort: () => {
         fullRscStream.abort();

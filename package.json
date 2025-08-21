@@ -158,7 +158,7 @@
     "prepublishOnly": "npm run build",
     "lint": "eslint ./plugin --fix",
     "setup:test-fixtures": "npx tsx test/setup.ts",
-    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run ./test/server",
+    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
     "pretest:client": "npm run build",
     "test:client": "vitest run",
     "test:examples": "NODE_OPTIONS='--conditions react-server' vitest run test/examples/* && vitest run test/examples/*",

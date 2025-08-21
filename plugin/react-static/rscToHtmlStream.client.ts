@@ -1,17 +1,19 @@
 /**
  * rscToHtmlStream.client.ts
  *
- * PURPOSE: Transforms RSC stream to HTML stream in main thread (no worker)
+ * PURPOSE: Transforms RSC stream to HTML stream in main thread
  * 
- * This follows the exact same pattern as server-side rscToHtmlStream.server.ts
- * but processes RSC chunks directly in main thread instead of using worker messages.
+ * This follows the same pattern as server-side but processes RSC chunks directly
+ * instead of using worker messages:
  * 
  * Server-side pattern: RSC chunks → Worker messages → HTML chunks
  * Client-side pattern: RSC chunks → Direct processing → HTML chunks
  */
-import { Transform, PassThrough, Readable } from "node:stream";
+import { Transform, Readable, PassThrough } from "node:stream";
 import { createFromNodeStream } from "../stream/createFromNodeStream.client.js";
 import { ReactDOMServer } from "../vendor/vendor.client.js";
+import { handleError } from "../error/handleError.js";
+import type { PanicThreshold } from "../types.js";
 
 export interface RscToHtmlStreamOptions {
   route: string;
@@ -20,40 +22,48 @@ export interface RscToHtmlStreamOptions {
   moduleBaseURL?: string;
   projectRoot?: string;
   verbose?: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors" | number;
+  panicThreshold?: PanicThreshold;
   url?: string;
   serverPipeableStreamOptions?: any;
   signal?: AbortSignal;
   logger?: any;
-  [key: string]: any;
+  htmlTimeout?: number;
+  // CSS information is embedded in the RSC stream, not passed as parameters
+  // cssFiles?: Map<string, any>;
+  // globalCss?: Map<string, any>;
 }
 
 export type RscToHtmlStreamFn = (options: RscToHtmlStreamOptions) => Transform;
 
 /**
  * Creates a transform stream that converts RSC chunks to HTML chunks
- * This mirrors the server-side worker approach but runs in main thread
+ * This processes RSC chunks directly in the main thread
  */
 export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
-  const { 
-    route, 
-    verbose, 
-    logger
+  const {
+    route,
+    moduleRootPath,
+    moduleBasePath,
+    moduleBaseURL,
+    verbose,
+    panicThreshold,
+    signal,
+    logger,
   } = options;
 
   if (verbose) {
     logger?.info(
-      `[createRscToHtmlStream:${route}] Creating RSC to HTML transform stream (main thread)`
+      `[createRscToHtmlStream:${route}] Creating RSC to HTML transform stream (client-side)`
     );
   }
 
   let rscBuffer = Buffer.alloc(0);
 
-  // Create transform stream that processes RSC chunks individually
+  // Create transform stream that processes RSC chunks and outputs HTML
   const transformStream = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
       try {
-        // Accumulate RSC chunks (same as server-side RSC_CHUNK processing)
+        // Accumulate RSC chunks
         rscBuffer = Buffer.concat([rscBuffer, chunk]);
         
         if (verbose) {
@@ -80,7 +90,7 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
           );
         }
         
-        // Process the complete RSC buffer to HTML (equivalent to RSC_END processing)
+        // Process the complete RSC buffer to HTML
         if (rscBuffer.length === 0) {
           if (verbose) {
             logger?.info(`[createRscToHtmlStream:${route}] No RSC data to process`);
@@ -97,19 +107,17 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
             );
           }
 
-
-
-          // Create a readable stream from the RSC buffer (same as HTML worker)
+          // Create a readable stream from the RSC buffer
           const rscStream = new Readable();
           rscStream.push(rscBuffer);
           rscStream.push(null); // End the stream
 
-          // Convert RSC stream to React elements using createFromNodeStream (same as HTML worker)
+          // Convert RSC stream to React elements using createFromNodeStream
           const { children } = createFromNodeStream({
-            rscStream: rscStream as any,
-            moduleRootPath: options.moduleRootPath || "",
-            moduleBasePath: options.moduleBasePath || "",
-            moduleBaseURL: options.moduleBaseURL || "",
+            rscStream: rscStream,
+            moduleRootPath: moduleRootPath || "",
+            moduleBasePath: moduleBasePath || "",
+            moduleBaseURL: moduleBaseURL || "/",
             logger,
           });
 
@@ -119,7 +127,7 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
             );
           }
 
-          // Render React elements to HTML using ReactDOMServer.renderToPipeableStream (same as HTML worker)
+          // Render React elements to HTML using ReactDOMServer.renderToPipeableStream
           const { pipe } = ReactDOMServer.renderToPipeableStream(
             children,
             {
@@ -162,6 +170,7 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
             }
 
             // Push the HTML content to the transform stream
+            // CSS information is already embedded in the RSC stream and will be included in the HTML
             transformStream.push(htmlContent);
             
             if (verbose) {
@@ -182,7 +191,32 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
           logger?.error(
             `[createRscToHtmlStream:${route}] Error processing RSC to HTML: ${errorMessage}`
           );
-          throw error;
+          
+          // Handle error according to panic threshold
+          const panicError = handleError({
+            error: error instanceof Error ? error : new Error(String(error)),
+            logger: logger,
+            panicThreshold: typeof panicThreshold === 'string' ? panicThreshold : 'critical_errors',
+            context: `RSC to HTML stream error for route ${route}`,
+          });
+          
+          if (panicError != null) {
+            if (verbose) {
+              logger?.info(`[createRscToHtmlStream:${route}] Panic threshold error, destroying stream with error: ${panicError.message}`);
+            }
+            transformStream.destroy(panicError);
+            if (signal != null) {
+              signal.throwIfAborted();
+            }
+          } else {
+            // Non-panic error, just log it and end stream
+            if (verbose) {
+              logger?.warn(
+                `[createRscToHtmlStream:${route}] Non-panic error: ${errorMessage}`
+              );
+            }
+            callback(error instanceof Error ? error : new Error(String(error)));
+          }
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -194,8 +228,7 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
     }
   });
 
-  // Handle abort signal (same as server-side)
-  const signal = options.signal;
+  // Handle abort signal
   if (signal) {
     const abortHandler = () => {
       if (verbose) {

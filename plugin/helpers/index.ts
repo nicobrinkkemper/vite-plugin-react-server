@@ -41,6 +41,21 @@ export * from "./moduleResolver.js";
 export * from "./stashReturnValue.js";
 export * from "./workerManager.js";
 
+// Unified render helpers
+export * from "./validateRscRenderMessage.js";
+export * from "./resolveRenderUrl.js";
+export * from "./mergeMessageWithDefaults.js";
+export * from "./resolveComponents.js";
+export * from "./logRenderStart.js";
+export * from "./createStreamTimeout.js";
+export * from "./createSerializableHandlerOptions.js";
+export * from "./resolveComponentsFromPaths.js";
+export * from "./createWorkerMessageTypes.js";
+export * from "./createUnifiedRenderHandler.js";
+export * from "./createPatternMatcher.js";
+export * from "./createUnifiedStreamHandler.js";
+export * from "./createUnifiedCssProcessor.js";
+
 // Server action handling
 
 const condition = getCondition("");

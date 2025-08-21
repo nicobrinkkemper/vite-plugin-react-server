@@ -2,6 +2,7 @@ import type { Logger, Manifest, ResolvedConfig, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   MessageHandler,
+  PanicThreshold,
   ResolvedUserOptions,
   SerializedUserOptions,
 } from "../../types.js";
@@ -42,7 +43,7 @@ export type CreateWorkerStreamFn = (props: {
   serverPipeableStreamOptions?: any;
   clientPipeableStreamOptions?: any;
   verbose?: boolean;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   logger?: any;
   rscWorkerPath?: string;
   onEvent?: (event: any) => void;

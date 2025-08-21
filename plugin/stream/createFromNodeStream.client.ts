@@ -1,5 +1,5 @@
 import type { CreateFromNodeStreamFn } from "./createFromNodeStream.types.js";
-import { ReactDOMClient, React } from "../vendor/vendor.client.js";
+import { React, ReactDOMClient } from "../vendor/vendor.client.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
 assertNonReactServer();
@@ -8,7 +8,7 @@ assertNonReactServer();
  * Client version of createNodeStream.
  *
  * Strategy: Convert RSC stream to React elements using ReactDOMClient.createFromNodeStream.
- * This is the main use case for this function in client environments.
+ * This is the same approach used by the HTML worker for proper CSS handling and RSC processing.
  */
 export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
   function _createFromNodeStreamClient(options) {
@@ -47,13 +47,9 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
       moduleBasePath = `${moduleBasePath}/`;
     }
 
-    // Add debugging for React and ReactDOMClient
     if (verbose) {
       logger?.info(
-        `[createNodeStream.client] React.use available: ${typeof React.use}`
-      );
-      logger?.info(
-        `[createNodeStream.client] ReactDOMClient.createFromNodeStream available: ${typeof ReactDOMClient.createFromNodeStream}`
+        `[createNodeStream.client] Using ReactDOMClient.createFromNodeStream from react-server-dom-esm/client.node`
       );
       logger?.info(
         `[createNodeStream.client] rscStream type: ${typeof rscStream}, readable: ${
@@ -62,26 +58,33 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
       );
     }
 
+    // Create a function component that processes the RSC stream
+    const RscStreamComponent = () => {
+      if (verbose) {
+        logger?.info(
+          `[createNodeStream.client] ReactDOMClient.createFromNodeStream available: ${typeof ReactDOMClient.createFromNodeStream}`
+        );
+      }
+      
+      // Use the same approach as HTML worker: convert RSC stream to React elements
+      const nodeStreamResult = ReactDOMClient.createFromNodeStream(
+        rscStream,
+        moduleRootPath,
+        moduleBaseURL
+      );
+      
+      if (verbose) {
+        logger?.info(
+          `[createNodeStream.client] ReactDOMClient.createFromNodeStream result: ${JSON.stringify(typeof nodeStreamResult)}`
+        );
+      }
+      
+      // Let React handle Suspense Exception naturally - don't catch it
+      return React.use(nodeStreamResult);
+    };
+
     return {
       type: "client" as const,
-      children: React.createElement(() => {
-        if (verbose) {
-          logger?.info(
-            `[createNodeStream.client] ReactDOMClient.createFromNodeStream available: ${typeof ReactDOMClient.createFromNodeStream}`
-          );
-        }
-        const nodeStreamResult = ReactDOMClient.createFromNodeStream(
-          rscStream,
-          moduleRootPath,
-          moduleBaseURL
-        );
-        if (verbose) {
-          logger?.info(
-            `[createNodeStream.client] ReactDOMClient.createFromNodeStream result: ${JSON.stringify(typeof nodeStreamResult)}`
-          );
-        }
-        // Let React handle Suspense Exception naturally - don't catch it
-        return React.use(nodeStreamResult);
-      }),
+      children: React.createElement(RscStreamComponent),
     };
   };

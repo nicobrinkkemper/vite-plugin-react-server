@@ -1,7 +1,6 @@
 export * from './autoDiscover/index.js';
 export * from './flightBindings.js';
 export * from './interpolatePattern.js';
-export * from './resolveDevServerConfig.js';
 export * from './resolvePages.js';
 export * from './resolveUserConfig.js';
 export * from './createModuleID.js';

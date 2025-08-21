@@ -9,6 +9,7 @@ import { workerData } from "node:worker_threads";
 import type { RscWorkerInputMessage } from "./types.js";
 import { addCssFileContent, addModuleId, cssFiles, hmrState } from "./state.js";
 import { handlers } from "./handlers.js";
+import { combineCssFiles, processInlineCssForState } from "../../helpers/createUnifiedCssProcessor.js";
 import { routeToURL } from "../../utils/routeToURL.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { userOptions } from "./userOptions.js";
@@ -17,6 +18,7 @@ import { PassThrough } from "node:stream";
 import React from "react";
 import { sendMessage } from "../sendMessage.js";
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
+
 
 const logger = createLogger(workerData.resolvedConfig.logLevel ?? "info");
 const verbose = workerData.userOptions.verbose ?? false;
@@ -222,48 +224,18 @@ export async function messageHandler(
           });
           handlers.onMetrics(msg.id, moduleResolutionMetric);
         }
-        // Consolidate CSS handling: Add CSS files from message to stateful CSS system
-        if (msg.cssFiles && msg.cssFiles.size > 0) {
-          if (verbose) {
-            logger.info(`[rsc-worker] Adding ${msg.cssFiles.size} CSS files to stateful system`);
-          }
-          for (const [id, cssContent] of msg.cssFiles.entries()) {
-            if (verbose) {
-              logger.info(`[rsc-worker] CSS file ${id}: as=${cssContent.as}, children=${typeof cssContent.children}`);
-            }
-            if (cssContent.children && typeof cssContent.children === 'string') {
-              // Add inline CSS to stateful system
-              addCssFileContent(id, cssContent.children, userOptions);
-              if (verbose) {
-                logger.info(`[rsc-worker] Added CSS file ${id} to stateful system`);
-              }
-            }
-          }
-        }
+        // Process CSS files using unified CSS processor
+        const messageCssFiles = new Map(msg.cssFiles || []);
+        
+        // Process inline CSS for stateful system using unified helper
+        processInlineCssForState(messageCssFiles, addCssFileContent, userOptions);
 
-        // Also add global CSS files from message to stateful CSS system
-        if (msg.globalCss && msg.globalCss.size > 0) {
-          if (verbose) {
-            logger.info(`[rsc-worker] Adding ${msg.globalCss.size} global CSS files to stateful system`);
-          }
-          for (const [id, cssContent] of msg.globalCss.entries()) {
-            if (verbose) {
-              logger.info(`[rsc-worker] Global CSS file ${id}: as=${cssContent.as}, children=${typeof cssContent.children}`);
-            }
-            if (cssContent.children && typeof cssContent.children === 'string') {
-              // Add global CSS to stateful system
-              addCssFileContent(id, cssContent.children, userOptions);
-              if (verbose) {
-                logger.info(`[rsc-worker] Added global CSS file ${id} to stateful system`);
-              }
-            }
-          }
-        }
+        // Combine stateful CSS with message CSS using unified helper
+        const combinedCssFiles = combineCssFiles(cssFiles, messageCssFiles);
 
-        // Consolidate CSS handling: Use stateful CSS system for cssFiles, keep globalCss separate
         const messageWithCss = {
           ...msg,
-          cssFiles,
+          cssFiles: combinedCssFiles,
         };
 
         const hydratedMessage = hydrateRscRenderMessage(
@@ -277,8 +249,6 @@ export async function messageHandler(
             logger,
             hmrState,
             manifest: msg.manifest || workerData.serverManifest || {},
-            cssFiles: cssFiles, // Use stateful CSS system
-            globalCss: msg.globalCss ?? new Map(), // Keep global CSS separate from stateful system
           },
           { userOptions }
         );
@@ -288,7 +258,7 @@ export async function messageHandler(
           const result = handleRscRender(
             {
               ...hydratedMessage,
-              cssFiles: cssFiles, // Use stateful CSS system
+              cssFiles: combinedCssFiles, // Use stateful CSS system
               globalCss: msg.globalCss ?? new Map(), // Keep global CSS separate from stateful system
             },
             handlers

@@ -1,5 +1,6 @@
 import type { PassThrough, Transform } from "stream";
 import type { RenderMetrics, StreamMetrics } from "../../types.js";
+import type { PanicThreshold } from "../../types.js";
 import type { 
   ErrorMessage,
   ShellReadyMessage,
@@ -103,8 +104,8 @@ export type HtmlRenderMessage = {
   globalCss?: Map<string, any>;
   verbose?: boolean;
   build?: any;
-  htmlTimeout?: number;
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  htmlTimeout?: number;   
+  panicThreshold?: PanicThreshold;
   publicOrigin?: string;
 }
 

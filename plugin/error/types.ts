@@ -1,5 +1,6 @@
 import type { ErrorInfo } from "react";
 import type { Logger } from "vite";
+import type { PanicThreshold } from "../types.js";
 
 /**
  * Error handling options
@@ -9,7 +10,7 @@ export interface HandleErrorOptions {
   errorInfo?: ErrorInfo | null;
   logger?: Logger | Console;
   mode?: "development" | "production" | "test";
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
   critical?: boolean;
   context: string; // Add context parameter for better DX
   log?: boolean; // if true, the error will be logged even if it comes from the worker thread
@@ -18,7 +19,7 @@ export interface HandleErrorOptions {
 export type HandleErrorFn = (options: HandleErrorOptions) => Error | null;
 
 export type GlobalErrorHandlerOptions = {
-  panicThreshold: "none" | "critical_errors" | "all_errors";
+  panicThreshold: PanicThreshold;
   logger: Logger;
   verbose?: boolean;
 };

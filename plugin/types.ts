@@ -356,6 +356,8 @@ export type StreamError = {
   code?: string;
 } & Error;
 
+export type PanicThreshold = "none" | "critical_errors" | "all_errors";
+
 export type ResolvedUserOptions = {
   // Core required properties
   projectRoot: string;
@@ -381,7 +383,7 @@ export type ResolvedUserOptions = {
   rscWorkerStartupTimeout: number;
   fileWriteTimeout: number;
   workerShutdownTimeout: number;
-  panicThreshold: "none" | "critical_errors" | "all_errors";
+  panicThreshold: PanicThreshold;
 
   // Optional properties
   onEvent?: OnEvent<ViteReactServerComponentsPlugin> | undefined;
@@ -872,7 +874,7 @@ export interface StreamPluginOptions<
   rscWorkerStartupTimeout?: number; // Timeout in milliseconds for RSC worker startup
   fileWriteTimeout?: number; // Timeout in milliseconds for file write operations
   workerShutdownTimeout?: number; // Timeout in milliseconds for worker shutdown operations
-  panicThreshold?: "none" | "critical_errors" | "all_errors";
+  panicThreshold?: PanicThreshold;
 }
 
 export type MultiPageHandlerOptions<

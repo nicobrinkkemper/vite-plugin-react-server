@@ -1,6 +1,7 @@
 import type { RawSourceMap } from "source-map";
 import type { DirectiveWarning, ParseResult, Program, AllowedDirectives, ParsedExports } from "./directives/types.js";
 import type { Logger } from "vite";
+import type { PanicThreshold } from "../types.js";
 
 
 
@@ -37,7 +38,7 @@ export type TransformOptions = {
   // based on warning, add warning directive index to avoid warning in development
   addDirectives?: number[];
   verbose?: boolean;
-  panicThreshold?: 'none' | 'critical_errors' | 'all_errors';
+  panicThreshold?: PanicThreshold;
   mode?: "development" | "production" | "test";
   logger?: Logger;
   moduleBase?: string;

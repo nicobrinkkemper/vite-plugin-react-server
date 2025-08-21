@@ -11,8 +11,8 @@ import type {
 } from "vite-plugin-react-server/types";
 import { doBuild } from "../doBuild.js";
 
-describe("Client Plugin build test", () => {
-  const testDir = resolve(__dirname, "../fixtures/client-build.test");
+describe("plugin examples build test", () => {
+  const testDir = resolve(__dirname, "../fixtures/examples-build.test");
   let events: PluginEvent[];
   const metrics: (RenderMetrics | WorkerStartupMetrics | ModuleResolutionMetrics)[] = [];
   const htmlContent: string[] = [];

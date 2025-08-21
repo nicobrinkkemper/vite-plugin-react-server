@@ -1,7 +1,5 @@
 import type { RegExpOpt } from "../types.js";
-import { interpolatePattern } from "./interpolatePattern.js";
-import { parsePattern } from "./parsePattern.js";
-
+import { createPatternMatcher } from "../helpers/createPatternMatcher.js";
 
 /**
  * Resolves a pattern with values, handling string, RegExp, and function inputs.
@@ -44,27 +42,9 @@ export function resolvePatternWithValues(
   defaultPattern?: RegExpOpt | ((path: string) => boolean),
   values: Record<string, string> = {}
 ): (path: string, moduleId?: string) => boolean {
-  if (pattern instanceof RegExp) {
-    return (path: string) => pattern.test(path);
-  }
-  if (typeof pattern === "function") {
-    return pattern;
-  }
-  if (typeof pattern === "string") {
-    const interpolatedPattern = interpolatePattern(pattern, values);
-    const regex = parsePattern(interpolatedPattern);
-    return (path: string) => regex.test(path);
-  }
-  if (defaultPattern instanceof RegExp) {
-    return (path: string) => defaultPattern.test(path);
-  }
-  if (typeof defaultPattern === "function") {
-    return defaultPattern;
-  }
-  if (typeof defaultPattern === "string") {
-    const interpolatedPattern = interpolatePattern(defaultPattern, values);
-    const regex = parsePattern(interpolatedPattern);
-    return (path: string) => regex.test(path);
-  }
-  throw new Error("No valid pattern provided");
+  return createPatternMatcher(pattern, defaultPattern, {
+    values,
+    handleDeserialized: false,
+    throwOnInvalid: true
+  });
 }
