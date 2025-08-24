@@ -100,6 +100,7 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
         throw new Error("Failed to resolve config");
       }
 
+
       userConfig = resolvedConfig.userConfig;
       return userConfig;
     },

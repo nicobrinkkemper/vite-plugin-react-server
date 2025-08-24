@@ -3,11 +3,12 @@ import type { ViteDevServer } from "vite";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setupTestProject } from "../setup.js";
-import { createClientDevServer } from "./createClientDevServer.js";
+import { createClientDevServer } from "../createDevServer.js";
+import { getCondition } from "vite-plugin-react-server/config";
 
-describe("RSC Worker (Client)", () => {
+describe("Client Dev Server", () => {
   let server: ViteDevServer, port = 5176;
-  const testDir = join(process.cwd(), "test/client/fixtures/rsc-worker");
+  const testDir = join(process.cwd(), `test/examples/fixtures/client-dev-server`);
   let pageURL;
   beforeAll(async () => {
     // Set up environment variables
@@ -16,8 +17,12 @@ describe("RSC Worker (Client)", () => {
     await mkdir(testDir, { recursive: true });
     await setupTestProject(testDir);
 
+    console.log(`[TEST] testDir: ${testDir}`);
+    console.log(`[TEST] process.cwd(): ${process.cwd()}`);
+
     server = await createClientDevServer({
       projectRoot: testDir,
+      verbose: false,
     }, port);
     port = server.config.server.port;
     pageURL = `http://localhost:${port}/index.rsc`;
@@ -77,14 +82,7 @@ describe("RSC Worker (Client)", () => {
     // Verify the response contains RSC data
     expect(result).toContain("0:");
     expect(result).toContain("1:");
-  });
-
-  it("should handle requests", async () => {
-    // Make a request to trigger HMR
-    const response = await fetch(pageURL);
-    expect(response.status).toBe(200);
-
     // The server should be ready to handle HMR updates
     expect(server.ws).toBeDefined();
-  }); // 
+  });
 });

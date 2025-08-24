@@ -105,6 +105,7 @@ export async function createUnifiedRenderHandler(
           projectRoot: handlerOptions.projectRoot,
           moduleRootPath: handlerOptions.moduleRootPath,
           moduleBasePath: handlerOptions.moduleBasePath,
+          loader: handlerOptions.loader,
           logger,
           verbose,
         });

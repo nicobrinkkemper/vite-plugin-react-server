@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createWorkerStream } from 'vite-plugin-react-server/helpers';
+import { createWorkerStream } from 'vite-plugin-react-server/stream';
 import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import type { RscRenderOpt } from 'vite-plugin-react-server/rsc-worker';

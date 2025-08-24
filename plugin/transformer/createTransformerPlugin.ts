@@ -1,14 +1,17 @@
 import type { Plugin } from "vite";
+import { perEnvironmentState } from "vite";
 import type { VitePluginFn } from "../types.js";
 import { createTransformer } from "../loader/createTransformer.js";
 import type { Program } from "acorn";
 import { resolveOptions } from "../config/resolveOptions.js";
-import type { Manifest } from "vite";
-import { tryManifest } from "../helpers/tryManifest.js";
+import { readFileSync } from "node:fs";
+import { resolve, join } from "node:path";
 import { getNodeEnv, isValidEnv } from "../config/getNodeEnv.js";
-import { join } from "node:path";
+
 // import { getEnvironmentName } from "../env/plugin.js";
-import { isServerTransform } from "./transformerEnv.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { resolveRegExp } from "../config/resolveRegExp.js";
+import { userProjectRoot } from "../root.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -31,6 +34,12 @@ export const createTransformerPlugin = (
 ): VitePluginFn => {
   return (userOptions) => {
     const { name } = options;
+    
+    // CRITICAL: Use per-environment state to prevent cross-environment cache contamination
+    // This fixes the issue where server environment cached modules affect client environment builds
+    const transformationCache = perEnvironmentState<Map<string, { code: string; map: any }>>(
+      () => new Map()
+    );
     const defaultEnvironment =
       options.defaultEnvironment ?? (name === "client" ? "client" : "server");
     const allowedEnvironments =
@@ -49,17 +58,59 @@ export const createTransformerPlugin = (
       throw resolvedOptionsResult.error;
     const { userOptions: resolvedUserOptions } = resolvedOptionsResult;
 
-    let staticManifest: Manifest = {};
     let isBuild = true;
     let isSSR = true;
     const nodeEnv = getNodeEnv(process.env.NODE_ENV);
     let mode = nodeEnv;
+    let runtimeResolvedUserOptions = resolvedUserOptions;
+    
+    // Use global cache for transformation results to ensure consistent hashing across all plugin instances
+    const outDir = resolvedUserOptions.build.outDir || "dist";
+    const serverDir = join(
+      outDir,
+      resolvedUserOptions.build.server || "server"
+    );
+    const clientDir = join(
+      outDir,
+      resolvedUserOptions.build.client || "client"
+    );
+    const staticDir = join(
+      outDir,
+      resolvedUserOptions.build.static || "static"
+    );
+    const modulePattern = resolveRegExp(
+      userOptions.autoDiscover?.modulePattern ??
+        DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern
+    );
+    const nodeModulesPattern = resolveRegExp(
+      userOptions.autoDiscover?.vendorPattern ??
+        DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern
+    );
+    const noDist = (id: string) => {
+      // Allow files from test fixtures and project root
+      if (
+        id.startsWith(userProjectRoot) ||
+        id.startsWith(join(userProjectRoot, outDir)) ||
+        id.startsWith(join(outDir, staticDir)) ||
+        id.startsWith(join(outDir, serverDir)) ||
+        id.startsWith(join(outDir, clientDir))
+      ) {
+        return true;
+      }
+      return false;
+    };
 
     return {
-      name: `vite-plugin-react-server:transform-${defaultEnvironment}-as-${name}`,
+      name: `vite-plugin-react-server:transform-${name}`,
       enforce: "post",
-      applyToEnvironment(partialEnvironment){
-        if(allowedEnvironments.includes(partialEnvironment.name as "client" | "server" | "ssr")){
+      // CRITICAL: Enable per-environment hooks during dev to prevent cache contamination
+      perEnvironmentStartEndDuringDev: true,
+      applyToEnvironment(partialEnvironment) {
+        if (
+          allowedEnvironments.includes(
+            partialEnvironment.name as "client" | "server" | "ssr"
+          )
+        ) {
           return true;
         }
         return false;
@@ -71,80 +122,122 @@ export const createTransformerPlugin = (
         if (!isValidEnv(mode)) {
           throw new Error(`Invalid mode: ${mode}`);
         }
+        
+        // CRITICAL: Re-resolve options with runtime mode to get correct importServerPath
+        // This ensures test mode uses react-server-dom-esm/server.node instead of server
+        const runtimeOptionsResult = resolveOptions({
+          ...userOptions,
+          loader: {
+            ...userOptions.loader,
+            mode: mode
+          }
+        });
+        if (runtimeOptionsResult.type === "success") {
+          runtimeResolvedUserOptions = runtimeOptionsResult.userOptions;
+        }
+        
         // Note: condition override is set in env plugin during config phase
         // Verbose summary (config hook has void context, use config logger)
         const logger = config.customLogger || config.logger;
         logger.info(
           `${logPrefix} configResolved: isBuild=${isBuild} isSSR=${isSSR} mode=${mode} allowed=${JSON.stringify(
             allowedEnvironments
-          )} defaultEnv=${defaultEnvironment}`
+          )} defaultEnv=${defaultEnvironment} importServerPath=${runtimeResolvedUserOptions.loader?.importServerPath}`
         );
       },
       async buildStart() {
-        // Only load static manifest for SSR environment (which builds to dist/client)
-        // The client environment (which builds to dist/static) creates the static manifest
-        if (isBuild && defaultEnvironment === "ssr") {
-          const manifestResult = await tryManifest({
-            root: resolvedUserOptions.projectRoot,
-            outDir: join(
-              resolvedUserOptions.build.outDir,
-              resolvedUserOptions.build.static
-            ),
-            ssrManifest: false,
-          });
-          if (manifestResult.type === "success") {
-            staticManifest = manifestResult.manifest;
-          } else {
-            if(resolvedUserOptions.panicThreshold === "all_errors"){
-              this.error(`Static manifest not found during ${name} build - continuing without manifest lookup`);
-            } else {
-              this.environment?.logger?.warn(`Static manifest not found during ${name} build - continuing without manifest lookup`);
-            }
-            staticManifest = {};
-          }
-        }
+        // No longer load static manifest - rely on hash coordination to ensure consistent hashes
+        // This removes the file I/O dependency and allows parallel builds
       },
       transform: {
         order: "post",
-        async handler(code, id, { ssr = defaultEnvironment === "server" } = {}) {
+        // when transforming to:
+        // dist/server / env=server - it adds registerClientReference and registerServerReference based on directive (ssg portable)
+        // dist/client / env=ssr - removes use client directive and hides server modules, hides client entry or without exports (ssg portable)
+        // dist/static / env=client  -  removes use client directive and hides server modules, emits client entry (and is browser portable)
+        async handler(
+          code,
+          id,
+          { ssr } = {}
+        ) {
 
-          if (userOptions.verbose) {
-            this.environment?.logger?.info(
-              `${logPrefix} transform: id=${id} env=${defaultEnvironment} ssr=${Boolean(
-                ssr
-              )} condition=${
-                defaultEnvironment === "server"
-                  ? "react-server"
-                  : "react-client"
-              }`
-            );
-          }
-          let [, moduleID] = resolvedUserOptions.normalizer(id);
 
-          // Do not run the client transformer on explicit server modules
-          // Prevents false positives like "use server directive found in client module"
-          if (name === "client" && /\.server\.[cm]?[jt]sx?$/.test(moduleID)) {
+
+          
+          if (
+            nodeModulesPattern.test(id) ||
+            !modulePattern.test(id) ||
+            !noDist(id)
+          ) {
             return null;
           }
-     
-          if (isBuild) {
-            if (staticManifest) {
-              if (moduleID in staticManifest) {
-                moduleID = staticManifest[moduleID].file;
-              }
-            } else {
-              // Static manifest not found - this is normal during server build
-              // since the static build hasn't completed yet
-              if (resolvedUserOptions.verbose) {
-                this.environment?.logger?.warn(
-                  `Static manifest not found during ${name} build - continuing without manifest lookup`
-                );
-              }
+          let [, normalizedPath] = resolvedUserOptions.normalizer(id);
+          
+          // Check if this is a built file that doesn't need transformation
+          // Normalize paths to handle cross-platform differences
+          const normalizedId = id.replace(/\\/g, "/");
+          const normalizedServerDir = serverDir.replace(/\\/g, "/");
+          const normalizedClientDir = clientDir.replace(/\\/g, "/");
+
+          // Check if the file is from a build output directory
+          const isFromServerBuild = normalizedId.includes(`/${normalizedServerDir}/`) || normalizedId.includes(`dist/server/`);
+          const isFromClientBuild = normalizedId.includes(`/${normalizedClientDir}/`) || normalizedId.includes(`dist/client/`);
+          const isFromStaticBuild = normalizedId.includes(`dist/static/`);
+          
+          // Check if this looks like a built/hashed file (should never be transformed)
+          // Built files have hashes and are already processed
+          const isBuiltFile = isBuild && /-[a-zA-Z0-9_]{6,}\.(js|mjs|cjs)$/.test(normalizedId);
+          
+
+          
+          // Check if we've already transformed this module to avoid double-hashing
+          // Include environment context in cache key since different environments need different transformations
+          const isServerEnv = this.environment?.name === "server";
+          // CRITICAL: Use per-environment cache to prevent cross-environment contamination
+          const envCache = transformationCache(this);
+          const cacheKey = `${normalizedPath}:${isServerEnv ? 'server' : 'client'}:${code}`;
+          if (envCache.has(cacheKey)) {
+            if (runtimeResolvedUserOptions.verbose) {
+              this.environment?.logger?.info(
+                `[react-${name}-transform] Using cached transformation for: ${normalizedPath} (${isServerEnv ? 'server' : 'client'}) env=${this.environment?.name}`
+              );
             }
+            return envCache.get(cacheKey);
+          }
+          
+          // Get the original source content for consistent hashing
+          // Read the file directly to ensure we use the original content, not transformed code
+          let originalSourceContent: string;
+          try {
+            const sourcePath = resolve(userProjectRoot, id);
+            originalSourceContent = readFileSync(sourcePath, 'utf-8');
+          } catch (error) {
+            // Fallback to the provided code if we can't read the file
+            originalSourceContent = code;
           }
 
-          const finalID = resolvedUserOptions.moduleID?.(moduleID) || moduleID;
+          // Apply the user's moduleID function to get the hashed module ID
+          // This ensures registerClientReference calls use the correct hashed paths
+          let finalModuleID = runtimeResolvedUserOptions.loader?.moduleID ? 
+            runtimeResolvedUserOptions.loader.moduleID(normalizedPath, originalSourceContent) : 
+            normalizedPath;
 
+
+          
+          // For server-built client components, we need to use a path that the RSC runtime can resolve
+          // The RSC runtime expects client components to be in the client build directory
+          if (isFromServerBuild && runtimeResolvedUserOptions.loader?.isClientComponentByName?.(id)) {
+            // Extract the relative path from the normalized path, removing dist/server prefix
+            // The RSC runtime resolves paths relative to the client build directory
+            const serverPrefix = `${runtimeResolvedUserOptions.build.outDir || "dist"}/${runtimeResolvedUserOptions.build.server || "server"}/`;
+            const relativePath = normalizedPath.startsWith(serverPrefix) ? 
+              normalizedPath.substring(serverPrefix.length) : 
+              normalizedPath.replace(new RegExp(`^.*${serverPrefix}`), '');
+            finalModuleID = runtimeResolvedUserOptions.loader?.moduleID ? 
+              runtimeResolvedUserOptions.loader.moduleID(relativePath, originalSourceContent) : 
+              relativePath;
+          }
+     
           const transformer = createTransformer({
             parseFn: (source) => {
               const ast = this.parse(source, {
@@ -154,22 +247,65 @@ export const createTransformerPlugin = (
               return ast;
             },
             options: {
-              loader: resolvedUserOptions.loader,
-              verbose: resolvedUserOptions.verbose,
-              panicThreshold: resolvedUserOptions.panicThreshold,
+              loader: runtimeResolvedUserOptions.loader,
+              verbose: runtimeResolvedUserOptions.verbose,
+              panicThreshold: runtimeResolvedUserOptions.panicThreshold,
               logger: this.environment?.logger,
               moduleBase: userOptions.moduleBase ?? "",
             },
-            // Always treat the "server" transformer as server environment.
-            // The client transformer should always behave as non-server.
-            isServerEnvironment: isServerTransform(name),
+
+            // Pass the actual environment context to the transformer
+            // Only the actual "server" environment should transform client components to registerClientReference
+            // SSR environment needs actual React components, not placeholders
+            isServerEnvironment: this.environment?.name === "server",
+            ssr: ssr,
           });
 
-          // Transform the code
-          const { code: transformed, map } = await transformer(code, finalID);
+          // Skip files from output directories that are already built and transformed
+          // But allow transformation of server-built client components that need registerClientReference
+
+          if (isFromServerBuild || isFromClientBuild || isFromStaticBuild || isBuiltFile) {
+            const buildType = isFromServerBuild ? "server" : isFromClientBuild ? "client" : isFromStaticBuild ? "static" : "built";
+            
+            // Allow transformation of server-built client components
+            if (isFromServerBuild && runtimeResolvedUserOptions.loader?.isClientComponentByName?.(id)) {
+              if (runtimeResolvedUserOptions.verbose) {
+                this.environment?.logger?.info(
+                  `[react-${name}-transform] Allowing transformation of server-built client component: ${id}`
+                );
+              }
+              // Don't skip - let it fall through to transformer
+            } else {
+              if (runtimeResolvedUserOptions.verbose) {
+                this.environment?.logger?.info(
+                  `[react-${name}-transform] Skipping built file from ${buildType} build: ${id}`
+                );
+              }
+              return {
+                code: code,
+                map: null,
+              };
+            }
+          }
+
+          const transformResult = await transformer(
+            code,
+            finalModuleID
+          );
+          
+          // If transformer returns null (e.g., for built files), return original code
+          if (!transformResult) {
+            return { code, map: null };
+          }
+          
+          const { code: transformed, map } = transformResult;
+
+          // Store the transformation result in per-environment cache
+          const result = { code: transformed, map };
+          envCache.set(cacheKey, result);
 
           // Logging for verbose mode
-          if (resolvedUserOptions.verbose) {
+          if (runtimeResolvedUserOptions.verbose) {
             const hasDirectives =
               code.includes('"use client"') ||
               code.includes('"use server"') ||
@@ -177,21 +313,12 @@ export const createTransformerPlugin = (
               code.includes("'use server'");
 
             if (transformed !== code) {
-              if (id !== finalID) {
-                this.environment?.logger?.info(
-                  `[react-${name}-transform] ` +
-                    id.split("/").pop() +
-                    " -> " +
-                    finalID
-                );
-              } else {
-                this.environment?.logger?.info(
-                  `[react-${name}-transform] ` +
-                    id.split("/").pop() +
-                    (code.startsWith('"use client"') ? " (client)" : "") +
-                    (hasDirectives ? " (directives processed)" : "")
-                );
-              }
+              this.environment?.logger?.info(
+                `[react-${name}-transform] ` +
+                  id.split("/").pop() +
+                  (code.startsWith('"use client"') ? " (client)" : "") +
+                  (hasDirectives ? " (directives processed)" : "")
+              );
               this.environment?.logger?.info(
                 `[react-${name}-transform] ` + transformed.slice(0, 100) + "..."
               );
@@ -204,10 +331,7 @@ export const createTransformerPlugin = (
             }
           }
 
-          return {
-            code: transformed,
-            map: map,
-          };
+          return result;
         },
       },
     } as Plugin;

@@ -98,6 +98,35 @@ npm run postinstall
 - Client components imported from server components without `.client.` suffix
 - Client components used as boundaries between server and client code
 
+### 🔧 **Transformer Plugin Not Installed**
+
+**Problem**: Sourcemap errors indicating the transformer plugin isn't working.
+
+**Error Example**:
+```
+src/components/Link.client.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+```
+
+**Solution**: This error typically means the transformer plugin wasn't installed or added to the Vite configuration. Ensure the plugin is properly configured in your `vite.config.ts`:
+
+```typescript
+import { defineConfig } from 'vite';
+import { vitePluginReactServer } from 'vite-plugin-react-server';
+
+export default defineConfig({
+  plugins: [
+    vitePluginReactServer({
+      // your plugin options
+    })
+  ]
+});
+```
+
+**Why**: The transformer plugin is responsible for removing the directives and handling the transformation accordingly. This means that
+for the client-boundary transformations, not much changes aside from the directive being removed. It's not critical to see this warning,
+because the end result is the same (use client directive is removed). It's only critical to miss the transformer plugin in the server
+environment.
+
 ### 🔧 **Environment API Not Working**
 
 **Problem**: Vite Environment API builds only one environment instead of all configured environments.
@@ -203,6 +232,29 @@ export const config = {
   htmlTimeout: 30000,              // 30 seconds for HTML generation completion
 };
 ```
+
+### ⏱️ **Stream Timeout Issues**
+
+**Problem**: Client-side RSC streams consistently timing out after exactly 3 seconds, even for simple operations.
+
+**Root Cause**: The plugin had two competing timeout mechanisms:
+1. **Worker timeout** (5 seconds): Handles actual RSC rendering
+2. **Client PassThrough timeout** (3 seconds): Was forcefully ending streams before worker completion
+
+**Solution**: The plugin now uses only the worker timeout mechanism. Client streams wait for natural completion instead of artificial timeouts. If the process indeed should take this long, increate timeout using the correct user option:
+```typescript
+export const config = {
+  rscTimeout: 30000, // 30 sec timeout
+  htmlTimeout: 3000,
+}
+```
+
+**Performance Impact**:
+- **Before**: RSC streams would timeout at 3 seconds regardless of actual work
+- **After**: RSC streams complete naturally in 5-30ms
+- **Improvement**: 100-600x faster for normal operations
+
+**Note**: Timeouts are only used as safety nets for infinite loops during development, not during normal operation.
 
 ### 🌐 **Environment Variable Issues**
 

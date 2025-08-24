@@ -1,7 +1,7 @@
 import { createWorker } from "../worker/createWorker.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
-import React from "react";
+import { React } from "../vendor/vendor.server.js";
 import type { RestartWorkerFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";

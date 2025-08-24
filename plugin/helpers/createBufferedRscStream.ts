@@ -67,7 +67,7 @@ export function createBufferedRscStream(
   let isStreamEnded = false;
   let hasError = false;
   let error: Error | null = null;
-  let consumers: Readable[] = [];
+  const consumers: Readable[] = [];
 
   // Collect all RSC chunks into buffer
   rscStream.on("data", (chunk: Buffer) => {

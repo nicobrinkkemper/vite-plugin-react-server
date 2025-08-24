@@ -27,6 +27,13 @@ export const createWorkerStream: CreateWorkerStreamFn<"client"> = function _crea
       if (options.worker) {
         options.worker.off("message", messageHandler);
       }
+    } else if (message.type === "SHELL_ERROR") {
+      const error = new Error(message.error?.message || "Worker shell error");
+      error.stack = message.error?.stack;
+      readable.destroy(error);
+      if (options.worker) {
+        options.worker.off("message", messageHandler);
+      }
     }
   };
 
@@ -95,9 +102,10 @@ export const createWorkerStream: CreateWorkerStreamFn<"client"> = function _crea
   // Send the render message with all required fields for client
   options.worker.postMessage({
     type: options.messageType,
-    id: options.id,
+    id: options.id || options.route,
     route: options.route,
     url: options.url,
+
     projectRoot: options.projectRoot,
     moduleBasePath: options.moduleBasePath,
     moduleBaseURL: options.moduleBaseURL,

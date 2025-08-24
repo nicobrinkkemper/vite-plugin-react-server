@@ -15,7 +15,7 @@ import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { userOptions } from "./userOptions.js";
 import { createLogger } from "vite";
 import { PassThrough } from "node:stream";
-import React from "react";
+import { React } from "../../vendor/vendor.server.js";
 import { sendMessage } from "../sendMessage.js";
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
 
@@ -26,11 +26,22 @@ const verbose = workerData.userOptions.verbose ?? false;
 // Track active renders - store the RSC stream for each unique render (id)
 const activeRenders = new Map<string, PassThrough>();
 
+// Track active streams by route for reuse
+const activeStreamsByRoute = new Map<string, string>(); // route -> streamId
+
 function cleanupRender(id: string) {
   const rscStream = activeRenders.get(id);
   if (rscStream) {
     rscStream.destroy();
     activeRenders.delete(id);
+    
+    // Clean up route mapping
+    for (const [route, streamId] of activeStreamsByRoute.entries()) {
+      if (streamId === id) {
+        activeStreamsByRoute.delete(route);
+        break;
+      }
+    }
   }
 }
 
@@ -50,6 +61,31 @@ export async function messageHandler(
         // Clean up any previous render for this id
         cleanupRender(msg.id);
 
+        // Determine if this is a headless or full RSC request
+        const isHeadless = msg.htmlPath === '' || !msg.htmlPath;
+        const rscVariant = isHeadless ? "rsc-headless" : "rsc-full";
+        
+        if (verbose) {
+          logger.info(`[rsc-worker] Processing ${rscVariant} render for route: ${msg.route}`);
+        }
+        
+        // Check if we can reuse an active headless stream for full page rendering
+        if (!isHeadless) {
+          const existingStreamId = activeStreamsByRoute.get(msg.route);
+          if (existingStreamId && activeRenders.has(existingStreamId)) {
+            if (verbose) {
+              logger.info(`[rsc-worker] Reusing active headless stream ${existingStreamId} for full page render of route: ${msg.route}`);
+            }
+            
+            // Reuse the existing stream directly
+            if (verbose) {
+              logger.info(`[rsc-worker] Reusing active headless stream ${existingStreamId} for full page render of route: ${msg.route}`);
+            }
+            // For now, just fall through to fresh render
+            // TODO: Implement actual stream reuse logic
+          }
+        }
+
         // Create a new PassThrough stream for this render
         const rscStream = new PassThrough();
         activeRenders.set(msg.id, rscStream);
@@ -66,9 +102,12 @@ export async function messageHandler(
           manifest: msg.manifest || workerData.serverManifest || {},
           build: {
             server: userOptions.build?.server || "server",
+            client: userOptions.build?.client || "client",
+            static: userOptions.build?.static || "static",
             outDir: userOptions.build?.outDir || "dist",
           },
           bundle: workerData.bundle || {},
+          clientPattern: userOptions.autoDiscover?.clientPattern,
         });
         const url =
           msg.url ??
@@ -151,20 +190,42 @@ export async function messageHandler(
           );
         }
 
-        // Load the components using the loader
-        const pageModule = await loader(
-          `${msg.pagePath}#${
+        // Use pre-resolved components if available, otherwise load them
+        let PageComponent: any;
+        if (msg.PageComponent) {
+          if (verbose) {
+            logger.info(`[rsc-worker] Using pre-resolved page component`);
+          }
+          PageComponent = msg.PageComponent;
+        } else if (msg.pagePath) {
+          if (verbose) {
+            logger.info(`[rsc-worker] Loading page component from: ${msg.pagePath}`);
+          }
+          const pageModule = await loader(
+            `${msg.pagePath}#${
+              msg.pageExportName ?? workerData.userOptions.pageExportName
+            }`
+          );
+          PageComponent = pageModule[
             msg.pageExportName ?? workerData.userOptions.pageExportName
-          }`
-        );
-        const PageComponent = pageModule[
-          msg.pageExportName ?? workerData.userOptions.pageExportName
-        ] as any;
+          ] as any;
+        } else {
+          throw new Error(`[rsc-worker] No PageComponent or pagePath provided`);
+        }
+        
+        if (verbose) {
+          logger.info(`[rsc-worker] Page component loaded: ${typeof PageComponent}`);
+        }
 
         // Emit module resolution metric after first module is loaded
 
-        const RootComponent = msg.rootPath
-          ? ((
+        let RootComponent: any;
+        if (msg.RootComponent !== undefined) {
+          logger.info(`[rsc-worker] Using pre-resolved root component`);
+          RootComponent = msg.RootComponent;
+        } else if (msg.rootPath) {
+          logger.info(`[rsc-worker] Loading root component from: ${msg.rootPath}`);
+          RootComponent = ((
               await loader(
                 `${msg.rootPath}#${
                   msg.rootExportName ?? workerData.userOptions.rootExportName
@@ -172,13 +233,20 @@ export async function messageHandler(
               )
             )[
               msg.rootExportName ?? workerData.userOptions.rootExportName
-            ] as any)
-          : undefined; // undefined = use default Root component (handled by hydrateRscRenderMessage)
+            ] as any);
+        } else {
+          RootComponent = undefined; // undefined = use default Root component (handled by hydrateRscRenderMessage)
+        }
 
-        const HtmlComponent = msg.htmlPath === ''
-          ? React.Fragment // Empty string = headless (no HTML wrapper)
-          : msg.htmlPath
-          ? ((
+        let HtmlComponent: any;
+        if (msg.HtmlComponent !== undefined) {
+          logger.info(`[rsc-worker] Using pre-resolved html component`);
+          HtmlComponent = msg.HtmlComponent;
+        } else if (msg.htmlPath === '') {
+          HtmlComponent = React.Fragment; // Empty string = headless (no HTML wrapper)
+        } else if (msg.htmlPath) {
+          logger.info(`[rsc-worker] Loading html component from: ${msg.htmlPath}`);
+          HtmlComponent = ((
               await loader(
                 `${msg.htmlPath}#${
                   msg.htmlExportName ?? workerData.userOptions.htmlExportName
@@ -186,12 +254,17 @@ export async function messageHandler(
               )
             )[
               msg.htmlExportName ?? workerData.userOptions.htmlExportName
-            ] as any)
-          : undefined; // undefined = use default HTML component (handled by hydrateRscRenderMessage)
+            ] as any);
+        } else {
+          HtmlComponent = undefined; // undefined = use default HTML component (handled by hydrateRscRenderMessage)
+        }
 
-        // Load and resolve props properly
+        // Load and resolve props properly - same as renderPage.server.ts
         let pageProps;
         if (msg.propsPath) {
+          if (verbose) {
+            logger.info(`[rsc-worker] Loading props from: ${msg.propsPath}`);
+          }
           const propsModule = await loader(
             `${msg.propsPath}#${
               msg.propsExportName ?? workerData.userOptions.propsExportName
@@ -201,14 +274,31 @@ export async function messageHandler(
             msg.propsExportName ?? workerData.userOptions.propsExportName
           ] as any;
           
+          if (verbose) {
+            logger.info(`[rsc-worker] Props function type: ${typeof propsFunction}`);
+            logger.info(`[rsc-worker] Props function: ${propsFunction}`);
+          }
+          
           // Call the props function with the URL if it's a function
           if (typeof propsFunction === 'function') {
-            pageProps = propsFunction(url);
+            if (verbose) {
+              logger.info(`[rsc-worker] Calling props function with URL: ${url}`);
+            }
+            pageProps = await propsFunction(url);
+            if (verbose) {
+              logger.info(`[rsc-worker] Props result: ${JSON.stringify(pageProps, null, 2)}`);
+            }
           } else {
             pageProps = propsFunction;
+            if (verbose) {
+              logger.info(`[rsc-worker] Using props as object: ${JSON.stringify(pageProps, null, 2)}`);
+            }
           }
         } else {
           pageProps = { url };
+          if (verbose) {
+            logger.info(`[rsc-worker] No props path, using default: ${JSON.stringify(pageProps, null, 2)}`);
+          }
         }
         const moduleResolutionTime =
           performance.now() - moduleResolutionStartTime;
@@ -261,14 +351,155 @@ export async function messageHandler(
               cssFiles: combinedCssFiles, // Use stateful CSS system
               globalCss: msg.globalCss ?? new Map(), // Keep global CSS separate from stateful system
             },
-            handlers
+            handlers,
+            rscStream
           );
+          
+          // Track headless streams by route for potential reuse
+          if (isHeadless) {
+            activeStreamsByRoute.set(msg.route, msg.id);
+            if (verbose) {
+              logger.info(`[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.route}`);
+            }
+          }
+          
           return result;
         } catch (error) {
           handlers.onError(msg.id, toError(error));
           cleanupRender(msg.id);
           return;
         }
+      case "RESOLVE_COMPONENTS": {
+        // Start measuring component resolution time
+        const resolutionStartTime = performance.now();
+        
+        if (verbose) {
+          logger.info(`[rsc-worker] Resolving components for route: ${msg.route}`);
+        }
+
+        try {
+          // Create loader for component resolution
+          const loader = createRscWorkerLoader({
+            verbose: verbose,
+            logger,
+            hmrState,
+            projectRoot: workerData.userOptions.projectRoot,
+            manifest: workerData.serverManifest || {},
+            build: {
+              server: userOptions.build?.server || "server",
+              client: userOptions.build?.client || "client",
+              static: userOptions.build?.static || "static",
+              outDir: userOptions.build?.outDir || "dist",
+            },
+            bundle: workerData.bundle || {},
+            clientPattern: userOptions.autoDiscover?.clientPattern,
+          });
+
+          const url = routeToURL(
+            msg.route,
+            userOptions.moduleBaseURL,
+            userOptions.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath
+          );
+
+          // Resolve PageComponent
+          let PageComponent;
+          if (msg.pagePath) {
+            const pageModule = await loader(
+              `${msg.pagePath}#${msg.pageExportName ?? workerData.userOptions.pageExportName}`
+            );
+            PageComponent = pageModule[msg.pageExportName ?? workerData.userOptions.pageExportName];
+          }
+
+          // Resolve RootComponent
+          let RootComponent;
+          if (msg.rootPath) {
+            const rootModule = await loader(
+              `${msg.rootPath}#${msg.rootExportName ?? workerData.userOptions.rootExportName}`
+            );
+            RootComponent = rootModule[msg.rootExportName ?? workerData.userOptions.rootExportName];
+          }
+
+          // Resolve HtmlComponent
+          let HtmlComponent;
+          if (msg.htmlPath && msg.htmlPath !== '') {
+            const htmlModule = await loader(
+              `${msg.htmlPath}#${msg.htmlExportName ?? workerData.userOptions.htmlExportName}`
+            );
+            HtmlComponent = htmlModule[msg.htmlExportName ?? workerData.userOptions.htmlExportName];
+          }
+
+          // Resolve pageProps
+          let pageProps: any = { url };
+          if (msg.propsPath) {
+            const propsModule = await loader(
+              `${msg.propsPath}#${msg.propsExportName ?? workerData.userOptions.propsExportName}`
+            );
+            const propsFunction = propsModule[msg.propsExportName ?? workerData.userOptions.propsExportName];
+            
+            // Call the props function with the URL if it's a function
+            if (typeof propsFunction === 'function') {
+              pageProps = propsFunction(url);
+            } else {
+              pageProps = propsFunction;
+            }
+          }
+
+          const resolutionTime = performance.now() - resolutionStartTime;
+
+          if (verbose) {
+            logger.info(`[rsc-worker] Components resolved for route: ${msg.route} in ${resolutionTime.toFixed(2)}ms`);
+          }
+
+          // Send COMPONENTS_RESOLVED message back to main thread
+          if (port) {
+            sendMessage(
+              {
+                type: "COMPONENTS_RESOLVED",
+                id: msg.id,
+                route: msg.route,
+                PageComponent,
+                pageProps,
+                RootComponent,
+                HtmlComponent,
+                resolutionTime,
+              },
+              port
+            );
+          }
+
+          return;
+        } catch (error) {
+          const resolutionTime = performance.now() - resolutionStartTime;
+          logger.error(`[rsc-worker] Failed to resolve components for route ${msg.route}: ${error}`);
+          
+          // Emit error metrics
+          if (handlers.onMetrics) {
+            const moduleResolutionMetric = createModuleResolutionMetrics({
+              route: msg.route,
+              workerType: "rsc",
+              resolutionTime,
+              fromMainThread: false,
+              fromRscWorker: true,
+              fromHtmlWorker: false,
+              description: `Component resolution failed for route ${msg.route} on RSC worker`,
+            });
+            handlers.onMetrics(msg.id, moduleResolutionMetric);
+          }
+          
+          // Send error response
+          if (port) {
+            sendMessage(
+              {
+                type: "ERROR",
+                id: msg.id,
+                error: toError(error),
+              },
+              port
+            );
+          }
+          return;
+        }
+      }
       case "SERVER_ACTION": {
         try {
           // Parse the server action ID to get the file path and export name

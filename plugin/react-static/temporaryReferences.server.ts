@@ -1,3 +1,5 @@
-import { createTemporaryReferenceSet } from "react-server-dom-esm/server.node";
+import { ReactDOMServer } from "../vendor/vendor.server.js";
+
+const { createTemporaryReferenceSet } = ReactDOMServer;
 
 export const temporaryReferences = createTemporaryReferenceSet();

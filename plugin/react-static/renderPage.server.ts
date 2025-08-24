@@ -11,10 +11,12 @@ import { resolveComponent } from "../helpers/resolveComponent.js";
 import { resolveProps } from "../helpers/resolveProps.js";
 import { Root as DefaultRoot } from "../components/root.js";
 import { Html as DefaultHtml } from "../components/html.js";
-import { React } from "../vendor/vendor.static.js";
+import { React } from "../vendor/vendor.server.js";
 import { join } from "node:path";
 
 assertReactServer();
+
+// Note: This module works best in react-server condition, but will adapt to other conditions
 
 export const renderPage: RenderPageFn = async function* _renderPageServer(
   handlerOptions
@@ -380,7 +382,7 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
           streamMetrics.bytes += chunk.length;
         });
 
-        rscHandlerForFile.rscStream.on("end", () => {
+        rscHandlerForFile.rscStream.once("end", () => {
           streamMetrics.duration = performance.now() - streamMetrics.startTime;
           streamMetrics.endTime = performance.now();
 
@@ -391,21 +393,21 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
           rscHeadlessMetrics.processingTime = streamMetrics.duration;
           rscHeadlessMetrics.memoryUsage = process.memoryUsage();
           rscHeadlessMetrics.chunks = streamMetrics.chunks;
-        });
 
-        // Pipe the RSC handler to the destination (file writer)
-        rscHandlerForFile.pipe(destination);
-
-        // The React PipeableStream doesn't end naturally, so we need to end the destination manually
-        // after a reasonable delay to ensure all data has been written
-        setTimeout(() => {
+          // End the destination when the RSC stream ends
           if (handlerOptions.verbose) {
             handlerOptions.logger?.info(
               `[renderPage.server] Ending RSC destination stream for route: ${handlerOptions.route}`
             );
           }
           (destination as any).end();
-        }, 100); // Small delay to ensure all chunks are written
+
+          // Clean up listeners after everything is done
+          rscHandlerForFile.rscStream.removeAllListeners();
+        });
+
+        // Pipe the RSC handler to the destination (file writer)
+        rscHandlerForFile.pipe(destination);
 
         return destination;
       },
@@ -425,7 +427,18 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
           streamMetrics.bytes += chunk.length;
         });
 
-        fullRscHandler.rscStream.on("end", () => {
+        // Store error handler for cleanup
+        const htmlErrorHandler = (error: Error) => {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger.error(
+              `[renderPage.server] HTML transform stream error: ${error.message}`
+            );
+          }
+          // Propagate the error to the destination stream to cause fileWriter to reject
+          (destination as any).destroy(error);
+        };
+
+        fullRscHandler.rscStream.once("end", () => {
           streamMetrics.duration = performance.now() - streamMetrics.startTime;
           streamMetrics.endTime = performance.now();
 
@@ -436,6 +449,12 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
           rscFullMetrics.processingTime = streamMetrics.duration;
           rscFullMetrics.memoryUsage = process.memoryUsage();
           rscFullMetrics.chunks = streamMetrics.chunks;
+
+          // Clean up listeners after metrics are collected
+          fullRscHandler.rscStream.removeAllListeners();
+          htmlTransformStream.removeAllListeners();
+          // Remove the specific error handler to prevent hanging
+          htmlTransformStream.removeListener("error", htmlErrorHandler);
         });
 
         // Pipe the full RSC handler to the HTML transform stream
@@ -443,15 +462,7 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
         htmlTransformStream.pipe(destination);
 
         // Handle errors from the HTML transform stream
-        htmlTransformStream.on("error", (error: Error) => {
-          if (handlerOptions.verbose) {
-            handlerOptions.logger.error(
-              `[renderPage.server] HTML transform stream error: ${error.message}`
-            );
-          }
-          // Propagate the error to the destination stream to cause fileWriter to reject
-          (destination as any).destroy(error);
-        });
+        htmlTransformStream.once("error", htmlErrorHandler);
 
         return destination;
       },

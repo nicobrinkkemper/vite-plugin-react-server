@@ -118,37 +118,40 @@ try {
     }
   });
 
+  // Use projectRoot for loader paths, fallback to resolvedConfig.root
+  const projectRoot = workerData.userOptions.projectRoot || workerData.resolvedConfig.root;
+  
   const reactLoaderPath =
     "file://" +
     (workerData.userOptions.reactLoaderPath
       ? resolve(
-          workerData.resolvedConfig.root,
+          projectRoot,
           workerData.userOptions.reactLoaderPath
         )
       : resolve(
-          workerData.resolvedConfig.root,
+          projectRoot,
           DEFAULT_CONFIG.REACT_LOADER_PATH
         ));
   const cssLoaderPath =
     "file://" +
     (workerData.userOptions.cssLoaderPath
       ? resolve(
-          workerData.resolvedConfig.root,
+          projectRoot,
           workerData.userOptions.cssLoaderPath
         )
       : resolve(
-          workerData.resolvedConfig.root,
+          projectRoot,
           DEFAULT_CONFIG.CSS_LOADER_PATH
         ));
   const envLoaderPath =
     "file://" +
     (workerData.userOptions.envLoaderPath
       ? resolve(
-          workerData.resolvedConfig.root,
+          projectRoot,
           workerData.userOptions.envLoaderPath
         )
       : resolve(
-          workerData.resolvedConfig.root,
+          projectRoot,
           DEFAULT_CONFIG.ENV_LOADER_PATH
         ));
 

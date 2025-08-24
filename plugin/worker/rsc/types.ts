@@ -101,6 +101,7 @@ export type RscWorkerOutputMessage =
   | ServerActionResponseMessage
   | ShutdownCompleteMessage
   | CleanupCompleteMessage
+  | ComponentsResolvedMessage
   | ServerModuleMessage
   | HmrUpdateMessage
   | HmrCleanupMessage;
@@ -117,7 +118,6 @@ export type RscRenderOpt = WorkerMessage & {
     | "autoDiscover"
     | "normalizer"
     | "moduleID"
-    | "PageComponent"
     | "url"
     | "logger"
   > & {
@@ -128,6 +128,11 @@ export type RscRenderOpt = WorkerMessage & {
       CreateHandlerOptions<ResolvedUserOptions>["build"],
       "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
     > & { pages: string[] };
+    // Support for pre-resolved components (client environment)
+    PageComponent?: any;
+    pageProps?: any;
+    RootComponent?: any;
+    HtmlComponent?: any;
   };
 
 export type RscRenderMessage<Opt extends RscRenderOpt = RscRenderOpt> = Opt;
@@ -189,11 +194,33 @@ export type ServerModuleMessage = {
   source: string;
 } & WorkerMessage;
 
-export type StoreHeadlessElementsMessage = {
-  type: "STORE_HEADLESS_ELEMENTS";
+
+
+export type ResolveComponentsMessage = {
+  type: "RESOLVE_COMPONENTS";
   id: string;
   route: string;
-  elements: Uint8Array; // Serialized React elements from headless stream
+  streamType: "rsc";
+  rscVariant: "rsc-headless" | "rsc-full";
+  pagePath?: string;
+  propsPath?: string;
+  rootPath?: string;
+  htmlPath?: string;
+  pageExportName?: string;
+  propsExportName?: string;
+  rootExportName?: string;
+  htmlExportName?: string;
+} & WorkerMessage;
+
+export type ComponentsResolvedMessage = {
+  type: "COMPONENTS_RESOLVED";
+  id: string;
+  route: string;
+  PageComponent?: any;
+  pageProps?: any;
+  RootComponent?: any;
+  HtmlComponent?: any;
+  resolutionTime: number;
 } & WorkerMessage;
 
 export type RscWorkerInputMessage =
@@ -215,4 +242,4 @@ export type RscWorkerInputMessage =
   | ServerActionResponseMessage
   | ServerModuleMessage
   | AbortMessage
-  | StoreHeadlessElementsMessage;
+  | ResolveComponentsMessage;

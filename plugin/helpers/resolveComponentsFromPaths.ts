@@ -13,6 +13,8 @@ export interface ComponentResolutionOptions {
   projectRoot?: string;
   moduleRootPath?: string;
   moduleBasePath?: string;
+  manifest?: any;
+  loader?: (id: string) => Promise<any>;
   logger?: any;
   verbose?: boolean;
 }
@@ -47,6 +49,7 @@ export async function resolveComponentsFromPaths(
     pageExportName,
     rootExportName,
     htmlExportName,
+    loader,
     logger,
     verbose = false,
   } = options;
@@ -55,11 +58,19 @@ export async function resolveComponentsFromPaths(
     // Load PageComponent
     let PageComponent: PageComponentType<PagePropOpt> | undefined;
     if (pagePath) {
-      const pageModule = await import(pagePath);
-      PageComponent = pageModule[pageExportName];
-      
-      if (verbose && logger) {
-        logger.info(`[component-resolver] Loaded PageComponent from ${pagePath}`);
+      try {
+        const pageModule = loader ? await loader(`${pagePath}#${pageExportName}`) : await import(pagePath);
+        PageComponent = pageModule[pageExportName];
+        
+        if (verbose && logger) {
+          logger.info(`[component-resolver] Loaded PageComponent from ${pagePath}: ${!!PageComponent}`);
+          logger.info(`[component-resolver] Page module keys: ${Object.keys(pageModule || {}).join(', ')}`);
+          logger.info(`[component-resolver] Looking for export: ${pageExportName}`);
+        }
+      } catch (error) {
+        if (verbose && logger) {
+          logger.error(`[component-resolver] Failed to load PageComponent from ${pagePath}: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
     }
 
@@ -67,7 +78,7 @@ export async function resolveComponentsFromPaths(
     let RootComponent: RootComponentType | typeof React.Fragment = DefaultRoot;
     if (rootPath) {
       try {
-        const rootModule = await import(rootPath);
+        const rootModule = loader ? await loader(`${rootPath}#${rootExportName}`) : await import(rootPath);
         const loadedRootComponent = rootModule[rootExportName];
         if (loadedRootComponent) {
           RootComponent = loadedRootComponent;
@@ -87,7 +98,7 @@ export async function resolveComponentsFromPaths(
     let HtmlComponent: HtmlComponentType | typeof React.Fragment | undefined = DefaultHtml;
     if (htmlPath) {
       try {
-        const htmlModule = await import(htmlPath);
+        const htmlModule = loader ? await loader(`${htmlPath}#${htmlExportName}`) : await import(htmlPath);
         const loadedHtmlComponent = htmlModule[htmlExportName];
         if (loadedHtmlComponent) {
           HtmlComponent = loadedHtmlComponent;

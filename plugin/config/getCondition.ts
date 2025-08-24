@@ -165,10 +165,10 @@ export const getCurrentCondition = ():
   // Warn if we detect both conditions present
   warnIfAmbiguousReactConditions();
 
-  // Check NODE_OPTIONS for conditions
-  const env = parseNodeArgs(tokenizeNodeOptions()).conditions;
-  if (env.includes("react-server")) return "react-server";
-  if (env.includes("react-client")) return "react-client";
+  // Check both NODE_OPTIONS and execArgv for conditions
+  const conditions = getAllConditions();
+  if (conditions.includes("react-server")) return "react-server";
+  if (conditions.includes("react-client")) return "react-client";
 
   // Default to react-client when nothing is set
   return undefined;
@@ -224,16 +224,36 @@ export function assertNonReactServer(): asserts this is {
 }
 
 /**
- * Checks if the current condition is react-server
+ * Checks if the current condition is react-server (strict - requires both NODE_OPTIONS and execArgv)
+ * Use this for React Server DOM compatibility checks
  */
 export const isReactServerCondition = (): boolean =>
   getCurrentCondition() === "react-server";
 
 /**
- * Checks if the current condition is react-client
+ * Checks if the current condition is react-client (strict - requires both NODE_OPTIONS and execArgv)
+ * Use this for React Server DOM compatibility checks
  */
 export const isReactClientCondition = (): boolean =>
   getCurrentCondition() === "react-client";
+
+/**
+ * Checks if react-server condition is present in either NODE_OPTIONS OR execArgv (lenient)
+ * Use this for plugin internal environment gating
+ */
+export const hasReactServerCondition = (): boolean => {
+  const allConditions = getAllConditions();
+  return allConditions.includes("react-server");
+};
+
+/**
+ * Checks if react-client condition is present in either NODE_OPTIONS OR execArgv (lenient)
+ * Use this for plugin internal environment gating  
+ */
+export const hasReactClientCondition = (): boolean => {
+  const allConditions = getAllConditions();
+  return allConditions.includes("react-client");
+};
 
 /**
  * Legacy function for backward compatibility

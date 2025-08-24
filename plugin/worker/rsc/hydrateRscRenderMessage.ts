@@ -13,7 +13,7 @@ import {
   validateRscRenderMessage,
   resolveRenderUrl,
   mergeMessageWithDefaults,
-  resolveComponents,
+  resolveWithDefaultRootAndHtml,
   logRenderStart,
 } from "../../helpers/index.js";
 
@@ -26,7 +26,8 @@ function createLoader(
   hmrState: Map<string, { invalidated: boolean }>,
   projectRoot: string,
   build: any,
-  manifest: Record<string, { file: string } | string>
+  manifest: Record<string, { file: string } | string>,
+  clientPattern?: RegExp
 ) {
   return createRscWorkerLoader({
     verbose,
@@ -35,6 +36,7 @@ function createLoader(
     projectRoot,
     build,
     manifest,
+    clientPattern,
   });
 }
 
@@ -83,7 +85,7 @@ export function hydrateRscRenderMessage(
 
   // Step 5: Resolve components with fallbacks
   const { RootComponent: resolvedRootComponent, HtmlComponent: resolvedHtmlComponent } = 
-    resolveComponents(RootComponent, HtmlComponent);
+    resolveWithDefaultRootAndHtml(RootComponent, HtmlComponent);
 
   // Step 6: Create the loader
   const loader = createLoader(
@@ -92,7 +94,8 @@ export function hydrateRscRenderMessage(
     hmrState,
     mergedValues.projectRoot,
     mergedValues.build,
-    manifest
+    manifest,
+    userOptions.autoDiscover?.clientPattern
   );
 
   // Step 7: Return the fully hydrated render context

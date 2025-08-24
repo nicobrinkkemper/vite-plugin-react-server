@@ -28,6 +28,7 @@ describe("Custom Loader Configuration", () => {
           verbose: false,
           panicThreshold: "none",
         },
+        ssr: true,
       });
       const code = `"use server";\nexport async function add(a, b) { return a + b; }`;
 
@@ -53,6 +54,7 @@ describe("Custom Loader Configuration", () => {
           verbose: false,
           panicThreshold: "none",
         },
+        ssr: false,
       });
       const code = `"use client";\nexport function Button() { return "button"; }`;
 

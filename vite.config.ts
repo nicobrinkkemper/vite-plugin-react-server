@@ -64,6 +64,8 @@ export default defineConfig({
         "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
         "plugin/stream/index": resolve(__dirname, "plugin/stream/index.ts"),
+        "plugin/stream/server": resolve(__dirname, "plugin/stream/index.server.ts"),
+        "plugin/stream/client": resolve(__dirname, "plugin/stream/index.client.ts"),
         "plugin/env/plugin": resolve(__dirname, "plugin/env/plugin.ts"),
         "plugin/vendor/index": resolve(__dirname, "plugin/vendor/index.ts"),
         "plugin/vendor/vendor.server": resolve(__dirname, "plugin/vendor/vendor.server.ts"),
@@ -86,6 +88,7 @@ export default defineConfig({
         "plugin/stream/createRscStream": resolve(__dirname, "plugin/stream/createRscStream.ts"),
         "plugin/stream/createRscStream.server": resolve(__dirname, "plugin/stream/createRscStream.server.ts"),
         "plugin/stream/createRscStream.client": resolve(__dirname, "plugin/stream/createRscStream.client.ts"),
+        
         "plugin/file-preserver/plugin": resolve(
           __dirname,
           "plugin/file-preserver/plugin.ts"
@@ -99,7 +102,14 @@ export default defineConfig({
     },
     rollupOptions: {
       // probably too much, but these are the ones that gave errors at some point
-      external: [
+      external: (id) => {
+        // Exclude test fixtures from the build
+        if (id.includes('/test/') || id.includes('\\test\\')) {
+          return true;
+        }
+        
+        // Check against the static external list
+        const staticExternals = [
         // Node.js built-ins
         "node:worker_threads",
         "node:path",
@@ -150,7 +160,18 @@ export default defineConfig({
         // if we use node: paths in our code, it should always be catched by below rule.
         /^node:.*/,
         /^_virtual/,
-      ],
+        ];
+        
+        // Check if the id matches any of the static externals
+        return staticExternals.some(external => {
+          if (typeof external === 'string') {
+            return id === external;
+          } else if (external instanceof RegExp) {
+            return external.test(id);
+          }
+          return false;
+        });
+      },
       output: {
         dir: "dist",
         exports: "named",

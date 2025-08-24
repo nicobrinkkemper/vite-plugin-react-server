@@ -1,5 +1,4 @@
-import type { PreRenderedAsset } from "rollup";
-import type { PreRenderedChunk } from "rollup";
+import type { PreRenderedAsset, PreRenderedChunk } from "rollup";
 import type {
   StreamPluginOptions,
   ResolvedUserOptions,
@@ -8,6 +7,7 @@ import type {
   HtmlName,
   RootName,
 } from "../types.js";
+import { createDefaultModuleID } from "./createModuleID.js";
 import {
   BASE_PATTERNS,
   DEFAULT_CONFIG,
@@ -24,6 +24,8 @@ import { handleError } from "../error/handleError.js";
 import { createLogger, type Logger } from "vite";
 import { getCondition } from "./getCondition.js";
 import { stashUserOptions, getStashedUserOptions } from "./stashedOptionsState.js";
+import { createHash } from "node:crypto";
+import { readFileSync, existsSync } from "node:fs";
 
 export type ResolveOptionsReturn =
   | {
@@ -105,6 +107,19 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     }
     forceResolve = true;
   }
+  
+  // Force re-resolve if projectRoot changed
+  if (originalOptions != null && originalOptions.projectRoot !== options.projectRoot) {
+    if (options.verbose) {
+      logger.info(`projectRoot changed from ${originalOptions.projectRoot} to ${options.projectRoot}, forcing re-resolve`);
+    }
+    forceResolve = true;
+  }
+  
+  if (options.verbose && originalOptions != null) {
+    logger.info(`[resolveOptions] originalOptions.projectRoot: ${originalOptions.projectRoot}`);
+    logger.info(`[resolveOptions] current options.projectRoot: ${options.projectRoot}`);
+  }
   const panicThreshold =
     typeof options.panicThreshold === "string"
       ? options.panicThreshold
@@ -128,8 +143,13 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       ? options.moduleBase
       : DEFAULT_CONFIG.MODULE_BASE;
 
-  // Basic configuration
-  const projectRoot = options.projectRoot ?? process.cwd();
+  // Basic configuration - use the first projectRoot that was provided, or fall back to current options
+  const projectRoot = options.projectRoot ?? originalOptions?.projectRoot ?? process.cwd();
+  
+  if (options.verbose) {
+    logger.info(`[resolveOptions] input options.projectRoot: ${options.projectRoot}`);
+    logger.info(`[resolveOptions] resolved projectRoot: ${projectRoot}`);
+  }
 
   // Build options
   const preserveModulesRoot =
@@ -320,35 +340,104 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       false
   );
 
-  const hashOption =
-    typeof options.build?.hash === "string"
-      ? options.build.hash
-      : DEFAULT_CONFIG.BUILD.hash;
+  const isClientComponentByCode = resolveDirectiveMatcher(
+    clientDirective,
+    (code: string) => code.match(clientDirective) != null || false
+  );
 
-  const hashString = hashOption === "" ? "" : `-[${hashOption}]`;
-  // const addModuleExtension = (path: string) => {
-  //   const isAsset =
-  //     autoDiscover.cssPattern(path) || autoDiscover.jsonPattern(path);
-  //   if (isAsset) {
-  //     return path;
-  //   }
-  //   return addExtension(path);
-  // };
+  const isClientComponentByName = resolveDirectiveMatcher(
+    clientDirective,
+    (moduleId: string) => (typeof moduleId === "string" && clientPattern.test(moduleId)) || false
+  );
 
-  // File naming and hashing
-  const hash = (n: string | null, ssr: boolean) => {
-    if (!n) return "";
-    if (ssr) return n;
-    if (hashString === "" || new RegExp(BASE_PATTERNS.EXT.NODE).test(n)) {
-      return n;
+  const hashOption = options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
+
+  // Clean hash API that mimics Rollup's behavior but allows control over input
+  const createRollupLikeHash = (content: string, hashCharacters: 'base36' | 'base64' | 'hex' = 'base36') => {
+    const hash = createHash('sha1');
+    hash.update(content);
+    const fullHash = hash.digest('hex');
+    
+    // Apply the same character set logic as Rollup
+    switch (hashCharacters) {
+      case 'base36':
+        // Convert hex to base36 (0-9, a-z)
+        return parseInt(fullHash.substring(0, 8), 16).toString(36);
+      case 'base64':
+        // Convert to base64-like format (A-Z, a-z, 0-9, -, _)
+        return Buffer.from(fullHash.substring(0, 8), 'hex').toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=/g, '');
+      case 'hex':
+      default:
+        // Return hex format
+        return fullHash.substring(0, 8);
     }
-    const extensionIndex = n.lastIndexOf(".");
-    if (extensionIndex !== -1) {
-      const extension = n.slice(extensionIndex);
-      const filename = n.slice(0, extensionIndex);
-      return filename + hashString + extension;
+  };
+
+  // User-facing hash function that can take source content or filename
+  const hash = (input: string | null, _ssr: boolean, sourceContent?: string) => {
+    if (!input) return "";
+    if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) {
+      return input;
+    }
+    
+    // Check if hashing is disabled
+    if (hashOption === "false") {
+      return input;
+    }
+    
+    // Only hash client components - server files should not be hashed
+    const isClientComponent = clientPattern.test(input);
+    if (!isClientComponent) {
+      return input;
+    }
+    
+    // Determine what to hash based on available input
+    let contentToHash: string;
+    
+    if (sourceContent) {
+      // Use provided source content (preferred)
+      contentToHash = sourceContent;
     } else {
-      return n + hashString;
+           // Try to read source file content
+     try {
+       const sourcePath = resolve(projectRoot, input);
+       if (existsSync(sourcePath)) {
+         contentToHash = readFileSync(sourcePath, 'utf-8');
+         // Debug logging
+         if (options.verbose) {
+           logger.info(`[hash] Reading source: ${sourcePath} (${contentToHash.length} chars)`);
+         }
+       } else {
+         // Fallback to filename
+         contentToHash = input;
+         if (options.verbose) {
+           logger.warn(`[hash] File not found: ${sourcePath}, using filename: ${input}`);
+         }
+       }
+     } catch (error) {
+       // Fallback to filename
+       contentToHash = input;
+       if (options.verbose) {
+         logger.warn(`[hash] Error reading ${input}: ${error}`);
+       }
+     }
+    }
+    
+    // Generate hash using Rollup-like algorithm
+    const hashCharacters = typeof hashOption === 'object' && hashOption?.format === 'hex' ? 'hex' : 'base36';
+    const contentHash = createRollupLikeHash(contentToHash, hashCharacters);
+    
+    // Apply naming logic
+    const extensionIndex = input.lastIndexOf(".");
+    if (extensionIndex !== -1) {
+      const extension = input.slice(extensionIndex);
+      const filename = input.slice(0, extensionIndex);
+      return filename + "-" + contentHash + extension;
+    } else {
+      return input + "-" + contentHash;
     }
   };
 
@@ -393,16 +482,16 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       moduleBaseURL,
     });
   // File naming functions - defined as regular functions to avoid closure issues
-  function entryFile(n: PreRenderedChunk, ssr: boolean): string {
+  function entryFile(n: PreRenderedChunk, ssr: boolean, sourceContent?: string): string {
     const normalizedName = normalizer(n.name)[0];
     const outputPath = getOutputPath(normalizedName);
-    return hash(outputPath, ssr);
+    return hash(outputPath, ssr, sourceContent);
   }
 
-  function chunkFile(n: PreRenderedChunk, ssr: boolean): string {
+  function chunkFile(n: PreRenderedChunk, ssr: boolean, sourceContent?: string): string {
     const normalizedName = normalizer(n.name)[0];
     const outputPath = getOutputPath(normalizedName);
-    return hash(outputPath, ssr);
+    return hash(outputPath, ssr, sourceContent);
   }
 
   function assetFile(n: PreRenderedAsset, ssr: boolean = false): string {
@@ -436,8 +525,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       firstName = firstName.slice(moduleBase.length + 1);
     }
 
-    // For CSS files, make sure we preserve the .css extension and don't apply JS extension mapping
+    // For CSS files, ensure they go into the assets directory
     if (firstName.endsWith(".css")) {
+      // Add assets directory prefix if not already present
+      if (!firstName.startsWith(assetsDir + "/")) {
+        firstName = assetsDir + "/" + firstName;
+      }
       return hash(firstName, false);
     }
 
@@ -591,7 +684,23 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
           DEFAULT_CONFIG.RSC_LOADER[loaderMode].registerServerReferenceName,
         isServerFunctionCode,
         isClientComponentCode,
-        parse: DEFAULT_LOADER_CONFIG.parse,
+        isClientComponentByCode,
+        isClientComponentByName,
+        parse: options?.loader?.parse ?? DEFAULT_LOADER_CONFIG.parse,
+        moduleID: options?.loader?.moduleID ?? options?.moduleID ?? 
+          (() => {
+            // Create default moduleID function if not provided
+            // Pass a configEnv that indicates build mode for test environment
+            const inferredConfigEnv = loaderMode === "test" ? { command: "build" } : undefined;
+            return createDefaultModuleID({
+              moduleBase,
+              moduleBasePath,
+              autoDiscover: autoDiscover,
+              build: build,
+              moduleBaseURL,
+              projectRoot,
+            }, inferredConfigEnv as any, loaderMode);
+          })(),
       } as Required<LoaderConfig>)
     : undefined;
 

@@ -7,8 +7,8 @@ import { workerData } from "node:worker_threads";
 import type { HtmlRenderMessage } from "../types.js";
 import { handleError } from "../../error/handleError.js";
 
-// Track active renders - store the RSC stream and CSS info for each route
-const activeRenders = new Map<string, { rscStream: PassThrough; cssFiles?: Map<string, any>; globalCss?: Map<string, any> }>();
+// Track active renders - store the RSC stream, message data, and CSS info for each route
+const activeRenders = new Map<string, { rscStream: PassThrough; htmlRenderMsg?: HtmlRenderMessage; cssFiles?: Map<string, any>; globalCss?: Map<string, any> }>();
 const logger = createLogger(workerData.resolvedConfig.logLevel ?? "info");
 
 function cleanup(id: string) {
@@ -21,24 +21,66 @@ function cleanup(id: string) {
 }
 export async function messageHandler(msg: HtmlWorkerInputMessage) {
   const { type, id } = msg;
+  console.log(`[HTML-WORKER-DEBUG] Received message: ${type} ${id}`);
+  
+  // Debug userOptions on first message
+  if (type === "HTML_RENDER") {
+    console.log(`[HTML-WORKER-DEBUG] userOptions keys: ${Object.keys(workerData.userOptions || {}).join(', ')}`);
+    console.log(`[HTML-WORKER-DEBUG] verbose flag: ${workerData.userOptions?.verbose}`);
+    console.log(`[HTML-WORKER-DEBUG] moduleBaseURL: ${workerData.userOptions?.moduleBaseURL}`);
+    console.log(`[HTML-WORKER-DEBUG] moduleRootPath: ${workerData.userOptions?.moduleRootPath}`);
+  }
+  
   try {
     switch (type) {
       case "HTML_RENDER": {
+        console.log(`[HTML-WORKER-DEBUG] Processing HTML_RENDER for ${id}`);
         // Clean up any existing render state for this route
         const existingRenderState = activeRenders.get(id);
         if (existingRenderState) {
+          console.log(`[HTML-WORKER-DEBUG] Cleaning up existing render state for ${id}`);
           cleanup(id);
         }
 
         const htmlRenderMsg = msg as HtmlRenderMessage;
+        console.log(`[HTML-WORKER-DEBUG] Creating RSC stream for ${id}`);
         // Create new RSC stream for this route
         const rscStream = new PassThrough();
         activeRenders.set(id, { 
-          rscStream, 
+          rscStream,
+          htmlRenderMsg,
         });
 
-        // Don't start HTML render process yet - wait for RSC_END
+        // Send HTML_RENDER_START immediately when HTML_RENDER is received
         handlers.onHtmlRender?.(id, htmlRenderMsg);
+
+        console.log(`[HTML-WORKER-DEBUG] Starting handleHtmlRender for ${id}`);
+        console.log(`[HTML-WORKER-DEBUG] Message moduleBaseURL: ${htmlRenderMsg.moduleBaseURL}`);
+        console.log(`[HTML-WORKER-DEBUG] Final moduleBaseURL: ${htmlRenderMsg.moduleBaseURL ?? workerData.userOptions.moduleBaseURL}`);
+        // Start the HTML render process immediately to process streaming RSC chunks
+        try {
+          handleHtmlRender(
+            {
+              id,
+              route: id,
+              rscStream: rscStream,
+              htmlStream: new PassThrough(),
+              projectRoot: htmlRenderMsg.projectRoot ?? workerData.userOptions.projectRoot,
+              moduleRootPath: htmlRenderMsg.moduleRootPath ?? workerData.userOptions.moduleRootPath,
+              moduleBasePath: htmlRenderMsg.moduleBasePath ?? workerData.userOptions.moduleBasePath,
+              moduleBaseURL: htmlRenderMsg.moduleBaseURL ?? workerData.userOptions.moduleBaseURL,
+              verbose: Boolean(htmlRenderMsg.verbose ?? workerData.userOptions.verbose),
+              htmlTimeout: workerData.userOptions.htmlTimeout,
+            },
+            handlers,
+            logger
+          );
+          console.log(`[HTML-WORKER-DEBUG] handleHtmlRender started successfully for ${id}`);
+        } catch (error) {
+          console.error(`[HTML-WORKER-DEBUG] Error starting handleHtmlRender for ${id}:`, error);
+          handlers.onError(id, error as Error);
+        }
+
         break;
       }
       case "RSC_CHUNK": {
@@ -70,27 +112,8 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
           handlers.onError(id, new Error("No render state found"));
           return;
         }
-        // End the RSC stream and start the HTML render process
+        // RSC_END means all chunks have been written, end the stream so createFromNodeStream knows it's complete
         renderState.rscStream.end();
-        
-        // Start the HTML render process now that RSC stream is complete
-        handleHtmlRender(
-          {
-            id,
-            route: id,
-            rscStream: renderState.rscStream,
-            htmlStream: new PassThrough(),
-            projectRoot: workerData.userOptions.projectRoot,
-            moduleRootPath: workerData.userOptions.moduleRootPath,
-            moduleBasePath: workerData.userOptions.moduleBasePath,
-            moduleBaseURL: workerData.userOptions.moduleBaseURL,
-            verbose: Boolean(workerData.userOptions.verbose),
-            htmlTimeout: workerData.userOptions.htmlTimeout,
-
-          },
-          handlers,
-          logger
-        );
         break;
       }
       case "ABORT": {
@@ -139,3 +162,4 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
     }
   }
 }
+

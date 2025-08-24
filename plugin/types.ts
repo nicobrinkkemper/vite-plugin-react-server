@@ -4,6 +4,7 @@ import type {
   Serializable as WorkerSerializable,
 } from "node:worker_threads";
 import type React from "react";
+// React types are imported from vendor system at runtime
 import type {
   NormalizedOutputOptions,
   OutputBundle,
@@ -396,7 +397,7 @@ export type ResolvedUserOptions = {
   Html: StreamPluginOptions["Html"]; // Unresolved: can be string, function
   Root: StreamPluginOptions["Root"]; // Unresolved: can be string, function
   normalizer: InputNormalizer;
-  moduleID: ((id: string) => string) | undefined;
+  moduleID: ((id: string, sourceContent?: string) => string) | undefined;
   onMetrics: OnMetrics | undefined;
   // different for client/server so can't be typed
   pipeableStreamOptions: any;
@@ -635,6 +636,9 @@ export interface StreamPluginOptions<
     directivePattern?: RegExpOpt;
     isServerFunctionCode?: (code: string, moduleId?: string) => boolean;
     isClientComponentCode?: (code: string, moduleId?: string) => boolean;
+    isClientComponentByCode?: (code: string) => boolean;
+    isClientComponentByName?: (moduleId: string) => boolean;
+    moduleID?: (moduleId: string) => string;
     allowedDirectives?: string[] | AllowedDirectives;
     mode?: "development" | "production" | "test";
     getDirectiveType?: (
@@ -866,7 +870,7 @@ export interface StreamPluginOptions<
   onMetrics?: OnMetrics;
   onEvent?: OnEvent<Interface>;
   normalizer?: InputNormalizer;
-  moduleID?: (id: string) => string;
+  moduleID?: (id: string, sourceContent?: string) => string;
   verbose?: boolean;
   rscTimeout?: number; // Timeout in milliseconds for RSC operations
   htmlTimeout?: number; // Timeout in milliseconds for HTML generation operations
@@ -1028,19 +1032,25 @@ export type BuildOutput = {
 export type BuildConfig = {
   useRscWorker?: boolean;
   useHtmlWorker?: boolean;
-  pages: string[] | (() => Promise<string[]> | string[]) | Promise<string[]>;
+  pages?: string[] | (() => Promise<string[]> | string[]) | Promise<string[]>;
   assetsDir?: string;
   client?: string; // Output directory for client files
   server?: string; // Output directory for server files
   static?: string; // Output directory for static environment - works in both
   api?: string; // Output directory for API files
   outDir?: string;
-  hash?: string;
+  hash?: string | {
+    format?: 'vite' | 'hex' | 'custom';
+    length?: number;
+    characters?: string;
+    prefix?: string;
+    suffix?: string;
+  };
   preserveModulesRoot?: boolean;
   rscOutputPath?: string; // defaults: `index.rsc`
   htmlOutputPath?: string; // defaults: `index.html`
-  entryFile?: (n: PreRenderedChunk, ssr: boolean) => string;
-  chunkFile?: (n: PreRenderedChunk, ssr: boolean) => string;
+      entryFile?: (n: PreRenderedChunk, ssr: boolean, sourceContent?: string) => string;
+      chunkFile?: (n: PreRenderedChunk, ssr: boolean, sourceContent?: string) => string;
   assetFile?: (n: PreRenderedAsset, ssr: boolean) => string;
   extensionMap?: Record<string, string>;
   moduleExtension?: string;
@@ -1661,3 +1671,4 @@ export type VitePluginReactServerFn = <
 >(
   options: Opt
 ) => Plugin[];
+

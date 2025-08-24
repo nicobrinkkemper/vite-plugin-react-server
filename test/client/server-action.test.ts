@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setupTodoTestProject } from '../setup.js';
-import { doBuild } from './doBuild.js';
+import { doBuild } from '../doBuild.js';
 import { testUserOptions } from '../test-config.js';
 import { readdir, readFile, mkdir, rm } from 'fs/promises';
 import { resolve, join } from 'node:path';

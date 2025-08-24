@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { setupTestServerActionJS } from "../setup.js";
-import { doBuild } from "../server/doBuild.js";
+import { doBuild } from "../doBuild.js";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { resolve } from "path";
@@ -9,6 +9,7 @@ const testDir = resolve(__dirname, "../fixtures/server-action-exclusion.test");
 
 describe("Server Action Build Exclusion", () => {
   const serverBundles: { id: string; code: string }[] = [];
+  const staticBundles: { id: string; code: string }[] = [];
   const clientBundles: { id: string; code: string }[] = [];
 
   beforeAll(async () => {
@@ -34,7 +35,7 @@ describe("Server Action Build Exclusion", () => {
       onEvent: (event) => {
         if (
           event.type === "build.writeBundle.server" ||
-          event.type === "build.writeBundle.static-server"
+          event.type === "build.writeBundle.static"
         ) {
           // Get all JS files from the server bundle
           Object.entries(event.data.bundle).forEach(([id, chunk]) => {
@@ -47,8 +48,7 @@ describe("Server Action Build Exclusion", () => {
             }
           });
         } else if (
-          event.type === "build.writeBundle.client" ||
-          event.type === "build.writeBundle.static-client"
+          event.type === "build.writeBundle.client"
         ) {
           // Get all JS files from the client bundle
           Object.entries(event.data.bundle).forEach(([id, chunk]) => {

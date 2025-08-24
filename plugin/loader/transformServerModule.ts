@@ -24,7 +24,7 @@ export async function transformServerModule(
   parseResult: ParseResult,
   loader: Pick<
     LoaderConfig,
-    "registerServerReferenceName" | "importServerPath" | "parse"
+    "registerServerReferenceName" | "importServerPath" | "parse" | "isClientComponentCode" | "isClientComponentByName" | "registerClientReferenceName" | "importClientPath"
   > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
   verbose = false,
   logger = createLogger(),
@@ -35,6 +35,8 @@ export async function transformServerModule(
   if (parseResult.type !== "success") {
     return { code: "", map: null };
   }
+
+
 
   // Parse the source using the loader's parse function or fallback to Acorn
   let ast;
@@ -155,13 +157,41 @@ export async function transformServerModule(
     }
   }
 
-  // Only add the import and registrations if there are any registrations to make
-  const finalCode =
-    registrations.length > 0
-      ? `\n      import { ${loader?.registerServerReferenceName} } from "${
-          loader?.importServerPath
-        }";\n${transformedCode}\n${registrations.join("\n")}\n    `
-      : transformedCode;
+  // Also handle client components in server environment
+  // Check if this is a client component by checking for client directive
+  const hasClientDirective = parseResult.directiveInfo?.fileLevel?.type === "client";
+  
+  let finalCode = transformedCode;
+  let imports = [];
+  
+  // Add server reference imports and registrations if needed
+  if (registrations.length > 0) {
+    imports.push(`import { ${loader?.registerServerReferenceName} } from "${loader?.importServerPath}";`);
+    finalCode = `${finalCode}\n${registrations.join("\n")}`;
+  }
+  
+  // Add client reference imports and registrations if this is a client component
+  if (hasClientDirective) {
+    imports.push(`import { ${loader?.registerClientReferenceName} } from "${loader?.importClientPath}";`);
+    const clientRegistrations = [];
+    for (const exp of parseResult.exports.exports.values()) {
+      if (exp.exportName === "default") {
+        clientRegistrations.push(
+          `export default ${loader?.registerClientReferenceName}(function() { throw new Error("Attempted to call default() on the client"); }, "${moduleId}", "default");`
+        );
+      } else {
+        clientRegistrations.push(
+          `export const ${exp.exportName} = ${loader?.registerClientReferenceName}(function() { throw new Error("Attempted to call ${exp.exportName}() on the client"); }, "${moduleId}", "${exp.exportName}");`
+        );
+      }
+    }
+    finalCode = `${finalCode}\n${clientRegistrations.join("\n")}`;
+  }
+  
+  // Add imports at the top if any
+  if (imports.length > 0) {
+    finalCode = `${imports.join("\n")}\n${finalCode}`;
+  }
 
   // Create source map based on the final transformed code
   const map = createSourceMap(finalCode, source, moduleId, []);

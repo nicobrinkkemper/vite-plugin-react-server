@@ -40,7 +40,6 @@ import {
 import { performance } from "node:perf_hooks";
 import { baseURL } from "../utils/envUrls.node.js";
 import { handleError } from "../error/handleError.js";
-import { assertReactServer } from "../config/getCondition.js";
 import { renderPage } from "./renderPage.server.js";
 import { temporaryReferences } from "./temporaryReferences.server.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
@@ -51,6 +50,8 @@ import { createWorkerStartupMetrics } from "../metrics/createWorkerStartupMetric
 import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
+import { assertReactServer } from "../config/getCondition.js";
+
 assertReactServer();
 
 /**
@@ -285,7 +286,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           userOptions,
           autoDiscoveredFiles!
         );
-        // Create worker
+        // Create HTML worker for HTML generation
         if (!worker) {
           const workerStartTime = performance.now();
           const viteEnvPrefix = envPrefixFromConfig(resolvedConfig);
@@ -295,7 +296,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             projectRoot: userOptions.projectRoot,
             workerPath: userOptions.htmlWorkerPath,
             currentCondition: "react-server",
-            reverseCondition: "react-client",
+            reverseCondition: "react-client", // HTML worker needs react-client for react-dom/server
             maxListeners: maxListeners,
             envPrefix: viteEnvPrefix,
             logger: logger,
@@ -330,11 +331,21 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             }
           }
         }
+
+        // Get routes for worker configuration
+        const routes = !autoDiscoveredFiles
+          ? []
+          : Array.from(autoDiscoveredFiles!.urlMap.keys());
+
+        // No RSC worker needed for static generation - main thread runs with react-server conditions
         // Render pages - component resolution now happens per-route in renderPage
         const { onEvent, ...handlerOptions } = userOptions;
-        const routes = !autoDiscoveredFiles
-          ? ["/"]
-          : Array.from(autoDiscoveredFiles!.urlMap.keys());
+
+        // If no pages to generate, skip static generation
+        if (routes.length === 0) {
+          logger?.info("[plugin.server] No pages to generate, skipping static generation");
+          return;
+        }
 
         // Emit the static site generation start event
         if (typeof userOptions.onEvent === "function") {
@@ -370,15 +381,16 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           {
             ...handlerOptions,
             loader: buildLoader,
-            worker: worker,
+            worker: worker, // Pass the worker for HTML generation
             logger: logger,
             // Pass global CSS to downstream renderer
             globalCss,
             // Pass abort signal to cancel operations when errors occur
-            signal: AbortSignal.timeout(10000),
+            signal: AbortSignal.timeout(handlerOptions.htmlTimeout),
             onEvent: onEvent,
             serverPipeableStreamOptions: serverPipeableStreamOptions,
             manifest: serverManifest ?? {},
+            staticManifest: staticManifest, // Pass static manifest for path resolution
             autoDiscoveredFiles: autoDiscoveredFiles!,
             cssFilesByPage: cssFilesByPage,
           },
@@ -475,17 +487,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           context: "writeBundle",
         });
 
-        // Ensure immediate cleanup on error
-        if (worker) {
-          try {
-            // Force immediate termination on error to prevent resource leaks
-            worker.removeAllListeners();
-            worker.terminate();
-            worker = undefined;
-          } catch (cleanupError) {
-            logger.warn(`Failed to cleanup worker on error: ${cleanupError}`);
-          }
-        }
 
         // Let the finally block handle additional cleanup
       } finally {

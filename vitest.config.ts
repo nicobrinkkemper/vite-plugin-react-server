@@ -9,6 +9,8 @@ export default defineConfig({
     testTimeout: 30000, // Increase test timeout to 30 seconds
     environment: "node",
     setupFiles: ["./test/setup.ts"],
+    // Let worker processes inherit Node.js conditions from parent process
+    
 
     coverage: {
       provider: "v8",
@@ -27,7 +29,7 @@ export default defineConfig({
       // these folders require the server condition
       ...(getCondition() !== "react-server"
         ? ["test/unit/**/*.test.*", "test/server/**/*.test.*"]
-        : []),
+        : ["test/client/**/*.test.*"]),
     ],
     typecheck: {
       include: [

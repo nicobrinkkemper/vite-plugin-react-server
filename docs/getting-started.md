@@ -60,7 +60,7 @@ The plugin automatically adapts to different environments using Node.js conditio
   "scripts": {
     "dev": "NODE_OPTIONS='--conditions react-server' vite",
     "dev:client": "vite",
-    "build": "npm run build:static && npm run build:client && npm run build:server",
+    "build": "npm run build --app",
     "build:static": "vite build",
     "build:client": "vite build --ssr",
     "build:server": "NODE_OPTIONS='--conditions react-server' vite build --ssr",

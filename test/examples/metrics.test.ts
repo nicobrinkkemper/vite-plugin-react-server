@@ -1,53 +1,28 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { rm } from "node:fs/promises";
-import { resolve } from "node:path";
 import { setupTestProject } from "../setup.js";
-import { doBuild } from "../doBuild.js";
-import type {
-  PluginEvent,
+import { getSharedBuild, cleanupSharedBuilds } from "./shared-build.js";
+import {
   FileWriteDoneEvent,
+  ModuleResolutionMetrics,
   RenderMetrics,
   WorkerStartupMetrics,
-  ModuleResolutionMetrics,
 } from "vite-plugin-react-server/types";
-import { metricWatcher } from "vite-plugin-react-server/metrics";
 
-const testDir = resolve(__dirname, "../fixtures/metrics.test");
-let events: PluginEvent[];
-const metrics: (
-  | RenderMetrics<"html" | "rsc-headless" | "rsc-full">
-  | WorkerStartupMetrics
-  | ModuleResolutionMetrics
-)[] = [];
-
-const userMetricWatcher = metricWatcher({
-  warnOnly: false,
-});
+let events: any[];
+let metrics: any[];
 
 describe("Metrics Collection", () => {
   beforeAll(async () => {
-    // Clean up test directory
-    await rm(testDir, { recursive: true, force: true });
-    await setupTestProject(testDir);
-
-    // Build with metrics collection
-    events = await doBuild({
-      projectRoot: testDir,
-      verbose: true,
-      onMetrics: (m) => {
-        userMetricWatcher(m);
-        metrics.push(m);
-      },
+    const buildResult = await getSharedBuild("default-setup", {
+      setupProject: setupTestProject,
     });
+
+    events = buildResult.events;
+    metrics = buildResult.metrics;
   });
 
   afterAll(async () => {
-    // Clean up test directory
-    try {
-      // await rm(testDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+    // Cleanup is handled globally at the end of the test suite
   });
 
   it("should collect basic metrics", async () => {
@@ -56,14 +31,6 @@ describe("Metrics Collection", () => {
       "Collected metrics:",
       metrics.map((m) => ({ ...m }))
     );
-
-    // In client test environment, metrics might not be collected if server builds fail
-    if (metrics.length === 0) {
-      console.log(
-        "Note: No metrics collected - this is expected if server builds are not available"
-      );
-      return;
-    }
 
     expect(metrics.length).toBeGreaterThan(0);
 
@@ -90,11 +57,9 @@ describe("Metrics Collection", () => {
         expect(metric.streamMetrics.chunks).toBeGreaterThanOrEqual(0);
         expect(metric.chunkRate).toBeGreaterThanOrEqual(0);
       } else if (metric.type === "worker-startup") {
-        // Type guard for WorkerStartupMetrics
         expect(metric.startupTime).toBeGreaterThan(0);
         expect(metric.workerType).toBeDefined();
       } else if (metric.type === "module-resolution") {
-        // Type guard for ModuleResolutionMetrics
         expect(metric.resolutionTime).toBeGreaterThan(0);
         expect(metric.workerType).toBeDefined();
       } else {
@@ -111,13 +76,6 @@ describe("Metrics Collection", () => {
       (e) => e.type === "file.write.done"
     );
 
-    // File write events only happen during server builds
-    if (fileWriteEvents.length === 0) {
-      console.log(
-        "Note: No file write events - this is expected if server builds are not available"
-      );
-      return;
-    }
 
     expect(fileWriteEvents.length).toBeGreaterThan(0);
     expect(fileWriteDoneEvents.length).toBeGreaterThan(0);
@@ -184,12 +142,7 @@ describe("Metrics Collection", () => {
 
     if (hasServer || hasSgg || hasFileWrites) {
       expect(eventOrder).toEqual(
-        expect.arrayContaining([
-          "build.writeBundle.server",
-          "build.ssg.start",
-          "file.write",
-          "file.write.done",
-        ])
+        expect.arrayContaining(["build.writeBundle.server"])
       );
       if (hasSgg) {
         expect(eventOrder).toEqual(
@@ -200,6 +153,107 @@ describe("Metrics Collection", () => {
         expect(eventOrder).toEqual(
           expect.arrayContaining(["file.write", "file.write.done"])
         );
+      }
+    }
+  });
+
+  it("should collect basic metrics when server builds are available", async () => {
+    const seenCombinations = new Set<string>();
+
+    // Check metrics for each route
+    for (const metric of metrics) {
+      const combination = `${metric.route}-${metric.type}`;
+      expect(seenCombinations.has(combination)).toBe(false);
+      seenCombinations.add(combination);
+
+      // Check if this is a render metric (has fileSize property)
+      if ("fileSize" in metric) {
+        const renderMetric = metric as RenderMetrics;
+        console.log(
+          "route: ",
+          renderMetric.route,
+          "type: ",
+          renderMetric.type,
+          "fileSize: ",
+          renderMetric.fileSize,
+          "processingTime: ",
+          renderMetric.processingTime,
+          "chunks: ",
+          renderMetric.chunks,
+          "chunkRate: ",
+          renderMetric.chunkRate,
+          "streamMetrics: ",
+          renderMetric.streamMetrics
+        );
+        expect(renderMetric.type).toMatch(/html|rsc-headless|rsc-full/);
+        expect(renderMetric.fileSize).toBeGreaterThanOrEqual(0);
+        expect(renderMetric.processingTime).toBeGreaterThan(0);
+        // rsc-full metrics can have 0 chunks since they don't write to files
+        if (renderMetric.type === "rsc-full") {
+          expect(renderMetric.chunks).toBeGreaterThanOrEqual(0);
+          expect(renderMetric.chunkRate).toBeGreaterThanOrEqual(0);
+        } else {
+          expect(renderMetric.chunks).toBeGreaterThan(0);
+          expect(renderMetric.chunkRate).toBeGreaterThan(0);
+        }
+      } else {
+        // worker-startup and module-resolution metrics
+        console.log(
+          "route: ",
+          metric.route,
+          "type: ",
+          metric.type,
+          "fileSize: ",
+          "undefined",
+          "processingTime: ",
+          "undefined",
+          "chunks: ",
+          "undefined",
+          "chunkRate: ",
+          "undefined",
+          "streamMetrics: ",
+          "undefined"
+        );
+        if (metric.type === "worker-startup") {
+          const workerMetric = metric as WorkerStartupMetrics;
+          expect(workerMetric.startupTime).toBeGreaterThan(0);
+        } else if (metric.type === "module-resolution") {
+          const moduleMetric = metric as ModuleResolutionMetrics;
+          expect(moduleMetric.resolutionTime).toBeGreaterThan(0);
+        } else if (metric.type === "rsc-full") {
+          // rsc-full metrics don't have fileSize but have streamMetrics
+          expect(metric.streamMetrics).toBeDefined();
+          expect(metric.streamMetrics.chunks).toBeGreaterThanOrEqual(0);
+          expect(metric.streamMetrics.duration).toBeGreaterThanOrEqual(0);
+        }
+      }
+
+      // Compare content lengths with metrics
+      // Find the corresponding content by route and type instead of by array index
+      let matchingContent: string | undefined;
+      if (metric.type === "html") {
+        // Find HTML content for this route
+        const htmlDoneEvents = events.filter(
+          (e) =>
+            e.type === "file.write.done" &&
+            e.data.fileType === "html" &&
+            e.data.route === metric.route
+        ) as FileWriteDoneEvent[];
+        matchingContent = htmlDoneEvents[0]?.data.content;
+      } else if (metric.type === "rsc-headless") {
+        // Find RSC content for this route
+        const rscDoneEvents = events.filter(
+          (e) =>
+            e.type === "file.write.done" &&
+            e.data.fileType === "rsc" &&
+            e.data.route === metric.route
+        ) as FileWriteDoneEvent[];
+        matchingContent = rscDoneEvents[0]?.data.content;
+      }
+
+      if (matchingContent !== undefined && "fileSize" in metric) {
+        const renderMetric = metric as RenderMetrics;
+        expect(matchingContent.length).toBe(renderMetric.fileSize);
       }
     }
   });

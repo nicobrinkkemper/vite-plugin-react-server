@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { resolve } from "path";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { rm, writeFile } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
 import { doBuild } from "../doBuild.js";

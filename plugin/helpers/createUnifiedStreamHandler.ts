@@ -1,11 +1,17 @@
-import { PassThrough, Readable } from "node:stream";
+import type { Readable } from "node:stream";
+import { PassThrough } from "node:stream";
 import type { Logger } from "vite";
 import type { PanicThreshold } from "../types.js";
 import { handleError } from "../error/handleError.js";
 
+export type StreamType = "rsc" | "html";
+export type RscVariant = "rsc-headless" | "rsc-full";
+
 export interface UnifiedStreamHandlerOptions {
   route: string;
   id: string;
+  streamType: StreamType;
+  rscVariant?: RscVariant; // Only used when streamType is "rsc"
   verbose?: boolean;
   logger?: Logger;
   panicThreshold?: PanicThreshold;
@@ -20,11 +26,15 @@ export interface UnifiedStreamResult {
   stream: Readable;
   abort: () => void;
   cleanup: () => void;
+  streamType: StreamType;
+  rscVariant?: RscVariant;
 }
 
 export interface UnifiedMessageHandlerOptions {
   route: string;
   id: string;
+  streamType: StreamType;
+  rscVariant?: RscVariant; // Only used when streamType is "rsc"
   verbose?: boolean;
   logger?: Logger;
   panicThreshold?: PanicThreshold;
@@ -50,9 +60,10 @@ export interface UnifiedMessageHandler {
  * - Resource cleanup patterns
  * - Event emission for error handling
  * - Pass-through for metrics collection
+ * - Stream type awareness (RSC vs HTML)
  */
 export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions): UnifiedStreamResult {
-  const { route, id, verbose, logger, panicThreshold = "none", timeout, onError, onEnd, onCleanup, onEvent } = options;
+  const { route, id, streamType, rscVariant, verbose, logger, panicThreshold = "none", timeout, onError, onEnd, onCleanup, onEvent } = options;
   
   // Create the main stream
   const stream = new PassThrough();
@@ -66,7 +77,8 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
   if (timeout) {
     timeoutId = setTimeout(() => {
       if (!isAborted && !isCleanedUp) {
-        const timeoutError = new Error(`Stream timeout after ${timeout}ms for route: ${route}`);
+        const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+        const timeoutError = new Error(`${streamLabel} stream timeout after ${timeout}ms for route: ${route}`);
         if (verbose) {
           logger?.warn(`[unified-stream:${id}] ${timeoutError.message}`);
         }
@@ -76,7 +88,7 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
           error: timeoutError,
           logger: logger,
           panicThreshold: panicThreshold,
-          context: `Stream timeout for route: ${route}`,
+          context: `${streamLabel} stream timeout for route: ${route}`,
         });
         
         if (panicError != null) {
@@ -87,7 +99,7 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
               route: route,
               error: panicError,
               isPanic: true,
-              context: "stream.timeout",
+              context: `${streamType === "rsc" && rscVariant ? rscVariant : streamType}.stream.timeout`,
             },
           });
         }
@@ -115,7 +127,8 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
     onCleanup?.(id);
     
     if (verbose) {
-      logger?.info(`[unified-stream:${id}] Stream cleaned up for route: ${route}`);
+      const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+      logger?.info(`[unified-stream:${id}] ${streamLabel} stream cleaned up for route: ${route}`);
     }
   };
   
@@ -125,7 +138,8 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
     isAborted = true;
     
     if (verbose) {
-      logger?.info(`[unified-stream:${id}] Stream aborted for route: ${route}${reason ? ` - ${reason}` : ''}`);
+      const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+      logger?.info(`[unified-stream:${id}] ${streamLabel} stream aborted for route: ${route}${reason ? ` - ${reason}` : ''}`);
     }
     
     stream.emit('abort', reason);
@@ -134,8 +148,9 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
   
   // Set up error handling with panic threshold support
   stream.on('error', (error) => {
+    const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
     if (verbose) {
-      logger?.error(`[unified-stream:${id}] Stream error for route: ${route}: ${error.message}`);
+      logger?.error(`[unified-stream:${id}] ${streamLabel} stream error for route: ${route}: ${error.message}`);
     }
     
     // Handle error with panic threshold
@@ -143,7 +158,7 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
       error: error,
       logger: logger,
       panicThreshold: panicThreshold,
-      context: `Stream error for route: ${route}`,
+      context: `${streamLabel} stream error for route: ${route}`,
     });
     
     if (panicError != null) {
@@ -154,7 +169,7 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
           route: route,
           error: panicError,
           isPanic: true,
-          context: "stream.error",
+          context: `${streamType === "rsc" && rscVariant ? rscVariant : streamType}.stream.error`,
         },
       });
     }
@@ -166,7 +181,8 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
   // Set up end handling
   stream.on('end', () => {
     if (verbose) {
-      logger?.info(`[unified-stream:${id}] Stream ended for route: ${route}`);
+      const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+      logger?.info(`[unified-stream:${id}] ${streamLabel} stream ended for route: ${route}`);
     }
     onEnd?.(id);
     cleanup();
@@ -176,6 +192,8 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
     stream,
     abort,
     cleanup,
+    streamType,
+    rscVariant,
   };
 }
 
@@ -184,15 +202,16 @@ export function createUnifiedStreamHandler(options: UnifiedStreamHandlerOptions)
  * across html-worker and rsc-worker.
  * 
  * This handler provides:
- * - Consistent message type routing
+ * - Consistent message type routing based on stream type
  * - Unified error handling with panic threshold support
  * - Standardized cleanup patterns
  * - Common logging patterns
  * - Event emission for error handling
  * - Pass-through for metrics collection
+ * - Stream type awareness (RSC vs HTML)
  */
 export function createUnifiedMessageHandler(options: UnifiedMessageHandlerOptions): UnifiedMessageHandler {
-  const { route, id, verbose, logger, panicThreshold = "none", onError, onEnd, onCleanup, onEvent } = options;
+  const { route, id, streamType, rscVariant, verbose, logger, panicThreshold = "none", onError, onEnd, onCleanup, onEvent } = options;
   
   // Track active operations
   const activeOperations = new Map<string, any>();
@@ -220,13 +239,15 @@ export function createUnifiedMessageHandler(options: UnifiedMessageHandlerOption
     onCleanup?.(id);
     
     if (verbose) {
-      logger?.info(`[unified-message:${id}] Cleaned up${operationId ? ` operation: ${operationId}` : ' all operations'} for route: ${route}`);
+      const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+      logger?.info(`[unified-message:${id}] Cleaned up${operationId ? ` operation: ${operationId}` : ' all operations'} for ${streamLabel} stream route: ${route}`);
     }
   };
   
   // Unified error handler with panic threshold support
   const handleLocalError = (error: Error, context?: string) => {
-    const errorContext = context ? `${context} for route: ${route}` : `for route: ${route}`;
+    const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+    const errorContext = context ? `${context} for ${streamLabel} stream route: ${route}` : `for ${streamLabel} stream route: ${route}`;
     const enhancedError = new Error(`${error.message} (${errorContext})`);
     enhancedError.stack = error.stack;
     
@@ -239,7 +260,7 @@ export function createUnifiedMessageHandler(options: UnifiedMessageHandlerOption
       error: enhancedError,
       logger: logger,
       panicThreshold: panicThreshold,
-      context: `Message handler error ${errorContext}`,
+      context: `${streamLabel} message handler error ${errorContext}`,
     });
     
     if (panicError != null) {
@@ -250,7 +271,7 @@ export function createUnifiedMessageHandler(options: UnifiedMessageHandlerOption
           route: route,
           error: panicError,
           isPanic: true,
-          context: "message.handler.error",
+          context: `${streamType === "rsc" && rscVariant ? rscVariant : streamType}.message.handler.error`,
         },
       });
     }
@@ -263,13 +284,16 @@ export function createUnifiedMessageHandler(options: UnifiedMessageHandlerOption
   const handleMessage = async (msg: any) => {
     try {
       if (verbose) {
-        logger?.info(`[unified-message:${id}] Received message: ${msg.type} for id: ${msg.id || 'unknown'}`);
+        const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+        logger?.info(`[unified-message:${id}] Received ${streamLabel} message: ${msg.type} for id: ${msg.id || 'unknown'}`);
       }
       
-      // Route message based on type
+      // Route message based on stream type and message type
+      const expectedRenderType = streamType === "rsc" ? "RSC_RENDER" : "HTML_RENDER";
+      const expectedChunkType = streamType === "rsc" ? "RSC_CHUNK" : "HTML_CHUNK";
+      
       switch (msg.type) {
-        case 'RSC_RENDER':
-        case 'HTML_RENDER':
+        case expectedRenderType:
           // Clean up any existing operation for this id
           cleanup(msg.id);
           
@@ -283,60 +307,44 @@ export function createUnifiedMessageHandler(options: UnifiedMessageHandlerOption
           });
           break;
           
-        case 'RSC_CHUNK':
-        case 'HTML_CHUNK':
+        case expectedChunkType:
           // Handle chunk processing
           if (verbose) {
-            logger?.info(`[unified-message:${id}] Processing ${msg.type} chunk: ${msg.chunk?.length || 0} bytes`);
+            const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+            logger?.info(`[unified-message:${id}] Processing ${streamLabel} chunk: ${msg.chunk?.length || 0} bytes`);
           }
           break;
           
         case 'RSC_END':
-        case 'HTML_COMPLETE':
-          // Handle stream completion
+        case 'HTML_END':
+          // Handle stream end
           if (verbose) {
-            logger?.info(`[unified-message:${id}] Stream completed for id: ${msg.id}`);
+            const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+            logger?.info(`[unified-message:${id}] ${streamLabel} stream ended for id: ${msg.id}`);
           }
-          cleanup(msg.id);
           onEnd?.(msg.id);
+          cleanup(msg.id);
           break;
           
-        case 'ABORT':
-          // Handle abort
+        case 'RSC_ERROR':
+        case 'HTML_ERROR':
+          // Handle stream error
           if (verbose) {
-            logger?.info(`[unified-message:${id}] Aborting operation for id: ${msg.id}${msg.reason ? ` - ${msg.reason}` : ''}`);
+            const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+            logger?.error(`[unified-message:${id}] ${streamLabel} stream error for id: ${msg.id}: ${msg.error}`);
           }
-          cleanup(msg.id);
-          break;
-          
-        case 'CLEANUP':
-          // Handle cleanup
-          cleanup(msg.id);
-          break;
-          
-        case 'SHUTDOWN':
-          // Handle shutdown
-          if (msg.id === '*') {
-            if (verbose) {
-              logger?.info(`[unified-message:${id}] Shutting down all operations`);
-            }
-            cleanup(); // Clean up all operations
-          } else {
-            if (verbose) {
-              logger?.info(`[unified-message:${id}] Shutting down operation: ${msg.id}`);
-            }
-            cleanup(msg.id);
-          }
+          handleLocalError(new Error(msg.error), `Stream error for id: ${msg.id}`);
           break;
           
         default:
           if (verbose) {
-            logger?.warn(`[unified-message:${id}] Unknown message type: ${msg.type}`);
+            const streamLabel = streamType === "rsc" && rscVariant ? rscVariant.toUpperCase() : streamType.toUpperCase();
+            logger?.warn(`[unified-message:${id}] Unknown ${streamLabel} message type: ${msg.type}`);
           }
           break;
       }
     } catch (error) {
-      handleLocalError(error instanceof Error ? error : new Error(String(error)), 'message handling');
+      handleLocalError(error instanceof Error ? error : new Error(String(error)), 'Message handling');
     }
   };
   

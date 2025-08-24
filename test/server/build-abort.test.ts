@@ -25,7 +25,7 @@ describe("Plugin build abort test", () => {
 
 
   it("should abort build when abort condition is triggered in onEvent vite:plugin-react-server/static", async () => {
-    const testEvents = ["build.writeBundle.static-server", "build.start"];
+    const testEvents = ["build.writeBundle.static", "build.start"];
 
     for (const testEvent of testEvents) {
       const errString = "Build cancelled (" + testEvent + ")";
@@ -59,7 +59,7 @@ describe("Plugin build abort test", () => {
       // client is the ssr-client build
       "build.writeBundle.client",
       // static-client is the browser build
-      "build.writeBundle.static-client",
+      "build.writeBundle.client",
     ];
 
     for (const testEvent of testEvents) {

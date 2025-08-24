@@ -298,7 +298,7 @@ export const renderPages: RenderPagesFn = (routes, handlerOptions, renderPage) =
                 options.signal
               );
 
-              // Wait for both files to be written
+              // Wait for both RSC and HTML files to be written
               await Promise.all([rscWritePromise, htmlWritePromise]);
 
               // Metrics are now handled by the individual renderPage functions

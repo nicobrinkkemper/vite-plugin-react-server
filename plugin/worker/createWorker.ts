@@ -70,6 +70,7 @@ export type CreateWorkerOptions = {
     id?: string;
     serverManifest?: Manifest;
     bundle?: OutputBundle;
+    staticBundle?: OutputBundle;
   };
   transferList?: TransferListItem[];
   logger?: Logger;
@@ -114,26 +115,31 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       : `html-worker.${isProduction ? "production" : "development"}.js`;
     
     // Try source directory first
-    let sourcePath = join(pluginRoot, id, workerFileName);
+    const sourcePath = join(pluginRoot, id, workerFileName);
     
     // Always log the paths for debugging
-    logger.info(`[create:${id}] Checking paths - Source: ${sourcePath}, PluginRoot: ${pluginRoot}`);
+    if(verbose) {
+      logger.info(`[create:${id}] Checking paths - Source: ${sourcePath}, PluginRoot: ${pluginRoot}`);
+    }
     
     // If source path doesn't exist, try built directory
     if (!existsSync(sourcePath)) {
-      const builtPath = join(pluginRoot.replace("/plugin/", "/dist/plugin/"), id, workerFileName);
-      logger.info(`[create:${id}] Source path doesn't exist, checking built path: ${builtPath}`);
+      throw new Error(`[create:${id}] Worker file doesn't exist: ${sourcePath}`);
+      // const builtPath = join(pluginRoot.replace("/plugin/", "/dist/plugin/"), id, workerFileName);
+      // logger.info(`[create:${id}] Source path doesn't exist, checking built path: ${builtPath}`);
       
-      if (existsSync(builtPath)) {
-        workerPathWithDefault = builtPath;
-        logger.info(`[create:${id}] Using built worker path: ${builtPath}`);
-      } else {
-        workerPathWithDefault = sourcePath; // Fallback to source path for error message
-        logger.info(`[create:${id}] Neither source nor built path exists. Source: ${sourcePath}, Built: ${builtPath}`);
-      }
+      // if (existsSync(builtPath)) {
+      //   workerPathWithDefault = builtPath;
+      //   logger.info(`[create:${id}] Using built worker path: ${builtPath}`);
+      // } else {
+      //   workerPathWithDefault = sourcePath; // Fallback to source path for error message
+      //   logger.info(`[create:${id}] Neither source nor built path exists. Source: ${sourcePath}, Built: ${builtPath}`);
+      // }
     } else {
       workerPathWithDefault = sourcePath;
-      logger.info(`[create:${id}] Using source worker path: ${sourcePath}`);
+      if(verbose) {
+        logger.info(`[create:${id}] Using source worker path: ${sourcePath}`);
+      }
     }
   }
   if (!workerPathWithDefault.startsWith("/")) {
@@ -180,9 +186,11 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     ];
     
     // Always log the condition setup for debugging
-    logger.info(`[create:${id}] Setting up worker with reverse condition: ${reverseCondition}`);
-    logger.info(`[create:${id}] Computed execArgv: ${JSON.stringify(computedExecArgv)}`);
-    logger.info(`[create:${id}] Current NODE_OPTIONS: ${process.env["NODE_OPTIONS"]}`);
+    if(verbose) {
+      logger.info(`[create:${id}] Setting up worker with reverse condition: ${reverseCondition}`);
+      logger.info(`[create:${id}] Computed execArgv: ${JSON.stringify(computedExecArgv)}`);
+      logger.info(`[create:${id}] Current NODE_OPTIONS: ${process.env["NODE_OPTIONS"]}`);
+    }
 
     const env = {
       // Inherit all existing environment variables
@@ -212,10 +220,10 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       HTML_CHUNK_SIZE: htmlChunkSize.toString(),
     };
 
-    // Always log the NODE_OPTIONS for debugging
-    logger.info(`[create:${id}] Worker NODE_OPTIONS will be: ${env.NODE_OPTIONS}`);
 
     if (verbose) {
+      // Always log the NODE_OPTIONS for debugging
+      logger.info(`[create:${id}] Worker NODE_OPTIONS will be: ${env.NODE_OPTIONS}`);
       logger.info(`[create:${id}] Environment variables: ${Object.keys(env).join(', ')}`);
       logger.info(`[create:${id}] execArgv: ${computedExecArgv.join(' ')}`);
     }
@@ -223,6 +231,7 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     // Create worker with proper environment and loaders
     const worker = new Worker(workerPathWithDefault, {
       env,
+      execArgv: computedExecArgv,
       resourceLimits,
       workerData,
       transferList,
@@ -343,3 +352,4 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     };
   }
 };
+

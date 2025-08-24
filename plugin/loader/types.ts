@@ -8,6 +8,7 @@ import type { PanicThreshold } from "../types.js";
 export type LoaderConfig = {
   serverDirective: RegExp;
   clientDirective: RegExp;
+  directivePattern: RegExp;
   allowedDirectives: AllowedDirectives;
   getDirectiveType: (
     directive: string,
@@ -20,6 +21,9 @@ export type LoaderConfig = {
   registerServerReferenceName?: string;
   isServerFunctionCode: (code: string, moduleId?: string) => boolean;
   isClientComponentCode: (code: string, moduleId?: string) => boolean;
+  isClientComponentByCode: (code: string) => boolean;
+  isClientComponentByName: (moduleId: string) => boolean;
+  moduleID: (moduleId: string, sourceContent?: string) => string;
   parse: ParseFn;
 };
 
@@ -42,6 +46,8 @@ export type TransformOptions = {
   mode?: "development" | "production" | "test";
   logger?: Logger;
   moduleBase?: string;
+  // moduleID is on .loader.moduleID
+  // moduleID?: (moduleId: string) => string;
 };
 
 export type TransformResult = {
@@ -62,6 +68,8 @@ export type TransformerFactory = (options: {
   forceServerFunction?: boolean | undefined;
   forceClientComponent?: boolean | undefined;
   isServerEnvironment?: boolean;
+  ssr?: boolean;
+  originalModuleId?: string;
 }) => (source: string, moduleId: string) => Promise<TransformResult>;
 
 export type { Program };

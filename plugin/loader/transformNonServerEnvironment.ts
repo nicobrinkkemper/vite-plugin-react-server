@@ -86,6 +86,10 @@ export async function transformNonServerEnvironment(
 
   // Only add the import and registrations if there are any registrations to make
   const finalCode = transformedCode;
+  
+
+
+
 
   // Create source map based on the final transformed code
   const map = createSourceMap(finalCode, source, moduleId, []);

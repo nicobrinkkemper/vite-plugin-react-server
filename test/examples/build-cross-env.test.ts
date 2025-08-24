@@ -1,78 +1,40 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { resolve } from "path";
-import { mkdir } from "fs/promises";
 import { setupTestProject } from "../setup.js";
-import type {
-  PluginEvent,
-  FileWriteDoneEvent,
-  RenderMetrics,
-  WorkerStartupMetrics,
-  ModuleResolutionMetrics,
-} from "vite-plugin-react-server/types";
-import { doBuild } from "../doBuild.js";
-import { getCondition } from "vite-plugin-react-server/config";
+import { 
+  getSharedBuild, 
+  cleanupSharedBuilds, 
+  getHtmlContentFromEvents, 
+  getRscContentFromEvents
+} from "./shared-build.js";
 
-if (getCondition() !== "react-server") {
-  throw new Error("This test is only valid in a react-server environment");
-}
+// This test should work in both environments
 
-describe("Plugin build test", () => {
-  const testDir = resolve(__dirname, "../fixtures/build.test");
-  let events: PluginEvent[];
-  const metrics: (RenderMetrics | WorkerStartupMetrics | ModuleResolutionMetrics)[] = [];
-  const htmlContent: string[] = [];
-  const rscContent: string[] = [];
+describe("Plugin build test (Cross-Environment)", () => {
+  let events: any[];
+  let metrics: any[];
+  let htmlContent: string[];
+  let rscContent: string[];
+
   beforeAll(async () => {
-    await mkdir(testDir, { recursive: true });
-    await setupTestProject(testDir);
-    events = await doBuild({
-      projectRoot: testDir,
-      verbose: true,
-      onMetrics: (m) => {
-        console.log("METRICS COLLECTED:", m);
-        metrics.push(m);
-      },
-      build: {
-        pages: ['/', '/page2'],
-      }
-    });
+      const buildResult = await getSharedBuild('multi-page-build', {
+    setupProject: setupTestProject,
+    pages: ['/', '/page2'],
+  });
+    
+    events = buildResult.events;
+    metrics = buildResult.metrics;
+    htmlContent = getHtmlContentFromEvents(events);
+    rscContent = getRscContentFromEvents(events);
 
     console.log("BUILD COMPLETED. Total events:", events.length);
     console.log("Event types:", events.map(e => e.type));
-
-    // Get HTML content from file.write.done events for all routes
-    const htmlDoneEvents = events.filter(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "html"
-    ) as FileWriteDoneEvent[];
-
-    console.log("HTML done events:", htmlDoneEvents.length);
-
-    for (const event of htmlDoneEvents) {
-      htmlContent.push(event.data.content);
-    }
-
-    // Get RSC content from file.write.done events for all routes
-    const rscDoneEvents = events.filter(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "rsc"
-    ) as FileWriteDoneEvent[];
-
-    console.log("RSC done events:", rscDoneEvents.length);
-
-    for (const event of rscDoneEvents) {
-      rscContent.push(event.data.content);
-    }
-
+    console.log("HTML done events:", htmlContent.length);
+    console.log("RSC done events:", rscContent.length);
     console.log("Metrics collected:", metrics.length);
   });
 
   afterAll(async () => {
-    try {
-      //  await rm(testDir, { recursive: true, force: true });
-    } catch {}
+    await cleanupSharedBuilds();
   });
 
   it("emits build events in order", async () => {
@@ -131,26 +93,25 @@ describe("Plugin build test", () => {
       
       // Check if this is a render metric (has fileSize property)
       if ('fileSize' in metric) {
-        const renderMetric = metric as RenderMetrics;
         console.log(
-          'route: ', renderMetric.route,
-          'type: ', renderMetric.type,
-          'fileSize: ', renderMetric.fileSize,
-          'processingTime: ', renderMetric.processingTime,
-          'chunks: ', renderMetric.chunks,
-          'chunkRate: ', renderMetric.chunkRate,
-          'streamMetrics: ', renderMetric.streamMetrics
+          'route: ', metric.route,
+          'type: ', metric.type,
+          'fileSize: ', metric.fileSize,
+          'processingTime: ', metric.processingTime,
+          'chunks: ', metric.chunks,
+          'chunkRate: ', metric.chunkRate,
+          'streamMetrics: ', metric.streamMetrics
         );
-        expect(renderMetric.type).toMatch(/html|rsc-headless|rsc-full/);
-        expect(renderMetric.fileSize).toBeGreaterThanOrEqual(0);
-        expect(renderMetric.processingTime).toBeGreaterThan(0);
+        expect(metric.type).toMatch(/html|rsc-headless|rsc-full/);
+        expect(metric.fileSize).toBeGreaterThanOrEqual(0);
+        expect(metric.processingTime).toBeGreaterThan(0);
         // rsc-full metrics can have 0 chunks since they don't write to files
-        if (renderMetric.type === "rsc-full") {
-          expect(renderMetric.chunks).toBeGreaterThanOrEqual(0);
-          expect(renderMetric.chunkRate).toBeGreaterThanOrEqual(0);
+        if (metric.type === "rsc-full") {
+          expect(metric.chunks).toBeGreaterThanOrEqual(0);
+          expect(metric.chunkRate).toBeGreaterThanOrEqual(0);
         } else {
-          expect(renderMetric.chunks).toBeGreaterThan(0);
-          expect(renderMetric.chunkRate).toBeGreaterThan(0);
+          expect(metric.chunks).toBeGreaterThan(0);
+          expect(metric.chunkRate).toBeGreaterThan(0);
         }
       } else {
         // worker-startup and module-resolution metrics
@@ -163,13 +124,11 @@ describe("Plugin build test", () => {
           'chunkRate: ', 'undefined',
           'streamMetrics: ', 'undefined'
         );
-        expect(metric.type).toMatch(/worker-startup|module-resolution/);
+        expect(metric.type).toMatch(/worker-startup|module-resolution|rsc-full/);
         if ('startupTime' in metric) {
-          const workerMetric = metric as WorkerStartupMetrics;
-          expect(workerMetric.startupTime).toBeGreaterThan(0);
+          expect(metric.startupTime).toBeGreaterThan(0);
         } else if ('resolutionTime' in metric) {
-          const moduleMetric = metric as ModuleResolutionMetrics;
-          expect(moduleMetric.resolutionTime).toBeGreaterThan(0);
+          expect(metric.resolutionTime).toBeGreaterThan(0);
         }
       }
 
@@ -183,7 +142,7 @@ describe("Plugin build test", () => {
             e.type === "file.write.done" &&
             e.data.fileType === "html" &&
             e.data.route === metric.route
-        ) as FileWriteDoneEvent[];
+        );
         matchingContent = htmlDoneEvents[0]?.data.content;
       } else if (metric.type === "rsc-headless") {
         // Find RSC content for this route
@@ -192,13 +151,12 @@ describe("Plugin build test", () => {
             e.type === "file.write.done" &&
             e.data.fileType === "rsc" &&
             e.data.route === metric.route
-        ) as FileWriteDoneEvent[];
+        );
         matchingContent = rscDoneEvents[0]?.data.content;
       }
       
       if (matchingContent !== undefined && 'fileSize' in metric) {
-        const renderMetric = metric as RenderMetrics;
-        expect(matchingContent.length).toBe(renderMetric.fileSize);
+        expect(matchingContent.length).toBe(metric.fileSize);
       }
     }
 

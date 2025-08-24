@@ -152,7 +152,7 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
           );
 
           // Collect HTML chunks from the React stream
-          let htmlChunks: Buffer[] = [];
+          const htmlChunks: Buffer[] = [];
           const htmlStream = new PassThrough();
           
           htmlStream.on('data', (chunk: Buffer) => {

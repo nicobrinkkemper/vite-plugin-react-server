@@ -1,12 +1,17 @@
 import { createStreamMetrics } from "../helpers/metrics.js";
 import { handleError } from "../error/handleError.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
-import type { ClientRscStreamOptions, ServerRscStreamOptions, BaseRscStreamResult } from "./createRscStream.types.js";
+import type {
+  ClientRscStreamOptions,
+  ServerRscStreamOptions,
+  BaseRscStreamResult,
+} from "./createRscStream.types.js";
 import type { PassThrough } from "node:stream";
+import { createLogger, type Logger } from "vite";
 
 /**
  * Validates common RSC stream options
- * 
+ *
  * @param options - RSC stream options to validate
  * @param context - Context for error messages
  * @throws Error if validation fails
@@ -26,7 +31,7 @@ export function validateRscStreamOptions(
 
 /**
  * Creates common RSC stream result structure
- * 
+ *
  * @param rscStream - The RSC stream
  * @param elements - React elements
  * @param pipe - Pipe function
@@ -36,7 +41,9 @@ export function validateRscStreamOptions(
  */
 export function createBaseRscStreamResult(
   rscStream: PassThrough,
-  pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => Writable,
+  pipe: <Writable extends NodeJS.WritableStream>(
+    destination: Writable
+  ) => Writable,
   abort: (reason?: unknown) => void,
   metrics: ReturnType<typeof createStreamMetrics>
 ): BaseRscStreamResult {
@@ -50,7 +57,7 @@ export function createBaseRscStreamResult(
 
 /**
  * Handles RSC stream errors with consistent error handling
- * 
+ *
  * @param error - The error that occurred
  * @param options - RSC stream options for context
  * @param context - Additional context for error handling
@@ -78,7 +85,7 @@ export function handleRscStreamError(
 
 /**
  * Creates stream metrics with common setup
- * 
+ *
  * @param route - Route for logging context
  * @param verbose - Whether to enable verbose logging
  * @returns Stream metrics instance
@@ -89,42 +96,38 @@ export function createRscStreamMetrics(
 ): ReturnType<typeof createStreamMetrics> {
   const metrics = createStreamMetrics();
   metrics.startTime = performance.now();
-  
+
   if (verbose) {
     console.log(`[createRscStream:${route}] Created stream metrics`);
   }
-  
+
   return metrics;
 }
 
 /**
  * Sets up common stream event handlers for metrics collection
- * 
+ *
  * @param stream - The stream to monitor
  * @param metrics - Metrics to update
- * @param route - Route for logging context
- * @param verbose - Whether to enable verbose logging
- * @param timeout - Stream timeout in milliseconds
+ * @param options - Configuration options
+ * @returns Cleanup function
  */
 export function setupRscStreamEventHandlers(
   stream: PassThrough,
   metrics: ReturnType<typeof createStreamMetrics>,
-  route: string,
-  verbose: boolean = false,
-  timeout: number = 30000
+  options: {
+    route: string;
+    verbose?: boolean;
+    logger?: Logger;
+  }
 ): () => void {
-  const streamTimeout = setTimeout(() => {
-    if (verbose) {
-      console.log(`[createRscStream:${route}] Stream timeout reached, forcing completion`);
-    }
-    if (!stream.destroyed) {
-      stream.end();
-    }
-  }, timeout);
+  const { route, verbose = false, logger = createLogger() } = options;
 
   stream.on("data", (chunk: Buffer) => {
     if (verbose) {
-      console.log(`[createRscStream:${route}] Received data chunk: ${chunk.length} bytes`);
+      logger.info(
+        `[createRscStream:${route}] Received data chunk: ${chunk.length} bytes`
+      );
     }
     metrics.chunks++;
     metrics.bytes += chunk.length;
@@ -132,40 +135,43 @@ export function setupRscStreamEventHandlers(
 
   stream.on("end", () => {
     if (verbose) {
-      console.log(`[createRscStream:${route}] Stream ended`);
+      logger.info(`[createRscStream:${route}] Stream ended`);
     }
-    clearTimeout(streamTimeout);
     metrics.duration = performance.now() - metrics.startTime;
     metrics.endTime = performance.now();
   });
 
   stream.on("error", (error: unknown) => {
-    if (verbose) {
-      console.error(`[createRscStream:${route}] Stream error: ${error}`);
-    }
-    clearTimeout(streamTimeout);
+    logger.error(`[createRscStream:${route}] Stream error: ${error}`);
   });
 
   stream.on("drain", () => {
     if (verbose) {
-      console.log(`[createRscStream:${route}] Stream drain - backpressure resolved`);
+      logger.info(
+        `[createRscStream:${route}] Stream drain - backpressure resolved`
+      );
     }
   });
 
   // Track backpressure when write buffer is full
   const originalWrite = stream.write.bind(stream);
-  stream.write = function(chunk: any, encoding?: BufferEncoding | ((error: Error | null | undefined) => void), callback?: ((error: Error | null | undefined) => void)) {
+  stream.write = function (
+    chunk: any,
+    encoding?: BufferEncoding | ((error: Error | null | undefined) => void),
+    callback?: (error: Error | null | undefined) => void
+  ) {
     const result = originalWrite(chunk, encoding as any, callback);
     if (!result) {
       metrics.backpressureCount++;
       if (verbose) {
-        console.warn(`[createRscStream:${route}] Backpressure detected`);
+        logger.warn(`[createRscStream:${route}] Backpressure detected`);
       }
     }
     return result;
   };
 
   return () => {
-    clearTimeout(streamTimeout);
+    // No cleanup needed since we removed the timeout
+    stream.removeAllListeners();
   };
 }

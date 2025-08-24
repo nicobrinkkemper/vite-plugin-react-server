@@ -1,4 +1,5 @@
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { getModuleRef } from "../helpers/moduleRefs.js";
 import { toError } from "../error/toError.js";
 import { handleError } from "../error/handleError.js";
@@ -202,7 +203,7 @@ export const createBuildLoader: CreateBuildLoaderFn =
               userOptions.build.server,
               withoutQuery
             );
-            const fileUrl = `file://${filePath}`;
+            const fileUrl = pathToFileURL(filePath).href;
             const module = await import(fileUrl);
             temporaryReferences?.set(moduleRef, module);
             return module;
@@ -230,7 +231,7 @@ export const createBuildLoader: CreateBuildLoaderFn =
               userOptions.build.static,
               staticEntry.file
             );
-            const fileUrl = `file://${filePath}`;
+            const fileUrl = pathToFileURL(filePath).href;
             const module = await import(fileUrl);
             temporaryReferences?.set(moduleRef, module);
             // If we have an export name, make sure it's a key
@@ -272,17 +273,25 @@ export const createBuildLoader: CreateBuildLoaderFn =
           serverEntry = serverManifest[withoutModuleBase];
         }
 
-        if (serverEntry) {
+                if (serverEntry) {
           try {
-            const module = await import(
-              join(
-                userOptions.projectRoot,
-                userOptions.build.outDir,
-                userOptions.build.server,
-                serverEntry.file
-              )
+            const modulePath = join(
+              userOptions.projectRoot,
+              userOptions.build.outDir,
+              userOptions.build.server,
+              serverEntry.file
             );
+            
+            // Debug: Check if we have the right conditions when loading server components
+            if (serverEntry.file.includes('page/page.js')) {
+              console.log(`[buildLoader] Loading server component: ${modulePath}`);
+              console.log(`[buildLoader] NODE_OPTIONS: ${process.env.NODE_OPTIONS}`);
+              console.log(`[buildLoader] execArgv: ${process.execArgv.join(' ')}`);
+            }
+            
+            const module = await import(modulePath);
             temporaryReferences?.set(moduleRef, module);
+            
             // If we have an export name, make sure it's a key
             if (exportName && !(exportName in module)) {
               throw new Error(
@@ -316,8 +325,18 @@ export const createBuildLoader: CreateBuildLoaderFn =
         if (existsSync(builtFilePath)) {
           if (userOptions.verbose) {
             logger.info(`[buildLoader] Loading built file: ${builtFilePath}`);
+            logger.info(`[buildLoader] NODE_OPTIONS: ${process.env.NODE_OPTIONS}`);
+            logger.info(`[buildLoader] execArgv: ${process.execArgv.join(' ')}`);
+            
+            // Import condition detection functions
+            const { getCurrentCondition, hasReactServerCondition } = await import("../config/getCondition.js");
+            logger.info(`[buildLoader] getCurrentCondition(): ${getCurrentCondition()}`);
+            logger.info(`[buildLoader] hasReactServerCondition(): ${hasReactServerCondition()}`);
           }
-          const module = await import(builtFilePath);
+          
+          // Load the built file with proper URL format
+          const fileUrl = pathToFileURL(builtFilePath).href;
+          const module = await import(fileUrl);
           temporaryReferences?.set(moduleRef, module);
           if (exportName && !(exportName in module)) {
             throw new Error(
@@ -327,14 +346,19 @@ export const createBuildLoader: CreateBuildLoaderFn =
           return module;
         }
 
-        const mod = await import(
-          resolve(
-              userOptions.projectRoot,
-              userOptions.build.outDir,
-              userOptions.build.server,
-              moduleId
-          )
+        // For React imports, use the vendor system instead of direct imports
+        // Use static vendor for static generation (has static.node instead of server.node)
+        if (moduleId === "react" || moduleId.startsWith("react/")) {
+          throw new Error("You're not supposed to load react using the build loader. Simply use import React from 'react'.");
+        }
+        
+        const modPath = resolve(
+          userOptions.projectRoot,
+          userOptions.build.outDir,
+          userOptions.build.server,
+          moduleId
         );
+        const mod = await import(pathToFileURL(modPath).href);
         if (typeof mod === "object" && mod !== null && !(exportName in mod)) {
           throw new Error(
             `Export ${exportName} not found in module ${moduleId}`
@@ -342,8 +366,28 @@ export const createBuildLoader: CreateBuildLoaderFn =
         }
         return mod;
       } catch (error) {
+        // Enhance React Server DOM errors with import context
+        let enhancedError = error instanceof Error ? error : new Error(String(error));
+        if (enhancedError.message.includes('React Server Writer cannot be used outside a react-server environment')) {
+          const filePath = resolve(
+            userOptions.projectRoot,
+            userOptions.build.outDir,
+            userOptions.build.server,
+            moduleId
+          );
+          enhancedError = new Error(
+            `${enhancedError.message}\n` +
+            `  → Imported from: ${moduleId}\n` +
+            `  → Export: ${exportName}\n` +
+            `  → File path: ${filePath}\n` +
+            `  → NODE_OPTIONS: ${process.env.NODE_OPTIONS || 'not set'}\n` +
+            `  → execArgv: ${process.execArgv.join(' ') || 'not set'}`
+          );
+          throw enhancedError;
+        }
+        
         const emptyExports = {
-          error: error instanceof Error ? error : new Error(String(error)),
+          error: enhancedError,
           id: id,
         };
         temporaryReferences?.delete(moduleRef);

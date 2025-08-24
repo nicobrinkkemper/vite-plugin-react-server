@@ -17,7 +17,7 @@ export function formatMetrics(metrics: RenderMetrics): string {
 
   return `
 Route: ${route}
-Size: ${(fileSize ?? 0 / 1024).toFixed(2)}KB
+Size: ${((fileSize ?? 0) / 1024).toFixed(2)}KB
 Chunks: ${chunks} (${chunkRate.toFixed(2)} chunks/s)
 Processing Time: ${processingTime.toFixed(2)}ms
 Memory:

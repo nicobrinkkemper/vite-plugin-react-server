@@ -1,4 +1,4 @@
-import type React from "react";
+// React types are imported from vendor system at runtime
 import type { PassThrough, Readable } from "node:stream";
 
 /**

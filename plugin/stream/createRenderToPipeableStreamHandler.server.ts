@@ -141,6 +141,45 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
 
           serverPipeableStreamOptions.onError?.(error);
         },
+        onShellError(error: unknown) {
+          if (verbose) {
+            logger?.error(
+              `[createRscStream:${route}] onShellError called with error: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+
+          // Handle shell error according to panic threshold
+          const panicError = handleError({
+            error: error,
+            logger: logger,
+            panicThreshold: panicThreshold,
+            context: `RSC stream onShellError for route ${route}`,
+          });
+
+          if (panicError != null) {
+            // This is a panic threshold error, emit event to notify parent
+            handlerOptions.onEvent?.({
+              type: "route.error",
+              data: {
+                route: route,
+                error: panicError,
+                isPanic: true,
+              },
+            });
+            return;
+          }
+
+          // For non-panic errors, just log and send event
+          handlerOptions.onEvent?.({
+            type: "route.error",
+            data: {
+              route: route,
+              error: error,
+            },
+          });
+
+          (serverPipeableStreamOptions as any).onShellError?.(error);
+        },
       };
 
       // Create the pipeable stream
@@ -246,6 +285,10 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           passThrough.destroy(
             new Error(String(reason || "Aborted RSC stream"))
           );
+        },
+        cleanup: () => {
+          // Clean up listeners on the RSC stream
+          passThrough.removeAllListeners();
         },
         rscStream: passThrough as PassThrough,
         elements: children,

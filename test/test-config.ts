@@ -9,7 +9,7 @@ export const testUserOptions = {
   propsExportName: "props",
   moduleBasePath: '',
   moduleBaseURL: typeof process.env.VITE_BASE_URL === 'string' ? process.env.VITE_BASE_URL : '/',
-  verbose: true, // Enable verbose logging to debug CSS loader
+  verbose: true,
   build: {
     pages: ["/"],
     assetsDir: 'assets',

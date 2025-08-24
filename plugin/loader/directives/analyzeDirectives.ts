@@ -185,22 +185,13 @@ beforeNode: ${node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)).sli
     }
 
     // Only warn about directive placement if it's not Vite-injected code
-    if (foundNonDirective) {
-      if (!isViteInjectedCode) {
-        directiveInfo.warnings.push({
-          message:
-            "File-level directives must be at the top of the file, before any other code",
-          range: [firstDirective.range[0], firstDirective.range[1]],
-          type: firstDirective.type,
-        });
-      } else {
-        directiveInfo.warnings.push({
-          message:
-            "The client entry is already a client component module, this directive can be removed.",
-          range: [firstDirective.range[0], firstDirective.range[1]],
-          type: firstDirective.type,
-        });
-      }
+    if (foundNonDirective && !isViteInjectedCode) {
+      directiveInfo.warnings.push({
+        message:
+          "File-level directives must be at the top of the file, before any other code",
+        range: [firstDirective.range[0], firstDirective.range[1]],
+        type: firstDirective.type,
+      });
     }
   }
 

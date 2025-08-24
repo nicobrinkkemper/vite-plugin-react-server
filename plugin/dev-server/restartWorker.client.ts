@@ -2,7 +2,7 @@ import { createWorker } from "../worker/createWorker.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
-import React from "react";
+import { React } from "../vendor/vendor.client.js";
 import type { RestartWorkerFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
@@ -40,8 +40,14 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
       workerHmrChannel.port1.postMessage((event as MessageEvent).data);
     });
 
+    if (userOptions.verbose) {
+      server.config.logger.info(`[restartWorker] userOptions.projectRoot: ${userOptions.projectRoot}`);
+      server.config.logger.info(`[restartWorker] server.config.root: ${server.config.root}`);
+      server.config.logger.info(`[restartWorker] Using projectRoot: ${userOptions.projectRoot || server.config.root}`);
+    }
+
     const workerResult = await createWorker({
-      projectRoot: server.config.root,
+      projectRoot: userOptions.projectRoot || server.config.root,
       workerPath: userOptions.rscWorkerPath,
       reverseCondition: "react-server",
       currentCondition: "react-client",

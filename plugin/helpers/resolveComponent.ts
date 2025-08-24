@@ -49,6 +49,9 @@ export async function resolveComponent<T = RootComponentType | HtmlComponentType
     }
 
     // Load the module
+    if (modulePath.includes('page/page')) {
+      console.log(`[resolveComponent] Loading Page component: ${modulePath}#${moduleExportName}`);
+    }
     const module = await loader(`${modulePath}#${moduleExportName}`);
     
     if (module == null) {

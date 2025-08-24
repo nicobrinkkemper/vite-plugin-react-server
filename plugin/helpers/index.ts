@@ -45,7 +45,9 @@ export * from "./workerManager.js";
 export * from "./validateRscRenderMessage.js";
 export * from "./resolveRenderUrl.js";
 export * from "./mergeMessageWithDefaults.js";
-export * from "./resolveComponents.js";
+export * from "./resolveWithDefaultRootAndHtml.js";
+export { resolveComponents as resolveComponentsClient } from "./resolveComponents.client.js";
+
 export * from "./logRenderStart.js";
 export * from "./createStreamTimeout.js";
 export * from "./createSerializableHandlerOptions.js";

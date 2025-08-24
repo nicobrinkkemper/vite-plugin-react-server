@@ -46,6 +46,8 @@ export const transformModule: TransformFunction = async (
     return { code: "", map: null };
   }
 
+
+
   if (verbose) {
     logger.info(`[transformModule] Module: ${moduleId}`);
     logger.info(
@@ -76,22 +78,40 @@ export const transformModule: TransformFunction = async (
     return { code: source, map: null };
   }
 
+
+  
   // Transform based on module type and return the result directly
-  return forceServerFunction
-    ? transformServerModule(
-        source,
-        moduleId,
-        parseResult,
-        loader,
-        verbose,
-        logger
-      )
-    : transformClientModule(
-        source,
-        moduleId,
-        parseResult,
-        loader,
-        verbose,
-        logger
-      );
+  // Priority: Client components in server environment go to transformClientModule
+  // Server functions go to transformServerModule
+  // In server environment, client components should completely replace their source
+  if (forceClientComponent && isServerEnvironment) {
+    return transformClientModule(
+      source,
+      moduleId,
+      parseResult,
+      loader,
+      verbose,
+      logger,
+      isServerEnvironment
+    );
+  } else if (forceServerFunction) {
+    return transformServerModule(
+      source,
+      moduleId,
+      parseResult,
+      loader,
+      verbose,
+      logger
+    );
+  } else {
+    return transformClientModule(
+      source,
+      moduleId,
+      parseResult,
+      loader,
+      verbose,
+      logger,
+      isServerEnvironment
+    );
+  }
 };

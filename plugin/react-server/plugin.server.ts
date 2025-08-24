@@ -1,8 +1,4 @@
 import { performance } from "node:perf_hooks";
-import {
-  type ResolvedConfig,
-} from "vite";
-import { resolveOptions } from "../config/resolveOptions.js";
 import type {
   BuildTiming,
   VitePluginFn,
@@ -12,22 +8,11 @@ import { assertReactServer } from "../config/getCondition.js";
 assertReactServer()
 
 export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
-  options
+  _options
 ) {
   const timing: BuildTiming = {
     start: performance.now(),
   };
-
-  let resolvedConfig: ResolvedConfig | null = null;
-
-  const resolvedOptions = resolveOptions(options);
-  if (resolvedOptions.type === "error") {
-    if(resolvedOptions.error != null) { 
-      throw resolvedOptions.error;
-    }
-    throw new Error("React server plugin failed to resolve options");
-  }
-  const userOptions = resolvedOptions.userOptions;
 
   return {
     name: "vite:plugin-react-server/server",
@@ -36,21 +21,6 @@ export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
       meta: { timing },
     },
     configResolved(_resolvedConfig) {
-      resolvedConfig = _resolvedConfig;
-      if (
-        userOptions.projectRoot != resolvedConfig.root &&
-        typeof userOptions.projectRoot === "string" &&
-        userOptions.projectRoot !== ""
-      ) {
-        throw new Error(
-          "[RSC] Project root is not the current working directory, please set projectRoot in your config.\n" +
-            " projectRoot: " +
-            userOptions.projectRoot +
-            "\n" +
-            " resolvedConfig.root: " +
-            resolvedConfig.root
-        );
-      }
       timing.configResolved = performance.now();
     },
     async handleHotUpdate({ file, server, timestamp, ...ctx }) {

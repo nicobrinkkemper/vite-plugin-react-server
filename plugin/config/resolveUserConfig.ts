@@ -4,11 +4,13 @@ import type {
   ResolvedUserOptions,
   AutoDiscoveredFiles,
 } from "../types.js";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
+import { createHash } from "node:crypto";
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
@@ -45,7 +47,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
     } else if (originalConfig != null && config !== originalConfig) {
       forceResolve = true;
     }
-    
+
     ssr =
       typeof ssr === "boolean"
         ? ssr
@@ -56,7 +58,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         : typeof configEnv.isSsrBuild === "boolean"
         ? configEnv.isSsrBuild
         : false;
-    
+
     if (condition === "react-server" && !ssr) {
       const logger = config.customLogger ?? createLogger();
       logger.warn(
@@ -79,17 +81,33 @@ export const resolveUserConfig: ResolveUserConfigFn =
     }
 
     // Get existing inputs
-    const root = config.root ?? userOptions.projectRoot ?? process.cwd();
 
     const handleSsrEntryName = (
       info: PreRenderedChunk,
       input: string | null,
-      fallback: (info: PreRenderedChunk, ssr: boolean) => string,
+      fallback: (
+        info: PreRenderedChunk,
+        ssr: boolean,
+        sourceContent?: string
+      ) => string,
       ssr: boolean
     ) => {
+      // Read source content for consistent hashing across all environments
+      let sourceContent: string | undefined;
+      if (input) {
+        try {
+          const sourcePath = resolve(userOptions.projectRoot, input);
+          if (existsSync(sourcePath)) {
+            sourceContent = readFileSync(sourcePath, "utf-8");
+          }
+        } catch (error) {
+          // Fallback to filename-based hashing if source file can't be read
+        }
+      }
+
       if (!ssr || !input) {
         if (typeof fallback === "function") {
-          return fallback(info, false);
+          return fallback(info, false, sourceContent);
         }
         return userOptions.normalizer(info.name)[0];
       }
@@ -98,10 +116,13 @@ export const resolveUserConfig: ResolveUserConfigFn =
       if (value.startsWith(userOptions.moduleBasePath)) {
         value = value.slice(userOptions.moduleBasePath.length);
       }
-      
-      // For now, just use the fallback since static manifest loading is complex
-      // The static manifest will be handled separately in the build process
-      return fallback(info, true);
+
+      // Apply the same hash function for server environment to ensure consistency
+      // This ensures that client components have the same hash across all environments
+      if (typeof fallback === "function") {
+        return fallback(info, true, sourceContent);
+      }
+      return userOptions.normalizer(info.name)[0];
     };
 
     const handleSsrAssetName = (
@@ -204,32 +225,36 @@ export const resolveUserConfig: ResolveUserConfigFn =
             Number(stashedReturns[inputId].startsWith("/"))
           );
         }),
-      assetFileNames: userDefinedAssetFileNames ??
-          ((info) => {
-            const input = info.originalFileNames[0];
-            const inputId = input + (ssr ? "-ssr" : "");
+      assetFileNames:
+        userDefinedAssetFileNames ??
+        ((info) => {
+          const input = info.originalFileNames[0];
+          const inputId = input + (ssr ? "-ssr" : "");
 
-            if (!stashedReturns[inputId]) {
-              const r = handleSsrAssetName(
-                info,
-                input,
-                userOptions.build.assetFile,
-                ssr
-              );
-
-              stashedReturns[inputId] =
-                r ??
-                join(
-                  userOptions.build.assetsDir,
-                  userOptions.normalizer(input)[0]
-                );
-            }
-            // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
-            // at the last possible moment as to not confuse the rest of the logic around the basePath
-            return stashedReturns[inputId].slice(
-              Number(stashedReturns[inputId].startsWith("/"))
+          if (!stashedReturns[inputId]) {
+            const r = handleSsrAssetName(
+              info,
+              input,
+              userOptions.build.assetFile,
+              ssr
             );
-          }),
+
+            stashedReturns[inputId] =
+              r ??
+              join(
+                userOptions.build.preserveModulesRoot === false &&
+                  userOptions.build.assetsDir
+                  ? userOptions.build.assetsDir
+                  : "",
+                userOptions.normalizer(input)[0]
+              );
+          }
+          // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
+          // at the last possible moment as to not confuse the rest of the logic around the basePath
+          return stashedReturns[inputId].slice(
+            Number(stashedReturns[inputId].startsWith("/"))
+          );
+        }),
       chunkFileNames:
         userDefinedChunkFileNames ??
         ((info) => {
@@ -294,10 +319,10 @@ export const resolveUserConfig: ResolveUserConfigFn =
     }
 
     // Calculate effective values based on command and environment
+    // Prioritize userOptions.projectRoot when explicitly set, regardless of config.root
+    // This ensures Environment API environments use their specific project roots
     const effectiveProjectRoot =
-      typeof config.root === "string" && userOptions.projectRoot !== config.root
-        ? config.root
-        : userOptions.projectRoot;
+      userOptions.projectRoot || config.root || process.cwd();
 
     // Calculate moduleRootPath based on command and environment
     // During serve (development): use moduleBasePath (source paths)
@@ -391,7 +416,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
       // client plugin build options (client plugin still outputs server files)
       const clientConfig = {
         ...config,
-        root: root,
+        root: effectiveProjectRoot,
         mode: mode,
         base: base,
         envPrefix: vitePrefix,
@@ -467,7 +492,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
     } else {
       const serverConfig = {
         ...config,
-        root: root,
+        root: effectiveProjectRoot,
         mode: mode,
         base: userOptions.moduleBaseURL,
         envPrefix: vitePrefix,
@@ -517,39 +542,82 @@ export const resolveUserConfig: ResolveUserConfigFn =
               "react/jsx-runtime",
               "react/jsx-dev-runtime",
               "react-dom",
+              "react-server-dom-esm/server",
               "react-server-dom-esm/server.node",
             ],
-            // Server output should be stable and un-hashed; do not remap via client manifest
-            output: {
-              ...((Array.isArray(config.build?.rollupOptions?.output)
-                ? undefined
-                : (config.build?.rollupOptions?.output as any)) || {}),
-              entryFileNames: (info: any) => `${info.name}.js`,
-              chunkFileNames: (info: any) => `${info.name}.js`,
-              assetFileNames: (info: any) =>
-                join(
-                  userOptions.build.assetsDir,
-                  info.names?.[0] ?? info.name ?? "asset"
-                ),
-            },
+            // Use the same output configuration as client environment for consistent hashing
+            // This ensures client components have the same module IDs across all environments
+            output: newOutput,
             // Configure Rollup context for server builds to use react-server conditions
             context: "module",
             // Set Node.js conditions for server builds
             plugins: [
-              ...(Array.isArray(config.build?.rollupOptions?.plugins) 
-                ? config.build.rollupOptions.plugins 
-                : config.build?.rollupOptions?.plugins 
-                ? [config.build.rollupOptions.plugins] 
+              ...(Array.isArray(config.build?.rollupOptions?.plugins)
+                ? config.build.rollupOptions.plugins
+                : config.build?.rollupOptions?.plugins
+                ? [config.build.rollupOptions.plugins]
                 : []),
               {
                 name: "react-server-conditions",
                 buildStart() {
-                  // Ensure react-server condition is available during server builds
-                  if (condition === "react-server") {
-                  //  process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || "") + " --conditions react-server";
+                  if (typeof this.environment.name !== "string") {
+                    this.warn(
+                      "Environment name is not a string, skipping react-server-conditions plugin"
+                    );
+                    return;
                   }
-                }
-              }
+
+                  if (this.environment.name === "server") {
+                    // Ensure react-server condition is available during server builds
+                    if (!process.env.NODE_OPTIONS?.includes("react-server")) {
+                      this.warn(
+                        `NODE_OPTIONS was set wrong for ${this.environment.name}, adding --conditions react-server`
+                      );
+                      process.env.NODE_OPTIONS =
+                        (process.env.NODE_OPTIONS || "") +
+                        " --conditions react-server";
+                    }
+                  } else {
+                    if (process.env.NODE_OPTIONS?.includes("react-server")) {
+                      this.warn(
+                        `NODE_OPTIONS was set wrong for ${this.environment.name}, removing --conditions react-server`
+                      );
+                      process.env.NODE_OPTIONS =
+                        process.env.NODE_OPTIONS.replace(
+                          " --conditions react-server",
+                          ""
+                        );
+                    }
+                  }
+                },
+              },
+              // Add content hash plugin for consistent hashing across environments
+              {
+                name: "vite:plugin-react-server/content-hash",
+                augmentChunkHash(chunk) {
+                  // Add a consistent salt based on the chunk's source file to make hash generation deterministic
+                  if (chunk.facadeModuleId) {
+                    try {
+                      const sourcePath = resolve(
+                        userOptions.projectRoot,
+                        chunk.facadeModuleId
+                      );
+                      if (existsSync(sourcePath)) {
+                        const sourceContent = readFileSync(sourcePath, "utf-8");
+                        // Use a short hash of the source content as salt
+                        return createHash("sha1")
+                          .update(sourceContent)
+                          .digest("hex")
+                          .substring(0, 8);
+                      }
+                    } catch (error) {
+                      // Fallback: use the module ID as salt
+                      return chunk.facadeModuleId;
+                    }
+                  }
+                  return;
+                },
+              },
             ],
           },
         },

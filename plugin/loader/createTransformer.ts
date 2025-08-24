@@ -1,4 +1,5 @@
 import { transformModule } from "./transformModule.js";
+import { transformNonServerEnvironment } from "./transformNonServerEnvironment.js";
 import { isReactServerCondition } from "../config/getCondition.js";
 import { analyzeModule } from "./directives/analyzeModule.js";
 import { findDirectiveMatches } from "./directives/findDirectiveMatches.js";
@@ -27,9 +28,12 @@ export const createTransformer: TransformerFactory = ({
     } = options;
     if (verbose) {
       logger.info(`[createTransformer:${isServerEnvironment ? "server" : "client"}] Loading: ${moduleId}`);
+      logger.info(`[createTransformer:${isServerEnvironment ? "server" : "client"}] Source preview: "${source.substring(0, 50)}"`);
     }
+    
 
-    // Fast-path: skip parsing and transformation if no directives are present
+    
+        // Fast-path: skip parsing and transformation if no directives are present
     const matches = findDirectiveMatches(source);
     const hasServerDirective = matches.matches.some(
       (m: DirectiveMatch) => m.type === "server"
@@ -39,7 +43,93 @@ export const createTransformer: TransformerFactory = ({
     );
 
     if (hasClientDirective === false && hasServerDirective === false) {
-      return { code: source, map: null };
+      // For files without directives, handle differently based on environment
+      if (isServerEnvironment && loader?.isClientComponentByName?.(moduleId)) {
+        // In server environment, client components without directives should be transformed to registerClientReference
+        // This handles cases where client components don't have explicit "use client" directives
+        // but are identified by file naming convention (.client.tsx)
+        if (verbose) {
+          logger.info(`[createTransformer:server] Transforming client file without directive: ${moduleId}`);
+        }
+        // Set forceClientComponent to true for client components identified by filename
+        forceClientComponent = true;
+        // Don't return early - let it fall through to transformModule
+      } else if (!isServerEnvironment && !loader?.isClientComponentByName?.(moduleId) && !moduleId.includes('node_modules')) {
+        // In non-server environments, server components should be hidden (return null exports)
+        // This prevents server components from being loaded in client/ssr environments
+        // But don't hide third-party modules from node_modules
+        if (verbose) {
+          logger.info(`[createTransformer:non-server] Hiding server component in non-server environment: ${moduleId}`);
+        }
+        // Return a module that exports null/undefined instead of empty string
+        return { code: "export default null;", map: null };
+      } else {
+        // In client/ssr environments, we need to transform to remove directives
+        // but we don't transform to registerClientReference
+        if (hasClientDirective || hasServerDirective) {
+          if (verbose) {
+            logger.info(`[createTransformer:client] Transforming file with directives: ${moduleId}`);
+          }
+          // Transform to remove directives in client/ssr environment
+          const parseResult = await analyzeModule(source, {
+            ...options,
+            logger,
+            loader: loader,
+          });
+          
+          if (parseResult.type === "success") {
+            const result = await transformNonServerEnvironment(source, moduleId, parseResult, loader, verbose);
+            if (verbose) {
+              logger.info(`[createTransformer:client] Transformed result for ${moduleId}: ${result.code.substring(0, 100)}`);
+            }
+            return result;
+          }
+        } else {
+          // For files without directives in client/ssr environment, we still need to check
+          // if this is a client component that should be transformed
+          if (loader?.isClientComponentByName?.(moduleId)) {
+            if (verbose) {
+              logger.info(`[createTransformer:client] Transforming client component without directives: ${moduleId}`);
+            }
+            // Transform to ensure proper exports in client environment
+            const parseResult = await analyzeModule(source, {
+              ...options,
+              logger,
+              loader: loader,
+            });
+            
+            if (parseResult.type === "success") {
+              const result = await transformNonServerEnvironment(source, moduleId, parseResult, loader, verbose);
+              if (verbose) {
+                logger.info(`[createTransformer:client] Transformed result for ${moduleId}: ${result.code.substring(0, 100)}`);
+              }
+              return result;
+            }
+          }
+        }
+        // For files without directives and not identified as client components, keep original code
+        return { code: source, map: null };
+
+      }
+    } else {
+      // Set appropriate flags based on directives
+      if (hasClientDirective) {
+        forceClientComponent = true;
+      }
+      if (hasServerDirective) {
+        forceServerFunction = true;
+      }
+      
+      // Performance optimization: Check if file is already transformed to avoid unnecessary work
+      // Only check this for files that actually have directives and are in the right environment
+      if (isServerEnvironment && forceClientComponent) {
+        const isAlreadyTransformed = source.includes(options?.loader?.registerClientReferenceName ?? "registerClientReference");
+        
+        if (isAlreadyTransformed) {
+          logger.warn(`[createTransformer] File already transformed ${moduleId}. This call was not needed.`);
+          return { code: source, map: null };
+        }
+      }
     }
     // Use analyzeModule to get the full parse result, passing the custom parseFn
     const parseResult = await analyzeModule(source, {
@@ -121,3 +211,4 @@ export const createTransformer: TransformerFactory = ({
     });
   };
 };
+

@@ -1,4 +1,7 @@
-import type { ErrorInfo } from "react";
+// React types are imported from vendor system at runtime
+type ErrorInfo = {
+  componentStack?: string;
+};
 
 export function toError(error: unknown, errorInfo?: ErrorInfo): Error {
   if (typeof error === "string") {

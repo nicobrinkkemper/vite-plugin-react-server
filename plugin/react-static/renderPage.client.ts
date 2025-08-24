@@ -47,9 +47,10 @@ import { handleError } from "../error/handleError.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
 import { createRscStream } from "../stream/createRscStream.client.js";
+import { resolveComponents } from "../helpers/resolveComponents.client.js";
 
 import { join } from "node:path";
-import { createModuleResolutionMetrics } from "../metrics/createModuleResolutionMetrics.js";
+
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { performance } from "node:perf_hooks";
 import { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
@@ -156,37 +157,77 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       );
     }
 
-    // For client-side, we pass the actual component paths to the RSC worker
-    // The worker will load these components using its loader
-    const pagePath = handlerOptions.pagePath;
-    const rootPath = handlerOptions.rootPath;
-    const htmlPath = handlerOptions.htmlPath;
-    const propsPath = handlerOptions.propsPath;
+    // Step 1: Resolve paths to built paths using the static manifest
+    // This ensures the RSC worker generates client references with built paths
+    // instead of source paths, which is what the HTML transform expects
+    const resolvePathWithManifest = (path: string, manifest: any): string => {
+      const entry = manifest[path];
+      if (entry && entry.file) {
+        return entry.file;
+      }
+      return path;
+    };
 
+    const staticManifest = handlerOptions.manifest || {};
+    const resolvedPagePath = handlerOptions.pagePath ? resolvePathWithManifest(handlerOptions.pagePath, staticManifest) : undefined;
+    const resolvedPropsPath = handlerOptions.propsPath ? resolvePathWithManifest(handlerOptions.propsPath, staticManifest) : undefined;
+    const resolvedRootPath = handlerOptions.rootPath ? resolvePathWithManifest(handlerOptions.rootPath, staticManifest) : undefined;
+    const resolvedHtmlPath = handlerOptions.htmlPath ? resolvePathWithManifest(handlerOptions.htmlPath, staticManifest) : undefined;
+
+    if (handlerOptions.verbose) {
+      handlerOptions.logger?.info(`[renderPage.client] Resolved paths for route ${handlerOptions.route}:`);
+      handlerOptions.logger?.info(`  page: ${handlerOptions.pagePath} -> ${resolvedPagePath}`);
+      handlerOptions.logger?.info(`  props: ${handlerOptions.propsPath} -> ${resolvedPropsPath}`);
+      handlerOptions.logger?.info(`  root: ${handlerOptions.rootPath} -> ${resolvedRootPath}`);
+      handlerOptions.logger?.info(`  html: ${handlerOptions.htmlPath} -> ${resolvedHtmlPath}`);
+    }
+
+    // Step 2: Resolve components using the RSC worker with built paths
+    // This separates component resolution from RSC generation, making the
+    // subsequent RSC render completely synchronous
+    if (!handlerOptions.worker) {
+      throw new Error("RSC worker is required for client-side component resolution");
+    }
     
-    // Create new handler options with actual paths (client-side approach)
+    const resolvedComponents = await resolveComponents({
+      route: handlerOptions.route,
+      pagePath: resolvedPagePath,
+      propsPath: resolvedPropsPath,
+      rootPath: resolvedRootPath,
+      htmlPath: resolvedHtmlPath,
+      pageExportName: handlerOptions.pageExportName,
+      propsExportName: handlerOptions.propsExportName,
+      rootExportName: handlerOptions.rootExportName,
+      htmlExportName: handlerOptions.htmlExportName,
+      worker: handlerOptions.worker,
+      onMetrics: handlerOptions.onMetrics,
+      logger: handlerOptions.logger,
+      verbose: handlerOptions.verbose,
+    });
+
+    // Step 2: Create handler options with resolved components
+    // Now we have the actual components with proper built paths
     const newHandlerOptions = {
       ...handlerOptions,
       url: `${handlerOptions.url}`,
       route: `${handlerOptions.route}`,
-      // Client-side: Pass actual component paths to the worker
-      propsPath,
-      pagePath,
-      rootPath,
-      htmlPath,
-      // Client-side: Never pass direct components NOR page props
-      // should be resolved in react-server environment
-      pageProps: undefined,
-      PageComponent: undefined,
+      // Use resolved components instead of paths
+      PageComponent: resolvedComponents.PageComponent,
+      pageProps: resolvedComponents.pageProps,
+      RootComponent: resolvedComponents.RootComponent,
+      HtmlComponent: resolvedComponents.HtmlComponent,
+      // Keep original paths for createRscStream compatibility
+      pagePath: handlerOptions.pagePath,
+      propsPath: handlerOptions.propsPath,
+      rootPath: handlerOptions.rootPath,
+      htmlPath: handlerOptions.htmlPath,
       // Pass CSS information to the RSC worker and HTML transform
       cssFiles: handlerOptions.cssFiles || new Map(),
       globalCss: handlerOptions.globalCss || new Map(),
-      RootComponent: undefined,
-      HtmlComponent: undefined,
     };
 
-    // Start measuring module resolution time for RSC stream creation
-    const moduleResolutionStartTime = performance.now();
+    // Component resolution is already measured in resolveComponents
+    // No need to measure module resolution time here anymore
 
     // Step 1: Create headless RSC stream using RSC worker (REVERSE from server)
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -200,20 +241,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       htmlPath: '',
     });
 
-    // Module resolution is complete when the RSC stream is created
-    const moduleResolutionTime = performance.now() - moduleResolutionStartTime;
-    if (handlerOptions.onMetrics) {
-      const moduleResolutionMetric = createModuleResolutionMetrics({
-        route: handlerOptions.route,
-        workerType: "rsc", // RSC is created on RSC worker in client builds
-        resolutionTime: moduleResolutionTime,
-        fromMainThread: false,
-        fromRscWorker: true,
-        fromHtmlWorker: false,
-        description: `Module resolution for RSC stream creation on RSC worker for route ${handlerOptions.route}`,
-      });
-      handlerOptions.onMetrics(moduleResolutionMetric);
-    }
+    // Component resolution is already measured in resolveComponents
+    // No need to measure module resolution time here anymore
 
     // Step 2: Create single RSC stream using RSC worker (REVERSE from server)
     // 
@@ -230,7 +259,7 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       rscTimeout: handlerOptions.rscTimeout || 5000,
       onMetrics: handlerOptions.onMetrics,
       // Full RSC: with HTML wrapper component (undefined = use default HTML component)
-      htmlPath: htmlPath || undefined,
+      htmlPath: handlerOptions.htmlPath || undefined,
     });
 
     // Step 3: Create a buffered RSC stream factory for dual consumption

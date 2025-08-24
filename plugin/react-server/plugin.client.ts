@@ -1,6 +1,5 @@
 import { performance } from "node:perf_hooks";
 import {
-  type UserConfig,
   type Manifest,
   createLogger,
   type Logger,
@@ -52,7 +51,7 @@ export const reactServerPlugin: VitePluginFn =
         }
         return false;
       },
-      config(config, configEnv): UserConfig {
+      config(config, configEnv) {
         // For react-server condition, always default to SSR=true unless explicitly overridden
         // This ensures server builds work correctly even if other plugins set build.ssr=false
         if (typeof config.build?.ssr === "boolean" && config.build.ssr === false) {
@@ -76,7 +75,7 @@ export const reactServerPlugin: VitePluginFn =
         
         // The environment plugin handles auto-discovery and input configuration
         // This plugin now focuses on server-specific functionality
-        return config;
+        return config; 
       },
       async configResolved(_resolvedConfig) {
         resolvedConfig = _resolvedConfig;
@@ -202,3 +201,4 @@ export const reactServerPlugin: VitePluginFn =
       },
     };
   };
+

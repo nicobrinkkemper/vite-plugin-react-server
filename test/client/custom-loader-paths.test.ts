@@ -11,7 +11,7 @@ let port = 5178; // Use unique port to avoid conflicts
 let pageURL: string;
 const testDir = join(process.cwd(), "test/client/fixtures/custom-loader-paths");
 
-describe("Custom Loader Paths Configuration", () => {
+describe("Custom Loader Paths Configuration (client dev server)", () => {
   beforeAll(async () => {
     // Clear any existing server cache for this port to ensure a fresh start
     clearServerCache(port);

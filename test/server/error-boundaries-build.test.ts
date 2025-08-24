@@ -55,7 +55,6 @@ describe("RSC Build Error Handling", () => {
   test('should build successfully with panicThreshold: "none" when page has server errors', async () => {
     const events = await doBuild({
       projectRoot: testDir,
-      verbose: true,
       panicThreshold: "none",
       build: {
         pages: ["/", "/server-error-example"],

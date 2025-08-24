@@ -27,7 +27,7 @@ export const handleError: HandleErrorFn = function _handleError(
   } = options;
   // Handle React error info if present
   if (errorInfo != null) {
-    const errInfo = new Error(`Digest: ${errorInfo.digest}`);
+    const errInfo = new Error(`Digest: ${(errorInfo as any).digest ?? 'unknown'}`);
     errInfo.stack = errorInfo.componentStack ?? undefined;
     errInfo.name = "ErrorInfo";
     if (log) logError(errInfo, logger, mode);

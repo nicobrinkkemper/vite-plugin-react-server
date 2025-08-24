@@ -16,7 +16,8 @@
 
 import { createLogger, type ResolvedConfig, type Manifest } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
-import type { BuildTiming, VitePluginFn } from "../types.js";
+import type { BuildTiming, VitePluginFn, AutoDiscoveredFiles } from "../types.js";
+import type { OutputBundle } from "rollup";
 import { renderPages } from "./renderPages.js";
 import { performance } from "node:perf_hooks";
 import { renderPage } from "./renderPage.client.js";
@@ -37,6 +38,9 @@ import { processCssFilesForPages } from "./processCssFilesForPages.js";
 import { createBuildLoader } from "./createBuildLoader.client.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { toError } from "../error/toError.js";
+import { addStaticManifest, manifests } from "../bundle/manifests.js";
+import type { Worker } from "node:worker_threads";
+import { resolveAutoDiscover } from "../config/index.js";
 // cssCollector removed - using filesystem-based CSS processing
 
 assertNonReactServer();
@@ -58,13 +62,13 @@ assertNonReactServer();
 export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
   options
 ) {
-  let logger: any;
-  let autoDiscoveredFiles: any = null;
-  let rscWorker: any = null;
+  let logger: ReturnType<typeof createLogger>;
+  let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
+  let rscWorker: Worker | undefined = undefined; 
   let resolvedConfig: ResolvedConfig | null = null;
-  let serverManifest: any = undefined;
-  let staticBundle: any = undefined;
-  let serverBundle: any = undefined;
+  let serverManifest: Manifest | undefined = undefined;
+  let staticBundle: OutputBundle | undefined = undefined;
+  let serverBundle: OutputBundle | undefined = undefined;
 
   let clientComponentMessageHandler: ((message: any) => void) | undefined;
   const timing: BuildTiming = {
@@ -104,28 +108,23 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       logger = config.customLogger || createLogger();
       resolvedConfig = config;
 
-      // Run auto-discovery for the client plugin
-      const { resolveAutoDiscover } = await import("../config/autoDiscover/resolveAutoDiscover.js");
+      // Perform auto-discovery to populate autoDiscoveredFiles
       const autoDiscoverResult = await resolveAutoDiscover({
-        config,
-        configEnv: { mode: config.mode, command: "build" },
+        config: config,
+        configEnv: {
+          mode: config.mode,
+          command: config.command,
+          isSsrBuild: false,
+          isPreview: false,
+        },
         userOptions,
         logger,
       });
-
       if (autoDiscoverResult.type === "error") {
-        const panicError = handleError({
-          error: autoDiscoverResult.error,
-          logger,
-          context: "clientPlugin(autoDiscover)",
-          panicThreshold: userOptions.panicThreshold,
-        });
-        if (panicError != null) {
-          throw panicError;
-        }
+        throw autoDiscoverResult.error;
       }
-
       autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
+      logger?.info("[react-static-client] Auto-discovery completed");
     },
 
     async buildStart() {
@@ -190,10 +189,11 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
         // Store manifest based on environment
         if (this.environment.name === "static") {
-          // Static build manifest (client-side modules)
-          if (autoDiscoveredFiles) {
-            autoDiscoveredFiles.staticManifest = bundleManifest;
-          }
+          // Store in global manifest store for environment plugin access
+          addStaticManifest(bundleManifest);
+          logger?.info(
+            `[react-static-client] Stored static manifest with ${Object.keys(bundleManifest).length} entries`
+          );
           staticBundle = bundle;
           // Collect CSS from static build
           // cssCollector removed - using filesystem-based CSS processing
@@ -201,20 +201,43 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             "[react-static-client] Captured static manifest and CSS"
           );
         } else if (this.environment.name === "client") {
-          // Client build manifest (SSR modules)
-          if (autoDiscoveredFiles) {
-            autoDiscoveredFiles.clientManifest = bundleManifest;
+          // Client build manifest (SSR modules) - stored globally now
+          
+          // Update client build filenames to match static manifest
+          logger?.info(
+            `[react-static-client] Client build: static manifest available: ${manifests.static ? 'yes' : 'no'}`
+          );
+          if (manifests.static) {
+            const staticManifest = manifests.static;
+            
+            // Update bundle filenames to match static manifest
+            for (const [key, chunk] of Object.entries(bundle)) {
+              if (chunk.type === 'chunk' && chunk.fileName) {
+                const normalized = userOptions.normalizer(chunk.fileName);
+                let value = normalized[1];
+                if (value.startsWith(userOptions.moduleBasePath)) {
+                  value = value.slice(userOptions.moduleBasePath.length);
+                }
+                
+                const entry = staticManifest[value];
+                if (entry && entry.file !== chunk.fileName) {
+                  // Update the filename to match static manifest
+                  chunk.fileName = entry.file;
+                  logger?.info(
+                    `[react-static-client] Updated client filename: ${key} -> ${entry.file}`
+                  );
+                }
+              }
+            }
           }
+          
           // Collect CSS from client build
           // cssCollector removed - using filesystem-based CSS processing
           logger?.info(
             "[react-static-client] Captured client manifest and CSS"
           );
         } else if (this.environment.name === "server") {
-          // Server build manifest (server components)
-          if (autoDiscoveredFiles) {
-            autoDiscoveredFiles.serverManifest = bundleManifest;
-          }
+          // Server build manifest (server components) - stored globally now
           serverBundle = bundle;
           // Collect CSS from server build
           // cssCollector removed - using filesystem-based CSS processing
@@ -243,7 +266,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       // This runs after all writeBundle hooks are complete
       // Now we can do static generation with access to both client and server builds
       try {
-        if (!autoDiscoveredFiles?.urlMap) {
+        if (!autoDiscoveredFiles?.urlMap || autoDiscoveredFiles?.urlMap.size === 0) {
           logger?.warn(
             "[react-static-client] No pages found for static generation"
           );
@@ -274,6 +297,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         logger?.info(
           "[react-static-client] Loaded server manifest for static generation"
         );
+
+
 
         // Load static manifest from filesystem for CSS path mapping
         const { tryManifest } = await import("../helpers/tryManifest.js");
@@ -322,6 +347,12 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           `[react-static-client] Generating ${routes.length} static pages`
         );
 
+        // If no pages to generate, skip static generation
+        if (routes.length === 0) {
+          logger?.info("[react-static-client] No pages to generate, skipping static generation");
+          return;
+        }
+
         // Use the static manifest to ensure consistent module IDs between RSC stream and client build
         // The static manifest contains the correct hashes that should be used for both builds
         // (staticManifest already loaded above)
@@ -348,8 +379,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           workerData: {
             userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
             resolvedConfig: serializeResolvedConfig(resolvedConfig as any),
-            serverManifest: serverManifest || {},
-            bundle: serverBundle || staticBundle || {},
+            serverManifest: staticManifest || {}, // Use static manifest for client-side path resolution
+            bundle: staticBundle || serverBundle || {}, // Use static bundle for client-side path resolution, server bundle as fallback
+            staticBundle: staticBundle || {}, // Pass static bundle separately for path resolution
             id: "static-client-rsc-worker",
           },
         });
@@ -409,7 +441,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               data: {
                 pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
                 options: null as any, // No specific rollup output options for static generation
-                bundle: staticBundle,
+                bundle: staticBundle || {},
               },
             });
             if (r != null && typeof r === "object" && "then" in r) {
@@ -440,7 +472,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             cssFilesByPage: cssFilesByPage, // Pass CSS files by page
             serverPipeableStreamOptions: {},
             globalCss: globalCss, // Pass global CSS
-            manifest: serverManifest, // Server manifest for RSC worker
+            manifest: serverManifest || {}, // Server manifest for RSC worker
             staticManifest: staticManifest, // Static manifest for consistent module IDs
             onEvent: onEvent,
             onMetrics: onMetrics, // Pass through the onMetrics callback (metric watcher)
@@ -515,7 +547,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               data: {
                 pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
                 options: null as any, // No specific rollup output options for static generation
-                bundle: staticBundle,
+                bundle: staticBundle || {},
               },
             });
             if (r != null && typeof r === "object" && "then" in r) {

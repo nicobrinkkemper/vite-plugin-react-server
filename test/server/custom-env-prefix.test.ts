@@ -81,10 +81,9 @@ describe("Custom Environment Prefix Integration", () => {
   it("should complete build successfully with custom environment prefix", async () => {
     // Check that we have the expected build events
     const buildEvents = events.filter(e => 
-      e.type === "build.writeBundle.client" || 
-      e.type === "build.writeBundle.static-client" ||
+      e.type === "build.writeBundle.static" || 
       e.type === "build.writeBundle.server" ||
-      e.type === "build.writeBundle.static-server"
+      e.type === "build.writeBundle.client"
     );
     expect(buildEvents.length).toBeGreaterThan(0);
   });

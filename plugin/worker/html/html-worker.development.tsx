@@ -3,7 +3,10 @@ import { parentPort } from "node:worker_threads";
 import type { ReadyMessage } from "../types.js";
 
 // Signal ready with environment
-parentPort?.on("message", messageHandler);
+parentPort?.on("message", (msg) => {
+  console.log(`[HTML-WORKER-DEBUG] Received message:`, msg.type, msg.id);
+  messageHandler(msg);
+});
 parentPort?.postMessage({
   type: "READY",
   id: "html-worker",

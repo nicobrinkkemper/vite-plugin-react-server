@@ -6,8 +6,6 @@ import type {
 } from "vite-plugin-react-server/types";
 import { testUserOptions } from "./test-config";
 import { inspect } from "node:util";
-import { rm } from "node:fs/promises";
-import { resolve } from "node:path";
 
 /**
  * Builds the project with the test config and given options and returns the events
@@ -45,10 +43,6 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
   try {
     // Change to test directory
     process.chdir(options.projectRoot ?? "");
-
-    // Clean output directory only at the start
-    const distDir = resolve(options.projectRoot ?? "", "dist");
-    await rm(distDir, { recursive: true, force: true });
 
     // Use the Environment API with createBuilder to get full control
     // The environment configuration is now handled by the createEnvironmentPlugin

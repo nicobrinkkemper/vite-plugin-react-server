@@ -12,6 +12,10 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
     throw new Error("options is required");
   }
 
+  if (options.verbose) {
+    console.log(`[plugin.client] input options.projectRoot: ${options.projectRoot}`);
+  }
+  
   const resolvedOptions = resolveOptions(options);
   if (resolvedOptions.type === "error") {
     if (resolvedOptions.error != null) {
@@ -20,6 +24,10 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
     throw new Error("Failed to resolve options");
   }
   const userOptions = resolvedOptions.userOptions;
+  
+  if (options.verbose) {
+    console.log(`[plugin.client] resolved userOptions.projectRoot: ${userOptions.projectRoot}`);
+  }
 
   return {
     name: "vite-plugin-react-server:dev-server-client",

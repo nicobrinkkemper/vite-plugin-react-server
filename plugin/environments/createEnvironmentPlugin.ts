@@ -1,12 +1,22 @@
 import type { Plugin, UserConfig } from "vite";
 import type { VitePluginFn } from "../types.js";
+import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
+
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
-import { resolveEnvironmentConfig } from "./resolveEnvironmentConfig.js";
+import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { handleError } from "../error/handleError.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { createLogger } from "vite";
+import { join } from "node:path";
+import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 
+/**
+ * Creates a plugin that ensures consistent hash generation across environments
+ * by using the original source file content as the basis for hash generation.
+
+*/
+// Note: Path normalization should be handled in the file naming functions, not in writeBundle
 
 /**
  * Environment Configuration Plugin
@@ -15,12 +25,12 @@ import { createLogger } from "vite";
  * It's separate from the env plugin which handles process environment variables.
  *
  * Environment mapping:
- * - client (Vite client = browser) → dist/static (static site generation)
- * - ssr (Vite SSR = client boundary) → dist/client (React client boundary code)
- * - server (custom) → dist/server (React server components)
+ * - client (Vite client = browser) → dist/client (React client components - real implementations)
+ * - ssr (Vite SSR = SSR-safe) → dist/static (SSR-compatible static files)  
+ * - server (custom) → dist/server (React server components with registerClientReference)
  */
 export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
-  return {
+  const environmentPlugin: Plugin = {
     name: "vite:plugin-react-server/environments",
     enforce: "pre",
 
@@ -31,7 +41,24 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         throw resolvedOptionsResult.error;
       }
       const userOptions = resolvedOptionsResult.userOptions;
-      
+
+      // Add transformer plugins at the Vite level with proper environment filtering
+      if (!config.plugins) {
+        config.plugins = [];
+      }
+
+      // Add single dynamic transformer that adapts based on current environment
+      config.plugins.push(
+        createTransformerPlugin({
+          name: "dynamic",
+          defaultEnvironment: "client", // Default fallback, will be overridden by actual environment
+          allowedEnvironments: ["client", "ssr", "server"], // Allow all environments
+        })(options)
+      );
+
+      // Note: Hash coordination is handled by the sequential build approach
+      // Each environment will use the manifest from the previous build
+
       // Set up logger and moduleID
       const logger = config.customLogger || createLogger();
       if (typeof userOptions.moduleID !== "function") {
@@ -40,6 +67,12 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           configEnv,
           userOptions.loader?.mode
         );
+      }
+      if (typeof userOptions.loader?.moduleID !== "function") {
+        if (!userOptions.loader) {
+          userOptions.loader = DEFAULT_LOADER_CONFIG;
+        }
+        userOptions.loader.moduleID = userOptions.moduleID;
       }
 
       // Run auto-discovery once to get all files - we don't need separate calls since
@@ -70,20 +103,38 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       // Get the auto-discovered files (safe to access since we checked for errors above)
       const autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles!;
 
-      logger?.info("Environment plugin resolved auto-discovery for all environments");
-
       // Define environment configurations
       const environmentConfigs = [
-        { name: "client", condition: "react-client" as const, ssr: false },
-        { name: "ssr", condition: "react-client" as const, ssr: true },
-        { name: "server", condition: "react-server" as const, ssr: true },
+        {
+          name: "client",
+          condition: "react-client" as const,
+          ssr: false,
+          outDir: join(userOptions.build.outDir, userOptions.build.client),
+        },
+        {
+          name: "ssr",
+          condition: "react-client" as const,
+          ssr: true,
+          outDir: join(userOptions.build.outDir, userOptions.build.static),
+        },
+        {
+          name: "server",
+          condition: "react-server" as const,
+          ssr: true,
+          outDir: join(userOptions.build.outDir, userOptions.build.server),
+        },
       ];
 
-      // Resolve all environment configurations
-      const environments: Record<string, import("vite").EnvironmentOptions> = {};
-      
-      for (const envConfig of environmentConfigs) {
-        const configResult = resolveEnvironmentConfig({
+      // Resolve all environment configurations using resolveUserConfig
+      const environments: Record<string, import("vite").EnvironmentOptions> =
+        {};
+
+      // Sort environments to process static first (to establish hashes)
+      // Use the environment configs as-is
+      const sortedEnvConfigs = environmentConfigs;
+
+      for (const envConfig of sortedEnvConfigs) {
+        const configResult = resolveUserConfig({
           condition: envConfig.condition,
           config,
           configEnv,
@@ -103,20 +154,86 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           if (panicError != null) {
             throw panicError;
           } else {
-            throw new Error(`Cannot continue without ${envConfig.name} environment configuration`);
+            throw new Error(
+              `Cannot continue without ${envConfig.name} environment configuration`
+            );
           }
         }
 
+        // Map the resolved user config to Environment API compatible options
+        const userConfig = configResult.userConfig;
+
+
+
+        // Log the rollup inputs for this environment
+        logger?.info(
+          `${envConfig.name} environment rollup inputs: ${JSON.stringify(
+            userConfig.build.rollupOptions.input,
+            null,
+            2
+          )}`
+        );
+        logger?.info(
+          `${
+            envConfig.name
+          } environment output preserveModulesRoot: ${JSON.stringify(
+            userConfig.build.rollupOptions.output,
+            null,
+            2
+          )}`
+        );
+
+        // Debug: Log what resolveUserConfig provided
+        if (userOptions.verbose) {
+          logger?.info(
+            `${envConfig.name} userConfig.resolve: ${JSON.stringify(
+              userConfig.resolve,
+              null,
+              2
+            )}`
+          );
+          logger?.info(
+            `${envConfig.name} userConfig.build.rollupOptions.external: ${JSON.stringify(
+              userConfig.build.rollupOptions.external,
+              null,
+              2
+            )}`
+          );
+        }
+
+        // Note: Path normalization should be handled in the file naming functions
         environments[envConfig.name] = {
-          build: configResult.environmentConfig,
+          keepProcessEnv: envConfig.name === "server" ? true : false,
+          define: userConfig.define,
+          consumer: envConfig.name === "server" ? "server" : undefined,
+          resolve: {
+            ...userConfig.resolve,
+            // IMPORTANT: Map externals from resolveUserConfig (rollupOptions.external) to Environment API format
+            // In Environment API, externals go in resolve.external, not build.rollupOptions.external
+            external: Array.isArray(userConfig.build.rollupOptions.external) 
+              ? userConfig.build.rollupOptions.external.filter((item): item is string => typeof item === 'string')
+              : [],
+          },
+          build: {
+            ...userConfig.build,
+            target: userConfig.build.target,
+            // Remove externals from rollupOptions since they should be in resolve.external for Environment API
+            rollupOptions: {
+              ...userConfig.build.rollupOptions,
+              external: undefined, // Remove external from rollupOptions, it's now in resolve.external
+            },
+          },
         };
       }
 
       // Return the configuration with all environments
       return {
+        root: userOptions.projectRoot,
         ...config,
         environments,
       };
     },
   };
+
+  return environmentPlugin;
 };

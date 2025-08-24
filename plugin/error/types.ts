@@ -1,4 +1,8 @@
-import type { ErrorInfo } from "react";
+// React types are imported from vendor system at runtime
+type ErrorInfo = {
+  componentStack?: string;
+};
+
 import type { Logger } from "vite";
 import type { PanicThreshold } from "../types.js";
 

@@ -3,6 +3,7 @@ import { routeToURL } from "../utils/routeToURL.js";
 import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
 import { createWorkerStream } from "./createWorkerStream.client.js";
+
 import type { CreateRscStreamFn, ClientRscStreamResult } from "./createRscStream.types.js";
 
 import { assertNonReactServer } from "../config/getCondition.js";
@@ -16,6 +17,8 @@ import {
 
 
 assertNonReactServer();
+
+
 
 /**
  * Creates an RSC stream by communicating with the RSC worker.
@@ -68,7 +71,6 @@ export const createRscStream: CreateRscStreamFn<"client"> = function _createRscS
   const {
     route,
     verbose = false,
-    rscTimeout = 3000,
     // Worker options
     rscWorkerPath,
     worker,
@@ -130,9 +132,11 @@ export const createRscStream: CreateRscStreamFn<"client"> = function _createRscS
     const cleanup = setupRscStreamEventHandlers(
       passThrough,
       streamMetrics,
-      route,
-      verbose,
-      rscTimeout
+      {
+        route,
+        verbose,
+        logger
+      }
     );
 
     // Pipe the worker stream directly to our pass through

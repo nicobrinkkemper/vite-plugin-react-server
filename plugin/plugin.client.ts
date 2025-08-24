@@ -5,7 +5,7 @@ import { envPlugin } from "./env/plugin.client.js";
 import { createEnvironmentPlugin } from "./environments/createEnvironmentPlugin.js";
 import { reactClientPlugin } from "./react-client/plugin.client.js";
 import { reactServerPlugin } from "./react-server/plugin.client.js";
-import { createTransformerPlugin } from "./transformer/createTransformerPlugin.js";
+
 import { reactStaticPlugin } from "./react-static/plugin.client.js";
 import { createBuildEventPlugin } from "./environments/createBuildEventPlugin.js";
 
@@ -20,17 +20,7 @@ function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
   const plugins = [
     envPlugin(options),
     createEnvironmentPlugin(options),
-    createTransformerPlugin({
-      name: "client",
-      defaultEnvironment: "client",
-      allowedEnvironments: ["client", "ssr"], // Client transformer for static and client boundary
-    })(options),
     reactClientPlugin(options),
-    createTransformerPlugin({
-      name: "server", 
-      defaultEnvironment: "server",
-      allowedEnvironments: ["server"], // Server transformer only for server components
-    })(options),
     reactServerPlugin(options),
     createBuildEventPlugin(options),
   ];
@@ -81,10 +71,6 @@ export const vitePluginReactClient: VitePluginReactClientFn =
 
     const plugins = [
       envPlugin(options),
-      createTransformerPlugin({
-        name: "client",
-        defaultEnvironment: "client",
-      })(options),
       reactClientPlugin(options),
     ];
 

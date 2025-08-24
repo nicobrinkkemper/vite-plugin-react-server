@@ -674,24 +674,3 @@ Compose multiple plugins for complex workflows:
 ---
 
 <!-- TOC END -->
-
-
-
-
-
-```typescript
-import { defineConfig } from "vite";
-import { vitePluginReactServer } from "vite-plugin-react-server";
-
-export default defineConfig({
-  plugins: [
-    // Core plugin
-    vitePluginReactServer(config),
-    
-    // Custom extensions
-    customTransformerPlugin(),
-    customLoaderPlugin(),
-    customWorkerPlugin(),
-  ],
-});
-```

@@ -14,9 +14,9 @@ import { Root as DefaultRoot } from "../components/root.js";
  * @param HtmlComponent - The HTML component to use, or undefined to use default
  * @returns Object containing resolved RootComponent and HtmlComponent
  */
-export function resolveComponents(
-  RootComponent: RootComponentType | typeof React.Fragment,
-  HtmlComponent: HtmlComponentType | typeof React.Fragment | undefined
+export function resolveWithDefaultRootAndHtml(
+  RootComponent?: RootComponentType | typeof React.Fragment | undefined,
+  HtmlComponent?: HtmlComponentType | typeof React.Fragment | undefined
 ) {
   return {
     RootComponent: RootComponent || DefaultRoot,

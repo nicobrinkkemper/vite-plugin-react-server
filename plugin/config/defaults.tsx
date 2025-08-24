@@ -25,6 +25,13 @@ const IS_CLIENT_COMPONENT_CODE = (code: string, moduleId?: string) =>
   code.match(CLIENT_COMPONENT_FILE) != null ||
   (moduleId && CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase())) ||
   false;
+
+// Separate functions for checking client components by code vs by name
+const IS_CLIENT_COMPONENT_BY_CODE = (code: string) =>
+  code.match(CLIENT_COMPONENT_FILE) != null || false;
+
+const IS_CLIENT_COMPONENT_BY_NAME = (moduleId: string) =>
+  CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase()) || false;
 // Directive configurations
 export const DIRECTIVE_CONFIGS = {
   client: {
@@ -80,6 +87,8 @@ export const DEFAULT_LOADER_CONFIG = {
   directivePattern: DIRECTIVE_PATTERNS.ANY,
   isServerFunctionCode: IS_SERVER_ACTION_CODE,
   isClientComponentCode: IS_CLIENT_COMPONENT_CODE,
+  isClientComponentByCode: IS_CLIENT_COMPONENT_BY_CODE,
+  isClientComponentByName: IS_CLIENT_COMPONENT_BY_NAME,
   allowedDirectives: DIRECTIVE_CONFIGS,
   importServerPath: "react-server-dom-esm/server",
   importClientPath: "react-server-dom-esm/server",
@@ -88,6 +97,7 @@ export const DEFAULT_LOADER_CONFIG = {
   getDirectiveType,
   parse: parse,
   mode: MODE,
+  moduleID: (moduleId: string, _sourceContent?: string) => typeof moduleId === "string" ? moduleId : String(moduleId),
 } as const;
 
 // Define base patterns that can be reused

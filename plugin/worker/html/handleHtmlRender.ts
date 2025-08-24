@@ -7,7 +7,8 @@ import { handleError } from "../../error/handleError.js";
 import type { HandleHtmlRenderFn } from "./types.js";
 import { assertNonReactServer } from "../../config/getCondition.js";
 import { createFromNodeStream } from "../../stream/createFromNodeStream.client.js";
-import { ReactDOMServer } from "../../vendor/vendor.client.js"; // React imported here
+import { ReactDOMServer } from "../../vendor/vendor.client.js";
+
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
 
 assertNonReactServer();
@@ -67,6 +68,14 @@ export const handleHtmlRender: HandleHtmlRenderFn =
       let resolvedModuleRootPath = moduleRootPath || "";
       const projectRoot = workerData.userOptions.projectRoot;
 
+      if (verbose) {
+        logger.info(`[html-worker:${route}] Module resolution config:`);
+        logger.info(`[html-worker:${route}]   projectRoot: ${projectRoot}`);
+        logger.info(`[html-worker:${route}]   moduleRootPath: ${moduleRootPath}`);
+        logger.info(`[html-worker:${route}]   moduleBasePath: ${workerData.userOptions.moduleBasePath}`);
+        logger.info(`[html-worker:${route}]   moduleBaseURL: ${moduleBaseURL}`);
+      }
+
       if (typeof resolvedModuleRootPath !== "string") {
         throw new Error("moduleRootPath is required");
       } else if (!resolvedModuleRootPath.startsWith(projectRoot)) {
@@ -79,6 +88,10 @@ export const handleHtmlRender: HandleHtmlRenderFn =
       }
       if (moduleBasePath === "") {
         resolvedModuleRootPath = `${resolvedModuleRootPath}/`;
+      }
+
+      if (verbose) {
+        logger.info(`[html-worker:${route}] Final resolvedModuleRootPath: ${resolvedModuleRootPath}`);
       }
       if(rscStream.destroyed || rscStream.closed || rscStream.readableAborted || rscStream.readableEnded){
         throw new Error("RSC stream is closed or aborted");

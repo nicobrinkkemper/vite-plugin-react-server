@@ -25,6 +25,7 @@ export async function setupIndexHTML(testDir: string) {
 export async function setupClientTSX(testDir: string) {
   await writeFile(
     resolve(testDir, "src/client.tsx"),
+    // NO use-client directive to test needed since no exports and name client should hide it for server
     `import React from 'react'
   import { createRoot } from 'react-dom/client'
   const root = createRoot(document.getElementById('root')!)

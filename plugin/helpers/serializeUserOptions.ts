@@ -8,6 +8,7 @@ import type {
   Serializable,
 } from "../types.js";
 import { cleanObject } from "./cleanObject.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 // Common non-serializable functions in Vite's resolved config
 const VITE_NON_SERIALIZABLE_FUNCTIONS = new Set([
@@ -247,9 +248,16 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
     build: _build,
     ...handlerOptions
   } = config;
-  return processForSerialization(
-    cleanObject(handlerOptions, customNonSerializableFunctions)
-  );
+  
+  // Explicitly preserve configEnv for worker mode detection
+  const serializedConfig = {
+    ...processForSerialization(
+      cleanObject(handlerOptions, customNonSerializableFunctions)
+    ),
+    configEnv: (config as any).configEnv, // Explicitly preserve configEnv
+  };
+  
+  return serializedConfig;
 };
 
 // For your own options (if you need custom non-serializable functions)
@@ -281,8 +289,10 @@ export const serializedOptions = (
     ...buildOptions
   } = _build ?? {};
   // Preserve the build properties that should be serialized
+  // Respect user options first, then fall back to defaults
   const serializedBuild = {
-    ...buildOptions,
+    ...DEFAULT_CONFIG.BUILD,  // Start with defaults
+    ...buildOptions,          // Override with user options
     pages: autoDiscoveredFiles
       ? Array.from(autoDiscoveredFiles.urlMap.keys())
       : [],
@@ -290,6 +300,8 @@ export const serializedOptions = (
   const {
     isServerFunctionCode: _isServerFunctionCode,
     isClientComponentCode: _isClientComponentCode,
+    isClientComponentByCode: _isClientComponentByCode,
+    isClientComponentByName: _isClientComponentByName,
     getDirectiveType: _getDirectiveType,
     allowedDirectives: allowedDirectives,
     ...loaderOptions

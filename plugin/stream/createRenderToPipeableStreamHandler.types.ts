@@ -1,4 +1,4 @@
-import type React from "react";
+// React types are imported from vendor system at runtime
 import type { ReactStreamHandlerFn, StreamMetrics } from "../types.js";
 import type { PassThrough } from "node:stream";
 

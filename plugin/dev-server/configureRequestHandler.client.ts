@@ -31,13 +31,12 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
     const logger = server.config.customLogger || server.config.logger;
     const {
       // remove these
-      projectRoot: _projectRoot,
       moduleBaseURL: _moduleBaseURL,
       ...handlerUserOptions
     } = _userOptions;
     const handlerOptions = Object.assign({}, handlerUserOptions, {
       moduleBaseURL: server.config.base,
-      projectRoot: server.config.root,
+      projectRoot: _userOptions.projectRoot || server.config.root,
       logger: logger,
     });
 
@@ -85,11 +84,21 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         ...handlerOptions,
         url: info.url,
       };
+      
+      if (handlerOptions.verbose) {
+        server.config.logger.info(`[configureRequestHandler] handlerOptionsWithUrl.projectRoot: ${handlerOptionsWithUrl.projectRoot}`);
+        server.config.logger.info(`[configureRequestHandler] handlerOptions.projectRoot: ${handlerOptions.projectRoot}`);
+      }
+      
       // Serialize user options for worker
       const serializedUserOptions = serializedOptions(
         handlerOptionsWithUrl,
         autoDiscoveredFiles
       );
+      
+      if (handlerOptions.verbose) {
+        server.config.logger.info(`[configureRequestHandler] serializedUserOptions.projectRoot: ${serializedUserOptions.projectRoot}`);
+      }
 
       // Handle server action requests
       if (info.isServerActionRequest) {
@@ -160,6 +169,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         }
         // Notify about worker creation
         onWorkerCreated?.(currentWorker);
+
         const stream = handleRscStream({
           worker: currentWorker,
           options: {
@@ -176,8 +186,8 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             // Component overrides (undefined for file-based components in client dev)
             HtmlComponent: undefined,
             RootComponent: undefined,
-            // override these at all times to ensure the settings will work for the dev server
-            projectRoot: server.config.root,
+            // Use userOptions.projectRoot if available, otherwise fall back to server.config.root
+            projectRoot: serializedUserOptions.projectRoot || server.config.root,
             build: {
               ...(serializedUserOptions.build || {}),
               pages: Array.isArray(serializedUserOptions.build?.pages)

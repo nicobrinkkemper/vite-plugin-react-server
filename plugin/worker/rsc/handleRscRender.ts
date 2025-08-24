@@ -5,7 +5,6 @@ import { createRenderToPipeableStreamHandler } from "../../stream/createRenderTo
 import { PassThrough } from "node:stream";
 import type { HandleRscRenderFn } from "./types.js";
 import { createLogger } from "vite";
-import { join } from "node:path";
 
 /**
  * Handle the render of an RSC stream, creates a pass through stream and
@@ -48,35 +47,19 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     reactStream.pipe(passThrough);
 
     // Set up stream handling using our helper
-    const baseDir = join(
-      handlerOptions.build.outDir,
-      handlerOptions.build.static
-    );
     const hasHtml =
       handlerOptions.htmlPath !== "" || handlerOptions.HtmlComponent;
+    
+    // In dev mode, don't use file-based metrics at all - just track the stream
     const renderMetrics = createRenderMetrics({
-      type: hasHtml ? "rsc-full" : "rsc-headless",
+      type: hasHtml ? "rsc-full" : "rsc-headless", 
       route,
       fromMainThread: false,
       fromRscWorker: true,
       fromHtmlWorker: false,
       processingTime: 0,
       chunks: 0,
-      ...(!hasHtml
-        ? {
-            fileName: hasHtml
-              ? handlerOptions.build.htmlOutputPath
-              : handlerOptions.build.rscOutputPath,
-            outputPath: join(
-              baseDir,
-              route,
-              handlerOptions.build.rscOutputPath
-            ),
-            baseDir,
-            routePath: route.replace(/^\//, ""),
-          }
-        : null // rsc-full isn't written to file directly.
-        ),
+      // No file paths in dev mode - we're not writing files
     });
 
     // Add a timeout to ensure the stream completes even if React doesn't end it naturally
@@ -147,6 +130,10 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       if (panicError) {
         handlers.onError(id, panicError);
       }
+      // Ensure stream is ended when error occurs to prevent hanging
+      if (!passThrough.destroyed) {
+        passThrough.end();
+      }
     });
 
     if (verbose) {
@@ -185,3 +172,4 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     throw new Error("RSC render failed", { cause: error });
   }
 };
+

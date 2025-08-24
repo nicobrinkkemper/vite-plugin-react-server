@@ -88,6 +88,23 @@ export const setupClientMessageHandlers: SetupClientMessageHandlersFn = function
         break;
       }
 
+      case "SHELL_ERROR": {
+        const rscStream = getStashedRscStream(message.id);
+        if (rscStream) {
+          // Emit error on the stream
+          const errorMessage = typeof message.error === 'object' && message.error !== null && 'message' in message.error 
+            ? String(message.error.message) 
+            : 'Unknown shell error';
+          rscStream.emit("error", new Error(errorMessage));
+          clearStashedRscStream(message.id);
+        }
+        const errorMessage = typeof message.error === 'object' && message.error !== null && 'message' in message.error 
+          ? String(message.error.message) 
+          : 'Unknown shell error';
+        logger?.error(`Worker shell error for ${message.id}: ${errorMessage}`, {error: toError(message.error)});
+        break;
+      }
+
       case "READY":
         if (verbose) {
           logger?.info("[client] Worker is ready");

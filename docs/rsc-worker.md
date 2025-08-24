@@ -809,26 +809,3 @@ describe('RSC Worker', () => {
 
 <!-- TOC END -->
 
-
-
-
-
-```typescript
-// integration.test.js
-import { describe, it, expect } from 'vitest';
-import { build } from 'vite';
-
-describe('Worker Integration', () => {
-  it('should process RSC to HTML', async () => {
-    const result = await build({
-      plugins: [vitePluginReactServer(config)]
-    });
-    
-    expect(result).toBeDefined();
-    // Verify HTML output
-  });
-});
-```
-
-
-

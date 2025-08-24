@@ -1,5 +1,5 @@
 import type { ServerResponse } from "http";
-import React from "react";
+import { React } from "../vendor/vendor.server.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { createRenderToPipeableStreamHandler } from "../stream/createRenderToPipeableStreamHandler.server.js";
 import { requestInfo } from "../helpers/requestInfo.js";
@@ -90,13 +90,24 @@ export const configureReactServer: ConfigureReactServerFn =
 
     const loader = async (id: string) => {
       const [moduleID, exportName] = id.split("#");
-      const result = await server.ssrLoadModule(moduleID);
+      
+      // Resolve the module path relative to our project root, not the server config root
+      const resolvedModuleID = moduleID.startsWith("/") 
+        ? moduleID.slice(1) 
+        : moduleID;
+      
+      // Create the full path from our project root
+      const fullModulePath = `${_userOptions.projectRoot}/${resolvedModuleID}`;
+      
+
+      
+      const result = await server.ssrLoadModule(fullModulePath);
       if (result == null)
-        throw new Error(`Module \"${moduleID}\" does not have any exports`);
+        throw new Error(`Module \"${resolvedModuleID}\" does not have any exports`);
 
       if (!Object.keys(result).length && exportName.length)
         throw new Error(
-          `Module \"${moduleID}\" is a module, but does not have any exports so it can't find ${exportName}`
+          `Module \"${resolvedModuleID}\" is a module, but does not have any exports so it can't find ${exportName}`
         );
 
       if (exportName && !(exportName in result))
@@ -113,7 +124,7 @@ export const configureReactServer: ConfigureReactServerFn =
         ...userHandlerOptions,
         moduleBaseURL: server.config.base,
         moduleBasePath: userHandlerOptions.moduleBasePath,
-        projectRoot: server.config.root,
+        projectRoot: _userOptions.projectRoot,
         css: userHandlerOptions.css,
         loader: loader,
         verbose,
@@ -194,7 +205,7 @@ export const configureReactServer: ConfigureReactServerFn =
           manifest: serverManifest,
           server,
           moduleBaseURL: server.config.base,
-          projectRoot: server.config.root,
+          projectRoot: _userOptions.projectRoot,
           loader: loader,
           verbose: verbose,
         };
@@ -214,7 +225,10 @@ export const configureReactServer: ConfigureReactServerFn =
         }
 
         if (cssFilesResult.type === "skip") {
-          return next();
+          if (verbose) {
+            logger.info(`CSS collection skipped for route: ${info.route}, continuing with RSC rendering`);
+          }
+          // Continue with RSC rendering even if CSS collection is skipped
         }
         if (cssFilesResult.type === "error") {
           return next(cssFilesResult.error);
@@ -230,13 +244,35 @@ export const configureReactServer: ConfigureReactServerFn =
           logger.info(`Creating RSC handler for route: ${info.route}`);
         }
 
-        // Create the headless RSC stream directly
+        // Load actual components like the client environment does
+        let PageComponent: React.ComponentType<any> = React.Fragment;
+        const RootComponent: React.ComponentType<any> = React.Fragment;
+        const HtmlComponent: React.ComponentType<any> = (_UserHtmlComponent as React.ComponentType<any>) || React.Fragment;
+
+        // Load the page component
+        if (pagePath) {
+          try {
+            const pageModule = await loader(`${pagePath}#Page`);
+            if (pageModule && typeof pageModule === 'function') {
+              PageComponent = pageModule as React.ComponentType<any>;
+            } else if (pageModule && pageModule['Page'] && typeof pageModule['Page'] === 'function') {
+              PageComponent = pageModule['Page'] as React.ComponentType<any>;
+            } else if (pageModule && pageModule['default'] && typeof pageModule['default'] === 'function') {
+              PageComponent = pageModule['default'] as React.ComponentType<any>;
+            }
+          } catch (error) {
+            if (verbose) {
+              logger.warn(`Failed to load page component from ${pagePath}: ${error}`);
+            }
+          }
+        }
+
         const rscResult = createRenderToPipeableStreamHandler({
           ...handlerOptions,
           url: handlerOptions.route,
-          PageComponent: React.Fragment, // Headless RSC - no page component
-          RootComponent: React.Fragment, // Headless RSC - no root component  
-          HtmlComponent: React.Fragment, // Headless RSC - no HTML wrapper
+          PageComponent: PageComponent as any,
+          RootComponent: RootComponent as any,
+          HtmlComponent: HtmlComponent as any,
         });
 
         if (verbose) {

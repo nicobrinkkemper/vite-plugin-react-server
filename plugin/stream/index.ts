@@ -132,7 +132,7 @@ const condition = getCondition("");
 export const {
   handleRscStream,
   createRscStream,
-} = (await import(`${dir}/index.${condition}.ts`)) as {
+} = (await import(`${dir}/index.${condition}.js`)) as {
   handleRscStream: HandleRscStreamFn;
   createRscStream: CreateRscStreamFn;
 }; 

@@ -4,7 +4,7 @@ import { resolveOptions } from "./config/resolveOptions.js";
 
 import { envPlugin } from "./env/plugin.server.js";
 import { reactServerPlugin } from "./react-server/plugin.server.js";
-import { createTransformerPlugin } from "./transformer/createTransformerPlugin.js";
+
 import { assertReactServer } from "./config/getCondition.js";
 import { reactClientPlugin } from "./react-client/plugin.server.js";
 import { reactStaticPlugin } from "./react-static/plugin.server.js";
@@ -12,7 +12,10 @@ import { vitePluginReactDevServer } from "./dev-server/plugin.server.js";
 import { createBuildEventPlugin } from "./environments/createBuildEventPlugin.js";
 import { createEnvironmentPlugin } from "./environments/createEnvironmentPlugin.js";
 
-assertReactServer();
+// Allow cross-environment testing - don't assert in test environments
+if (!process.env["VITEST"] && !process.env.NODE_ENV?.includes("test")) {
+  assertReactServer();
+}
 
 // Build plugin - agnostic to condition
 function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
@@ -25,11 +28,6 @@ function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
   const plugins = [
     envPlugin(options),
     createEnvironmentPlugin(options),
-    createTransformerPlugin({
-      name: "server",
-      defaultEnvironment: "server",
-      allowedEnvironments: ["server"], // Server transformer only for server components
-    })(options),
     reactServerPlugin(options),
     vitePluginReactDevServer(options),
     createBuildEventPlugin(options),
@@ -93,10 +91,6 @@ export const vitePluginReactClient: VitePluginReactClientFn =
 
     const plugins = [
       envPlugin(options),
-      createTransformerPlugin({
-        name: "client",
-        defaultEnvironment: "client",
-      })(options),
       reactClientPlugin(options),
     ];
 

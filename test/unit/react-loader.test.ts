@@ -1,19 +1,17 @@
 // test/unit/loader/loader.test.ts
 import { describe, test, expect } from "vitest";
-import { load } from "vite-plugin-react-server/loader";
-import { createDefaultLoader } from "vite-plugin-react-server/loader";
+import { createTransformer } from "vite-plugin-react-server/loader";
 
 const loadReact = async (source: string, url = "test.js") => {
-  const loader = createDefaultLoader(source, url);
-  return await load(
-    url,
-    {
-      format: "module",
-      conditions: ["react-server"],
-      importAttributes: {},
+  const transformer = createTransformer({
+    options: {
+      verbose: true, // Enable verbose logging
     },
-    loader
-  );
+    isServerEnvironment: true, // Test in server environment
+  });
+  
+  const result = await transformer(source, url);
+  return { source: result.code };
 };
 
 describe("Load React code with registrations and directive stripping", () => {

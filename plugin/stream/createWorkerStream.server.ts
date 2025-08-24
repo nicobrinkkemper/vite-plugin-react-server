@@ -108,12 +108,13 @@ export const createWorkerStream: CreateWorkerStreamFn<"server"> = function _crea
       }
     : undefined;
 
-  // Send the render message with server-specific fields (some optional)
+  // Send the serializable render message with server-specific fields (some optional)
   options.worker.postMessage({
     type: options.messageType,
-    id: options.id,
+    id: options.id || options.route,
     route: options.route,
     url: options.url,
+
     projectRoot: options.projectRoot,
     moduleBasePath: options.moduleBasePath,
     moduleBaseURL: options.moduleBaseURL,
@@ -144,9 +145,6 @@ export const createWorkerStream: CreateWorkerStreamFn<"server"> = function _crea
     htmlWorkerPath: options.htmlWorkerPath,
     css: options.css,
     build: cleanBuild,
-    // Add component overrides to ensure they reach the worker
-    HtmlComponent: options.HtmlComponent,
-    RootComponent: options.RootComponent,
   });
 
   return readable;
