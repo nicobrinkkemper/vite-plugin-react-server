@@ -102,6 +102,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       // Configure pipeable stream options for RSC
       const pipeableStreamOptions = {
         ...serverPipeableStreamOptions,
+
         onError(error: unknown) {
           if (verbose) {
             logger?.error(
@@ -184,35 +185,49 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
 
       // Create the pipeable stream
       let result: any;
+      
+      // Get children from either provided children or loaded PageComponent
+      let finalChildren = children;
 
       try {
-        if (!children) {
+        
+        if (!finalChildren && handlerOptions.PageComponent) {
+          // Create React element from the loaded PageComponent
+          finalChildren = React.createElement(handlerOptions.PageComponent);
+          if (verbose) {
+            logger?.info(
+              `[createRscStream:${route}] Using loaded PageComponent for rendering`
+            );
+          }
+        }
+        
+        if (!finalChildren) {
           throw new Error(
-            `[createRscStream:${route}] No children or elements provided for RSC rendering`
+            `[createRscStream:${route}] No children or elements provided for RSC rendering, and no PageComponent loaded`
           );
         }
 
-        const element = React.isValidElement(children)
-          ? children
-          : typeof children === "function"
-          ? React.createElement(children)
-          : typeof children === "string"
-          ? React.createElement(React.Fragment, {}, children)
-          : typeof children === "number" || typeof children === "bigint" || typeof children === "boolean"
-          ? React.createElement(React.Fragment, {}, children)
-          : React.createElement(React.Fragment, {}, children);
-
-        result = ReactDOMServer.renderToPipeableStream(
-          element,
-          handlerOptions.moduleBasePath || "",
-          pipeableStreamOptions
-        );
+        const element = React.isValidElement(finalChildren)
+          ? finalChildren
+          : typeof finalChildren === "function"
+          ? React.createElement(finalChildren)
+          : typeof finalChildren === "string"
+          ? React.createElement(React.Fragment, {}, finalChildren)
+          : typeof finalChildren === "number" || typeof finalChildren === "bigint" || typeof finalChildren === "boolean"
+          ? React.createElement(React.Fragment, {}, finalChildren)
+          : React.createElement(React.Fragment, {}, finalChildren);
 
         if (verbose) {
           logger?.info(
             `[createRscStream:${route}] RSC rendering started successfully`
           );
         }
+
+        result = ReactDOMServer.renderToPipeableStream(
+          element,
+          handlerOptions.moduleBasePath || "",
+          pipeableStreamOptions
+        );
       } catch (error) {
         if (verbose) {
           logger?.error(
@@ -291,7 +306,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           passThrough.removeAllListeners();
         },
         rscStream: passThrough as PassThrough,
-        elements: children,
+        elements: finalChildren,
         metrics: createStreamMetrics(), // Provide empty metrics object
       };
     } catch (error) {

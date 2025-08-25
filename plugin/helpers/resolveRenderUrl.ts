@@ -14,10 +14,11 @@ export function resolveRenderUrl(
   message: RscRenderMessage,
   userOptions: ResolvedUserOptions
 ): string {
+  const options = message.options || {};
   return (
-    message.url ??
+    options.url ??
     routeToURL(
-      message.route,
+      options.route,
       userOptions.moduleBaseURL,
       userOptions.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath
     )

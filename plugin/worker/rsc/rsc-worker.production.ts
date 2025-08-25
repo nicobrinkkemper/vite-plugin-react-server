@@ -23,43 +23,19 @@ if (!parentPort) {
 }
 
 // In test mode, we want errors to propagate up immediately
-const verbose = workerData.verbose;
 const logger = createLogger(workerData.resolvedConfig.logLevel, {
   prefix: "rsc-worker",
 });
-const productionMessageHandler = (msg: RscWorkerInputMessage) => {
-  if (verbose) {
-    if (msg.type === "RSC_RENDER") {
-      logger.info(`Render ${msg.pagePath}}`);
-    } else {
-      logger.info(`RscWorker: ${JSON.stringify(msg)}`);
-    }
-  }
+// Set up loader message handlers
+const cssLoaderMessageHandler = (msg: CssFileMessage) => {
   messageHandler(msg);
 };
 
-const productionCssLoaderMessageHandler = (msg: CssFileMessage) => {
-  if (verbose) {
-    logger.info(`CssLoader: ${JSON.stringify(msg)}`);
-  }
+const envLoaderMessageHandler = (msg: InitializedEnvLoaderMessage) => {
   messageHandler(msg);
 };
 
-const productionEnvLoaderMessageHandler = (
-  msg: InitializedEnvLoaderMessage
-) => {
-  if (verbose) {
-    logger.info(`EnvLoader: ${JSON.stringify(msg)}`);
-  }
-  messageHandler(msg);
-};
-
-const productionReactLoaderMessageHandler = (
-  msg: InitializedReactLoaderMessage
-) => {
-  if (verbose) {
-    logger.info(`${JSON.stringify(msg)}`);
-  }
+const reactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
   messageHandler(msg);
 };
 
@@ -70,7 +46,7 @@ try {
   const envLoaderChannel = new MessageChannel();
 
   // Set up message handlers before transferring ports
-  reactLoaderChannel.port2.on("message", productionReactLoaderMessageHandler);
+  reactLoaderChannel.port2.on("message", reactLoaderMessageHandler);
   reactLoaderChannel.port2.on("messageerror", (error: Error) => {
     logger.error("React loader message serialization failed.", { error });
     if (parentPort) {
@@ -86,7 +62,7 @@ try {
     }
   });
 
-  cssLoaderChannel.port2.on("message", productionCssLoaderMessageHandler);
+  cssLoaderChannel.port2.on("message", cssLoaderMessageHandler);
   cssLoaderChannel.port2.on("messageerror", (error: Error) => {
     logger.error("CSS loader message serialization failed.", { error });
     if (parentPort) {
@@ -102,7 +78,7 @@ try {
     }
   });
 
-  envLoaderChannel.port2.on("message", productionEnvLoaderMessageHandler);
+  envLoaderChannel.port2.on("message", envLoaderMessageHandler);
   envLoaderChannel.port2.on("messageerror", (error: Error) => {
     logger.error("Env loader message serialization failed.", { error });
     if (parentPort) {
@@ -221,8 +197,8 @@ try {
     if (handledError != null) throw handledError;
   }
 
-  // Set up message handling
-  parentPort!.on("message", productionMessageHandler);
+  // Handle all messages through the unified messageHandler
+  parentPort!.on("message", messageHandler);
   parentPort!.on("messageerror", (error: Error) => {
     console.error(
       "[rsc-worker] Parent port message serialization failed:",

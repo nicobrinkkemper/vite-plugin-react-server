@@ -9,16 +9,21 @@ import { createUnifiedStreamHandler } from "../helpers/createUnifiedStreamHandle
  */
 export const handleRscStream: HandleRscStreamFn<"server"> = function _handleRscStream({
   options,
-  logger,
   handlers,
-  verbose = false,
-  panicThreshold = "none",
 }) {
+  console.log('handleRscStream.server.ts called with options:', options);
   // Note: worker parameter is ignored in server version
-  
+  const verbose = options.verbose;
+  const logger = options.logger;
+  const panicThreshold = options.panicThreshold;
   try {
     if (verbose) {
       logger?.info("[handleWorkerRscStream:server] Creating RSC stream directly");
+    }
+    
+    // Debug: Log the options to see what we're working with
+    if (verbose) {
+      logger?.info(`[handleWorkerRscStream:server] Options: route=${options.route}, rscWorker=${!!(options as any).rscWorker}`);
     }
 
     // Create RSC stream using the helper - message is already CreateRscStreamOptions
@@ -49,14 +54,17 @@ export const handleRscStream: HandleRscStreamFn<"server"> = function _handleRscS
     });
 
     // Create RSC stream with unified stream management
+    if (verbose) {
+      logger?.info(`[handleWorkerRscStream:server] About to call createRscStream with worker=${!!(options as any).rscWorker}`);
+    }
     const rscResult = createRscStream({
       ...options, 
       id: requestId,
       logger,
       verbose,
       panicThreshold,
-      worker: undefined, // No worker in server mode
-      loader: (options as any).loader || (() => Promise.resolve({ default: {} })), // Add missing loader
+      rscWorker: options.rscWorker, // Use rscWorker if provided
+      loader: options.loader || (() => Promise.resolve({ default: {} })), // Add missing loader
     } as any);
 
     // Pipe the RSC stream to the unified stream handler

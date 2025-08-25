@@ -3,6 +3,8 @@ import type { Logger } from "vite";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { routeToURL } from "../utils/routeToURL.js";
 import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
+import { createWorker } from "../worker/createWorker.js";
+import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import {
   getStashedUserOptions,
   getStashedHandlerOptions,
@@ -83,9 +85,13 @@ export async function createHandlerOptions(
   const {
     mode = getNodeEnv(),
     logger = createLogger(),
+    configEnv = { mode: mode || "production", command: "build" },
+    children,
     id = `${route}-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`,
+    envId = getEnvironmentId("react-client", mode),
+    userOptions = getStashedUserOptions(envId),
   } = options;
 
   // Check cache first
@@ -94,11 +100,7 @@ export async function createHandlerOptions(
     return cachedOptions;
   }
 
-  // Get stashed options for client environment
-  const envId = getEnvironmentId("react-client", mode);
-  const stashedOptions = getStashedUserOptions(envId);
-
-  if (!stashedOptions) {
+  if (!userOptions) {
     throw new Error(
       `No stashed userOptions found for environment: ${envId}. Make sure resolveOptions() has been called first.`
     );
@@ -110,22 +112,22 @@ export async function createHandlerOptions(
   // Resolve auto-discovered files
   const autoDiscoveredFiles = await resolveAutoDiscoveredFiles(
     options,
-    stashedOptions,
+    userOptions,
     logger
   );
 
   // Create URL
   const url = routeToURL(
     route,
-    stashedOptions.moduleBaseURL,
-    stashedOptions.build.rscOutputPath
+    userOptions.moduleBaseURL,
+    userOptions.build.rscOutputPath
   );
 
   // Get route files
   const routeFilesResult = await getRouteFiles(
     route,
     autoDiscoveredFiles,
-    stashedOptions,
+    userOptions,
     logger
   );
 
@@ -133,9 +135,118 @@ export async function createHandlerOptions(
     throw routeFilesResult.error || new Error("Failed to get route files");
   }
 
+  // Create workers for client environment based on configuration and configEnv
+  let rscWorker: any = undefined;
+  let htmlWorker: any = undefined;
+  
+  // Determine if we need workers based on configEnv and dev config
+  const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
+  const isBuildMode = configEnv?.command === "build";
+  
+  // Create RSC worker if:
+  // 1. useRscWorker is enabled in dev config AND we're in serve mode, OR
+  // 2. useRscWorker is enabled in build config AND we're in build mode
+  const shouldCreateRscWorker = (userOptions.dev?.useRscWorker && isServeMode) || 
+                              (userOptions.build?.useRscWorker && isBuildMode);
+  
+  if (shouldCreateRscWorker) {
+    if (userOptions.verbose) {
+      logger.info(`[createHandlerOptions.client] Creating RSC worker for route: ${route}`);
+    }
+    
+    try {
+      const serializedUserOptions = serializedOptions(
+        userOptions,
+        autoDiscoveredFiles
+      );
+      
+      const workerResult = await createWorker({
+        currentCondition: "react-client",
+        workerPath: userOptions.rscWorkerPath,
+        verbose: userOptions.verbose,
+        logger,
+        workerData: {
+          id: route,
+          userOptions: serializedUserOptions,
+          resolvedConfig: {
+            configEnv,
+            mode,
+          },
+        },
+      });
+
+      if (workerResult.type === "error") {
+        logger.warn(`[createHandlerOptions.client] Failed to create RSC worker: ${workerResult.error?.message}`);
+        rscWorker = undefined;
+      } else if (workerResult.type === "skip") {
+        logger.warn(`[createHandlerOptions.client] RSC worker creation skipped: ${workerResult.reason}`);
+        rscWorker = undefined;
+      } else {
+        rscWorker = workerResult.worker;
+        if (userOptions.verbose) {
+          logger.info(`[createHandlerOptions.client] RSC worker created successfully`);
+        }
+      }
+    } catch (error) {
+      logger.warn(`[createHandlerOptions.client] RSC worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      rscWorker = undefined;
+    }
+  }
+
+  // Create HTML worker if:
+  // 1. useHtmlWorker is enabled in dev config AND we're in serve mode, OR
+  // 2. useHtmlWorker is enabled in build config AND we're in build mode
+  const shouldCreateHtmlWorker = (userOptions.dev?.useHtmlWorker && isServeMode) || 
+                                (userOptions.build?.useHtmlWorker && isBuildMode);
+  
+  if (shouldCreateHtmlWorker) {
+    if (userOptions.verbose) {
+      logger.info(`[createHandlerOptions.client] Creating HTML worker for route: ${route}`);
+    }
+    
+    try {
+      const serializedUserOptions = serializedOptions(
+        userOptions,
+        autoDiscoveredFiles
+      );
+      
+      const htmlWorkerResult = await createWorker({
+        currentCondition: "react-client", // We are in a .client file
+        reverseCondition: "react-client", // The user still requested a worker, which uses the same condition
+        workerPath: userOptions.htmlWorkerPath,
+        verbose: userOptions.verbose,
+        logger,
+        workerData: {
+          id: route,
+          userOptions: serializedUserOptions,
+          resolvedConfig: {
+            configEnv,
+            mode,
+          },
+        },
+      });
+
+      if (htmlWorkerResult.type === "error") {
+        logger.warn(`[createHandlerOptions.client] Failed to create HTML worker: ${htmlWorkerResult.error?.message}`);
+        htmlWorker = undefined;
+      } else if (htmlWorkerResult.type === "skip") {
+        logger.warn(`[createHandlerOptions.client] HTML worker creation skipped: ${htmlWorkerResult.reason}`);
+        htmlWorker = undefined;
+      } else {
+        htmlWorker = htmlWorkerResult.worker;
+        if (userOptions.verbose) {
+          logger.info(`[createHandlerOptions.client] HTML worker created successfully`);
+        }
+      }
+    } catch (error) {
+      logger.warn(`[createHandlerOptions.client] HTML worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      htmlWorker = undefined;
+    }
+  }
+
   // Create client-specific handler options
   const handlerOptions: CreateHandlerOptions = {
-    ...stashedOptions,
+    ...userOptions,
     // File paths
     pagePath: routeFilesResult.page,
     propsPath: routeFilesResult.props,
@@ -143,50 +254,54 @@ export async function createHandlerOptions(
     htmlPath: routeFilesResult.html,
     
     // Export names
-    pageExportName: stashedOptions.pageExportName,
-    propsExportName: stashedOptions.propsExportName,
-    rootExportName: stashedOptions.rootExportName,
-    htmlExportName: stashedOptions.htmlExportName,
+    pageExportName: userOptions.pageExportName,
+    propsExportName: userOptions.propsExportName,
+    rootExportName: userOptions.rootExportName,
+    htmlExportName: userOptions.htmlExportName,
     
     // Route and loader
     route,
     loader: defaults.loader || (() => Promise.resolve({})),
     
     // Configuration
-    panicThreshold: stashedOptions.panicThreshold,
-    verbose: stashedOptions.verbose,
-    moduleBaseURL: stashedOptions.moduleBaseURL,
-    build: stashedOptions.build,
+    panicThreshold: userOptions.panicThreshold,
+    verbose: userOptions.verbose,
+    moduleBaseURL: userOptions.moduleBaseURL,
+    build: userOptions.build,
+    dev: {
+      useHtmlWorker: userOptions.dev.useHtmlWorker,
+      useRscWorker: userOptions.dev.useRscWorker,
+    },
     logger,
     
     // Required properties
-    normalizer: stashedOptions.normalizer,
-    onEvent: stashedOptions.onEvent,
-    onMetrics: stashedOptions.onMetrics,
-    autoDiscover: stashedOptions.autoDiscover,
-    css: stashedOptions.css,
-    projectRoot: stashedOptions.projectRoot,
-    moduleBase: stashedOptions.moduleBase,
-    moduleBasePath: stashedOptions.moduleBasePath,
-    moduleRootPath: stashedOptions.moduleRootPath,
-    moduleID: stashedOptions.moduleID,
+    normalizer: userOptions.normalizer,
+    onEvent: userOptions.onEvent,
+    onMetrics: userOptions.onMetrics,
+    autoDiscover: userOptions.autoDiscover,
+    css: userOptions.css,
+    projectRoot: userOptions.projectRoot,
+    moduleBase: userOptions.moduleBase,
+    moduleBasePath: userOptions.moduleBasePath,
+    moduleRootPath: userOptions.moduleRootPath,
+    moduleID: userOptions.moduleID,
     url,
     manifest: defaults.manifest,
     cssFiles: defaults.cssFiles,
     globalCss: defaults.globalCss,
     
     // Timeouts and paths
-    rscTimeout: stashedOptions.rscTimeout,
-    htmlTimeout: stashedOptions.htmlTimeout,
-    fileWriteTimeout: stashedOptions.fileWriteTimeout,
-    workerShutdownTimeout: stashedOptions.workerShutdownTimeout,
-    rscWorkerPath: stashedOptions.rscWorkerPath,
-    htmlWorkerPath: stashedOptions.htmlWorkerPath,
-    publicOrigin: stashedOptions.publicOrigin,
+    rscTimeout: userOptions.rscTimeout,
+    htmlTimeout: userOptions.htmlTimeout,
+    fileWriteTimeout: userOptions.fileWriteTimeout,
+    workerShutdownTimeout: userOptions.workerShutdownTimeout,
+    rscWorkerPath: userOptions.rscWorkerPath,
+    htmlWorkerPath: userOptions.htmlWorkerPath,
+    publicOrigin: userOptions.publicOrigin,
     
     // Stream options
-    serverPipeableStreamOptions: stashedOptions.serverPipeableStreamOptions,
-    clientPipeableStreamOptions: stashedOptions.clientPipeableStreamOptions,
+    serverPipeableStreamOptions: userOptions.serverPipeableStreamOptions,
+    clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions,
     
     // Client-specific
     id,
@@ -194,6 +309,12 @@ export async function createHandlerOptions(
     HtmlComponent: undefined,
     PageComponent: undefined,
     RootComponent: undefined,
+    // Workers for client environment - provide both for specific use cases
+    worker: htmlWorker || rscWorker, // Backward compatibility: prefer HTML worker if available
+    rscWorker,
+    htmlWorker,
+    // Children provided directly via options
+    children,
   };
 
   // Cache and return

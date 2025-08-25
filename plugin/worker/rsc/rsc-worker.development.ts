@@ -17,49 +17,29 @@ import { createLogger } from "vite";
 import { handleError } from "../../error/handleError.js";
 import { sendMessage } from "../sendMessage.js";
 
+
 // Initialize worker
 if (!parentPort) {
   throw new Error("This module must be run as a worker");
 }
 
 // In test mode, we want errors to propagate up immediately
-const verbose = workerData.verbose;
 const logger = createLogger(workerData.resolvedConfig.logLevel, {
   prefix: "rsc-worker",
 });
-const developmentMessageHandler = (msg: RscWorkerInputMessage) => {
-  if (verbose) {
-    if (msg.type === "RSC_RENDER") {
-      logger.info(`Render ${msg.pagePath}}`);
-    } else {
-      logger.info(`RscWorker: ${JSON.stringify(msg)}`);
-    }
-  }
+// Handle all messages through the unified messageHandler
+parentPort?.on("message", messageHandler);
+
+// Set up loader message handlers
+const cssLoaderMessageHandler = (msg: CssFileMessage) => {
   messageHandler(msg);
 };
 
-const developmentCssLoaderMessageHandler = (msg: CssFileMessage) => {
-  if (verbose) {
-    logger.info(`CssLoader: ${JSON.stringify(msg)}`);
-  }
+const envLoaderMessageHandler = (msg: InitializedEnvLoaderMessage) => {
   messageHandler(msg);
 };
 
-const developmentEnvLoaderMessageHandler = (
-  msg: InitializedEnvLoaderMessage
-) => {
-  if (verbose) {
-    logger.info(`EnvLoader: ${JSON.stringify(msg)}`);
-  }
-  messageHandler(msg);
-};
-
-const developmentReactLoaderMessageHandler = (
-  msg: InitializedReactLoaderMessage
-) => {
-  if (verbose) {
-    logger.info(`${JSON.stringify(msg)}`);
-  }
+const reactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
   messageHandler(msg);
 };
 
@@ -70,7 +50,7 @@ try {
   const envLoaderChannel = new MessageChannel();
 
   // Set up message handlers before transferring ports
-  reactLoaderChannel.port2.on("message", developmentReactLoaderMessageHandler);
+  reactLoaderChannel.port2.on("message", reactLoaderMessageHandler);
   reactLoaderChannel.port2.on("messageerror", (error: Error) => {
     logger.error("React loader message serialization failed.", { error });
     if (parentPort) {
@@ -86,7 +66,7 @@ try {
     }
   });
 
-  cssLoaderChannel.port2.on("message", developmentCssLoaderMessageHandler);
+  cssLoaderChannel.port2.on("message", cssLoaderMessageHandler);
   cssLoaderChannel.port2.on("messageerror", (error: Error) => {
     logger.error("CSS loader message serialization failed.", { error });
     if (parentPort) {
@@ -102,7 +82,7 @@ try {
     }
   });
 
-  envLoaderChannel.port2.on("message", developmentEnvLoaderMessageHandler);
+  envLoaderChannel.port2.on("message", envLoaderMessageHandler);
   envLoaderChannel.port2.on("messageerror", (error: Error) => {
     logger.error("Env loader message serialization failed.", { error });
     if (parentPort) {
@@ -222,9 +202,7 @@ try {
     });
     if (handledError != null) throw handledError;
   }
-
-  // Set up message handling
-  parentPort!.on("message", developmentMessageHandler);
+  
   parentPort!.on("messageerror", (error: Error) => {
     console.error(
       "[rsc-worker] Parent port message serialization failed:",

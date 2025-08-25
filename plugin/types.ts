@@ -407,6 +407,7 @@ export type ResolvedUserOptions = {
   autoDiscover: Required<AutoDiscoverConfig>;
   loader?: Required<LoaderConfig> | undefined;
   build: Required<BuildConfig>;
+  dev: Required<DevConfig>;
   css: RootOptions<boolean>;
   components?: StreamPluginOptions["components"]; // Direct component overrides (optional)
 };
@@ -862,6 +863,7 @@ export interface StreamPluginOptions<
     Page?: PageComponentType<Interface["PageProps"], Interface["ReactType"]>;
   };
   build?: BuildConfig;
+  dev?: DevConfig;
   css?: RootOptions<Interface["InlineCSS"]>;
   // moduleBaseExceptions?: string[];
   pipeableStreamOptions?: any; // Legacy - kept for backward compatibility
@@ -898,7 +900,7 @@ export type MultiPageHandlerOptions<
 >;
 
 export type CreateHandlerOptions<
-  Opt extends ResolvedUserOptions = ResolvedUserOptions,
+  Opt extends Record<string, unknown> = ResolvedUserOptions,
   Interface extends ViteReactServerComponentsPlugin = DefaultInterface,
   R = Interface["ReactType"]
 > = Pick<
@@ -959,11 +961,13 @@ export type CreateHandlerOptions<
       >
     | typeof React.Fragment;
   route: string;
-  url: string;
+  url?: string;
   as?: Interface["As"];
   manifest: Manifest;
   staticManifest?: Manifest;
-  worker?: Worker;
+  worker?: Worker; // if available, is preferred worker for inverse streaming
+  rscWorker?: Worker; // if rscWorker available, its used for createRscStream
+  htmlWorker?: Worker; // if htmlWorker available, its used for createHtmlStream
   server?: ViteDevServer;
   importedCss?: Set<string>;
   cssFiles: Map<string, InterfaceAwareCssContent<Interface>>;
@@ -982,7 +986,9 @@ export type CreateHandlerOptions<
     | "client"
     | "rscOutputPath"
     | "htmlOutputPath"
+    | "assetsDir"
   >;
+  dev: Pick<ResolvedUserOptions["dev"], "useHtmlWorker" | "useRscWorker">;
   children?: React.ReactNode;
 };
 
@@ -1039,18 +1045,28 @@ export type BuildConfig = {
   static?: string; // Output directory for static environment - works in both
   api?: string; // Output directory for API files
   outDir?: string;
-  hash?: string | {
-    format?: 'vite' | 'hex' | 'custom';
-    length?: number;
-    characters?: string;
-    prefix?: string;
-    suffix?: string;
-  };
+  hash?:
+    | string
+    | {
+        format?: "vite" | "hex" | "custom";
+        length?: number;
+        characters?: string;
+        prefix?: string;
+        suffix?: string;
+      };
   preserveModulesRoot?: boolean;
   rscOutputPath?: string; // defaults: `index.rsc`
   htmlOutputPath?: string; // defaults: `index.html`
-      entryFile?: (n: PreRenderedChunk, ssr: boolean, sourceContent?: string) => string;
-      chunkFile?: (n: PreRenderedChunk, ssr: boolean, sourceContent?: string) => string;
+  entryFile?: (
+    n: PreRenderedChunk,
+    ssr: boolean,
+    sourceContent?: string
+  ) => string;
+  chunkFile?: (
+    n: PreRenderedChunk,
+    ssr: boolean,
+    sourceContent?: string
+  ) => string;
   assetFile?: (n: PreRenderedAsset, ssr: boolean) => string;
   extensionMap?: Record<string, string>;
   moduleExtension?: string;
@@ -1061,6 +1077,11 @@ export type BuildConfig = {
   rscExtension?: string;
   cssModuleExtension?: string;
   nodeExtension?: string;
+};
+
+export type DevConfig = {
+  useHtmlWorker?: boolean | undefined;
+  useRscWorker?: boolean | undefined;
 };
 
 export type RequestHandler = Connect.NextHandleFunction;
@@ -1380,13 +1401,15 @@ export type VitePluginFn = <
 ) => Plugin;
 
 // New types for component resolution strategies
-export type ComponentResolutionStrategy = 
-  | "serializable-path"     // Use a path that can be resolved by the worker
-  | "direct-import"         // Direct import in the worker context
-  | "worker-internal"       // Component is available internally in the worker
-  | "external-reference";   // Reference to external component system
+export type ComponentResolutionStrategy =
+  | "serializable-path" // Use a path that can be resolved by the worker
+  | "direct-import" // Direct import in the worker context
+  | "worker-internal" // Component is available internally in the worker
+  | "external-reference"; // Reference to external component system
 
-export type SerializableComponentPath = string & { readonly __brand: "SerializableComponentPath" };
+export type SerializableComponentPath = string & {
+  readonly __brand: "SerializableComponentPath";
+};
 
 export type ComponentResolutionConfig = {
   strategy: ComponentResolutionStrategy;
@@ -1401,12 +1424,12 @@ export type ClientEnvironmentOptions = {
   PageComponent?: never;
   RootComponent?: never;
   HtmlComponent?: never;
-  
+
   // Client environment can accept component resolution configs
   pageComponentConfig?: ComponentResolutionConfig;
   rootComponentConfig?: ComponentResolutionConfig;
   htmlComponentConfig?: ComponentResolutionConfig;
-  
+
   // Client environment can accept serializable paths
   pagePath?: string;
   rootPath?: string;
@@ -1418,12 +1441,12 @@ export type ServerEnvironmentOptions = {
   PageComponent?: CreateHandlerOptions["PageComponent"];
   RootComponent?: CreateHandlerOptions["RootComponent"];
   HtmlComponent?: CreateHandlerOptions["HtmlComponent"];
-  
+
   // Server environment can also accept component resolution configs
   pageComponentConfig?: ComponentResolutionConfig;
   rootComponentConfig?: ComponentResolutionConfig;
   htmlComponentConfig?: ComponentResolutionConfig;
-  
+
   // Server environment can accept serializable paths
   pagePath?: string;
   rootPath?: string;
@@ -1436,22 +1459,23 @@ export type ReactStreamCommonOptions<
   Handles extends keyof CreateHandlerOptions = never
 > = Omit<
   CreateHandlerOptions,
-  Handles | "PageComponent" | "RootComponent" | "HtmlComponent" | "pagePath" | "rootPath" | "htmlPath"
+  | Handles
+  | "PageComponent"
+  | "RootComponent"
+  | "HtmlComponent"
+  | "pagePath"
+  | "rootPath"
+  | "htmlPath"
 > &
   Partial<Pick<CreateHandlerOptions, Handles>> &
-  (Env extends "client" 
-    ? ClientEnvironmentOptions
-    : ServerEnvironmentOptions
-  );
+  (Env extends "client" ? ClientEnvironmentOptions : ServerEnvironmentOptions);
 
 // Enhanced handler function types with proper environment constraints
 export type ReactStreamHandlerFn<
   Env extends "client" | "server",
   Handles extends keyof CreateHandlerOptions,
   ReturnType
-> = (
-  options: ReactStreamCommonOptions<Env, Handles>
-) => ReturnType;
+> = (options: ReactStreamCommonOptions<Env, Handles>) => ReturnType;
 
 // Type for RSC worker message that enforces serializable constraints
 export type RscWorkerMessage = {
@@ -1459,19 +1483,19 @@ export type RscWorkerMessage = {
   pageComponentConfig?: ComponentResolutionConfig;
   rootComponentConfig?: ComponentResolutionConfig;
   htmlComponentConfig?: ComponentResolutionConfig;
-  
+
   // Serializable paths
   pagePath?: string;
   rootPath?: string;
   htmlPath?: string;
-  
+
   // Other serializable options
   route: string;
   url: string;
   pageProps?: Record<string, unknown>;
   cssFiles: Array<[string, unknown]>; // Serialized Map
   manifest: Record<string, unknown>;
-  
+
   // Never allow direct component references
   PageComponent?: never;
   RootComponent?: never;
@@ -1480,8 +1504,11 @@ export type RscWorkerMessage = {
 
 // Enhanced RscRenderOpt with proper serialization constraints
 export type RscRenderOpt = WorkerMessage & {
-  type: "RSC_RENDER";
-} & Omit<
+  type: "INIT";
+} & {
+  dataPort: MessagePort;
+  controlPort: MessagePort;
+  options: Omit<
     CreateHandlerOptions<ResolvedUserOptions>,
     // Omit non-serializable fields
     | "onEvent"
@@ -1503,15 +1530,16 @@ export type RscRenderOpt = WorkerMessage & {
     pageComponentConfig?: ComponentResolutionConfig;
     rootComponentConfig?: ComponentResolutionConfig;
     htmlComponentConfig?: ComponentResolutionConfig;
-    
+
     // Serializable CSS files
     cssFiles: Array<[string, unknown]>;
-    
+
     build: Omit<
       CreateHandlerOptions<ResolvedUserOptions>["build"],
       "entryFileNames" | "chunkFileNames" | "assetFileNames" | "pages"
     > & { pages: string[] };
   };
+};
 
 // Type for plugin component references
 export type PluginComponentReference = {
@@ -1522,20 +1550,26 @@ export type PluginComponentReference = {
 };
 
 // Enhanced component resolution types
-export type ResolvedComponent<T = unknown> = {
-  type: "success";
-  component: T;
-  source: "direct" | "resolved" | "plugin" | "worker-internal";
-} | {
-  type: "error";
-  error: Error;
-  source: "direct" | "resolved" | "plugin" | "worker-internal";
-};
+export type ResolvedComponent<T = unknown> =
+  | {
+      type: "success";
+      component: T;
+      source: "direct" | "resolved" | "plugin" | "worker-internal";
+    }
+  | {
+      type: "error";
+      error: Error;
+      source: "direct" | "resolved" | "plugin" | "worker-internal";
+    };
 
 // Type for worker component loader
 export type WorkerComponentLoader = {
-  loadComponent: (config: ComponentResolutionConfig) => Promise<ResolvedComponent>;
-  loadPluginComponent: (reference: PluginComponentReference) => Promise<ResolvedComponent>;
+  loadComponent: (
+    config: ComponentResolutionConfig
+  ) => Promise<ResolvedComponent>;
+  loadPluginComponent: (
+    reference: PluginComponentReference
+  ) => Promise<ResolvedComponent>;
   hasInternalComponent: (componentName: string) => boolean;
 };
 
@@ -1671,4 +1705,3 @@ export type VitePluginReactServerFn = <
 >(
   options: Opt
 ) => Plugin[];
-

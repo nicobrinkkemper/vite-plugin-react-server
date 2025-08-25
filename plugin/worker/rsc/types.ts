@@ -23,7 +23,21 @@ import type {
 } from "../types.js";
 import type { PassThrough } from "node:stream";
 
-export type HandleRscRenderOptions = RscRenderOpt & {logger?: Logger; stream?: PassThrough, url: string, id: string, route: string};
+export type HandleRscRenderOptions = {
+  id: string;
+  route: string;
+  url: string;
+  verbose?: boolean;
+  htmlPath?: string;
+  HtmlComponent?: any;
+  rscTimeout?: number;
+  logger?: Logger;
+  stream?: PassThrough;
+  moduleBasePath: string;
+  moduleBaseURL: string;
+  moduleRootPath: string;
+  [key: string]: any; // Allow other properties
+};
 
 export type HandleRscRenderFn = <Opt extends HandleRscRenderOptions = HandleRscRenderOptions>(
   options: Opt,
@@ -107,8 +121,11 @@ export type RscWorkerOutputMessage =
   | HmrCleanupMessage;
 
 export type RscRenderOpt = WorkerMessage & {
-  type: "RSC_RENDER";
-} & Omit<
+  type: "INIT";
+  id: string;
+  dataPort: MessagePort;
+  controlPort: MessagePort;
+  options: Omit<
     CreateHandlerOptions<ResolvedUserOptions>,
     // omitted because they are not needed for the worker
     | "onEvent"
@@ -134,6 +151,7 @@ export type RscRenderOpt = WorkerMessage & {
     RootComponent?: any;
     HtmlComponent?: any;
   };
+};
 
 export type RscRenderMessage<Opt extends RscRenderOpt = RscRenderOpt> = Opt;
 

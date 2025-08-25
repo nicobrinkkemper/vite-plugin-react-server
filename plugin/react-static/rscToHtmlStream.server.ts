@@ -45,7 +45,7 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = function _createRscToHtm
     logger,
     // Send proper initialization message that worker expects
     initialMessage: {
-      type: "HTML_RENDER",
+      type: "INIT",
       id: route,
       route,
       url,
@@ -55,9 +55,20 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = function _createRscToHtm
       projectRoot,
       verbose,
       panicThreshold,
-      serverPipeableStreamOptions,
-      clientPipeableStreamOptions,
-      build,
+      // Filter out functions to avoid DataCloneError
+      serverPipeableStreamOptions: serverPipeableStreamOptions ? 
+        Object.fromEntries(Object.entries(serverPipeableStreamOptions).filter(([_, v]) => typeof v !== 'function')) : undefined,
+      clientPipeableStreamOptions: clientPipeableStreamOptions ?
+        Object.fromEntries(Object.entries(clientPipeableStreamOptions).filter(([_, v]) => typeof v !== 'function')) : undefined,
+      // Pass only the essential build properties that exist
+      build: build ? {
+        outDir: build.outDir,
+        assetsDir: build.assetsDir,
+        pages: build.pages,
+        static: build.static,
+        rscOutputPath: build.rscOutputPath,
+        htmlOutputPath: build.htmlOutputPath,
+      } : undefined,
     } as HtmlRenderMessage,
     // Transform RSC chunks for worker
     transformInput: (chunk) => ({

@@ -23,7 +23,7 @@ export interface UnifiedStreamHandlerOptions {
 }
 
 export interface UnifiedStreamResult {
-  stream: Readable;
+  stream: Readable | PassThrough;
   abort: () => void;
   cleanup: () => void;
   streamType: StreamType;
@@ -289,7 +289,7 @@ export function createUnifiedMessageHandler(options: UnifiedMessageHandlerOption
       }
       
       // Route message based on stream type and message type
-      const expectedRenderType = streamType === "rsc" ? "RSC_RENDER" : "HTML_RENDER";
+      const expectedRenderType = "INIT";
       const expectedChunkType = streamType === "rsc" ? "RSC_CHUNK" : "HTML_CHUNK";
       
       switch (msg.type) {

@@ -28,6 +28,8 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     }),
   } = handlerOptions;
 
+
+
   try {
     if (verbose) {
       logger?.info(`[rsc-worker:${route}] Creating RSC stream`);
@@ -71,9 +73,30 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       }
       // Force stream completion if it hasn't ended naturally
       if (!passThrough.destroyed) {
+        if (verbose) {
+          logger?.info(`[rsc-worker:${route}] Forcing passThrough.end()`);
+        }
         passThrough.end();
       }
-    }, handlerOptions.rscTimeout || 5000); // 5 second timeout
+    }, handlerOptions.rscTimeout || 2000); // 2 second timeout - even more aggressive
+
+    // Also add a shorter timeout to detect if the stream is stuck
+    const stuckTimeout = setTimeout(() => {
+      if (verbose) {
+        logger?.info(
+          `[rsc-worker:${route}] Stream appears stuck, checking if we should force end`
+        );
+      }
+      // If we haven't received any data in 1 second, force end
+      if (!passThrough.destroyed && renderMetrics.streamMetrics.chunks === 0) {
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker:${route}] No data received, forcing stream end`
+          );
+        }
+        passThrough.end();
+      }
+    }, 1000); // 1 second timeout to detect stuck streams
 
     passThrough.on("data", (chunk: Buffer) => {
       if (verbose) {
@@ -81,20 +104,51 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
           `[rsc-worker:${route}] Received data chunk: ${chunk.length} bytes`
         );
       }
+      // Clear the stuck timeout since we received data
+      clearTimeout(stuckTimeout);
+      
       // Always process data - let React handle errors naturally in the stream
       handlers.onData(id, chunk);
       renderMetrics.streamMetrics.chunks++;
       renderMetrics.streamMetrics.bytes += chunk.length;
+      
+      // Check if we should force end after receiving data (in case React doesn't end naturally)
+      if (renderMetrics.streamMetrics.chunks > 0 && verbose) {
+        logger?.info(`[rsc-worker:${route}] Received ${renderMetrics.streamMetrics.chunks} chunks, checking if stream should end`);
+      }
     });
 
     passThrough.on("end", () => {
       if (verbose) {
         logger?.info(`[rsc-worker:${route}] Stream ended`);
       }
-      // Clear the timeout since stream completed naturally
+      // Clear the timeouts since stream completed naturally
       clearTimeout(streamTimeout);
+      clearTimeout(stuckTimeout);
 
       // Always call onEnd to complete the stream
+      if (verbose) {
+        logger?.info(`[rsc-worker:${route}] Calling handlers.onEnd(${id})`);
+      }
+      handlers.onEnd(id);
+      renderMetrics.streamMetrics.duration =
+        performance.now() - renderMetrics.streamMetrics.startTime;
+      handlers.onMetrics(id, renderMetrics as any);
+    });
+
+    // Also handle the 'close' event as a fallback
+    passThrough.on("close", () => {
+      if (verbose) {
+        logger?.info(`[rsc-worker:${route}] Stream closed`);
+      }
+      // Clear the timeouts since stream completed
+      clearTimeout(streamTimeout);
+      clearTimeout(stuckTimeout);
+
+      // Call onEnd if it hasn't been called yet
+      if (verbose) {
+        logger?.info(`[rsc-worker:${route}] Calling handlers.onEnd(${id}) from close event`);
+      }
       handlers.onEnd(id);
       renderMetrics.streamMetrics.duration =
         performance.now() - renderMetrics.streamMetrics.startTime;

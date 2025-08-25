@@ -1,62 +1,47 @@
 import type { CreateHtmlStreamFn } from "./createHtmlStream.types.js";
-import { createWorkerStream } from "./createWorkerStream.js";
+import { assertNonReactServer } from "../config/getCondition.js";
+import { createRenderToPipeableStreamHandler } from "./createRenderToPipeableStreamHandler.client.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
+
+assertNonReactServer();
 
 export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   options
 ) {
-  // HTML = Client-rendered pipeable React (what gets sent to browser)
-  // Based on the working collectHtmlWorkerContent pattern
-  // This takes an RSC stream and converts it to HTML, just like collectHtmlWorkerContent does
+  // Client-side HTML streaming uses the unified renderToPipeableStream handler
+  // This provides consistent behavior across client and server environments
   
-  // First, we need an RSC stream to convert to HTML
-  // In the working pattern, this comes from the worker
-  const worker = createWorkerStream({
-    id: options.id,
+  if (!options.children && !options.rscStream) {
+    throw new Error(
+      "either children or rscStream is required for HTML streaming on client"
+    );
+  }
+
+  // The handler can handle both cases:
+  // 1. If rscStream is provided, it will convert it to React elements
+  // 2. If children is provided, it will use them directly
+  // This replaces the original createFromNodeStream logic
+  
+  return createRenderToPipeableStreamHandler({
     route: options.route,
-    url: options.url || "",
-    projectRoot: options.projectRoot,
+    logger: options.logger,
+    verbose: options.verbose || DEFAULT_CONFIG.VERBOSE,
+    panicThreshold: options.panicThreshold,
+    htmlTimeout: options.htmlTimeout || DEFAULT_CONFIG.HTML_TIMEOUT,
+    rscStream: options.rscStream,
+    children: options.children,
+    moduleRootPath: options.moduleRootPath,
     moduleBasePath: options.moduleBasePath,
     moduleBaseURL: options.moduleBaseURL,
-    moduleRootPath: options.moduleRootPath,
-    cssFiles: options.cssFiles,
-    globalCss: options.globalCss,
-    manifest: options.manifest,
     clientPipeableStreamOptions: options.clientPipeableStreamOptions,
-    verbose: options.verbose,
-    panicThreshold: options.panicThreshold,
-    logger: options.logger,
-    workerPath: options.htmlWorkerPath,
-    messageType: "RENDER_HTML",
-    currentCondition: "react-client",
-    reverseCondition: "react-server",
-    worker: options.worker,
-    pagePath: options.pagePath,
-    propsPath: options.propsPath,
-    rootPath: options.rootPath,
-    htmlPath: options.htmlPath,
+    // Provide minimal required properties for the handler
     pageExportName: options.pageExportName,
-    propsExportName: options.propsExportName,
+    propsExportName: options.propsExportName, 
     rootExportName: options.rootExportName,
     htmlExportName: options.htmlExportName,
     moduleBase: options.moduleBase,
     publicOrigin: options.publicOrigin,
-    rscTimeout: options.rscTimeout,
-    htmlTimeout: options.htmlTimeout,
-    fileWriteTimeout: options.fileWriteTimeout,
-    workerShutdownTimeout: options.workerShutdownTimeout,
-    rscWorkerPath: options.rscWorkerPath,
-    htmlWorkerPath: options.htmlWorkerPath,
-    css: options.css,
-    build: options.build,
+    projectRoot: options.projectRoot,
+    url: options.url || "",
   });
-
-  return {
-    pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-      worker.pipe(destination);
-      return destination;
-    },
-    abort: (reason?: unknown) => {
-      worker.destroy(new Error(String(reason || "Aborted client-ssr html stream")));
-    },
-  };
 };

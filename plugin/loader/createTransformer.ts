@@ -54,15 +54,15 @@ export const createTransformer: TransformerFactory = ({
         // Set forceClientComponent to true for client components identified by filename
         forceClientComponent = true;
         // Don't return early - let it fall through to transformModule
-      } else if (!isServerEnvironment && !loader?.isClientComponentByName?.(moduleId) && !moduleId.includes('node_modules')) {
-        // In non-server environments, server components should be hidden (return null exports)
+      } else if (!isServerEnvironment && !hasClientDirective && !hasServerDirective && !loader?.isClientComponentByName?.(moduleId) && !moduleId.includes('node_modules')) {
+        // In non-server environments, server components (modules without client/server directives and not client by name) should be hidden
         // This prevents server components from being loaded in client/ssr environments
-        // But don't hide third-party modules from node_modules
+        // But don't hide third-party modules from node_modules or modules with directives
         if (verbose) {
           logger.info(`[createTransformer:non-server] Hiding server component in non-server environment: ${moduleId}`);
         }
         // Return a module that exports null/undefined instead of empty string
-        return { code: "export default null;", map: null };
+        return { code: source, map: null };
       } else {
         // In client/ssr environments, we need to transform to remove directives
         // but we don't transform to registerClientReference

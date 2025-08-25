@@ -113,8 +113,8 @@ export function hydrateRscRenderMessage(
     autoDiscover: userOptions.autoDiscover,
     onMetrics: undefined,
     // Preserve CSS-related properties from the original message
-    cssFiles: message.cssFiles,
-    globalCss: message.globalCss,
+    cssFiles: message.options.cssFiles,
+    globalCss: message.options.globalCss,
     // Ensure build.pages is a string array for worker compatibility
     build: {
       ...mergedValues.build,

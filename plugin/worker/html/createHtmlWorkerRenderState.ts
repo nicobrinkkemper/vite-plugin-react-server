@@ -5,14 +5,12 @@ import { createLogger } from "vite";
 import { createStreamMetrics } from "../../helpers/metrics.js";
 import { assertNonReactServer } from "../../config/getCondition.js";
 import {
-  React,
   ReactDOMClient,
   ReactDOMServer,
 } from "../../vendor/vendor.client.js";
 import type {
   HtmlWorkerRenderState,
   HtmlWorkerOutputMessage,
-  HtmlRenderMessage,
 } from "./types.js";
 
 assertNonReactServer();
@@ -32,7 +30,7 @@ export function createHtmlWorkerRenderState(
     clientPipeableStreamOptions = workerData.userOptions
       .clientPipeableStreamOptions,
     verbose = Boolean(workerData.userOptions.verbose),
-  }: Partial<HtmlRenderMessage> & { id?: string; route?: string },
+  }: { id?: string; route?: string; projectRoot?: string; moduleRootPath?: string; moduleBaseURL?: string; moduleBasePath?: string; clientPipeableStreamOptions?: any; verbose?: boolean },
   sendMessage: (msg: HtmlWorkerOutputMessage) => void,
   rscStream = new PassThrough()
 ): HtmlWorkerRenderState {
@@ -99,18 +97,18 @@ export function createHtmlWorkerRenderState(
       callback();
     },
   });
+  if(!rscStream) {
+    throw new Error("RSC stream is required");
+  }
+  const nodeStream =  ReactDOMClient.createFromNodeStream(
+    rscStream,
+    moduleRootPath,
+    moduleBaseURL
+  )
 
   // Create React stream that will render the elements to HTML
   const stream = ReactDOMServer.renderToPipeableStream(
-    React.createElement(() =>
-      React.use(
-        ReactDOMClient.createFromNodeStream(
-          rscStream,
-          moduleRootPath,
-          moduleBaseURL
-        )
-      )
-    ),
+    nodeStream as any,
     {
       ...clientPipeableStreamOptions,
       onAllReady: () => {

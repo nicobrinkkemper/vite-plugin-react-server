@@ -116,10 +116,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     forceResolve = true;
   }
   
-  if (options.verbose && originalOptions != null) {
-    logger.info(`[resolveOptions] originalOptions.projectRoot: ${originalOptions.projectRoot}`);
-    logger.info(`[resolveOptions] current options.projectRoot: ${options.projectRoot}`);
-  }
   const panicThreshold =
     typeof options.panicThreshold === "string"
       ? options.panicThreshold
@@ -146,9 +142,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // Basic configuration - use the first projectRoot that was provided, or fall back to current options
   const projectRoot = options.projectRoot ?? originalOptions?.projectRoot ?? process.cwd();
   
-  if (options.verbose) {
-    logger.info(`[resolveOptions] input options.projectRoot: ${options.projectRoot}`);
-    logger.info(`[resolveOptions] resolved projectRoot: ${projectRoot}`);
+  if (options.verbose && options.projectRoot != originalOptions.projectRoot) {
+    logger.info(`[resolveOptions] new projectRoot: ${projectRoot}`);
   }
 
   // Build options
@@ -608,6 +603,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     useHtmlWorker: options.build?.useHtmlWorker ?? DEFAULT_CONFIG.BUILD.useHtmlWorker,  
   } satisfies ResolvedUserOptions["build"];
 
+  // Development configuration
+  const dev = {
+    useHtmlWorker: options.dev?.useHtmlWorker ?? DEFAULT_CONFIG.DEV.useHtmlWorker,
+    useRscWorker: options.dev?.useRscWorker ?? DEFAULT_CONFIG.DEV.useRscWorker,
+  } satisfies ResolvedUserOptions["dev"];
+
   // Auto-discovery configuration
   const autoDiscover = {
     clientEntry: options.autoDiscover?.clientEntry ?? DEFAULT_CONFIG.AUTO_DISCOVER.clientEntry,
@@ -718,6 +719,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       moduleRootPath,
       publicOrigin,
       build: build,
+      dev: dev,
       verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
       onMetrics:
         typeof options.onMetrics === "function"

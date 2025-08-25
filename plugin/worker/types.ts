@@ -102,7 +102,7 @@ export type RscEndMessage = {
 } & WorkerMessage;
 
 export type HtmlRenderMessage = {
-  type: "HTML_RENDER";
+  type: "INIT";
   abortSignal?: AbortSignal;
 } & WorkerMessage &
   Pick<

@@ -112,7 +112,7 @@ export const resolveUrlOption: ResolvePageAndPropsOptionsFn = async function _re
       default:
         break;
     }
-    return { type: "error", error: new Error(`${configName} must return a string`) };
+    return { type: "error", error: new Error(`${configName} must be string or function that returns a string`) };
   } catch (error) {
     return { type: "error", error: error as Error };
   }

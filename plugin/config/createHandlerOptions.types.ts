@@ -1,4 +1,4 @@
-import type { CreateHandlerOptions, AutoDiscoveredFiles } from "../types.js";
+import type { CreateHandlerOptions, AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
 import type { Logger, UserConfig, ConfigEnv } from "vite";
 
 /**
@@ -24,9 +24,11 @@ export interface CreateHandlerOptionsParams {
   }>;
   config?: UserConfig;
   configEnv?: ConfigEnv;
-  userOptions?: any;
+  envId?: string;
+  userOptions?: ResolvedUserOptions;
   autoDiscoveredFiles?: AutoDiscoveredFiles;
   id?: string;
+  children?: any;
 }
 
 /**
@@ -62,7 +64,7 @@ export interface CreateHandlerOptionsParams {
 export type CreateHandlerOptionsServerFn = (
   route: string,
   options?: CreateHandlerOptionsParams
-) => Promise<CreateHandlerOptions>;
+) => Promise<CreateHandlerOptions & {url: string}>
 
 /**
  * Client-specific handler options creation function.
@@ -98,7 +100,7 @@ export type CreateHandlerOptionsServerFn = (
 export type CreateHandlerOptionsClientFn = (
   route: string,
   options?: CreateHandlerOptionsParams
-) => Promise<CreateHandlerOptions>;
+) => Promise<CreateHandlerOptions & {url: string}>;
 
 /**
  * Resolved defaults for handler options creation.

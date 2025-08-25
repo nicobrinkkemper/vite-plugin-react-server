@@ -13,41 +13,44 @@ export function mergeMessageWithDefaults(
   message: RscRenderMessage,
   defaultUserOptions: Partial<ResolvedUserOptions> = {}
 ) {
+  // Extract options from the nested structure
+  const options = message.options || {};
+  
   const {
-    type = "RSC_RENDER",
+    type = "INIT",
     id,
-    route,
-    pagePath,
-    propsPath,
-    rootPath,
-    htmlPath,
-    rootExportName = defaultUserOptions.rootExportName ??
+    route = options.route,
+    pagePath = options.pagePath,
+    propsPath = options.propsPath,
+    rootPath = options.rootPath,
+    htmlPath = options.htmlPath,
+    rootExportName = options.rootExportName ?? defaultUserOptions.rootExportName ??
       DEFAULT_CONFIG.ROOT_EXPORT_NAME,
-    htmlExportName = defaultUserOptions.htmlExportName ??
+    htmlExportName = options.htmlExportName ?? defaultUserOptions.htmlExportName ??
       DEFAULT_CONFIG.HTML_EXPORT_NAME,
-    pageExportName = defaultUserOptions.pageExportName ??
+    pageExportName = options.pageExportName ?? defaultUserOptions.pageExportName ??
       DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-    propsExportName = defaultUserOptions.propsExportName ??
+    propsExportName = options.propsExportName ?? defaultUserOptions.propsExportName ??
       DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-    projectRoot = defaultUserOptions.projectRoot ?? process.cwd(),
-    moduleRootPath = defaultUserOptions.moduleRootPath ?? "",
-    moduleBaseURL = defaultUserOptions.moduleBaseURL ??
+    projectRoot = options.projectRoot ?? defaultUserOptions.projectRoot ?? process.cwd(),
+    moduleRootPath = options.moduleRootPath ?? defaultUserOptions.moduleRootPath ?? "",
+    moduleBaseURL = options.moduleBaseURL ?? defaultUserOptions.moduleBaseURL ??
       DEFAULT_CONFIG.MODULE_BASE_URL,
-    moduleBasePath = defaultUserOptions.moduleBasePath ??
+    moduleBasePath = options.moduleBasePath ?? defaultUserOptions.moduleBasePath ??
       DEFAULT_CONFIG.MODULE_BASE_PATH,
-    moduleBase = defaultUserOptions.moduleBase || "",
-    serverPipeableStreamOptions = defaultUserOptions.serverPipeableStreamOptions,
-    verbose = defaultUserOptions.verbose ?? DEFAULT_CONFIG.VERBOSE,
-    build = defaultUserOptions.build ?? DEFAULT_CONFIG.BUILD,
-    rscTimeout = defaultUserOptions.rscTimeout ?? DEFAULT_CONFIG.RSC_TIMEOUT,
-    panicThreshold = defaultUserOptions.panicThreshold ??
+    moduleBase = options.moduleBase ?? defaultUserOptions.moduleBase ?? "",
+    serverPipeableStreamOptions = options.serverPipeableStreamOptions ?? defaultUserOptions.serverPipeableStreamOptions,
+    verbose = options.verbose ?? defaultUserOptions.verbose ?? DEFAULT_CONFIG.VERBOSE,
+    build = options.build ?? defaultUserOptions.build ?? DEFAULT_CONFIG.BUILD,
+    rscTimeout = options.rscTimeout ?? defaultUserOptions.rscTimeout ?? DEFAULT_CONFIG.RSC_TIMEOUT,
+    panicThreshold = options.panicThreshold ?? defaultUserOptions.panicThreshold ??
       DEFAULT_CONFIG.PANIC_THRESHOLD,
-    publicOrigin = defaultUserOptions.publicOrigin ??
+    publicOrigin = options.publicOrigin ?? defaultUserOptions.publicOrigin ??
       DEFAULT_CONFIG.PUBLIC_ORIGIN,
-    HtmlComponent: _htmlComponent, // Ignore message component, use parameter
-    RootComponent: _rootComponent, // Ignore message component, use parameter
+    HtmlComponent: _htmlComponent = options.HtmlComponent, // Ignore message component, use parameter
+    RootComponent: _rootComponent = options.RootComponent, // Ignore message component, use parameter
     ...rest
-  } = message;
+  } = { ...message, ...options };
 
   return {
     type,

@@ -2,7 +2,7 @@
  * Clean Worker Transform Stream Helper
  * 
  * Provides a simple Transform stream that communicates with workers
- * following the proven patterns from createWorkerStream.server.ts
+ * using the two-port architecture (data port + control port) for clean separation of concerns
  */
 
 import { Transform } from "node:stream";
@@ -29,13 +29,12 @@ export interface WorkerTransformStreamOptions {
 }
 
 /**
- * Creates a Transform stream that communicates with a worker
+ * Creates a Transform stream that communicates with a worker using two-port architecture
  * 
- * This follows the exact pattern from createWorkerStream.server.ts:
- * 1. Input chunks are sent to worker as RSC_CHUNK
- * 2. Worker responds with HTML_CHUNK messages which are pushed to output
- * 3. Worker sends HTML_COMPLETE when done, which ends the stream
- * 4. Proper listener cleanup on stream end/error
+ * This follows the two-port pattern for clean separation of concerns:
+ * 1. Data port handles raw stream data (no message wrapping)
+ * 2. Control port handles control messages (start, end, error, metrics)
+ * 3. Proper listener cleanup on stream end/error
  */
 export function createWorkerTransformStream(options: WorkerTransformStreamOptions): Transform {
   const { 
@@ -44,25 +43,47 @@ export function createWorkerTransformStream(options: WorkerTransformStreamOption
     verbose = false, 
     logger = createLogger(),
     initialMessage,
-    transformInput = (chunk) => ({ type: "RSC_CHUNK", id: route, chunk }),
-    processOutput = (message) => message.type === "HTML_CHUNK" ? message.chunk : null,
-    flushInput = () => ({ type: "RSC_END", id: route }),
-    flushOutput = (message) => message.type === "HTML_COMPLETE" || message.type === "HTML_RENDER_END",
+    transformInput = (chunk) => chunk, // Default: pass through
+    processOutput = (message) => message, // Default: pass through
+    flushInput = () => null, // Default: send null to end
+    flushOutput = (message) => message.type === "END", // Default: end on END message
     onError
   } = options;
 
-  // Clean message handler that follows the proven pattern
-  const messageHandler = (message: any) => {
-    if (message.id !== route) return;
+  // Create two separate MessagePorts for clean separation of concerns
+  const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
+  const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
+
+  // Clean message handler for data port
+  const dataMessageHandler = (event: any) => {
+    const data = event.data;
+    
+    if (data === null) {
+      // End of stream
+      if (verbose) {
+        logger?.info(`[WorkerTransformStream:${route}] End of stream via dataPort`);
+      }
+      transformStream.push(null);
+      cleanup();
+      return;
+    }
 
     // Process output from worker
-    const outputChunk = processOutput(message);
+    const outputChunk = processOutput(data);
     if (outputChunk !== null) {
       transformStream.push(outputChunk);
       if (verbose) {
         logger?.info(`[WorkerTransformStream:${route}] Pushed chunk: ${outputChunk?.length || 0} bytes`);
       }
-      return;
+    }
+  };
+
+  // Clean message handler for control port
+  const controlMessageHandler = (event: any) => {
+    const message = event.data;
+    
+    if (verbose) {
+      logger?.info(`[WorkerTransformStream:${route}] Received control message: ${message.type}`);
     }
 
     // Check if we should end the stream
@@ -88,10 +109,14 @@ export function createWorkerTransformStream(options: WorkerTransformStreamOption
       return;
     }
 
-    // Ignore other message types (like SHELL_READY, ALL_READY, etc.)
+    // Handle other control messages (metrics, start signals, etc.)
+    if (message.type === "METRICS" && verbose) {
+      logger?.info(`[WorkerTransformStream:${route}] Received metrics:`, message.metrics);
+    }
   };
 
-  const errorHandler = (error: Error) => {
+  const errorHandler = (_event: MessageEvent) => {
+    const error = new Error("MessagePort error");
     if (onError) {
       onError(error);
     } else {
@@ -100,58 +125,76 @@ export function createWorkerTransformStream(options: WorkerTransformStreamOption
     cleanup();
   };
 
+  // Cleanup function
   const cleanup = () => {
-    // Clean up listeners (same as createWorkerStream.server.ts:51-52, 58-59)
-    worker.removeListener("message", messageHandler);
-    worker.removeListener("error", errorHandler);
+    dataPort1.removeEventListener("message", dataMessageHandler);
+    controlPort1.removeEventListener("message", controlMessageHandler);
+    dataPort1.removeEventListener("messageerror", errorHandler);
+    controlPort1.removeEventListener("messageerror", errorHandler);
   };
 
-  // Create transform stream with clean implementation
+  // Create the transform stream
   const transformStream = new Transform({
-    transform(chunk: any, _encoding: any, callback: any) {
-      // Transform and send chunk to worker
-      const message = transformInput(chunk);
-      worker.postMessage(message);
-      
-      if (verbose) {
-        logger?.info(`[WorkerTransformStream:${route}] Sent ${message.type}: ${chunk.length} bytes`);
+    objectMode: false,
+    highWaterMark: 64 * 1024, // 64KB buffer
+
+    transform(chunk: any, _encoding: string, callback: (error?: Error | null, data?: any) => void) {
+      try {
+        if (verbose) {
+          logger?.info(`[WorkerTransformStream:${route}] Transforming chunk: ${chunk?.length || 0} bytes`);
+        }
+
+        // Transform input chunk
+        const transformedChunk = transformInput(chunk);
+        
+        // Send to worker via data port
+        dataPort2.postMessage(transformedChunk);
+
+        callback();
+      } catch (error) {
+        callback(error instanceof Error ? error : new Error(String(error)));
       }
-      
-      // Don't push to output - worker will send response messages
-      callback();
     },
 
-    flush(callback) {
-      // Signal end of input to worker
-      const message = flushInput();
-      worker.postMessage(message);
-      
-      if (verbose) {
-        logger?.info(`[WorkerTransformStream:${route}] Sent ${message.type} signal`);
-      }
-      
-      // Call callback immediately - worker will handle completion
-      callback();
-    },
+    flush(callback: (error?: Error | null) => void) {
+      try {
+        if (verbose) {
+          logger?.info(`[WorkerTransformStream:${route}] Flushing - sending end signal`);
+        }
+        
+        // Send end signal to worker via data port
+        const endMessage = flushInput();
+        dataPort2.postMessage(endMessage);
 
-    destroy(error: any, callback: any) {
-      // Clean up listeners on destroy (same as createWorkerStream.server.ts:78-84)
-      cleanup();
-      callback(error);
+        callback();
+      } catch (error) {
+        callback(error instanceof Error ? error : new Error(String(error)));
+      }
     }
   });
 
-  // Set up worker listeners
-  worker.on("message", messageHandler);
-  worker.on("error", errorHandler);
+  // Set up message handlers
+  dataPort1.addEventListener("message", dataMessageHandler);
+  controlPort1.addEventListener("message", controlMessageHandler);
+  dataPort1.addEventListener("messageerror", errorHandler);
+  controlPort1.addEventListener("messageerror", errorHandler);
 
-  // Send initial message if provided
+  // Send initial message to worker with both ports
   if (initialMessage) {
-    worker.postMessage(initialMessage);
-    if (verbose) {
-      logger?.info(`[WorkerTransformStream:${route}] Sent ${initialMessage.type} message`);
-    }
+    worker.postMessage({
+      ...initialMessage,
+      dataPort: dataPort2,
+      controlPort: controlPort2,
+    }, [dataPort2, controlPort2] as any);
   }
+
+  // Cleanup on stream close
+  transformStream.once("close", () => {
+    if (verbose) {
+      logger?.info(`[WorkerTransformStream:${route}] Stream closed, cleaning up`);
+    }
+    cleanup();
+  });
 
   return transformStream;
 }

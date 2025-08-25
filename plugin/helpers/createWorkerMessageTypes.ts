@@ -23,7 +23,7 @@ export interface BaseWorkerRenderMessage extends WorkerMessage {
  * in worker threads. It contains all the serializable options needed for RSC generation.
  */
 export interface RscRenderMessage extends BaseWorkerRenderMessage {
-    type: "RSC_RENDER";
+    type: "INIT";
     options: SerializableHandlerOptions & {
         // RSC-specific options
         rscTimeout?: number;
@@ -37,7 +37,7 @@ export interface RscRenderMessage extends BaseWorkerRenderMessage {
  * It contains all the serializable options needed for HTML generation from RSC streams.
  */
 export interface HtmlRenderMessage extends BaseWorkerRenderMessage {
-    type: "HTML_RENDER";
+    type: "INIT";
     options: SerializableHandlerOptions & {
         // HTML-specific options
         htmlTimeout?: number;
@@ -94,7 +94,7 @@ export function createRscRenderMessage(
 ): RscRenderMessage {
     return {
         id,
-        type: "RSC_RENDER",
+        type: "INIT",
         options,
     };
 }
@@ -112,7 +112,7 @@ export function createHtmlRenderMessage(
 ): HtmlRenderMessage {
     return {
         id,
-        type: "HTML_RENDER",
+        type: "INIT",
         options: {
             ...options,
             htmlTimeout: options.htmlTimeout,

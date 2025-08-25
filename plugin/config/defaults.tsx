@@ -76,6 +76,13 @@ export const getDirectiveType = (
 };
 
 export const MODE = getNodeEnv()
+export const CONDITION = getCondition();
+export const IS_SERVER = CONDITION === "react-server";
+export const IS_CLIENT = CONDITION === "react-client";
+// Note: This should be replaced with configEnv.command === "build" in functions that receive configEnv
+// This is kept for backward compatibility but should not be used in new code
+export const IS_BUILD = process.argv.includes("build");
+export const IS_SERVE = !IS_BUILD; // dont have to check for dev since it's the default
 
 // Helper to normalize directive strings
 // const normalizeDirective = (directive: string) => directive.replace(/\s+/g, '').toLowerCase();
@@ -121,7 +128,6 @@ export const BASE_PATTERNS = {
     NODE: ".node",
   },
 } as const;
-
 export const DEFAULT_CONFIG = {
   CLIENT_ASSETS_DIR: "assets",
   RSC_DIR: "rsc",
@@ -201,8 +207,21 @@ export const DEFAULT_CONFIG = {
     rscExtension: BASE_PATTERNS.EXT.RSC,
     cssModuleExtension: BASE_PATTERNS.EXT.CSS_MODULE,
     nodeExtension: BASE_PATTERNS.EXT.NODE,
-    useRscWorker: getCondition() === "react-server" ? false : true,
-    useHtmlWorker: getCondition() === "react-server" ? true : false,
+    // these defaults rely on process.argv
+    // even better is to use configEnv.command === "build"
+    // which will be done in createHandlerOptions.server.ts and createHandlerOptions.client.ts
+    useRscWorker: !IS_SERVER && IS_BUILD,
+    useHtmlWorker: IS_SERVER && IS_BUILD,
+  },
+  DEV: {
+    // these defaults rely on process.argv
+    useHtmlWorker: false, // during dev, the browser is the html-worker..
+    // if the user opts-in to creating the html-worker, the stream utilities 
+    // will be able to stream html during development - the plugin never does this
+    // so we don't have to create the html-worker during dev by default 
+    useRscWorker: !IS_SERVER && IS_SERVE, // during dev without server-conditions,
+    // the rsc-worker is created during dev by default
+    // this is because the rsc-worker is used to stream rsc during development
   },
   CSS: {
     inlineCss: undefined,

@@ -67,8 +67,11 @@ export interface ClientRscStreamOptions {
   rscTimeout: number;
   
   // Client-specific options
-  worker?: any;
+  rscWorker?: any;
+  htmlWorker?: any;
+  htmlWorkerPath?: string;
   rscWorkerPath?: string;
+  worker?: any;
   clientPipeableStreamOptions?: any;
   serverPipeableStreamOptions?: any;
   url: string;
@@ -112,7 +115,10 @@ export interface ServerRscStreamOptions {
   
   // Server-specific options
   worker?: any;
+  rscWorker?: any;
   rscWorkerPath?: string;
+  htmlWorker?: any;
+  htmlWorkerPath?: string;
   clientPipeableStreamOptions?: any;
   serverPipeableStreamOptions?: any;
   url: string;

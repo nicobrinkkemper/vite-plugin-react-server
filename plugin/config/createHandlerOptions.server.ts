@@ -1,4 +1,4 @@
-import type { CreateHandlerOptions, AutoDiscoveredFiles } from "../types.js";
+import type { CreateHandlerOptions, AutoDiscoveredFiles, RootComponentType, HtmlComponentType } from "../types.js";
 import type { Logger } from "vite";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { routeToURL } from "../utils/routeToURL.js";
@@ -13,6 +13,7 @@ import { getNodeEnv } from "./getNodeEnv.js";
 import { createLogger } from "vite";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { CreateHandlerOptionsParams, ResolvedDefaults } from "./createHandlerOptions.types.js";
+import { resolveComponent } from "../helpers/resolveComponent.js";
 
 /**
  * Server-specific handler options creation for React Server Components (RSC).
@@ -82,9 +83,12 @@ export async function createHandlerOptions(
   const {
     mode = getNodeEnv(),
     logger = createLogger(),
+    configEnv = { mode: mode || "production", command: "build" },
     id = `${route}-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`,
+    envId = getEnvironmentId("react-server", mode),
+    userOptions = getStashedUserOptions(envId),
   } = options;
 
   // Check cache first
@@ -93,11 +97,8 @@ export async function createHandlerOptions(
     return cachedOptions;
   }
 
-  // Get stashed options for server environment
-  const envId = getEnvironmentId("react-server", mode);
-  const stashedOptions = getStashedUserOptions(envId);
 
-  if (!stashedOptions) {
+  if (!userOptions) {
     throw new Error(
       `No stashed userOptions found for environment: ${envId}. Make sure resolveOptions() has been called first.`
     );
@@ -109,22 +110,22 @@ export async function createHandlerOptions(
   // Resolve auto-discovered files
   const autoDiscoveredFiles = await resolveAutoDiscoveredFiles(
     options,
-    stashedOptions,
+    userOptions,
     logger
   );
 
   // Create URL
   const url = routeToURL(
     route,
-    stashedOptions.moduleBaseURL,
-    stashedOptions.build.rscOutputPath
+    userOptions.moduleBaseURL,
+    userOptions.build.rscOutputPath
   );
 
   // Get route files
   const routeFilesResult = await getRouteFiles(
     route,
     autoDiscoveredFiles,
-    stashedOptions,
+    userOptions,
     logger
   );
 
@@ -132,9 +133,273 @@ export async function createHandlerOptions(
     throw routeFilesResult.error || new Error("Failed to get route files");
   }
 
+  // Load components from resolved file paths
+  let PageComponent = userOptions.components?.Page;
+  let RootComponent = userOptions.components?.Root;
+  let HtmlComponent = userOptions.components?.Html;
+
+  // Load Page component if pagePath is available
+  if (routeFilesResult.page && !PageComponent) {
+    try {
+      const { resolveComponent } = await import("../helpers/resolveComponent.js");
+      if (userOptions.verbose) {
+        logger.info(`[createHandlerOptions] Attempting to load component from: ${routeFilesResult.page} export: ${userOptions.pageExportName}`);
+      }
+      
+      // In development mode (serve), use dynamic import loader for TypeScript support
+      const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
+      const componentLoader = isServeMode 
+        ? async (path: string) => {
+            if (userOptions.verbose) {
+              logger.info(`[createHandlerOptions] Development mode: loading ${path} via dynamic import`);
+            }
+            return import(path);
+          }
+        : defaults.loader || (() => Promise.resolve({}));
+      
+      const pageResult = await resolveComponent({
+        componentPath: routeFilesResult.page,
+        exportName: userOptions.pageExportName,
+        loader: componentLoader,
+      });
+
+      if (pageResult.type === "success") {
+        PageComponent = pageResult.component;
+        logger.info(`[createHandlerOptions] Loaded Page component from ${routeFilesResult.page}`);
+      } else {
+        logger.warn(
+          `[createHandlerOptions] Failed to load Page component from ${routeFilesResult.page}: ${
+            pageResult.error?.message || "Unknown error"
+          }`
+        );
+      }
+    } catch (error) {
+      logger.warn(
+        `[createHandlerOptions] Error loading Page component from ${routeFilesResult.page}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  // Load Root component if rootPath is available, or use default Root component if rootPath is undefined
+  if (!RootComponent && routeFilesResult.root !== undefined) {
+    // If rootPath is explicitly set to empty string, don't load any Root component (headless mode)
+    if (routeFilesResult.root === '') {
+      if (userOptions.verbose) {
+        logger.info(`[createHandlerOptions] Root component explicitly disabled (headless mode)`);
+      }
+      RootComponent = undefined;
+    } else {
+      // Load custom Root component from specified path
+      try {
+        // Use same development mode loader logic
+        const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
+        const componentLoader = isServeMode 
+          ? async (path: string) => import(path)
+          : defaults.loader || (() => Promise.resolve({}));
+        
+        const rootResult = await resolveComponent({
+          componentPath: routeFilesResult.root,
+          exportName: userOptions.rootExportName,
+          loader: componentLoader,
+        });
+
+        if (rootResult.type === "success") {
+          RootComponent = rootResult.component as RootComponentType;
+          logger.info(`[createHandlerOptions] Loaded custom Root component from ${routeFilesResult.root}`);
+        }
+      } catch (error) {
+        logger.warn(
+          `[createHandlerOptions] Error loading custom Root component: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+  } else if(!RootComponent) {
+    // rootPath is undefined, use default Root component
+    try {
+      const { Root } = await import("../components/root.js");
+      RootComponent = Root;
+      if (userOptions.verbose) {
+        logger.info(`[createHandlerOptions] Using default Root component`);
+      }
+    } catch (error) {
+      logger.warn(
+        `[createHandlerOptions] Error loading default Root component: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  // Load Html component if htmlPath is available, or use default Html component if htmlPath is undefined
+  if (!HtmlComponent && routeFilesResult.html !== undefined) {
+    // If htmlPath is explicitly set to empty string, don't load any Html component (headless mode)
+    if (routeFilesResult.html === '') {
+      if (userOptions.verbose) {
+        logger.info(`[createHandlerOptions] Html component explicitly disabled (headless mode)`);
+      }
+      HtmlComponent = undefined;
+    } else {
+      // Load custom Html component from specified path
+      try {
+        
+        // Use same development mode loader logic
+        const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
+        const componentLoader = isServeMode 
+          ? async (path: string) => import(path)
+          : defaults.loader || (() => Promise.resolve({}));
+        
+        const htmlResult = await resolveComponent({
+          componentPath: routeFilesResult.html,
+          exportName: userOptions.htmlExportName,
+          loader: componentLoader,
+        });
+
+        if (htmlResult.type === "success") {
+          HtmlComponent = htmlResult.component as HtmlComponentType;
+          logger.info(`[createHandlerOptions] Loaded custom Html component from ${routeFilesResult.html}`);
+        }
+      } catch (error) {
+        logger.warn(
+          `[createHandlerOptions] Error loading custom Html component: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+  } else if(!HtmlComponent) {
+    // htmlPath is undefined, use default Html component
+    try {
+      const { Html } = await import("../components/html.js");
+      HtmlComponent = Html;
+      if (userOptions.verbose) {
+        logger.info(`[createHandlerOptions] Using default Html component`);
+      }
+    } catch (error) {
+      logger.warn(
+        `[createHandlerOptions] Error loading default Html component: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  // Create workers for server environment based on configuration and configEnv
+  let rscWorker: any = undefined;
+  let htmlWorker: any = undefined;
+  
+  // Determine if we need workers based on configEnv and dev config
+  const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
+  const isBuildMode = configEnv?.command === "build";
+  
+  // Create RSC worker if:
+  // 1. useRscWorker is enabled in dev config AND we're in serve mode, OR
+  // 2. useRscWorker is enabled in build config AND we're in build mode
+  const shouldCreateRscWorker = (userOptions.dev?.useRscWorker && isServeMode) || 
+                               (userOptions.build?.useRscWorker && isBuildMode);
+  
+  if (shouldCreateRscWorker) {
+    if (userOptions.verbose) {
+      logger.info(`[createHandlerOptions.server] Creating RSC worker for route: ${route}`);
+    }
+    
+    try {
+      const { createWorker } = await import("../worker/createWorker.js");
+      const { serializedOptions } = await import("../helpers/serializeUserOptions.js");
+      
+      const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles);
+      
+      const workerResult = await createWorker({
+        currentCondition: "react-server",
+        reverseCondition: "react-client",
+        workerPath: userOptions.rscWorkerPath,
+        verbose: userOptions.verbose,
+        logger,
+        workerData: {
+          id: route,
+          userOptions: serializedUserOptions,
+          resolvedConfig: {
+            configEnv,
+            mode,
+          },
+        },
+      });
+
+      if (workerResult.type === "error") {
+        logger.warn(`[createHandlerOptions.server] Failed to create RSC worker: ${workerResult.error?.message}`);
+        rscWorker = undefined;
+      } else if (workerResult.type === "skip") {
+        logger.warn(`[createHandlerOptions.server] RSC worker creation skipped: ${workerResult.reason}`);
+        rscWorker = undefined;
+      } else {
+        rscWorker = workerResult.worker;
+        if (userOptions.verbose) {
+          logger.info(`[createHandlerOptions.server] RSC worker created successfully`);
+        }
+      }
+    } catch (error) {
+      logger.warn(`[createHandlerOptions.server] RSC worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      rscWorker = undefined;
+    }
+  }
+
+  // Create HTML worker if:
+  // 1. useHtmlWorker is enabled in dev config AND we're in serve mode, OR
+  // 2. useHtmlWorker is enabled in build config AND we're in build mode
+  const shouldCreateHtmlWorker = (userOptions.dev?.useHtmlWorker && isServeMode) || 
+                                (userOptions.build?.useHtmlWorker && isBuildMode);
+  
+  if (shouldCreateHtmlWorker) {
+    if (userOptions.verbose) {
+      logger.info(`[createHandlerOptions.server] Creating HTML worker for route: ${route}`);
+    }
+    
+    try {
+      const { createWorker } = await import("../worker/createWorker.js");
+      const { serializedOptions } = await import("../helpers/serializeUserOptions.js");
+      
+      const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles);
+      
+      const workerResult = await createWorker({
+        currentCondition: "react-server",
+        reverseCondition: "react-client",
+        workerPath: userOptions.htmlWorkerPath,
+        verbose: userOptions.verbose,
+        logger,
+        workerData: {
+          id: route,
+          userOptions: serializedUserOptions,
+          resolvedConfig: {
+            configEnv,
+            mode,
+          },
+        },
+      });
+
+      if (workerResult.type === "error") {
+        logger.warn(`[createHandlerOptions.server] Failed to create HTML worker: ${workerResult.error?.message}`);
+        htmlWorker = undefined;
+      } else if (workerResult.type === "skip") {
+        logger.warn(`[createHandlerOptions.server] HTML worker creation skipped: ${workerResult.reason}`);
+        htmlWorker = undefined;
+      } else {
+        htmlWorker = workerResult.worker;
+        if (userOptions.verbose) {
+          logger.info(`[createHandlerOptions.server] HTML worker created successfully`);
+        }
+      }
+    } catch (error) {
+      logger.warn(`[createHandlerOptions.server] HTML worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      htmlWorker = undefined;
+    }
+  }
+
   // Create server-specific handler options
   const handlerOptions: CreateHandlerOptions = {
-    ...stashedOptions,
+    ...userOptions,
     // File paths
     pagePath: routeFilesResult.page,
     propsPath: routeFilesResult.props,
@@ -142,56 +407,66 @@ export async function createHandlerOptions(
     htmlPath: routeFilesResult.html,
     
     // Export names
-    pageExportName: stashedOptions.pageExportName,
-    propsExportName: stashedOptions.propsExportName,
-    rootExportName: stashedOptions.rootExportName,
-    htmlExportName: stashedOptions.htmlExportName,
+    pageExportName: userOptions.pageExportName,
+    propsExportName: userOptions.propsExportName,
+    rootExportName: userOptions.rootExportName,
+    htmlExportName: userOptions.htmlExportName,
     
     // Route and loader
     route,
     loader: defaults.loader || (() => Promise.resolve({})),
     
     // Configuration
-    panicThreshold: stashedOptions.panicThreshold,
-    verbose: stashedOptions.verbose,
-    moduleBaseURL: stashedOptions.moduleBaseURL,
-    build: stashedOptions.build,
+    panicThreshold: userOptions.panicThreshold,
+    verbose: userOptions.verbose,
+    moduleBaseURL: userOptions.moduleBaseURL,
+    build: userOptions.build,
+    dev: {
+      useHtmlWorker: userOptions.dev.useHtmlWorker,
+      useRscWorker: userOptions.dev.useRscWorker,
+    },
     logger,
     
     // Required properties
-    normalizer: stashedOptions.normalizer,
-    onEvent: stashedOptions.onEvent,
-    onMetrics: stashedOptions.onMetrics,
-    autoDiscover: stashedOptions.autoDiscover,
-    css: stashedOptions.css,
-    projectRoot: stashedOptions.projectRoot,
-    moduleBase: stashedOptions.moduleBase,
-    moduleBasePath: stashedOptions.moduleBasePath,
-    moduleRootPath: stashedOptions.moduleRootPath,
-    moduleID: stashedOptions.moduleID,
+    normalizer: userOptions.normalizer,
+    onEvent: userOptions.onEvent,
+    onMetrics: userOptions.onMetrics,
+    autoDiscover: userOptions.autoDiscover,
+    css: userOptions.css,
+    projectRoot: userOptions.projectRoot,
+    moduleBase: userOptions.moduleBase,
+    moduleBasePath: userOptions.moduleBasePath,
+    moduleRootPath: userOptions.moduleRootPath,
+    moduleID: userOptions.moduleID,
     url,
     manifest: defaults.manifest,
     cssFiles: defaults.cssFiles,
     globalCss: defaults.globalCss,
     
     // Timeouts and paths
-    rscTimeout: stashedOptions.rscTimeout,
-    htmlTimeout: stashedOptions.htmlTimeout,
-    fileWriteTimeout: stashedOptions.fileWriteTimeout,
-    workerShutdownTimeout: stashedOptions.workerShutdownTimeout,
-    rscWorkerPath: stashedOptions.rscWorkerPath,
-    htmlWorkerPath: stashedOptions.htmlWorkerPath,
-    publicOrigin: stashedOptions.publicOrigin,
+    rscTimeout: userOptions.rscTimeout,
+    htmlTimeout: userOptions.htmlTimeout,
+    fileWriteTimeout: userOptions.fileWriteTimeout,
+    workerShutdownTimeout: userOptions.workerShutdownTimeout,
+    rscWorkerPath: userOptions.rscWorkerPath,
+    htmlWorkerPath: userOptions.htmlWorkerPath,
+    publicOrigin: userOptions.publicOrigin,
     
     // Stream options
-    serverPipeableStreamOptions: stashedOptions.serverPipeableStreamOptions,
-    clientPipeableStreamOptions: stashedOptions.clientPipeableStreamOptions,
-    components: stashedOptions.components,
+    serverPipeableStreamOptions: userOptions.serverPipeableStreamOptions,
+    clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions,
+    components: userOptions.components,
     
     // Server-specific
     id,
-    // Server can load components directly, so no placeholders needed
-    HtmlComponent: undefined, // Required by type but server loads components directly
+    // Always use the inverse worker for the main "worker" field
+    worker: htmlWorker,
+    rscWorker,
+    htmlWorker,
+    // Loaded components (server loads them at configuration time)
+    PageComponent,
+    RootComponent, 
+    HtmlComponent
   };
 
   // Cache and return

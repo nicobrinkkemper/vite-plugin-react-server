@@ -1,7 +1,8 @@
 import type { PassThrough, Transform } from "stream";
 import type { RenderMetrics, StreamMetrics } from "../../types.js";
 import type { PanicThreshold } from "../../types.js";
-import type { 
+
+import type {
   ErrorMessage,
   ShellReadyMessage,
   ChunkProcessedMessage,
@@ -15,12 +16,15 @@ import type {
   ServerActionResponseMessage,
   CleanupCompleteMessage,
   ShutdownMessage,
-  RscEndMessage,
   CleanupMessage,
   AbortMessage,
-  StreamHandlers
-} from '../types.js';
-import type { CssFileMessage, InitializedCssLoaderMessage, RscChunkOutputMessage, RscMetricsMessage } from "../rsc/types.js";
+  StreamHandlers,
+} from "../types.js";
+import type {
+  CssFileMessage,
+  InitializedCssLoaderMessage,
+  RscMetricsMessage,
+} from "../rsc/types.js";
 import type { createLogger, Logger } from "vite";
 
 // HTML-specific metrics
@@ -41,14 +45,14 @@ export type HtmlWorkerRenderState = {
   abort?: () => void;
   shellReady?: boolean;
   currentRoute?: string;
-}
+};
 
 // HTML-specific messages
 export type HtmlChunkMessage = {
   type: "HTML_CHUNK";
   id: string;
   chunk: Uint8Array;
-}
+};
 
 export type HtmlCompleteMessage = {
   type: "HTML_COMPLETE";
@@ -57,13 +61,13 @@ export type HtmlCompleteMessage = {
   html?: string;
   chunks?: string[];
   metrics?: StreamMetrics;
-}
+};
 
 export type HtmlMetricsMessage = {
   type: "HTML_METRICS";
   id: string;
   metrics: RenderMetrics & { type: "html" };
-}
+};
 
 export type LogErrorMessage = {
   type: "LOG_ERROR";
@@ -74,7 +78,7 @@ export type LogErrorMessage = {
     message: string;
     stack: string;
   };
-}
+};
 
 export type HtmlRenderStartMessage = {
   type: "HTML_RENDER_START";
@@ -82,37 +86,39 @@ export type HtmlRenderStartMessage = {
 };
 
 export type HtmlRenderMessage = {
-  type: "HTML_RENDER";
+  type: "INIT";
   id: string;
-  route: string;
-  url?: string;
-  pagePath?: string;
-  propsPath?: string;
-  rootPath?: string;
-  htmlPath?: string;
-  pageExportName?: string;
-  propsExportName?: string;
-  rootExportName?: string;
-  htmlExportName?: string;
-  projectRoot?: string;
-  moduleRootPath?: string;
-  moduleBaseURL?: string;
-  moduleBasePath?: string;
-  moduleBase?: string;
-  clientPipeableStreamOptions?: any;
-  cssFiles?: Map<string, any>;
-  globalCss?: Map<string, any>;
-  verbose?: boolean;
-  build?: any;
-  htmlTimeout?: number;   
-  panicThreshold?: PanicThreshold;
-  publicOrigin?: string;
-}
+  dataPort: MessagePort;
+  controlPort: MessagePort;
+  options: {
+    route: string;
+    url?: string;
+    pagePath?: string;
+    propsPath?: string;
+    rootPath?: string;
+    htmlPath?: string;
+    pageExportName?: string;
+    propsExportName?: string;
+    rootExportName?: string;
+    htmlExportName?: string;
+    projectRoot?: string;
+    moduleRootPath?: string;
+    moduleBaseURL?: string;
+    moduleBasePath?: string;
+    moduleBase?: string;
+    clientPipeableStreamOptions?: any;
+    cssFiles?: Map<string, any>;
+    globalCss?: Map<string, any>;
+    verbose?: boolean;
+    build?: any;
+    htmlTimeout?: number;
+    panicThreshold?: PanicThreshold;
+    publicOrigin?: string;
+  };
+};
 
 export type HtmlWorkerInputMessage =
   | HtmlRenderMessage
-  | RscChunkOutputMessage
-  | RscEndMessage
   | ShellReadyMessage
   | AllReadyMessage
   | ErrorMessage
@@ -121,7 +127,7 @@ export type HtmlWorkerInputMessage =
   | RscMetricsMessage
   | ShutdownMessage
   | CleanupMessage
-  | AbortMessage
+  | AbortMessage;
 
 export type HtmlWorkerOutputMessage =
   | HtmlCompleteMessage
@@ -141,9 +147,7 @@ export type HtmlWorkerOutputMessage =
   | InitializedCssLoaderMessage
   | LogErrorMessage
   | HtmlRenderStartMessage
-  | HtmlMetricsMessage
-
-  
+  | HtmlMetricsMessage;
 
 export type CreateHtmlWorkerRenderStateFn = (
   msg: HtmlRenderMessage,
@@ -152,10 +156,10 @@ export type CreateHtmlWorkerRenderStateFn = (
   logger?: Logger
 ) => HtmlWorkerRenderState;
 
-
-
-export type CallServerCallback = (id: string, args: unknown[]) => Promise<unknown>;
-
+export type CallServerCallback = (
+  id: string,
+  args: unknown[]
+) => Promise<unknown>;
 
 export type HandleHtmlRenderFn = (
   options: {
@@ -170,6 +174,6 @@ export type HandleHtmlRenderFn = (
     verbose?: boolean;
     htmlTimeout?: number;
   },
-  handlers: StreamHandlers<'client'>,
+  handlers: StreamHandlers<"client">,
   logger?: ReturnType<typeof createLogger>
 ) => void;

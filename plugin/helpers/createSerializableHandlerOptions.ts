@@ -1,4 +1,5 @@
 import type { CreateHandlerOptions, PanicThreshold } from "../types.js";
+import { cleanObject } from "./cleanObject.js";
 import { processForSerialization } from "./serializeUserOptions.js";
 
 /**
@@ -75,7 +76,7 @@ export interface SerializableHandlerOptions {
  * @returns Serializable options for worker communication
  */
 export function createSerializableHandlerOptions(
-  options: CreateHandlerOptions
+  options: Partial<CreateHandlerOptions>
 ): SerializableHandlerOptions {
   const {
     // Extract serializable parts
@@ -104,30 +105,52 @@ export function createSerializableHandlerOptions(
   } = options;
 
 
+  const result: any = {
+    route: route || "",
+    url: url || "",
+  };
 
+  // Only include properties if they exist
+  if (typeof id === 'string') result.id = id;
+  if (typeof pagePath === 'string') result.pagePath = pagePath;
+  if (typeof propsPath === 'string') result.propsPath = propsPath;
+  if (typeof rootPath === 'string') result.rootPath = rootPath;
+  if (typeof htmlPath === 'string') result.htmlPath = htmlPath;
+  if (typeof pageExportName === 'string') result.pageExportName = pageExportName;
+  if (typeof propsExportName === 'string') result.propsExportName = propsExportName;
+  if (typeof rootExportName === 'string') result.rootExportName = rootExportName;
+  if (typeof htmlExportName === 'string') result.htmlExportName = htmlExportName;
+  if (typeof projectRoot === 'string') result.projectRoot = projectRoot;
+  if (typeof moduleRootPath === 'string') result.moduleRootPath = moduleRootPath;
+  if (typeof moduleBaseURL === 'string') result.moduleBaseURL = moduleBaseURL;
+  if (typeof moduleBasePath === 'string') result.moduleBasePath = moduleBasePath;
+  if (typeof moduleBase === 'string') result.moduleBase = moduleBase;
+  if (build != null) {
+    // Clean the build object to remove functions that can't be cloned
+    const cleanedBuild = cleanObject(build, new Set([
+      "entryFile",
+      "chunkFile", 
+      "assetFile"
+    ]));
+    result.build = processForSerialization(cleanedBuild);
+  }
+
+  // Clean the entire options object to remove other non-serializable functions
+  const cleanedOptions = cleanObject(rest, new Set([
+    "normalizer",
+    "loader",
+    "onEvent",
+    "onMetrics"
+  ]));
+  const processedRest = processForSerialization(cleanedOptions);
+  if (css != null) result.css = css;
+  if (cssFiles != null) result.cssFiles = cssFiles;
+  if (globalCss != null) result.globalCss = globalCss;
+  if (pageProps != null) result.pageProps = pageProps;
+
+  // Include any other serializable properties using existing helper
   return {
-    id,
-    route,
-    url,
-    pagePath,
-    propsPath,
-    rootPath,
-    htmlPath,
-    pageExportName,
-    propsExportName,
-    rootExportName,
-    htmlExportName,
-    projectRoot,
-    moduleRootPath,
-    moduleBaseURL,
-    moduleBasePath,
-    moduleBase,
-    build,
-    css,
-    cssFiles,
-    globalCss,
-    pageProps,
-    // Include any other serializable properties using existing helper
-    ...processForSerialization(rest),
+    ...result,
+    ...processedRest,
   };
 }

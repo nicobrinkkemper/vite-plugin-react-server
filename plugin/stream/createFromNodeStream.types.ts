@@ -8,6 +8,7 @@ export type CreateFromNodeStreamOptions<
   Env extends "client" | "server" = "client" | "server"
 > = Env extends "client"
   ? {
+      children?: any;
       rscStream: PassThrough | Readable;
       moduleRootPath?: string;
       moduleBasePath?: string;

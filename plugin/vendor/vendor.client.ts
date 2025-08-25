@@ -1,5 +1,8 @@
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import { assertNonReactServer } from "../config/getCondition.js";
+
+assertNonReactServer();
 
 const projectRoot = process.cwd();
 const nodeRequire = createRequire(join(projectRoot, "package.json"));

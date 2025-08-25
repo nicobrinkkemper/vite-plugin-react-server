@@ -1,24 +1,22 @@
 import { parentPort } from "node:worker_threads";
+import { PassThrough } from "node:stream";
+import { createLogger } from "vite";
+import { workerData } from "node:worker_threads";
+import { join } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
-import { hydrateRscRenderMessage } from "./hydrateRscRenderMessage.js";
-import { handleRscRender } from "./handleRscRender.js";
+import { createRenderToPipeableStreamHandler } from "../../stream/createRenderToPipeableStreamHandler.js";
+import type { RscWorkerInputMessage } from "./types.js";
 import { toError } from "../../error/toError.js";
 import { handleError } from "../../error/handleError.js";
-import { join } from "node:path";
-import { workerData } from "node:worker_threads";
-import type { RscWorkerInputMessage } from "./types.js";
+import { createHandlers } from "./handlers.js";
 import { addCssFileContent, addModuleId, cssFiles, hmrState } from "./state.js";
-import { handlers } from "./handlers.js";
 import { combineCssFiles, processInlineCssForState } from "../../helpers/createUnifiedCssProcessor.js";
 import { routeToURL } from "../../utils/routeToURL.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { userOptions } from "./userOptions.js";
-import { createLogger } from "vite";
-import { PassThrough } from "node:stream";
 import { React } from "../../vendor/vendor.server.js";
 import { sendMessage } from "../sendMessage.js";
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
-
 
 const logger = createLogger(workerData.resolvedConfig.logLevel ?? "info");
 const verbose = workerData.userOptions.verbose ?? false;
@@ -49,6 +47,12 @@ export async function messageHandler(
   msg: RscWorkerInputMessage,
   port = parentPort
 ) {
+  // Create handlers based on whether we have ports (two-port) or not (single-port)
+  const effectiveHandlers = createHandlers(
+    msg.type === "INIT" ? (msg as any).dataPort : undefined,
+    msg.type === "INIT" ? (msg as any).controlPort : undefined
+  );
+
   try {
     if (verbose) {
       logger.info(
@@ -56,50 +60,35 @@ export async function messageHandler(
       );
     }
 
+
+
     switch (msg.type) {
-      case "RSC_RENDER":
+      case "INIT":
         // Clean up any previous render for this id
         cleanupRender(msg.id);
 
         // Determine if this is a headless or full RSC request
-        const isHeadless = msg.htmlPath === '' || !msg.htmlPath;
+        const isHeadless = msg.options.htmlPath === '' || !msg.options.htmlPath;
         const rscVariant = isHeadless ? "rsc-headless" : "rsc-full";
         
         if (verbose) {
-          logger.info(`[rsc-worker] Processing ${rscVariant} render for route: ${msg.route}`);
-        }
-        
-        // Check if we can reuse an active headless stream for full page rendering
-        if (!isHeadless) {
-          const existingStreamId = activeStreamsByRoute.get(msg.route);
-          if (existingStreamId && activeRenders.has(existingStreamId)) {
-            if (verbose) {
-              logger.info(`[rsc-worker] Reusing active headless stream ${existingStreamId} for full page render of route: ${msg.route}`);
-            }
-            
-            // Reuse the existing stream directly
-            if (verbose) {
-              logger.info(`[rsc-worker] Reusing active headless stream ${existingStreamId} for full page render of route: ${msg.route}`);
-            }
-            // For now, just fall through to fresh render
-            // TODO: Implement actual stream reuse logic
-          }
+          logger.info(`[rsc-worker] Processing ${rscVariant} render for route: ${msg.options.route}`);
         }
 
-        // Create a new PassThrough stream for this render
-        const rscStream = new PassThrough();
+        // Create a new PassThrough stream for this render, or use the one provided
+        const rscStream = (msg as any).rscStream || new PassThrough();
         activeRenders.set(msg.id, rscStream);
 
         // Start measuring module resolution time from first module load
         const moduleResolutionStartTime = performance.now();
 
-        // Load modules (page, props, and components together)
+        // Load modules (page, props, and components together) - same as server environment
         const loader = createRscWorkerLoader({
-          verbose: msg.verbose ?? workerData.userOptions.verbose,
+          verbose: msg.options.verbose ?? workerData.userOptions.verbose,
           logger,
           hmrState,
           projectRoot: workerData.userOptions.projectRoot,
-          manifest: msg.manifest || workerData.serverManifest || {},
+          manifest: msg.options.manifest || workerData.serverManifest || {},
           build: {
             server: userOptions.build?.server || "server",
             client: userOptions.build?.client || "client",
@@ -109,174 +98,102 @@ export async function messageHandler(
           bundle: workerData.bundle || {},
           clientPattern: userOptions.autoDiscover?.clientPattern,
         });
-        const url =
-          msg.url ??
-          routeToURL(
-            msg.route,
-            userOptions.moduleBaseURL,
-            userOptions.build?.rscOutputPath ??
-              DEFAULT_CONFIG.BUILD.rscOutputPath
-          );
 
-        const intermediateHandlerOptions = {
-          url,
-          pagePath: msg.pagePath,
-          propsPath: msg.propsPath,
-          rootPath: msg.rootPath,
-          htmlPath: msg.htmlPath, // Ensure htmlPath is passed through
-          pageExportName:
-            msg.pageExportName ?? workerData.userOptions.pageExportName,
-          propsExportName:
-            msg.propsExportName ?? workerData.userOptions.propsExportName,
-          rootExportName:
-            msg.rootExportName ?? workerData.userOptions.rootExportName,
-          htmlExportName:
-            msg.htmlExportName ?? workerData.userOptions.htmlExportName,
-          moduleRootPath: userOptions.moduleRootPath,
-          moduleBasePath: userOptions.moduleBasePath,
-          moduleBaseURL: userOptions.moduleBaseURL,
-          projectRoot: userOptions.projectRoot,
-          verbose: msg.verbose ?? userOptions.verbose,
-          logger,
-          userOptions,
-          loader,
-          hmrState,
-          route: msg.route,
-          id: msg.id,
-          rscTimeout: msg.rscTimeout ?? userOptions.rscTimeout,
-          build: msg.build ?? userOptions.build,
-          manifest: msg.manifest || {}, // Add manifest for client component resolution
-          // Add component overrides from the message
-          HtmlComponent: msg.HtmlComponent,
-          RootComponent: msg.RootComponent,
-          // Add missing required properties
-          normalizer: userOptions.normalizer,
-          onEvent: userOptions.onEvent,
-          onMetrics: userOptions.onMetrics,
-          autoDiscover: userOptions.autoDiscover,
-          css: userOptions.css,
-          moduleBase: userOptions.moduleBase,
-          moduleID: userOptions.moduleID,
-          panicThreshold: userOptions.panicThreshold,
-          cssFiles: msg.cssFiles ?? new Map(),
-          globalCss: msg.globalCss ?? new Map(),
-          htmlTimeout: userOptions.htmlTimeout,
-          fileWriteTimeout: userOptions.fileWriteTimeout,
-          workerShutdownTimeout: userOptions.workerShutdownTimeout,
-          rscWorkerPath: userOptions.rscWorkerPath,
-          htmlWorkerPath: userOptions.htmlWorkerPath,
-          publicOrigin: userOptions.publicOrigin,
-          serverPipeableStreamOptions: userOptions.serverPipeableStreamOptions,
-          clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions,
-          components: userOptions.components,
-        };
+        const url = msg.options.url || routeToURL(
+          msg.options.route,
+          userOptions.moduleBaseURL,
+          userOptions.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath
+        );
 
-        if (verbose) {
-          logger.info(
-            `[rsc-worker] htmlPath from message: "${
-              msg.htmlPath
-            }" (type: ${typeof msg.htmlPath})`
-          );
-          logger.info(
-            `[rsc-worker] htmlPath in options: "${
-              intermediateHandlerOptions.htmlPath
-            }" (type: ${typeof intermediateHandlerOptions.htmlPath})`
-          );
-          logger.info(
-            `[rsc-worker] CSS files from message: ${msg.cssFiles?.size || 0} files`
-          );
-          logger.info(
-            `[rsc-worker] Global CSS from message: ${msg.globalCss?.size || 0} files`
-          );
-        }
-
-        // Use pre-resolved components if available, otherwise load them
+        // Load components exactly like the server environment does
         let PageComponent: any;
-        if (msg.PageComponent) {
-          if (verbose) {
-            logger.info(`[rsc-worker] Using pre-resolved page component`);
-          }
-          PageComponent = msg.PageComponent;
-        } else if (msg.pagePath) {
-          if (verbose) {
-            logger.info(`[rsc-worker] Loading page component from: ${msg.pagePath}`);
-          }
+        if (msg.options.pagePath) {
+          logger.info(`[rsc-worker] Loading page component from: ${msg.options.pagePath}`);
           const pageModule = await loader(
-            `${msg.pagePath}#${
-              msg.pageExportName ?? workerData.userOptions.pageExportName
+            `${msg.options.pagePath}#${
+              msg.options.pageExportName ?? workerData.userOptions.pageExportName
             }`
           );
           PageComponent = pageModule[
-            msg.pageExportName ?? workerData.userOptions.pageExportName
+            msg.options.pageExportName ?? workerData.userOptions.pageExportName
           ] as any;
         } else {
-          throw new Error(`[rsc-worker] No PageComponent or pagePath provided`);
+          throw new Error(`[rsc-worker] No pagePath provided`);
         }
         
         if (verbose) {
           logger.info(`[rsc-worker] Page component loaded: ${typeof PageComponent}`);
         }
 
-        // Emit module resolution metric after first module is loaded
-
         let RootComponent: any;
-        if (msg.RootComponent !== undefined) {
-          logger.info(`[rsc-worker] Using pre-resolved root component`);
-          RootComponent = msg.RootComponent;
-        } else if (msg.rootPath) {
-          logger.info(`[rsc-worker] Loading root component from: ${msg.rootPath}`);
+        if (msg.options.rootPath) {
+          logger.info(`[rsc-worker] Loading root component from: ${msg.options.rootPath}`);
           RootComponent = ((
               await loader(
-                `${msg.rootPath}#${
-                  msg.rootExportName ?? workerData.userOptions.rootExportName
+                `${msg.options.rootPath}#${
+                  msg.options.rootExportName ?? workerData.userOptions.rootExportName
                 }`
               )
             )[
-              msg.rootExportName ?? workerData.userOptions.rootExportName
+              msg.options.rootExportName ?? workerData.userOptions.rootExportName
             ] as any);
         } else {
-          RootComponent = undefined; // undefined = use default Root component (handled by hydrateRscRenderMessage)
+          // Use default Root component like server environment
+          try {
+            const { Root } = await import("../../components/root.js");
+            RootComponent = Root;
+            if (verbose) {
+              logger.info(`[rsc-worker] Using default Root component`);
+            }
+          } catch (error) {
+            logger.warn(`[rsc-worker] Error loading default Root component: ${error}`);
+          }
         }
 
         let HtmlComponent: any;
-        if (msg.HtmlComponent !== undefined) {
-          logger.info(`[rsc-worker] Using pre-resolved html component`);
-          HtmlComponent = msg.HtmlComponent;
-        } else if (msg.htmlPath === '') {
+        if (msg.options.htmlPath === '') {
           HtmlComponent = React.Fragment; // Empty string = headless (no HTML wrapper)
-        } else if (msg.htmlPath) {
-          logger.info(`[rsc-worker] Loading html component from: ${msg.htmlPath}`);
+        } else if (msg.options.htmlPath) {
+          logger.info(`[rsc-worker] Loading html component from: ${msg.options.htmlPath}`);
           HtmlComponent = ((
               await loader(
-                `${msg.htmlPath}#${
-                  msg.htmlExportName ?? workerData.userOptions.htmlExportName
+                `${msg.options.htmlPath}#${
+                  msg.options.htmlExportName ?? workerData.userOptions.htmlExportName
                 }`
               )
             )[
-              msg.htmlExportName ?? workerData.userOptions.htmlExportName
+              msg.options.htmlExportName ?? workerData.userOptions.htmlExportName
             ] as any);
         } else {
-          HtmlComponent = undefined; // undefined = use default HTML component (handled by hydrateRscRenderMessage)
+          // Use default Html component like server environment
+          try {
+            const { Html } = await import("../../components/html.js");
+            HtmlComponent = Html;
+            if (verbose) {
+              logger.info(`[rsc-worker] Using default Html component`);
+            }
+          } catch (error) {
+            logger.warn(`[rsc-worker] Error loading default Html component: ${error}`);
+          }
         }
 
-        // Load and resolve props properly - same as renderPage.server.ts
+        // Load and resolve props exactly like server environment
         let pageProps;
-        if (msg.propsPath) {
+        if (msg.options.propsPath) {
           if (verbose) {
-            logger.info(`[rsc-worker] Loading props from: ${msg.propsPath}`);
+            logger.info(`[rsc-worker] Loading props from: ${msg.options.propsPath}`);
           }
           const propsModule = await loader(
-            `${msg.propsPath}#${
-              msg.propsExportName ?? workerData.userOptions.propsExportName
+            `${msg.options.propsPath}#${
+              msg.options.propsExportName ?? workerData.userOptions.propsExportName
             }`
           );
           const propsFunction = propsModule[
-            msg.propsExportName ?? workerData.userOptions.propsExportName
+            msg.options.propsExportName ?? workerData.userOptions.propsExportName
           ] as any;
           
           if (verbose) {
             logger.info(`[rsc-worker] Props function type: ${typeof propsFunction}`);
-            logger.info(`[rsc-worker] Props function: ${propsFunction}`);
           }
           
           // Call the props function with the URL if it's a function
@@ -295,27 +212,29 @@ export async function messageHandler(
             }
           }
         } else {
-          pageProps = { url };
+          pageProps = undefined; // Match server environment behavior
           if (verbose) {
-            logger.info(`[rsc-worker] No props path, using default: ${JSON.stringify(pageProps, null, 2)}`);
+            logger.info(`[rsc-worker] No props path, using undefined (matching server behavior)`);
           }
         }
-        const moduleResolutionTime =
-          performance.now() - moduleResolutionStartTime;
-        if (handlers.onMetrics) {
+
+        // Emit module resolution metric after components are loaded
+        const moduleResolutionTime = performance.now() - moduleResolutionStartTime;
+        if (effectiveHandlers.onMetrics) {
           const moduleResolutionMetric = createModuleResolutionMetrics({
-            route: msg.route,
+            route: msg.options.route,
             workerType: "rsc",
             resolutionTime: moduleResolutionTime,
             fromMainThread: false,
             fromRscWorker: true,
             fromHtmlWorker: false,
-            description: `Module resolution for route ${msg.route}`,
+            description: `Module resolution for route ${msg.options.route}`,
           });
-          handlers.onMetrics(msg.id, moduleResolutionMetric);
+          effectiveHandlers.onMetrics(msg.id, moduleResolutionMetric);
         }
+
         // Process CSS files using unified CSS processor
-        const messageCssFiles = new Map(msg.cssFiles || []);
+        const messageCssFiles = new Map(msg.options.cssFiles || []);
         
         // Process inline CSS for stateful system using unified helper
         processInlineCssForState(messageCssFiles, addCssFileContent, userOptions);
@@ -323,182 +242,88 @@ export async function messageHandler(
         // Combine stateful CSS with message CSS using unified helper
         const combinedCssFiles = combineCssFiles(cssFiles, messageCssFiles);
 
-        const messageWithCss = {
-          ...msg,
+        // Create handler options exactly like server environment
+        const handlerOptions = {
+          route: msg.options.route,
+          url,
+          pageProps,
+          PageComponent,
+          RootComponent,
+          HtmlComponent,
           cssFiles: combinedCssFiles,
+          globalCss: msg.options.globalCss ?? new Map(),
+          manifest: msg.options.manifest || {},
+          projectRoot: workerData.userOptions.projectRoot,
+          moduleBase: userOptions.moduleBase || "",
+          moduleBasePath: userOptions.moduleBasePath || "",
+          moduleBaseURL: userOptions.moduleBaseURL || "/",
+          moduleRootPath: userOptions.moduleRootPath || "",
+          verbose: msg.options.verbose || verbose,
+          logger,
+          panicThreshold: msg.options.panicThreshold || "none",
+          rscTimeout: msg.options.rscTimeout,
+          serverPipeableStreamOptions: msg.options.serverPipeableStreamOptions,
+          onEvent: userOptions.onEvent,
+          onMetrics: userOptions.onMetrics,
         };
 
-        const hydratedMessage = hydrateRscRenderMessage(
-          {
-            message: messageWithCss,
-            pageProps: pageProps, // Use loaded pageProps
-            PageComponent: PageComponent, // Use loaded PageComponent
-            RootComponent: RootComponent, // Use loaded RootComponent
-            HtmlComponent: HtmlComponent, // Use loaded HtmlComponent
-            userOptions,
-            logger,
-            hmrState,
-            manifest: msg.manifest || workerData.serverManifest || {},
-          },
-          { userOptions }
-        );
-
-        // Pass the rscStream to handleRscRender with proper CSS separation
+        // Use the same createRenderToPipeableStreamHandler as server environment
         try {
-          const result = handleRscRender(
-            {
-              ...hydratedMessage,
-              cssFiles: combinedCssFiles, // Use stateful CSS system
-              globalCss: msg.globalCss ?? new Map(), // Keep global CSS separate from stateful system
-            },
-            handlers,
-            rscStream
-          );
+          const result = createRenderToPipeableStreamHandler(handlerOptions);
           
           // Track headless streams by route for potential reuse
           if (isHeadless) {
-            activeStreamsByRoute.set(msg.route, msg.id);
+            activeStreamsByRoute.set(msg.options.route, msg.id);
             if (verbose) {
-              logger.info(`[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.route}`);
+              logger.info(`[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.options.route}`);
             }
           }
           
+          // Process the stream using the handlers
+          const streamId = msg.id;
+          const passThrough = result.rscStream;
+          
+          // Set up stream event handlers
+          if (passThrough) {
+            passThrough.on("data", (chunk) => {
+              if (verbose) {
+                logger.info(`[rsc-worker] RSC stream data chunk: ${chunk.length} bytes`);
+              }
+              effectiveHandlers.onData(streamId, chunk);
+            });
+            
+            passThrough.on("end", () => {
+              if (verbose) {
+                logger.info(`[rsc-worker] RSC stream ended`);
+              }
+              effectiveHandlers.onEnd(streamId);
+              cleanupRender(streamId);
+            });
+            
+            passThrough.on("error", (error) => {
+              if (verbose) {
+                logger.error(`[rsc-worker] RSC stream error: ${error.message}`);
+              }
+              effectiveHandlers.onError(streamId, toError(error));
+              cleanupRender(streamId);
+            });
+          }
+          
+          // Send RSC_RENDER_START control message
+          effectiveHandlers.onRscRender(streamId, msg);
+          
           return result;
         } catch (error) {
-          handlers.onError(msg.id, toError(error));
+          effectiveHandlers.onError(msg.id, toError(error));
           cleanupRender(msg.id);
           return;
         }
       case "RESOLVE_COMPONENTS": {
-        // Start measuring component resolution time
-        const resolutionStartTime = performance.now();
-        
+        // This case is now handled by createHandlerOptions
         if (verbose) {
-          logger.info(`[rsc-worker] Resolving components for route: ${msg.route}`);
+          logger.info(`[rsc-worker] RESOLVE_COMPONENTS case - now handled by createHandlerOptions`);
         }
-
-        try {
-          // Create loader for component resolution
-          const loader = createRscWorkerLoader({
-            verbose: verbose,
-            logger,
-            hmrState,
-            projectRoot: workerData.userOptions.projectRoot,
-            manifest: workerData.serverManifest || {},
-            build: {
-              server: userOptions.build?.server || "server",
-              client: userOptions.build?.client || "client",
-              static: userOptions.build?.static || "static",
-              outDir: userOptions.build?.outDir || "dist",
-            },
-            bundle: workerData.bundle || {},
-            clientPattern: userOptions.autoDiscover?.clientPattern,
-          });
-
-          const url = routeToURL(
-            msg.route,
-            userOptions.moduleBaseURL,
-            userOptions.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath
-          );
-
-          // Resolve PageComponent
-          let PageComponent;
-          if (msg.pagePath) {
-            const pageModule = await loader(
-              `${msg.pagePath}#${msg.pageExportName ?? workerData.userOptions.pageExportName}`
-            );
-            PageComponent = pageModule[msg.pageExportName ?? workerData.userOptions.pageExportName];
-          }
-
-          // Resolve RootComponent
-          let RootComponent;
-          if (msg.rootPath) {
-            const rootModule = await loader(
-              `${msg.rootPath}#${msg.rootExportName ?? workerData.userOptions.rootExportName}`
-            );
-            RootComponent = rootModule[msg.rootExportName ?? workerData.userOptions.rootExportName];
-          }
-
-          // Resolve HtmlComponent
-          let HtmlComponent;
-          if (msg.htmlPath && msg.htmlPath !== '') {
-            const htmlModule = await loader(
-              `${msg.htmlPath}#${msg.htmlExportName ?? workerData.userOptions.htmlExportName}`
-            );
-            HtmlComponent = htmlModule[msg.htmlExportName ?? workerData.userOptions.htmlExportName];
-          }
-
-          // Resolve pageProps
-          let pageProps: any = { url };
-          if (msg.propsPath) {
-            const propsModule = await loader(
-              `${msg.propsPath}#${msg.propsExportName ?? workerData.userOptions.propsExportName}`
-            );
-            const propsFunction = propsModule[msg.propsExportName ?? workerData.userOptions.propsExportName];
-            
-            // Call the props function with the URL if it's a function
-            if (typeof propsFunction === 'function') {
-              pageProps = propsFunction(url);
-            } else {
-              pageProps = propsFunction;
-            }
-          }
-
-          const resolutionTime = performance.now() - resolutionStartTime;
-
-          if (verbose) {
-            logger.info(`[rsc-worker] Components resolved for route: ${msg.route} in ${resolutionTime.toFixed(2)}ms`);
-          }
-
-          // Send COMPONENTS_RESOLVED message back to main thread
-          if (port) {
-            sendMessage(
-              {
-                type: "COMPONENTS_RESOLVED",
-                id: msg.id,
-                route: msg.route,
-                PageComponent,
-                pageProps,
-                RootComponent,
-                HtmlComponent,
-                resolutionTime,
-              },
-              port
-            );
-          }
-
-          return;
-        } catch (error) {
-          const resolutionTime = performance.now() - resolutionStartTime;
-          logger.error(`[rsc-worker] Failed to resolve components for route ${msg.route}: ${error}`);
-          
-          // Emit error metrics
-          if (handlers.onMetrics) {
-            const moduleResolutionMetric = createModuleResolutionMetrics({
-              route: msg.route,
-              workerType: "rsc",
-              resolutionTime,
-              fromMainThread: false,
-              fromRscWorker: true,
-              fromHtmlWorker: false,
-              description: `Component resolution failed for route ${msg.route} on RSC worker`,
-            });
-            handlers.onMetrics(msg.id, moduleResolutionMetric);
-          }
-          
-          // Send error response
-          if (port) {
-            sendMessage(
-              {
-                type: "ERROR",
-                id: msg.id,
-                error: toError(error),
-              },
-              port
-            );
-          }
-          return;
-        }
+        break;
       }
       case "SERVER_ACTION": {
         try {
@@ -527,11 +352,11 @@ export async function messageHandler(
           const result = await action(...msg.args);
 
           // Send success response
-          handlers.onServerActionResponse?.(msg.id, result);
+          effectiveHandlers.onServerActionResponse?.(msg.id, result);
         } catch (error: unknown) {
           const errorMessage = toError(error).message;
           // Send error response
-          handlers.onServerActionResponse?.(msg.id, undefined, errorMessage);
+          effectiveHandlers.onServerActionResponse?.(msg.id, undefined, errorMessage);
         }
         return;
       }
@@ -547,7 +372,7 @@ export async function messageHandler(
           routes: msg.routes || [],
         });
         // Notify the main thread that we've processed the update
-        handlers.onHmrUpdate(msg.id, msg.routes || []);
+        effectiveHandlers.onHmrUpdate(msg.id, msg.routes || []);
         return;
       case "ABORT":
         // Abort the stream
@@ -557,18 +382,18 @@ export async function messageHandler(
         // Clear the invalidation state
         hmrState.delete(msg.id);
         // Notify the main thread that we've processed the cleanup
-        handlers.onHmrAccept(msg.id, msg.routes || []);
+        effectiveHandlers.onHmrAccept(msg.id, msg.routes || []);
         return;
       case "CSS_FILE":
         if (msg.id) {
           // Add to CSS registry
           addCssFileContent(msg.id, msg.content, userOptions);
         }
-        handlers.onCssFile?.(msg.id, msg.content);
+        effectiveHandlers.onCssFile?.(msg.id, msg.content);
         return;
       case "SERVER_MODULE":
         addModuleId(msg.id, msg.url);
-        handlers.onServerModule?.(msg.id, msg.url, msg.source);
+        effectiveHandlers.onServerModule?.(msg.id, msg.url, msg.source);
         return;
       case "MODULE_REQUEST": {
         const { id, path } = msg;
@@ -576,9 +401,9 @@ export async function messageHandler(
           const module = await import(
             join(workerData.userOptions.projectRoot, path)
           );
-          handlers.onServerModule?.(id, path, module);
+          effectiveHandlers.onServerModule?.(id, path, module);
         } catch (error) {
-          handlers.onError(id, toError(error));
+          effectiveHandlers.onError(id, toError(error));
         }
         return;
       }
@@ -589,7 +414,7 @@ export async function messageHandler(
         //   activeStreams.delete(renderId);
         // });
         // parentPort?.removeAllListeners(); // This line was removed as per the new_code
-        handlers.onShutdown?.(msg.id);
+        effectiveHandlers.onShutdown?.(msg.id);
         // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
         if (port) {
           sendMessage(

@@ -11,5 +11,6 @@ export * from "./createFromNodeStream.client.js";
 // HTML Stream creation
 export * from "./createHtmlStream.client.js";
 
-// Worker Stream handling
-export * from "./createWorkerStream.client.js";
+// Worker Stream handling - using unified API
+export * from "./createRscWorkerStream.js";
+export * from "./createHtmlWorkerStream.js";

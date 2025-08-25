@@ -50,8 +50,18 @@ export type CreateRenderToPipeableStreamHandlerFn<
   | "cssFiles"
   | "globalCss"
   | "build"
+  | "dev"
   | "PageComponent"
   | "RootComponent"
-  | "HtmlComponent",
+  | "HtmlComponent"
+  | "children"
+  | "pageExportName"
+  | "propsExportName"
+  | "rootExportName"
+  | "htmlExportName"
+  | "moduleBase"
+  | "publicOrigin"
+  | "projectRoot"
+  | "url",
   CreateRenderToPipeableStreamHandlerReturn<Env>
 >;

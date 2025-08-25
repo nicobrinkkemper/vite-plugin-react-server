@@ -81,6 +81,7 @@
  */
 
 import { getCondition } from "../config/getCondition.js";
+import type { CreateHtmlStreamFn } from "./createHtmlStream.types.js";
 import type { CreateRscStreamFn } from "./createRscStream.types.js";
 import type { HandleRscStreamFn } from "./handleRscStream.types.js";
 
@@ -99,6 +100,8 @@ export type {
   BaseRscStreamResult,
 } from "./createRscStream.types.js";
 
+
+
 // RSC Stream utilities
 export {
   validateRscStreamOptions,
@@ -111,15 +114,11 @@ export {
 // RSC Stream handling
 export type { HandleRscStreamFn } from "./handleRscStream.types.js";
 
-// Worker Stream handling
-export { createWorkerStream } from "./createWorkerStream.js";
-export type {
-  CreateWorkerStreamFn,
-  CreateWorkerStreamOptions,
-  ClientWorkerStreamOptions,
-  ServerWorkerStreamOptions,
-  WorkerStreamOptions,
-} from "./createWorkerStream.types.js";
+// Worker Stream handling - using unified API
+export { createRscWorkerStream } from "./createRscWorkerStream.js";
+export { createHtmlWorkerStream } from "./createHtmlWorkerStream.js";
+export type { RscWorkerStreamOptions } from "./createRscWorkerStream.js";
+export type { HtmlWorkerStreamOptions } from "./createHtmlWorkerStream.js";
 export { pipeToResponse } from "../helpers/pipeToResponse.js";
 
 // Stream element resolution
@@ -132,7 +131,9 @@ const condition = getCondition("");
 export const {
   handleRscStream,
   createRscStream,
+  createHtmlStream,
 } = (await import(`${dir}/index.${condition}.js`)) as {
   handleRscStream: HandleRscStreamFn;
   createRscStream: CreateRscStreamFn;
+  createHtmlStream: CreateHtmlStreamFn;
 }; 

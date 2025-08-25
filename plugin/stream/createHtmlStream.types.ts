@@ -16,13 +16,15 @@ export type CreateHtmlStreamOptions = Pick<
   | "projectRoot"
   | "verbose"
   | "logger"
-  | "worker"
+  | "htmlWorker"
   | "htmlWorkerPath"
   | "rscWorkerPath"
   | "id"
+  | "children"
 > & {
+  worker?: any;
   // RSC stream that will be converted to HTML
-  rscStream: PassThrough | Readable;
+  rscStream?: PassThrough | Readable;
   // Additional properties from working examples
   url?: string;
   cssFiles?: Map<string, CssContent>;
@@ -45,6 +47,7 @@ export type CreateHtmlStreamOptions = Pick<
   workerShutdownTimeout?: number;
   css?: CreateHandlerOptions["css"];
   build?: CreateHandlerOptions["build"];
+  children?: React.ReactNode;
 };
 
 /**

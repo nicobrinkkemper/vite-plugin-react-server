@@ -15,9 +15,20 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
     const { rscStream, logger, verbose = false } = options;
     let { moduleRootPath, moduleBasePath, moduleBaseURL } = options;
 
-    if (!rscStream) {
+    if(options.children) {
+      if (verbose) {
+        logger?.info(
+          `[createNodeStream.client] Options already have children, skipping conversion`
+        );
+      }
+      return {
+        type: "client" as const,
+        children: options.children as React.ReactElement,
+      };
+    }
+    if(!rscStream) {
       throw new Error(
-        "[createNodeStream.client] rscStream is required for client version"
+        "[createNodeStream.client] no rscStream nor children provided"
       );
     }
 

@@ -162,7 +162,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           });
         } else {
           // Worker already exists, reuse it
-          // Note: createWorkerStream handles its own listeners
+          // Note: unified worker streams handle their own listeners
         }
         if (!currentWorker) {
           throw new Error("Failed to start worker");
@@ -171,11 +171,12 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         onWorkerCreated?.(currentWorker);
 
         const stream = handleRscStream({
-          worker: currentWorker,
           options: {
             ...serializedUserOptions,
+            worker: currentWorker,
             id: info.route,
-            type: "RSC_RENDER",
+            type: "INIT",
+            logger,
             // we make the worker stream aware of the route, pagePath, propsPath, rootPath, htmlPath
             route: info.route,
             url: info.url,
@@ -199,7 +200,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             globalCss: new Map(),
             serverPipeableStreamOptions: serializedUserOptions.serverPipeableStreamOptions,
             clientPipeableStreamOptions: serializedUserOptions.clientPipeableStreamOptions,
-          },
+          } as any,
           handlers: {
             onMetrics: (id, metrics) => {
               metrics.route = id;

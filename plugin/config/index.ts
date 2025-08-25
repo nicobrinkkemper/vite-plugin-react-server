@@ -64,6 +64,9 @@ export type {
   ResolvedDefaults,
 } from "./createHandlerOptions.types.js";
 
+// Re-export CreateHandlerOptions type from main types file
+export type { CreateHandlerOptions } from "../types.js";
+
 // State management
 export { getStashedUserOptions, getStashedHandlerOptions, stashHandlerOptions } from "./stashedOptionsState.js";
 export { getEnvironmentId } from "./stashedOptionsState.js";
