@@ -4,7 +4,10 @@ import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { routeToURL } from "../utils/routeToURL.js";
 import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
 import { createWorker } from "../worker/createWorker.js";
-import { serializedOptions } from "../helpers/serializeUserOptions.js";
+import {
+  serializedOptions,
+  serializeResolvedConfig,
+} from "../helpers/serializeUserOptions.js";
 import {
   getStashedUserOptions,
   getStashedHandlerOptions,
@@ -14,11 +17,14 @@ import {
 import { getNodeEnv } from "./getNodeEnv.js";
 import { createLogger } from "vite";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { CreateHandlerOptionsParams, ResolvedDefaults } from "./createHandlerOptions.types.js";
+import type {
+  CreateHandlerOptionsParams,
+  ResolvedDefaults,
+} from "./createHandlerOptions.types.js";
 
 /**
  * Client-specific handler options creation for HTML generation.
- * 
+ *
  * WHAT THIS DOES:
  * - Creates handler options optimized for client-side rendering
  * - Resolves file paths for pages, props, root, and HTML components
@@ -26,13 +32,13 @@ import type { CreateHandlerOptionsParams, ResolvedDefaults } from "./createHandl
  * - Handles caching with unique IDs
  * - Provides component placeholders (since client can't load server modules)
  * - Provides all necessary options for HTML stream creation
- * 
+ *
  * WHAT THIS DOESN'T DO:
  * - Does NOT load React components (that happens in workers or handlers)
  * - Does NOT create HTML streams (use createHandler for that)
  * - Does NOT handle server-side rendering (use .server.ts for that)
  * - Does NOT manage component lifecycle or state
- * 
+ *
  * USAGE:
  * ```typescript
  * const handlerOptions = await createHandlerOptions("/my-route", {
@@ -92,6 +98,7 @@ export async function createHandlerOptions(
       .substring(2, 11)}`,
     envId = getEnvironmentId("react-client", mode),
     userOptions = getStashedUserOptions(envId),
+    config = undefined,
   } = options;
 
   // Check cache first
@@ -138,28 +145,37 @@ export async function createHandlerOptions(
   // Create workers for client environment based on configuration and configEnv
   let rscWorker: any = undefined;
   let htmlWorker: any = undefined;
-  
+
   // Determine if we need workers based on configEnv and dev config
-  const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
+  const isServeMode =
+    configEnv?.command === "serve" ||
+    configEnv?.mode === "development" ||
+    mode === "development";
   const isBuildMode = configEnv?.command === "build";
-  
+
   // Create RSC worker if:
   // 1. useRscWorker is enabled in dev config AND we're in serve mode, OR
   // 2. useRscWorker is enabled in build config AND we're in build mode
-  const shouldCreateRscWorker = (userOptions.dev?.useRscWorker && isServeMode) || 
-                              (userOptions.build?.useRscWorker && isBuildMode);
-  
+  const shouldCreateRscWorker =
+    (userOptions.dev?.useRscWorker && isServeMode) ||
+    (userOptions.build?.useRscWorker && isBuildMode);
+
   if (shouldCreateRscWorker) {
     if (userOptions.verbose) {
-      logger.info(`[createHandlerOptions.client] Creating RSC worker for route: ${route}`);
-    }
-    
-    try {
-      const serializedUserOptions = serializedOptions(
-        userOptions,
-        autoDiscoveredFiles
+      logger.info(
+        `[createHandlerOptions.client] Creating RSC worker for route: ${route}`
       );
-      
+    }
+
+    try {
+      const serializedUserOptions = userOptions
+        ? serializedOptions(userOptions, autoDiscoveredFiles)
+        : undefined;
+
+      const serializedResolvedConfig = config
+        ? serializeResolvedConfig(config)
+        : undefined;
+
       const workerResult = await createWorker({
         currentCondition: "react-client",
         workerPath: userOptions.rscWorkerPath,
@@ -168,27 +184,35 @@ export async function createHandlerOptions(
         workerData: {
           id: route,
           userOptions: serializedUserOptions,
-          resolvedConfig: {
-            configEnv,
-            mode,
-          },
+          resolvedConfig: serializedResolvedConfig,
+          configEnv,
         },
       });
 
       if (workerResult.type === "error") {
-        logger.warn(`[createHandlerOptions.client] Failed to create RSC worker: ${workerResult.error?.message}`);
+        logger.warn(
+          `[createHandlerOptions.client] Failed to create RSC worker: ${workerResult.error?.message}`
+        );
         rscWorker = undefined;
       } else if (workerResult.type === "skip") {
-        logger.warn(`[createHandlerOptions.client] RSC worker creation skipped: ${workerResult.reason}`);
+        logger.warn(
+          `[createHandlerOptions.client] RSC worker creation skipped: ${workerResult.reason}`
+        );
         rscWorker = undefined;
       } else {
         rscWorker = workerResult.worker;
         if (userOptions.verbose) {
-          logger.info(`[createHandlerOptions.client] RSC worker created successfully`);
+          logger.info(
+            `[createHandlerOptions.client] RSC worker created successfully`
+          );
         }
       }
     } catch (error) {
-      logger.warn(`[createHandlerOptions.client] RSC worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.warn(
+        `[createHandlerOptions.client] RSC worker creation failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       rscWorker = undefined;
     }
   }
@@ -196,20 +220,23 @@ export async function createHandlerOptions(
   // Create HTML worker if:
   // 1. useHtmlWorker is enabled in dev config AND we're in serve mode, OR
   // 2. useHtmlWorker is enabled in build config AND we're in build mode
-  const shouldCreateHtmlWorker = (userOptions.dev?.useHtmlWorker && isServeMode) || 
-                                (userOptions.build?.useHtmlWorker && isBuildMode);
-  
+  const shouldCreateHtmlWorker =
+    (userOptions.dev?.useHtmlWorker && isServeMode) ||
+    (userOptions.build?.useHtmlWorker && isBuildMode);
+
   if (shouldCreateHtmlWorker) {
     if (userOptions.verbose) {
-      logger.info(`[createHandlerOptions.client] Creating HTML worker for route: ${route}`);
+      logger.info(
+        `[createHandlerOptions.client] Creating HTML worker for route: ${route}`
+      );
     }
-    
+
     try {
       const serializedUserOptions = serializedOptions(
         userOptions,
         autoDiscoveredFiles
       );
-      
+
       const htmlWorkerResult = await createWorker({
         currentCondition: "react-client", // We are in a .client file
         reverseCondition: "react-client", // The user still requested a worker, which uses the same condition
@@ -227,19 +254,29 @@ export async function createHandlerOptions(
       });
 
       if (htmlWorkerResult.type === "error") {
-        logger.warn(`[createHandlerOptions.client] Failed to create HTML worker: ${htmlWorkerResult.error?.message}`);
+        logger.warn(
+          `[createHandlerOptions.client] Failed to create HTML worker: ${htmlWorkerResult.error?.message}`
+        );
         htmlWorker = undefined;
       } else if (htmlWorkerResult.type === "skip") {
-        logger.warn(`[createHandlerOptions.client] HTML worker creation skipped: ${htmlWorkerResult.reason}`);
+        logger.warn(
+          `[createHandlerOptions.client] HTML worker creation skipped: ${htmlWorkerResult.reason}`
+        );
         htmlWorker = undefined;
       } else {
         htmlWorker = htmlWorkerResult.worker;
         if (userOptions.verbose) {
-          logger.info(`[createHandlerOptions.client] HTML worker created successfully`);
+          logger.info(
+            `[createHandlerOptions.client] HTML worker created successfully`
+          );
         }
       }
     } catch (error) {
-      logger.warn(`[createHandlerOptions.client] HTML worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.warn(
+        `[createHandlerOptions.client] HTML worker creation failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       htmlWorker = undefined;
     }
   }
@@ -252,17 +289,17 @@ export async function createHandlerOptions(
     propsPath: routeFilesResult.props,
     rootPath: routeFilesResult.root,
     htmlPath: routeFilesResult.html,
-    
+
     // Export names
     pageExportName: userOptions.pageExportName,
     propsExportName: userOptions.propsExportName,
     rootExportName: userOptions.rootExportName,
     htmlExportName: userOptions.htmlExportName,
-    
+
     // Route and loader
     route,
     loader: defaults.loader || (() => Promise.resolve({})),
-    
+
     // Configuration
     panicThreshold: userOptions.panicThreshold,
     verbose: userOptions.verbose,
@@ -273,7 +310,7 @@ export async function createHandlerOptions(
       useRscWorker: userOptions.dev.useRscWorker,
     },
     logger,
-    
+
     // Required properties
     normalizer: userOptions.normalizer,
     onEvent: userOptions.onEvent,
@@ -289,7 +326,7 @@ export async function createHandlerOptions(
     manifest: defaults.manifest,
     cssFiles: defaults.cssFiles,
     globalCss: defaults.globalCss,
-    
+
     // Timeouts and paths
     rscTimeout: userOptions.rscTimeout,
     htmlTimeout: userOptions.htmlTimeout,
@@ -298,11 +335,11 @@ export async function createHandlerOptions(
     rscWorkerPath: userOptions.rscWorkerPath,
     htmlWorkerPath: userOptions.htmlWorkerPath,
     publicOrigin: userOptions.publicOrigin,
-    
+
     // Stream options
     serverPipeableStreamOptions: userOptions.serverPipeableStreamOptions,
     clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions,
-    
+
     // Client-specific
     id,
     // Client needs component placeholders since it can't load server modules directly

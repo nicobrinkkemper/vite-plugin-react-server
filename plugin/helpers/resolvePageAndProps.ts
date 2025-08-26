@@ -22,10 +22,10 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         handlerOptions.logger?.info(`[resolvePageAndProps] Starting resolution for route: ${handlerOptions.route}`);
       }
 
-      const url = routeToURL(
-        handlerOptions.route,
-        handlerOptions.moduleBaseURL,
-        handlerOptions.build.rscOutputPath
+      const url = handlerOptions.url ?? routeToURL(
+        handlerOptions.route ?? "",
+        handlerOptions.moduleBaseURL ?? "/",
+        handlerOptions?.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath
       );
 
       if (handlerOptions.verbose) {
@@ -171,11 +171,23 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
     | "pageExportName"
     | "propsPath"
     | "propsExportName"
-    | "route"
     | "loader"
-    | "moduleBaseURL"
-    | "build"
     | "verbose"
     | "logger"
-  >
+  > & {
+    moduleBaseURL?: string;
+    route?: string;
+    url?:string;
+    build?: {
+      rscOutputPath: string;
+      outDir?: never;
+      server?: never;
+      client?: never;
+      static?: never;
+      pages?: never;
+      pageExportName?: never;
+      propsExportName?: never;
+      rootExportName?: never;
+    }
+  }
 ) => Promise<ResolvePageAndPropsResult<T>>;

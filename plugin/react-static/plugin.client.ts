@@ -14,7 +14,7 @@
  * Additionally, this can make it easier to use the --app flag to build all the modules + static generation at once.
  */
 
-import { createLogger, type ResolvedConfig, type Manifest } from "vite";
+import { createLogger, type ResolvedConfig, type Manifest, type ConfigEnv } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import type { BuildTiming, VitePluginFn, AutoDiscoveredFiles } from "../types.js";
 import type { OutputBundle } from "rollup";
@@ -71,6 +71,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
   let serverBundle: OutputBundle | undefined = undefined;
 
   let clientComponentMessageHandler: ((message: any) => void) | undefined;
+  let configEnv: ConfigEnv | undefined;
   const timing: BuildTiming = {
     start: performance.now(),
     configResolved: 0,
@@ -92,6 +93,10 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
     api: {
       meta: { timing },
     },
+    async config(_config, viteConfigEnv) {
+      console.log(`[react-static-client] config() called with viteConfigEnv:`, viteConfigEnv);
+      configEnv = viteConfigEnv;
+    },
     applyToEnvironment(partialEnvironment) {
       if (
         ["server"].includes(
@@ -111,7 +116,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       // Perform auto-discovery to populate autoDiscoveredFiles
       const autoDiscoverResult = await resolveAutoDiscover({
         config: config,
-        configEnv: {
+        configEnv: configEnv || {
           mode: config.mode,
           command: config.command,
           isSsrBuild: false,
@@ -379,6 +384,19 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           workerData: {
             userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
             resolvedConfig: serializeResolvedConfig(resolvedConfig as any),
+            configEnv: (() => {
+              const fallback = resolvedConfig ? {
+                command: resolvedConfig.command,
+                mode: resolvedConfig.mode,
+                isSsrBuild: false,
+                isPreview: false,
+              } : undefined;
+              const finalConfigEnv = configEnv || fallback;
+              console.log(`[react-static-client] Worker configEnv - original:`, configEnv, `fallback:`, fallback, `resolvedConfig:`, resolvedConfig ? 'available' : 'null', `final:`, finalConfigEnv);
+              console.log(`[react-static-client] Environment info - NODE_ENV:`, process.env.NODE_ENV, `MODE:`, process.env['MODE'], `VITE_MODE:`, process.env['VITE_MODE']);
+              console.log(`[react-static-client] Config env info - command:`, resolvedConfig?.command, `mode:`, resolvedConfig?.mode);
+              return finalConfigEnv;
+            })(),
             serverManifest: staticManifest || {}, // Use static manifest for client-side path resolution
             bundle: staticBundle || serverBundle || {}, // Use static bundle for client-side path resolution, server bundle as fallback
             staticBundle: staticBundle || {}, // Pass static bundle separately for path resolution

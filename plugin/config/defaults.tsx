@@ -4,7 +4,8 @@ import { parse } from "../loader/parse.js";
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
-
+import { createLogger } from "vite";
+const LOGGER = createLogger();
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
   // Client directive must be at start of file
@@ -75,7 +76,7 @@ export const getDirectiveType = (
   return undefined;
 };
 
-export const MODE = getNodeEnv()
+export const MODE = getNodeEnv();
 export const CONDITION = getCondition();
 export const IS_SERVER = CONDITION === "react-server";
 export const IS_CLIENT = CONDITION === "react-client";
@@ -104,7 +105,10 @@ export const DEFAULT_LOADER_CONFIG = {
   getDirectiveType,
   parse: parse,
   mode: MODE,
-  moduleID: (moduleId: string, _sourceContent?: string) => typeof moduleId === "string" ? moduleId : String(moduleId),
+  verbose: false,
+  logger: LOGGER,
+  moduleID: (moduleId: string, _sourceContent?: string) =>
+    typeof moduleId === "string" ? moduleId : String(moduleId),
 } as const;
 
 // Define base patterns that can be reused
@@ -216,9 +220,9 @@ export const DEFAULT_CONFIG = {
   DEV: {
     // these defaults rely on process.argv
     useHtmlWorker: false, // during dev, the browser is the html-worker..
-    // if the user opts-in to creating the html-worker, the stream utilities 
+    // if the user opts-in to creating the html-worker, the stream utilities
     // will be able to stream html during development - the plugin never does this
-    // so we don't have to create the html-worker during dev by default 
+    // so we don't have to create the html-worker during dev by default
     useRscWorker: !IS_SERVER && IS_SERVE, // during dev without server-conditions,
     // the rsc-worker is created during dev by default
     // this is because the rsc-worker is used to stream rsc during development
@@ -259,7 +263,9 @@ export const DEFAULT_CONFIG = {
   },
   MODULE_ID: (id: string) => id,
   VERBOSE: false,
-  PANIC_THRESHOLD: (MODE === "development" ? "critical_errors" : "all_errors") as "critical_errors" | "all_errors",
+  PANIC_THRESHOLD: (MODE === "development"
+    ? "critical_errors"
+    : "all_errors") as "critical_errors" | "all_errors",
   // Centralized loader config for RSC boundaries
   RSC_LOADER: {
     development: {

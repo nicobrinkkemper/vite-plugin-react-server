@@ -1,4 +1,4 @@
-import type { Manifest, ViteDevServer, Logger, ResolvedConfig } from "vite";
+import type { Manifest, ViteDevServer, Logger, ResolvedConfig, ConfigEnv } from "vite";
 import type {
   AutoDiscoveredFiles,
   CreateHandlerOptions,
@@ -26,6 +26,7 @@ export type CreateReactWorkerServerFn = (props: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
+  configEnv: ConfigEnv;
   hmrChannel?: MessageChannel;
   serverManifest: Manifest;
   resolvedConfig: ResolvedConfig;

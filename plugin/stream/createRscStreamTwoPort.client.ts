@@ -105,9 +105,10 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
       }
       
       switch (message.type) {
+        case "RSC_END":
         case 'END':
           if (verbose) {
-            console.log(`[CLIENT-DEBUG] Stream ended by control message`);
+            console.log(`[CLIENT-DEBUG] RSC stream ended by control message`);
           }
           rscStream.end();
           break;
@@ -118,9 +119,10 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
           const error = new Error(message.error);
           rscStream.destroy(error);
           break;
+        case 'RSC_METRICS':
         case 'METRICS':
           if (verbose) {
-            console.log(`[CLIENT-DEBUG] Received metrics:`, message.metrics);
+            console.log(`[CLIENT-DEBUG] Received RSC metrics:`, message.metrics);
           }
           break;
         case 'RSC_RENDER_START':

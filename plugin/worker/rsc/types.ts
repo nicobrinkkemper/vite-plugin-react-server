@@ -234,10 +234,6 @@ export type ComponentsResolvedMessage = {
   type: "COMPONENTS_RESOLVED";
   id: string;
   route: string;
-  PageComponent?: any;
-  pageProps?: any;
-  RootComponent?: any;
-  HtmlComponent?: any;
   resolutionTime: number;
 } & WorkerMessage;
 

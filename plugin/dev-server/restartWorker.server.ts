@@ -14,6 +14,7 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
   server,
   autoDiscoveredFiles,
   userOptions,
+  configEnv,
   hmrChannel,
 }) {
   if (isRestarting) {
@@ -50,6 +51,7 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
       workerData: {
         userOptions: userOptions,
         resolvedConfig: serializedDevServerConfig(server.config),
+        configEnv: configEnv,
         reactVersion: React.version,
         id: "worker/html",
         serverManifest: {}, // staticManifest removed from AutoDiscoveredFiles

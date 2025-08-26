@@ -54,6 +54,7 @@ import { join } from "node:path";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { performance } from "node:perf_hooks";
 import { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
+import { createBufferedRscStream } from "../helpers/createBufferedRscStream.js";
 
 
 assertNonReactServer();
@@ -189,7 +190,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       throw new Error("RSC worker is required for client-side component resolution");
     }
     
-    const resolvedComponents = await resolveComponents({
+    // Preload components in the worker for faster subsequent RSC stream generation
+    await resolveComponents({
       route: handlerOptions.route,
       pagePath: resolvedPagePath,
       propsPath: resolvedPropsPath,
@@ -205,22 +207,12 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       verbose: handlerOptions.verbose,
     });
 
-    // Step 2: Create handler options with resolved components
-    // Now we have the actual components with proper built paths
+    // Step 2: Create handler options
+    // Components are now preloaded in the worker, so we can use the original handler options
     const newHandlerOptions = {
       ...handlerOptions,
       url: `${handlerOptions.url}`,
       route: `${handlerOptions.route}`,
-      // Use resolved components instead of paths
-      PageComponent: resolvedComponents.PageComponent,
-      pageProps: resolvedComponents.pageProps,
-      RootComponent: resolvedComponents.RootComponent,
-      HtmlComponent: resolvedComponents.HtmlComponent,
-      // Keep original paths for createRscStream compatibility
-      pagePath: handlerOptions.pagePath,
-      propsPath: handlerOptions.propsPath,
-      rootPath: handlerOptions.rootPath,
-      htmlPath: handlerOptions.htmlPath,
       // Pass CSS information to the RSC worker and HTML transform
       cssFiles: handlerOptions.cssFiles || new Map(),
       globalCss: handlerOptions.globalCss || new Map(),
@@ -244,46 +236,16 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     // Component resolution is already measured in resolveComponents
     // No need to measure module resolution time here anymore
 
-    // Step 2: Create single RSC stream using RSC worker (REVERSE from server)
-    // 
-    // ARCHITECTURE OVERVIEW:
-    // - Server-side: RSC generation in main thread, HTML generation in worker
-    // - Client-side: RSC generation in worker, HTML generation in main thread
-    // 
-    // The RSC worker generates the full RSC content with HTML wrapper.
-    // We need to consume this stream twice: once for RSC file, once for HTML transformation.
-    // Since Node.js streams can only be consumed once, we buffer the content.
+    // Step 2: Create full RSC stream for HTML transformation
     fullRscStream = createRscStream({
       ...newHandlerOptions,
       id: `${handlerOptions.route}-full-${uniqueId}`,
       rscTimeout: handlerOptions.rscTimeout || 5000,
       onMetrics: handlerOptions.onMetrics,
-      // Full RSC: with HTML wrapper component (undefined = use default HTML component)
       htmlPath: handlerOptions.htmlPath || undefined,
     });
 
-    // Step 3: Create a buffered RSC stream factory for dual consumption
-    // 
-    // PROBLEM: Node.js streams can only be consumed once, but we need to:
-    // 1. Write the RSC content to index.rsc file
-    // 2. Transform the RSC content to HTML for index.html file
-    // 
-    // SOLUTION: Buffer all RSC chunks and create a factory that can generate
-    // multiple readable streams from the same buffered data
-    const { createBufferedRscStream } = await import("../helpers/createBufferedRscStream.js");
-    const bufferedRscStreamFactory = createBufferedRscStream(fullRscStream.rscStream, {
-      route: handlerOptions.route,
-      logger: handlerOptions.logger,
-      verbose: handlerOptions.verbose,
-    });
-
-    // Step 4: Create HTML transform stream that will consume the buffered RSC stream
-    // 
-    // FLOW: RSC Worker -> RSC Stream -> Buffer -> HTML Transform -> HTML Stream
-    // This mirrors the server-side flow but with roles reversed:
-    // - Server: RSC Stream -> HTML Worker -> HTML Stream  
-    // - Client: RSC Stream -> Main Thread HTML Transform -> HTML Stream
-    
+    // Step 3: Create HTML transform stream
     const htmlTransformStream = createRscToHtmlStream({
       ...newHandlerOptions,
       htmlTimeout: handlerOptions.htmlTimeout || 15000,
@@ -291,43 +253,44 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       logger: handlerOptions.logger,
       verbose: handlerOptions.verbose,
     });
-    
-    // Create a separate stream from the factory for HTML transformation
+
+    // Create buffered stream for dual consumption
+    const bufferedRscStreamFactory = createBufferedRscStream(fullRscStream.rscStream, {
+      route: handlerOptions.route,
+      logger: handlerOptions.logger,
+      verbose: handlerOptions.verbose,
+    });
+
+    // Create HTML stream from buffered RSC
     const htmlRscStream = bufferedRscStreamFactory.createStream();
-    
-    // Pipe the HTML RSC stream to the HTML transform
     htmlRscStream.pipe(htmlTransformStream);
+
+    // Add error handling to prevent hanging
+    htmlTransformStream.on("error", (error) => {
+      if (handlerOptions.verbose) {
+        handlerOptions.logger?.error(`[renderPage.client] HTML transform error: ${error.message}`);
+      }
+      // Don't throw here - let the error propagate through the stream
+    });
 
     htmlHandler = {
       htmlStream: htmlTransformStream,
       abort: () => {
+        htmlRscStream.destroy();
         htmlTransformStream.destroy();
       }
     };
 
 
 
-    // Create stream wrappers that match server-side API but with reverse conditions
-    // 
-    // CLIENT-SIDE ARCHITECTURE:
-    // - RSC generation: Worker thread (via createRscStream)
-    // - HTML generation: Main thread (via createRscToHtmlStream)
-    // - File writing: Main thread (via fileWriter)
-    // 
-    // The buffered RSC stream allows us to consume the same RSC content twice:
-    // 1. For RSC file writing (index.rsc)
-    // 2. For HTML transformation (index.html)
+    // Create stream wrappers for file writing
     const rscStreamWrapper = {
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-        // Collect metrics from the RSC stream as it flows
         const streamMetrics = createStreamMetrics();
         streamMetrics.startTime = performance.now();
 
-        // Create a separate stream from the factory for RSC file generation
         const rscFileStream = bufferedRscStreamFactory.createStream();
 
-        // Use the buffered RSC stream for RSC file generation
-        // This stream contains the same content as the HTML transform
         rscFileStream.on("data", (chunk: Buffer) => {
           streamMetrics.chunks++;
           streamMetrics.bytes += chunk.length;
@@ -337,23 +300,17 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
           streamMetrics.duration = performance.now() - streamMetrics.startTime;
           streamMetrics.endTime = performance.now();
 
-          // Update the metrics object for RSC file generation
           rscHeadlessMetrics.streamMetrics = streamMetrics;
-          rscHeadlessMetrics.chunkRate =
-            streamMetrics.chunks / (streamMetrics.duration / 1000);
+          rscHeadlessMetrics.chunkRate = streamMetrics.chunks / (streamMetrics.duration / 1000);
           rscHeadlessMetrics.processingTime = streamMetrics.duration;
           rscHeadlessMetrics.memoryUsage = process.memoryUsage();
           rscHeadlessMetrics.chunks = streamMetrics.chunks;
         });
 
-        // Pipe the RSC file stream to the destination (RSC file writer)
-        // This is a separate stream from the HTML transform stream
         rscFileStream.pipe(destination);
         return destination;
       },
-      abort: () => {
-        fullRscStream.abort();
-      },
+      abort: () => fullRscStream.abort(),
     };
 
     const htmlStreamWrapper = {
@@ -380,27 +337,11 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         htmlMetrics.chunks = streamMetrics.chunks;
       });
 
-      // Add debugging to see if HTML stream is being piped correctly
       if (handlerOptions.verbose) {
         handlerOptions.logger?.info(
           `[renderPage.client] Piping HTML stream to destination for route: ${handlerOptions.route}`
         );
-        
-        htmlHandler.htmlStream.on("data", (chunk: Buffer) => {
-          handlerOptions.logger?.info(
-            `[renderPage.client] HTML stream chunk: ${chunk.length} bytes`
-          );
-        });
-        
-        htmlHandler.htmlStream.on("end", () => {
-          handlerOptions.logger?.info(
-            `[renderPage.client] HTML stream ended for route: ${handlerOptions.route}`
-          );
-        });
       }
-
-      // Pipe the HTML transform stream to the destination (HTML file writer)
-      // This stream contains the transformed HTML content from the RSC stream
       return htmlHandler.htmlStream.pipe(destination);
       },
       abort: () => {
@@ -425,21 +366,13 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       },
     } as const;
   } catch (error) {
-    // Clean up any resources that might have been created
+    // Clean up resources
     try {
-      if (headlessRscStream) {
-        headlessRscStream.abort();
-      }
-      if (fullRscStream) {
-        fullRscStream.abort();
-      }
-      if (htmlHandler) {
-        htmlHandler.abort();
-      }
+      if (headlessRscStream) headlessRscStream.abort();
+      if (fullRscStream) fullRscStream.abort();
+      if (htmlHandler?.abort) htmlHandler.abort();
     } catch (cleanupError: unknown) {
-      handlerOptions.logger?.warn(
-        `Failed to cleanup streams on error: ${cleanupError}`
-      );
+      handlerOptions.logger?.warn(`Failed to cleanup streams on error: ${cleanupError}`);
     }
 
     const panicError = handleError({

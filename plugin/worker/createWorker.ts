@@ -3,6 +3,7 @@ import {
   type ResourceLimits,
   type TransferListItem,
 } from "node:worker_threads";
+import type { ConfigEnv } from "vite";
 import { getMode, getNodePath } from "../config/getPaths.js";
 import { getCondition } from "../config/getCondition.js";
 import { join } from "node:path";
@@ -64,8 +65,9 @@ export type CreateWorkerOptions = {
   typescript?: boolean;
   htmlChunkSize?: number; // Size of HTML chunks in bytes
   workerData: {
-    userOptions: SerializedUserOptions;
-    resolvedConfig: SerializedResolvedConfig;
+    userOptions?: SerializedUserOptions;
+    resolvedConfig?: SerializedResolvedConfig;
+    configEnv?: ConfigEnv;
     reactVersion?: string;
     id?: string;
     serverManifest?: Manifest;
@@ -201,8 +203,8 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       [envPrefix + "MODE"]: mode,
       [envPrefix + "PROD"]: mode === "production" ? "1" : "0",
       [envPrefix + "SSR"]: "true",
-      [envPrefix + "BASE_URL"]: workerData.userOptions.moduleBaseURL ?? "",
-      [envPrefix + "PUBLIC_ORIGIN"]: workerData.userOptions.publicOrigin ?? "",
+      [envPrefix + "BASE_URL"]: workerData.userOptions?.moduleBaseURL ?? "",
+      [envPrefix + "PUBLIC_ORIGIN"]: workerData.userOptions?.publicOrigin ?? "",
       NODE_ENV: process.env["NODE_ENV"] ?? 'production',
       NODE_PATH: nodePath,
       
@@ -247,8 +249,8 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       // Use appropriate timeout based on worker type
       const workerType = reverseCondition === "react-server" ? "rsc" : "html";
       const startupTimeout = workerType === "rsc" 
-        ? options.workerData.userOptions.rscWorkerStartupTimeout 
-        : options.workerData.userOptions.htmlWorkerStartupTimeout;
+        ? options.workerData.userOptions?.rscWorkerStartupTimeout 
+        : options.workerData.userOptions?.htmlWorkerStartupTimeout;
       
       const timeout = setTimeout(() => {
         reject({ type: "error", error: new Error("Worker ready timeout") });
@@ -303,7 +305,7 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
         const panicError = handleError({
           error: err,
           logger: logger,
-          panicThreshold: workerData.userOptions.panicThreshold,
+          panicThreshold: workerData.userOptions?.panicThreshold,
           critical: false,
           context: `Worker thread error for route ${id}`,
         });
@@ -331,7 +333,7 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     const panicError = handleError({
       error: error,
       logger: logger,
-      panicThreshold: workerData.userOptions.panicThreshold,
+      panicThreshold: workerData.userOptions?.panicThreshold,
       critical: false,
       context: `Worker thread error for route ${id}`,
     });

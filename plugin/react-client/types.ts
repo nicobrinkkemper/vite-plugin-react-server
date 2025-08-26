@@ -1,4 +1,4 @@
-import type { Logger, Manifest, ResolvedConfig, ViteDevServer } from "vite";
+import type { ConfigEnv, Logger, Manifest, ResolvedConfig, ViteDevServer } from "vite";
 import type {
   AutoDiscoveredFiles,
   MessageHandler,
@@ -20,6 +20,7 @@ export type RestartWorkerFn = (props: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: SerializedUserOptions;
+  configEnv: ConfigEnv;
   hmrChannel: MessageChannel;
 }) => Promise<Worker | null>;
 
@@ -71,6 +72,7 @@ export type ConfigureWorkerRequestHandlerFn = (props: {
   server: ViteDevServer;
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
+  configEnv: ConfigEnv;
   serverManifest: Manifest;
   resolvedConfig: ResolvedConfig;
   hmrChannel: MessageChannel;

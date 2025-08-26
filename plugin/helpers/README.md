@@ -45,16 +45,13 @@ The plugin supports multiple rendering scenarios:
 
 ### Component Resolution
 - `resolveComponents()` - Resolves components with fallbacks (main thread)
-- `resolveComponentsFromPaths()` - Loads components from file paths (worker thread)
 
 ### Stream Handling
 - `createBufferedRscStream()` - Creates buffered streams for dual consumption
-- `createStreamTimeout()` - Sets up stream timeouts for completion
 
 ### Serialization & Communication
 - `createSerializableHandlerOptions()` - Extracts serializable parts for worker communication
-- `createWorkerMessageTypes()` - Unified message type system
-- `createUnifiedRenderHandler()` - Cross-environment render handler
+
 
 ## Usage Examples
 
@@ -80,21 +77,7 @@ const result = await createWorkerThreadRenderHandler(
 );
 ```
 
-### Component Resolution in Workers
-```typescript
-import { resolveComponentsFromPaths } from "../helpers/index.js";
 
-const components = await resolveComponentsFromPaths({
-  pagePath: "src/pages/index.tsx",
-  rootPath: "src/root.tsx",
-  htmlPath: "src/html.tsx",
-  pageExportName: "default",
-  rootExportName: "Root",
-  htmlExportName: "Html",
-  logger,
-  verbose: true,
-});
-```
 
 ### Buffered Stream for Dual Consumption
 ```typescript

@@ -19,12 +19,14 @@ export type LoaderConfig = {
   importClientPath?: string;
   registerClientReferenceName?: string;
   registerServerReferenceName?: string;
-  isServerFunctionCode: (code: string, moduleId?: string) => boolean;
-  isClientComponentCode: (code: string, moduleId?: string) => boolean;
+  isServerFunctionCode: (code: string, moduleId?: string, transformedModuleId?: string) => boolean;
+  isClientComponentCode: (code: string, moduleId?: string, transformedModuleId?: string) => boolean;
   isClientComponentByCode: (code: string) => boolean;
-  isClientComponentByName: (moduleId: string) => boolean;
+  isClientComponentByName: (moduleId: string, transformedModuleId?: string) => boolean;
   moduleID: (moduleId: string, sourceContent?: string) => string;
   parse: ParseFn;
+  verbose?: boolean;
+  logger?: Logger;
 };
 
 export type RscLoader = Pick<LoaderConfig, 'importServerPath' | 'importClientPath' | 'registerClientReferenceName' | 'registerServerReferenceName'>;
@@ -58,6 +60,7 @@ export type TransformResult = {
 export type TransformFunction = (
   source: string,
   moduleId: string,
+  transformedModuleId: string,
   parseResult: ParseResult,
   options: TransformOptions,
 ) => Promise<TransformResult>;
@@ -70,6 +73,6 @@ export type TransformerFactory = (options: {
   isServerEnvironment?: boolean;
   ssr?: boolean;
   originalModuleId?: string;
-}) => (source: string, moduleId: string) => Promise<TransformResult>;
+}) => (source: string, moduleId: string, transformedModuleId?: string) => Promise<TransformResult>;
 
 export type { Program };

@@ -68,12 +68,17 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           userOptions.loader?.mode
         );
       }
-      if (typeof userOptions.loader?.moduleID !== "function") {
-        if (!userOptions.loader) {
-          userOptions.loader = DEFAULT_LOADER_CONFIG;
-        }
-        userOptions.loader.moduleID = userOptions.moduleID;
+      // Always override the moduleID function to ensure it has the forTransformer logic
+      if (!userOptions.loader) {
+        userOptions.loader = DEFAULT_LOADER_CONFIG;
       }
+      console.log(`[createEnvironmentPlugin] Setting up moduleID function with configEnv: ${configEnv?.command}`);
+      userOptions.loader.moduleID = createDefaultModuleID(
+        userOptions,
+        configEnv,
+        userOptions.loader?.mode
+      );
+      console.log(`[createEnvironmentPlugin] moduleID function set up successfully`);
 
       // Run auto-discovery once to get all files - we don't need separate calls since
       // the file discovery process is identical, only the organization differs

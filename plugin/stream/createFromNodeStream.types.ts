@@ -1,5 +1,6 @@
 // React types are imported from vendor system at runtime
 import type { PassThrough, Readable } from "node:stream";
+import type { Logger } from "vite";
 
 /**
  * Options for creating React elements from RSC streams
@@ -13,7 +14,7 @@ export type CreateFromNodeStreamOptions<
       moduleRootPath?: string;
       moduleBasePath?: string;
       moduleBaseURL?: string;
-      logger?: any;
+      logger?: Logger;
       verbose?: boolean;
       // CSS information is embedded in the RSC stream, not passed as parameters
       // cssFiles?: never;
@@ -22,7 +23,7 @@ export type CreateFromNodeStreamOptions<
   : {
       model: React.ReactElement;
       moduleBasePath?: string;
-      logger?: any;
+      logger?: Logger;
       verbose?: boolean;
     };
 

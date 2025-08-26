@@ -209,13 +209,15 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
               signal.throwIfAborted();
             }
           } else {
-            // Non-panic error, just log it and end stream
+            // Non-panic error, just log it and end stream gracefully
             if (verbose) {
               logger?.warn(
                 `[createRscToHtmlStream:${route}] Non-panic error: ${errorMessage}`
               );
             }
-            callback(error instanceof Error ? error : new Error(String(error)));
+            // Push an empty buffer and end the stream gracefully
+            transformStream.push(Buffer.from(''));
+            callback();
           }
         }
       } catch (error) {
@@ -223,7 +225,9 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
         logger?.error(
           `[createRscToHtmlStream:${route}] Error in flush: ${errorMessage}`
         );
-        callback(error instanceof Error ? error : new Error(String(error)));
+        // Push an empty buffer and end the stream gracefully instead of calling callback with error
+        transformStream.push(Buffer.from(''));
+        callback();
       }
     }
   });

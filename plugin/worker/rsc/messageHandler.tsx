@@ -5,14 +5,30 @@ import { workerData } from "node:worker_threads";
 import { join } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
 import { createRenderToPipeableStreamHandler } from "../../stream/createRenderToPipeableStreamHandler.js";
-import type { RscWorkerInputMessage } from "./types.js";
+import type {
+  RscWorkerInputMessage,
+  ComponentsResolvedMessage,
+} from "./types.js";
 import { toError } from "../../error/toError.js";
 import { handleError } from "../../error/handleError.js";
 import { createHandlers } from "./handlers.js";
-import { addCssFileContent, addModuleId, cssFiles, hmrState } from "./state.js";
-import { combineCssFiles, processInlineCssForState } from "../../helpers/createUnifiedCssProcessor.js";
+import {
+  addCssFileContent,
+  addModuleId,
+  cssFiles,
+  hmrState,
+  cacheComponent,
+  getCachedComponent,
+  hasCachedComponent,
+} from "./state.js";
+import {
+  combineCssFiles,
+  processInlineCssForState,
+} from "../../helpers/createUnifiedCssProcessor.js";
 import { routeToURL } from "../../utils/routeToURL.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
+import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
+import { resolveComponent } from "../../helpers/resolveComponent.js";
 import { userOptions } from "./userOptions.js";
 import { React } from "../../vendor/vendor.server.js";
 import { sendMessage } from "../sendMessage.js";
@@ -32,7 +48,7 @@ function cleanupRender(id: string) {
   if (rscStream) {
     rscStream.destroy();
     activeRenders.delete(id);
-    
+
     // Clean up route mapping
     for (const [route, streamId] of activeStreamsByRoute.entries()) {
       if (streamId === id) {
@@ -41,6 +57,160 @@ function cleanupRender(id: string) {
       }
     }
   }
+}
+
+/**
+ * Helper function to load components with caching
+ */
+async function loadComponentsWithCache(options: {
+  pagePath?: string;
+  propsPath?: string;
+  rootPath?: string;
+  htmlPath?: string;
+  pageExportName?: string;
+  propsExportName?: string;
+  rootExportName?: string;
+  htmlExportName?: string;
+  url: string;
+  loader: any;
+  verbose?: boolean;
+  logger?: any;
+}) {
+  const {
+    pagePath,
+    propsPath,
+    rootPath,
+    htmlPath,
+    pageExportName = 'Page',
+    propsExportName = 'props',
+    rootExportName = 'Root',
+    htmlExportName = 'Html',
+    loader,
+    verbose,
+    logger,
+  } = options;
+
+  let PageComponent: any;
+  let pageProps: any;
+  let RootComponent: any;
+  let HtmlComponent: any;
+
+  // Load page and props using the unified helper
+  if (pagePath) {
+    const pageAndPropsResult = await resolvePageAndProps({
+      pagePath,
+      propsPath,
+      pageExportName,
+      propsExportName,
+      url: '/',
+      loader,
+      verbose: verbose || false,
+      logger,
+    });
+
+    if (pageAndPropsResult.type === 'success') {
+      PageComponent = pageAndPropsResult.PageComponent;
+      pageProps = pageAndPropsResult.pageProps;
+      
+      // Cache the components
+      const pageId = `${pagePath}#${pageExportName}`;
+      cacheComponent(pageId, PageComponent);
+      
+      if (propsPath) {
+        const propsId = `${propsPath}#${propsExportName}`;
+        cacheComponent(propsId, pageProps);
+      }
+      
+      if (verbose) {
+        logger?.info(`[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`);
+        if (propsPath) {
+          logger?.info(`[rsc-worker] Loaded and cached pageProps from: ${propsPath}`);
+        }
+      }
+    } else {
+      throw new Error(`Failed to load page and props: ${pageAndPropsResult.error?.message}`);
+    }
+  }
+
+  // Load Root component
+  if (rootPath) {
+    const rootId = `${rootPath}#${rootExportName}`;
+    if (hasCachedComponent(rootId)) {
+      RootComponent = getCachedComponent(rootId);
+      if (verbose) {
+        logger?.info(`[rsc-worker] Using cached Root component from: ${rootPath}`);
+      }
+    } else {
+      const rootResult = await resolveComponent({
+        componentPath: rootPath,
+        exportName: rootExportName,
+        loader,
+      });
+      
+      if (rootResult.type === 'success') {
+        RootComponent = rootResult.component;
+        cacheComponent(rootId, RootComponent);
+        if (verbose) {
+          logger?.info(`[rsc-worker] Loaded and cached Root component from: ${rootPath}`);
+        }
+      } else {
+        throw new Error(`Failed to load Root component: ${rootResult.error?.message}`);
+      }
+    }
+  } else {
+    // Use default Root component
+    try {
+      const { Root } = await import("../../components/root.js");
+      RootComponent = Root;
+      if (verbose) {
+        logger?.info(`[rsc-worker] Using default Root component`);
+      }
+    } catch (error) {
+      logger?.warn(`[rsc-worker] Error loading default Root component: ${error}`);
+    }
+  }
+
+  // Load Html component
+  if (htmlPath === '') {
+    HtmlComponent = React.Fragment; // Empty string = headless (no HTML wrapper)
+  } else if (htmlPath) {
+    const htmlId = `${htmlPath}#${htmlExportName}`;
+    if (hasCachedComponent(htmlId)) {
+      HtmlComponent = getCachedComponent(htmlId);
+      if (verbose) {
+        logger?.info(`[rsc-worker] Using cached Html component from: ${htmlPath}`);
+      }
+    } else {
+      const htmlResult = await resolveComponent({
+        componentPath: htmlPath,
+        exportName: htmlExportName,
+        loader,
+      });
+      
+      if (htmlResult.type === 'success') {
+        HtmlComponent = htmlResult.component;
+        cacheComponent(htmlId, HtmlComponent);
+        if (verbose) {
+          logger?.info(`[rsc-worker] Loaded and cached Html component from: ${htmlPath}`);
+        }
+      } else {
+        throw new Error(`Failed to load Html component: ${htmlResult.error?.message}`);
+      }
+    }
+  } else {
+    // Use default Html component
+    try {
+      const { Html } = await import("../../components/html.js");
+      HtmlComponent = Html;
+      if (verbose) {
+        logger?.info(`[rsc-worker] Using default Html component`);
+      }
+    } catch (error) {
+      logger?.warn(`[rsc-worker] Error loading default Html component: ${error}`);
+    }
+  }
+
+  return { PageComponent, pageProps, RootComponent, HtmlComponent };
 }
 
 export async function messageHandler(
@@ -60,19 +230,19 @@ export async function messageHandler(
       );
     }
 
-
-
     switch (msg.type) {
       case "INIT":
         // Clean up any previous render for this id
         cleanupRender(msg.id);
 
         // Determine if this is a headless or full RSC request
-        const isHeadless = msg.options.htmlPath === '' || !msg.options.htmlPath;
+        const isHeadless = msg.options.htmlPath === "" || !msg.options.htmlPath;
         const rscVariant = isHeadless ? "rsc-headless" : "rsc-full";
-        
+
         if (verbose) {
-          logger.info(`[rsc-worker] Processing ${rscVariant} render for route: ${msg.options.route}`);
+          logger.info(
+            `[rsc-worker] Processing ${rscVariant} render for route: ${msg.options.route}`
+          );
         }
 
         // Create a new PassThrough stream for this render, or use the one provided
@@ -99,127 +269,34 @@ export async function messageHandler(
           clientPattern: userOptions.autoDiscover?.clientPattern,
         });
 
-        const url = msg.options.url || routeToURL(
-          msg.options.route,
-          userOptions.moduleBaseURL,
-          userOptions.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath
-        );
-
-        // Load components exactly like the server environment does
-        let PageComponent: any;
-        if (msg.options.pagePath) {
-          logger.info(`[rsc-worker] Loading page component from: ${msg.options.pagePath}`);
-          const pageModule = await loader(
-            `${msg.options.pagePath}#${
-              msg.options.pageExportName ?? workerData.userOptions.pageExportName
-            }`
+        const url =
+          msg.options.url ||
+          routeToURL(
+            msg.options.route,
+            userOptions.moduleBaseURL,
+            userOptions.build?.rscOutputPath ??
+              DEFAULT_CONFIG.BUILD.rscOutputPath
           );
-          PageComponent = pageModule[
-            msg.options.pageExportName ?? workerData.userOptions.pageExportName
-          ] as any;
-        } else {
-          throw new Error(`[rsc-worker] No pagePath provided`);
-        }
-        
-        if (verbose) {
-          logger.info(`[rsc-worker] Page component loaded: ${typeof PageComponent}`);
-        }
 
-        let RootComponent: any;
-        if (msg.options.rootPath) {
-          logger.info(`[rsc-worker] Loading root component from: ${msg.options.rootPath}`);
-          RootComponent = ((
-              await loader(
-                `${msg.options.rootPath}#${
-                  msg.options.rootExportName ?? workerData.userOptions.rootExportName
-                }`
-              )
-            )[
-              msg.options.rootExportName ?? workerData.userOptions.rootExportName
-            ] as any);
-        } else {
-          // Use default Root component like server environment
-          try {
-            const { Root } = await import("../../components/root.js");
-            RootComponent = Root;
-            if (verbose) {
-              logger.info(`[rsc-worker] Using default Root component`);
-            }
-          } catch (error) {
-            logger.warn(`[rsc-worker] Error loading default Root component: ${error}`);
-          }
-        }
-
-        let HtmlComponent: any;
-        if (msg.options.htmlPath === '') {
-          HtmlComponent = React.Fragment; // Empty string = headless (no HTML wrapper)
-        } else if (msg.options.htmlPath) {
-          logger.info(`[rsc-worker] Loading html component from: ${msg.options.htmlPath}`);
-          HtmlComponent = ((
-              await loader(
-                `${msg.options.htmlPath}#${
-                  msg.options.htmlExportName ?? workerData.userOptions.htmlExportName
-                }`
-              )
-            )[
-              msg.options.htmlExportName ?? workerData.userOptions.htmlExportName
-            ] as any);
-        } else {
-          // Use default Html component like server environment
-          try {
-            const { Html } = await import("../../components/html.js");
-            HtmlComponent = Html;
-            if (verbose) {
-              logger.info(`[rsc-worker] Using default Html component`);
-            }
-          } catch (error) {
-            logger.warn(`[rsc-worker] Error loading default Html component: ${error}`);
-          }
-        }
-
-        // Load and resolve props exactly like server environment
-        let pageProps;
-        if (msg.options.propsPath) {
-          if (verbose) {
-            logger.info(`[rsc-worker] Loading props from: ${msg.options.propsPath}`);
-          }
-          const propsModule = await loader(
-            `${msg.options.propsPath}#${
-              msg.options.propsExportName ?? workerData.userOptions.propsExportName
-            }`
-          );
-          const propsFunction = propsModule[
-            msg.options.propsExportName ?? workerData.userOptions.propsExportName
-          ] as any;
-          
-          if (verbose) {
-            logger.info(`[rsc-worker] Props function type: ${typeof propsFunction}`);
-          }
-          
-          // Call the props function with the URL if it's a function
-          if (typeof propsFunction === 'function') {
-            if (verbose) {
-              logger.info(`[rsc-worker] Calling props function with URL: ${url}`);
-            }
-            pageProps = await propsFunction(url);
-            if (verbose) {
-              logger.info(`[rsc-worker] Props result: ${JSON.stringify(pageProps, null, 2)}`);
-            }
-          } else {
-            pageProps = propsFunction;
-            if (verbose) {
-              logger.info(`[rsc-worker] Using props as object: ${JSON.stringify(pageProps, null, 2)}`);
-            }
-          }
-        } else {
-          pageProps = undefined; // Match server environment behavior
-          if (verbose) {
-            logger.info(`[rsc-worker] No props path, using undefined (matching server behavior)`);
-          }
-        }
+        // Load components using the unified helper function
+        const { PageComponent, pageProps, RootComponent, HtmlComponent } = await loadComponentsWithCache({
+          pagePath: msg.options.pagePath,
+          propsPath: msg.options.propsPath,
+          rootPath: msg.options.rootPath,
+          htmlPath: msg.options.htmlPath,
+          pageExportName: msg.options.pageExportName ?? workerData.userOptions.pageExportName,
+          propsExportName: msg.options.propsExportName ?? workerData.userOptions.propsExportName,
+          rootExportName: msg.options.rootExportName ?? workerData.userOptions.rootExportName,
+          htmlExportName: msg.options.htmlExportName ?? workerData.userOptions.htmlExportName,
+          url,
+          loader,
+          verbose,
+          logger,
+        });
 
         // Emit module resolution metric after components are loaded
-        const moduleResolutionTime = performance.now() - moduleResolutionStartTime;
+        const moduleResolutionTime =
+          performance.now() - moduleResolutionStartTime;
         if (effectiveHandlers.onMetrics) {
           const moduleResolutionMetric = createModuleResolutionMetrics({
             route: msg.options.route,
@@ -235,9 +312,13 @@ export async function messageHandler(
 
         // Process CSS files using unified CSS processor
         const messageCssFiles = new Map(msg.options.cssFiles || []);
-        
+
         // Process inline CSS for stateful system using unified helper
-        processInlineCssForState(messageCssFiles, addCssFileContent, userOptions);
+        processInlineCssForState(
+          messageCssFiles,
+          addCssFileContent,
+          userOptions
+        );
 
         // Combine stateful CSS with message CSS using unified helper
         const combinedCssFiles = combineCssFiles(cssFiles, messageCssFiles);
@@ -270,28 +351,32 @@ export async function messageHandler(
         // Use the same createRenderToPipeableStreamHandler as server environment
         try {
           const result = createRenderToPipeableStreamHandler(handlerOptions);
-          
+
           // Track headless streams by route for potential reuse
           if (isHeadless) {
             activeStreamsByRoute.set(msg.options.route, msg.id);
             if (verbose) {
-              logger.info(`[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.options.route}`);
+              logger.info(
+                `[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.options.route}`
+              );
             }
           }
-          
+
           // Process the stream using the handlers
           const streamId = msg.id;
           const passThrough = result.rscStream;
-          
+
           // Set up stream event handlers
           if (passThrough) {
             passThrough.on("data", (chunk) => {
               if (verbose) {
-                logger.info(`[rsc-worker] RSC stream data chunk: ${chunk.length} bytes`);
+                logger.info(
+                  `[rsc-worker] RSC stream data chunk: ${chunk.length} bytes`
+                );
               }
               effectiveHandlers.onData(streamId, chunk);
             });
-            
+
             passThrough.on("end", () => {
               if (verbose) {
                 logger.info(`[rsc-worker] RSC stream ended`);
@@ -299,7 +384,7 @@ export async function messageHandler(
               effectiveHandlers.onEnd(streamId);
               cleanupRender(streamId);
             });
-            
+
             passThrough.on("error", (error) => {
               if (verbose) {
                 logger.error(`[rsc-worker] RSC stream error: ${error.message}`);
@@ -308,10 +393,10 @@ export async function messageHandler(
               cleanupRender(streamId);
             });
           }
-          
+
           // Send RSC_RENDER_START control message
           effectiveHandlers.onRscRender(streamId, msg);
-          
+
           return result;
         } catch (error) {
           effectiveHandlers.onError(msg.id, toError(error));
@@ -319,11 +404,85 @@ export async function messageHandler(
           return;
         }
       case "RESOLVE_COMPONENTS": {
-        // This case is now handled by createHandlerOptions
-        if (verbose) {
-          logger.info(`[rsc-worker] RESOLVE_COMPONENTS case - now handled by createHandlerOptions`);
+        const resolutionStartTime = performance.now();
+
+        try {
+          if (verbose) {
+            logger.info(
+              `[rsc-worker] Resolving components for route: ${msg.route}`
+            );
+            logger.info(`[rsc-worker] pagePath: ${msg.pagePath}`);
+            logger.info(`[rsc-worker] propsPath: ${msg.propsPath}`);
+            logger.info(`[rsc-worker] rootPath: ${msg.rootPath}`);
+            logger.info(`[rsc-worker] htmlPath: ${msg.htmlPath}`);
+          }
+
+          // Create loader for component resolution
+          const loader = createRscWorkerLoader({
+            verbose: verbose,
+            logger,
+            hmrState,
+            projectRoot: workerData.userOptions.projectRoot,
+            manifest: workerData.serverManifest || {},
+            build: {
+              server: userOptions.build?.server || "server",
+              client: userOptions.build?.client || "client",
+              static: userOptions.build?.static || "static",
+              outDir: userOptions.build?.outDir || "dist",
+            },
+            bundle: workerData.bundle || {},
+            clientPattern: userOptions.autoDiscover?.clientPattern,
+          });
+
+          // Load components using the unified helper function (caching is handled internally)
+          await loadComponentsWithCache({
+            pagePath: msg.pagePath,
+            propsPath: msg.propsPath,
+            rootPath: msg.rootPath,
+            htmlPath: msg.htmlPath,
+            pageExportName: msg.pageExportName || 'default',
+            propsExportName: msg.propsExportName || 'props',
+            rootExportName: msg.rootExportName || 'Root',
+            htmlExportName: msg.htmlExportName || 'Html',
+            url: `/${msg.route}`, // Simple URL for component resolution
+            loader,
+            verbose,
+            logger,
+          });
+
+          const resolutionTime = performance.now() - resolutionStartTime;
+
+          if (verbose) {
+            logger.info(
+              `[rsc-worker] Components resolved for route: ${
+                msg.route
+              } in ${resolutionTime.toFixed(2)}ms`
+            );
+          }
+
+          // Send success response (without the actual components)
+          const response: ComponentsResolvedMessage = {
+            type: "COMPONENTS_RESOLVED",
+            id: msg.id,
+            route: msg.route,
+            resolutionTime,
+          };
+
+          parentPort?.postMessage(response);
+        } catch (error) {
+          logger.error(
+            `[rsc-worker] Failed to resolve components for route ${msg.route}: ${error}`
+          );
+
+          // Send error response
+          parentPort?.postMessage({
+            type: "ERROR",
+            id: msg.id,
+            route: msg.route,
+            error: toError(error),
+          });
         }
-        break;
+        return;
       }
       case "SERVER_ACTION": {
         try {
@@ -356,7 +515,11 @@ export async function messageHandler(
         } catch (error: unknown) {
           const errorMessage = toError(error).message;
           // Send error response
-          effectiveHandlers.onServerActionResponse?.(msg.id, undefined, errorMessage);
+          effectiveHandlers.onServerActionResponse?.(
+            msg.id,
+            undefined,
+            errorMessage
+          );
         }
         return;
       }

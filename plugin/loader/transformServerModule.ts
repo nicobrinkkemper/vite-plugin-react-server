@@ -10,7 +10,6 @@ import type {
   FunctionDeclaration,
   FunctionExpression,
 } from "acorn";
-import { createLogger } from "vite";
 
 /**
  * Transforms a server module by:
@@ -21,13 +20,20 @@ import { createLogger } from "vite";
 export async function transformServerModule(
   source: string,
   moduleId: string,
+  transformedModuleId: string,
   parseResult: ParseResult,
   loader: Pick<
     LoaderConfig,
-    "registerServerReferenceName" | "importServerPath" | "parse" | "isClientComponentCode" | "isClientComponentByName" | "registerClientReferenceName" | "importClientPath"
+    | "registerServerReferenceName"
+    | "importServerPath"
+    | "parse"
+    | "isClientComponentCode"
+    | "isClientComponentByName"
+    | "registerClientReferenceName"
+    | "importClientPath"
+    | "verbose"
+    | "logger"
   > = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
-  verbose = false,
-  logger = createLogger(),
 ): Promise<TransformResult> {
   if (!loader) {
     loader = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()];
@@ -35,8 +41,6 @@ export async function transformServerModule(
   if (parseResult.type !== "success") {
     return { code: "", map: null };
   }
-
-
 
   // Parse the source using the loader's parse function or fallback to Acorn
   let ast;
@@ -66,7 +70,7 @@ export async function transformServerModule(
   // check if body is iterable
   if (!(ast.body && typeof ast.body === "object" && "forEach" in ast.body)) {
     throw new Error(
-      `[transformServerModule] Failed to parse ${moduleId} with loader.parse`
+      `[transformServerModule] Failed to parse ${moduleId} -> ${transformedModuleId} with loader.parse`
     );
   }
 
@@ -126,10 +130,12 @@ export async function transformServerModule(
   }
   walkFunctionDirectives(ast);
 
-  if (verbose) {
+  if (loader.verbose) {
     for (const range of rangesToRemove) {
-      logger.info(
-        `[transformServerModule] Ranges to remove: start: ${range.start}, end: ${range.end}, source: ${source.slice(range.start, range.end)}`
+      loader.logger?.info(
+        `[transformServerModule] Ranges to remove: start: ${
+          range.start
+        }, end: ${range.end}, source: ${source.slice(range.start, range.end)}`
       );
     }
   }
@@ -150,7 +156,7 @@ export async function transformServerModule(
       parseResult.directiveInfo.fileLevel?.type === "server"
     ) {
       // Use original module ID for re-exports, current module ID for local exports
-      const targetModuleId = exp.originalModuleId || moduleId;
+      const targetModuleId = exp.originalModuleId || transformedModuleId;
       registrations.push(
         `${loader?.registerServerReferenceName}(${exp.localName}, "${targetModuleId}", "${exp.exportName}");`
       );
@@ -159,42 +165,55 @@ export async function transformServerModule(
 
   // Also handle client components in server environment
   // Check if this is a client component by checking for client directive
-  const hasClientDirective = parseResult.directiveInfo?.fileLevel?.type === "client";
-  
+  const hasClientDirective =
+    parseResult.directiveInfo?.fileLevel?.type === "client";
+
   let finalCode = transformedCode;
   let imports = [];
-  
+
   // Add server reference imports and registrations if needed
   if (registrations.length > 0) {
-    imports.push(`import { ${loader?.registerServerReferenceName} } from "${loader?.importServerPath}";`);
+    imports.push(
+      `import { ${loader?.registerServerReferenceName} } from "${loader?.importServerPath}";`
+    );
     finalCode = `${finalCode}\n${registrations.join("\n")}`;
   }
-  
+
   // Add client reference imports and registrations if this is a client component
   if (hasClientDirective) {
-    imports.push(`import { ${loader?.registerClientReferenceName} } from "${loader?.importClientPath}";`);
+    imports.push(
+      `import { ${loader?.registerClientReferenceName} } from "${loader?.importClientPath}";`
+    );
+
+    
+    if (loader.verbose) {
+      loader.logger?.info(
+        `[transformServerModule] moduleID function called: ${moduleId} -> ${transformedModuleId}`
+      );
+    }
+
     const clientRegistrations = [];
     for (const exp of parseResult.exports.exports.values()) {
       if (exp.exportName === "default") {
         clientRegistrations.push(
-          `export default ${loader?.registerClientReferenceName}(function() { throw new Error("Attempted to call default() on the client"); }, "${moduleId}", "default");`
+          `export default ${loader?.registerClientReferenceName}(function() { throw new Error("Attempted to call default() on the client"); }, "${transformedModuleId}", "default");`
         );
       } else {
         clientRegistrations.push(
-          `export const ${exp.exportName} = ${loader?.registerClientReferenceName}(function() { throw new Error("Attempted to call ${exp.exportName}() on the client"); }, "${moduleId}", "${exp.exportName}");`
+          `export const ${exp.exportName} = ${loader?.registerClientReferenceName}(function() { throw new Error("Attempted to call ${exp.exportName}() on the client"); }, "${transformedModuleId}", "${exp.exportName}");`
         );
       }
     }
     finalCode = `${finalCode}\n${clientRegistrations.join("\n")}`;
   }
-  
+
   // Add imports at the top if any
   if (imports.length > 0) {
     finalCode = `${imports.join("\n")}\n${finalCode}`;
   }
 
   // Create source map based on the final transformed code
-  const map = createSourceMap(finalCode, source, moduleId, []);
+  const map = createSourceMap(finalCode, source, transformedModuleId, []);
 
   return {
     code: finalCode,

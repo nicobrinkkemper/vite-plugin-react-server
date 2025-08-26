@@ -7,7 +7,6 @@ import type {
   HtmlName,
   RootName,
 } from "../types.js";
-import { createDefaultModuleID } from "./createModuleID.js";
 import {
   BASE_PATTERNS,
   DEFAULT_CONFIG,
@@ -688,20 +687,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         isClientComponentByCode,
         isClientComponentByName,
         parse: options?.loader?.parse ?? DEFAULT_LOADER_CONFIG.parse,
-        moduleID: options?.loader?.moduleID ?? options?.moduleID ?? 
-          (() => {
-            // Create default moduleID function if not provided
-            // Pass a configEnv that indicates build mode for test environment
-            const inferredConfigEnv = loaderMode === "test" ? { command: "build" } : undefined;
-            return createDefaultModuleID({
-              moduleBase,
-              moduleBasePath,
-              autoDiscover: autoDiscover,
-              build: build,
-              moduleBaseURL,
-              projectRoot,
-            }, inferredConfigEnv as any, loaderMode);
-          })(),
+        moduleID: options?.loader?.moduleID ?? options?.moduleID,
       } as Required<LoaderConfig>)
     : undefined;
 

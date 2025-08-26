@@ -20,10 +20,6 @@ export interface ResolveComponentsOptions {
 }
 
 export interface ResolvedComponents {
-  PageComponent?: any;
-  pageProps?: any;
-  RootComponent?: any;
-  HtmlComponent?: any;
   resolutionTime: number;
 }
 
@@ -87,13 +83,13 @@ export async function resolveComponents(
 
   try {
     // Send message to worker and wait for response
-    const response = await new Promise<ComponentsResolvedMessage>((resolve, reject) => {
+    await new Promise<ComponentsResolvedMessage>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error(`Component resolution timeout for route: ${route}`));
       }, 3000); // 3 second timeout
 
       const messageHandler = (message: any) => {
-        if (message.type === "COMPONENTS_RESOLVED" && message.route === route) {
+        if (message.type === "COMPONENTS_RESOLVED" && message.id === resolveMessage.id) {
           clearTimeout(timeout);
           worker.off("message", messageHandler);
           resolve(message);
@@ -129,10 +125,6 @@ export async function resolveComponents(
     }
 
     return {
-      PageComponent: response.PageComponent,
-      pageProps: response.pageProps,
-      RootComponent: response.RootComponent,
-      HtmlComponent: response.HtmlComponent,
       resolutionTime,
     };
 

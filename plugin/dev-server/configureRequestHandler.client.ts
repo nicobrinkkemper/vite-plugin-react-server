@@ -25,6 +25,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
     server,
     autoDiscoveredFiles,
     userOptions: _userOptions,
+    configEnv,
     hmrChannel,
     onWorkerCreated,
   }) {
@@ -107,6 +108,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             server,
             autoDiscoveredFiles,
             userOptions: serializedUserOptions,
+            configEnv: configEnv,
             hmrChannel,
           });
         }
@@ -158,6 +160,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             server,
             autoDiscoveredFiles,
             userOptions: serializedUserOptions,
+            configEnv: configEnv,
             hmrChannel,
           });
         } else {

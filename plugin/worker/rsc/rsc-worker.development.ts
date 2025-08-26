@@ -44,59 +44,73 @@ const reactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
 };
 
 try {
-  // Create channels for each loader
+  // Check if we're in build mode - if so, skip loader registration since files are already built
+  const isBuildMode = workerData.configEnv?.command === "build" || 
+                     workerData.resolvedConfig.mode === "production";
+  
+
+  
+  if (isBuildMode) {
+    logger.info("Build mode detected - skipping loader registration since files are already built");
+  } else {
+    logger.info("Development/test mode detected - registering loaders for source file processing");
+  }
+
+  // Create channels for each loader (only needed if not in build mode)
   const reactLoaderChannel = new MessageChannel();
   const cssLoaderChannel = new MessageChannel();
   const envLoaderChannel = new MessageChannel();
 
-  // Set up message handlers before transferring ports
-  reactLoaderChannel.port2.on("message", reactLoaderMessageHandler);
-  reactLoaderChannel.port2.on("messageerror", (error: Error) => {
-    logger.error("React loader message serialization failed.", { error });
-    if (parentPort) {
-      parentPort.postMessage({
-        type: "ERROR",
-        id: "react-loader",
-        error: {
-          message: "Message serialization failed in react loader",
-          name: "MessageError",
-          stack: undefined,
-        },
-      });
-    }
-  });
+  // Set up message handlers before transferring ports (only needed if not in build mode)
+  if (!isBuildMode) {
+    reactLoaderChannel.port2.on("message", reactLoaderMessageHandler);
+    reactLoaderChannel.port2.on("messageerror", (error: Error) => {
+      logger.error("React loader message serialization failed.", { error });
+      if (parentPort) {
+        parentPort.postMessage({
+          type: "ERROR",
+          id: "react-loader",
+          error: {
+            message: "Message serialization failed in react loader",
+            name: "MessageError",
+            stack: undefined,
+          },
+        });
+      }
+    });
 
-  cssLoaderChannel.port2.on("message", cssLoaderMessageHandler);
-  cssLoaderChannel.port2.on("messageerror", (error: Error) => {
-    logger.error("CSS loader message serialization failed.", { error });
-    if (parentPort) {
-      parentPort.postMessage({
-        type: "ERROR",
-        id: "css-loader",
-        error: {
-          message: "Message serialization failed in CSS loader",
-          name: "MessageError",
-          stack: undefined,
-        },
-      });
-    }
-  });
+    cssLoaderChannel.port2.on("message", cssLoaderMessageHandler);
+    cssLoaderChannel.port2.on("messageerror", (error: Error) => {
+      logger.error("CSS loader message serialization failed.", { error });
+      if (parentPort) {
+        parentPort.postMessage({
+          type: "ERROR",
+          id: "css-loader",
+          error: {
+            message: "Message serialization failed in CSS loader",
+            name: "MessageError",
+            stack: undefined,
+          },
+        });
+      }
+    });
 
-  envLoaderChannel.port2.on("message", envLoaderMessageHandler);
-  envLoaderChannel.port2.on("messageerror", (error: Error) => {
-    logger.error("Env loader message serialization failed.", { error });
-    if (parentPort) {
-      parentPort.postMessage({
-        type: "ERROR",
-        id: "env-loader",
-        error: {
-          message: "Message serialization failed in env loader",
-          name: "MessageError",
-          stack: undefined,
-        },
-      });
-    }
-  });
+    envLoaderChannel.port2.on("message", envLoaderMessageHandler);
+    envLoaderChannel.port2.on("messageerror", (error: Error) => {
+      logger.error("Env loader message serialization failed.", { error });
+      if (parentPort) {
+        parentPort.postMessage({
+          type: "ERROR",
+          id: "env-loader",
+          error: {
+            message: "Message serialization failed in env loader",
+            name: "MessageError",
+            stack: undefined,
+          },
+        });
+      }
+    });
+  }
 
   // Use projectRoot for loader paths, fallback to resolvedConfig.root
   const projectRoot = workerData.userOptions.projectRoot || workerData.resolvedConfig.root;
@@ -135,72 +149,78 @@ try {
           DEFAULT_CONFIG.ENV_LOADER_PATH
         ));
 
-  try {
-    register(cssLoaderPath, {
-      parentURL: pluginRoot,
-      data: {
-        id: "css-loader",
-        port: cssLoaderChannel.port1,
-        userOptions: workerData.userOptions,
-        resolvedConfig: workerData.resolvedConfig,
-      },
-      transferList: [cssLoaderChannel.port1],
-    });
-  } catch (e) {
-    const handledError = handleError({
-      error: e,
-      logger,
-      panicThreshold: workerData.userOptions.panicThreshold,
-      context: `register(${cssLoaderPath})`,
-    });
-    if (handledError != null) throw handledError;
-  }
+  // Only register loaders if not in build mode
+  if (!isBuildMode) {
+    try {
+      register(cssLoaderPath, {
+        parentURL: pluginRoot,
+        data: {
+          id: "css-loader",
+          port: cssLoaderChannel.port1,
+          userOptions: workerData.userOptions,
+          resolvedConfig: workerData.resolvedConfig,
+        },
+        transferList: [cssLoaderChannel.port1],
+      });
+    } catch (e) {
+      const handledError = handleError({
+        error: e,
+        logger,
+        panicThreshold: workerData.userOptions.panicThreshold,
+        context: `register(${cssLoaderPath})`,
+      });
+      if (handledError != null) throw handledError;
+    }
 
-  // Register tsx
-  registerTsx();
+    // Register tsx
+    registerTsx();
 
-  try {
-    // Register loaders with their ports
-    register(reactLoaderPath, {
-      parentURL: pluginRoot,
-      data: {
-        id: "react-loader",
-        port: reactLoaderChannel.port1,
-        userOptions: workerData.userOptions,
-        resolvedConfig: workerData.resolvedConfig,
-      },
-      transferList: [reactLoaderChannel.port1],
-    });
-  } catch (e) {
-    const handledError = handleError({
-      error: e,
-      logger,
-      panicThreshold: workerData.userOptions.panicThreshold,
-      context: `register(${reactLoaderPath})`,
-    });
-    if (handledError != null) throw handledError;
-  }
+    try {
+      // Register loaders with their ports
+      register(reactLoaderPath, {
+        parentURL: pluginRoot,
+        data: {
+          id: "react-loader",
+          port: reactLoaderChannel.port1,
+          userOptions: workerData.userOptions,
+          resolvedConfig: workerData.resolvedConfig,
+        },
+        transferList: [reactLoaderChannel.port1],
+      });
+    } catch (e) {
+      const handledError = handleError({
+        error: e,
+        logger,
+        panicThreshold: workerData.userOptions.panicThreshold,
+        context: `register(${reactLoaderPath})`,
+      });
+      if (handledError != null) throw handledError;
+    }
 
-  // Register env-loader (ensure this the last)
-  try {
-    register(envLoaderPath, {
-      parentURL: pluginRoot,
-      data: {
-        id: "env-loader",
-        port: envLoaderChannel.port1,
-        resolvedConfig: workerData.resolvedConfig,
-        userOptions: workerData.userOptions,
-      },
-      transferList: [envLoaderChannel.port1],
-    });
-  } catch (e) {
-    const handledError = handleError({
-      error: e,
-      logger,
-      panicThreshold: workerData.userOptions.panicThreshold,
-      context: `register(${envLoaderPath})`,
-    });
-    if (handledError != null) throw handledError;
+    // Register env-loader (ensure this the last)
+    try {
+      register(envLoaderPath, {
+        parentURL: pluginRoot,
+        data: {
+          id: "env-loader",
+          port: envLoaderChannel.port1,
+          resolvedConfig: workerData.resolvedConfig,
+          userOptions: workerData.userOptions,
+        },
+        transferList: [envLoaderChannel.port1],
+      });
+    } catch (e) {
+      const handledError = handleError({
+        error: e,
+        logger,
+        panicThreshold: workerData.userOptions.panicThreshold,
+        context: `register(${envLoaderPath})`,
+      });
+      if (handledError != null) throw handledError;
+    }
+  } else {
+    // In build mode, just register tsx for basic TypeScript support
+    registerTsx();
   }
   
   parentPort!.on("messageerror", (error: Error) => {

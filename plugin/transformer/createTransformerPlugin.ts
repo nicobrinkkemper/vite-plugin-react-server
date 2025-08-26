@@ -12,6 +12,7 @@ import { getNodeEnv, isValidEnv } from "../config/getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
+import { createDefaultModuleID } from "../config/createModuleID.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -136,6 +137,16 @@ export const createTransformerPlugin = (
           runtimeResolvedUserOptions = runtimeOptionsResult.userOptions;
         }
         
+        // CRITICAL: Update moduleID function with correct configEnv for build mode
+        // This ensures client component hashing uses the correct build context
+        if (runtimeResolvedUserOptions.loader) {
+          runtimeResolvedUserOptions.loader.moduleID = createDefaultModuleID(
+            runtimeResolvedUserOptions,
+            { command: config.command, mode: config.mode, isSsrBuild: isSSR, isPreview: false },
+            mode
+          );
+        }
+        
         // Note: condition override is set in env plugin during config phase
         // Verbose summary (config hook has void context, use config logger)
         const logger = config.customLogger || config.logger;
@@ -190,6 +201,17 @@ export const createTransformerPlugin = (
           
 
           
+          // Check if this file is already transformed (contains registerClientReference)
+          const isAlreadyTransformed = code.includes(runtimeResolvedUserOptions.loader?.registerClientReferenceName ?? "registerClientReference");
+          if (isAlreadyTransformed) {
+            if (runtimeResolvedUserOptions.verbose) {
+              this.environment?.logger?.info(
+                `[react-${name}-transform] Skipping already transformed file: ${normalizedPath}`
+              );
+            }
+            return null;
+          }
+          
           // Check if we've already transformed this module to avoid double-hashing
           // Include environment context in cache key since different environments need different transformations
           const isServerEnv = this.environment?.name === "server";
@@ -216,26 +238,16 @@ export const createTransformerPlugin = (
             originalSourceContent = code;
           }
 
-          // Apply the user's moduleID function to get the hashed module ID
-          // This ensures registerClientReference calls use the correct hashed paths
+          // Use the original normalized path for moduleID function calls
+          // This ensures registerClientReference calls use the correct paths
           let finalModuleID = runtimeResolvedUserOptions.loader?.moduleID ? 
             runtimeResolvedUserOptions.loader.moduleID(normalizedPath, originalSourceContent) : 
             normalizedPath;
-
-
           
-          // For server-built client components, we need to use a path that the RSC runtime can resolve
-          // The RSC runtime expects client components to be in the client build directory
-          if (isFromServerBuild && runtimeResolvedUserOptions.loader?.isClientComponentByName?.(id)) {
-            // Extract the relative path from the normalized path, removing dist/server prefix
-            // The RSC runtime resolves paths relative to the client build directory
-            const serverPrefix = `${runtimeResolvedUserOptions.build.outDir || "dist"}/${runtimeResolvedUserOptions.build.server || "server"}/`;
-            const relativePath = normalizedPath.startsWith(serverPrefix) ? 
-              normalizedPath.substring(serverPrefix.length) : 
-              normalizedPath.replace(new RegExp(`^.*${serverPrefix}`), '');
-            finalModuleID = runtimeResolvedUserOptions.loader?.moduleID ? 
-              runtimeResolvedUserOptions.loader.moduleID(relativePath, originalSourceContent) : 
-              relativePath;
+          if (runtimeResolvedUserOptions.verbose) {
+            this.environment?.logger?.info(
+              `[react-${name}-transform] ModuleID transformation: ${normalizedPath} -> ${finalModuleID}`
+            );
           }
      
           const transformer = createTransformer({
@@ -290,6 +302,7 @@ export const createTransformerPlugin = (
 
           const transformResult = await transformer(
             code,
+            normalizedPath,
             finalModuleID
           );
           

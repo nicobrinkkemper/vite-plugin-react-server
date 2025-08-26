@@ -5,7 +5,6 @@ import { removeDirectives } from "./removeDirectives.js";
 import * as acorn from "acorn";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
-
 /**
  * Transforms a server module by:
  * 1. Parsing it to get exports and directives
@@ -15,9 +14,9 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 export async function transformNonServerEnvironment(
   source: string,
   moduleId: string,
+  transformedModuleId: string,
   parseResult: ParseResult,
-  loader: Pick<LoaderConfig, "parse"> = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
-  verbose = false
+  loader: Pick<LoaderConfig, "parse" | "verbose" | "logger"> = DEFAULT_CONFIG.RSC_LOADER[getNodeEnv()],
 ): Promise<TransformResult> {
   if (parseResult.type !== "success") {
     return { code: "", map: null };
@@ -50,7 +49,7 @@ export async function transformNonServerEnvironment(
   // check if body is iterable
   if (!(ast.body && typeof ast.body === "object" && "forEach" in ast.body)) {
     throw new Error(
-      `[transformServerModule] Failed to parse ${moduleId} with loader.parse`
+      `[transformServerModule] Failed to parse ${moduleId} -> ${transformedModuleId} with loader.parse`
     );
   }
 
@@ -66,7 +65,10 @@ export async function transformNonServerEnvironment(
       } else if (node.directive === "use server") {
         // Throw error when "use server" directive is found in client environment
         throw new Error(
-          "use server directive found in client module: " + moduleId
+          "use server directive found in client module: " +
+            moduleId +
+            " -> " +
+            transformedModuleId
         );
       }
     }
@@ -74,10 +76,11 @@ export async function transformNonServerEnvironment(
     if (node.type !== "ExpressionStatement" || !node.directive) break;
   }
 
-  if (verbose) {
-    console.log(
-      `[transformNonServerEnvironment] Ranges to remove:`,
-      rangesToRemove
+  if (loader.verbose) {
+    loader.logger?.info(
+      `[transformNonServerEnvironment] Ranges to remove: ${rangesToRemove
+        .map((r) => `${r.start} -> ${r.end}`)
+        .join(", ")}`
     );
   }
 
@@ -86,13 +89,9 @@ export async function transformNonServerEnvironment(
 
   // Only add the import and registrations if there are any registrations to make
   const finalCode = transformedCode;
-  
-
-
-
 
   // Create source map based on the final transformed code
-  const map = createSourceMap(finalCode, source, moduleId, []);
+  const map = createSourceMap(finalCode, source, transformedModuleId, []);
 
   return {
     code: finalCode,

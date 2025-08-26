@@ -249,16 +249,12 @@ export const serializedDevServerConfig = <T extends ViteDevServer["config"]>(
     ...handlerOptions
   } = config;
   
-  // Explicitly preserve configEnv for worker mode detection
-  const serializedConfig = {
-    ...processForSerialization(
-      cleanObject(handlerOptions, customNonSerializableFunctions)
-    ),
-    configEnv: (config as any).configEnv, // Explicitly preserve configEnv
-  };
-  
-  return serializedConfig;
+  return processForSerialization(
+    cleanObject(handlerOptions, customNonSerializableFunctions)
+  );
 };
+
+
 
 // For your own options (if you need custom non-serializable functions)
 export const serializedOptions = <T extends ResolvedUserOptions>(

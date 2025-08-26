@@ -4,6 +4,7 @@ import {
   createLogger,
   type Logger,
   type ResolvedConfig,
+  type ConfigEnv,
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
 import type {
@@ -27,7 +28,6 @@ export const reactServerPlugin: VitePluginFn =
 
     let autoDiscoveredFiles: AutoDiscoveredFiles;
     let logger: Logger;
-    let resolvedConfig: ResolvedConfig;
 
     const resolvedOptions = resolveOptions(options);
     if (resolvedOptions.type === "error") {
@@ -39,6 +39,7 @@ export const reactServerPlugin: VitePluginFn =
     let currentUserOptions = resolvedOptions.userOptions;
     let hmrChannel: MessageChannel | null = null;
     let serverManifest: Manifest = {};
+    let configEnv: ConfigEnv;
     return {
       name: "vite:plugin-react-server/rsc-worker-server",
       enforce: "post",
@@ -51,34 +52,29 @@ export const reactServerPlugin: VitePluginFn =
         }
         return false;
       },
-      config(config, configEnv) {
-        // For react-server condition, always default to SSR=true unless explicitly overridden
-        // This ensures server builds work correctly even if other plugins set build.ssr=false
-        if (typeof config.build?.ssr === "boolean" && config.build.ssr === false) {
-          // In a client environment, build.ssr=false is expected, so just skip this plugin
-          return config;
-        }
+      config(config, viteConfigEnv) {
+        configEnv = viteConfigEnv;
         
         // Set up moduleID function if not already set
         if (typeof currentUserOptions.moduleID !== "function") {
           currentUserOptions.moduleID = createDefaultModuleID(
             currentUserOptions,
-            configEnv,
+            viteConfigEnv,
             currentUserOptions.loader?.mode
           );
-        }
-        
-        // Set up logger if not already set
-        if (!logger) {
-          logger = config.customLogger || createLogger();
         }
         
         // The environment plugin handles auto-discovery and input configuration
         // This plugin now focuses on server-specific functionality
         return config; 
       },
-      async configResolved(_resolvedConfig) {
-        resolvedConfig = _resolvedConfig;
+      async configResolved(resolvedConfig) {
+        
+        // Set up logger if not already set
+        if (!logger) {
+          logger = resolvedConfig.customLogger || resolvedConfig.logger || createLogger();
+        }
+        resolvedConfig = resolvedConfig;
         timing.configResolved = performance.now();
         
         // Re-run auto-discovery for dev server purposes (environment plugin handles build)
@@ -139,9 +135,10 @@ export const reactServerPlugin: VitePluginFn =
           server,
           autoDiscoveredFiles,
           userOptions: currentUserOptions,
+          configEnv: configEnv,
           hmrChannel: hmrChannel || new MessageChannel(),
           serverManifest: serverManifest,
-          resolvedConfig: resolvedConfig as ResolvedConfig,
+          resolvedConfig: server.config,
           onWorkerCreated: (worker) => {
             setWorker(worker);
           },

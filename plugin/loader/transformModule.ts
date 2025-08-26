@@ -19,7 +19,6 @@ import type {
   TransformResult,
 } from "./types.js";
 import { transformNonServerEnvironment } from "./transformNonServerEnvironment.js";
-import { createLogger } from "vite";
 
 /**
  * Transforms a module for RSC boundaries, handling imports and registrations.
@@ -27,19 +26,24 @@ import { createLogger } from "vite";
 export const transformModule: TransformFunction = async (
   source: string,
   moduleId: string,
+  transformedModuleId: string,
   parseResult: ParseResult,
   {
     forceServerFunction,
     forceClientComponent,
     isServerEnvironment,
     loader,
-    verbose,
-    logger = createLogger(),
+    verbose = Boolean(loader?.verbose),
+    logger = loader?.logger,
   }: TransformOptions
 ): Promise<TransformResult> => {
+  if(logger && loader) {
+    loader.logger = logger;
+    loader.verbose = verbose;
+  }
   if (parseResult.type !== "success") {
     if (verbose) {
-      logger.error(`[transformModule] Parse error:`, {
+      logger?.error(`[transformModule] Parse error:`, {
         error: parseResult.error,
       });
     }
@@ -49,15 +53,15 @@ export const transformModule: TransformFunction = async (
 
 
   if (verbose) {
-    logger.info(`[transformModule] Module: ${moduleId}`);
-    logger.info(
+    logger?.info(`[transformModule] Module: ${moduleId}`);
+    logger?.info(
       `[transformModule] Directives: fileLevel: ${JSON.stringify(parseResult.directiveInfo.fileLevel)}, functionLevel: ${JSON.stringify(parseResult.directiveInfo.functionLevel)}, warnings: ${parseResult.directiveInfo.warnings.length}`
     );
-    logger.info(
+    logger?.info(
       `[transformModule] isServerFunction:` +
         (forceServerFunction ? "true" : "false")
     );
-    logger.info(
+    logger?.info(
       `[transformModule] isClientComponent:` +
         (forceClientComponent ? "true" : "false")
     );
@@ -67,9 +71,9 @@ export const transformModule: TransformFunction = async (
     return transformNonServerEnvironment(
       source,
       moduleId,
+      transformedModuleId,
       parseResult,
       loader,
-      verbose
     );
   }
 
@@ -88,30 +92,26 @@ export const transformModule: TransformFunction = async (
     return transformClientModule(
       source,
       moduleId,
+      transformedModuleId,
       parseResult,
       loader,
-      verbose,
-      logger,
-      isServerEnvironment
     );
-  } else if (forceServerFunction) {
+  } else if (forceServerFunction && isServerEnvironment) {
     return transformServerModule(
       source,
       moduleId,
+      transformedModuleId,
       parseResult,
       loader,
-      verbose,
-      logger
     );
-  } else {
+  } else if(isServerEnvironment) {
     return transformClientModule(
       source,
       moduleId,
+      transformedModuleId,
       parseResult,
       loader,
-      verbose,
-      logger,
-      isServerEnvironment
     );
   }
+  return { code: source, map: null };
 };

@@ -1,5 +1,5 @@
 import type { CreateHandlerOptions, AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
-import type { Logger, UserConfig, ConfigEnv } from "vite";
+import type { Logger,  ConfigEnv, ResolvedConfig } from "vite";
 
 /**
  * Common parameters for both server and client createHandlerOptions functions.
@@ -22,7 +22,7 @@ export interface CreateHandlerOptionsParams {
     css: any;
     loader?: any;
   }>;
-  config?: UserConfig;
+  config?: ResolvedConfig ;
   configEnv?: ConfigEnv;
   envId?: string;
   userOptions?: ResolvedUserOptions;

@@ -3,7 +3,7 @@ import { replaceExtension } from "./extMap.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { ConfigEnv } from "vite";
-import { sep, resolve } from "node:path";
+import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 
@@ -22,11 +22,12 @@ export type ModuleIDKey =
 export const createDefaultModuleID = (
   options: Pick<
     ResolvedUserOptions,
-    "moduleBase" | "moduleBasePath" | "autoDiscover" | "build" | "moduleBaseURL" | "projectRoot"
+    "moduleBase" | "moduleBasePath" | "autoDiscover" | "build" | "dev" | "moduleBaseURL" | "projectRoot"
   >,
   configEnv?: ConfigEnv,
   mode = getNodeEnv()
 ) => {
+  console.log(`[createDefaultModuleID] Creating moduleID function with configEnv: ${configEnv?.command}, mode: ${mode}`);
   const { moduleBase, moduleBasePath, build, moduleBaseURL, projectRoot } = options;
   const assetsDir = build.assetsDir || DEFAULT_CONFIG.BUILD.assetsDir;
   const isBuild = configEnv?.command === "build";
@@ -120,10 +121,68 @@ export const createDefaultModuleID = (
       return input + "-" + contentHash;
     }
   };
+  const staticClientDist = isBuild ? join(build?.outDir || "dist", build?.static || "static") : "";
+  const ssrClientDist = isBuild ? join(build?.outDir || "dist", build?.client || "client") : "";
+  const serverDist = isBuild ? join(build?.outDir || "dist", build?.server || "server") : "";
+  const buildDirs = isBuild ? [serverDist, ssrClientDist, staticClientDist] : [];
 
   return (id: string, sourceContent?: string) => {
-
+    console.log(`[createDefaultModuleID] Called with id: ${id}, configEnv: ${configEnv?.command}, mode: ${mode}`);
     
+    // For transformer usage (when we're in build mode and processing server components),
+    // we want to strip build directory prefixes to get relative paths
+    // This ensures the RSC stream contains paths that can be resolved by the HTML transform
+    if (isBuild) {
+      // Strip build directory prefixes to get relative paths
+      for (const buildDir of buildDirs) {
+        if (id.startsWith(buildDir)) {
+          const result = id.slice(buildDir.length);
+          console.log(`[createDefaultModuleID:transformer] Stripping ${buildDir} from ${id} -> ${result}`);
+          return result;
+        }
+      }
+      // Check for double path issues (like dist/client//dist/server/)
+      if (id.includes('//')) {
+        console.log(`[createDefaultModuleID:transformer] Found double slash in path: ${id}`);
+        // Try to fix double path issues by finding the last occurrence of dist/
+        const lastDistIndex = id.lastIndexOf('dist/');
+        if (lastDistIndex !== -1) {
+          const result = id.slice(lastDistIndex);
+          console.log(`[createDefaultModuleID:transformer] Fixed double path: ${id} -> ${result}`);
+          return result;
+        }
+      }
+      
+      // For client components in build mode, transform source paths to built paths
+      const isClientComponent = clientPattern.test(id);
+      if (isClientComponent) {
+        // Transform source path to built client path
+        let transformedId = id;
+        
+        // Step 1: Remove moduleBase (typically "src/") from the beginning
+        if (removeModuleBase && transformedId.startsWith(moduleBase + sep)) {
+          transformedId = transformedId.slice(moduleBase.length + sep.length);
+        }
+        
+        // Step 2: Apply extension mapping for build
+        transformedId = replaceExtension(transformedId, {
+          build: { extensionMap: build.extensionMap },
+        });
+        
+        // Step 3: Apply hashing for client components
+        transformedId = hash(transformedId, false, sourceContent);
+        
+        console.log(`[createDefaultModuleID:transformer] Client component transformation: ${id} -> ${transformedId}`);
+        return transformedId;
+      }
+      
+      console.log(`[createDefaultModuleID:transformer] No build dir prefix found for ${id}, returning as-is`);
+      return id;
+    }
+    
+    // Normal build path transformation (existing logic)
+    console.log(`[createDefaultModuleID:normal] Processing ${id} (configEnv: ${configEnv?.command}, mode: ${mode})`);
+
     // Step 1: Handle assets directory paths - remove src from within assets path
     // Transform: assets/src/page/file.css -> assets/page/file.css
     if (id.startsWith(assetsDir + sep + moduleBase + sep)) {
@@ -166,7 +225,18 @@ export const createDefaultModuleID = (
     // Step 8: Apply hashing for client components
     id = hash(id, false, sourceContent);
     
-    return `${moduleBasePath === '' ? '/' : moduleBasePath}${id}`;
+    // For client components, ensure no leading slash to allow proper relative resolution
+    const isClientComponent = clientPattern.test(id);
+    if (isClientComponent && moduleBasePath === '') {
+      return id; // No leading slash for client components
+    }
+    
+    // Don't add leading slash for relative paths - this causes module resolution issues
+    if (moduleBasePath === '') {
+      return id; // Return as-is without leading slash
+    }
+    
+    return `${moduleBasePath}${id}`;
   };
 };
 

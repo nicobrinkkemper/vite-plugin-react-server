@@ -19,6 +19,7 @@ import type { RawSourceMap } from "source-map";
 import { createTransformer } from "./createTransformer.js";
 
 import { createLogger, type Logger } from "vite";
+import { createDefaultModuleID } from "../config/createModuleID.js";
 
 export type LoaderOptions = {
   id: string;
@@ -35,6 +36,7 @@ export type LoaderFunction = (options: LoaderOptions) => Promise<ModuleInfo>;
 let initialized = false;
 let userOptions: ResolvedUserOptions;
 let loaderPort: MessagePort | null;
+let resolvedConfig: SerializedResolvedConfig;
 let isServerFunction:
   | RegExpMatchArray
   | RegExp
@@ -50,7 +52,8 @@ let logger: Logger;
 let verbose: boolean;
 let transformer: (
   source: string,
-  moduleId: string
+  moduleId: string,
+  transformedModuleId: string
 ) => Promise<{ code: string; map: RawSourceMap | null }>;
 
 export function initialize(data: {
@@ -70,6 +73,9 @@ export function initialize(data: {
   logger = createLogger(serializedResolvedConfig?.logLevel ?? "info", {
     prefix: id,
   });
+  
+  // Store resolvedConfig at module level for use in other functions
+  resolvedConfig = serializedResolvedConfig;
   
   if (verbose) {
     logger.info(`Initializing with options: ${id}`);
@@ -201,6 +207,18 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       logger.info(`File path: ${filePath}`);
     }
 
+    if(typeof userOptions.moduleID !== "function") {
+      userOptions.moduleID = createDefaultModuleID({
+        moduleBase: userOptions.moduleBase,
+        moduleBasePath: userOptions.moduleBasePath,
+        autoDiscover: userOptions.autoDiscover,
+        build: userOptions.build,
+        dev: userOptions.dev,
+        moduleBaseURL: userOptions.moduleBaseURL,
+        projectRoot: userOptions.projectRoot,
+      }, resolvedConfig?.configEnv);
+    }
+
     // Normalize the URL using the same logic as plugin.server.ts
     let moduleID = filePath;
     let finalID = filePath;
@@ -210,10 +228,11 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       finalID = userOptions.moduleID?.(moduleID) || moduleID;
       if (verbose) {
         logger.info(`Normalized IDs: ${moduleID} -> ${finalID}`);
+        logger.info(`userOptions: ${JSON.stringify(userOptions)}`);
       }
     }
 
-    const { code: transformed, map } = await transformer(source, finalID);
+    const { code: transformed, map } = await transformer(source, moduleID, finalID);
 
     if (verbose) {
       logger.info(`Transformation result: ${JSON.stringify({
