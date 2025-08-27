@@ -279,6 +279,8 @@ export const serializedOptions = <T extends ResolvedUserOptions>(
     autoDiscover: autoDiscover,
     propsExportName: propsExportName,
     pageExportName: pageExportName,
+    serverPipeableStreamOptions: serverPipeableStreamOptions,
+    clientPipeableStreamOptions: clientPipeableStreamOptions,
     ...handlerOptions
   } = userOptions;
   const {
@@ -360,6 +362,8 @@ export const serializedOptions = <T extends ResolvedUserOptions>(
       rscPattern: serializeRegExp(_rscPattern),
       ...serializedAutoDiscover,
     },
+    serverPipeableStreamOptions: serverPipeableStreamOptions,
+    clientPipeableStreamOptions: clientPipeableStreamOptions,
   } as const
 
   // Clean the object to remove non-serializable properties and process RegExp objects

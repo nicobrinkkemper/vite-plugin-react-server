@@ -8,7 +8,7 @@ import { getCondition } from "vite-plugin-react-server/config";
 
 describe("Dev Server", () => {
   let server: ViteDevServer, port = 5177;
-  const testDir = join(process.cwd(), `test/${getCondition()}/fixtures/dev-server`);
+  const testDir = join(process.cwd(), `test/fixtures/${getCondition()}/dev-server`);
   let pageURL;
   beforeAll(async () => {
     // Set up environment variables

@@ -128,17 +128,16 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
                 isPanic: true,
               },
             });
-            return;
+          } else {
+            // For non-panic errors, just log and send event
+            handlerOptions.onEvent?.({
+              type: "route.error",
+              data: {
+                route: route,
+                error: error,
+              },
+            });
           }
-
-          // For non-panic errors, just log and send event
-          handlerOptions.onEvent?.({
-            type: "route.error",
-            data: {
-              route: route,
-              error: error,
-            },
-          });
 
           serverPipeableStreamOptions.onError?.(error);
         },
@@ -167,17 +166,16 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
                 isPanic: true,
               },
             });
-            return;
+          } else {
+            // For non-panic errors, just log and send event
+            handlerOptions.onEvent?.({
+              type: "route.error",
+              data: {
+                route: route,
+                error: error,
+              },
+            });
           }
-
-          // For non-panic errors, just log and send event
-          handlerOptions.onEvent?.({
-            type: "route.error",
-            data: {
-              route: route,
-              error: error,
-            },
-          });
 
           (serverPipeableStreamOptions as any).onShellError?.(error);
         },

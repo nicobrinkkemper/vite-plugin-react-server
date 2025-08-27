@@ -43,6 +43,8 @@ import type { Worker } from "node:worker_threads";
 import { resolveAutoDiscover } from "../config/index.js";
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
+import { baseURL } from "../utils/envUrls.node.js";
+import { tryManifest } from "../helpers/tryManifest.js";
 // cssCollector removed - using filesystem-based CSS processing
 
 assertNonReactServer();
@@ -96,7 +98,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       meta: { timing },
     },
     async config(_config, viteConfigEnv) {
-      console.log(`[react-static-client] config() called with viteConfigEnv:`, viteConfigEnv);
       configEnv = viteConfigEnv;
     },
     applyToEnvironment(partialEnvironment) {
@@ -303,17 +304,36 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         );
 
         // Load static manifest from filesystem for CSS path mapping
-        const { tryManifest } = await import("../helpers/tryManifest.js");
+        
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
-          outDir: userOptions.build.outDir,
-          manifestPath: `${userOptions.build.static}/.vite/manifest.json`,
+          outDir: join(userOptions.build.outDir, userOptions.build.static),
+          manifestPath: resolvedConfig?.build.manifest ?? ".vite/manifest.json",
+          ssrManifest: false,
         });
-        const staticManifest =
-          staticManifestResult.type === "success"
-            ? (staticManifestResult.manifest as Manifest)
-            : ({} as Manifest);
+        if (staticManifestResult.type === "error") {
+          throw staticManifestResult.error;
+        }
+        const staticManifest = staticManifestResult.manifest;
 
+        // Construct bootstrapModules like the server plugin does
+        const indexHtml = staticManifest?.["index.html"]?.file;
+        const serverPipeableStreamOptions = {
+          ...userOptions.serverPipeableStreamOptions,
+          bootstrapModules: [
+            ...(indexHtml ? [baseURL(indexHtml)] : []),
+            ...(userOptions.serverPipeableStreamOptions?.bootstrapModules ??
+              []),
+          ],
+        };
+        userOptions.serverPipeableStreamOptions = serverPipeableStreamOptions;
+        const clientPipeableStreamOptions = {
+          ...userOptions.clientPipeableStreamOptions,
+          bootstrapScripts: [
+            ...(indexHtml ? [baseURL(indexHtml)] : []),
+            ...(userOptions.clientPipeableStreamOptions?.bootstrapScripts ?? []),
+          ],
+        }
         // Create CSS props for each CSS file (same as server-static)
         const { cssFilesByPage, globalCss } = processCssFilesForPages({
           userOptions,
@@ -486,7 +506,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             logger: logger,
             autoDiscoveredFiles: autoDiscoveredFiles,
             cssFilesByPage: cssFilesByPage, // Pass CSS files by page
-            serverPipeableStreamOptions: {},
+            serverPipeableStreamOptions: serverPipeableStreamOptions, // Pass server options to RSC worker
+            clientPipeableStreamOptions: clientPipeableStreamOptions, // Pass client options to RSC worker
             globalCss: globalCss, // Pass global CSS
             manifest: serverManifest || {}, // Server manifest for RSC worker
             staticManifest: staticManifest, // Static manifest for consistent module IDs
@@ -627,8 +648,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           this.error(finalError);
           throw finalError;
         }
-      } finally {
-        // Graceful worker shutdown
+
+        // Graceful worker shutdown - only at the end of the entire build process
         if (rscWorker) {
           try {
             await Promise.race([
@@ -690,11 +711,13 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             rscWorker = undefined;
           }
         }
-
+      } finally {
         // Reset any cached state to prevent issues in subsequent builds
         autoDiscoveredFiles = null;
         serverManifest = undefined;
       }
     },
+
+
   };
 };

@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
-import { workerData } from "node:worker_threads";
+import { parentPort, workerData } from "node:worker_threads";
 import { handleHtmlRender } from "./handleHtmlRender.js";
 import type { HtmlWorkerInputMessage } from "./types.js";
 import { serializeError } from "../../error/serializeError.js";
@@ -12,7 +12,7 @@ const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info");
 export async function messageHandler(msg: HtmlWorkerInputMessage) {
   if (msg && msg.type === "INIT") {
     const { id, dataPort, controlPort, options } = msg;
-    if(options == null){
+    if (options == null) {
       controlPort.postMessage({
         type: "ERROR",
         id,
@@ -43,64 +43,84 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         } else if (data !== null) {
           // RSC chunk data
           if (!streamStarted) {
+            console.log(`[html-worker] Starting HTML render process for route: ${id}`, {clientPipeableStreamOptions: options?.clientPipeableStreamOptions});
             streamStarted = true;
             // Start the HTML render process when we receive the first chunk
             handleHtmlRender(
-        {
-          id,
-          route: id,
-          rscStream,
-          htmlStream: new PassThrough(), // Not used, we handle streaming directly
-          projectRoot: options?.projectRoot ?? workerData?.userOptions?.projectRoot ?? process.cwd(),
-          moduleRootPath: options?.moduleRootPath ?? workerData?.userOptions?.moduleRootPath,
-          moduleBasePath: options?.moduleBasePath ?? workerData?.userOptions?.moduleBasePath ?? DEFAULT_CONFIG.MODULE_BASE_PATH,
-          moduleBaseURL: options?.moduleBaseURL ?? workerData?.userOptions?.moduleBaseURL ?? DEFAULT_CONFIG.MODULE_BASE_URL,
-          verbose: Boolean(options?.verbose ?? workerData?.userOptions?.verbose),
-          htmlTimeout: options?.htmlTimeout ?? workerData?.userOptions?.htmlTimeout ?? DEFAULT_CONFIG.HTML_TIMEOUT,
-        },
-        {
-          onHtmlRender: (id) => {
-            controlPort.postMessage({ type: "HTML_RENDER_START", id });
-          },
-          onError: (id, error, errorInfo) => {
-            controlPort.postMessage({
-              type: "ERROR",
-              id,
-              error: serializeError(error),
-              errorInfo: serializeErrorInfo(errorInfo),
-            });
-          },
-          onEnd: (id) => {
-            controlPort.postMessage({ type: "END", id });
-          },
-          onShellError: (id, error) => {
-            controlPort.postMessage({
-              type: "SHELL_ERROR",
-              id,
-              error: serializeError(error),
-            });
-          },
-          onData: (_id, data) => {
-            // Send HTML data via dataPort (raw data, no type wrapper)
-            dataPort.postMessage(data);
-          },
-          onMetrics: (id, metrics) => {
-            controlPort.postMessage({ type: "METRICS", id, metrics });
-          },
-          onHmrAccept: () => {
-            // HMR not needed for server-side rendering
-          },
-          onHmrUpdate: () => {
-            // HMR not needed for server-side rendering
-          },
-          onCleanup: () => {
-            // Cleanup - close both ports
-            dataPort.close();
-            controlPort.close();
-          },
-        },
-        logger
-      );
+              {
+                id,
+                route: id,
+                rscStream,
+                htmlStream: new PassThrough(), // Not used, we handle streaming directly
+                projectRoot:
+                  options?.projectRoot ??
+                  workerData?.userOptions?.projectRoot ??
+                  process.cwd(),
+                moduleRootPath:
+                  options?.moduleRootPath ??
+                  workerData?.userOptions?.moduleRootPath,
+                moduleBasePath:
+                  options?.moduleBasePath ??
+                  workerData?.userOptions?.moduleBasePath ??
+                  DEFAULT_CONFIG.MODULE_BASE_PATH,
+                moduleBaseURL:
+                  options?.moduleBaseURL ??
+                  workerData?.userOptions?.moduleBaseURL ??
+                  DEFAULT_CONFIG.MODULE_BASE_URL,
+                verbose: Boolean(
+                  options?.verbose ?? workerData?.userOptions?.verbose
+                ),
+                htmlTimeout:
+                  options?.htmlTimeout ??
+                  workerData?.userOptions?.htmlTimeout ??
+                  DEFAULT_CONFIG.HTML_TIMEOUT,
+                clientPipeableStreamOptions:
+                  options?.clientPipeableStreamOptions ??
+                  workerData?.userOptions?.clientPipeableStreamOptions ?? {},
+              },
+              {
+                onHtmlRender: (id) => {
+                  controlPort.postMessage({ type: "HTML_RENDER_START", id });
+                },
+                onError: (id, error, errorInfo) => {
+                  controlPort.postMessage({
+                    type: "ERROR",
+                    id,
+                    error: serializeError(error),
+                    errorInfo: serializeErrorInfo(errorInfo),
+                  });
+                },
+                onEnd: (id) => {
+                  controlPort.postMessage({ type: "END", id });
+                },
+                onShellError: (id, error) => {
+                  controlPort.postMessage({
+                    type: "SHELL_ERROR",
+                    id,
+                    error: serializeError(error),
+                  });
+                },
+                onData: (_id, data) => {
+                  // Send HTML data via dataPort (raw data, no type wrapper)
+                  dataPort.postMessage(data);
+                },
+                onMetrics: (id, metrics) => {
+                  controlPort.postMessage({ type: "METRICS", id, metrics });
+                },
+                onHmrAccept: () => {
+                  // HMR not needed for server-side rendering
+                },
+                onHmrUpdate: () => {
+                  // HMR not needed for server-side rendering
+                },
+                onCleanup: () => {
+                  // Cleanup - close both ports
+                  dataPort.close();
+                  controlPort.close();
+                },
+              },
+              logger
+            );
           }
           // RSC chunk data
           rscStream.write(data);
@@ -120,6 +140,19 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
         },
       });
     }
+  } else if (msg && msg.type === "SHUTDOWN") {
+    // Handle shutdown message
+    const { id } = msg;
+
+    // Send shutdown complete message via parentPort
+    if (typeof parentPort !== "undefined" && parentPort) {
+      parentPort.postMessage({
+        type: "SHUTDOWN_COMPLETE",
+        id: id,
+      });
+    }
+
+    // Exit the worker
+    process.exit(0);
   }
 }
-

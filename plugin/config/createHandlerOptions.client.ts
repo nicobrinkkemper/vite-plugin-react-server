@@ -244,14 +244,15 @@ export async function createHandlerOptions(
         projectRoot: process.cwd(),
         htmlTimeout: 30000,
         serverPipeableStreamOptions: {},
+        clientPipeableStreamOptions: {},
         build: {
           useHtmlWorker: isBuildMode,
           useRscWorker: isBuildMode,
           pages: [],
         },
         dev: {
-          useHtmlWorker: isServeMode,
-          useRscWorker: isServeMode,
+          useHtmlWorker: false,
+          useRscWorker: true,
         },
       };
 

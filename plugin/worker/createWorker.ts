@@ -74,6 +74,8 @@ export type CreateWorkerOptions = {
     serverManifest?: Manifest;
     bundle?: OutputBundle;
     staticBundle?: OutputBundle;
+    serverPipeableStreamOptions?: any;
+    clientPipeableStreamOptions?: any;
     hmrPort?: MessagePort;
   };
   transferList?: TransferListItem[];

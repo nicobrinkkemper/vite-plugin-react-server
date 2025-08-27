@@ -31,7 +31,7 @@ const IS_CLIENT_COMPONENT_CODE = (code: string, moduleId?: string) =>
 const IS_CLIENT_COMPONENT_BY_CODE = (code: string) =>
   code.match(CLIENT_COMPONENT_FILE) != null || false;
 
-const IS_CLIENT_COMPONENT_BY_NAME = (moduleId: string, transformedModuleId?: string) =>
+const IS_CLIENT_COMPONENT_BY_NAME = (moduleId: string, _transformedModuleId?: string) =>
   CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase()) || false;
 // Directive configurations
 export const DIRECTIVE_CONFIGS = {
@@ -286,4 +286,5 @@ export const DEFAULT_CONFIG = {
   REACT_LOADER_PATH: pluginRoot + "/loader/react-loader.js",
   CSS_LOADER_PATH: pluginRoot + "/loader/css-loader.js",
   ENV_LOADER_PATH: pluginRoot + "/loader/env-loader.js",
+  
 };

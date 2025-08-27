@@ -43,6 +43,9 @@ const activeRenders = new Map<string, PassThrough>();
 // Track active streams by route for reuse
 const activeStreamsByRoute = new Map<string, string>(); // route -> streamId
 
+// Track headless stream errors by route for full stream error propagation
+const headlessStreamErrors = new Map<string, Error>(); // route -> error
+
 function cleanupRender(id: string) {
   const rscStream = activeRenders.get(id);
   if (rscStream) {
@@ -57,6 +60,10 @@ function cleanupRender(id: string) {
       }
     }
   }
+}
+
+function clearHeadlessError(route: string) {
+  headlessStreamErrors.delete(route);
 }
 
 /**
@@ -132,9 +139,15 @@ async function loadComponentsWithCache(options: {
         }
       }
     } else {
-      throw new Error(
-        `Failed to load page and props: ${pageAndPropsResult.error?.message}`
-      );
+      // Handle component resolution failure gracefully (same as server environment)
+      if (verbose) {
+        logger?.warn(
+          `[rsc-worker] Failed to load page and props: ${pageAndPropsResult.error?.message}`
+        );
+      }
+      // Use React.Fragment as fallback (same as server environment)
+      PageComponent = React.Fragment;
+      pageProps = {};
     }
   }
 
@@ -164,9 +177,14 @@ async function loadComponentsWithCache(options: {
           );
         }
       } else {
-        throw new Error(
-          `Failed to load Root component: ${rootResult.error?.message}`
-        );
+        // Handle component resolution failure gracefully (same as server environment)
+        if (verbose) {
+          logger?.warn(
+            `[rsc-worker] Failed to load Root component: ${rootResult.error?.message}`
+          );
+        }
+        // Use React.Fragment as fallback (same as server environment)
+        RootComponent = React.Fragment;
       }
     }
   } else {
@@ -388,66 +406,150 @@ export async function messageHandler(
           logger,
           panicThreshold: msg.options.panicThreshold || "none",
           rscTimeout: msg.options.rscTimeout,
-          serverPipeableStreamOptions: msg.options.serverPipeableStreamOptions,
+          serverPipeableStreamOptions: (() => {
+            // Both headless and full streams should use the constructed serverPipeableStreamOptions with bootstrapModules
+            const options = msg.options.serverPipeableStreamOptions || workerData.userOptions?.serverPipeableStreamOptions;
+            
+            if (verbose) {
+              logger.info(
+                `[rsc-worker] ${isHeadless ? 'Headless' : 'Full'} stream serverPipeableStreamOptions: ${JSON.stringify(options)}`
+              );
+            }
+            
+            return options;
+          })(),
+          clientPipeableStreamOptions: msg.options.clientPipeableStreamOptions,
           onEvent: userOptions.onEvent,
           onMetrics: userOptions.onMetrics,
         };
 
         // Use the same createRenderToPipeableStreamHandler as server environment
-        try {
-          const result = createRenderToPipeableStreamHandler(handlerOptions);
-
-          // Track headless streams by route for potential reuse
-          if (isHeadless) {
-            activeStreamsByRoute.set(msg.options.route, msg.id);
+        let result;
+        
+        // Check if there was a headless error for this route
+        const headlessError = headlessStreamErrors.get(msg.options.route);
+        const shouldUseFallback = headlessError && !isHeadless;
+        
+        if (shouldUseFallback) {
+          if (verbose) {
+            logger.info(
+              `[rsc-worker] Using fallback components for full stream due to headless error: ${headlessError.message}`
+            );
+          }
+          // Create a fallback handler with React.Fragment (same as server environment)
+          const fallbackHandlerOptions = {
+            ...handlerOptions,
+            PageComponent: React.Fragment,
+            HtmlComponent: React.Fragment,
+          };
+          result = createRenderToPipeableStreamHandler(fallbackHandlerOptions);
+        } else {
+          try {
+            result = createRenderToPipeableStreamHandler(handlerOptions);
+          } catch (error) {
+            // Handle error the same way as server environment - create fallback with React.Fragment
             if (verbose) {
-              logger.info(
-                `[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.options.route}`
+              logger.warn(
+                `[rsc-worker] Original PageComponent failed during creation for route ${msg.options.route}: ${error}`
               );
             }
+
+            // Create a fallback handler with React.Fragment (same as server environment)
+            const fallbackHandlerOptions = {
+              ...handlerOptions,
+              PageComponent: React.Fragment,
+              HtmlComponent: React.Fragment,
+            };
+
+            result = createRenderToPipeableStreamHandler(fallbackHandlerOptions);
           }
+        }
 
-          // Process the stream using the handlers
-          const streamId = msg.id;
-          const passThrough = result.rscStream;
+        // Track headless streams by route for potential reuse
+        if (isHeadless) {
+          activeStreamsByRoute.set(msg.options.route, msg.id);
+          // Clear any previous headless error for this route
+          clearHeadlessError(msg.options.route);
+          if (verbose) {
+            logger.info(
+              `[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.options.route}`
+            );
+          }
+        } else {
+          // This is a full stream - check if there was a headless error for this route
+          const headlessError = headlessStreamErrors.get(msg.options.route);
+          if (headlessError) {
+            if (verbose) {
+              logger.info(
+                `[rsc-worker] Full stream ${msg.id} for route ${msg.options.route} detected headless error: ${headlessError.message}`
+              );
+            }
+            // Track the error but let the main thread handle the PageComponent modification
+            // (same approach as server environment)
+          }
+        }
 
-          // Set up stream event handlers
-          if (passThrough) {
-            passThrough.on("data", (chunk) => {
+        // Process the stream using the handlers
+        const streamId = msg.id;
+        const passThrough = result.rscStream;
+
+        // Set up stream event handlers
+        if (passThrough) {
+          passThrough.on("data", (chunk) => {
+            if (verbose) {
+              logger.info(
+                `[rsc-worker] RSC stream data chunk: ${chunk.length} bytes`
+              );
+            }
+            effectiveHandlers.onData(streamId, chunk);
+          });
+
+          passThrough.on("end", () => {
+            if (verbose) {
+              logger.info(`[rsc-worker] RSC stream ended`);
+            }
+            
+            // If headless stream completed successfully, clear any error tracking
+            if (isHeadless) {
+              clearHeadlessError(msg.options.route);
               if (verbose) {
                 logger.info(
-                  `[rsc-worker] RSC stream data chunk: ${chunk.length} bytes`
+                  `[rsc-worker] Headless stream completed successfully for route ${msg.options.route}, cleared error tracking`
                 );
               }
-              effectiveHandlers.onData(streamId, chunk);
-            });
+            }
+            
+            effectiveHandlers.onEnd(streamId);
+            cleanupRender(streamId);
+          });
 
-            passThrough.on("end", () => {
+          passThrough.on("error", (error) => {
+            if (verbose) {
+              logger.error(`[rsc-worker] RSC stream error: ${error.message}`);
+            }
+            
+            // Track headless stream errors for full stream error propagation
+            if (isHeadless) {
+              headlessStreamErrors.set(msg.options.route, error);
               if (verbose) {
-                logger.info(`[rsc-worker] RSC stream ended`);
+                logger.info(
+                  `[rsc-worker] Tracked headless error for route ${msg.options.route}: ${error.message}`
+                );
               }
-              effectiveHandlers.onEnd(streamId);
-              cleanupRender(streamId);
-            });
-
-            passThrough.on("error", (error) => {
-              if (verbose) {
-                logger.error(`[rsc-worker] RSC stream error: ${error.message}`);
-              }
+              // Send control message to inform about headless error
               effectiveHandlers.onError(streamId, toError(error));
-              cleanupRender(streamId);
-            });
-          }
-
-          // Send RSC_RENDER_START control message
-          effectiveHandlers.onRscRender(streamId, msg);
-
-          return result;
-        } catch (error) {
-          effectiveHandlers.onError(msg.id, toError(error));
-          cleanupRender(msg.id);
-          return;
+            } else {
+              effectiveHandlers.onError(streamId, toError(error));
+            }
+            
+            cleanupRender(streamId);
+          });
         }
+
+        // Send RSC_RENDER_START control message
+        effectiveHandlers.onRscRender(streamId, msg);
+
+        return result;
       case "RESOLVE_COMPONENTS": {
         const resolutionStartTime = performance.now();
 

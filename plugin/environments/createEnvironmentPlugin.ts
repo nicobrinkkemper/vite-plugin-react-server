@@ -64,7 +64,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           })(options)
         );
       } else {
-        console.log(`[createEnvironmentPlugin] Transformer plugin already exists, skipping`);
+        // console.log(`[createEnvironmentPlugin] Transformer plugin already exists, skipping`);
       }
 
       // Note: Hash coordination is handled by the sequential build approach
@@ -83,13 +83,13 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       if (!userOptions.loader) {
         userOptions.loader = DEFAULT_LOADER_CONFIG;
       }
-      console.log(`[createEnvironmentPlugin] Setting up moduleID function with configEnv: ${configEnv?.command}`);
+      // console.log(`[createEnvironmentPlugin] Setting up moduleID function with configEnv: ${configEnv?.command}`);
       userOptions.loader.moduleID = createDefaultModuleID(
         userOptions,
         configEnv,
         userOptions.loader?.mode
       );
-      console.log(`[createEnvironmentPlugin] moduleID function set up successfully`);
+      // console.log(`[createEnvironmentPlugin] moduleID function set up successfully`);
 
       // Run auto-discovery once to get all files - we don't need separate calls since
       // the file discovery process is identical, only the organization differs
@@ -181,23 +181,25 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
 
 
 
-        // Log the rollup inputs for this environment
-        logger?.info(
-          `${envConfig.name} environment rollup inputs: ${JSON.stringify(
-            userConfig.build.rollupOptions.input,
-            null,
-            2
-          )}`
-        );
-        logger?.info(
-          `${
-            envConfig.name
-          } environment output preserveModulesRoot: ${JSON.stringify(
-            userConfig.build.rollupOptions.output,
-            null,
-            2
-          )}`
-        );
+        // Log the rollup inputs for this environment (only in verbose mode)
+        if (userOptions.verbose) {
+          logger?.info(
+            `${envConfig.name} environment rollup inputs: ${JSON.stringify(
+              userConfig.build.rollupOptions.input,
+              null,
+              2
+            )}`
+          );
+          logger?.info(
+            `${
+              envConfig.name
+            } environment output preserveModulesRoot: ${JSON.stringify(
+              userConfig.build.rollupOptions.output,
+              null,
+              2
+            )}`
+          );
+        }
 
         // Debug: Log what resolveUserConfig provided
         if (userOptions.verbose) {

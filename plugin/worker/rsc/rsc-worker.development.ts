@@ -4,13 +4,11 @@ import { register } from "node:module";
 import { register as registerTsx } from "tsx/esm/api";
 import { resolve } from "node:path";
 import { pluginRoot } from "../../root.js";
-import type { HmrAcceptMessage, ReadyMessage } from "../types.js";
+import type { ReadyMessage } from "../types.js";
 import type {
   CssFileMessage,
-  HmrUpdateMessage,
   InitializedEnvLoaderMessage,
   InitializedReactLoaderMessage,
-  RscWorkerInputMessage,
 } from "./types.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { createLogger } from "vite";

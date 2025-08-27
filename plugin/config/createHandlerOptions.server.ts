@@ -455,7 +455,7 @@ export async function createHandlerOptions(
     
     // Stream options
     serverPipeableStreamOptions: userOptions.serverPipeableStreamOptions,
-    clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions,
+    clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions || {},
     components: userOptions.components,
     
     // Server-specific

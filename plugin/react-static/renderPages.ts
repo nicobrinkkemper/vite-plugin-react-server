@@ -116,8 +116,103 @@ export const renderPages: RenderPagesFn = (routes, handlerOptions, renderPage) =
 
           if (result.type === "skip") {
             if (options.verbose) {
-              options.logger?.info(`[renderPages] Skipping route ${route}: ${result.reason}`);
+              options.logger?.info(`[renderPages] Skipping RSC for route ${route} due to error: ${result.reason}`);
             }
+            
+            // For skipped routes, we still want to write the HTML file (client-only)
+            // but skip the RSC file since there was a server error
+            failedRoutes.set(route, result.reason);
+            
+            // Store the result with the streams provided by renderPage
+            results.set(route, {
+              type: "success",
+              html: result.html,
+              rsc: result.rsc,
+              metrics: result.metrics,
+            });
+            
+            // Write both HTML and RSC files for skipped routes (RSC will be empty)
+            try {
+              const wrapperOnEvent = (event: any) => {
+                if (options.onEvent) {
+                  options.onEvent(event);
+                }
+                
+                // Handle metrics for HTML-only writes
+                if (event.type === "file.write.done" && event.data.route === route && event.data.fileType === "html") {
+                  const routeResult = results.get(route);
+                  if (routeResult && routeResult.type === "success") {
+                    const endTime = performance.now();
+                    const htmlMetrics = createRenderMetrics({
+                      route: route,
+                      type: routeResult.metrics.html.type,
+                      fromMainThread: routeResult.metrics.html.fromMainThread,
+                      fromRscWorker: routeResult.metrics.html.fromRscWorker,
+                      fromHtmlWorker: routeResult.metrics.html.fromHtmlWorker,
+                      fileSize: event.data.content.length,
+                      chunks: event.data.chunks || 0,
+                      processingTime: endTime - routeResult.metrics.html.streamMetrics.startTime,
+                      chunkRate: (event.data.chunks || 0) / ((endTime - routeResult.metrics.html.streamMetrics.startTime) / 1000),
+                      fileName: event.data.fileName,
+                      outputPath: event.data.path,
+                      baseDir: event.data.baseDir,
+                      routePath: event.data.routePath,
+                      streamMetrics: createStreamMetrics({
+                        ...routeResult.metrics.html.streamMetrics,
+                        chunks: event.data.chunks || 0,
+                        bytes: event.data.content.length,
+                        duration: endTime - routeResult.metrics.html.streamMetrics.startTime,
+                        endTime: endTime,
+                      }),
+                    });
+                    
+                    if (options.onMetrics) {
+                      options.onMetrics(htmlMetrics);
+                    }
+                  }
+                }
+              };
+              
+              const rscWritePromise = fileWriter(
+                result.rsc as any,
+                "rsc",
+                {
+                  ...options,
+                  route,
+                  onEvent: wrapperOnEvent,
+                  logger: options.logger,
+                },
+                options.signal
+              );
+
+              const htmlWritePromise = fileWriter(
+                result.html as any,
+                "html",
+                {
+                  ...options,
+                  route,
+                  onEvent: wrapperOnEvent,
+                  logger: options.logger,
+                },
+                options.signal
+              );
+
+              // Wait for both RSC and HTML files to be written
+              await Promise.all([rscWritePromise, htmlWritePromise]);
+              
+              completedRoutes.add(route);
+              
+              if (options.verbose) {
+                options.logger?.info(`[renderPages] Wrote HTML-only file for skipped route: ${route}`);
+              }
+            } catch (writeError) {
+              if (options.verbose) {
+                options.logger?.error(`[renderPages] Failed to write HTML for skipped route ${route}: ${writeError}`);
+              }
+              // Remove from completed routes if HTML write failed
+              completedRoutes.delete(route);
+            }
+            
             continue;
           }
 

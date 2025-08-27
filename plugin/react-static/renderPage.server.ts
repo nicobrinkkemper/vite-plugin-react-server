@@ -83,6 +83,30 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
     yield {
       type: "skip",
       reason: "No pagePath and no PageComponent provided",
+      html: {
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => {
+          // No HTML content for skipped routes
+          destination.end();
+          return destination;
+        },
+        abort: () => {
+          // No cleanup needed
+        },
+      },
+      rsc: {
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => {
+          // No RSC content for skipped routes
+          destination.end();
+          return destination;
+        },
+        abort: () => {
+          // No cleanup needed
+        },
+      },
       metrics: {
         rscFull: rscFullMetrics,
         rscHeadless: rscHeadlessMetrics,
@@ -305,12 +329,78 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
     const moduleResolutionStartTime = performance.now();
 
     // Create headless RSC handler first (without HTML wrapper) - this will be reused
-    const headlessRscHandler = createRenderToPipeableStreamHandler({
-      ...newHandlerOptions,
-      HtmlComponent: React.Fragment, // Headless RSC - no HTML wrapper
-      onEvent: wrapperOnEvent,
-      signal: handlerOptions.signal,
-    });
+    let headlessRscHandler;
+    let headlessStreamErrored = false;
+    let headlessError: unknown = null;
+    let headlessPanicError = false;
+
+    try {
+      headlessRscHandler = createRenderToPipeableStreamHandler({
+        ...newHandlerOptions,
+        HtmlComponent: React.Fragment, // Headless RSC - no HTML wrapper
+        onEvent: (event) => {
+          // Track if the headless stream had errors
+          if (event.type === "route.error") {
+            const originalError = event.data.error ?? new Error("Error in headless RSC stream");
+            headlessStreamErrored = true;
+            
+            // If the worker has already marked this as a panic error, use it directly
+            if (event.data.isPanic) {
+              headlessError = originalError;
+              headlessPanicError = true;
+            } else {
+              // Otherwise, use handleError to determine if this should be a panic error
+              const panicError = handleError({
+                error: originalError,
+                critical: false,
+                logger: handlerOptions.logger,
+                panicThreshold: handlerOptions.panicThreshold,
+                context: `Headless RSC stream error for route ${handlerOptions.route}`,
+              });
+              
+              // Store either the panic error or the original error
+              headlessError = panicError || originalError;
+              headlessPanicError = !!panicError;
+            }
+            
+            // Don't call wrapperOnEvent for errors - let the error be handled gracefully
+          } else {
+            wrapperOnEvent(event);
+          }
+        },
+        signal: handlerOptions.signal,
+      });
+    } catch (error) {
+      const panicError = handleError({
+        error: error,
+        critical: false,
+        logger: handlerOptions.logger,
+        panicThreshold: handlerOptions.panicThreshold,
+        context: `RenderPage Error (${handlerOptions.route})`,
+      });
+      // If the original PageComponent fails during creation, mark as errored
+      if (panicError != null) {
+        throw panicError;
+      } else {
+        headlessStreamErrored = true;
+        headlessError = error;
+      }
+
+      if (handlerOptions.verbose) {
+        handlerOptions.logger?.warn(
+          `[renderPage.server] Original PageComponent failed during creation for route ${handlerOptions.route}: ${error}`
+        );
+      }
+
+      // Create a minimal headless handler with React.Fragment
+      headlessRscHandler = createRenderToPipeableStreamHandler({
+        ...newHandlerOptions,
+        PageComponent: React.Fragment,
+        HtmlComponent: React.Fragment,
+        onEvent: wrapperOnEvent,
+        signal: handlerOptions.signal,
+      });
+    }
 
     // Module resolution is complete when the RSC stream is created
     const moduleResolutionTime = performance.now() - moduleResolutionStartTime;
@@ -327,21 +417,20 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
       handlerOptions.onMetrics(moduleResolutionMetric);
     }
 
-    // Create full RSC handler using the headless stream as the PageComponent
-    fullRscHandler = createRenderToPipeableStreamHandler({
+    // Create full RSC handler using a conditional PageComponent
+    const fullRscHandler = createRenderToPipeableStreamHandler({
       ...newHandlerOptions,
       PageComponent: (() => {
-        // Just return the headless elements directly - they're already React elements
+        // If the headless stream had errors, return null (no page content)
+        // We'll handle panic errors at the generator level instead
+        if (headlessStreamErrored) {
+          return null;
+        }
         return headlessRscHandler.elements;
       }) as any,
       onEvent: wrapperOnEvent,
       signal: handlerOptions.signal,
     });
-
-    // Check for panic errors after handler creation
-    if (panicError) {
-      throw panicError;
-    }
 
     // Create the RSC-to-HTML transform stream for HTML generation
     htmlTransformStream = createRscToHtmlStream({
@@ -371,11 +460,6 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
         // Use the headless RSC handler that was already created for stream reuse
         const rscHandlerForFile = headlessRscHandler;
 
-        // Check for panic errors after handler creation
-        if (panicError) {
-          throw panicError;
-        }
-
         // Collect metrics from the RSC stream as it flows
         const streamMetrics = createStreamMetrics();
         streamMetrics.startTime = performance.now();
@@ -383,6 +467,35 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
         rscHandlerForFile.rscStream.on("data", (chunk: Buffer) => {
           streamMetrics.chunks++;
           streamMetrics.bytes += chunk.length;
+          
+          // Check for React errors in the RSC stream
+          const chunkStr = chunk.toString();
+          if (chunkStr.includes('"name":"Error"') && chunkStr.includes('"env":"Server"')) {
+            // This looks like a React error serialized in the RSC stream
+            headlessStreamErrored = true;
+            
+            // Extract the error message from the RSC stream
+            try {
+              const errorMatch = chunkStr.match(/"message":"([^"]*)"/)
+              const errorMessage = errorMatch ? errorMatch[1] : "React error detected in RSC stream";
+              headlessError = new Error(errorMessage);
+            } catch {
+              headlessError = new Error("React error detected in RSC stream");
+            }
+            
+            // Check if this React error should cause a panic based on panicThreshold
+            const panicError = handleError({
+              error: headlessError,
+              critical: false,
+              logger: handlerOptions.logger,
+              panicThreshold: handlerOptions.panicThreshold,
+              context: `React error in RSC stream for route ${handlerOptions.route}`,
+            });
+            
+            // Store either the panic error or the original error
+            headlessError = panicError || headlessError;
+            headlessPanicError = !!panicError;
+          }
         });
 
         rscHandlerForFile.rscStream.once("end", () => {
@@ -460,16 +573,29 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
     // Don't emit initial metrics - wait for file writes to complete
     // The onMetrics callback will be called after both file.write.done events
 
-    yield {
-      type: "success",
-      html: htmlStreamWrapper,
-      rsc: rscStreamWrapper,
-      metrics: {
-        rscFull: rscFullMetrics,
-        rscHeadless: rscHeadlessMetrics,
-        html: htmlMetrics,
-      },
-    } as const;
+    // Check if there was a panic error from the headless stream
+    if (headlessStreamErrored && headlessPanicError) {
+      yield {
+        type: "error",
+        error: headlessError,
+        metrics: {
+          rscFull: rscFullMetrics,
+          rscHeadless: rscHeadlessMetrics,
+          html: htmlMetrics,
+        },
+      };
+    } else {
+      yield {
+        type: "success",
+        html: htmlStreamWrapper,
+        rsc: rscStreamWrapper,
+        metrics: {
+          rscFull: rscFullMetrics,
+          rscHeadless: rscHeadlessMetrics,
+          html: htmlMetrics,
+        },
+      } as const;
+    }
   } catch (err) {
     if (handlerOptions.verbose) {
       handlerOptions.logger.error(`[renderPage] Error: ${JSON.stringify(err)}`);
@@ -511,6 +637,30 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
       yield {
         type: "skip",
         reason: err,
+        html: {
+          pipe: <Writable extends NodeJS.WritableStream>(
+            destination: Writable
+          ) => {
+            // No HTML content for skipped routes
+            destination.end();
+            return destination;
+          },
+          abort: () => {
+            // No cleanup needed
+          },
+        },
+        rsc: {
+          pipe: <Writable extends NodeJS.WritableStream>(
+            destination: Writable
+          ) => {
+            // No RSC content for skipped routes
+            destination.end();
+            return destination;
+          },
+          abort: () => {
+            // No cleanup needed
+          },
+        },
         metrics: {
           rscFull: rscFullMetrics,
           rscHeadless: rscHeadlessMetrics,

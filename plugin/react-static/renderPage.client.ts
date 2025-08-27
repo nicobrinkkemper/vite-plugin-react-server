@@ -55,6 +55,7 @@ import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { performance } from "node:perf_hooks";
 import { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
 import { createBufferedRscStream } from "../helpers/createBufferedRscStream.js";
+import React from "react";
 
 
 assertNonReactServer();
@@ -70,9 +71,22 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
 ) {
   // Skip if no pagePath AND no PageComponent provided (fallback case)
   if (!handlerOptions.pagePath && !handlerOptions.PageComponent) {
+    // Create empty stream wrappers for skip case
+    const emptyStreamWrapper = {
+      pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
+        destination.end();
+        return destination;
+      },
+      abort: () => {
+        // No cleanup needed
+      },
+    };
+
     yield {
       type: "skip",
       reason: "No pagePath and no PageComponent provided",
+      html: emptyStreamWrapper,
+      rsc: emptyStreamWrapper,
       metrics: {
         rscFull: createRenderMetrics({
           route: handlerOptions.route,
@@ -150,6 +164,11 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
   let headlessRscStream: any = null;
   let fullRscStream: any = null;
   let htmlHandler: any = null;
+  
+  // Error tracking variables for RSC stream error detection
+  let headlessStreamErrored = false;
+  let headlessError: Error | null = null;
+  let headlessPanicError = false;
 
   try {
     if (handlerOptions.verbose) {
@@ -192,22 +211,98 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     }
     
     // Preload components in the worker for faster subsequent RSC stream generation
-    await resolveComponents({
-      route: handlerOptions.route,
-      pagePath: resolvedPagePath,
-      propsPath: resolvedPropsPath,
-      rootPath: resolvedRootPath,
-      htmlPath: resolvedHtmlPath,
-      pageExportName: handlerOptions.pageExportName,
-      propsExportName: handlerOptions.propsExportName,
-      rootExportName: handlerOptions.rootExportName,
-      htmlExportName: handlerOptions.htmlExportName,
-      worker: worker,
-      rscWorker: worker,
-      onMetrics: handlerOptions.onMetrics,
-      logger: handlerOptions.logger,
-      verbose: handlerOptions.verbose,
-    });
+    try {
+      await resolveComponents({
+        route: handlerOptions.route,
+        pagePath: resolvedPagePath,
+        propsPath: resolvedPropsPath,
+        rootPath: resolvedRootPath,
+        htmlPath: resolvedHtmlPath,
+        pageExportName: handlerOptions.pageExportName,
+        propsExportName: handlerOptions.propsExportName,
+        rootExportName: handlerOptions.rootExportName,
+        htmlExportName: handlerOptions.htmlExportName,
+        worker: worker,
+        rscWorker: worker,
+        onMetrics: handlerOptions.onMetrics,
+        logger: handlerOptions.logger,
+        verbose: handlerOptions.verbose,
+      });
+    } catch (componentResolutionError) {
+      // Handle component resolution failures gracefully
+      const error = componentResolutionError instanceof Error 
+        ? componentResolutionError 
+        : new Error(String(componentResolutionError));
+      
+      // Check if this component resolution error should cause a panic based on panicThreshold
+      const panicError = handleError({
+        error,
+        critical: false,
+        logger: handlerOptions.logger,
+        panicThreshold: handlerOptions.panicThreshold,
+        context: `Component resolution failed for route ${handlerOptions.route}`,
+      });
+      
+             // If this should cause a panic, yield error and return
+       if (panicError) {
+         yield {
+           type: "error",
+           error: panicError,
+           metrics: {
+             rscFull: rscFullMetrics,
+             rscHeadless: rscHeadlessMetrics,
+             html: htmlMetrics,
+           },
+         };
+         return;
+       }
+       
+       // Otherwise, treat this as a non-critical error and continue with client-only HTML
+       // This allows the build to complete with a client-only page
+       handlerOptions.logger?.warn(
+         `[renderPage.client] Component resolution failed for route ${handlerOptions.route}, continuing with client-only HTML: ${error.message}`
+       );
+       
+       // Create a client-only HTML stream wrapper with minimal HTML
+       const clientOnlyHtmlStreamWrapper = {
+         pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
+           // Write a minimal client-only HTML structure
+           const minimalHtml = `<!DOCTYPE html><html><head><link rel="expect" href="#«R»" blocking="render"/></head><body><div id="root"></div><template id="«R»"></template></body></html>`;
+           destination.write(minimalHtml);
+           destination.end();
+           return destination;
+         },
+         abort: () => {
+           // No cleanup needed for simple HTML string
+         },
+       };
+       
+       // Create an empty RSC stream wrapper
+       const emptyRscStreamWrapper = {
+         pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
+           // No RSC content for failed component resolution
+           destination.end();
+           return destination;
+         },
+         abort: () => {
+           // No cleanup needed
+         },
+       };
+       
+       // Yield skip result with client-only HTML and empty RSC
+       yield {
+         type: "skip",
+         reason: error,
+         html: clientOnlyHtmlStreamWrapper,
+         rsc: emptyRscStreamWrapper,
+         metrics: {
+           rscFull: rscFullMetrics,
+           rscHeadless: rscHeadlessMetrics,
+           html: htmlMetrics,
+         },
+       };
+       return;
+    }
 
     // Step 2: Create handler options
     // Components are now preloaded in the worker, so we can use the original handler options
@@ -235,10 +330,43 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       htmlPath: '',
     });
 
+    // Add error detection to headless RSC stream
+    headlessRscStream.rscStream.on("data", (chunk: Buffer) => {
+      // Check for React errors in the RSC stream
+      const chunkStr = chunk.toString();
+      if (chunkStr.includes('"name":"Error"') && chunkStr.includes('"env":"Server"')) {
+        // This looks like a React error serialized in the RSC stream
+        headlessStreamErrored = true;
+        
+        // Extract the error message from the RSC stream
+        try {
+          const errorMatch = chunkStr.match(/"message":"([^"]*)"/);
+          const errorMessage = errorMatch ? errorMatch[1] : "React error detected in RSC stream";
+          headlessError = new Error(errorMessage);
+        } catch {
+          headlessError = new Error("React error detected in RSC stream");
+        }
+        
+        // Check if this React error should cause a panic based on panicThreshold
+        const panicError = handleError({
+          error: headlessError,
+          critical: false,
+          logger: handlerOptions.logger,
+          panicThreshold: handlerOptions.panicThreshold,
+          context: `React error in RSC stream for route ${handlerOptions.route}`,
+        });
+        
+        // Store either the panic error or the original error
+        headlessError = panicError || headlessError;
+        headlessPanicError = !!panicError;
+      }
+    });
+
     // Component resolution is already measured in resolveComponents
     // No need to measure module resolution time here anymore
 
     // Step 2: Create full RSC stream for HTML transformation
+    // The RSC worker will handle fallback components internally when headless errors are detected
     fullRscStream = createRscStream({
       ...newHandlerOptions,
       id: `${handlerOptions.route}-full-${uniqueId}`,
@@ -357,6 +485,20 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     // Don't emit initial metrics - wait for file writes to complete
     // The onMetrics callback will be called after both file.write.done events
 
+    // Check for panic errors from RSC stream
+    if (headlessStreamErrored && headlessPanicError) {
+      yield {
+        type: "error",
+        error: headlessError,
+        metrics: {
+          rscFull: rscFullMetrics,
+          rscHeadless: rscHeadlessMetrics,
+          html: htmlMetrics,
+        },
+      };
+      return;
+    }
+
     yield {
       type: "success",
       html: htmlStreamWrapper,
@@ -395,9 +537,72 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         },
       };
     } else {
+      // For non-panic errors, we still want to write the HTML file (client-only)
+      // but skip the RSC file since there was a server error
+      
+      // Create a fallback RSC stream with React.Fragment (same as server environment)
+      const fallbackRscStream = createRscStream({
+        ...handlerOptions,
+        url: `${handlerOptions.url}`,
+        route: `${handlerOptions.route}`,
+        cssFiles: handlerOptions.cssFiles || new Map(),
+        globalCss: handlerOptions.globalCss || new Map(),
+        id: `${handlerOptions.route}-fallback-${Date.now()}`,
+        rscTimeout: handlerOptions.rscTimeout || 5000,
+        onMetrics: handlerOptions.onMetrics,
+        // Use React.Fragment as fallback (same as server environment)
+        pagePath: '', // This will cause the default page to be used, but we'll override it
+        // Override the page component to use React.Fragment
+        PageComponent: React.Fragment,
+        HtmlComponent: React.Fragment,
+      });
+      
+      // Create HTML stream that processes the fallback RSC stream to ensure performance timing script is injected
+      const fallbackHtmlStream = createRscToHtmlStream({
+        id: handlerOptions.id,
+        route: handlerOptions.route,
+        url: handlerOptions.url,
+        moduleRootPath: handlerOptions.moduleRootPath,
+        moduleBasePath: handlerOptions.moduleBasePath,
+        moduleBaseURL: handlerOptions.moduleBaseURL,
+        projectRoot: handlerOptions.projectRoot,
+        panicThreshold: handlerOptions.panicThreshold,
+        verbose: handlerOptions.verbose,
+        signal: handlerOptions.signal,
+        logger: handlerOptions.logger,
+        htmlTimeout: handlerOptions.htmlTimeout,
+        clientPipeableStreamOptions: handlerOptions.clientPipeableStreamOptions,
+      });
+      
+      // Create a wrapper that pipes the fallback RSC stream through the HTML transform
+      const clientOnlyHtmlStreamWrapper = {
+        pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
+          // Pipe the fallback RSC stream through the HTML transform to ensure performance timing script is injected
+          return fallbackRscStream.rscStream.pipe(fallbackHtmlStream).pipe(destination);
+        },
+        abort: () => {
+          // Clean up the fallback RSC stream
+          fallbackRscStream.abort();
+        },
+      };
+      
+      // Create an empty RSC stream wrapper
+      const emptyRscStreamWrapper = {
+        pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
+          // No RSC content for skipped routes
+          destination.end();
+          return destination;
+        },
+        abort: () => {
+          // No cleanup needed
+        },
+      };
+      
       yield {
         type: "skip",
         reason: error,
+        html: clientOnlyHtmlStreamWrapper,
+        rsc: emptyRscStreamWrapper,
         metrics: {
           rscFull: rscFullMetrics,
           rscHeadless: rscHeadlessMetrics,

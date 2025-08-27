@@ -155,13 +155,16 @@ export const createTransformerPlugin = (
         // Note: condition override is set in env plugin during config phase
         // Verbose summary (config hook has void context, use config logger)
         const logger = config.customLogger || config.logger;
-        logger.info(
-          `${logPrefix} configResolved: isBuild=${isBuild} isSSR=${isSSR} mode=${mode} allowed=${JSON.stringify(
-            allowedEnvironments
-          )} defaultEnv=${defaultEnvironment} importServerPath=${
-            runtimeResolvedUserOptions.loader?.importServerPath
-          }`
-        );
+        // Only log in verbose mode
+        if (runtimeResolvedUserOptions.verbose) {
+          logger.info(
+            `${logPrefix} configResolved: isBuild=${isBuild} isSSR=${isSSR} mode=${mode} allowed=${JSON.stringify(
+              allowedEnvironments
+            )} defaultEnv=${defaultEnvironment} importServerPath=${
+              runtimeResolvedUserOptions.loader?.importServerPath
+            }`
+          );
+        }
       },
       async buildStart() {
         // No longer load static manifest - rely on hash coordination to ensure consistent hashes

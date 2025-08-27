@@ -1,5 +1,8 @@
-import type { PassThrough, Transform } from "stream";
-import type { RenderMetrics, StreamMetrics } from "../../types.js";
+import type {
+  CreateHandlerOptions,
+  RenderMetrics,
+  StreamMetrics,
+} from "../../types.js";
 import type { PanicThreshold } from "../../types.js";
 
 import type {
@@ -25,9 +28,7 @@ import type {
   InitializedCssLoaderMessage,
   RscMetricsMessage,
 } from "../rsc/types.js";
-import type { createLogger, Logger } from "vite";
-
-
+import type { createLogger } from "vite";
 
 // HTML-specific messages
 export type HtmlChunkMessage = {
@@ -50,8 +51,6 @@ export type HtmlMetricsMessage = {
   id: string;
   metrics: RenderMetrics & { type: "html" };
 };
-
-
 
 export type HtmlRenderStartMessage = {
   type: "HTML_RENDER_START";
@@ -121,26 +120,38 @@ export type HtmlWorkerOutputMessage =
   | HtmlRenderStartMessage
   | HtmlMetricsMessage;
 
-
-
 export type CallServerCallback = (
   id: string,
   args: unknown[]
 ) => Promise<unknown>;
-
+// {
+//   id: string;
+//   route: string;
+//   rscStream: PassThrough;
+//   htmlStream: PassThrough;
+//   projectRoot?: string;
+//   moduleRootPath?: string;
+//   moduleBasePath?: string;
+//   moduleBaseURL?: string;
+//   verbose?: boolean;
+//   htmlTimeout?: number;
+//   clientPipeableStreamOptions?: any;
+// }
 export type HandleHtmlRenderFn = (
-  options: {
-    id: string;
-    route: string;
-    rscStream: PassThrough;
-    htmlStream: PassThrough;
-    projectRoot?: string;
-    moduleRootPath?: string;
-    moduleBasePath?: string;
-    moduleBaseURL?: string;
-    verbose?: boolean;
-    htmlTimeout?: number;
-  },
+  options: Pick<
+    CreateHandlerOptions,
+    | "id"
+    | "clientPipeableStreamOptions"
+    | "route"
+    | "htmlStream"
+    | "rscStream"
+    | "projectRoot"
+    | "moduleRootPath"
+    | "moduleBasePath"
+    | "moduleBaseURL"
+    | "verbose"
+    | "htmlTimeout"
+  >,
   handlers: StreamHandlers<"client">,
   logger?: ReturnType<typeof createLogger>
-) => void
+) => void;

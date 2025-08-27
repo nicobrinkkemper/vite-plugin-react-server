@@ -152,6 +152,8 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
         cssFiles: options.cssFiles instanceof Map ? options.cssFiles : new Map(),
         globalCss: options.globalCss instanceof Map ? options.globalCss : new Map(),
         manifest: options.manifest || {},
+        // Pass serverPipeableStreamOptions for RSC rendering
+        serverPipeableStreamOptions: options.serverPipeableStreamOptions,
       })
     }, [dataPort2, controlPort2] as any); // Transfer both ports to the worker
 

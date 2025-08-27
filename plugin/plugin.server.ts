@@ -35,27 +35,53 @@ function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
 
   // Add server-side static generation support if pages are configured
   if (userOptions.build?.pages) {
-    console.log(`[createBuildPlugin] Pages configured:`, userOptions.build.pages);
-    console.log(`[createBuildPlugin] userOptions.build.useHtmlWorker:`, userOptions.build.useHtmlWorker);
-    console.log(`[createBuildPlugin] userOptions.build.useRscWorker:`, userOptions.build.useRscWorker);
-    const explicitRscWorker =
-      typeof userOptions.build?.useRscWorker === "boolean"
-        ? userOptions.build?.useRscWorker
-        : false;
+    if (Array.isArray(userOptions.build.pages)) {
+      if (userOptions.build.pages.length > 0) {
+        // Explicit routes - generate these pages
+        console.log(`[createBuildPlugin] Pages configured:`, userOptions.build.pages);
+        console.log(`[createBuildPlugin] userOptions.build.useHtmlWorker:`, userOptions.build.useHtmlWorker);
+        console.log(`[createBuildPlugin] userOptions.build.useRscWorker:`, userOptions.build.useRscWorker);
+        const explicitRscWorker =
+          typeof userOptions.build?.useRscWorker === "boolean"
+            ? userOptions.build?.useRscWorker
+            : false;
+        const explicitHtmlWorker =
+          typeof userOptions.build?.useHtmlWorker === "boolean"
+            ? userOptions.build?.useHtmlWorker
+            // Force useHtmlWorker to true when pages are configured, regardless of default logic
+            : true;
+        console.log(`[createBuildPlugin] explicitRscWorker:`, explicitRscWorker, `explicitHtmlWorker:`, explicitHtmlWorker);
+        if (explicitHtmlWorker) {
+          console.log(`[createBuildPlugin] Adding reactStaticPlugin`);
+          plugins.push(reactStaticPlugin(options));
+        } else {
+          console.log(`[createBuildPlugin] NOT adding reactStaticPlugin - explicitHtmlWorker is false`);
+        }
+      } else {
+        // Explicitly empty array - no pages to generate, don't add plugin
+        console.log(`[createBuildPlugin] Pages explicitly set to empty array, not adding reactStaticPlugin`);
+      }
+    } else if (typeof userOptions.build.pages === 'function') {
+      // Dynamic discovery function - add plugin to handle async discovery
+      console.log(`[createBuildPlugin] Pages configured as async function, adding reactStaticPlugin`);
+      const explicitHtmlWorker =
+        typeof userOptions.build?.useHtmlWorker === "boolean"
+          ? userOptions.build?.useHtmlWorker
+          : true;
+      if (explicitHtmlWorker) {
+        plugins.push(reactStaticPlugin(options));
+      }
+    }
+  } else {
+    // Not configured - auto-discover from filesystem
+    console.log(`[createBuildPlugin] No pages configured, auto-discovering from filesystem`);
     const explicitHtmlWorker =
       typeof userOptions.build?.useHtmlWorker === "boolean"
         ? userOptions.build?.useHtmlWorker
-        // Force useHtmlWorker to true when pages are configured, regardless of default logic
         : true;
-    console.log(`[createBuildPlugin] explicitRscWorker:`, explicitRscWorker, `explicitHtmlWorker:`, explicitHtmlWorker);
     if (explicitHtmlWorker) {
-      console.log(`[createBuildPlugin] Adding reactStaticPlugin`);
       plugins.push(reactStaticPlugin(options));
-    } else {
-      console.log(`[createBuildPlugin] NOT adding reactStaticPlugin - explicitHtmlWorker is false`);
     }
-  } else {
-    console.log(`[createBuildPlugin] No pages configured, not adding reactStaticPlugin`);
   }
   
   return plugins;

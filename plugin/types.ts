@@ -83,6 +83,18 @@ export type RenderPageResult =
   | {
       type: "skip";
       reason?: unknown;
+      html: {
+        abort: (reason?: unknown) => void;
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => Writable;
+      };
+      rsc: {
+        abort: (reason?: unknown) => void;
+        pipe: <Writable extends NodeJS.WritableStream>(
+          destination: Writable
+        ) => Writable;
+      };
       metrics: {
         rscFull: RenderMetrics & { type: "rsc-full" };
         rscHeadless: RenderMetrics & { type: "rsc-headless" };

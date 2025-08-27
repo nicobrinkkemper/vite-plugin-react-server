@@ -27,6 +27,19 @@ function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
 
   // Add static generation support
   if (userOptions.build?.pages) {
+    if (Array.isArray(userOptions.build.pages)) {
+      if (userOptions.build.pages.length > 0) {
+        // Explicit routes - generate these pages
+        plugins.push(reactStaticPlugin(options));
+      } else {
+        // Explicitly empty array - no pages to generate, don't add plugin
+      }
+    } else if (typeof userOptions.build.pages === 'function') {
+      // Dynamic discovery function - add plugin to handle async discovery
+      plugins.push(reactStaticPlugin(options));
+    }
+  } else {
+    // Not configured - auto-discover from filesystem
     plugins.push(reactStaticPlugin(options));
   }
   

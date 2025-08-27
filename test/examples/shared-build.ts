@@ -2,6 +2,7 @@ import { testUserOptions } from '../test-config.js';
 import { readdir, readFile, mkdir, rm } from 'fs/promises';
 import { resolve, join } from 'node:path';
 import { getCondition } from '../../plugin/config/getCondition.js';
+import { doBuild } from '../doBuild.js';
 
 export interface SharedBuildResult {
   testDir: string;
@@ -14,60 +15,80 @@ export interface SharedBuildResult {
   metrics: any[];
 }
 
-const sharedBuilds = new Map<string, SharedBuildResult>();
+export interface SharedBuildOptions {
+  // Setup options - handled by the utility
+  setupProject?: (testDir: string) => Promise<void>;
+  dir?: string;
+  
+  // Plugin options - passed through directly to doBuild
+  [key: string]: any; // Allow any plugin option to be passed through
+}
+
+// Cache for setup function results (fixtures) only
+const setupCache = new Map<string, string>();
 
 export async function getSharedBuild(
   testName: string,
-  options: {
-    pages?: string[];
-    setupProject?: (testDir: string) => Promise<void>;
-  } = {}
+  options: SharedBuildOptions = {}
 ): Promise<SharedBuildResult> {
-  // Create a unified cache key for tests with the same setup
-  // If using setupTestProject with no custom options, use a common key
-  const isDefaultSetup = options.setupProject === setupTestProject &&
-                        !options.pages &&
-                        Object.keys(options).length === 1;
+  // Create a cache key for setup function results only (not plugin options)
+  const isDefaultSetup = options.setupProject === setupTestProject;
+  const setupKey = isDefaultSetup
+    ? `default-setup-${options.dir ?? 'shared'}`
+    : `${testName}-${options.dir ?? 'shared'}`;
 
-  const cacheKey = isDefaultSetup
-    ? 'default-setup'
-    : `${testName}-${JSON.stringify(options)}`;
+  let testDir: string;
 
-  if (sharedBuilds.has(cacheKey)) {
-    return sharedBuilds.get(cacheKey)!;
-  }
-
-  const testDir = isDefaultSetup
-    ? resolve(__dirname, `../fixtures/${getCondition()}/shared`)
-    : resolve(__dirname, `../fixtures/${getCondition()}/${testName}`);
-
-  await mkdir(testDir, { recursive: true });
-
-  // Setup project files
-  if (options.setupProject) {
-    await options.setupProject(testDir);
+  // Check if setup is already cached
+  if (setupCache.has(setupKey)) {
+    testDir = setupCache.get(setupKey)!;
   } else {
-    await setupTestProject(testDir);
+    // Create new test directory and run setup
+    testDir = isDefaultSetup
+      ? resolve(__dirname, `../fixtures/${options.dir ?? 'shared'}/${getCondition()}/shared`)
+      : resolve(__dirname, `../fixtures/${options.dir ?? 'shared'}/${getCondition()}/${testName}`);
+
+    await mkdir(testDir, { recursive: true });
+
+    // Setup project files
+    if (options.setupProject) {
+      await options.setupProject(testDir);
+    } else {
+      await setupTestProject(testDir);
+    }
+
+    // Cache the setup result
+    setupCache.set(setupKey, testDir);
   }
 
-  // Build the project
-  const { doBuild } = await import('../doBuild.js');
+  // Extract setup options (excluding them from plugin options)
+  const { setupProject, dir, ...pluginOptions } = options;
+
+  // Build the project with ALL plugin options passed through directly
+  // Plugin options are NOT cached - they're applied fresh each time
   const events: any[] = [];
   const metrics: any[] = [];
   
   await doBuild({
     ...testUserOptions,
     projectRoot: testDir,
-    Page: 'src/page/page.tsx',
     build: {
       ...testUserOptions.build,
-      pages: options.pages || testUserOptions!.build!.pages,
+      pages: 'pages' in pluginOptions ? pluginOptions.pages : testUserOptions!.build!.pages,
     },
+    // Pass through ALL plugin options directly - no manual handling needed
+    ...pluginOptions,
     onEvent: (event) => {
       events.push(event);
+      if(typeof pluginOptions.onEvent === 'function') {
+        pluginOptions.onEvent(event);
+      }
     },
     onMetrics: (metric) => {
       metrics.push(metric);
+      if(typeof pluginOptions.onMetrics === 'function') {
+        pluginOptions.onMetrics(metric);
+      }
     },
   });
 
@@ -97,7 +118,6 @@ export async function getSharedBuild(
     metrics,
   };
 
-  sharedBuilds.set(cacheKey, result);
   return result;
 }
 
@@ -123,14 +143,14 @@ async function setupTestProject(testDir: string): Promise<void> {
 }
 
 export async function cleanupSharedBuilds(): Promise<void> {
-  for (const build of sharedBuilds.values()) {
+  for (const build of setupCache.values()) {
     try {
-      await rm(build.testDir, { recursive: true, force: true });
+      await rm(build, { recursive: true, force: true });
     } catch (error) {
       // Ignore cleanup errors
     }
   }
-  sharedBuilds.clear();
+  setupCache.clear();
 }
 
 // Helper function to read file content

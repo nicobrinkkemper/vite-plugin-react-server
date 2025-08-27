@@ -64,6 +64,10 @@ export interface SerializableHandlerOptions {
   
   // Timeouts
   htmlTimeout?: number;
+  
+  // Stream options
+  clientPipeableStreamOptions?: any;
+  serverPipeableStreamOptions?: any;
 }
 
 /**
@@ -101,6 +105,8 @@ export function createSerializableHandlerOptions(
     globalCss,
     pageProps,
     css,
+    clientPipeableStreamOptions,
+    serverPipeableStreamOptions,
     ...rest
   } = options;
 
@@ -147,6 +153,17 @@ export function createSerializableHandlerOptions(
   if (cssFiles != null) result.cssFiles = cssFiles;
   if (globalCss != null) result.globalCss = globalCss;
   if (pageProps != null) result.pageProps = pageProps;
+  if (clientPipeableStreamOptions != null) {
+    // Use the existing helper to clean the object - this will handle all non-function properties
+    const cleanedClientOptions = cleanObject(clientPipeableStreamOptions);
+    result.clientPipeableStreamOptions = processForSerialization(cleanedClientOptions);
+  }
+  if (serverPipeableStreamOptions != null) {
+    // Use the existing helper to clean the object - this will handle all non-function properties
+    const cleanedServerOptions = cleanObject(serverPipeableStreamOptions);
+    result.serverPipeableStreamOptions = processForSerialization(cleanedServerOptions);
+    
+      }
 
   // Include any other serializable properties using existing helper
   return {

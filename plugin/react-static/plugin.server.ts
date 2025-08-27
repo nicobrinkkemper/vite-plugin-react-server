@@ -95,20 +95,16 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       meta: { timing },
     },
     async config(_config, viteConfigEnv) {
-      console.log(`[react-static-server] config() called with viteConfigEnv:`, viteConfigEnv);
       configEnv = viteConfigEnv;
     },
     applyToEnvironment(partialEnvironment) {
-      console.log(`[react-static-server] applyToEnvironment called with environment:`, partialEnvironment.name);
       if (
         ["server"].includes(
           partialEnvironment.name as "client" | "server" | "ssr"
         )
       ) {
-        console.log(`[react-static-server] Applying to environment: ${partialEnvironment.name}`);
         return true;
       }
-      console.log(`[react-static-server] NOT applying to environment: ${partialEnvironment.name}`);
       return false;
     },
     async configResolved(config) {
@@ -285,7 +281,13 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           ],
         };
         userOptions.serverPipeableStreamOptions = serverPipeableStreamOptions;
-
+        const clientPipeableStreamOptions = {
+          ...userOptions.clientPipeableStreamOptions,
+          bootstrapScripts: [
+            ...(indexHtml ? [baseURL(indexHtml)] : []),
+            ...(userOptions.clientPipeableStreamOptions?.bootstrapScripts ?? []),
+          ],
+        }
         const serializedUserOptions = serializedOptions(
           userOptions,
           autoDiscoveredFiles!
@@ -394,6 +396,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             signal: AbortSignal.timeout(handlerOptions.htmlTimeout),
             onEvent: onEvent,
             serverPipeableStreamOptions: serverPipeableStreamOptions,
+            clientPipeableStreamOptions: clientPipeableStreamOptions,
             manifest: serverManifest ?? {},
             staticManifest: staticManifest, // Pass static manifest for path resolution
             autoDiscoveredFiles: autoDiscoveredFiles!,
@@ -495,52 +498,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
         // Let the finally block handle additional cleanup
       } finally {
-        // Graceful worker shutdown
-        if (worker) {
-          try {
-            await Promise.race([
-              new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                  reject(new Error("Worker shutdown timeout"));
-                }, userOptions.workerShutdownTimeout);
-
-                const backupTimeout = setTimeout(() => {
-                  reject(new Error("Worker shutdown backup timeout"));
-                }, Math.floor(userOptions.workerShutdownTimeout * 0.6)); // 60% of main timeout
-
-                const messageHandler = (message: any) => {
-                  if (message.type === "SHUTDOWN_COMPLETE") {
-                    clearTimeout(timeout);
-                    clearTimeout(backupTimeout);
-                    worker?.removeListener("message", messageHandler);
-                    // Remove all other event listeners as well
-                    worker?.removeAllListeners();
-                    resolve();
-                  }
-                };
-
-                worker?.on("message", messageHandler);
-
-                // Send shutdown message
-                worker?.postMessage({
-                  type: "SHUTDOWN",
-                  id: "*",
-                });
-              }),
-            ]);
-          } catch (error) {
-            // If shutdown protocol fails, force terminate
-            this.warn(
-              "Worker shutdown protocol failed, forcing termination: " +
-                (error instanceof Error ? error.message : String(error))
-            );
-          } finally {
-            worker.removeAllListeners();
-            worker.terminate();
-            worker = undefined;
-          }
-        }
-
         // Reset any cached state to prevent issues in subsequent builds
         autoDiscoveredFiles = null;
         serverManifest = undefined;
@@ -562,6 +519,54 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         if (errorToThrow.name) finalError.name = errorToThrow.name;
 
         this.error(finalError);
+      }
+    },
+
+    async closeBundle() {
+      // Graceful worker shutdown - only at the end of the entire build process
+      if (worker) {
+        try {
+          await Promise.race([
+            new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                reject(new Error("Worker shutdown timeout"));
+              }, userOptions.workerShutdownTimeout);
+
+              const backupTimeout = setTimeout(() => {
+                reject(new Error("Worker shutdown backup timeout"));
+              }, Math.floor(userOptions.workerShutdownTimeout * 0.6)); // 60% of main timeout
+
+              const messageHandler = (message: any) => {
+                if (message.type === "SHUTDOWN_COMPLETE") {
+                  clearTimeout(timeout);
+                  clearTimeout(backupTimeout);
+                  worker?.removeListener("message", messageHandler);
+                  // Remove all other event listeners as well
+                  worker?.removeAllListeners();
+                  resolve();
+                }
+              };
+
+              worker?.on("message", messageHandler);
+
+              // Send shutdown message
+              worker?.postMessage({
+                type: "SHUTDOWN",
+                id: "*",
+              });
+            }),
+          ]);
+        } catch (error) {
+          // If shutdown protocol fails, force terminate
+          this.warn(
+            "Worker shutdown protocol failed, forcing termination: " +
+              (error instanceof Error ? error.message : String(error))
+          );
+        } finally {
+          worker.removeAllListeners();
+          worker.terminate();
+          worker = undefined;
+        }
       }
     },
   } as const;

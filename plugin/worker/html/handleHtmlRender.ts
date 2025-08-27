@@ -32,8 +32,8 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
   logger = createLogger()
 ) {
   const {
-    id,
     route,
+    id = route,
     rscStream, // Use the RSC stream passed from the main thread
     moduleRootPath = workerData.userOptions?.moduleRootPath,
     moduleBaseURL = workerData.userOptions?.moduleBaseURL,
@@ -127,62 +127,67 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
       logger,
     });
 
-     // Render React elements to HTML stream using ReactDOMServer.renderToPipeableStream
-     const { pipe } = ReactDOMServer.renderToPipeableStream(
-       result.children,
-       {
-         bootstrapModules:
-           workerData.userOptions?.serverPipeableStreamOptions
-             ?.bootstrapModules || [],
-        onShellReady() {
-          if (verbose) {
-            logger.info(
-              `[html-worker:${route}] Shell ready, starting to pipe HTML`
-            );
-          }
+    // Render React elements to HTML stream using ReactDOMServer.renderToPipeableStream
+    if (verbose) {
+      logger.info(
+        `[html-worker:${route}] clientPipeableStreamOptions: ${JSON.stringify(
+          handlerOptions.clientPipeableStreamOptions
+        )}`
+      );
+    }
 
-          // Pipe the HTML stream to our pass through
-          pipe(passThrough);
-        },
-        onAllReady() {
-          if (verbose) {
-            logger.info(
-              `[html-worker:${route}] All ready, HTML rendering complete`
-            );
-          }
+    const { pipe } = ReactDOMServer.renderToPipeableStream(result.children, {
+      bootstrapScripts:
+        handlerOptions.clientPipeableStreamOptions?.bootstrapScripts ||
+        workerData.userOptions?.clientPipeableStreamOptions?.bootstrapScripts,
+      onShellReady() {
+        if (verbose) {
+          logger.info(
+            `[html-worker:${route}] Shell ready, starting to pipe HTML`
+          );
+        }
 
-          // Calculate module resolution time
-          const moduleResolutionTime =
-            performance.now() - moduleResolutionStartTime;
+        // Pipe the HTML stream to our pass through
+        pipe(passThrough as any);
+      },
+      onAllReady() {
+        if (verbose) {
+          logger.info(
+            `[html-worker:${route}] All ready, HTML rendering complete`
+          );
+        }
 
-          // Send metrics
-          if (handlers.onMetrics) {
-            const moduleResolutionMetric = createModuleResolutionMetrics({
-              route,
-              workerType: "html",
-              resolutionTime: moduleResolutionTime,
-              fromMainThread: false,
-              fromRscWorker: false,
-              fromHtmlWorker: true,
-              description: `Module resolution for route ${route}`,
-            });
-            handlers.onMetrics(id, moduleResolutionMetric);
-          }
-        },
-        onError(error: unknown) {
-          if (verbose) {
-            logger.error(
-              `[html-worker:${route}] React rendering error: ${error}`
-            );
-          }
+        // Calculate module resolution time
+        const moduleResolutionTime =
+          performance.now() - moduleResolutionStartTime;
 
-          handlers.onError(id, error, {
-            componentStack: undefined,
-            digest: undefined,
+        // Send metrics
+        if (handlers.onMetrics) {
+          const moduleResolutionMetric = createModuleResolutionMetrics({
+            route,
+            workerType: "html",
+            resolutionTime: moduleResolutionTime,
+            fromMainThread: false,
+            fromRscWorker: false,
+            fromHtmlWorker: true,
+            description: `Module resolution for route ${route}`,
           });
-        },
-      }
-    );
+          handlers.onMetrics(route, moduleResolutionMetric);
+        }
+      },
+      onError(error: unknown) {
+        if (verbose) {
+          logger.error(
+            `[html-worker:${route}] React rendering error: ${error}`
+          );
+        }
+
+        handlers.onError(route, error, {
+          componentStack: undefined,
+          digest: undefined,
+        });
+      },
+    });
 
     // Set up pass through event handlers
     passThrough.on("data", (chunk) => {
@@ -203,9 +208,7 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
     // Set up RSC stream error handling
     rscStream.on("error", (error) => {
       if (verbose) {
-        logger.error(
-          `[html-worker:${route}] RSC stream error: ${error}`
-        );
+        logger.error(`[html-worker:${route}] RSC stream error: ${error}`);
       }
 
       handlers.onError(id, error, {

@@ -16,6 +16,7 @@ import { handleError } from "../error/handleError.js";
 import type { PanicThreshold } from "../types.js";
 
 export interface RscToHtmlStreamOptions {
+  id?: string;
   route: string;
   moduleRootPath?: string;
   moduleBasePath?: string;
@@ -24,7 +25,7 @@ export interface RscToHtmlStreamOptions {
   verbose?: boolean;
   panicThreshold?: PanicThreshold;
   url?: string;
-  serverPipeableStreamOptions?: any;
+  clientPipeableStreamOptions?: any;
   signal?: AbortSignal;
   logger?: any;
   htmlTimeout?: number;
@@ -49,8 +50,9 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
     panicThreshold,
     signal,
     logger,
+    clientPipeableStreamOptions,
   } = options;
-
+  
   if (verbose) {
     logger?.info(
       `[createRscToHtmlStream:${route}] Creating RSC to HTML transform stream (client-side)`
@@ -130,25 +132,8 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
           // Render React elements to HTML using ReactDOMServer.renderToPipeableStream
           const { pipe } = ReactDOMServer.renderToPipeableStream(
             children,
-            {
-              bootstrapModules: options.serverPipeableStreamOptions?.bootstrapModules || [],
-              onAllReady: () => {
-                if (verbose) {
-                  logger?.info(`[createRscToHtmlStream:${route}] All ready`);
-                }
-              },
-              onError: (error: unknown) => {
-                if (verbose) {
-                  logger?.info(`[createRscToHtmlStream:${route}] React stream onError: ${error}`);
-                }
-                throw error;
-              },
-              onShellReady: () => {
-                if (verbose) {
-                  logger?.info(`[createRscToHtmlStream:${route}] Shell ready`);
-                }
-              },
-            }
+            // because we render html, we need to pass the clientPipeableStreamOptions
+            clientPipeableStreamOptions,
           );
 
           // Collect HTML chunks from the React stream

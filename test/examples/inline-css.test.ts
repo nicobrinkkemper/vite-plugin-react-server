@@ -4,9 +4,10 @@ import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
 import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
 import { doBuild } from "../doBuild.js";
+import { getCondition } from "vite-plugin-react-server/config";
 
 describe("Plugin Inline Css Event hooks", () => {
-  const testDir = resolve(__dirname, '../fixtures/inline-css.test');
+  const testDir = resolve(__dirname, `../fixtures/examples/${getCondition()}/inline-css.test`);
   let events: PluginEvent[];
   let htmlContent: string;
   let rscContent: string;

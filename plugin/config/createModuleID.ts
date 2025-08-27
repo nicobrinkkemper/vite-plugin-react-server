@@ -27,7 +27,7 @@ export const createDefaultModuleID = (
   configEnv?: ConfigEnv,
   mode = getNodeEnv()
 ) => {
-  console.log(`[createDefaultModuleID] Creating moduleID function with configEnv: ${configEnv?.command}, mode: ${mode}`);
+  // console.log(`[createDefaultModuleID] Creating moduleID function with configEnv: ${configEnv?.command}, mode: ${mode}`);
   const { moduleBase, moduleBasePath, build, moduleBaseURL, projectRoot } = options;
   const assetsDir = build.assetsDir || DEFAULT_CONFIG.BUILD.assetsDir;
   const isBuild = configEnv?.command === "build";
@@ -127,7 +127,7 @@ export const createDefaultModuleID = (
   const buildDirs = isBuild ? [serverDist, ssrClientDist, staticClientDist] : [];
 
   return (id: string, sourceContent?: string) => {
-    console.log(`[createDefaultModuleID] Called with id: ${id}, configEnv: ${configEnv?.command}, mode: ${mode}`);
+    // console.log(`[createDefaultModuleID] Called with id: ${id}, configEnv: ${configEnv?.command}, mode: ${mode}`);
     
     // For transformer usage (when we're in build mode and processing server components),
     // we want to strip build directory prefixes to get relative paths
@@ -137,18 +137,18 @@ export const createDefaultModuleID = (
       for (const buildDir of buildDirs) {
         if (id.startsWith(buildDir)) {
           const result = id.slice(buildDir.length);
-          console.log(`[createDefaultModuleID:transformer] Stripping ${buildDir} from ${id} -> ${result}`);
+          // console.log(`[createDefaultModuleID:transformer] Stripping ${buildDir} from ${id} -> ${result}`);
           return result;
         }
       }
       // Check for double path issues (like dist/client//dist/server/)
       if (id.includes('//')) {
-        console.log(`[createDefaultModuleID:transformer] Found double slash in path: ${id}`);
+        // console.log(`[createDefaultModuleID:transformer] Found double slash in path: ${id}`);
         // Try to fix double path issues by finding the last occurrence of dist/
         const lastDistIndex = id.lastIndexOf('dist/');
         if (lastDistIndex !== -1) {
           const result = id.slice(lastDistIndex);
-          console.log(`[createDefaultModuleID:transformer] Fixed double path: ${id} -> ${result}`);
+          // console.log(`[createDefaultModuleID:transformer] Fixed double path: ${id} -> ${result}`);
           return result;
         }
       }
@@ -172,16 +172,16 @@ export const createDefaultModuleID = (
         // Step 3: Apply hashing for client components
         transformedId = hash(transformedId, false, sourceContent);
         
-        console.log(`[createDefaultModuleID:transformer] Client component transformation: ${id} -> ${transformedId}`);
+        // console.log(`[createDefaultModuleID:transformer] Client component transformation: ${id} -> ${transformedId}`);
         return transformedId;
       }
       
-      console.log(`[createDefaultModuleID:transformer] No build dir prefix found for ${id}, returning as-is`);
+      // console.log(`[createDefaultModuleID:transformer] No build dir prefix found for ${id}, returning as-is`);
       return id;
     }
     
     // Normal build path transformation (existing logic)
-    console.log(`[createDefaultModuleID:normal] Processing ${id} (configEnv: ${configEnv?.command}, mode: ${mode})`);
+    // console.log(`[createDefaultModuleID:normal] Processing ${id} (configEnv: ${configEnv?.command}, mode: ${mode})`);
 
     // Step 1: Handle assets directory paths - remove src from within assets path
     // Transform: assets/src/page/file.css -> assets/page/file.css
