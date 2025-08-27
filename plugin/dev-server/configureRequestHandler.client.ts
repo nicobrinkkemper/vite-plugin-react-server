@@ -232,7 +232,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           panicThreshold: handlerOptions.panicThreshold,
           context: "configureWorkerRequestHandler",
         });
-        // wait for timeout
+        // Response is now being streamed - no need to wait for timeout
       } catch (error) {
         const panicError = handleError({
           error,
@@ -249,35 +249,6 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           res.statusCode = 500;
           res.setHeader("Content-Type", "text/x-component; charset=utf-8");
         }
-        res.end();
-      }
-      let timeout: NodeJS.Timeout;
-      try {
-        await new Promise((reject) => {
-          timeout = setTimeout(() => {
-            clearTimeout(timeout);
-            reject(new Error("RSC Render timeout"));
-          }, handlerOptions.rscTimeout);
-        });
-      } catch {
-        if (currentWorker) {
-          currentWorker.postMessage({
-            type: "SHUTDOWN",
-            id: "*",
-          } satisfies RscWorkerInputMessage);
-          await new Promise((resolve, reject) => {
-            currentWorker?.on("message", (message) => {
-              if (message.type === "SHUTDOWN_COMPLETE") {
-                resolve(true);
-              } else {
-                reject("Did not receive SHUTDOWN_COMPLETE");
-              }
-            });
-          });
-          currentWorker.removeAllListeners();
-        }
-        logger.error("RSC render timeout.");
-        clearTimeout(timeout!);
         res.end();
       }
     };

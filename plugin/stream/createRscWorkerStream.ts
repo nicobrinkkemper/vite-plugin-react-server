@@ -2,6 +2,7 @@ import type { Worker } from "node:worker_threads";
 import type { Logger } from "vite";
 import { PassThrough } from "node:stream";
 import type { SerializeableRenderToPipeableStreamOptions } from "../worker/rsc/types.js";
+import { toError } from "../error/toError.js";
 
 /**
  * RSC-specific options for worker stream
@@ -94,9 +95,9 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
         break;
       case 'ERROR':
         if (verbose) {
-          logger?.error(`[createRscWorkerStream] RSC stream error:`, message.error);
+          logger?.error(`[createRscWorkerStream] RSC stream error: ${message.error?.message}`, {error: message.error});
         }
-        const error = new Error(message.error);
+        const error = toError(message.error);
         rscStream.destroy(error);
         if (onError) {
           onError(error);

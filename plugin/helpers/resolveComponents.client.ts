@@ -1,5 +1,8 @@
 import type { Worker } from "node:worker_threads";
-import type { ResolveComponentsMessage, ComponentsResolvedMessage } from "../worker/rsc/types.js";
+import type {
+  ResolveComponentsMessage,
+  ComponentsResolvedMessage,
+} from "../worker/rsc/types.js";
 import { createModuleResolutionMetrics } from "../metrics/createModuleResolutionMetrics.js";
 import { performance } from "node:perf_hooks";
 
@@ -13,7 +16,8 @@ export interface ResolveComponentsOptions {
   propsExportName?: string;
   rootExportName?: string;
   htmlExportName?: string;
-  worker: Worker;
+  worker?: Worker;
+  rscWorker?: Worker;
   onMetrics?: (metrics: any) => void;
   logger?: any;
   verbose?: boolean;
@@ -25,13 +29,13 @@ export interface ResolvedComponents {
 
 /**
  * Resolves components using the RSC worker for client-side rendering
- * 
+ *
  * This function:
  * 1. Sends a RESOLVE_COMPONENTS message to the RSC worker
  * 2. RSC worker resolves components using built paths from manifest
  * 3. Returns resolved components with proper built paths
  * 4. Tracks resolution metrics
- * 
+ *
  * This separates component resolution from RSC generation, making the
  * subsequent RSC render completely synchronous.
  */
@@ -48,16 +52,27 @@ export async function resolveComponents(
     propsExportName,
     rootExportName,
     htmlExportName,
-    worker,
+    rscWorker,
+    worker: workerProp,
     onMetrics,
     logger,
     verbose,
   } = options;
 
+  const worker = rscWorker ?? workerProp;
+
+  if (!worker) {
+    throw new Error(
+      "RSC Worker is required for client-side component resolution"
+    );
+  }
+
   const resolutionStartTime = performance.now();
 
   if (verbose) {
-    logger?.info(`[resolveComponents.client] Resolving components for route: ${route}`);
+    logger?.info(
+      `[resolveComponents.client] Resolving components for route: ${route}`
+    );
     logger?.info(`[resolveComponents.client] pagePath: ${pagePath}`);
     logger?.info(`[resolveComponents.client] propsPath: ${propsPath}`);
     logger?.info(`[resolveComponents.client] rootPath: ${rootPath}`);
@@ -89,14 +104,26 @@ export async function resolveComponents(
       }, 3000); // 3 second timeout
 
       const messageHandler = (message: any) => {
-        if (message.type === "COMPONENTS_RESOLVED" && message.id === resolveMessage.id) {
+        if (
+          message.type === "COMPONENTS_RESOLVED" &&
+          message.id === resolveMessage.id
+        ) {
           clearTimeout(timeout);
           worker.off("message", messageHandler);
           resolve(message);
-        } else if (message.type === "ERROR" && message.id === resolveMessage.id) {
+        } else if (
+          message.type === "ERROR" &&
+          message.id === resolveMessage.id
+        ) {
           clearTimeout(timeout);
           worker.off("message", messageHandler);
-          reject(new Error(`Component resolution failed: ${message.error?.message || 'Unknown error'}`));
+          reject(
+            new Error(
+              `Component resolution failed: ${
+                message.error?.message || "Unknown error"
+              }`
+            )
+          );
         }
       };
 
@@ -107,7 +134,11 @@ export async function resolveComponents(
     const resolutionTime = performance.now() - resolutionStartTime;
 
     if (verbose) {
-      logger?.info(`[resolveComponents.client] Components resolved for route: ${route} in ${resolutionTime.toFixed(2)}ms`);
+      logger?.info(
+        `[resolveComponents.client] Components resolved for route: ${route} in ${resolutionTime.toFixed(
+          2
+        )}ms`
+      );
     }
 
     // Emit resolution metrics
@@ -127,11 +158,12 @@ export async function resolveComponents(
     return {
       resolutionTime,
     };
-
   } catch (error) {
     const resolutionTime = performance.now() - resolutionStartTime;
-    logger?.error(`[resolveComponents.client] Failed to resolve components for route ${route}: ${error}`);
-    
+    logger?.error(
+      `[resolveComponents.client] Failed to resolve components for route ${route}: ${error}`
+    );
+
     // Emit error metrics
     if (onMetrics) {
       const moduleResolutionMetric = createModuleResolutionMetrics({

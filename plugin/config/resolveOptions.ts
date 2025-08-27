@@ -339,10 +339,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     (code: string) => code.match(clientDirective) != null || false
   );
 
-  const isClientComponentByName = resolveDirectiveMatcher(
-    clientDirective,
-    (moduleId: string) => (typeof moduleId === "string" && clientPattern.test(moduleId)) || false
-  );
+  const isClientComponentByName = (moduleId: string, _transformedModuleId?: string) => 
+    (typeof moduleId === "string" && clientPattern.test(moduleId)) || false;
 
   const hashOption = options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
 
@@ -599,7 +597,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     cssModuleExtension: cssModuleExtension,
     nodeExtension: DEFAULT_CONFIG.BUILD.nodeExtension,
     useRscWorker: options.build?.useRscWorker ?? DEFAULT_CONFIG.BUILD.useRscWorker,
-    useHtmlWorker: options.build?.useHtmlWorker ?? DEFAULT_CONFIG.BUILD.useHtmlWorker,  
+    useHtmlWorker: options.build?.useHtmlWorker ?? 
+      // Force useHtmlWorker to true when build.pages is explicitly configured, regardless of default logic
+      (options.build?.pages && (Array.isArray(options.build.pages) || typeof options.build.pages === 'function')) ? true : DEFAULT_CONFIG.BUILD.useHtmlWorker,
   } satisfies ResolvedUserOptions["build"];
 
   // Development configuration

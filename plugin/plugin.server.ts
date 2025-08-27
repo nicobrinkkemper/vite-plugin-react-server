@@ -35,6 +35,9 @@ function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
 
   // Add server-side static generation support if pages are configured
   if (userOptions.build?.pages) {
+    console.log(`[createBuildPlugin] Pages configured:`, userOptions.build.pages);
+    console.log(`[createBuildPlugin] userOptions.build.useHtmlWorker:`, userOptions.build.useHtmlWorker);
+    console.log(`[createBuildPlugin] userOptions.build.useRscWorker:`, userOptions.build.useRscWorker);
     const explicitRscWorker =
       typeof userOptions.build?.useRscWorker === "boolean"
         ? userOptions.build?.useRscWorker
@@ -42,12 +45,17 @@ function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
     const explicitHtmlWorker =
       typeof userOptions.build?.useHtmlWorker === "boolean"
         ? userOptions.build?.useHtmlWorker
-        // by default, if non useHtmlWorker and no useRscWorker, the default is to
-        // use the html worker
-        : !explicitRscWorker;
+        // Force useHtmlWorker to true when pages are configured, regardless of default logic
+        : true;
+    console.log(`[createBuildPlugin] explicitRscWorker:`, explicitRscWorker, `explicitHtmlWorker:`, explicitHtmlWorker);
     if (explicitHtmlWorker) {
+      console.log(`[createBuildPlugin] Adding reactStaticPlugin`);
       plugins.push(reactStaticPlugin(options));
+    } else {
+      console.log(`[createBuildPlugin] NOT adding reactStaticPlugin - explicitHtmlWorker is false`);
     }
+  } else {
+    console.log(`[createBuildPlugin] No pages configured, not adding reactStaticPlugin`);
   }
   
   return plugins;

@@ -27,25 +27,7 @@ import type {
 } from "../rsc/types.js";
 import type { createLogger, Logger } from "vite";
 
-// HTML-specific metrics
-export type HtmlWorkerStreamMetrics = {
-  totalChunksReceived: number;
-  totalBytesReceived: number;
-  totalChunksProcessed: number;
-  totalBytesProcessed: number;
-};
 
-// HTML worker state
-export type HtmlWorkerRenderState = {
-  rscStream: PassThrough;
-  metrics: StreamMetrics;
-  isReady: boolean;
-  htmlTransform: Transform;
-  stream: ReactDOMServer.PipeableStream;
-  abort?: () => void;
-  shellReady?: boolean;
-  currentRoute?: string;
-};
 
 // HTML-specific messages
 export type HtmlChunkMessage = {
@@ -69,16 +51,7 @@ export type HtmlMetricsMessage = {
   metrics: RenderMetrics & { type: "html" };
 };
 
-export type LogErrorMessage = {
-  type: "LOG_ERROR";
-  id: string;
-  message: string;
-  error: {
-    name: string;
-    message: string;
-    stack: string;
-  };
-};
+
 
 export type HtmlRenderStartMessage = {
   type: "HTML_RENDER_START";
@@ -145,16 +118,10 @@ export type HtmlWorkerOutputMessage =
   | ServerActionResponseMessage
   | CleanupCompleteMessage
   | InitializedCssLoaderMessage
-  | LogErrorMessage
   | HtmlRenderStartMessage
   | HtmlMetricsMessage;
 
-export type CreateHtmlWorkerRenderStateFn = (
-  msg: HtmlRenderMessage,
-  sendMessage?: (msg: HtmlWorkerOutputMessage) => void,
-  rscStream?: PassThrough,
-  logger?: Logger
-) => HtmlWorkerRenderState;
+
 
 export type CallServerCallback = (
   id: string,
@@ -176,4 +143,4 @@ export type HandleHtmlRenderFn = (
   },
   handlers: StreamHandlers<"client">,
   logger?: ReturnType<typeof createLogger>
-) => void;
+) => void

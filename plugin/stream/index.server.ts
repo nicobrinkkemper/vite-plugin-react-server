@@ -13,4 +13,3 @@ export * from "./createHtmlStream.server.js";
 
 // Worker Stream handling - using unified API
 export * from "./createRscWorkerStream.js";
-export * from "./createHtmlWorkerStream.js";

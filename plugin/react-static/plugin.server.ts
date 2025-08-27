@@ -16,6 +16,7 @@
 
 import type { Worker } from "node:worker_threads";
 import {
+  type ConfigEnv,
   type Logger,
   type Manifest,
   type ManifestChunk,
@@ -73,6 +74,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
   let resolvedConfig: ResolvedConfig;
   let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
   let serverManifest: Manifest | undefined = undefined;
+  let configEnv: ConfigEnv | undefined;
   const timing: BuildTiming = {
     start: performance.now(),
     configResolved: 0,
@@ -92,14 +94,21 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
     api: {
       meta: { timing },
     },
+    async config(_config, viteConfigEnv) {
+      console.log(`[react-static-server] config() called with viteConfigEnv:`, viteConfigEnv);
+      configEnv = viteConfigEnv;
+    },
     applyToEnvironment(partialEnvironment) {
+      console.log(`[react-static-server] applyToEnvironment called with environment:`, partialEnvironment.name);
       if (
         ["server"].includes(
           partialEnvironment.name as "client" | "server" | "ssr"
         )
       ) {
+        console.log(`[react-static-server] Applying to environment: ${partialEnvironment.name}`);
         return true;
       }
+      console.log(`[react-static-server] NOT applying to environment: ${partialEnvironment.name}`);
       return false;
     },
     async configResolved(config) {
@@ -109,12 +118,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       }
       const autoDiscoverResult = await resolveAutoDiscover({
         config: config,
-        configEnv: {
-          mode: config.mode,
-          command: config.command,
-          isSsrBuild: true,
-          isPreview: false,
-        },
+        configEnv: configEnv!,
         userOptions,
         logger,
       });
@@ -303,6 +307,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             workerData: {
               resolvedConfig: serializeResolvedConfig(resolvedConfig),
               userOptions: serializedUserOptions,
+              configEnv,
             },
           });
           if (workerResult.type === "error") {

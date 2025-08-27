@@ -100,8 +100,8 @@ describe('Server Action Integration (Cross-Environment)', () => {
     for (const serverFile of serverFiles) {
       if (serverFile.endsWith('.js')) {
         const content = await readFileContent(serverFile);
-        expect(content).not.toContain('createRoot');
         expect(content).not.toContain('use client');
+        expect(content).not.toContain('createRoot');
       }
     }
   });

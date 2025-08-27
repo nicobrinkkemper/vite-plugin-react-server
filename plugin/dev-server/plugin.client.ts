@@ -1,6 +1,7 @@
 import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
+import type { ConfigEnv } from "vite";
 
 
 /**
@@ -29,8 +30,16 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
     console.log(`[plugin.client] resolved userOptions.projectRoot: ${userOptions.projectRoot}`);
   }
 
+  let configEnv: ConfigEnv | undefined;
+
   return {
     name: "vite-plugin-react-server:dev-server-client",
+    config(_config, viteConfigEnv) {
+      configEnv = viteConfigEnv;
+      if (options.verbose) {
+        console.log(`[plugin.client] configEnv:`, viteConfigEnv);
+      }
+    },
     configureServer(server) {      
       // Configure the React server for client environment (worker-based)
       // This uses the existing configureReactServer.client.js implementation
@@ -54,6 +63,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           serverActions: {},
         },
         userOptions,
+        configEnv: configEnv!,
         serverManifest: {}, 
         resolvedConfig: server.config,
       });

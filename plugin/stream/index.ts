@@ -116,9 +116,7 @@ export type { HandleRscStreamFn } from "./handleRscStream.types.js";
 
 // Worker Stream handling - using unified API
 export { createRscWorkerStream } from "./createRscWorkerStream.js";
-export { createHtmlWorkerStream } from "./createHtmlWorkerStream.js";
 export type { RscWorkerStreamOptions } from "./createRscWorkerStream.js";
-export type { HtmlWorkerStreamOptions } from "./createHtmlWorkerStream.js";
 export { pipeToResponse } from "../helpers/pipeToResponse.js";
 
 // Stream element resolution

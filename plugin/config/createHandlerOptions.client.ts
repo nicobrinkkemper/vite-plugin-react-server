@@ -21,6 +21,7 @@ import type {
   CreateHandlerOptionsParams,
   ResolvedDefaults,
 } from "./createHandlerOptions.types.js";
+import { getCondition } from "./getCondition.js";
 
 /**
  * Client-specific handler options creation for HTML generation.
@@ -96,7 +97,8 @@ export async function createHandlerOptions(
     id = `${route}-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`,
-    envId = getEnvironmentId("react-client", mode),
+    condition = getCondition(),
+    envId = getEnvironmentId(condition, mode),
     userOptions = getStashedUserOptions(envId),
     config = undefined,
   } = options;
@@ -232,10 +234,46 @@ export async function createHandlerOptions(
     }
 
     try {
-      const serializedUserOptions = serializedOptions(
-        userOptions,
-        autoDiscoveredFiles
-      );
+      // Create fallback defaults based on configEnv
+      const fallbackDefaults = {
+        verbose: false,
+        panicThreshold: 1000,
+        moduleRootPath: "",
+        moduleBaseURL: "",
+        moduleBasePath: "",
+        projectRoot: process.cwd(),
+        htmlTimeout: 30000,
+        serverPipeableStreamOptions: {},
+        build: {
+          useHtmlWorker: isBuildMode,
+          useRscWorker: isBuildMode,
+          pages: [],
+        },
+        dev: {
+          useHtmlWorker: isServeMode,
+          useRscWorker: isServeMode,
+        },
+      };
+
+      const serializedUserOptions = userOptions
+        ? serializedOptions(userOptions, autoDiscoveredFiles)
+        : serializedOptions(fallbackDefaults as any, autoDiscoveredFiles);
+
+      const serializedResolvedConfig = config
+        ? serializeResolvedConfig(config)
+        : {
+            mode: configEnv?.mode || mode || "development",
+            root: process.cwd(),
+            logLevel: "info",
+            env: {},
+            envPrefix: "VITE_",
+            base: "/",
+            publicDir: "public",
+            cacheDir: "node_modules/.vite",
+            command: configEnv?.command || "serve",
+            isSsrBuild: configEnv?.command === "build",
+            isPreview: false,
+          };
 
       const htmlWorkerResult = await createWorker({
         currentCondition: "react-client", // We are in a .client file
@@ -246,10 +284,8 @@ export async function createHandlerOptions(
         workerData: {
           id: route,
           userOptions: serializedUserOptions,
-          resolvedConfig: {
-            configEnv,
-            mode,
-          },
+          resolvedConfig: serializedResolvedConfig,
+          configEnv,
         },
       });
 
@@ -347,7 +383,7 @@ export async function createHandlerOptions(
     PageComponent: undefined,
     RootComponent: undefined,
     // Workers for client environment - provide both for specific use cases
-    worker: htmlWorker || rscWorker, // Backward compatibility: prefer HTML worker if available
+    worker: condition === "react-server" ? rscWorker : htmlWorker, // Backward compatibility: prefer HTML worker if available
     rscWorker,
     htmlWorker,
     // Children provided directly via options

@@ -182,11 +182,12 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       handlerOptions.logger?.info(`  root: ${handlerOptions.rootPath} -> ${resolvedRootPath}`);
       handlerOptions.logger?.info(`  html: ${handlerOptions.htmlPath} -> ${resolvedHtmlPath}`);
     }
+    const worker = handlerOptions.worker ?? handlerOptions.rscWorker;
 
     // Step 2: Resolve components using the RSC worker with built paths
     // This separates component resolution from RSC generation, making the
     // subsequent RSC render completely synchronous
-    if (!handlerOptions.worker) {
+    if (!worker) {
       throw new Error("RSC worker is required for client-side component resolution");
     }
     
@@ -201,7 +202,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       propsExportName: handlerOptions.propsExportName,
       rootExportName: handlerOptions.rootExportName,
       htmlExportName: handlerOptions.htmlExportName,
-      worker: handlerOptions.worker,
+      worker: worker,
+      rscWorker: worker,
       onMetrics: handlerOptions.onMetrics,
       logger: handlerOptions.logger,
       verbose: handlerOptions.verbose,

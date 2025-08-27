@@ -15,7 +15,6 @@ import type { PassThrough, Transform } from "stream";
 import type {
   AliasOptions,
   BuildOptions,
-  ConfigEnv,
   Connect,
   Logger,
   Manifest,

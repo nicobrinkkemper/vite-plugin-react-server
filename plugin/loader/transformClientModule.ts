@@ -99,6 +99,10 @@ export async function transformClientModule(
   if (registrations.length > 0) {
     const importStatement = `import { ${loader.registerClientReferenceName} } from "${loader.importClientPath}";`;
     finalCode = `${importStatement}\n${registrations.join("\n")}`;
+  } else {
+    // For client files without exports (like entry points), return empty code
+    // This prevents client-side code from being included in server bundles
+    finalCode = "throw new Error('Client entry point was called from the server, but it is not available in server environment');";
   }
 
   if (loader.verbose) {

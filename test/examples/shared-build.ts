@@ -60,7 +60,8 @@ export async function getSharedBuild(
     projectRoot: testDir,
     Page: 'src/page/page.tsx',
     build: {
-      pages: options.pages || undefined,
+      ...testUserOptions.build,
+      pages: options.pages || testUserOptions!.build!.pages,
     },
     onEvent: (event) => {
       events.push(event);

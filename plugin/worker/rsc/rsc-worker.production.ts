@@ -23,7 +23,7 @@ if (!parentPort) {
 }
 
 // In test mode, we want errors to propagate up immediately
-const logger = createLogger(workerData.resolvedConfig.logLevel, {
+const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info", {
   prefix: "rsc-worker",
 });
 // Set up loader message handlers
@@ -41,8 +41,7 @@ const reactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
 
 try {
   // Check if we're in build mode - if so, skip loader registration since files are already built
-  const isBuildMode = workerData.configEnv?.command === "build" || 
-                     workerData.resolvedConfig.mode === "production";
+  const isBuildMode = workerData.configEnv?.command === "build"
   
 
   
@@ -108,15 +107,17 @@ try {
     });
   }
 
+  const root = workerData.userOptions?.projectRoot || workerData.resolvedConfig?.root || process.cwd();
+
   const reactLoaderPath =
     "file://" +
     (workerData.userOptions.reactLoaderPath
       ? resolve(
-          workerData.resolvedConfig.root,
+          root,
           workerData.userOptions.reactLoaderPath
         )
       : resolve(
-          workerData.resolvedConfig.root,
+          root,
           DEFAULT_CONFIG.REACT_LOADER_PATH
         ));
   logger.info(`Using reactLoaderPath: ${reactLoaderPath}`);
@@ -124,22 +125,22 @@ try {
     "file://" +
     (workerData.userOptions.cssLoaderPath
       ? resolve(
-          workerData.resolvedConfig.root,
+          root,
           workerData.userOptions.cssLoaderPath
         )
-      : resolve(
-          workerData.resolvedConfig.root,
+      : resolve(  
+          root,
           DEFAULT_CONFIG.CSS_LOADER_PATH
         ));
   const envLoaderPath =
     "file://" +
     (workerData.userOptions.envLoaderPath
       ? resolve(
-          workerData.resolvedConfig.root,
+          root,
           workerData.userOptions.envLoaderPath
         )
       : resolve(
-          workerData.resolvedConfig.root,
+          root,
           DEFAULT_CONFIG.ENV_LOADER_PATH
         ));
 
@@ -156,9 +157,9 @@ try {
         },
         transferList: [cssLoaderChannel.port1],
       });
-    } catch (e) {
+    } catch (err) {
       const handledError = handleError({
-        error: e,
+        error: err,
         logger,
         panicThreshold: workerData.userOptions.panicThreshold,
         context: `register(${cssLoaderPath})`,
@@ -181,9 +182,9 @@ try {
         },
         transferList: [reactLoaderChannel.port1],
       });
-    } catch (e) {
+    } catch (err) {
       const handledError = handleError({
-        error: e,
+        error: err,
         logger,
         panicThreshold: workerData.userOptions.panicThreshold,
         context: `register(${reactLoaderPath})`,
@@ -203,9 +204,9 @@ try {
         },
         transferList: [envLoaderChannel.port1],
       });
-    } catch (e) {
+    } catch (err) {
       const handledError = handleError({
-        error: e,
+        error: err,
         logger,
         panicThreshold: workerData.userOptions.panicThreshold,
         context: `register(${envLoaderPath})`,
@@ -279,9 +280,9 @@ try {
   if (process.env["NODE_ENV"] === "production") {
     throw new Error("This module should not run in production mode.");
   }
-} catch (error: unknown) {
+} catch (err) {
   const handledError = handleError({
-    error,
+    error: err,
     logger,
     panicThreshold: workerData.userOptions.panicThreshold,
     context: "rsc-worker",

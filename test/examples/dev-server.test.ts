@@ -7,7 +7,7 @@ import { createClientDevServer } from "../createDevServer.js";
 import { getCondition } from "vite-plugin-react-server/config";
 
 describe("Dev Server", () => {
-  let server: ViteDevServer, port = 5176;
+  let server: ViteDevServer, port = 5177;
   const testDir = join(process.cwd(), `test/${getCondition()}/fixtures/dev-server`);
   let pageURL;
   beforeAll(async () => {

@@ -23,7 +23,7 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     id,
     route,
     verbose,
-    logger = createLogger(workerData.resolvedConfig.logLevel ?? "info", {
+    logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info", {
       prefix: "vite:plugin-react-server/worker/rsc",
     }),
   } = handlerOptions;

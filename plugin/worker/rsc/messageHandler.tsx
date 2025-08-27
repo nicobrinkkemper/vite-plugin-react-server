@@ -34,7 +34,7 @@ import { React } from "../../vendor/vendor.server.js";
 import { sendMessage } from "../sendMessage.js";
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
 
-const logger = createLogger(workerData.resolvedConfig.logLevel ?? "info");
+const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info");
 const verbose = workerData.userOptions.verbose ?? false;
 
 // Track active renders - store the RSC stream for each unique render (id)
@@ -81,10 +81,10 @@ async function loadComponentsWithCache(options: {
     propsPath,
     rootPath,
     htmlPath,
-    pageExportName = 'Page',
-    propsExportName = 'props',
-    rootExportName = 'Root',
-    htmlExportName = 'Html',
+    pageExportName = "Page",
+    propsExportName = "props",
+    rootExportName = "Root",
+    htmlExportName = "Html",
     loader,
     verbose,
     logger,
@@ -102,33 +102,39 @@ async function loadComponentsWithCache(options: {
       propsPath,
       pageExportName,
       propsExportName,
-      url: '/',
+      url: "/",
       loader,
       verbose: verbose || false,
       logger,
     });
 
-    if (pageAndPropsResult.type === 'success') {
+    if (pageAndPropsResult.type === "success") {
       PageComponent = pageAndPropsResult.PageComponent;
       pageProps = pageAndPropsResult.pageProps;
-      
+
       // Cache the components
       const pageId = `${pagePath}#${pageExportName}`;
       cacheComponent(pageId, PageComponent);
-      
+
       if (propsPath) {
         const propsId = `${propsPath}#${propsExportName}`;
         cacheComponent(propsId, pageProps);
       }
-      
+
       if (verbose) {
-        logger?.info(`[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`);
+        logger?.info(
+          `[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`
+        );
         if (propsPath) {
-          logger?.info(`[rsc-worker] Loaded and cached pageProps from: ${propsPath}`);
+          logger?.info(
+            `[rsc-worker] Loaded and cached pageProps from: ${propsPath}`
+          );
         }
       }
     } else {
-      throw new Error(`Failed to load page and props: ${pageAndPropsResult.error?.message}`);
+      throw new Error(
+        `Failed to load page and props: ${pageAndPropsResult.error?.message}`
+      );
     }
   }
 
@@ -138,7 +144,9 @@ async function loadComponentsWithCache(options: {
     if (hasCachedComponent(rootId)) {
       RootComponent = getCachedComponent(rootId);
       if (verbose) {
-        logger?.info(`[rsc-worker] Using cached Root component from: ${rootPath}`);
+        logger?.info(
+          `[rsc-worker] Using cached Root component from: ${rootPath}`
+        );
       }
     } else {
       const rootResult = await resolveComponent({
@@ -146,15 +154,19 @@ async function loadComponentsWithCache(options: {
         exportName: rootExportName,
         loader,
       });
-      
-      if (rootResult.type === 'success') {
+
+      if (rootResult.type === "success") {
         RootComponent = rootResult.component;
         cacheComponent(rootId, RootComponent);
         if (verbose) {
-          logger?.info(`[rsc-worker] Loaded and cached Root component from: ${rootPath}`);
+          logger?.info(
+            `[rsc-worker] Loaded and cached Root component from: ${rootPath}`
+          );
         }
       } else {
-        throw new Error(`Failed to load Root component: ${rootResult.error?.message}`);
+        throw new Error(
+          `Failed to load Root component: ${rootResult.error?.message}`
+        );
       }
     }
   } else {
@@ -166,19 +178,23 @@ async function loadComponentsWithCache(options: {
         logger?.info(`[rsc-worker] Using default Root component`);
       }
     } catch (error) {
-      logger?.warn(`[rsc-worker] Error loading default Root component: ${error}`);
+      logger?.warn(
+        `[rsc-worker] Error loading default Root component: ${error}`
+      );
     }
   }
 
   // Load Html component
-  if (htmlPath === '') {
+  if (htmlPath === "") {
     HtmlComponent = React.Fragment; // Empty string = headless (no HTML wrapper)
   } else if (htmlPath) {
     const htmlId = `${htmlPath}#${htmlExportName}`;
     if (hasCachedComponent(htmlId)) {
       HtmlComponent = getCachedComponent(htmlId);
       if (verbose) {
-        logger?.info(`[rsc-worker] Using cached Html component from: ${htmlPath}`);
+        logger?.info(
+          `[rsc-worker] Using cached Html component from: ${htmlPath}`
+        );
       }
     } else {
       const htmlResult = await resolveComponent({
@@ -186,15 +202,19 @@ async function loadComponentsWithCache(options: {
         exportName: htmlExportName,
         loader,
       });
-      
-      if (htmlResult.type === 'success') {
+
+      if (htmlResult.type === "success") {
         HtmlComponent = htmlResult.component;
         cacheComponent(htmlId, HtmlComponent);
         if (verbose) {
-          logger?.info(`[rsc-worker] Loaded and cached Html component from: ${htmlPath}`);
+          logger?.info(
+            `[rsc-worker] Loaded and cached Html component from: ${htmlPath}`
+          );
         }
       } else {
-        throw new Error(`Failed to load Html component: ${htmlResult.error?.message}`);
+        throw new Error(
+          `Failed to load Html component: ${htmlResult.error?.message}`
+        );
       }
     }
   } else {
@@ -206,7 +226,9 @@ async function loadComponentsWithCache(options: {
         logger?.info(`[rsc-worker] Using default Html component`);
       }
     } catch (error) {
-      logger?.warn(`[rsc-worker] Error loading default Html component: ${error}`);
+      logger?.warn(
+        `[rsc-worker] Error loading default Html component: ${error}`
+      );
     }
   }
 
@@ -257,7 +279,7 @@ export async function messageHandler(
           verbose: msg.options.verbose ?? workerData.userOptions.verbose,
           logger,
           hmrState,
-          projectRoot: workerData.userOptions.projectRoot,
+          projectRoot: workerData.userOptions?.projectRoot || process.cwd(),
           manifest: msg.options.manifest || workerData.serverManifest || {},
           build: {
             server: userOptions.build?.server || "server",
@@ -279,20 +301,29 @@ export async function messageHandler(
           );
 
         // Load components using the unified helper function
-        const { PageComponent, pageProps, RootComponent, HtmlComponent } = await loadComponentsWithCache({
-          pagePath: msg.options.pagePath,
-          propsPath: msg.options.propsPath,
-          rootPath: msg.options.rootPath,
-          htmlPath: msg.options.htmlPath,
-          pageExportName: msg.options.pageExportName ?? workerData.userOptions.pageExportName,
-          propsExportName: msg.options.propsExportName ?? workerData.userOptions.propsExportName,
-          rootExportName: msg.options.rootExportName ?? workerData.userOptions.rootExportName,
-          htmlExportName: msg.options.htmlExportName ?? workerData.userOptions.htmlExportName,
-          url,
-          loader,
-          verbose,
-          logger,
-        });
+        const { PageComponent, pageProps, RootComponent, HtmlComponent } =
+          await loadComponentsWithCache({
+            pagePath: msg.options.pagePath,
+            propsPath: msg.options.propsPath,
+            rootPath: msg.options.rootPath,
+            htmlPath: msg.options.htmlPath,
+            pageExportName:
+              msg.options.pageExportName ??
+              workerData.userOptions.pageExportName,
+            propsExportName:
+              msg.options.propsExportName ??
+              workerData.userOptions.propsExportName,
+            rootExportName:
+              msg.options.rootExportName ??
+              workerData.userOptions.rootExportName,
+            htmlExportName:
+              msg.options.htmlExportName ??
+              workerData.userOptions.htmlExportName,
+            url,
+            loader,
+            verbose,
+            logger,
+          });
 
         // Emit module resolution metric after components are loaded
         const moduleResolutionTime =
@@ -334,11 +365,25 @@ export async function messageHandler(
           cssFiles: combinedCssFiles,
           globalCss: msg.options.globalCss ?? new Map(),
           manifest: msg.options.manifest || {},
-          projectRoot: workerData.userOptions.projectRoot,
-          moduleBase: userOptions.moduleBase || "",
-          moduleBasePath: userOptions.moduleBasePath || "",
-          moduleBaseURL: userOptions.moduleBaseURL || "/",
-          moduleRootPath: userOptions.moduleRootPath || "",
+          projectRoot:
+            userOptions.projectRoot ||
+            workerData.userOptions?.projectRoot ||
+            process.cwd(),
+          moduleBase:
+            userOptions.moduleBase ||
+            workerData.userOptions?.moduleBase ||
+            DEFAULT_CONFIG.MODULE_BASE,
+          moduleBasePath:
+            userOptions.moduleBasePath ||
+            workerData.userOptions?.moduleBasePath ||
+            DEFAULT_CONFIG.MODULE_BASE_PATH,
+          moduleBaseURL:
+            userOptions.moduleBaseURL ||
+            workerData.userOptions?.moduleBaseURL ||
+            DEFAULT_CONFIG.MODULE_BASE_URL,
+          moduleRootPath:
+            userOptions.moduleRootPath ||
+            workerData.userOptions?.moduleRootPath,
           verbose: msg.options.verbose || verbose,
           logger,
           panicThreshold: msg.options.panicThreshold || "none",
@@ -422,7 +467,7 @@ export async function messageHandler(
             verbose: verbose,
             logger,
             hmrState,
-            projectRoot: workerData.userOptions.projectRoot,
+            projectRoot: workerData.userOptions?.projectRoot,
             manifest: workerData.serverManifest || {},
             build: {
               server: userOptions.build?.server || "server",
@@ -440,10 +485,10 @@ export async function messageHandler(
             propsPath: msg.propsPath,
             rootPath: msg.rootPath,
             htmlPath: msg.htmlPath,
-            pageExportName: msg.pageExportName || 'default',
-            propsExportName: msg.propsExportName || 'props',
-            rootExportName: msg.rootExportName || 'Root',
-            htmlExportName: msg.htmlExportName || 'Html',
+            pageExportName: msg.pageExportName || "default",
+            propsExportName: msg.propsExportName || "props",
+            rootExportName: msg.rootExportName || "Root",
+            htmlExportName: msg.htmlExportName || "Html",
             url: `/${msg.route}`, // Simple URL for component resolution
             loader,
             verbose,
@@ -497,7 +542,10 @@ export async function messageHandler(
           const actionPath = filePath.startsWith(userOptions.moduleBasePath)
             ? filePath.slice(userOptions.moduleBasePath.length)
             : filePath;
-          const fullPath = join(workerData.userOptions.projectRoot, actionPath);
+          const fullPath = join(
+            workerData.userOptions?.projectRoot,
+            actionPath
+          );
 
           // Load the server action module
           const module = await import(fullPath);
@@ -562,7 +610,7 @@ export async function messageHandler(
         const { id, path } = msg;
         try {
           const module = await import(
-            join(workerData.userOptions.projectRoot, path)
+            join(workerData.userOptions?.projectRoot, path)
           );
           effectiveHandlers.onServerModule?.(id, path, module);
         } catch (error) {

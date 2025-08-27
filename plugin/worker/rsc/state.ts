@@ -28,7 +28,7 @@ if (workerData) {
         if (msg.type === "HMR_UPDATE") {
           // Normalize the path relative to project root
           const normalizedPath = relative(
-            workerData.userOptions.projectRoot,
+            workerData.userOptions?.projectRoot,
             msg.path
           );
           hmrState.set(normalizedPath, {
@@ -39,7 +39,7 @@ if (workerData) {
         } else if (msg.type === "HMR_ACCEPT") {
           // Normalize the path relative to project root
           const normalizedPath = relative(
-            workerData.userOptions.projectRoot,
+            workerData.userOptions?.projectRoot,
             msg.path
           );
           hmrState.delete(normalizedPath);

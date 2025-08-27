@@ -2,6 +2,7 @@ import {
   Worker,
   type ResourceLimits,
   type TransferListItem,
+  type MessagePort,
 } from "node:worker_threads";
 import type { ConfigEnv } from "vite";
 import { getMode, getNodePath } from "../config/getPaths.js";
@@ -73,6 +74,7 @@ export type CreateWorkerOptions = {
     serverManifest?: Manifest;
     bundle?: OutputBundle;
     staticBundle?: OutputBundle;
+    hmrPort?: MessagePort;
   };
   transferList?: TransferListItem[];
   logger?: Logger;
@@ -299,8 +301,8 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       worker.once("message", messageHandler);
       worker.once("exit", exitHandler);
       worker.on('error', (err) => {
-        if (verbose) {
-          logger.error(`[create:${id}] Worker error: ${err.message}`, { error: err });
+        if (verbose && err != null) {
+          logger.error(`[create:${id}] Worker error: ${err.message}.\n${err.stack}`, { error: err });
         }
         const panicError = handleError({
           error: err,

@@ -345,6 +345,7 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
 
     // Create the RSC-to-HTML transform stream for HTML generation
     htmlTransformStream = createRscToHtmlStream({
+      id: handlerOptions.id, // Use the unique ID from handler options
       worker: handlerOptions.worker,
       route: handlerOptions.route,
       url: handlerOptions.url,
@@ -357,9 +358,11 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
       verbose: handlerOptions.verbose,
       signal: handlerOptions.signal,
       logger: handlerOptions.logger,
-      serverPipeableStreamOptions: handlerOptions.serverPipeableStreamOptions,
+      htmlWorker: handlerOptions.htmlWorker,
+      clientPipeableStreamOptions: handlerOptions.clientPipeableStreamOptions,
       onMetrics: handlerOptions.onMetrics,
       htmlTimeout: handlerOptions.htmlTimeout,
+      rscStream: fullRscHandler.rscStream,
     });
 
     // Create stream wrappers that use the handlers
@@ -427,17 +430,6 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
           streamMetrics.bytes += chunk.length;
         });
 
-        // Store error handler for cleanup
-        const htmlErrorHandler = (error: Error) => {
-          if (handlerOptions.verbose) {
-            handlerOptions.logger.error(
-              `[renderPage.server] HTML transform stream error: ${error.message}`
-            );
-          }
-          // Propagate the error to the destination stream to cause fileWriter to reject
-          (destination as any).destroy(error);
-        };
-
         fullRscHandler.rscStream.once("end", () => {
           streamMetrics.duration = performance.now() - streamMetrics.startTime;
           streamMetrics.endTime = performance.now();
@@ -452,23 +444,16 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
 
           // Clean up listeners after metrics are collected
           fullRscHandler.rscStream.removeAllListeners();
-          htmlTransformStream.removeAllListeners();
-          // Remove the specific error handler to prevent hanging
-          htmlTransformStream.removeListener("error", htmlErrorHandler);
         });
 
-        // Pipe the full RSC handler to the HTML transform stream
-        fullRscHandler.pipe(htmlTransformStream);
+        // Use the HTML transform stream's pipe method directly
         htmlTransformStream.pipe(destination);
-
-        // Handle errors from the HTML transform stream
-        htmlTransformStream.once("error", htmlErrorHandler);
 
         return destination;
       },
       abort: () => {
         fullRscHandler.abort();
-        htmlTransformStream.destroy();
+        htmlTransformStream.abort();
       },
     };
 
@@ -497,7 +482,7 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
         fullRscHandler.abort();
       }
       if (htmlTransformStream) {
-        htmlTransformStream.destroy();
+        htmlTransformStream.abort();
       }
     } catch (cleanupError: unknown) {
       handlerOptions.logger?.warn(

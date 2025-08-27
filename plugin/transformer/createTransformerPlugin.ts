@@ -35,12 +35,12 @@ export const createTransformerPlugin = (
 ): VitePluginFn => {
   return (userOptions) => {
     const { name } = options;
-    
+
     // CRITICAL: Use per-environment state to prevent cross-environment cache contamination
     // This fixes the issue where server environment cached modules affect client environment builds
-    const transformationCache = perEnvironmentState<Map<string, { code: string; map: any }>>(
-      () => new Map()
-    );
+    const transformationCache = perEnvironmentState<
+      Map<string, { code: string; map: any }>
+    >(() => new Map());
     const defaultEnvironment =
       options.defaultEnvironment ?? (name === "client" ? "client" : "server");
     const allowedEnvironments =
@@ -64,7 +64,7 @@ export const createTransformerPlugin = (
     const nodeEnv = getNodeEnv(process.env.NODE_ENV);
     let mode = nodeEnv;
     let runtimeResolvedUserOptions = resolvedUserOptions;
-    
+
     // Use global cache for transformation results to ensure consistent hashing across all plugin instances
     const outDir = resolvedUserOptions.build.outDir || "dist";
     const serverDir = join(
@@ -123,37 +123,44 @@ export const createTransformerPlugin = (
         if (!isValidEnv(mode)) {
           throw new Error(`Invalid mode: ${mode}`);
         }
-        
+
         // CRITICAL: Re-resolve options with runtime mode to get correct importServerPath
         // This ensures test mode uses react-server-dom-esm/server.node instead of server
         const runtimeOptionsResult = resolveOptions({
           ...userOptions,
           loader: {
             ...userOptions.loader,
-            mode: mode
-          }
+            mode: mode,
+          },
         });
         if (runtimeOptionsResult.type === "success") {
           runtimeResolvedUserOptions = runtimeOptionsResult.userOptions;
         }
-        
+
         // CRITICAL: Update moduleID function with correct configEnv for build mode
         // This ensures client component hashing uses the correct build context
         if (runtimeResolvedUserOptions.loader) {
           runtimeResolvedUserOptions.loader.moduleID = createDefaultModuleID(
             runtimeResolvedUserOptions,
-            { command: config.command, mode: config.mode, isSsrBuild: isSSR, isPreview: false },
+            {
+              command: config.command,
+              mode: config.mode,
+              isSsrBuild: isSSR,
+              isPreview: false,
+            },
             mode
           );
         }
-        
+
         // Note: condition override is set in env plugin during config phase
         // Verbose summary (config hook has void context, use config logger)
         const logger = config.customLogger || config.logger;
         logger.info(
           `${logPrefix} configResolved: isBuild=${isBuild} isSSR=${isSSR} mode=${mode} allowed=${JSON.stringify(
             allowedEnvironments
-          )} defaultEnv=${defaultEnvironment} importServerPath=${runtimeResolvedUserOptions.loader?.importServerPath}`
+          )} defaultEnv=${defaultEnvironment} importServerPath=${
+            runtimeResolvedUserOptions.loader?.importServerPath
+          }`
         );
       },
       async buildStart() {
@@ -166,15 +173,7 @@ export const createTransformerPlugin = (
         // dist/server / env=server - it adds registerClientReference and registerServerReference based on directive (ssg portable)
         // dist/client / env=ssr - removes use client directive and hides server modules, hides client entry or without exports (ssg portable)
         // dist/static / env=client  -  removes use client directive and hides server modules, emits client entry (and is browser portable)
-        async handler(
-          code,
-          id,
-          { ssr } = {}
-        ) {
-
-
-
-          
+        async handler(code, id, { ssr } = {}) {
           if (
             nodeModulesPattern.test(id) ||
             !modulePattern.test(id) ||
@@ -183,7 +182,7 @@ export const createTransformerPlugin = (
             return null;
           }
           let [, normalizedPath] = resolvedUserOptions.normalizer(id);
-          
+
           // Check if this is a built file that doesn't need transformation
           // Normalize paths to handle cross-platform differences
           const normalizedId = id.replace(/\\/g, "/");
@@ -191,48 +190,66 @@ export const createTransformerPlugin = (
           const normalizedClientDir = clientDir.replace(/\\/g, "/");
 
           // Check if the file is from a build output directory
-          const isFromServerBuild = normalizedId.includes(`/${normalizedServerDir}/`) || normalizedId.includes(`dist/server/`);
-          const isFromClientBuild = normalizedId.includes(`/${normalizedClientDir}/`) || normalizedId.includes(`dist/client/`);
+          const isFromServerBuild =
+            normalizedId.includes(`/${normalizedServerDir}/`) ||
+            normalizedId.includes(`dist/server/`);
+          const isFromClientBuild =
+            normalizedId.includes(`/${normalizedClientDir}/`) ||
+            normalizedId.includes(`dist/client/`);
           const isFromStaticBuild = normalizedId.includes(`dist/static/`);
-          
+
           // Check if this looks like a built/hashed file (should never be transformed)
           // Built files have hashes and are already processed
-          const isBuiltFile = isBuild && /-[a-zA-Z0-9_]{6,}\.(js|mjs|cjs)$/.test(normalizedId);
-          
+          const isBuiltFile =
+            isBuild && /-[a-zA-Z0-9_]{6,}\.(js|mjs|cjs)$/.test(normalizedId);
 
-          
           // Check if this file is already transformed (contains registerClientReference)
-          const isAlreadyTransformed = code.includes(runtimeResolvedUserOptions.loader?.registerClientReferenceName ?? "registerClientReference");
+          const isAlreadyTransformed = code.includes(
+            runtimeResolvedUserOptions.loader?.registerClientReferenceName ??
+              "registerClientReference"
+          );
           if (isAlreadyTransformed) {
             if (runtimeResolvedUserOptions.verbose) {
               this.environment?.logger?.info(
-                `[react-${name}-transform] Skipping already transformed file: ${normalizedPath}`
+                `[react-${name}-transform] Encountered already transformed file: ${id}. This indicates two transformers are running on the same file: ${
+                  this.environment?.name
+                } and ${Object.entries(this.environment?.plugins ?? {})
+                  .map(([name, plugin]) => `${name} (${plugin.name})`)
+                  .join(", ")}`
               );
+              this.environment?.logger?.info('')
             }
-            return null;
+            return {
+              code: code,
+              map: null,
+            };
           }
-          
+
           // Check if we've already transformed this module to avoid double-hashing
           // Include environment context in cache key since different environments need different transformations
           const isServerEnv = this.environment?.name === "server";
           // CRITICAL: Use per-environment cache to prevent cross-environment contamination
           const envCache = transformationCache(this);
-          const cacheKey = `${normalizedPath}:${isServerEnv ? 'server' : 'client'}:${code}`;
+          const cacheKey = `${normalizedPath}:${
+            isServerEnv ? "server" : "client"
+          }:${code}`;
           if (envCache.has(cacheKey)) {
             if (runtimeResolvedUserOptions.verbose) {
               this.environment?.logger?.info(
-                `[react-${name}-transform] Using cached transformation for: ${normalizedPath} (${isServerEnv ? 'server' : 'client'}) env=${this.environment?.name}`
+                `[react-${name}-transform] Using cached transformation for: ${normalizedPath} (${
+                  isServerEnv ? "server" : "client"
+                }) env=${this.environment?.name}`
               );
             }
             return envCache.get(cacheKey);
           }
-          
+
           // Get the original source content for consistent hashing
           // Read the file directly to ensure we use the original content, not transformed code
           let originalSourceContent: string;
           try {
             const sourcePath = resolve(userProjectRoot, id);
-            originalSourceContent = readFileSync(sourcePath, 'utf-8');
+            originalSourceContent = readFileSync(sourcePath, "utf-8");
           } catch (error) {
             // Fallback to the provided code if we can't read the file
             originalSourceContent = code;
@@ -240,16 +257,19 @@ export const createTransformerPlugin = (
 
           // Use the original normalized path for moduleID function calls
           // This ensures registerClientReference calls use the correct paths
-          let finalModuleID = runtimeResolvedUserOptions.loader?.moduleID ? 
-            runtimeResolvedUserOptions.loader.moduleID(normalizedPath, originalSourceContent) : 
-            normalizedPath;
-          
+          let finalModuleID = runtimeResolvedUserOptions.loader?.moduleID
+            ? runtimeResolvedUserOptions.loader.moduleID(
+                normalizedPath,
+                originalSourceContent
+              )
+            : normalizedPath;
+
           if (runtimeResolvedUserOptions.verbose) {
             this.environment?.logger?.info(
               `[react-${name}-transform] ModuleID transformation: ${normalizedPath} -> ${finalModuleID}`
             );
           }
-     
+
           const transformer = createTransformer({
             parseFn: (source) => {
               const ast = this.parse(source, {
@@ -276,11 +296,25 @@ export const createTransformerPlugin = (
           // Skip files from output directories that are already built and transformed
           // But allow transformation of server-built client components that need registerClientReference
 
-          if (isFromServerBuild || isFromClientBuild || isFromStaticBuild || isBuiltFile) {
-            const buildType = isFromServerBuild ? "server" : isFromClientBuild ? "client" : isFromStaticBuild ? "static" : "built";
-            
+          if (
+            isFromServerBuild ||
+            isFromClientBuild ||
+            isFromStaticBuild ||
+            isBuiltFile
+          ) {
+            const buildType = isFromServerBuild
+              ? "server"
+              : isFromClientBuild
+              ? "client"
+              : isFromStaticBuild
+              ? "static"
+              : "built";
+
             // Allow transformation of server-built client components
-            if (isFromServerBuild && runtimeResolvedUserOptions.loader?.isClientComponentByName?.(id)) {
+            if (
+              isFromServerBuild &&
+              runtimeResolvedUserOptions.loader?.isClientComponentByName?.(id)
+            ) {
               if (runtimeResolvedUserOptions.verbose) {
                 this.environment?.logger?.info(
                   `[react-${name}-transform] Allowing transformation of server-built client component: ${id}`
@@ -305,12 +339,12 @@ export const createTransformerPlugin = (
             normalizedPath,
             finalModuleID
           );
-          
+
           // If transformer returns null (e.g., for built files), return original code
           if (!transformResult) {
             return { code, map: null };
           }
-          
+
           const { code: transformed, map } = transformResult;
 
           // Store the transformation result in per-environment cache

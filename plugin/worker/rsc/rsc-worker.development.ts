@@ -16,6 +16,7 @@ import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { createLogger } from "vite";
 import { handleError } from "../../error/handleError.js";
 import { sendMessage } from "../sendMessage.js";
+import { serializeError } from "../../error/serializeError.js";
 
 
 // Initialize worker
@@ -24,7 +25,7 @@ if (!parentPort) {
 }
 
 // In test mode, we want errors to propagate up immediately
-const logger = createLogger(workerData.resolvedConfig.logLevel, {
+const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info", {
   prefix: "rsc-worker",
 });
 // Handle all messages through the unified messageHandler
@@ -46,14 +47,15 @@ const reactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
 try {
   // Check if we're in build mode - if so, skip loader registration since files are already built
   const isBuildMode = workerData.configEnv?.command === "build" || 
-                     workerData.resolvedConfig.mode === "production";
+                     workerData.resolvedConfig?.mode === "production";
+  const isDevServerMode = workerData.configEnv?.command === "serve";
   
 
   
   if (isBuildMode) {
     logger.info("Build mode detected - skipping loader registration since files are already built");
-  } else {
-    logger.info("Development/test mode detected - registering loaders for source file processing");
+  } else if (isDevServerMode) {
+    logger.info("Development/dev server mode detected - registering loaders for source file processing");
   }
 
   // Create channels for each loader (only needed if not in build mode)
@@ -80,40 +82,32 @@ try {
     });
 
     cssLoaderChannel.port2.on("message", cssLoaderMessageHandler);
-    cssLoaderChannel.port2.on("messageerror", (error: Error) => {
+    cssLoaderChannel.port2.on("messageerror", (error) => {
       logger.error("CSS loader message serialization failed.", { error });
       if (parentPort) {
         parentPort.postMessage({
           type: "ERROR",
           id: "css-loader",
-          error: {
-            message: "Message serialization failed in CSS loader",
-            name: "MessageError",
-            stack: undefined,
-          },
+          error: serializeError(error),
         });
       }
     });
 
     envLoaderChannel.port2.on("message", envLoaderMessageHandler);
-    envLoaderChannel.port2.on("messageerror", (error: Error) => {
+    envLoaderChannel.port2.on("messageerror", (error) => {
       logger.error("Env loader message serialization failed.", { error });
       if (parentPort) {
         parentPort.postMessage({
           type: "ERROR",
           id: "env-loader",
-          error: {
-            message: "Message serialization failed in env loader",
-            name: "MessageError",
-            stack: undefined,
-          },
+          error: serializeError(error),
         });
       }
     });
   }
 
   // Use projectRoot for loader paths, fallback to resolvedConfig.root
-  const projectRoot = workerData.userOptions.projectRoot || workerData.resolvedConfig.root;
+  const projectRoot = workerData.userOptions?.projectRoot || workerData.resolvedConfig?.root;
   
   const reactLoaderPath =
     "file://" +
@@ -224,53 +218,12 @@ try {
   }
   
   parentPort!.on("messageerror", (error: Error) => {
-    console.error(
-      "[rsc-worker] Parent port message serialization failed:",
-      error
-    );
+    logger.error("Parent port message serialization failed.", { error });
     // Can't send via parentPort since that's what failed, so just log
   });
 
-  const { hmrPort } = workerData;
-  if (hmrPort) {
-    // Start the message port
-    hmrPort.start();
-
-    // Listen for HMR messages
-    hmrPort.on("message", (message: RscWorkerInputMessage) => {
-      if (message.type === "HMR_UPDATE") {
-        // Invalidate the module in the worker
-        parentPort!.postMessage({
-          type: "HMR_UPDATE",
-          id: message.id,
-          routes: message.routes,
-        } satisfies HmrUpdateMessage);
-      } else if (message.type === "HMR_ACCEPT") {
-        // Handle the update
-        parentPort!.postMessage({
-          type: "HMR_ACCEPT",
-          id: message.id,
-          routes: message.routes,
-        } satisfies HmrAcceptMessage);
-      }
-    });
-
-    // Handle HMR port message errors
-    hmrPort.on("messageerror", (error: Error) => {
-      logger.error("HMR port message serialization failed.", { error });
-      if (parentPort) {
-        parentPort.postMessage({
-          type: "ERROR",
-          id: "hmr-port",
-          error: {
-            message: "Message serialization failed in HMR port",
-            name: "MessageError",
-            stack: undefined,
-          },
-        });
-      }
-    });
-  }
+  // HMR port handling is disabled in dev server mode to avoid DataCloneError
+  // TODO: Re-enable HMR when transfer list issues are resolved
 
   // Notify parent that we're ready
   parentPort!.postMessage({

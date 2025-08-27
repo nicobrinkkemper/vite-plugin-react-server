@@ -31,7 +31,7 @@ const IS_CLIENT_COMPONENT_CODE = (code: string, moduleId?: string) =>
 const IS_CLIENT_COMPONENT_BY_CODE = (code: string) =>
   code.match(CLIENT_COMPONENT_FILE) != null || false;
 
-const IS_CLIENT_COMPONENT_BY_NAME = (moduleId: string) =>
+const IS_CLIENT_COMPONENT_BY_NAME = (moduleId: string, transformedModuleId?: string) =>
   CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase()) || false;
 // Directive configurations
 export const DIRECTIVE_CONFIGS = {

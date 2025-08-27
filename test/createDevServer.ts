@@ -58,6 +58,12 @@ export async function createClientDevServer(optionOverrides: Partial<StreamPlugi
     cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
   });
   
-  await servers[portKey].listen();
+  // Add timeout to prevent hanging
+  const listenPromise = servers[portKey].listen();
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Dev server startup timeout')), 10000);
+  });
+  
+  await Promise.race([listenPromise, timeoutPromise]);
   return servers[portKey];
 } 

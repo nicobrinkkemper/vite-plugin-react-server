@@ -9,7 +9,7 @@ export const testUserOptions = {
   propsExportName: "props",
   moduleBasePath: '',
   moduleBaseURL: typeof process.env.VITE_BASE_URL === 'string' ? process.env.VITE_BASE_URL : '/',
-  verbose: true,
+  verbose: false,
   build: {
     pages: ["/"],
     assetsDir: 'assets',
@@ -21,6 +21,6 @@ export const testUserOptions = {
   css: {
     inlineCss: false,
   },
-} as StreamPluginOptions;
+} satisfies StreamPluginOptions;
 
 

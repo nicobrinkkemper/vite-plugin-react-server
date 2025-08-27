@@ -29,6 +29,7 @@ export interface CreateHandlerOptionsParams {
   autoDiscoveredFiles?: AutoDiscoveredFiles;
   id?: string;
   children?: any;
+  condition?: string;
 }
 
 /**

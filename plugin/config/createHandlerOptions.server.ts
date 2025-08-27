@@ -347,6 +347,7 @@ export async function createHandlerOptions(
   }
 
   // Create HTML worker if:
+  // Create HTML worker if:
   // 1. useHtmlWorker is enabled in dev config AND we're in serve mode, OR
   // 2. useHtmlWorker is enabled in build config AND we're in build mode
   const shouldCreateHtmlWorker = (userOptions.dev?.useHtmlWorker && isServeMode) || 
@@ -365,7 +366,7 @@ export async function createHandlerOptions(
       
       const workerResult = await createWorker({
         currentCondition: "react-server",
-        reverseCondition: "react-client",
+        reverseCondition: "react-client", // HTML worker needs react-client condition
         workerPath: userOptions.htmlWorkerPath,
         verbose: userOptions.verbose,
         logger,

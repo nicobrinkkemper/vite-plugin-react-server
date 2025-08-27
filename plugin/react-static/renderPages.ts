@@ -14,7 +14,7 @@ import type { RenderPagesResult, RenderPageResult } from "../types.js";
 import type { RenderPagesFn} from "./types.js";
 import { handleError } from "../error/handleError.js";
 import { fileWriter } from "./fileWriter.js";
-import { routeToURL } from "../utils/routeToURL.js";
+
 import type { Manifest } from "vite";
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
@@ -87,7 +87,8 @@ export const renderPages: RenderPagesFn = (routes, handlerOptions, renderPage) =
           }
         } 
 
-        const pageRenderer = renderPage({
+        // Create unique handler options for this route
+        const routeHandlerOptions = {
           ...options,
           manifest,
           route,
@@ -98,16 +99,11 @@ export const renderPages: RenderPagesFn = (routes, handlerOptions, renderPage) =
           cssFiles: cssFilesByPage.get(route) ?? new Map(),
           // Ensure global CSS is available to Html component
           globalCss: options.globalCss ?? new Map(),
-          // Add required fields that are missing from RenderPagesHandlerOptions
-          PageComponent: undefined as any,
-          RootComponent: undefined as any,
-          HtmlComponent: undefined as any,
-          url: routeToURL(route, options.moduleBaseURL, options.build.rscOutputPath),
-          pageProps: undefined,
-          // Ensure onMetrics and onEvent are passed through
-          onMetrics: options.onMetrics,
-          onEvent: options.onEvent,
-        });
+          // Generate unique ID for this route
+          id: `${route}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        };
+
+        const pageRenderer = renderPage(routeHandlerOptions);
 
         if (options.verbose) {
           options.logger?.info(`[renderPages] Starting to process route: ${route}`);

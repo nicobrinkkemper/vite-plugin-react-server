@@ -182,6 +182,10 @@ export function serializeResolvedConfig<T extends ResolvedConfig = ResolvedConfi
   config: T,
   knownNonSerializableFunctions: Set<string> = VITE_NON_SERIALIZABLE_FUNCTIONS
 ) {
+  if (!config) {
+    return undefined;
+  }
+
   const {
     getSortedPluginHooks: _getSortedPluginHooks,
     getSortedPlugins: _getSortedPlugins,

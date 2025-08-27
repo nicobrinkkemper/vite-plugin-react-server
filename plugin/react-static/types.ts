@@ -176,12 +176,12 @@ export type RscToHtmlOptions = Pick<
   CreateHandlerOptions,
   | "id"
   | "worker"
+  | "htmlWorker"
   | "route"
   | "url"
   | "moduleRootPath"
   | "moduleBaseURL"
   | "moduleBasePath"
-  | "serverPipeableStreamOptions"
   | "clientPipeableStreamOptions"
   | "build"
   | "projectRoot"
@@ -191,6 +191,12 @@ export type RscToHtmlOptions = Pick<
   | "logger"
   | "htmlTimeout"
   | "onMetrics"
+  | "rscStream"
 >;
 
-export type RscToHtmlStreamFn = (options: RscToHtmlOptions) => Transform;
+export type RscToHtmlStreamFn = (options: RscToHtmlOptions) => {
+  abort: (reason?: unknown) => void;
+  pipe: <Writable extends NodeJS.WritableStream>(
+    destination: Writable
+  ) => Writable;
+};

@@ -14,6 +14,7 @@ import {
   createRscStreamMetrics,
   setupRscStreamEventHandlers,
 } from "./createRscStream.utils.js";
+import { toError } from "../error/toError.js";
 
 assertNonReactServer();
 
@@ -33,7 +34,7 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
     route,
     verbose = false,
     // Worker options
-    worker,
+    rscWorker,
     // Module resolution options
     moduleBaseURL,
     build,
@@ -58,7 +59,7 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
 
 
     // Ensure we have a worker
-    if (!worker) {
+    if (!rscWorker) {
       throw new Error("RSC worker is required for client-side RSC streaming");
     }
 
@@ -114,9 +115,9 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
           break;
         case 'ERROR':
           if (verbose) {
-            console.log(`[CLIENT-DEBUG] Stream error:`, message.error);
+            console.log(`[CLIENT-DEBUG] Stream error: ${message.error?.message}`, {error: message.error});
           }
-          const error = new Error(message.error);
+          const error = toError(message.error);
           rscStream.destroy(error);
           break;
         case 'RSC_METRICS':
@@ -138,7 +139,7 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
     };
 
     // Send the RSC stream request to the worker with both MessagePorts
-    worker.postMessage({
+    rscWorker.postMessage({
       type: "INIT",
       id: route,
       dataPort: dataPort2,

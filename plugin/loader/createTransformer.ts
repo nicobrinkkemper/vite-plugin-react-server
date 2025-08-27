@@ -39,16 +39,11 @@ export const createTransformer: TransformerFactory = ({
     if (verbose) {
       logger.info(`[createTransformer] moduleID function called: ${moduleId} -> ${transformedModuleId}`);
     }
-    if (verbose) {
+    if (verbose && moduleId.includes("client")) {
       logger.info(
         `[createTransformer:${
           isServerEnvironment ? "server" : "client"
         }] Loading: ${moduleId}`
-      );
-      logger.info(
-        `[createTransformer:${
-          isServerEnvironment ? "server" : "client"
-        }] Source preview: "${source.substring(0, 50)}"`
       );
     }
 
@@ -63,6 +58,7 @@ export const createTransformer: TransformerFactory = ({
 
     if (hasClientDirective === false && hasServerDirective === false) {
       // For files without directives, handle differently based on environment
+
       if (isServerEnvironment && loader?.isClientComponentByName?.(moduleId, transformedModuleId)) {
         // In server environment, client components without directives should be transformed to registerClientReference
         // This handles cases where client components don't have explicit "use client" directives

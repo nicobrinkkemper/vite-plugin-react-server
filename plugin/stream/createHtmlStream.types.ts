@@ -17,8 +17,6 @@ export type CreateHtmlStreamOptions = Pick<
   | "verbose"
   | "logger"
   | "htmlWorker"
-  | "htmlWorkerPath"
-  | "rscWorkerPath"
   | "id"
   | "children"
 > & {

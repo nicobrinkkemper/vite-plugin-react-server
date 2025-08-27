@@ -49,22 +49,36 @@ export const handleServerAction: HandleWorkerServerActionFn =
 
       // Create a pass-through stream for the response
 
-      // Handle worker messages
+      // Handle worker messages with proper error handling
       messageHandler = (message: RscWorkerOutputMessage) => {
-        if (message.type === "RSC_CHUNK") {
-          passThrough.write(message.chunk);
-        } else if (message.type === "RSC_END") {
-          if (messageHandler) {
-            cleanupServerAction(passThrough, worker, messageHandler, res);
+        try {
+          if (message.type === "RSC_CHUNK") {
+            passThrough.write(message.chunk);
+          } else if (message.type === "RSC_END") {
+            if (messageHandler) {
+              cleanupServerAction(passThrough, worker, messageHandler, res);
+            }
+          } else if (message.type === "ERROR") {
+            if (messageHandler) {
+              cleanupServerAction(
+                passThrough,
+                worker,
+                messageHandler,
+                res,
+                message.error,
+                logger
+              );
+            }
           }
-        } else if (message.type === "ERROR") {
+        } catch (error) {
+          logger.error(`[handleServerAction] Message handler error: ${error}`);
           if (messageHandler) {
             cleanupServerAction(
               passThrough,
               worker,
               messageHandler,
               res,
-              message.error,
+              error,
               logger
             );
           }

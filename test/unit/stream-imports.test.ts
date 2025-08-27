@@ -32,11 +32,7 @@ describe("Stream Utilities Import Test", () => {
         expect(typeof createRscWorkerStream).toBe("function");
       });
 
-      it("should import HTML worker stream adapter", async () => {
-        const { createHtmlWorkerStream } = await import("../../plugin/stream/createHtmlWorkerStream.js");
-        expect(createHtmlWorkerStream).toBeDefined();
-        expect(typeof createHtmlWorkerStream).toBe("function");
-      });
+
 
       it("should NOT import client modules (conditional exports working!)", async () => {
         // These should fail in server environment - conditional exports are working!

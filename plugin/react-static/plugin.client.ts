@@ -41,6 +41,8 @@ import { toError } from "../error/toError.js";
 import { addStaticManifest, manifests } from "../bundle/manifests.js";
 import type { Worker } from "node:worker_threads";
 import { resolveAutoDiscover } from "../config/index.js";
+import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 // cssCollector removed - using filesystem-based CSS processing
 
 assertNonReactServer();
@@ -278,9 +280,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           return;
         }
 
-        // Try to load the server manifest from the server build
-        const { existsSync, readFileSync } = await import("node:fs");
-        const { join } = await import("node:path");
 
         const manifestPath = typeof resolvedConfig?.build?.manifest === "string" 
           ? resolvedConfig.build.manifest 
@@ -302,8 +301,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         logger?.info(
           "[react-static-client] Loaded server manifest for static generation"
         );
-
-
 
         // Load static manifest from filesystem for CSS path mapping
         const { tryManifest } = await import("../helpers/tryManifest.js");
@@ -484,6 +481,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           {
             ...handlerOptions, // Use the clean options instead of the original handlerOptions
             worker: rscWorker, // Pass the RSC worker for RSC rendering only
+            rscWorker: rscWorker, // Pass the RSC worker for RSC rendering only
             loader: buildLoader, // Use proper build loader instead of no-op
             logger: logger,
             autoDiscoveredFiles: autoDiscoveredFiles,

@@ -14,7 +14,8 @@ resolveOptions({
   dev: {
     // we need this flag, since normally we don't need a html worker in dev mode
     // since its all handled in the browser
-    useHtmlWorker: getCondition() === "react-server"
+    useHtmlWorker: getCondition() === "react-server",
+    useRscWorker: true,
   }
 });
 

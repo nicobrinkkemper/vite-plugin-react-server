@@ -30,6 +30,7 @@ import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
  * - server (custom) → dist/server (React server components with registerClientReference)
  */
 export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
+  console.log(`[createEnvironmentPlugin] Creating environment plugin instance`);
   const environmentPlugin: Plugin = {
     name: "vite:plugin-react-server/environments",
     enforce: "pre",
@@ -48,13 +49,23 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       }
 
       // Add single dynamic transformer that adapts based on current environment
-      config.plugins.push(
-        createTransformerPlugin({
-          name: "dynamic",
-          defaultEnvironment: "client", // Default fallback, will be overridden by actual environment
-          allowedEnvironments: ["client", "ssr", "server"], // Allow all environments
-        })(options)
+      // Check if transformer plugin already exists to prevent duplicates
+      const existingTransformer = config.plugins?.find(
+        (plugin) => plugin && typeof plugin === 'object' && 'name' in plugin && plugin.name === "vite-plugin-react-server:transform-dynamic"
       );
+      
+      if (!existingTransformer) {
+        console.log(`[createEnvironmentPlugin] Adding transformer plugin`);
+        config.plugins.push(
+          createTransformerPlugin({
+            name: "dynamic",
+            defaultEnvironment: "client", // Default fallback, will be overridden by actual environment
+            allowedEnvironments: ["client", "ssr", "server"], // Allow all environments
+          })(options)
+        );
+      } else {
+        console.log(`[createEnvironmentPlugin] Transformer plugin already exists, skipping`);
+      }
 
       // Note: Hash coordination is handled by the sequential build approach
       // Each environment will use the manifest from the previous build

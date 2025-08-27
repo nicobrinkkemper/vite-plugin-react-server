@@ -38,13 +38,29 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
 
     // Forward messages from the plugin's HMR channel to the worker's channel
     hmrChannel.port1.addEventListener("message", (event: Event) => {
-      workerHmrChannel.port1.postMessage((event as MessageEvent).data);
+      try {
+        workerHmrChannel.port1.postMessage((event as MessageEvent).data);
+      } catch (error) {
+        // Ignore HMR errors for now to avoid DataCloneError
+        if (userOptions.verbose) {
+          server.config.logger.info(`[restartWorker] HMR message error: ${error}`);
+        }
+      }
+    });
+
+    // Handle HMR channel errors
+    hmrChannel.port1.addEventListener("messageerror", (error) => {
+      if (userOptions.verbose) {
+        server.config.logger.warn(`[restartWorker] HMR message error: ${error}`);
+      }
     });
 
     if (userOptions.verbose) {
       server.config.logger.info(`[restartWorker] userOptions.projectRoot: ${userOptions.projectRoot}`);
       server.config.logger.info(`[restartWorker] server.config.root: ${server.config.root}`);
       server.config.logger.info(`[restartWorker] Using projectRoot: ${userOptions.projectRoot || server.config.root}`);
+      server.config.logger.info(`[restartWorker] configEnv.command: ${configEnv?.command}`);
+      server.config.logger.info(`[restartWorker] configEnv.mode: ${configEnv?.mode}`);
     }
 
     const workerResult = await createWorker({
@@ -67,7 +83,7 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
         id: "worker/rsc",
         serverManifest: {}, // staticManifest removed from AutoDiscoveredFiles
       },
-      transferList: [workerHmrChannel.port2],
+      transferList: [workerHmrChannel.port2], // Transfer the port properly
     });
     
     if (workerResult.type === "success") {

@@ -3,7 +3,6 @@ import {
   type Manifest,
   createLogger,
   type Logger,
-  type ResolvedConfig,
   type ConfigEnv,
 } from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
@@ -16,7 +15,7 @@ import { configureReactServer } from "../dev-server/configureReactServer.client.
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { assertNonReactServer } from "../config/getCondition.js";
-import { setWorker } from "../helpers/workerManager.js";
+import { setWorker, clearWorker } from "../helpers/workerManager.js";
 import { MessageChannel } from "node:worker_threads";
 assertNonReactServer();
 
@@ -142,6 +141,13 @@ export const reactServerPlugin: VitePluginFn =
           onWorkerCreated: (worker) => {
             setWorker(worker);
           },
+        });
+
+        // Clean up worker when dev server closes
+        server.httpServer?.on('close', () => {
+          const logger = server.config.customLogger || server.config.logger;
+          logger?.info("[vite-plugin-react-server] Dev server closing, cleaning up worker...");
+          clearWorker();
         });
       },
       async generateBundle(_options, bundle) {

@@ -6,7 +6,15 @@ import {
 } from "vite-plugin-react-server/config";
 
 
-resolveOptions({ moduleBase: "test/streams", Page: "test/streams/TestPage.tsx", verbose: false });
+resolveOptions({ 
+  moduleBase: "test/streams", 
+  Page: "test/streams/TestPage.tsx", 
+  verbose: false,
+  dev: {
+    useRscWorker: true,
+    useHtmlWorker: false,
+  }
+});
 
 describe("Simple Stream Test", () => {
   it("should create RSC stream with correct properties", async () => {

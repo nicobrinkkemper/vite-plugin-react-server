@@ -138,7 +138,7 @@ describe("plugin examples build test", () => {
     expect(events.some(e => e.type === "build.writeBundle.client")).toBe(true);
   });
 
-  it("should collect css files when server builds are available", async () => {
+  it("should collect css files", async () => {
     if(Array.isArray(htmlContent) && htmlContent.length > 0) {
       expect(htmlContent[0]).toContain(".css");
     } else {
@@ -146,9 +146,9 @@ describe("plugin examples build test", () => {
     }
   });
 
-  it("should generate correct CSS paths without src.css artifacts when server builds are available", async () => {
+  it("should generate correct CSS paths without src/ artifacts", async () => {
     // should generate in all environments
-    expect(htmlContent.length).toBeGreaterThan(0);
+    expect(htmlContent.length).toBeGreaterThan(0); 
 
     // Extract all href attributes from link tags
     const linkMatches = htmlContent.flatMap((content) => content.match(/href="([^"]*\.css[^"]*)"/g) ?? []);

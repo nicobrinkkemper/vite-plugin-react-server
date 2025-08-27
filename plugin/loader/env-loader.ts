@@ -28,9 +28,9 @@ export async function initialize(data: {
   resolvedConfig = data.resolvedConfig;
   
   // Extract envPrefix from resolved config
-  envPrefix = Array.isArray(resolvedConfig.envPrefix)
-    ? resolvedConfig.envPrefix[0]
-    : resolvedConfig.envPrefix || DEFAULT_CONFIG.ENV_PREFIX;
+  envPrefix = Array.isArray(resolvedConfig?.envPrefix)
+    ? resolvedConfig?.envPrefix[0]
+    : resolvedConfig?.envPrefix || DEFAULT_CONFIG.ENV_PREFIX;
 
   // Hydrate user options
   const resolvedUserOptions = hydrateUserOptions(data.userOptions);
