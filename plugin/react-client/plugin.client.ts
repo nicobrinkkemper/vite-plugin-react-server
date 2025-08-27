@@ -54,23 +54,23 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
     name: "vite:plugin-react-server/client",
     enforce: "post",
     async config(config, viteConfigEnv) {
-      // Debug logging removed for performance
+      
       configEnv = viteConfigEnv;
       if (configEnv.command !== "build") {
         return;
       }
       
-      // Debug logging removed for performance
+      
       
       if(typeof config?.build?.ssr === "boolean" || typeof config?.build?.ssr === "string") {
         implicitSsr = config?.build?.ssr === "true" || config?.build?.ssr === true;
-        // Debug logging removed for performance
+        
       } else if(implicitSsr === undefined) {
         implicitSsr = configEnv.isSsrBuild;
-        // Debug logging removed for performance
+        
       }
       
-      // Debug logging removed for performance
+      
       const logger = config.customLogger || createLogger();
       const autoDiscoverResult = await resolveAutoDiscover({
         config,

@@ -15,7 +15,7 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
     const { rscStream, logger, verbose = false } = options;
     let { moduleRootPath, moduleBasePath, moduleBaseURL } = options;
 
-    if(options.children) {
+    if (options.children) {
       if (verbose) {
         logger?.info(
           `[createNodeStream.client] Options already have children, skipping conversion`
@@ -26,7 +26,7 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
         children: options.children as React.ReactElement,
       };
     }
-    if(!rscStream) {
+    if (!rscStream) {
       throw new Error(
         "[createNodeStream.client] no rscStream nor children provided"
       );
@@ -68,34 +68,16 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
         }, destroyed: ${rscStream.destroyed}`
       );
     }
-
-    // Create a function component that processes the RSC stream
-    const RscStreamComponent = () => {
-      if (verbose) {
-        logger?.info(
-          `[createNodeStream.client] ReactDOMClient.createFromNodeStream available: ${typeof ReactDOMClient.createFromNodeStream}`
-        );
-      }
-      
-      // Use the same approach as HTML worker: convert RSC stream to React elements
-      const nodeStreamResult = ReactDOMClient.createFromNodeStream(
-        rscStream,
-        moduleRootPath,
-        moduleBaseURL
-      );
-      
-      if (verbose) {
-        logger?.info(
-          `[createNodeStream.client] ReactDOMClient.createFromNodeStream result: ${JSON.stringify(typeof nodeStreamResult)}`
-        );
-      }
-      
-      // Let React handle Suspense Exception naturally - don't catch it
-      return React.use(nodeStreamResult);
-    };
-
     return {
       type: "client" as const,
-      children: React.createElement(RscStreamComponent),
+      children: React.createElement(() =>
+        React.use(
+          ReactDOMClient.createFromNodeStream(
+            rscStream,
+            moduleRootPath,
+            moduleBaseURL
+          )
+        )
+      ),
     };
   };

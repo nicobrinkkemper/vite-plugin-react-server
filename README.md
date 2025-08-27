@@ -304,7 +304,7 @@ This project uses experimental React features and includes a patch system for co
 | [API Reference](./docs/api-reference.md) |
 | [React Compatibility](./docs/react-type-compatibility.md) |
 | [Troubleshooting](./docs/troubleshooting-guide.md) |
-| [Testing](./docs/testing.md) |
+| [Package Exports](./docs/package-exports.md) |
 
 
 ## License

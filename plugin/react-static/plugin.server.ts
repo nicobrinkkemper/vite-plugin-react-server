@@ -168,7 +168,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       timing.renderStart = performance.now();
     },
     async writeBundle(_options, bundle) {
-      // Debug logging removed for performance
+      
 
       let panicError: Error | null = null;
       let bundleManifest:
@@ -274,7 +274,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         const indexHtml = staticManifest?.["index.html"]?.file;
         const serverPipeableStreamOptions = {
           ...userOptions.serverPipeableStreamOptions,
-          bootstrapModules: [
+          bootstrapScripts: [
             ...(indexHtml ? [baseURL(indexHtml)] : []),
             ...(userOptions.serverPipeableStreamOptions?.bootstrapModules ??
               []),

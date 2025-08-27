@@ -19,7 +19,7 @@ export const createEnvPlugin =
       enforce: "post",
 
       async config(config: UserConfig, configEnv) {
-        // Debug logging removed for performance
+        
 
         // Set environment variables for the build
         if (configEnv.isSsrBuild) {

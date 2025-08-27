@@ -24,8 +24,8 @@ export default defineConfig({
   plugins: [
     vitePluginReactServer({
       moduleBase: "src",
-      Page: (route) => `src/pages${route}page.tsx`,
-      props: (route) => `src/pages${route}props.ts`,
+        Page: (url) => `src/pages${url}/page.tsx`,
+  props: (url) => `src/pages${url}/props.ts`,
       build: { pages: ["/", "/about/"] }
     })
   ]
@@ -60,7 +60,7 @@ The plugin automatically adapts to different environments using Node.js conditio
   "scripts": {
     "dev": "NODE_OPTIONS='--conditions react-server' vite",
     "dev:client": "vite",
-    "build": "npm run build --app",
+    "build": "vite build --app",
     "build:static": "vite build",
     "build:client": "vite build --ssr",
     "build:server": "NODE_OPTIONS='--conditions react-server' vite build --ssr",
@@ -142,7 +142,7 @@ export default defineConfig({
   plugins: [
     vitePluginReactServer({
       moduleBase: "src",
-      Page: (route) => `src/pages${route}page.tsx`,
+      Page: (url) => `src/pages${url}/page.tsx`,
       components: {
         Html: ({ Root, cssFiles, pageProps, Page }) => (
           <html>
@@ -269,7 +269,8 @@ The plugin automatically provides detailed error information in development mode
 10.	[API Reference](./api-reference.md)
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-13.	[Testing](./testing.md)
+13.	[Package Exports](./package-exports.md)
+14.	[Transformations](./transformations.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

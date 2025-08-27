@@ -146,9 +146,6 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
             `[html-worker:${route}] Shell ready, starting to pipe HTML`
           );
         }
-
-        // Pipe the HTML stream to our pass through
-        pipe(passThrough as any);
       },
       onAllReady() {
         if (verbose) {
@@ -189,9 +186,12 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
       },
     });
 
+    // Pipe the React stream to our pass through immediately
+    pipe(passThrough as any);
+
     // Set up pass through event handlers
     passThrough.on("data", (chunk) => {
-      handlers.onData(id, chunk);
+      handlers.onData(id, chunk);5
     });
 
     passThrough.on("end", () => {

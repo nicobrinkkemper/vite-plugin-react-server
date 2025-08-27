@@ -130,6 +130,11 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
           }
 
           // Render React elements to HTML using ReactDOMServer.renderToPipeableStream
+          if (verbose) {
+            logger?.info(
+              `[createRscToHtmlStream:${route}] Calling ReactDOMServer.renderToPipeableStream with clientPipeableStreamOptions: ${JSON.stringify(clientPipeableStreamOptions)}`
+            );
+          }
           const { pipe } = ReactDOMServer.renderToPipeableStream(
             children,
             // because we render html, we need to pass the clientPipeableStreamOptions
@@ -154,9 +159,9 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = (options) => {
               );
             }
 
-            // Push the HTML content to the transform stream
-            // CSS information is already embedded in the RSC stream and will be included in the HTML
-            transformStream.push(htmlContent);
+                      // Push the HTML content to the transform stream
+          // CSS information is already embedded in the RSC stream and will be included in the HTML
+          transformStream.push(htmlContent);
             
             if (verbose) {
               logger?.info(

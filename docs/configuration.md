@@ -62,8 +62,8 @@ export const config = {
   moduleBase: "src",
   
   // Page components - resolved from file paths
-  Page: (url) => `src/page${url}/page.tsx`,
-  props: (url) => `src/page${url}/props.ts`,
+  Page: (url) => `src/pages${url}/page.tsx`,
+  props: (url) => `src/pages${url}/props.ts`,
   
   // Layout components - can be static paths or functions
   Html: "src/CustomHtml.tsx",
@@ -90,10 +90,10 @@ export const config = {
 
 ```
 src/
-├── page/
+├── pages/
 │   ├── page.tsx          # Home page component
 │   └── props.ts          # Home page props
-├── about/
+├── pages/about/
 │   ├── page.tsx          # About page component
 │   └── props.ts          # About page props
 ├── CustomHtml.tsx        # HTML wrapper component
@@ -212,8 +212,8 @@ export const config = {
   moduleBase: "src",
   
   // Path-based resolution for pages
-  Page: (url) => `src/page${url}/page.tsx`,
-  props: (url) => `src/page${url}/props.ts`,
+  Page: (url) => `src/pages${url}/page.tsx`,
+  props: (url) => `src/pages${url}/props.ts`,
   
   // Direct component for HTML wrapper
   components: {
@@ -241,15 +241,15 @@ const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
   switch (url) {
     case "/bidoof":
     case "/bidoof/index.rsc":
-      return `src/page/bidoof/${file}`;
+      return `src/pages/bidoof/${file}`;
     case "/404":
     case "/404/index.rsc":
-      return `src/page/404/${file}`;
+      return `src/pages/404/${file}`;
     case "/":
       // production
     case "/index.rsc":
       // development
-      return `src/page/${file}`;
+      return `src/pages/${file}`;
     default:
       throw new Error(`Unknown route: ${url}`);
   }
@@ -482,8 +482,8 @@ export const config = {
 
 // After: Path-based resolution
 export const config = {
-  Page: (url) => `src/page${url}/page.tsx`,
-  props: (url) => `src/page${url}/props.ts`,
+  Page: (url) => `src/pages${url}/page.tsx`,
+  props: (url) => `src/pages${url}/props.ts`,
   Html: "src/CustomHtml.tsx",
   Root: "src/CustomRoot.tsx",
 };
@@ -522,9 +522,9 @@ Provide fallbacks for component resolution:
 export const config = {
   Page: (url) => {
     try {
-      return `src/page${url}/page.tsx`;
+      return `src/pages${url}/page.tsx`;
     } catch {
-      return "src/page/404/page.tsx"; // Fallback page
+      return "src/pages/404/page.tsx"; // Fallback page
     }
   },
 };
@@ -560,7 +560,8 @@ export const config = {
 10.	[API Reference](./api-reference.md)
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-13.	[Testing](./testing.md)
+13.	[Package Exports](./package-exports.md)
+14.	[Transformations](./transformations.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

@@ -461,10 +461,10 @@ export function createErrorHandler(options: ErrorHandlerOptions) {
 
 ## 🔗 Related Documentation
 
-- [Build Process](./BUILD_PROCESS.md) - Build orchestration details
-- [Testing Guide](./TESTING.md) - Testing the plugin architecture
-- [Environment API Guide](./ENVIRONMENT_API.md) - Multi-environment support
-- [Performance Monitoring](./PERFORMANCE.md) - Performance optimization
+- [Debugging Guide](./DEBUGGING.md) - Advanced debugging techniques
+- [Error Handling](./ERROR_HANDLING.md) - Error handling patterns
+- [Testing Guide](./TESTING.md) - Test troubleshooting
+
 
 ---
 

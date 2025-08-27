@@ -14,6 +14,7 @@ import { Html as DefaultHtml } from "../components/html.js";
 import { React } from "../vendor/vendor.server.js";
 import { join } from "node:path";
 
+
 assertReactServer();
 
 // Note: This module works best in react-server condition, but will adapt to other conditions
@@ -395,7 +396,6 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
       // Create a minimal headless handler with React.Fragment
       headlessRscHandler = createRenderToPipeableStreamHandler({
         ...newHandlerOptions,
-        PageComponent: React.Fragment,
         HtmlComponent: React.Fragment,
         onEvent: wrapperOnEvent,
         signal: handlerOptions.signal,
@@ -417,7 +417,7 @@ export const renderPage: RenderPageFn = async function* _renderPageServer(
       handlerOptions.onMetrics(moduleResolutionMetric);
     }
 
-    // Create full RSC handler using a conditional PageComponent
+    // Create full RSC handler using React.use to properly consume the headless stream
     const fullRscHandler = createRenderToPipeableStreamHandler({
       ...newHandlerOptions,
       PageComponent: (() => {

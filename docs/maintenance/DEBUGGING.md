@@ -479,10 +479,10 @@ console.log(report.generateReport());
 
 ## 🔗 Related Documentation
 
-- [Common Issues](./COMMON_ISSUES.md) - Common problems and solutions
+- [Debugging Guide](./DEBUGGING.md) - Advanced debugging techniques
 - [Error Handling](./ERROR_HANDLING.md) - Error handling patterns
-- [Performance Monitoring](./PERFORMANCE.md) - Performance debugging
-- [Testing Guide](./TESTING.md) - Test debugging strategies
+- [Testing Guide](./TESTING.md) - Test troubleshooting
+
 
 ---
 

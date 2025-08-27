@@ -1,7 +1,8 @@
+
+import { testUserOptions } from "./test-config.js";
 import { createServer } from "vite";
 import type { StreamPluginOptions} from "vite-plugin-react-server/types";
 import { vitePluginReactServer } from "vite-plugin-react-server";
-import { testUserOptions } from "./test-config.js";
 import type { ViteDevServer } from "vite";
 import { join } from "node:path";
 
@@ -43,10 +44,6 @@ export async function createClientDevServer(optionOverrides: Partial<StreamPlugi
     ...testUserOptions,
     ...optionOverrides,
   };
-  
-  console.log(`[createClientDevServer] mergedOptions.projectRoot: ${mergedOptions.projectRoot}`);
-  console.log(`[createClientDevServer] testUserOptions.projectRoot: ${(testUserOptions as any).projectRoot}`);
-  console.log(`[createClientDevServer] optionOverrides.projectRoot: ${(optionOverrides as any).projectRoot}`);
   
   servers[portKey] = await createServer({
     plugins: vitePluginReactServer(mergedOptions),

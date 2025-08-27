@@ -320,9 +320,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         const indexHtml = staticManifest?.["index.html"]?.file;
         const serverPipeableStreamOptions = {
           ...userOptions.serverPipeableStreamOptions,
-          bootstrapModules: [
+          bootstrapScripts: [
             ...(indexHtml ? [baseURL(indexHtml)] : []),
-            ...(userOptions.serverPipeableStreamOptions?.bootstrapModules ??
+            ...(userOptions.serverPipeableStreamOptions?.bootstrapScripts ??
               []),
           ],
         };

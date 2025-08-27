@@ -315,6 +315,15 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       globalCss: handlerOptions.globalCss || new Map(),
     };
 
+    if (handlerOptions.verbose) {
+      handlerOptions.logger?.info(
+        `[renderPage.client] handlerOptions.clientPipeableStreamOptions: ${JSON.stringify(handlerOptions.clientPipeableStreamOptions)}`
+      );
+      handlerOptions.logger?.info(
+        `[renderPage.client] newHandlerOptions.clientPipeableStreamOptions: ${JSON.stringify(newHandlerOptions.clientPipeableStreamOptions)}`
+      );
+    }
+
     // Component resolution is already measured in resolveComponents
     // No need to measure module resolution time here anymore
 
@@ -376,6 +385,11 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     });
 
     // Step 3: Create HTML transform stream
+    if (handlerOptions.verbose) {
+      handlerOptions.logger?.info(
+        `[renderPage.client] Creating HTML transform stream with clientPipeableStreamOptions: ${JSON.stringify(newHandlerOptions.clientPipeableStreamOptions)}`
+      );
+    }
     const htmlTransformStream = createRscToHtmlStream({
       ...newHandlerOptions,
       htmlTimeout: handlerOptions.htmlTimeout || 15000,

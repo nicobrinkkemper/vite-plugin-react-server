@@ -533,10 +533,10 @@ class ErrorMetricsCollector {
 
 ## 🔗 Related Documentation
 
-- [Common Issues](./COMMON_ISSUES.md) - Common error scenarios and solutions
-- [Debugging Guide](./DEBUGGING.md) - Error debugging techniques
-- [Testing Guide](./TESTING.md) - Error testing strategies
-- [Performance Monitoring](./PERFORMANCE.md) - Error performance impact
+- [Debugging Guide](./DEBUGGING.md) - Advanced debugging techniques
+- [Error Handling](./ERROR_HANDLING.md) - Error handling patterns
+- [Testing Guide](./TESTING.md) - Test troubleshooting
+
 
 ---
 

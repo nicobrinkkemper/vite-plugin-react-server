@@ -18,7 +18,8 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
 10.	[API Reference](./api-reference.md)
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-13.	[Testing](./testing.md)
+13.	[Package Exports](./package-exports.md)
+14.	[Transformations](./transformations.md)
 
 ## Quick Links
 - [GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
@@ -84,7 +85,7 @@ export const Html = ({
 - **Event System**: Monitor builds, metrics, and performance
 - **Environment Detection**: Automatic adaptation based on execution context
 ## Documentation Structure
-The documentation has been consolidated into 12 focused chapters to reduce redundancy and improve navigation:
+The documentation has been consolidated into 14 focused chapters to reduce redundancy and improve navigation:
 ### Getting Started (1 chapter)
 - Complete setup guide with examples
 - Development modes and common use cases

@@ -436,11 +436,12 @@ export async function messageHandler(
               `[rsc-worker] Using fallback components for full stream due to headless error: ${headlessError.message}`
             );
           }
-          // Create a fallback handler with React.Fragment (same as server environment)
+          // Create a fallback handler with React.Fragment for PageComponent but keep original HtmlComponent
+          // This ensures bootstrapScripts are still rendered even in fallback scenarios
           const fallbackHandlerOptions = {
             ...handlerOptions,
             PageComponent: React.Fragment,
-            HtmlComponent: React.Fragment,
+            // Keep the original HtmlComponent to ensure bootstrapScripts are rendered
           };
           result = createRenderToPipeableStreamHandler(fallbackHandlerOptions);
         } else {
@@ -454,11 +455,12 @@ export async function messageHandler(
               );
             }
 
-            // Create a fallback handler with React.Fragment (same as server environment)
+            // Create a fallback handler with React.Fragment for PageComponent but keep original HtmlComponent
+            // This ensures bootstrapScripts are still rendered even in fallback scenarios
             const fallbackHandlerOptions = {
               ...handlerOptions,
               PageComponent: React.Fragment,
-              HtmlComponent: React.Fragment,
+              // Keep the original HtmlComponent to ensure bootstrapScripts are rendered
             };
 
             result = createRenderToPipeableStreamHandler(fallbackHandlerOptions);

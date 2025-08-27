@@ -1,30 +1,28 @@
 # Maintenance Documentation
 
-This directory contains maintenance documentation for the `vite-plugin-react-server` project.
+This directory contains **essential development documentation** for AI contributors working on the `vite-plugin-react-server` plugin itself. This is NOT user documentation.
 
-## 📋 Table of Contents
+## 📋 Essential Development Docs
 
 1. **[Plugin Architecture](./PLUGIN_ARCHITECTURE.md)** - Internal architecture and component interactions
-2. **[Transformer System](./TRANSFORMER_SYSTEM.md)** - Component transformation logic and rules
-3. **[Build Orchestration](./BUILD_ORCHESTRATION.md)** - Static generation and build processes
-4. **[Environment Management](./ENVIRONMENT_MANAGEMENT.md)** - Client/Server environment handling
-5. **[Worker System](./WORKER_SYSTEM.md)** - RSC worker architecture and communication
-6. **[Recent Issues & Fixes](./RECENT_ISSUES.md)** - Recent problems and their solutions
+2. **[Common Issues](./COMMON_ISSUES.md)** - Frequently encountered problems and solutions
+3. **[Error Handling](./ERROR_HANDLING.md)** - Error patterns and recovery strategies
+4. **[Debugging](./DEBUGGING.md)** - Debugging techniques and tools
+5. **[Testing](./TESTING.md)** - Test infrastructure and patterns
 
-## 🔧 Recent Fixes
+## 🔧 Recent Critical Fixes
 
 ### Transformer Server Component Hiding (Latest)
 
 **Issue**: During static generation, server components (like `page.js`) were being loaded in non-server environments, causing "React Server Writer cannot be used outside a react-server environment" errors.
 
-**Root Cause**: The transformer was missing logic to handle server components in non-server environments. Previously, it would simply hide server components (return empty modules) when encountered in non-server environments, but recent changes removed this behavior.
+**Root Cause**: The transformer was missing logic to handle server components in non-server environments.
 
 **Solution**: Added logic in `plugin/loader/createTransformer.ts` to detect server components in non-server environments and return empty modules:
 
 ```typescript
 } else if (!isServerEnvironment && !loader?.isClientComponentByName?.(moduleId)) {
   // In non-server environments, server components should be hidden (return empty module)
-  // This prevents server components from being loaded in client/ssr environments
   if (verbose) {
     logger.info(`[createTransformer:non-server] Hiding server component in non-server environment: ${moduleId}`);
   }
@@ -32,37 +30,21 @@ This directory contains maintenance documentation for the `vite-plugin-react-ser
 }
 ```
 
-**Files Modified**:
-- `plugin/loader/createTransformer.ts` - Added server component hiding logic
-
-**Testing**: The fix resolves the React Server Writer error and allows static generation to proceed to the next phase. The transformer now properly hides server components in non-server environments by returning `export default null;` instead of trying to load them.
-
-**Status**: ✅ **FIXED** - The original "React Server Writer cannot be used outside a react-server environment" error is resolved. The transformer now correctly handles server components in non-server environments.
+**Status**: ✅ **FIXED** - The transformer now correctly handles server components in non-server environments.
 
 ### Rollup React Module Resolution Issue (Current)
 
 **Issue**: Build tests are failing with Rollup error: `"__require" is not exported by "react/index.js"` during the static build phase.
 
-**Environment Context**: 
-- ✅ **client environment** - Builds successfully
-- ✅ **ssr environment** - Builds successfully  
-- ✅ **server environment** - Builds successfully
-- ❌ **static build phase** - Fails with Rollup React module resolution error
+**Root Cause**: The static build phase uses a separate Rollup bundling step that has CommonJS/ESM interop issues with React modules.
 
-**Root Cause**: The static build phase uses a separate Rollup bundling step that has CommonJS/ESM interop issues with React modules. The error occurs when Rollup tries to bundle React for the static generation process.
-
-**Affected Tests**: All build-related tests (12/16 tests failing)
-
-**Status**: 🔄 **IN PROGRESS** - This is a separate issue from the transformer problem and affects the static build bundling phase.
+**Status**: 🔄 **IN PROGRESS** - This affects the static build bundling phase.
 
 ## 🏗️ Plugin Structure
 
 The plugin is organized into the following main components:
 
 1. **Core Plugin** (`plugin/`) - Main plugin entry points and configuration
-   - `plugin/index.ts` - Main plugin entry point
-   - `plugin/plugin.client.ts` - Client-side plugin logic
-   - `plugin/plugin.server.ts` - Server-side plugin logic
 2. **Transformer Plugin** (`plugin/transformer/`) - Handles component transformations
 3. **Loader System** (`plugin/loader/`) - Module loading and transformation
 4. **React Static** (`plugin/react-static/`) - Static generation and build processes

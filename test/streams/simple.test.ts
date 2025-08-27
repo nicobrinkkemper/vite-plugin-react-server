@@ -4,6 +4,7 @@ import {
   createHandlerOptions,
   resolveOptions,
 } from "vite-plugin-react-server/config";
+import { Writable } from "node:stream";
 
 
 resolveOptions({ 
@@ -53,41 +54,33 @@ describe("Simple Stream Test", () => {
     // 🚀 NOW LET'S ACTUALLY START THE STREAM!
     console.log("🚀 Starting to read from RSC stream...");
     
-    let chunks: any[] = [];
-    let isStreamEnded = false;
-    
-    // Create a promise that resolves when stream ends
-    const streamPromise = new Promise((resolve, reject) => {
-      rscStream.rscStream.on('data', (chunk) => {
-        console.log("📦 Received chunk:", chunk.toString());
-        chunks.push(chunk);
+    const chunks: Buffer[] = [];
+
+    // Concise approach using Writable stream (from our documentation)
+    await new Promise<void>((resolve, reject) => {
+      const writable = new Writable({
+        write(chunk: Buffer, _encoding, callback) {
+          console.log("📦 Received chunk:", chunk.toString());
+          chunks.push(chunk);
+          callback();
+        }
       });
-      
-      rscStream.rscStream.on('end', () => {
+
+      writable.on("finish", () => {
         console.log("🏁 Stream ended!");
-        isStreamEnded = true;
-        resolve(chunks);
+        resolve();
       });
-      
-      rscStream.rscStream.on('error', (error) => {
+
+      writable.on("error", (error) => {
         console.log("❌ Stream error:", error.message);
         reject(error);
       });
+
+      rscStream.rscStream.pipe(writable);
     });
 
-    // Wait for stream to complete (with timeout)
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Stream timeout after 5s")), 5000);
-    });
-
-    try {
-      await Promise.race([streamPromise, timeoutPromise]);
-      expect(chunks.length).toBeGreaterThan(0);
-      console.log(`✅ Stream completed! Received ${chunks.length} chunks`);
-      console.log("📊 Total data length:", chunks.reduce((total, chunk) => total + chunk.length, 0));
-    } catch (error) {
-      console.log("⚠️ Stream issue:", error?.message);
-      expect(error).toBe(null);
-    }
+    expect(chunks.length).toBeGreaterThan(0);
+    console.log(`✅ Stream completed! Received ${chunks.length} chunks`);
+    console.log("📊 Total data length:", chunks.reduce((total, chunk) => total + chunk.length, 0));
   });
 });

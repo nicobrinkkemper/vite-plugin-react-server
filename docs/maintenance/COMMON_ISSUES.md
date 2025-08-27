@@ -27,14 +27,11 @@ await build({
 
 // ✅ Correct - Use createBuilder()
 const builder = await createBuilder({
-  plugins: [vitePluginReactServer(options)],
-  environments: {
-    client: { build: { ssr: false, outDir: "dist/client" } },
-    server: { build: { ssr: true, outDir: "dist/server" } },
-  },
+  plugins: vitePluginReactServer(options),
+  mode: "test",
+  root: options.projectRoot,
 });
-
-await builder.buildApp(); // Call the method, don't provide a function
+await builder.buildApp();
 ```
 
 **Prevention**: Always use `createBuilder()` for Environment API builds.
@@ -75,7 +72,7 @@ environments[envName] = {
   
   // CRITICAL: externalConditions belongs in resolve at environment level
   resolve: {
-    externalConditions: condition === 'react-client' ? ['react-client'] : ['react-server'],
+    externalConditions: condition === 'react-client' ? undefined : ['react-server'],
   },
   
   build: {
@@ -121,9 +118,9 @@ environments[envName] = {
 export const default = function MyComponent() { /* ... */ };
 
 // ✅ Correct transformation
-export const default = function MyComponent() { /* ... */ };
+export default function MyComponent() { /* ... */ };
 // or
-export { MyComponent as default };
+export default MyComponent;
 ```
 
 **Prevention**: Ensure transformer plugin correctly handles client component exports.
@@ -171,22 +168,19 @@ const workerLoader = new WorkerLoader({
 
 **Solution**:
 ```typescript
-// Add timeout and error handling
 const events = await doBuild({
   projectRoot: '/path/to/project',
-  timeout: 30000, // 30 second timeout
   onEvent: (event) => {
-    if (event.type === 'error') {
-      console.error('Build error:', event.data);
-      process.exit(1);
+    if (event.type === 'route.error') {
+      console.trace(event.error);
     }
   },
 });
 
 // Check for specific page issues
 const events = await doBuild({
-  projectRoot: '/path/to/project',
   pages: ['/'], // Start with single page
+  Page: 'src/page.tsx',
   verbose: true,
 });
 ```
@@ -207,21 +201,37 @@ const events = await doBuild({
 **Solution**:
 ```typescript
 // Ensure proper stream handling
-const rscStream = await rscWorker.render(page);
-const chunks: Uint8Array[] = [];
+import { createRscStream } from "vite-plugin-react-server/stream";
+import { createHandlerOptions } from "vite-plugin-react-server/config";
+import { Writable } from "node:stream";
 
-const reader = rscStream.getReader();
-try {
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-} finally {
-  reader.releaseLock();
-}
+// assuming the plugin is included in vite.config.ts
+
+const config = await createHandlerOptions("/", {
+  configEnv: { command: "serve", mode: "development" }
+});
+
+const rscStreamResult = createRscStream(config);
+const chunks: Buffer[] = [];
+
+// Concise approach using Writable stream
+await new Promise<void>((resolve, reject) => {
+  const writable = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      chunks.push(chunk);
+      callback();
+    }
+  });
+
+  writable.on("finish", resolve);
+  writable.on("error", reject);
+
+  rscStreamResult.rscStream.pipe(writable);
+});
 
 const rscContent = Buffer.concat(chunks);
+
+console.log({rscContent})
 ```
 
 **Prevention**: Always use proper stream reading patterns with error handling.
@@ -252,6 +262,42 @@ if (!htmlContent || htmlContent.length === 0) {
 
 **Prevention**: Validate HTML content before writing files.
 
+### 7. Performance Script Inconsistency
+
+**Problem**: HTML output includes unexpected performance script (`requestAnimationFrame(function(){$RT=performance.now()});`) in some environments but not others.
+
+**Symptoms**:
+- Server environment generates HTML with performance script
+- Client environment generates HTML without performance script
+- Inconsistent HTML output between environments for same content
+- Performance script appears: `<script>requestAnimationFrame(function(){$RT=performance.now()});</script>`
+
+**Root Cause**: HTML worker calling `pipe()` at a later point in time instead of immediately after getting the `pipe` function, triggering React's suspense timing mechanism.
+
+**Solution**:
+```typescript
+// ❌ Wrong - Triggers performance script
+const { pipe } = ReactDOMServer.renderToPipeableStream(result.children, {
+  onShellReady() {
+    pipe(passThrough); // Called later inside callback
+  },
+});
+
+// ✅ Correct - No performance script
+const { pipe } = ReactDOMServer.renderToPipeableStream(result.children, {
+  onShellReady() {
+    // Shell ready callback without pipe call
+  },
+});
+
+// Pipe called immediately after getting the function
+pipe(passThrough); // Called immediately
+```
+
+**Why This Happens**: When `pipe()` is called at any point later than immediately after getting the function, React detects this as a suspense boundary scenario and adds the performance script as part of its internal timing mechanism.
+
+**Prevention**: Always call `pipe()` immediately after getting the function from `renderToPipeableStream`, not at any later point in time.
+
 ## 🔧 Development Issues
 
 ### 7. Client Dev Server Errors
@@ -263,26 +309,29 @@ if (!htmlContent || htmlContent.length === 0) {
 - Pages not loading in browser
 - API routes not working
 
-**Root Cause**: Incorrect middleware setup or port conflicts.
+**Root Cause**: Incorrect publicOrigin on port change
 
 **Solution**:
 ```typescript
+import { createServer } from "vite";
+import type { StreamPluginOptions} from "vite-plugin-react-server/types";
+import { vitePluginReactServer } from "vite-plugin-react-server";
+import type { ViteDevServer } from "vite";
+
 // Ensure proper dev server configuration
-const devServer = createDevServer({
-  projectRoot: '/path/to/project',
-  port: 3000,
-  host: 'localhost',
-  onError: (error) => {
-    console.error('Dev server error:', error);
+const devServer: ViteDevServer = await createDevServer({
+  plugins: vitePluginReactServer({
+    moduleBase: 'src',
+    Page: 'src/page.tsx'
+  }),
+  server: {
+    // strict port behavior, prevents incorrect publicOrigin
+    port: 3000,
   },
 });
-
-// Check for port conflicts
-const server = await devServer.start();
-console.log(`Dev server running on ${server.config.server.port}`);
 ```
 
-**Prevention**: Use unique ports and proper error handling.
+**Prevention**: Use unique ports
 
 ### 8. CSS Module Issues
 
@@ -359,70 +408,11 @@ export default defineConfig({
 
 **Solution**:
 ```typescript
-// Implement proper cleanup
-class BuildManager {
-  private workers: Set<Worker> = new Set();
-  
-  async cleanup() {
-    for (const worker of this.workers) {
-      await worker.terminate();
-    }
-    this.workers.clear();
-    
-    // Force garbage collection if available
-    if (global.gc) {
-      global.gc();
-    }
-  }
-}
-
-// Use in build process
-const buildManager = new BuildManager();
-try {
-  await doBuild(options);
-} finally {
-  await buildManager.cleanup();
-}
+worker.removeAllListeners();
 ```
 
 **Prevention**: Always implement proper cleanup and monitor memory usage.
 
-### 11. Performance Degradation
-
-**Problem**: Build performance decreases over time or with more pages.
-
-**Symptoms**:
-- Build times increase
-- Memory usage grows
-- Worker startup slows down
-
-**Root Cause**: Lack of caching, inefficient algorithms, or resource leaks.
-
-**Solution**:
-```typescript
-// Implement caching
-const cache = new Map<string, BuildResult>();
-
-async function buildWithCache(page: string): Promise<BuildResult> {
-  const cacheKey = generateCacheKey(page);
-  
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey)!;
-  }
-  
-  const result = await buildPage(page);
-  cache.set(cacheKey, result);
-  return result;
-}
-
-// Implement worker pooling
-const workerPool = new WorkerPool({
-  maxWorkers: 4,
-  reuseWorkers: true,
-});
-```
-
-**Prevention**: Implement caching, worker pooling, and performance monitoring.
 
 ## 🔍 Diagnostic Tools
 
@@ -434,10 +424,13 @@ Enable comprehensive debug logging:
 const events = await doBuild({
   projectRoot: '/path/to/project',
   verbose: true,
-  debug: true,
   onEvent: (event) => {
-    console.log(`[${event.type}]`, event.data);
+    console.log(${event});
   },
+  onMetrics: (metrics) => {
+      // can be a lot of logs, see import { metricWatcher } from "vite-plugin-react-server/metrics"
+    console.log({metrics})
+  }
 });
 ```
 
@@ -469,37 +462,20 @@ node --prof your-build-script.js
 node --prof-process isolate-*.log > profile.txt
 ```
 
-## 📋 Issue Checklist
-
-When encountering issues, check this checklist:
-
-- [ ] **Environment**: Is the correct React condition set?
-- [ ] **Paths**: Are all paths absolute and correct?
-- [ ] **Dependencies**: Are all dependencies installed and compatible?
-- [ ] **Configuration**: Is the plugin configuration correct?
-- [ ] **Logs**: Are there any error messages in the logs?
-- [ ] **Memory**: Is memory usage reasonable?
-- [ ] **Workers**: Are workers starting and communicating properly?
-- [ ] **Streams**: Are streams being processed correctly?
-- [ ] **Files**: Are output files being generated?
-- [ ] **Tests**: Do tests pass in isolation?
-
-## 🔗 Related Documentation
-
-- [Debugging Guide](./DEBUGGING.md) - Advanced debugging techniques
-- [Error Handling](./ERROR_HANDLING.md) - Error handling patterns
-- [Testing Guide](./TESTING.md) - Test troubleshooting
-- [Performance Monitoring](./PERFORMANCE.md) - Performance issue diagnosis
 
 ---
 
 *This documentation covers common issues and their solutions. For specific issues not covered here, refer to the debugging guides or create a new issue in the project repository.*
 
 ```typescript
+// assuming file is test/examples
+import { doBuild } from "../doBuild.js" // always use .js, even for .tsx or .ts files
+// use the events to test the api
+// the assumption here is if it's useful for tests, it's useful to users to test their application too
+// event information can include the entire bundle per environment, and individual file writes for index.rsc and index.html (based on build.pages)
 const events = await doBuild({
   projectRoot: '/path/to/project',
   verbose: true,
-  debug: true,
   onEvent: (event) => {
     console.log(`[${event.type}]`, event.data);
   },
@@ -511,11 +487,12 @@ const events = await doBuild({
 Monitor memory usage during builds:
 
 ```typescript
-const memoryUsage = process.memoryUsage();
-console.log('Memory usage:', {
-  heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-  heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
-  external: `${Math.round(memoryUsage.external / 1024 / 1024)}MB`,
+const events = await doBuild({
+  projectRoot: '/path/to/project',
+  verbose: true,
+  onMetrics: (metrics) => {
+    // log metrics you care about 
+  },
 });
 ```
 
@@ -547,14 +524,13 @@ When encountering issues, check this checklist:
 - [ ] **Workers**: Are workers starting and communicating properly?
 - [ ] **Streams**: Are streams being processed correctly?
 - [ ] **Files**: Are output files being generated?
-- [ ] **Tests**: Do tests pass in isolation?
+- [ ] **Tests**: Do tests pass with react-server condition and without?
 
 ## 🔗 Related Documentation
 
 - [Debugging Guide](./DEBUGGING.md) - Advanced debugging techniques
 - [Error Handling](./ERROR_HANDLING.md) - Error handling patterns
 - [Testing Guide](./TESTING.md) - Test troubleshooting
-- [Performance Monitoring](./PERFORMANCE.md) - Performance issue diagnosis
 
 ---
 

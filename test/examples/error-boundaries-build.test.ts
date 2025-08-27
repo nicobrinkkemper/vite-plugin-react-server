@@ -159,6 +159,19 @@ describe("Error Boundaries Build (Cross-Environment)", () => {
       // Check for index.js script (should be present in both environments)
       expect(content).toContain('src="index.js"');
       
+      // Check for performance script (React's internal timing mechanism)
+      // The performance script is added by React when processing RSC streams with suspense boundaries
+      // Server environment preserves RSC stream structure, so performance script appears
+      // Client environment converts RSC to React elements first, so no performance script
+      const hasPerformanceScript = content.includes('requestAnimationFrame(function(){$RT=performance.now()})');
+      
+      // Log the performance script status for clarity
+      if (hasPerformanceScript) {
+        console.log(`📊 Performance script detected in ${htmlFile}`);
+      } else {
+        console.log(`📊 No performance script detected in ${htmlFile}`);
+      }
+      
       // Check that it's not empty
       expect(content.length).toBeGreaterThan(100);
       

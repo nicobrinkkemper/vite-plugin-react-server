@@ -456,7 +456,8 @@ This configuration will:
 10.	[API Reference](./api-reference.md)
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-13.	[Testing](./testing.md)
+13.	[Package Exports](./package-exports.md)
+14.	[Transformations](./transformations.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

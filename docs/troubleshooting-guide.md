@@ -296,6 +296,41 @@ npm run build:server  # Server components and actions
 
 Make sure you are making the requests using the `Accept: "text/x-component"` header to the module or re-export of the module. `actions.js#getTodos`
 
+### ⚡ **Performance Script Appearing in HTML Output**
+
+**Problem**: You notice that your HTML output includes a performance script (`requestAnimationFrame(function(){$RT=performance.now()});`) regardless of environment, which you didn't expect.
+
+**Symptoms**:
+- HTML includes: `<script>requestAnimationFrame(function(){$RT=performance.now()});</script>`
+- This script appears in your generated HTML files
+- You're probably doing something custom with React streaming
+
+**Root Cause**: You're likely calling `pipe()` at a later point in time instead of starting the stream immediately. This triggers React's suspense code path, which adds the performance script.
+
+**Solution**: Start streaming right away instead of waiting. Move the `pipe()` call to immediately after getting the `pipe` function.
+
+**Code Fix**:
+```typescript
+// Before (triggers suspense code):
+const { pipe } = ReactDOMServer.renderToPipeableStream(result.children, {
+  onShellReady() {
+    pipe(passThrough); // ❌ Called later - triggers suspense
+  },
+});
+
+// After (no suspense trigger):
+const { pipe } = ReactDOMServer.renderToPipeableStream(result.children, {
+  onShellReady() {
+    // Shell ready callback without pipe call
+  },
+});
+
+// Pipe called immediately after getting the function
+pipe(passThrough); // ✅ Called immediately - no suspense trigger
+```
+
+**Why This Happens**: When you pipe at any point later than immediately after getting the function, React thinks you're dealing with suspense boundaries and adds the performance script as part of its internal timing mechanism.
+
 ### 📁 **Module Resolution Errors**
 
 **Problem**: Cannot find modules or incorrect imports.
@@ -433,7 +468,8 @@ If you're still experiencing issues:
 10.	[API Reference](./api-reference.md)
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	**[Troubleshooting](./troubleshooting-guide.md) ← you are here**
-13.	[Testing](./testing.md)
+13.	[Package Exports](./package-exports.md)
+14.	[Transformations](./transformations.md)
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

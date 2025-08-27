@@ -68,7 +68,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
 
     
     
-    // Debug logging removed for performance
+    
 
     const configInputRecord = {} as Record<string, string>;
     if (typeof config.build?.rollupOptions?.input === "string") {
