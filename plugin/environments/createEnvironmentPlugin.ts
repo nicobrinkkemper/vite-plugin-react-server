@@ -30,7 +30,6 @@ import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
  * - server (custom) → dist/server (React server components with registerClientReference)
  */
 export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
-  console.log(`[createEnvironmentPlugin] Creating environment plugin instance`);
   const environmentPlugin: Plugin = {
     name: "vite:plugin-react-server/environments",
     enforce: "pre",
@@ -55,7 +54,6 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       );
       
       if (!existingTransformer) {
-        console.log(`[createEnvironmentPlugin] Adding transformer plugin`);
         config.plugins.push(
           createTransformerPlugin({
             name: "dynamic",
@@ -63,8 +61,6 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             allowedEnvironments: ["client", "ssr", "server"], // Allow all environments
           })(options)
         );
-      } else {
-        // console.log(`[createEnvironmentPlugin] Transformer plugin already exists, skipping`);
       }
 
       // Note: Hash coordination is handled by the sequential build approach
@@ -83,13 +79,11 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       if (!userOptions.loader) {
         userOptions.loader = DEFAULT_LOADER_CONFIG;
       }
-      // console.log(`[createEnvironmentPlugin] Setting up moduleID function with configEnv: ${configEnv?.command}`);
       userOptions.loader.moduleID = createDefaultModuleID(
         userOptions,
         configEnv,
         userOptions.loader?.mode
       );
-      // console.log(`[createEnvironmentPlugin] moduleID function set up successfully`);
 
       // Run auto-discovery once to get all files - we don't need separate calls since
       // the file discovery process is identical, only the organization differs
