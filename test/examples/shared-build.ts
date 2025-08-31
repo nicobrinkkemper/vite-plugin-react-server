@@ -123,15 +123,20 @@ export async function getSharedBuild(
 
 async function getAllFiles(dir: string): Promise<string[]> {
   const files: string[] = [];
-  const items = await readdir(dir, { withFileTypes: true });
+  try {
+    const items = await readdir(dir, { withFileTypes: true });
 
-  for (const item of items) {
-    const fullPath = join(dir, item.name);
-    if (item.isDirectory()) {
-      files.push(...(await getAllFiles(fullPath)));
-    } else {
-      files.push(fullPath);
+    for (const item of items) {
+      const fullPath = join(dir, item.name);
+      if (item.isDirectory()) {
+        files.push(...(await getAllFiles(fullPath)));
+      } else {
+        files.push(fullPath);
+      }
     }
+  } catch (error) {
+    // Directory might not exist or be accessible, return empty array
+    console.warn(`Warning: Could not read directory ${dir}:`, error);
   }
 
   return files;
@@ -153,27 +158,84 @@ export async function cleanupSharedBuilds(): Promise<void> {
   setupCache.clear();
 }
 
-// Helper function to read file content
+// Helper function to read file content (deprecated - use getFileContentFromEvents instead)
 export async function readFileContent(filePath: string): Promise<string> {
   return await readFile(filePath, 'utf-8');
 }
 
-// Helper function to check if any file contains text
+// Helper function to get file content from build events (no file I/O)
+export function getFileContentFromEvents(events: any[], fileType: 'html' | 'rsc', route?: string): string[] {
+  return events
+    .filter(e => e.type === 'file.write.done' && e.data.fileType === fileType && (!route || e.data.route === route))
+    .map(e => e.data.content)
+    .filter(Boolean);
+}
+
+// Helper function to check if any file contains text (no file I/O)
+export function anyFileContainsFromEvents(events: any[], text: string, fileType?: 'html' | 'rsc'): boolean {
+  const fileEvents = events.filter(e => 
+    e.type === 'file.write.done' && 
+    (!fileType || e.data.fileType === fileType)
+  );
+  
+  return fileEvents.some(event => event.data.content.includes(text));
+}
+
+// Helper function to check if any file path contains text (no file I/O)
+export function anyFilePathContainsFromEvents(events: any[], text: string): boolean {
+  const fileEvents = events.filter(e => e.type === 'file.write.done');
+  
+  return fileEvents.some(event => 
+    event.data.path.includes(text) || 
+    event.data.fileName.includes(text) ||
+    event.data.route.includes(text)
+  );
+}
+
+// Helper function to check if any file name contains text (no file I/O)
+export function anyFileNameContainsFromEvents(events: any[], text: string): boolean {
+  const fileEvents = events.filter(e => e.type === 'file.write.done');
+  
+  return fileEvents.some(event => event.data.fileName.includes(text));
+}
+
+// Legacy function for backward compatibility (deprecated - use anyFileContainsFromEvents instead)
 export async function anyFileContains(files: string[], text: string): Promise<boolean> {
   for (const file of files) {
     if (file.endsWith('.js') || file.endsWith('.ts') || file.endsWith('.tsx')) {
-      const content = await readFileContent(file);
-      if (content.includes(text)) {
-        return true;
+      try {
+        const content = await readFileContent(file);
+        if (content.includes(text)) {
+          return true;
+        }
+      } catch (error) {
+        // File might not exist or be accessible, skip it
+        console.warn(`Warning: Could not read file ${file}:`, error);
       }
     }
   }
   return false;
 }
 
-// Helper function to find files by pattern
+// Helper function to find files by pattern (from file list)
 export function findFilesByPattern(files: string[], pattern: string): string[] {
   return files.filter(f => f.includes(pattern));
+}
+
+// Helper function to get file paths from build events (no file I/O)
+export function getFilePathsFromEvents(events: any[], fileType?: 'html' | 'rsc'): string[] {
+  return events
+    .filter(e => e.type === 'file.write.done' && (!fileType || e.data.fileType === fileType))
+    .map(e => e.data.path)
+    .filter(Boolean);
+}
+
+// Helper function to get file names from build events (no file I/O)
+export function getFileNamesFromEvents(events: any[], fileType?: 'html' | 'rsc'): string[] {
+  return events
+    .filter(e => e.type === 'file.write.done' && (!fileType || e.data.fileType === fileType))
+    .map(e => e.data.fileName)
+    .filter(Boolean);
 }
 
 // Helper functions for extracting content from events

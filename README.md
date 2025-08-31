@@ -82,7 +82,38 @@ Return the same application, but we now understand that the former will need an 
 
 ## Development & Build
 
-The plugin automatically detects your execution environment and provides the optimal implementation:
+The plugin supports both traditional multi-step builds and modern Environment API builds:
+
+### Traditional Build (Multi-Step)
+
+```bash
+# Build all environments separately
+npm run build:static    # vite build
+npm run build:client    # vite build --ssr  
+npm run build:server    # NODE_OPTIONS="--conditions react-server" vite build
+```
+
+**Note**: The traditional build approach is supported but may need configuration adjustments for proper server environment handling.
+
+### Environment API Build (Single-Step)
+
+The plugin now supports Vite's Environment API with two modes:
+
+#### Server-First Mode (Faster)
+```bash
+NODE_OPTIONS='--conditions react-server' vite build --app
+```
+- **Static generation** on main thread
+- **HTML rendering** via html-worker
+- **Benefits**: Faster execution, easier debugging, direct component access
+
+#### Client-First Mode (Isolated)
+```bash
+vite build --app
+```
+- **Static generation** on RSC worker thread  
+- **HTML rendering** on main thread
+- **Benefits**: Server thread isolation, custom RSC worker supportLsrve
 
 ### Automatic Environment Detection
 
@@ -100,7 +131,7 @@ const { vitePluginReactServer } = await import(`./plugin.${condition}.js`);
 
 #### Traditional approach:
 
-This has the benefit of controlling and debugging each build seperately
+This has the benefit of controlling and debugging each build separately
 
 ```json
 {
@@ -111,23 +142,18 @@ This has the benefit of controlling and debugging each build seperately
     "build": "npm run build:static && npm run build:client && npm run build:server",
     "build:static": "vite build",
     "build:client": "vite build --ssr",
-    "build:server": "NODE_OPTIONS='--conditions react-server' vite build --ssr",
-    "dev-build": "npm run dev-build:static && npm run dev-build:client && npm run dev-build:server",
-    "dev-build:static": "NODE_ENV=development vite build --mode development",
-    "dev-build:client": "NODE_ENV=development vite build --mode development --ssr",
-    "dev-build:server": "NODE_ENV=development NODE_OPTIONS='--conditions react-server' vite build --ssr --mode development"
+    "build:server": "NODE_OPTIONS='--conditions react-server' vite build"
   }
 }
 ```
 
-App build:
-This uses the appBuilder, which is experimental. The plugin will use the main thread condition for all the tasks.
-This means that one task will always run in the "sub optimal" main thread environment.
+#### Environment API approach:
 
 ```json
 {
-  "build": "vite build --app",
+  "build": "vite build --app"
 }
+```
 
 ### Development Modes
 
@@ -228,19 +254,11 @@ This ensures:
 ### Props and Routing
 
 ```tsx
-// React components configure routing
-const createRouter = (file) => (url) => {
-  switch (url) {
-    case "/": return `src/home/${file}`;
-    case "/about": return `src/about/${file}`;
-    default: return `src/404/${file}`;
-  }
-};
-
+// Simple string-based routing
 export default defineConfig({
   plugins: vitePluginReactServer({
-    Page: createRouter("page.tsx"),
-    props: createRouter("props.ts"),
+    Page: "src/page/page.tsx",
+    props: "src/page/props.ts",
     build: { pages: ["/", "/about"] }
   }),
 });
@@ -266,6 +284,16 @@ export function TodoForm() {
 ### Client Components
 
 ```tsx
+// src/components/Link.client.tsx
+"use client";
+import React from 'react';
+
+export function Link({ to, children }: { to: string, children: React.ReactNode }) {
+  return <a href={to}>{children}</a>;
+}
+```
+
+```tsx
 // Counter.client.tsx
 "use client";
 import { useState } from "react";
@@ -275,6 +303,12 @@ export function Counter() {
   return <button onClick={() => setCount(count + 1)}>{count}</button>;
 }
 ```
+
+**Key Points:**
+- Use `"use client"` directive at the top of client component files
+- Use `.client.` suffix in filenames for auto-discovery
+- Client components can use React hooks and browser APIs
+- They're automatically transformed and optimized during build
 
 
 

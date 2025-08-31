@@ -294,20 +294,83 @@ The key benefits of this approach are:
 Server actions work seamlessly with HTML forms. The form's action prop can directly reference a server action:
 
 ```tsx
-// src/page/todos/page.tsx
-import { addTodo } from "../actions.server";
+// src/components/TodoList.client.tsx
+"use client";
 
-export default function TodoForm() {
+import React from 'react';
+const { useState } = React;
+
+type Todo = {
+  id: number;
+  title: string;
+  completed: boolean;
+  created_at: string;
+};
+
+type Props = {
+  initialTodos: Todo[];
+  addTodo: (title: string) => Promise<{ success: boolean }>;
+  toggleTodo: (id: number) => Promise<{ success: boolean }>;
+  deleteTodo: (id: number) => Promise<{ success: boolean }>;
+  getTodos: () => Promise<Todo[]>;
+};
+
+export function TodoList({ initialTodos, addTodo, toggleTodo, deleteTodo, getTodos }: Props) {
+  const [todos, setTodos] = useState<Todo[]>(initialTodos);
+  const [newTodo, setNewTodo] = useState('');
+
+  async function handleAddTodo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTodo.trim()) return;
+
+    await addTodo(newTodo);
+    setNewTodo('');
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
+  async function handleToggleTodo(id: number) {
+    await toggleTodo(id);
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
+  async function handleDeleteTodo(id: number) {
+    await deleteTodo(id);
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
   return (
-    <form action={addTodo}>
-      <input
-        type="text"
-        name="title"
-        placeholder="What needs to be done?"
-        required
-      />
-      <button type="submit">Add Todo</button>
-    </form>
+    <div>
+      <h1>Todo List</h1>
+      
+      <form onSubmit={handleAddTodo}>
+        <input
+          type="text"
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
+          placeholder="Add a new todo..."
+        />
+        <button type="submit">Add</button>
+      </form>
+
+      <ul>
+        {todos.map((todo) => (
+          <li key={todo.id}>
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              onChange={() => handleToggleTodo(todo.id)}
+            />
+            <span style={{ textDecoration: todo.completed ? 'line-through' : 'none' }}>
+              {todo.title}
+            </span>
+            <button onClick={() => handleDeleteTodo(todo.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 ```
@@ -320,56 +383,86 @@ Server actions can handle errors and return them to the client:
 // src/page/actions.server.ts
 "use server";
 
-export async function addTodo(title: string) {
-  try {
-    if (!title.trim()) {
-      throw new Error("Title cannot be empty");
-    }
+type Todo = {
+  id: number;
+  title: string;
+  completed: boolean;
+  created_at: string;
+};
 
-    const todo = await db.todos.create({
-      data: {
-        title,
-        completed: false,
-      },
-    });
+let todos: Todo[] = [];
 
-    revalidatePath("/todos");
-    return { success: true, data: todo };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "An error occurred",
-    };
-  }
+export async function getTodos(): Promise<Todo[]> {
+  return todos;
+}
+
+export async function addTodo(title: string): Promise<{ success: boolean }> {
+  const newTodo: Todo = {
+    id: Date.now(),
+    title,
+    completed: false,
+    created_at: new Date().toISOString()
+  };
+  todos = [...todos, newTodo];
+  return { success: true };
+}
+
+export async function toggleTodo(id: number): Promise<{ success: boolean }> {
+  todos = todos.map(todo => 
+    todo.id === id ? { ...todo, completed: !todo.completed } : todo
+  );
+  return { success: true };
+}
+
+export async function deleteTodo(id: number): Promise<{ success: boolean }> {
+  todos = todos.filter(todo => todo.id !== id);
+  return { success: true };
 }
 ```
 
-## Optimistic Updates
+## Props Integration
 
-You can implement optimistic updates with server actions:
+Connect server actions to your page through props:
+
+```typescript
+// src/page/props.ts
+import { addTodo, deleteTodo, getTodos, toggleTodo } from './actions.server.ts';
+
+export const props = async () => {
+  const todos = await getTodos();
+  return {
+    todos,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
+    getTodos,
+  };
+};
+
+export type Props = Awaited<ReturnType<typeof props>>;
+```
+
+## Page Component
+
+Use the props in your page component:
 
 ```tsx
-// src/page/todos/page.tsx
-import { useTransition } from "react";
-import { toggleTodo } from "../actions.server";
+// src/page/page.tsx
+import React from 'react';
+import { TodoList } from '../components/TodoList.client';
+import type { Props } from './props.js';
 
-export default function TodoItem({ todo }) {
-  const [isPending, startTransition] = useTransition();
-
-  const handleToggle = () => {
-    // Optimistically update the UI
-    const optimisticTodo = { ...todo, completed: !todo.completed };
-
-    startTransition(() => {
-      toggleTodo(todo.id);
-    });
-  };
-
+export function Page({ todos, addTodo, toggleTodo, deleteTodo, getTodos }: Props) {
   return (
-    <li className={isPending ? "opacity-50" : ""}>
-      <input type="checkbox" checked={todo.completed} onChange={handleToggle} />
-      {todo.title}
-    </li>
+    <div>
+      <TodoList 
+        initialTodos={todos} 
+        addTodo={addTodo}
+        toggleTodo={toggleTodo}
+        deleteTodo={deleteTodo}
+        getTodos={getTodos}
+      />
+    </div>
   );
 }
 ```

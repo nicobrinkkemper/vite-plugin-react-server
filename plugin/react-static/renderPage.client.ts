@@ -55,7 +55,7 @@ import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { performance } from "node:perf_hooks";
 import { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
 import { createBufferedRscStream } from "../helpers/createBufferedRscStream.js";
-import React from "react";
+
 
 
 assertNonReactServer();
@@ -567,8 +567,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         // Use React.Fragment as fallback (same as server environment)
         pagePath: '', // This will cause the default page to be used, but we'll override it
         // Override the page component to use React.Fragment
-        PageComponent: React.Fragment,
-        HtmlComponent: React.Fragment,
+        PageComponent: undefined,
+        HtmlComponent: undefined,
       });
       
       // Create HTML stream that processes the fallback RSC stream to ensure performance timing script is injected

@@ -1,5 +1,5 @@
 import { expect, test, describe, afterAll } from "vitest";
-import { getSharedBuild, cleanupSharedBuilds } from "./shared-build.js";
+import { getSharedBuild, cleanupSharedBuilds, getHtmlContentFromEvents } from "./shared-build.js";
 import { setupErrorBoundaryTestProject } from "../setup.js";
 
 describe("Error Boundaries Build (Cross-Environment)", () => {
@@ -138,49 +138,30 @@ describe("Error Boundaries Build (Cross-Environment)", () => {
     const rscFiles = buildResult.staticFiles.filter((file) => file.endsWith('.rsc'));
     expect(rscFiles.length).toBeGreaterThan(0);
 
-    // Verify HTML structure by checking file content (optimized)
-    const fs = await import('fs/promises');
-    const path = await import('path');
+    // Verify HTML structure by checking content from build events (no file I/O)
+    const htmlContent = getHtmlContentFromEvents(buildResult.events);
     
-    // Only check the first HTML file for faster execution
-    const htmlFile = htmlFiles[0];
-    const filePath = path.resolve(buildResult.distDir, htmlFile);
+    expect(htmlContent.length).toBeGreaterThan(0);
     
-    try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      
-      // Check for proper HTML structure
-      expect(content).toContain('<html');
-      expect(content).toContain('</html>');
-      expect(content).toContain('<body');
-      expect(content).toContain('</body>');
-      expect(content).toContain('id="root"');
-      
-      // Check for index.js script (should be present in both environments)
-      expect(content).toContain('src="index.js"');
-      
-      // Check for performance script (React's internal timing mechanism)
-      // The performance script is added by React when processing RSC streams with suspense boundaries
-      // Server environment preserves RSC stream structure, so performance script appears
-      // Client environment converts RSC to React elements first, so no performance script
-      const hasPerformanceScript = content.includes('requestAnimationFrame(function(){$RT=performance.now()})');
-      
-      // Log the performance script status for clarity
-      if (hasPerformanceScript) {
-        console.log(`📊 Performance script detected in ${htmlFile}`);
-      } else {
-        console.log(`📊 No performance script detected in ${htmlFile}`);
-      }
-      
-      // Check that it's not empty
-      expect(content.length).toBeGreaterThan(100);
-      
-      console.log(`✅ HTML file ${htmlFile} has proper structure (${content.length} bytes)`);
-      console.log(`📄 HTML content preview:`);
-      console.log(content.substring(0, 500) + (content.length > 500 ? '...' : ''));
-    } catch (error) {
-      console.error(`❌ Failed to read HTML file ${htmlFile}:`, error);
-      throw error;
-    }
+    // Check the first HTML content for proper structure
+    const content = htmlContent[0];
+    
+    // Check for proper HTML structure
+    expect(content).toContain('<html');
+    expect(content).toContain('</html>');
+    expect(content).toContain('<body');
+    expect(content).toContain('</body>');
+    expect(content).toContain('id="root"');
+    
+    // Check for index.js script (should be present in both environments)
+    expect(content).toContain('src="index.js"');
+    expect(content).not.toContain('requestAnimationFrame(function(){$RT=performance.now()})');
+    
+    // Check that it's not empty
+    expect(content.length).toBeGreaterThan(100);
+    
+    console.log(`✅ HTML content has proper structure (${content.length} bytes)`);
+    console.log(`📄 HTML content preview:`);
+    console.log(content.substring(0, 500) + (content.length > 500 ? '...' : ''));
   });
 });

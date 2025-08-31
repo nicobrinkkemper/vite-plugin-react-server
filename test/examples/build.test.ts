@@ -28,7 +28,7 @@ describe("plugin examples build test", () => {
     await setupTestProject(testDir);
     events = await doBuild({
       projectRoot: testDir,
-      verbose: true,
+      verbose: false,
       onMetrics: (m) => {
         console.log("CLIENT METRICS COLLECTED:", m);
         metrics.push(m);

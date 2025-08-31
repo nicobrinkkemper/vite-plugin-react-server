@@ -1,77 +1,132 @@
-# Maintenance Documentation
+# Maintenance Guide
 
-This directory contains **essential development documentation** for AI contributors working on the `vite-plugin-react-server` plugin itself. This is NOT user documentation.
+This guide covers maintenance tasks, troubleshooting, and development practices for the vite-plugin-react-server project.
 
-## 📋 Essential Development Docs
+## Table of Contents
 
-1. **[Plugin Architecture](./PLUGIN_ARCHITECTURE.md)** - Internal architecture and component interactions
-2. **[Common Issues](./COMMON_ISSUES.md)** - Frequently encountered problems and solutions
-3. **[Error Handling](./ERROR_HANDLING.md)** - Error patterns and recovery strategies
-4. **[Debugging](./DEBUGGING.md)** - Debugging techniques and tools
-5. **[Testing](./TESTING.md)** - Test infrastructure and patterns
+- [Testing](./TESTING.md) - Testing practices and test infrastructure
+- [Traditional Build Compatibility](#traditional-build-compatibility) - Supporting legacy Vite build patterns
 
-## 🔧 Recent Critical Fixes
+## Traditional Build Compatibility
 
-### Transformer Server Component Hiding (Latest)
+The plugin supports both the new Vite 6 Environment API and traditional multi-step builds. This section documents the implementation details and lessons learned.
 
-**Issue**: During static generation, server components (like `page.js`) were being loaded in non-server environments, causing "React Server Writer cannot be used outside a react-server environment" errors.
+### Build Patterns
 
-**Root Cause**: The transformer was missing logic to handle server components in non-server environments.
+**Environment API (New)**: Single `vite build --app` command that builds all environments in parallel
+**Traditional (Legacy)**: Multiple separate `vite build` commands for each environment
 
-**Solution**: Added logic in `plugin/loader/createTransformer.ts` to detect server components in non-server environments and return empty modules:
+### Implementation Strategy
+
+#### 1. Environment Plugin Integration
+
+**Key Insight**: Traditional builds need the same configuration logic as environment builds.
+
+**Solution**: Always include the environment plugin in the server plugin, even for traditional builds:
 
 ```typescript
-} else if (!isServerEnvironment && !loader?.isClientComponentByName?.(moduleId)) {
-  // In non-server environments, server components should be hidden (return empty module)
-  if (verbose) {
-    logger.info(`[createTransformer:non-server] Hiding server component in non-server environment: ${moduleId}`);
-  }
-  return { code: "", map: null };
+const plugins = [
+  envPlugin(options),
+  // Always include environment plugin to ensure proper rollup configuration
+  // This works for both Environment API and traditional builds
+  createEnvironmentPlugin(options),
+  reactServerPlugin(options),
+  // ... other plugins
+];
+```
+
+**Why This Works**: The environment plugin provides:
+- Auto-discovery of files (`resolveAutoDiscover`)
+- Proper rollup input configuration (`resolveUserConfig`)
+- Environment-specific settings (externals, conditions, etc.)
+
+#### 2. Transformer Plugin for Traditional Builds
+
+**Problem**: Traditional builds don't use the environment plugin's transformer, so we need to add it separately.
+
+**Solution**: Add transformer plugin directly for traditional builds:
+
+```typescript
+// For traditional builds, add transformer plugin directly
+const isEnvironmentApiMode = process.argv.includes("--app") || process.env['VITE_BUILDER'] != null;
+if (!isEnvironmentApiMode) {
+  plugins.push(
+    createTransformerPlugin({
+      name: "server",
+      defaultEnvironment: "server",
+      allowedEnvironments: ["server"],
+    })(options)
+  );
 }
 ```
 
-**Status**: ✅ **FIXED** - The transformer now correctly handles server components in non-server environments.
+#### 3. Environment Detection
 
-### Rollup React Module Resolution Issue (Current)
+**Problem**: Traditional builds don't have `this.environment` context.
 
-**Issue**: Build tests are failing with Rollup error: `"__require" is not exported by "react/index.js"` during the static build phase.
+**Solution**: Use `NODE_OPTIONS` to detect server environment:
 
-**Root Cause**: The static build phase uses a separate Rollup bundling step that has CommonJS/ESM interop issues with React modules.
-
-**Status**: 🔄 **IN PROGRESS** - This affects the static build bundling phase.
-
-## 🏗️ Plugin Structure
-
-The plugin is organized into the following main components:
-
-1. **Core Plugin** (`plugin/`) - Main plugin entry points and configuration
-2. **Transformer Plugin** (`plugin/transformer/`) - Handles component transformations
-3. **Loader System** (`plugin/loader/`) - Module loading and transformation
-4. **React Static** (`plugin/react-static/`) - Static generation and build processes
-5. **Dev Server** (`plugin/dev-server/`) - Development server
-6. **Worker System** (`plugin/worker/`) - RSC worker system
-7. **Event System** (`plugin/events/`) - Inter-plugin communication
-8. **CSS Handling** (`plugin/css/`) - CSS processing
-
-## 🧪 Testing
-
-Run tests with:
-```bash
-# Server tests
-npm run test:server -- ./test/examples
-
-# Client tests  
-npm run test:client -- ./test/examples
-
-# All tests
-npm run test -- ./test/examples
+```typescript
+const isServerEnv = this.environment?.name === "server" || 
+  (!this.environment && process.env.NODE_OPTIONS?.includes("react-server"));
 ```
 
-## 📝 Contributing
+### Current Status
 
-When making changes to the plugin:
+#### ✅ Working
+- Build structure generation (`dist/static/`, `dist/client/`, `dist/server/`)
+- Auto-discovery and rollup configuration
+- Manifest generation
+- Component file generation
 
-1. Update relevant documentation in this directory
-2. Add test cases for new functionality
-3. Ensure all tests pass before submitting changes
-4. Document any breaking changes or new configuration options
+#### ❌ Still Needs Work
+- Transformer plugin not being applied (sourcemap errors show "use client" ignored)
+- Client components not being transformed to `registerClientReference`
+
+### Troubleshooting
+
+#### Common Issues
+
+1. **HTML Input Error**: `rollupOptions.input should not be an html file when building for SSR`
+   - **Cause**: Vite defaults to `index.html` for SSR builds
+   - **Solution**: Use environment plugin to configure proper inputs
+
+2. **Transformer Not Working**: Sourcemap errors about "use client" being ignored
+   - **Cause**: Transformer plugin not being invoked during transform phase
+   - **Status**: Still investigating plugin order and hook registration
+
+3. **Missing Manifests**: Server build not generating `.vite/manifest.json`
+   - **Cause**: Not using environment plugin configuration
+   - **Solution**: Always include environment plugin
+
+#### Debugging Tips
+
+1. **Check Plugin Order**: Ensure transformer plugin is early in the chain
+2. **Verify Environment Detection**: Check `NODE_OPTIONS` and `this.environment`
+3. **Monitor Transform Hooks**: Add debugging to see if transformer is being called
+4. **Compare with Environment API**: Traditional builds should produce same output structure
+
+### Future Improvements
+
+1. **Unified Transformer**: Make transformer plugin work for both patterns
+2. **Simplified Detection**: Better environment detection for traditional builds
+3. **Plugin Order Optimization**: Ensure transformers run at the right time
+4. **Error Handling**: Better error messages for traditional build issues
+
+### Testing
+
+Use `npm run test:server -- ./test/examples/build-traditional` to test traditional build compatibility.
+
+**Expected Output Structure**:
+```
+dist/
+├── static/          # Browser build
+│   ├── index.html
+│   └── index.js
+├── client/          # SSR client build
+│   ├── .vite/
+│   └── components/
+└── server/          # Server build
+    ├── .vite/
+    └── components/
+```

@@ -322,7 +322,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
     // Prioritize userOptions.projectRoot when explicitly set, regardless of config.root
     // This ensures Environment API environments use their specific project roots
     const effectiveProjectRoot =
-      userOptions.projectRoot || config.root || process.cwd();
+      userOptions.projectRoot || config.root || "";
 
     // Calculate moduleRootPath based on command and environment
     // During serve (development): use moduleBasePath (source paths)

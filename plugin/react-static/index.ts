@@ -1,4 +1,6 @@
 import { getCondition } from "../config/getCondition.js";
+import type { VitePluginFn } from "../types.js";
+import type { CreateBuildLoaderFn, RscToHtmlStreamFn, RenderPageFn } from "./types.js";
 
 const condition = getCondition("");
 const dir = new URL("./", import.meta.url);
@@ -9,7 +11,13 @@ export const {
   temporaryReferences,
   createBuildLoader,
   rscToHtmlStream
-} = await import(`${dir}/index.${condition}.js`);
+} = await import(`${dir}/index.${condition}.js`) as {
+  reactStaticPlugin: VitePluginFn;
+  renderPage: RenderPageFn;
+  temporaryReferences: WeakMap<any, any> | Set<any>;
+  createBuildLoader: CreateBuildLoaderFn;
+  rscToHtmlStream: RscToHtmlStreamFn;
+}
 
 export { fileWriter } from "./fileWriter.js";
 export { renderPages } from "./renderPages.js";

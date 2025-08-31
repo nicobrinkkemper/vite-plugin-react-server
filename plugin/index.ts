@@ -4,3 +4,6 @@ import type { VitePluginMainFn } from './types.js';
 
 export const condition = getCondition('');
 export const { vitePluginReactServer, vitePluginReactClient } = (await import(`${pluginRoot}/plugin.${condition}.js`)) as { vitePluginReactServer: VitePluginMainFn, vitePluginReactClient: VitePluginMainFn };
+
+// Export the orchestrator for direct use
+export { createPluginOrchestrator } from './orchestrator/createPluginOrchestrator.js';

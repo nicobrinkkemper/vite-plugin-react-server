@@ -161,6 +161,20 @@ The plugin uses Node.js conditions to determine execution context:
 import { getCondition } from "vite-plugin-react-server/config";
 
 const condition = getCondition();
+console.log("Current environment:", condition); // "react-server" or "react-client"
+
+// Test environment-specific imports
+if (condition === "react-server") {
+  // Server environment - can import server modules
+  const serverModule = await import("vite-plugin-react-server/server");
+  await expect(import("vite-plugin-react-server/client")).rejects.toThrow();
+} else {
+  // Client environment - can import client modules  
+  const clientModule = await import("vite-plugin-react-server/client");
+  await expect(import("vite-plugin-react-server/server")).rejects.toThrow();
+}
+
+// Dynamic imports based on condition
 const dirname = new URL('.', import.meta.url).pathname;
 const createRscStream = await import(`${dirname}/createRscStream.${condition}.js`);
 const createHandler = await import(`${dirname}/createHandler.${condition}.js`);

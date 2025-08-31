@@ -42,7 +42,7 @@ import { addStaticManifest, manifests } from "../bundle/manifests.js";
 import type { Worker } from "node:worker_threads";
 import { resolveAutoDiscover } from "../config/index.js";
 import { join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+
 import { baseURL } from "../utils/envUrls.node.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 // cssCollector removed - using filesystem-based CSS processing
@@ -101,6 +101,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       configEnv = viteConfigEnv;
     },
     applyToEnvironment(partialEnvironment) {
+      // Client static plugin should only apply to client environment
+      // In traditional builds, we force it to apply via custom environment setup
       if (
         ["server"].includes(
           partialEnvironment.name as "client" | "server" | "ssr"
@@ -273,6 +275,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
     async closeBundle() {
       // This runs after all writeBundle hooks are complete
       // Now we can do static generation with access to both client and server builds
+      console.log(`[react-static-client] closeBundle called`);
+      console.log(`[react-static-client] autoDiscoveredFiles?.urlMap:`, autoDiscoveredFiles?.urlMap);
+      console.log(`[react-static-client] autoDiscoveredFiles?.urlMap.size:`, autoDiscoveredFiles?.urlMap?.size);
       try {
         if (!autoDiscoveredFiles?.urlMap || autoDiscoveredFiles?.urlMap.size === 0) {
           logger?.warn(
@@ -282,25 +287,39 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         }
 
 
-        const manifestPath = typeof resolvedConfig?.build?.manifest === "string" 
-          ? resolvedConfig.build.manifest 
-          : ".vite/manifest.json";
-        const serverManifestPath = join(
-          userOptions.projectRoot,
-          userOptions.build.outDir,
-          userOptions.build.server,
-          manifestPath
-        );
-        if (!existsSync(serverManifestPath)) {
+        // Load server manifest from filesystem
+        console.log(`[react-static-client] Loading server manifest from filesystem`);
+        const serverManifestPath = join(userOptions.build.outDir, userOptions.build.server);
+        const manifestPath = resolvedConfig?.build.manifest ?? ".vite/manifest.json";
+        console.log(`[react-static-client] Looking for server manifest at: ${userOptions.projectRoot}/${serverManifestPath}/${manifestPath}`);
+        
+        const serverManifestResult = await tryManifest({
+          root: userOptions.projectRoot,
+          outDir: serverManifestPath,
+          manifestPath: manifestPath,
+          ssrManifest: false,
+        });
+
+        console.log(`[react-static-client] tryManifest result type: ${serverManifestResult.type}`);
+
+        if (serverManifestResult.type === "error") {
+          logger?.warn(
+            `[react-static-client] Failed to load server manifest: ${serverManifestResult.error.message}`
+          );
+          return;
+        }
+
+        if (serverManifestResult.type === "skip") {
           logger?.warn(
             "[react-static-client] Server build not found, skipping static generation"
           );
           return;
         }
 
-        serverManifest = JSON.parse(readFileSync(serverManifestPath, "utf-8"));
+        serverManifest = serverManifestResult.manifest;
+        console.log(`[react-static-client] Successfully loaded server manifest from filesystem with ${Object.keys(serverManifest).length} entries`);
         logger?.info(
-          "[react-static-client] Loaded server manifest for static generation"
+          "[react-static-client] Loaded server manifest from filesystem for static generation"
         );
 
         // Load static manifest from filesystem for CSS path mapping

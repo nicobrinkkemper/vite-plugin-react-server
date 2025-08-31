@@ -60,6 +60,7 @@ export default defineConfig({
           __dirname,
           "plugin/loader/index.ts"
         ),
+        "plugin/orchestrator/plugin": resolve(__dirname, "plugin/orchestrator/index.ts"),
         "plugin/components/index": resolve(__dirname, "plugin/components/index.ts"),
         "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),

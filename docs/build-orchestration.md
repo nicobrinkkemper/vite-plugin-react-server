@@ -33,25 +33,51 @@ The plugin provides build system support for React Server Components (RSC) and s
 
 ## Build Process
 
+The plugin supports two build approaches:
+
+### Traditional Build (Multi-Step)
+
 The build process executes in the following sequence:
 
-### 1. Static Build (`vite build`)
+#### 1. Static Build (`vite build`)
 - Generates client-side ESM files in `dist/static`
 - Creates static manifest
 - Processes CSS modules
 - Outputs browser-optimized code
 
-### 2. Client Boundary Build (`vite build --ssr`)
+#### 2. Client Boundary Build (`vite build --ssr`)
 - Generates client-boundary ssr files in `dist/client`
 - Same as the static, but with bare specifier imports intended for ssr
 - Outputs Node.js-optimized code
 - Uses the same hashes as static build for consistency
 
-### 3. Server Boundary Build (`NODE_OPTIONS="--conditions=react-server" vite build`)
+#### 3. Server Boundary Build (`NODE_OPTIONS="--conditions=react-server" vite build`)
 - Generates RSC content
 - Outputs Node.js-optimized code
 - Uses the same hashes as static build for consistency
 - Upgrades `dist/static` directory with fixed index.html/.rsc files
+
+### Environment API Build (Single-Step)
+
+The plugin supports Vite's Environment API with `vite build --app`:
+
+#### Server-First Mode (`NODE_OPTIONS='--conditions react-server' vite build --app`)
+- **Static generation** of server components on the main thread
+- **HTML rendering** via html-worker
+- **Benefits**: Faster execution, easier debugging, direct component access
+- **Use cases**: Development, debugging, custom html-worker integration
+
+#### Client-First Mode (`vite build --app`)
+- **Static generation** of server components on RSC worker thread
+- **HTML rendering** on the main thread
+- **Benefits**: Server thread isolation, custom RSC worker support
+- **Use cases**: Production builds, worker isolation, custom RSC worker integration
+
+### Performance Characteristics
+
+- **Server-First Mode**: Generally faster execution with direct component access
+- **Client-First Mode**: Better isolation with worker thread separation
+- **Both Modes**: Maintain consistent build output quality and reliability
 
 ## App Mode Support
 
@@ -111,14 +137,69 @@ The build generates the following directory structure:
 ```
 dist/
 ├── static/
-    ├── index.html          # Generated HTML
-    ├── index.rsc           # Headless RSC content
+│   ├── index.html          # Generated HTML
+│   ├── index.rsc           # Headless RSC content
 │   └── .vite/manifest.json # Main manifest
 ├── client/
-│   └── ...                 # React client boundary
-├── server/
-│   └── ...                 # React server boundary
+│   ├── page/
+│   │   └── page.js         # Client components and client-side code
+│   └── index.js            # Client entry point
+└── server/
+    ├── page/
+    │   ├── page.js         # Server components
+    │   ├── props.js        # Props functions
+    │   └── actions.server.js  # Server actions (transformed)
+    └── index.js            # Server entry point
 ```
+
+For client files, there's a consistent hash 
+
+**Key Points:**
+- **Client build**: Contains client components and client-side code for SSR
+- **Server build**: Contains server components, props, and transformed server actions
+- **Static build**: Contains pre-rendered HTML and RSC files for each route
+- **Server actions**: Are transformed to use `registerServerReference` in server build
+- **No server actions in client/static**: Server actions are excluded from client and static builds
+
+## Consistent Hashing
+
+The plugin ensures **consistent hashes** across all build environments for the same source files:
+
+### Hash Consistency Example
+
+```
+dist/
+├── client/
+│   └── components/
+│       └── Link.client-CnBCzH8H.js  # Same hash in all environments
+├── server/
+│   └── components/
+│       └── Link.client-CnBCzH8H.js  # Same hash
+└── static/
+    └── components/
+        └── Link.client-CnBCzH8H.js  # Same hash
+```
+
+### How It Works
+
+1. **Source-based Hashing**: File hashes are generated from the source content, not the build environment
+2. **Cross-Environment Consistency**: The same source file gets the same hash in client, server, and static builds
+3. **Content-based Updates**: When file content changes, the hash changes across all environments
+4. **Reference Integrity**: Ensures consistent module references between build targets
+
+### Benefits
+
+- **Reliable References**: Client and server builds can reference the same modules consistently
+- **Cache Optimization**: Same file = same hash = same cache key across environments
+- **Debugging**: Easier to trace files across different build outputs
+- **Deployment**: Consistent file names simplify deployment and CDN management
+
+### Hash Generation
+
+The plugin uses Vite's built-in hash generation but ensures consistency by:
+- Using the same source content for hash calculation across environments
+- Maintaining hash consistency even when transformations differ
+- Preserving hash stability during incremental builds
 
 ## Environment Variables
 

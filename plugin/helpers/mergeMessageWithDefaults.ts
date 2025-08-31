@@ -32,7 +32,7 @@ export function mergeMessageWithDefaults(
       DEFAULT_CONFIG.PAGE_EXPORT_NAME,
     propsExportName = options.propsExportName ?? defaultUserOptions.propsExportName ??
       DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-    projectRoot = options.projectRoot ?? defaultUserOptions.projectRoot ?? process.cwd(),
+    projectRoot = options.projectRoot ?? defaultUserOptions.projectRoot,
     moduleRootPath = options.moduleRootPath ?? defaultUserOptions.moduleRootPath ?? "",
     moduleBaseURL = options.moduleBaseURL ?? defaultUserOptions.moduleBaseURL ??
       DEFAULT_CONFIG.MODULE_BASE_URL,

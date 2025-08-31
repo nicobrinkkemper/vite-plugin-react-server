@@ -1,72 +1,9 @@
-import type { VitePluginReactClientFn, StreamPluginOptions } from "../types.js";
-import type { Plugin } from "vite";
-import { resolveOptions } from "./config/resolveOptions.js";
-import { envPlugin } from "./env/plugin.client.js";
-import { createEnvironmentPlugin } from "./environments/createEnvironmentPlugin.js";
-import { reactClientPlugin } from "./react-client/plugin.client.js";
-import { reactServerPlugin } from "./react-server/plugin.client.js";
+import type { VitePluginMainAsyncFn } from "./types.js";
+import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.js";
+import type { UserOptions, Strategy } from "./orchestrator/createPluginOrchestrator.js";
+import { assertNonReactServer } from "./config/getCondition.js";
 
-import { reactStaticPlugin } from "./react-static/plugin.client.js";
-import { createBuildEventPlugin } from "./environments/createBuildEventPlugin.js";
-
-// Build plugin - agnostic to condition
-function createBuildPlugin(options: StreamPluginOptions): Plugin[] {
-  const resolvedOptionsResult = resolveOptions(options);
-  if (resolvedOptionsResult.type === "error") {
-    throw resolvedOptionsResult.error;
-  }
-  const userOptions = resolvedOptionsResult.userOptions;
-  
-  const plugins = [
-    envPlugin(options),
-    createEnvironmentPlugin(options),
-    reactClientPlugin(options),
-    reactServerPlugin(options),
-    createBuildEventPlugin(options),
-  ];
-
-  // Add static generation support
-  if (userOptions.build?.pages) {
-    if (Array.isArray(userOptions.build.pages)) {
-      if (userOptions.build.pages.length > 0) {
-        // Explicit routes - generate these pages
-        plugins.push(reactStaticPlugin(options));
-      } else {
-        // Explicitly empty array - no pages to generate, don't add plugin
-      }
-    } else if (typeof userOptions.build.pages === 'function') {
-      // Dynamic discovery function - add plugin to handle async discovery
-      plugins.push(reactStaticPlugin(options));
-    }
-  } else {
-    // Not configured - auto-discover from filesystem
-    plugins.push(reactStaticPlugin(options));
-  }
-  
-  return plugins;
-}
-
-/**
- * Main entrypoint for React Server Components in client environment.
- *
- * This plugin adapts its behavior based on the build context:
- * - In single builds: includes client plugin for client-side rendering
- * - In app mode (--app): includes both client and server plugins for full RSC support
- * - With static pages: adds static generation plugin when appropriate
- *
- * Use this for the most common case where you want RSC support in client environments.
- * @param options
- * @returns
- */
-export const vitePluginReactServer: VitePluginReactClientFn =
-  function _vitePluginReactClient(options) {
-    if (options == null) {
-      throw new Error("options is required");
-    }
-
-    // Always include all plugins - they will be conditionally activated
-    return createBuildPlugin(options);
-  };
+assertNonReactServer();
 
 /**
  * Vite plugin for the React client, use specific name to support static import (that doesn't conflict with vitePluginReactServer)
@@ -76,16 +13,65 @@ export const vitePluginReactServer: VitePluginReactClientFn =
  * @param options
  * @returns
  */
-export const vitePluginReactClient: VitePluginReactClientFn =
-  function _vitePluginReactClient(options) {
+export const vitePluginReactClient: VitePluginMainAsyncFn =
+  async function _vitePluginReactClient(options) {
     if (options == null) {
       throw new Error("options is required");
     }
 
-    const plugins = [
-      envPlugin(options),
-      reactClientPlugin(options),
-    ];
+    console.log(`[Plugin Client] vitePluginReactClient called with options:`, options);
+    
+    // Use the intelligent orchestrator for plugin composition with client context
+    const userStrategy = (options as UserOptions).strategy || {};
+    const strategy: Strategy = {
+      mode: "auto", // Let orchestrator decide based on context
+      importContext: "react-client", // Indicate this came from client context
+      bundleTarget: "client", // Indicate which function was called
+      ssg: true, // Client-only builds should enable SSG by default
+      ...userStrategy
+    };
+    
 
-    return plugins;
+    
+    console.log(`[Plugin Client] Strategy for vitePluginReactClient:`, strategy);
+    return createPluginOrchestrator({
+      ...options,
+      strategy
+    });
+  };
+
+/**
+ * Main entrypoint for React Server Components in server environment.
+ *
+ * This plugin uses the intelligent orchestrator to adapt its behavior based on the build context:
+ * - In traditional builds: uses auto-detection to determine capabilities
+ * - In environment API builds: leverages full RSC capabilities
+ * - With static pages: adds static generation plugin when appropriate
+ *
+ * Use this for server-side rendering and static generation with full RSC support.
+ * @param options
+ * @returns
+ */
+export const vitePluginReactServer: VitePluginMainAsyncFn =
+  async function _vitePluginReactServer(options) {
+    if (options == null) {
+      throw new Error("options is required");
+    }
+
+    // Use the intelligent orchestrator for plugin composition with server context
+    const userStrategy = (options as UserOptions).strategy || {};
+    const strategy: Strategy = {
+      mode: "auto", // Let orchestrator decide based on context
+      importContext: "react-client", // Indicate this came from client context
+      bundleTarget: "server", // Indicate which function was called
+      ...userStrategy
+    };
+    
+
+    
+    console.log(`[Plugin Client] Strategy for vitePluginReactServer:`, strategy);
+    return createPluginOrchestrator({
+      ...options,
+      strategy
+    });
   };

@@ -46,11 +46,12 @@ export async function createClientDevServer(optionOverrides: Partial<StreamPlugi
   };
   
   servers[portKey] = await createServer({
-    plugins: vitePluginReactServer(mergedOptions),
+    plugins: [vitePluginReactServer(mergedOptions)],
     logLevel: 'info',
     server: {
       port: port,
     },
+
     // Use a unique cache directory to prevent race conditions
     cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
   });

@@ -34,6 +34,11 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
 
   return {
     name: "vite-plugin-react-server:dev-server-client",
+    apply: "serve", // Only apply in dev server mode
+    applyToEnvironment(partialEnvironment: any  ) {
+      // Only apply to server environment
+      return partialEnvironment?.name === 'server';
+    },
     config(_config, viteConfigEnv) {
       configEnv = viteConfigEnv;
       if (options.verbose) {

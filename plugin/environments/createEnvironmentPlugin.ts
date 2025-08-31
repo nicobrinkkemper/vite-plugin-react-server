@@ -114,18 +114,18 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       const autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles!;
 
       // Define environment configurations
-      const environmentConfigs = [
+      const allEnvironmentConfigs = [
         {
           name: "client",
           condition: "react-client" as const,
           ssr: false,
-          outDir: join(userOptions.build.outDir, userOptions.build.client),
+          outDir: join(userOptions.build.outDir, userOptions.build.static),
         },
         {
           name: "ssr",
           condition: "react-client" as const,
           ssr: true,
-          outDir: join(userOptions.build.outDir, userOptions.build.static),
+          outDir: join(userOptions.build.outDir, userOptions.build.client),
         },
         {
           name: "server",
@@ -134,6 +134,16 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           outDir: join(userOptions.build.outDir, userOptions.build.server),
         },
       ];
+
+      // Filter environments based on availableEnvironments from orchestrator
+      console.log(`[Environment Plugin] userOptions keys:`, Object.keys(userOptions));
+      console.log(`[Environment Plugin] userOptions.availableEnvironments:`, (userOptions as any).availableEnvironments);
+      const availableEnvironments = (userOptions as any).availableEnvironments || ["client", "ssr", "server"];
+      console.log(`[Environment Plugin] Available environments from orchestrator:`, availableEnvironments);
+      const environmentConfigs = allEnvironmentConfigs.filter(config => 
+        availableEnvironments.includes(config.name)
+      );
+      console.log(`[Environment Plugin] Filtered environment configs:`, environmentConfigs.map(c => c.name));
 
       // Resolve all environment configurations using resolveUserConfig
       const environments: Record<string, import("vite").EnvironmentOptions> =
@@ -217,7 +227,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         environments[envConfig.name] = {
           keepProcessEnv: envConfig.name === "server" ? true : false,
           define: userConfig.define,
-          consumer: envConfig.name === "server" ? "server" : undefined,
+          consumer: envConfig.name === "server" || envConfig.name === "ssr" ? "server" : "client",
           resolve: {
             ...userConfig.resolve,
             // IMPORTANT: Map externals from resolveUserConfig (rollupOptions.external) to Environment API format

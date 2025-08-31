@@ -46,7 +46,7 @@ type MyPageProps = {
   user: { name: string; email: string };
 };
 
-type MyHtmlProps = HtmlProps<MyPageProps, true, "div">;
+type MyHtmlProps = HtmlProps<MyPageProps>;
 
 // Use generic types that adapt to your React version
 export const Html = ({
@@ -58,7 +58,6 @@ export const Html = ({
   <html>
     <body>
       <Root
-        as="div"
         cssFiles={cssFiles}
         Page={Page}
         pageProps={pageProps}
@@ -151,6 +150,32 @@ await builder.buildApp();
 
 **Note**: The standard `build()` function doesn't properly support Environment API. Always use `createBuilder()` for multi-environment builds.
 
+### 🔧 **Dev Server Plugin Environment Detection Issues**
+
+**Problem**: The server-side dev server plugin is running in a client-consuming environment, causing `SyntaxError: Cannot use import statement outside a module`.
+
+**Error Examples**:
+```
+SyntaxError: Cannot use import statement outside a module
+```
+
+**Root Cause**: The `consumer` property is not properly set in the environment configuration. Without `consumer: "server"`, the server-side dev server plugin runs in a client-consuming environment, which uses the module runner compatibility mode and tries to process server code in a browser context.
+
+**Solution**: Add the `consumer` property to make the module runner disappear. Both SSR and server environments should have `consumer: "server"` because they both run on the server side:
+
+```typescript
+// In createEnvironmentPlugin.ts or similar
+consumer: envConfig.name === "server" || envConfig.name === "ssr" ? "server" : "client",
+```
+
+**Important**: Do not override the SSR consumer - both SSR and server environments should have `consumer: "server"` because they both execute on the server, not in the browser.
+
+**Why This Matters**: When the server-side dev server plugin runs in a client-consuming environment, Vite uses the module runner compatibility mode which tries to process server code in a browser context, causing the import statement errors.
+
+**Note**: This is confusing because "client" in our context means "client boundary" (React client components), but Vite's `consumer` property refers to whether the code runs in the browser (`"client"`) or on the server (`"server"`). Both SSR and server environments run on the server, so they both need `consumer: "server"`.
+
+**The Fix**: The solution is NOT to remove or change import statements, but rather to add `consumer: "server"` to make Vite stop using the module runner compatibility mode for server environments.
+
 ### 🌐 **CORS Errors During Preview**
 
 **Problem**: Cross-origin request blocked when accessing RSC files during preview.
@@ -168,16 +193,104 @@ Uncaught TypeError: NetworkError when attempting to fetch resource.
 
 **Steps to Fix**:
 1. **Option 1**: Access your preview server using `localhost:4173` instead of `127.0.0.1:4173`
+
+### 🛡️ **Error Boundaries**
+
+**Problem**: Need to handle errors gracefully in your application.
+
+**Solution**: Use error boundaries to catch and display errors:
+
+```tsx
+// src/components/ErrorBoundary.client.tsx
+"use client";
+import React from "react";
+import { ErrorMessage } from "./ErrorMessage.js";
+
+export class ErrorBoundary extends React.Component {
+  public state: {
+    hasError: boolean;
+    error: Error | null;
+  } = {
+    hasError: false,
+    error: null,
+  };
+
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    console.log("[ErrorBoundary] Caught error:", error.message);
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.state.error) {
+        return (
+          <ErrorMessage
+            error={{
+              message: this.state.error.message,
+              stack: this.state.error.stack,
+            }}
+          />
+        );
+      }
+      return <div>Error</div>;
+    }
+    return this.props.children;
+  }
+}
+```
+
+```tsx
+// src/components/ErrorMessage.tsx
+"use client";
+import React from "react";
+
+export function ErrorMessage({ error }: { error: { message: string; stack?: string } }) {
+  return (
+    <div data-testid="error-boundary">
+      <h2>Error</h2>
+      <p data-testid="error-message">{error.message}</p>
+      {error.stack && (
+        <details>
+          <summary>Stack trace</summary>
+          <pre>{error.stack}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+```
+
+**Usage in your page:**
+```tsx
+// src/page/page.tsx
+import React from "react";
+import { ErrorBoundary } from "../components/ErrorBoundary.client.js";
+import { TestError } from "../components/TestError.js";
+
+export function Page(props: any) {
+  return (
+    <div>
+      <h1>Error Boundary Test</h1>
+      <ErrorBoundary>
+        <TestError throwError={props.throwError} />
+      </ErrorBoundary>
+    </div>
+  );
+}
+```
 2. **Option 2**: Configure your `publicOrigin` to match the actual origin being used:
    ```typescript
    export default {
      // ... other config
-     publicOrigin: "http://127.0.0.1:4173", // or whatever origin you prefer
+     publicOrigin: "http://localhost:4173", // this ensures the publicOrigin is always the same 
    } satisfies StreamPluginOptions;
    ```
-3. Ensure the preview server is running with the correct condition: `NODE_OPTIONS="--conditions=react-server" npm run preview`
-
-**Note**: The plugin automatically adds CORS headers for both `localhost` and `127.0.0.1` origins, but the preview server must be running with the `react-server` condition for these headers to be applied.
+3. Ensure the preview server is running with the correct condition: `vite build --app` then `vite preview`
 
 **Solution**: 
 1. Ensure client components have `"use client"` as the first line
@@ -409,6 +522,8 @@ export const Page = () => {
   );
 };
 ```
+
+
 
 ### 🚨 **Common Gotchas**
 

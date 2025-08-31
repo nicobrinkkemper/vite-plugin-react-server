@@ -294,7 +294,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
                 buildStart() {
                   // Ensure react-server condition is available during server builds
                   if (condition === "react-server") {
-                    //  process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || "") + " --conditions react-server";
+                    process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || "") + " --conditions react-server";
                   }
                 },
               },

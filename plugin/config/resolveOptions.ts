@@ -141,7 +141,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // Basic configuration - use the first projectRoot that was provided, or fall back to current options
   const projectRoot = options.projectRoot ?? originalOptions?.projectRoot ?? process.cwd();
   
-  if (options.verbose && options.projectRoot != originalOptions.projectRoot) {
+  if (options.verbose && options.projectRoot != originalOptions?.projectRoot) {
     logger.info(`[resolveOptions] new projectRoot: ${projectRoot}`);
   }
 
@@ -707,6 +707,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       build: build,
       dev: dev,
       verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
+      availableEnvironments: (options as any).availableEnvironments,
+      strategy: (options as any).strategy,
       onMetrics:
         typeof options.onMetrics === "function"
           ? options.onMetrics

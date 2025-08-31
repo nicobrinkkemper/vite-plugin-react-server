@@ -3,21 +3,17 @@ import type { StreamPluginOptions, PluginEvent } from "../types.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { handleError } from "../error/handleError.js";
 import { toError } from "../error/toError.js";
+import { addServerManifest } from "../bundle/manifests.js";
+import { getBundleManifest } from "../helpers/getBundleManifest.js";
 
 // Build event plugin for Environment API builds using resolved user options
 export function createBuildEventPlugin(options: StreamPluginOptions): Plugin {
   return {
     name: "vite:plugin-react-server/build-events",
     enforce: "post" as const,
-    applyToEnvironment(env) {
-      // Apply to all environments in Environment API builds
-      const envName = (env?.name || "").toLowerCase();
-      if (envName === "client" || envName === "ssr" || envName === "server") {
-        return true;
-      }
-      return false;
-    },
     writeBundle(outputOptions, bundle) {
+      console.log("[BuildEventPlugin] writeBundle called with environment:", this.environment?.name, this.environment?.config?.consumer);
+      
       // Resolve user options to get proper types and configuration
       const resolvedOptionsResult = resolveOptions(options);
       
@@ -43,19 +39,70 @@ export function createBuildEventPlugin(options: StreamPluginOptions): Plugin {
 
       let eventType: PluginEvent["type"] | null = null;
 
-      // Use environment name to determine event type
+      // Use environment consumer to determine event type (more reliable than name)
+      const environmentConsumer = this.environment?.config?.consumer;
       const environmentName = this.environment?.name;
-
-      if (environmentName === "client") {
+      
+      // Check strategy bundleTarget first (highest priority)
+      const strategy = (userOptions as any).strategy;
+      console.log(`[BuildEventPlugin] strategy:`, strategy);
+      console.log(`[BuildEventPlugin] environment: ${environmentName} ${environmentConsumer}`);
+      
+      // Priority 1: Environment-based naming (most accurate for Environment API builds)
+      // Environment API builds have all environments: 'client', 'ssr', 'server'
+      // Environment name format is "environment consumer" (e.g., "client client", "ssr client", "server server")
+      console.log(`[BuildEventPlugin] === ENVIRONMENT NAME CHECK START ===`);
+      console.log(`[BuildEventPlugin] Checking environment name: "${environmentName}"`);
+      if (environmentName?.startsWith("client")) {
+        console.log(`[BuildEventPlugin] Environment starts with "client", setting eventType to "build.writeBundle.static"`);
         eventType = "build.writeBundle.static";
-      } else if (environmentName === "ssr") {
+      } else if (environmentName?.startsWith("ssr")) {
+        console.log(`[BuildEventPlugin] Environment starts with "ssr", setting eventType to "build.writeBundle.client"`);
         eventType = "build.writeBundle.client";
-      } else if (environmentName === "server") {
+      } else if (environmentName?.startsWith("server")) {
+        console.log(`[BuildEventPlugin] Environment starts with "server", setting eventType to "build.writeBundle.server"`);
+        eventType = "build.writeBundle.server";
+      }
+      // Priority 2: Strategy bundleTarget (for traditional builds only)
+      // Only use strategy bundleTarget if we don't have environment names (traditional builds)
+      // In traditional builds, Vite only has 2 environments: 'client' and 'ssr'
+      // - bundleTarget: "server" → build.writeBundle.server (server components)
+      // - bundleTarget: "ssr" → build.writeBundle.client (SSR client components) 
+      // - bundleTarget: "client" → build.writeBundle.static (static client components)
+      else if (!environmentName && strategy?.bundleTarget === "server") {
+        eventType = "build.writeBundle.server";
+      } else if (!environmentName && strategy?.bundleTarget === "ssr") {
+        eventType = "build.writeBundle.client";
+      } else if (!environmentName && strategy?.bundleTarget === "client") {
+        eventType = "build.writeBundle.static";
+      } else if (strategy?.ssg === true) {
+        eventType = "build.writeBundle.static";
+      } 
+      // Priority 3: Environment consumer fallback
+      else if (environmentConsumer === "client") {
+        eventType = "build.writeBundle.static";
+      } else if (environmentConsumer === "server") {
         eventType = "build.writeBundle.server";
       } else {
         // default to static build
         eventType = "build.writeBundle.static";
       }
+      console.log(`[BuildEventPlugin] === ENVIRONMENT NAME CHECK END ===`);
+
+                   // Store server manifest in global store for SSG plugin access
+             if (environmentName?.startsWith("server")) {
+               try {
+                 const bundleManifest = getBundleManifest({
+                   bundle,
+                   normalizer: userOptions.normalizer,
+                 });
+                 // Type assertion since getBundleManifest returns the correct structure
+                 addServerManifest(bundleManifest as any);
+                 console.log(`[BuildEventPlugin] Stored server manifest in global store with ${Object.keys(bundleManifest).length} entries`);
+               } catch (error) {
+                 console.warn(`[BuildEventPlugin] Failed to store server manifest:`, error);
+               }
+             }
 
       if (eventType && userOptions.onEvent) {
         try {

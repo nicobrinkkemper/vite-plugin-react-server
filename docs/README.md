@@ -33,16 +33,11 @@ The plugin uses generic types that adapt to your React version and prevent compa
 import React from "react";
 import type { HtmlProps } from "vite-plugin-react-server/types";
 import { Css } from "vite-plugin-react-server/components";
-type MyHtmlProps = HtmlProps<
-  // pageProps: defaults, we always pass the title prop
-  {
-    title: string;
-  },
-  // inline: boolean, will type cssFiles to either link or tag props
-  boolean,
-  // as: div, we want to use a div as the root element, any div prop is a valid root prop.
-  "div"
->;
+type MyPageProps = {
+  title: string;
+};
+
+type MyHtmlProps = HtmlProps<MyPageProps>;
 export const Html = ({
   Root,
   cssFiles,
@@ -60,8 +55,6 @@ export const Html = ({
       </head>
       <body>
         <Root
-          as={"div"}
-          id="root"
           cssFiles={cssFiles}
           Page={Page}
           pageProps={pageProps}

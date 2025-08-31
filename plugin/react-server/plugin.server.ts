@@ -23,43 +23,5 @@ export const reactServerPlugin: VitePluginFn = function _reactServerPlugin(
     configResolved(_resolvedConfig) {
       timing.configResolved = performance.now();
     },
-    async handleHotUpdate({ file, server, timestamp, ...ctx }) {
-      try {
-        // Invalidate the module in Vite's cache for both client and SSR
-        if (server.moduleGraph) {
-          const mod = server.moduleGraph.getModuleById(file);
-          if (mod) {
-            // Invalidate the parent module which will handle both client and SSR
-            server.moduleGraph.invalidateModule(
-              mod,
-              undefined,
-              timestamp,
-              true
-            );
-
-            // Force a reload of the module
-            const newMod = await server.moduleGraph.ensureEntryFromUrl(
-              file,
-              false
-            );
-            if (newMod) {
-              server.moduleGraph.invalidateModule(
-                newMod,
-                undefined,
-                timestamp,
-                true
-              );
-            }
-          }
-        }
-      } catch (error) {
-        if(error != null) {
-          throw error;
-        }
-        throw new Error("Failed to handle hot update");
-        
-      }
-      return ctx.modules;
-    },
   };
 };

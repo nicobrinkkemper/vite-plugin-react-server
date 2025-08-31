@@ -4,7 +4,7 @@ import { assertNonReactServer } from "../config/getCondition.js";
 
 assertNonReactServer();
 
-const projectRoot = process.cwd();
+const projectRoot = process.env["npm_config_local_prefix"] || process.cwd();
 const nodeRequire = createRequire(join(projectRoot, "package.json"));
 
 // Import ReactDOM from the project's node_modules

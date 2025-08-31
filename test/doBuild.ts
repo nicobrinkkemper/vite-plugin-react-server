@@ -47,7 +47,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     // Use the Environment API with createBuilder to get full control
     // The environment configuration is now handled by the createEnvironmentPlugin
     const builder = await createBuilder({
-      plugins: vitePluginReactServer(options),
+      plugins: [vitePluginReactServer(options)],
       mode: "test",
       root: options.projectRoot,
     });

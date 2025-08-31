@@ -237,27 +237,9 @@ In this example:
 ### Page & Props (Path-based Resolution)
 
 ```ts
-const createRouter = (file: "props.ts" | "page.tsx") => (url: string) => {
-  switch (url) {
-    case "/bidoof":
-    case "/bidoof/index.rsc":
-      return `src/pages/bidoof/${file}`;
-    case "/404":
-    case "/404/index.rsc":
-      return `src/pages/404/${file}`;
-    case "/":
-      // production
-    case "/index.rsc":
-      // development
-      return `src/pages/${file}`;
-    default:
-      throw new Error(`Unknown route: ${url}`);
-  }
-};
-
-// later
-Page: createRouter('page.tsx')
-props: createRouter('props.ts'),
+// Simple string-based routing
+Page: "src/page/page.tsx",
+props: "src/page/props.ts",
 pageExportName: "Page",
 propsExportName: "props",
 ```
@@ -318,6 +300,47 @@ export const config = {
 ```
 
 ## Advanced Options
+
+### Custom Root Component
+
+You can customize the root component that wraps your pages:
+
+```tsx
+// src/CustomRoot.tsx
+import React from "react";
+import type { RootComponentType } from "vite-plugin-react-server/types";
+
+export const Root: RootComponentType = ({ Page, pageProps = {}, as: As = React.Fragment, cssFiles, ...props }) => {
+  const cssCount = cssFiles ? cssFiles.size : 0;
+  
+  // For headless stream, use React.Fragment
+  if (As === React.Fragment) {
+    return React.createElement(React.Fragment, {}, 
+      React.createElement(Page, pageProps)
+    );
+  }
+  
+  // For normal HTML stream, always render as 'main' regardless of what was passed
+  return React.createElement('main', { 
+    ...props, 
+    "data-function-root": "true",
+    "data-css-files": cssCount.toString(),
+    role: "main"
+  }, 
+    React.createElement(Page, pageProps)
+  );
+};
+```
+
+**Configuration:**
+```ts
+export default defineConfig({
+  plugins: vitePluginReactServer({
+    Root: (url: string) => `src/CustomRoot.tsx`, // Function that returns string path
+    // ... other options
+  }),
+});
+```
 
 ### Worker Configuration
 

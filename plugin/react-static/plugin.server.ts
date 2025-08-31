@@ -98,13 +98,16 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       configEnv = viteConfigEnv;
     },
     applyToEnvironment(partialEnvironment) {
+      console.log(`[SSG Server Plugin] applyToEnvironment called with environment: ${partialEnvironment.name}`);
       if (
         ["server"].includes(
           partialEnvironment.name as "client" | "server" | "ssr"
         )
       ) {
+        console.log(`[SSG Server Plugin] Returning true for server environment`);
         return true;
       }
+      console.log(`[SSG Server Plugin] Returning false for ${partialEnvironment.name} environment`);
       return false;
     },
     async configResolved(config) {
@@ -147,7 +150,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           if (panicError != null) {
             worker?.terminate();
             this.error(panicError);
-            throw panicError;
+          } else {
+            this.error(new Error("Failed to emit build.start event"));
           }
         }
       }
@@ -218,7 +222,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           context: "writeBundle(bundleManifest)",
         });
         if (panicError != null) {
-          this.error(panicError);
+          throw panicError;
+        } else {
+          throw new Error("Failed to get bundle manifest");
         }
       }
 
@@ -376,8 +382,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               context: "onEvent(build.ssg.start)",
             });
             if (eventPanicError != null) {
-              this.error(eventPanicError);
               throw eventPanicError; // Re-throw to abort the build
+            } else {
+              throw new Error("Failed to emit build.ssg.start event");
             }
           }
         }
@@ -465,15 +472,10 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               await (r as Promise<any>);
             }
           } catch (error) {
-            const eventPanicError = handleError({
-              error,
-              logger: logger,
-              panicThreshold: userOptions.panicThreshold,
-              context: "onEvent(build.ssg.end)",
-            });
-            if (eventPanicError != null) {
-              this.error(eventPanicError);
-              throw eventPanicError; // Re-throw to abort the build
+            if (error != null) {
+              throw error; // Re-throw to abort the build
+            } else {
+              throw new Error("Failed to emit build.ssg.end event");
             }
           }
         }

@@ -38,6 +38,7 @@ import type {
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type { WorkerMessage } from "./worker/types.js";
+import type { Strategy } from "./orchestrator/createPluginOrchestrator.js";
 
 export type OnEvent<
   Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin
@@ -397,6 +398,8 @@ export type ResolvedUserOptions = {
   fileWriteTimeout: number;
   workerShutdownTimeout: number;
   panicThreshold: PanicThreshold;
+  availableEnvironments?: string[];
+  strategy?: Strategy;
 
   // Optional properties
   onEvent?: OnEvent<ViteReactServerComponentsPlugin> | undefined;
@@ -1405,6 +1408,12 @@ export type VitePluginMainFn = <
 >(
   options: Opt
 ) => Plugin<Opt>[];
+
+export type VitePluginMainAsyncFn = <
+  Opt extends StreamPluginOptions<any> = StreamPluginOptions<any>
+>(
+  options: Opt
+) => Promise<Plugin<Opt>[]>;
 
 export type VitePluginFn = <
   Opt extends StreamPluginOptions = StreamPluginOptions
