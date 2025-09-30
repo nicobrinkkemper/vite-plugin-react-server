@@ -54,7 +54,6 @@ import { join } from "node:path";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { performance } from "node:perf_hooks";
 import { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
-import { createBufferedRscStream } from "../helpers/createBufferedRscStream.js";
 
 
 
@@ -69,6 +68,64 @@ assertNonReactServer();
 export const renderPage: RenderPageFn = async function* _renderPageClient(
   handlerOptions
 ) {
+  if (handlerOptions.verbose) {
+    handlerOptions.logger?.info(
+      `[renderPage.client] onEvent callback exists: ${!!handlerOptions.onEvent}`
+    );
+    handlerOptions.logger?.info(
+      `[renderPage.client] onMetrics callback exists: ${!!handlerOptions.onMetrics}`
+    );
+  }
+
+  // Track if we've yielded a result to prevent multiple yields
+  let hasYielded = false;
+  let errorResult: any = null;
+
+  // Create a wrapper around onEvent to handle route.error events
+  const wrappedOnEvent = (event: any) => {
+    // Call the original onEvent first
+    if (handlerOptions.onEvent) {
+      handlerOptions.onEvent(event);
+    }
+    
+    // Handle route.error events by storing result for later yielding
+    if (event.type === "route.error" && !hasYielded) {
+      hasYielded = true;
+      
+      // Check if this should cause a panic
+      const panicError = handleError({
+        error: event.data.error,
+        logger: handlerOptions.logger,
+        panicThreshold: event.data.panicThreshold,
+        context: `route.error (${event.data.route})`,
+      });
+      
+      if (panicError != null) {
+        // This is a panic error, store error result
+        errorResult = {
+          type: "error",
+          error: panicError,
+          metrics: {
+            rscHeadless: { duration: 0, chunks: 0, bytes: 0 },
+            html: { duration: 0, chunks: 0, bytes: 0 },
+          },
+        };
+      } else {
+        // This is a non-panic error, store skip result
+        errorResult = {
+          type: "skip",
+          reason: event.data.error.message || "Non-panic error occurred",
+          html: { duration: 0, chunks: 0, bytes: 0 },
+          rsc: { duration: 0, chunks: 0, bytes: 0 },
+          metrics: {
+            rscHeadless: { duration: 0, chunks: 0, bytes: 0 },
+            html: { duration: 0, chunks: 0, bytes: 0 },
+          },
+        };
+      }
+    }
+  };
+
   // Skip if no pagePath AND no PageComponent provided (fallback case)
   if (!handlerOptions.pagePath && !handlerOptions.PageComponent) {
     // Create empty stream wrappers for skip case
@@ -113,6 +170,7 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     };
     return;
   }
+
   if (!handlerOptions.url) {
     handlerOptions.url = routeToURL(
       handlerOptions.route,
@@ -165,10 +223,7 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
   let fullRscStream: any = null;
   let htmlHandler: any = null;
   
-  // Error tracking variables for RSC stream error detection
-  let headlessStreamErrored = false;
-  let headlessError: Error | null = null;
-  let headlessPanicError = false;
+
 
   try {
     if (handlerOptions.verbose) {
@@ -177,9 +232,9 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       );
     }
 
-    // Step 1: Resolve paths to built paths using the static manifest
-    // This ensures the RSC worker generates client references with built paths
-    // instead of source paths, which is what the HTML transform expects
+    // Step 1: Resolve paths to built paths using the server manifest
+    // The client version needs to use the server manifest to get the built paths
+    // for the page components, not the static manifest
     const resolvePathWithManifest = (path: string, manifest: any): string => {
       const entry = manifest[path];
       if (entry && entry.file) {
@@ -188,11 +243,12 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       return path;
     };
 
-    const staticManifest = handlerOptions.manifest || {};
-    const resolvedPagePath = handlerOptions.pagePath ? resolvePathWithManifest(handlerOptions.pagePath, staticManifest) : undefined;
-    const resolvedPropsPath = handlerOptions.propsPath ? resolvePathWithManifest(handlerOptions.propsPath, staticManifest) : undefined;
-    const resolvedRootPath = handlerOptions.rootPath ? resolvePathWithManifest(handlerOptions.rootPath, staticManifest) : undefined;
-    const resolvedHtmlPath = handlerOptions.htmlPath ? resolvePathWithManifest(handlerOptions.htmlPath, staticManifest) : undefined;
+    // Use manifest for page component resolution (client version works in reverse)
+    const manifest = handlerOptions.manifest || {};
+    const resolvedPagePath = handlerOptions.pagePath ? resolvePathWithManifest(handlerOptions.pagePath, manifest) : undefined;
+    const resolvedPropsPath = handlerOptions.propsPath ? resolvePathWithManifest(handlerOptions.propsPath, manifest) : undefined;
+    const resolvedRootPath = handlerOptions.rootPath ? resolvePathWithManifest(handlerOptions.rootPath, manifest) : undefined;
+    const resolvedHtmlPath = handlerOptions.htmlPath ? resolvePathWithManifest(handlerOptions.htmlPath, manifest) : undefined;
 
     if (handlerOptions.verbose) {
       handlerOptions.logger?.info(`[renderPage.client] Resolved paths for route ${handlerOptions.route}:`);
@@ -200,6 +256,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       handlerOptions.logger?.info(`  props: ${handlerOptions.propsPath} -> ${resolvedPropsPath}`);
       handlerOptions.logger?.info(`  root: ${handlerOptions.rootPath} -> ${resolvedRootPath}`);
       handlerOptions.logger?.info(`  html: ${handlerOptions.htmlPath} -> ${resolvedHtmlPath}`);
+      handlerOptions.logger?.info(`  manifest keys: ${Object.keys(manifest).join(', ')}`);
+      handlerOptions.logger?.info(`  manifest entries: ${JSON.stringify(manifest, null, 2)}`);
     }
     const worker = handlerOptions.worker ?? handlerOptions.rscWorker;
 
@@ -308,11 +366,11 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     // Components are now preloaded in the worker, so we can use the original handler options
     const newHandlerOptions = {
       ...handlerOptions,
-      url: `${handlerOptions.url}`,
-      route: `${handlerOptions.route}`,
-      // Pass CSS information to the RSC worker and HTML transform
-      cssFiles: handlerOptions.cssFiles || new Map(),
-      globalCss: handlerOptions.globalCss || new Map(),
+      // Pass page paths to the RSC worker so it knows what to render
+      pagePath: resolvedPagePath,
+      propsPath: resolvedPropsPath,
+      rootPath: resolvedRootPath,
+      htmlPath: resolvedHtmlPath,
     };
 
     if (handlerOptions.verbose) {
@@ -322,67 +380,52 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       handlerOptions.logger?.info(
         `[renderPage.client] newHandlerOptions.clientPipeableStreamOptions: ${JSON.stringify(newHandlerOptions.clientPipeableStreamOptions)}`
       );
+      handlerOptions.logger?.info(
+        `[renderPage.client] newHandlerOptions page paths: pagePath=${newHandlerOptions.pagePath}, propsPath=${newHandlerOptions.propsPath}, rootPath=${newHandlerOptions.rootPath}, htmlPath=${newHandlerOptions.htmlPath}`
+      );
     }
 
     // Component resolution is already measured in resolveComponents
     // No need to measure module resolution time here anymore
 
-    // Step 1: Create headless RSC stream using RSC worker (REVERSE from server)
-    const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    // Create headless RSC stream first (for .rsc file)
+    const uniqueId = handlerOptions.id ?? `${handlerOptions.route}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     
-    headlessRscStream = createRscStream({
+    const headlessRscStreamLocal = createRscStream({
       ...newHandlerOptions,
       id: `${handlerOptions.route}-headless-${uniqueId}`,
       rscTimeout: handlerOptions.rscTimeout || 5000,
       onMetrics: handlerOptions.onMetrics,
-      // Headless RSC: no HTML wrapper
-      htmlPath: '',
+      // Headless RSC stream: page content only (for .rsc file)
+      htmlPath: '', // No HTML wrapper - just page content
+      pagePath: newHandlerOptions.pagePath || '', // Ensure pagePath is always a string
+      url: newHandlerOptions.url || '', // Ensure url is always a string
+      pageProps: newHandlerOptions.pageProps || {}, // Ensure pageProps is always an object
+      onEvent: wrappedOnEvent,
     });
 
-    // Add error detection to headless RSC stream
-    headlessRscStream.rscStream.on("data", (chunk: Buffer) => {
-      // Check for React errors in the RSC stream
-      const chunkStr = chunk.toString();
-      if (chunkStr.includes('"name":"Error"') && chunkStr.includes('"env":"Server"')) {
-        // This looks like a React error serialized in the RSC stream
-        headlessStreamErrored = true;
-        
-        // Extract the error message from the RSC stream
-        try {
-          const errorMatch = chunkStr.match(/"message":"([^"]*)"/);
-          const errorMessage = errorMatch ? errorMatch[1] : "React error detected in RSC stream";
-          headlessError = new Error(errorMessage);
-        } catch {
-          headlessError = new Error("React error detected in RSC stream");
-        }
-        
-        // Check if this React error should cause a panic based on panicThreshold
-        const panicError = handleError({
-          error: headlessError,
-          critical: false,
-          logger: handlerOptions.logger,
-          panicThreshold: handlerOptions.panicThreshold,
-          context: `React error in RSC stream for route ${handlerOptions.route}`,
-        });
-        
-        // Store either the panic error or the original error
-        headlessError = panicError || headlessError;
-        headlessPanicError = !!panicError;
-      }
-    });
-
-    // Component resolution is already measured in resolveComponents
-    // No need to measure module resolution time here anymore
-
-    // Step 2: Create full RSC stream for HTML transformation
-    // The RSC worker will handle fallback components internally when headless errors are detected
-    fullRscStream = createRscStream({
+    // Create full RSC stream that reuses the headless stream elements
+    const fullRscStreamLocal = createRscStream({
       ...newHandlerOptions,
       id: `${handlerOptions.route}-full-${uniqueId}`,
       rscTimeout: handlerOptions.rscTimeout || 5000,
       onMetrics: handlerOptions.onMetrics,
-      htmlPath: handlerOptions.htmlPath || undefined,
+      // Full RSC stream: include HTML wrapper (for HTML generation)
+      htmlPath: undefined, // Full RSC stream: include HTML wrapper (for HTML generation)
+      pagePath: newHandlerOptions.pagePath || '', // Ensure pagePath is always a string
+      url: newHandlerOptions.url || '', // Ensure url is always a string
+      pageProps: newHandlerOptions.pageProps || {}, // Ensure pageProps is always an object
+      // Reuse headless stream elements - the worker will handle this with the unique ID
+      reuseHeadlessStreamId: headlessRscStreamLocal.id,
+      onEvent: wrappedOnEvent,
     });
+
+    // Assign to the outer variables
+    headlessRscStream = headlessRscStreamLocal;
+    fullRscStream = fullRscStreamLocal;
+
+    // The headless stream will be consumed naturally by the file writing
+    // The full stream will reuse the headless stream elements for HTML generation
 
     // Step 3: Create HTML transform stream
     if (handlerOptions.verbose) {
@@ -390,42 +433,22 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         `[renderPage.client] Creating HTML transform stream with clientPipeableStreamOptions: ${JSON.stringify(newHandlerOptions.clientPipeableStreamOptions)}`
       );
     }
+    // Create HTML stream using the full RSC stream (which reuses headless stream elements)
     const htmlTransformStream = createRscToHtmlStream({
       ...newHandlerOptions,
       htmlTimeout: handlerOptions.htmlTimeout || 15000,
       route: handlerOptions.route,
       logger: handlerOptions.logger,
       verbose: handlerOptions.verbose,
-    });
-
-    // Create buffered stream for dual consumption
-    const bufferedRscStreamFactory = createBufferedRscStream(fullRscStream.rscStream, {
-      route: handlerOptions.route,
-      logger: handlerOptions.logger,
-      verbose: handlerOptions.verbose,
-    });
-
-    // Create HTML stream from buffered RSC
-    const htmlRscStream = bufferedRscStreamFactory.createStream();
-    htmlRscStream.pipe(htmlTransformStream);
-
-    // Add error handling to prevent hanging
-    htmlTransformStream.on("error", (error) => {
-      if (handlerOptions.verbose) {
-        handlerOptions.logger?.error(`[renderPage.client] HTML transform error: ${error.message}`);
-      }
-      // Don't throw here - let the error propagate through the stream
+      rscStream: fullRscStreamLocal.rscStream,
     });
 
     htmlHandler = {
       htmlStream: htmlTransformStream,
       abort: () => {
-        htmlRscStream.destroy();
-        htmlTransformStream.destroy();
+        htmlTransformStream.abort();
       }
     };
-
-
 
     // Create stream wrappers for file writing
     const rscStreamWrapper = {
@@ -433,7 +456,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         const streamMetrics = createStreamMetrics();
         streamMetrics.startTime = performance.now();
 
-        const rscFileStream = bufferedRscStreamFactory.createStream();
+        // Use the headless RSC stream directly for the .rsc file
+        const rscFileStream = headlessRscStream.rscStream;
 
         rscFileStream.on("data", (chunk: Buffer) => {
           streamMetrics.chunks++;
@@ -454,39 +478,19 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         rscFileStream.pipe(destination);
         return destination;
       },
-      abort: () => fullRscStream.abort(),
+      abort: () => headlessRscStream.abort(),
     };
 
     const htmlStreamWrapper = {
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-        // Collect metrics from the HTML transform stream as it flows
-        const streamMetrics = createStreamMetrics();
-        streamMetrics.startTime = performance.now();
-
-        htmlHandler.htmlStream.on("data", (chunk: Buffer) => {
-          streamMetrics.chunks++;
-          streamMetrics.bytes += chunk.length;
-        });
-
-        htmlHandler.htmlStream.on("end", () => {
-          streamMetrics.duration = performance.now() - streamMetrics.startTime;
-          streamMetrics.endTime = performance.now();
-
-                  // Update the metrics object for HTML generation
-        htmlMetrics.streamMetrics = streamMetrics;
-        htmlMetrics.chunkRate =
-          streamMetrics.chunks / (streamMetrics.duration / 1000);
-        htmlMetrics.processingTime = streamMetrics.duration;
-        htmlMetrics.memoryUsage = process.memoryUsage();
-        htmlMetrics.chunks = streamMetrics.chunks;
-      });
-
-      if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(
-          `[renderPage.client] Piping HTML stream to destination for route: ${handlerOptions.route}`
-        );
-      }
-      return htmlHandler.htmlStream.pipe(destination);
+        if (handlerOptions.verbose) {
+          handlerOptions.logger?.info(
+            `[renderPage.client] Piping HTML stream to destination for route: ${handlerOptions.route}`
+          );
+        }
+        
+        // Use the HTML transform stream's pipe method directly (same as server side)
+        return htmlTransformStream.pipe(destination);
       },
       abort: () => {
         fullRscStream.abort();
@@ -494,22 +498,28 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
           htmlHandler.abort();
         }
       },
+      on: (event: string, listener: (...args: any[]) => void) => {
+        // Forward error events from the HTML transform stream to the wrapper
+        if (event === 'error') {
+          // Access the actual stream from the transform result
+          const htmlStream = (htmlTransformStream as any).htmlStream;
+          if (htmlStream && typeof htmlStream.on === 'function') {
+            htmlStream.on('error', listener);
+          }
+        }
+        return htmlStreamWrapper;
+      },
     };
 
     // Don't emit initial metrics - wait for file writes to complete
     // The onMetrics callback will be called after both file.write.done events
 
-    // Check for panic errors from RSC stream
-    if (headlessStreamErrored && headlessPanicError) {
-      yield {
-        type: "error",
-        error: headlessError,
-        metrics: {
-          rscFull: rscFullMetrics,
-          rscHeadless: rscHeadlessMetrics,
-          html: htmlMetrics,
-        },
-      };
+    // Check if we have an error result to yield (with timeout protection)
+    // Wait a short time for any pending route.error events
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    if (errorResult) {
+      yield errorResult;
       return;
     }
 
@@ -566,9 +576,7 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         onMetrics: handlerOptions.onMetrics,
         // Use React.Fragment as fallback (same as server environment)
         pagePath: '', // This will cause the default page to be used, but we'll override it
-        // Override the page component to use React.Fragment
-        PageComponent: undefined,
-        HtmlComponent: undefined,
+        pageProps: {}, // Ensure pageProps is always an object
       });
       
       // Create HTML stream that processes the fallback RSC stream to ensure performance timing script is injected
@@ -586,13 +594,15 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
         logger: handlerOptions.logger,
         htmlTimeout: handlerOptions.htmlTimeout,
         clientPipeableStreamOptions: handlerOptions.clientPipeableStreamOptions,
+        onMetrics: handlerOptions.onMetrics,
+        build: handlerOptions.build,
       });
       
       // Create a wrapper that pipes the fallback RSC stream through the HTML transform
       const clientOnlyHtmlStreamWrapper = {
         pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
           // Pipe the fallback RSC stream through the HTML transform to ensure performance timing script is injected
-          return fallbackRscStream.rscStream.pipe(fallbackHtmlStream).pipe(destination);
+          return fallbackHtmlStream.pipe(destination);
         },
         abort: () => {
           // Clean up the fallback RSC stream

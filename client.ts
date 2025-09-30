@@ -3,7 +3,7 @@
 
 // In client entry, we only import the client plugin
 // Server plugin requires react-server condition which isn't available here
-export { vitePluginReactClient, vitePluginReactServer } from "./plugin/plugin.client.js"
+export { vitePluginReactServer } from "./plugin/plugin.client.js"
 
 
 export * from './plugin/react-client/index.js'

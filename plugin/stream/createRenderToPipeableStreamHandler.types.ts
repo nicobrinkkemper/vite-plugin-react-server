@@ -62,6 +62,8 @@ export type CreateRenderToPipeableStreamHandlerFn<
   | "moduleBase"
   | "publicOrigin"
   | "projectRoot"
-  | "url",
+  | "url"
+  | "reuseHeadlessStreamId"
+  | "headlessStreamElements",
   CreateRenderToPipeableStreamHandlerReturn<Env>
 >;

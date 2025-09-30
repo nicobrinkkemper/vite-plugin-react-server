@@ -11,10 +11,67 @@
  */
 import { join } from "node:path";
 import { createWriteStream, mkdirSync } from "node:fs";
-import { Transform } from "node:stream";
+import { Transform, PassThrough } from "node:stream";
 import type { FileWriterFn } from "./types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
+
+/**
+ * A robust content collecting transform stream that handles race conditions
+ */
+class ContentCollectorStream extends Transform {
+  private chunks: Buffer[] = [];
+  private _isFinished = false;
+  private _onAllChunksCollected?: () => void;
+
+  constructor(options: any = {}) {
+    super({
+      ...options,
+      objectMode: false,
+    });
+  }
+
+  _transform(chunk: any, _encoding: any, callback: any) {
+    if (this._isFinished) {
+      callback();
+      return;
+    }
+
+    const buffer = Buffer.from(chunk);
+    this.chunks.push(buffer);
+    this.push(chunk);
+    callback();
+  }
+
+  _flush(callback: any) {
+    this._isFinished = true;
+    if (this._onAllChunksCollected) {
+      this._onAllChunksCollected();
+    }
+    callback();
+  }
+
+  getAllChunks(): Buffer[] {
+    return this.chunks;
+  }
+
+  getContent(): string {
+    return Buffer.concat(this.chunks).toString('utf8');
+  }
+
+  hasContent(): boolean {
+    return this.chunks.length > 0;
+  }
+
+  onAllChunksCollected(callback: () => void) {
+    if (this._isFinished) {
+      // Already finished, call immediately
+      callback();
+    } else {
+      this._onAllChunksCollected = callback;
+    }
+  }
+}
 
 /**
  * Writes HTML and RSC files for a route using streams
@@ -37,14 +94,13 @@ export const fileWriter: FileWriterFn = function _fileWriter(
   }
 
   // Handle stream wrapper objects (from renderPage.server.ts)
-  const isStreamWrapper = (stream as any).pipe && typeof (stream as any).pipe === 'function';
+  const isStreamWrapper =
+    (stream as any).pipe && typeof (stream as any).pipe === "function";
 
   // Remove leading slash from route for file path construction
-  const routePath = options.route === "/" ? "" : options.route.replace(/^\//, "");
-  const baseDir = join(
-    options.build.outDir,
-    options.build.static,
-  );
+  const routePath =
+    options.route === "/" ? "" : options.route.replace(/^\//, "");
+  const baseDir = join(options.build.outDir, options.build.static);
   const outputPath = join(
     baseDir,
     routePath,
@@ -55,10 +111,7 @@ export const fileWriter: FileWriterFn = function _fileWriter(
 
   // Ensure directory exists
   try {
-    mkdirSync(
-      join(baseDir, routePath),
-      { recursive: true }
-    );
+    mkdirSync(join(baseDir, routePath), { recursive: true });
   } catch (error) {
     const panicError = handleError({
       error,
@@ -73,29 +126,80 @@ export const fileWriter: FileWriterFn = function _fileWriter(
     }
   }
 
-  // Create write stream
-  const writeStream = createWriteStream(outputPath);
-
   if (options.verbose) {
-    options.logger?.info(`[fileWriter] Starting file write for ${fileType} on route ${options.route}`);
+    options.logger?.info(
+      `[fileWriter] Starting file write for ${fileType} on route ${options.route}`
+    );
   }
 
-  
+  // Handle abort signal early
+  if (signal?.aborted) {
+    const abortReason = signal?.reason || new Error("File write aborted");
+    throw abortReason;
+  }
+
+  // Create streams with proper error handling
+  const contentCollector = new ContentCollectorStream({
+    highWaterMark: 64 * 1024, // 64KB buffer
+  });
+
+  const writeStream = createWriteStream(outputPath, {
+    highWaterMark: 64 * 1024, // 64KB buffer
+  });
+
+  // Create a robust source stream that handles wrappers properly
+  let sourceStream: any;
+  if (isStreamWrapper) {
+    // Create a PassThrough stream to normalize the wrapper
+    sourceStream = new PassThrough();
+    try {
+      (stream as any).pipe(sourceStream);
+    } catch (error) {
+      throw new Error(`Failed to pipe stream wrapper: ${error}`);
+    }
+  } else {
+    sourceStream = stream;
+  }
+
+  // Emit file.write event if onEvent is provided
+  if (options.onEvent) {
+    try {
+      options.onEvent({
+        type: "file.write",
+        data: {
+          path: outputPath,
+          route: options.route,
+          fileType,
+          stream: contentCollector,
+          onComplete: () =>
+            new Promise<void>((resolveComplete) => {
+              resolveComplete();
+            }),
+        },
+      });
+    } catch (error) {
+      // For file.write events, we need to emit a route.error event
+      if (options.onEvent) {
+        options.onEvent({
+          type: "route.error",
+          data: {
+            error: error,
+            route: options.route,
+            panicThreshold: options.panicThreshold
+          }
+        });
+      }
+      throw error;
+    }
+  }
 
   return new Promise<void>((resolve, reject) => {
     // Handle abort signal
-    if (signal?.aborted) {
-      writeStream.destroy();
-      // Preserve the original error that caused the abort
-      const abortReason = signal?.reason || new Error("File write aborted");
-      reject(abortReason);
-      return;
-    }
-
     const abortHandler = () => {
       writeStream.destroy();
-      // Preserve the original error that caused the abort
-      const abortReason = signal?.reason || new Error("Failed to write: " + outputPath);
+      contentCollector.destroy();
+      sourceStream.destroy?.();
+      const abortReason = signal?.reason || new Error("File write aborted");
       reject(abortReason);
     };
 
@@ -103,123 +207,140 @@ export const fileWriter: FileWriterFn = function _fileWriter(
       signal.addEventListener("abort", abortHandler);
     }
 
-    // Buffer to collect content for the event
-    const chunks: Buffer[] = [];
-    const contentStream = new Transform({
-      transform(chunk: any, _encoding: any, callback: any) {
-        const buffer = Buffer.from(chunk);
-        chunks.push(buffer);
-        if (options.verbose) {
-          options.logger?.info(`[fileWriter:${fileType}] Captured chunk: ${buffer.length} bytes, total chunks: ${chunks.length}`);
-          // preview
-          if (buffer.length > 0) {
-            options.logger?.info(`[fileWriter:${fileType}] Content preview: ${buffer.toString('utf8').substring(0, 200)}...`);
-          }
-        }
-        this.push(chunk);
-        callback();
+    // Set up the stream pipeline manually for better control
+    sourceStream.pipe(contentCollector).pipe(writeStream);
+
+    // Handle errors from any part of the pipeline
+    const handleError = (error: Error) => {
+      if (signal) {
+        signal.removeEventListener("abort", abortHandler);
       }
-    });
+      if (options.verbose) {
+        options.logger?.error(
+          `[fileWriter] Error writing ${fileType} file for route ${options.route}: ${error.message}`
+        );
+      }
+      reject(error);
+    };
 
-    // Emit file.write event if onEvent is provided
-    if (options.onEvent) {
-      options.onEvent({
-        type: "file.write",
-        data: {
-          path: outputPath,
-          route: options.route,
-          fileType,
-          stream: contentStream,
-          onComplete: () => new Promise<void>((resolveComplete) => {
-            // This will be called when the file write completes
-            resolveComplete();
-          }),
-        },
-      });
-    }
+    sourceStream.on('error', handleError);
+    contentCollector.on('error', handleError);
+    writeStream.on('error', handleError);
 
-    // Handle stream wrapper or direct stream
-    if (isStreamWrapper) {
-      // Use the wrapper's pipe method
-      (stream as any).pipe(contentStream).pipe(writeStream);
-    } else {
-      // Direct stream pipe
-      stream.pipe(contentStream).pipe(writeStream);
-    }
-
-    // Handle completion
+    // Handle successful completion
     writeStream.on("finish", () => {
       if (signal) {
         signal.removeEventListener("abort", abortHandler);
       }
 
       if (options.verbose) {
-        options.logger?.info(`[fileWriter] Completed file write for ${fileType} on route ${options.route}`);
+        options.logger?.info(
+          `[fileWriter] Completed file write for ${fileType} on route ${options.route}`
+        );
       }
 
-      // Emit file.write.done events if onEvent is provided
-      if (options.onEvent) {
-        const content = Buffer.concat(chunks).toString('utf8');
-        if (options.verbose) {
-          options.logger?.info(`[fileWriter:${fileType}] Emitting file.write.done with content length: ${content.length} bytes, chunks: ${chunks.length}`);
-          if (content.length > 0) {
-            options.logger?.info(`[fileWriter:${fileType}] Content preview: ${content.substring(0, 200)}...`);
+      // Wait for content collector to finish processing all chunks
+      contentCollector.onAllChunksCollected(() => {
+        // Emit file.write.done event if onEvent is provided
+        if (options.onEvent) {
+          if (contentCollector.hasContent()) {
+            const content = contentCollector.getContent();
+            const chunks = contentCollector.getAllChunks();
+            
+            if (options.verbose) {
+              options.logger?.info(
+                `[fileWriter:${fileType}] Emitting file.write.done with content length: ${content.length} bytes, chunks: ${chunks.length}`
+              );
+              if (content.length > 0) {
+                options.logger?.info(
+                  `[fileWriter:${fileType}] Content preview: ${content.substring(0, 200)}...`
+                );
+              }
+            }
+
+            // Extract file name from the output path
+            const fileName =
+              fileType === "html"
+                ? options.build.htmlOutputPath
+                : options.build.rscOutputPath;
+
+            try {
+              options.onEvent({
+                type: "file.write.done",
+                data: {
+                  route: options.route,
+                  fileType,
+                  content,
+                  chunks: chunks.length,
+                  path: outputPath,
+                  fileName,
+                  baseDir: baseDir,
+                  routePath: routePath,
+                },
+              });
+            } catch (error) {
+              // For file.write.done events, we need to emit a route.error event
+              if (options.onEvent) {
+                options.onEvent({
+                  type: "route.error",
+                  data: {
+                    error: error,
+                    route: options.route,
+                    panicThreshold: options.panicThreshold
+                  }
+                });
+              }
+              reject(error);
+              return;
+            }
+          } else {
+            // Instead of rejecting, let's be more lenient about empty content
+            // This can happen legitimately with empty files or fast builds
+            if (options.verbose) {
+              options.logger?.warn(
+                `[fileWriter] No content chunks collected for ${fileType} file: ${outputPath}. This may be normal for empty files.`
+              );
+            }
+            
+            // Still emit the done event, but with empty content
+            const fileName =
+              fileType === "html"
+                ? options.build.htmlOutputPath
+                : options.build.rscOutputPath;
+
+            try {
+              options.onEvent({
+                type: "file.write.done",
+                data: {
+                  route: options.route,
+                  fileType,
+                  content: "",
+                  chunks: 0,
+                  path: outputPath,
+                  fileName,
+                  baseDir: baseDir,
+                  routePath: routePath,
+                },
+              });
+            } catch (error) {
+              if (options.onEvent) {
+                options.onEvent({
+                  type: "route.error",
+                  data: {
+                    error: error,
+                    route: options.route,
+                    panicThreshold: options.panicThreshold
+                  }
+                });
+              }
+              reject(error);
+              return;
+            }
           }
         }
-        // Extract file name from the output path
-        const fileName = fileType === "html" 
-          ? options.build.htmlOutputPath 
-          : options.build.rscOutputPath;
-          
-        // Extract base directory and route path for coloring
-        const routePathForEvent = routePath; // This is already the route path without leading slash
-          
-        options.onEvent({
-          type: "file.write.done",
-          data: {
-            route: options.route,
-            fileType,
-            content,
-            chunks: chunks.length,
-            path: outputPath,
-            fileName,
-            baseDir: baseDir,
-            routePath: routePathForEvent,
-          },
-        });
-      }
 
-      resolve();
-    });
-
-    // Handle errors
-    writeStream.on("error", (error) => {
-      if (signal) {
-        signal.removeEventListener("abort", abortHandler);
-      }
-
-      if (options.verbose) {
-        options.logger?.error(`[fileWriter] Error writing ${fileType} file for route ${options.route}: ${error.message}`);
-      }
-
-      reject(error);
-    });
-
-        // Handle stream errors (only for direct streams, wrappers handle their own errors)
-    if (!isStreamWrapper) {
-      stream.on("error", (error) => {
-        if (signal) {
-          signal.removeEventListener("abort", abortHandler);
-        }
-
-        if (options.verbose) {
-          options.logger?.error(`[fileWriter] Stream error for ${fileType} file on route ${options.route}: ${error.message}`, {error});
-          options.logger?.info(`[fileWriter] Rejecting promise with error: ${error.message}`);
-        }
-
-        reject(error);
+        resolve();
       });
-    }
+    });
   });
 };
-

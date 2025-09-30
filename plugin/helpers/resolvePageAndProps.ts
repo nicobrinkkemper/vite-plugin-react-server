@@ -20,7 +20,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
     try {
       if (handlerOptions.verbose) {
         handlerOptions.logger?.info(`[resolvePageAndProps] Starting resolution for route: ${handlerOptions.route}`);
-      }
+    }
 
       const url = handlerOptions.url ?? routeToURL(
         handlerOptions.route ?? "",
@@ -83,7 +83,8 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
             if (handlerOptions.verbose) {
               handlerOptions.logger?.info(`[resolvePageAndProps] Loading props from separate file: ${handlerOptions.propsPath}`);
             }
-            return handlerOptions.loader(handlerOptions.propsPath);
+            const result = await handlerOptions.loader(handlerOptions.propsPath);
+            return result;
           }
           if (handlerOptions.verbose) {
             handlerOptions.logger?.info(`[resolvePageAndProps] Using default props with URL`);
@@ -124,14 +125,16 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         handlerOptions.logger?.info(`[resolvePageAndProps] Both page and props resolved successfully`);
       }
 
+      const pageProps = resolvePropsResult.module?.[
+        handlerOptions.propsExportName as keyof typeof resolvePropsResult.module
+      ] as never;
+      
       return {
         type: "success" as const,
         PageComponent: resolvePageResult.module[
           handlerOptions.pageExportName
         ] as never,
-        pageProps: resolvePropsResult.module?.[
-          handlerOptions.propsExportName as keyof typeof resolvePropsResult.module
-        ] as never,
+        pageProps,
       };
     } catch (error) {
       if (handlerOptions.verbose) {

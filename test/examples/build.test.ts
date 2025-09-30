@@ -1,84 +1,48 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { resolve } from "path";
-import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
-import type {
-  PluginEvent,
-  FileWriteDoneEvent,
-  RenderMetrics,
-  WorkerStartupMetrics,
-  ModuleResolutionMetrics,
-} from "vite-plugin-react-server/types";
-import { doBuild } from "../doBuild.js";
-import { getCondition } from "vite-plugin-react-server/config";
+import { getSharedBuild } from "./shared-build.js";
 
 describe("plugin examples build test", () => {
-  let testDir: string;
-  let events: PluginEvent[];
-  const metrics: (RenderMetrics | WorkerStartupMetrics | ModuleResolutionMetrics)[] = [];
+  let buildResult: any;
   const htmlContent: string[] = [];
   const rscContent: string[] = [];
   
   beforeAll(async () => {
-    // Determine test directory at runtime when conditions are properly set
-    testDir = resolve(__dirname, `../fixtures/examples/${getCondition()}/build.test`);
-    
-    await rm(testDir, { recursive: true, force: true });
-    await mkdir(testDir, { recursive: true });
-    await setupTestProject(testDir);
-    events = await doBuild({
-      projectRoot: testDir,
+    buildResult = await getSharedBuild('test-project', 'build', {
+      setupProject: setupTestProject,
+      pages: ['/', '/page2'],
       verbose: false,
-      onMetrics: (m) => {
-        console.log("CLIENT METRICS COLLECTED:", m);
-        metrics.push(m);
-      },
-      build: {
-        pages: ['/', '/page2'],
-      }
     });
 
-    console.log("CLIENT BUILD COMPLETED. Total events:", events.length);
-    console.log("Event types:", events.map(e => e.type));
+    console.log("CLIENT BUILD COMPLETED. Total events:", buildResult.events.length);
+    console.log("Event types:", buildResult.events.map((e: any) => e.type));
 
-    // Get HTML content from file.write.done events for all routes
-    const htmlDoneEvents = events.filter(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "html"
-    ) as FileWriteDoneEvent[];
+    // Get HTML content using the new API
+    const htmlFiles = buildResult.htmlFiles();
+    console.log("HTML files:", htmlFiles.length);
 
-    console.log("HTML done events:", htmlDoneEvents.length);
-
-    for (const event of htmlDoneEvents) {
-      htmlContent.push(event.data.content);
+    for (const [, content] of htmlFiles) {
+      htmlContent.push(content);
     }
 
-    // Get RSC content from file.write.done events for all routes
-    const rscDoneEvents = events.filter(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "rsc"
-    ) as FileWriteDoneEvent[];
+    // Get RSC content using the new API
+    const rscFiles = buildResult.rscFiles();
+    console.log("RSC files:", rscFiles.length);
 
-    console.log("RSC done events:", rscDoneEvents.length);
-
-    for (const event of rscDoneEvents) {
-      rscContent.push(event.data.content);
+    for (const [, content] of rscFiles) {
+      rscContent.push(content);
     }
 
-    console.log("Client metrics collected:", metrics.length);
+    console.log("Client metrics collected:", buildResult.metrics.length);
   });
 
   afterAll(async () => {
-    try {
-      // await rm(testDir, { recursive: true, force: true });
-    } catch {}
+    // Cleanup is handled globally at the end of the test suite
   });
 
   it("emits build events in order", async () => {
     // Verify event order - client builds should always work
-    const eventOrder = events.map((e) => e.type);
+    const eventOrder = buildResult.events.map((e: any) => e.type);
     expect(eventOrder).toEqual(
       expect.arrayContaining([
         "build.writeBundle.static",
@@ -91,7 +55,7 @@ describe("plugin examples build test", () => {
   });
 
   it("emits build.start event with auto discovered files when server builds are available", async () => {
-    const buildStartEvent = events.find((e) => e.type === "build.start");
+    const buildStartEvent = buildResult.events.find((e: any) => e.type === "build.start");
     if (buildStartEvent) {
       expect(buildStartEvent?.data).toMatchObject({
         pages: expect.arrayContaining(["/"]),
@@ -125,17 +89,17 @@ describe("plugin examples build test", () => {
   it("should demonstrate client-side static generation capabilities", async () => {
     // This test verifies that the client plugin can handle build events
     // The client-only environment provides build functionality but not SSG
-    const clientBuildEvents = events.filter(e => 
+    const clientBuildEvents = buildResult.events.filter((e: any) => 
       e.type === "build.writeBundle.client" ||
       e.type === "build.writeBundle.static"
     );
     
     expect(clientBuildEvents.length).toBeGreaterThan(0);
-    console.log("Client build events:", clientBuildEvents.map(e => e.type));
+    console.log("Client build events:", clientBuildEvents.map((e: any) => e.type));
     
     // Verify that client builds are working correctly
     // Note: SSG events are only available in server environment
-    expect(events.some(e => e.type === "build.writeBundle.client")).toBe(true);
+    expect(buildResult.events.some((e: any) => e.type === "build.writeBundle.client")).toBe(true);
   });
 
   it("should collect css files", async () => {

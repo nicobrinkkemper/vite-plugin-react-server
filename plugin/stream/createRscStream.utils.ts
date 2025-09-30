@@ -45,9 +45,11 @@ export function createBaseRscStreamResult(
     destination: Writable
   ) => Writable,
   abort: (reason?: unknown) => void,
-  metrics: ReturnType<typeof createStreamMetrics>
+  metrics: ReturnType<typeof createStreamMetrics>,
+  id: string
 ): BaseRscStreamResult {
   return {
+    id,
     rscStream,
     pipe,
     abort,
@@ -90,17 +92,9 @@ export function handleRscStreamError(
  * @param verbose - Whether to enable verbose logging
  * @returns Stream metrics instance
  */
-export function createRscStreamMetrics(
-  route: string,
-  verbose: boolean = false
-): ReturnType<typeof createStreamMetrics> {
+export function createRscStreamMetrics(): ReturnType<typeof createStreamMetrics> {
   const metrics = createStreamMetrics();
   metrics.startTime = performance.now();
-
-  if (verbose) {
-    console.log(`[createRscStream:${route}] Created stream metrics`);
-  }
-
   return metrics;
 }
 

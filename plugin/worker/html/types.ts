@@ -151,6 +151,7 @@ export type HandleHtmlRenderFn = (
     | "moduleBaseURL"
     | "verbose"
     | "htmlTimeout"
+    | "logger"
   >,
   handlers: StreamHandlers<"client">,
   logger?: ReturnType<typeof createLogger>

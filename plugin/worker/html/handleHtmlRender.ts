@@ -1,5 +1,3 @@
-import { PassThrough } from "node:stream";
-import { createLogger } from "vite";
 import { workerData } from "node:worker_threads";
 import { join } from "node:path";
 import { handleError } from "../../error/handleError.js";
@@ -15,10 +13,9 @@ import { ReactDOMServer } from "../../vendor/vendor.client.js";
 assertNonReactServer();
 
 /**
- * Handle the render of an HTML stream from RSC chunks, creates a pass through stream and
- * calls the provided handlers to handle the stream.
+ * Handle the render of an HTML stream from RSC chunks, creates the stream once and pipes directly.
  *
- * This html render expects all components as a serialiazed rsc stream.
+ * This html render expects all components as a serialized rsc stream.
  *
  * It does not have to resolve components, it just renders the html.
  *
@@ -28,18 +25,20 @@ assertNonReactServer();
  */
 export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
   handlerOptions,
-  handlers,
-  logger = createLogger()
+  handlers
 ) {
   const {
     route,
     id = route,
-    rscStream, // Use the RSC stream passed from the main thread
-    moduleRootPath = workerData.userOptions?.moduleRootPath,
-    moduleBaseURL = workerData.userOptions?.moduleBaseURL,
-    verbose = Boolean(workerData.userOptions?.verbose),
+    rscStream, // Use the RSC stream id passed from the main thread
+    moduleRootPath,
+    moduleBaseURL,
+    moduleBasePath,
+    verbose,
+    logger,
+    projectRoot,
   } = handlerOptions;
-
+  
   try {
     if (verbose) {
       logger.info(`[html-worker:${route}] Creating HTML stream (${id})`);
@@ -64,19 +63,8 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
     // 3. moduleBaseURL: string - the module base URL for resolving client modules
     // 4. options: object - optional configuration (encodeFormAction, nonce, etc.)
 
-    // Construct the correct moduleRootPath following the old code logic
+    // Construct the correct moduleRootPath using the projectRoot + moduleBasePath
     let resolvedModuleRootPath = moduleRootPath || "";
-    const projectRoot = workerData.userOptions?.projectRoot;
-
-    if (verbose) {
-      logger.info(`[html-worker:${route}] Module resolution config:`);
-      logger.info(`[html-worker:${route}]   projectRoot: ${projectRoot}`);
-      logger.info(`[html-worker:${route}]   moduleRootPath: ${moduleRootPath}`);
-      logger.info(
-        `[html-worker:${route}]   moduleBasePath: ${workerData.userOptions?.moduleBasePath}`
-      );
-      logger.info(`[html-worker:${route}]   moduleBaseURL: ${moduleBaseURL}`);
-    }
 
     if (typeof resolvedModuleRootPath !== "string") {
       throw new Error("moduleRootPath is required");
@@ -84,11 +72,10 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
       resolvedModuleRootPath = join(projectRoot, resolvedModuleRootPath);
     }
 
-    const moduleBasePath = workerData.userOptions?.moduleBasePath || "";
     if (!resolvedModuleRootPath.endsWith(moduleBasePath)) {
       resolvedModuleRootPath = resolvedModuleRootPath + moduleBasePath;
     }
-    if (moduleBasePath === "") {
+    if (moduleBasePath === "" && !resolvedModuleRootPath.endsWith("/")) {
       resolvedModuleRootPath = `${resolvedModuleRootPath}/`;
     }
 
@@ -109,42 +96,46 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
       );
     }
 
-    if (verbose) {
-      logger.info(
-        `[html-worker:${route}] Starting React rendering of RSC elements`
-      );
+    if (!rscStream.readable) {
+      throw new Error("RSC stream is not readable");
     }
-
-    // Create a pass through stream for enhanced handling
-    const passThrough = handlerOptions.htmlStream || new PassThrough();
 
     // Convert RSC stream to React elements using createFromNodeStream (like client-side)
     const result = createFromNodeStream({
       rscStream: rscStream,
       moduleRootPath: resolvedModuleRootPath,
-      moduleBasePath: workerData.userOptions?.moduleBasePath || "",
-      moduleBaseURL: moduleBaseURL || "/",
+      moduleBasePath: moduleBasePath,
+      moduleBaseURL: moduleBaseURL,
       logger,
     });
 
+    const mergedPipeableStreamOptions = {
+      ...workerData.userOptions?.clientPipeableStreamOptions,
+      ...handlerOptions.clientPipeableStreamOptions,
+    };
     // Render React elements to HTML stream using ReactDOMServer.renderToPipeableStream
     if (verbose) {
       logger.info(
         `[html-worker:${route}] clientPipeableStreamOptions: ${JSON.stringify(
-          handlerOptions.clientPipeableStreamOptions
+          mergedPipeableStreamOptions
         )}`
       );
     }
 
+    // Create the stream once and pipe directly with onData
     const { pipe } = ReactDOMServer.renderToPipeableStream(result.children, {
-      bootstrapScripts:
-        handlerOptions.clientPipeableStreamOptions?.bootstrapScripts ||
-        workerData.userOptions?.clientPipeableStreamOptions?.bootstrapScripts,
+      ...mergedPipeableStreamOptions,
       onShellReady() {
         if (verbose) {
           logger.info(
             `[html-worker:${route}] Shell ready, starting to pipe HTML`
           );
+        }
+        if(handlers.onShellReady) {
+          handlers.onShellReady(route);
+        }
+        if(mergedPipeableStreamOptions?.onShellReady) {
+          mergedPipeableStreamOptions.onShellReady();
         }
       },
       onAllReady() {
@@ -171,39 +162,51 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
           });
           handlers.onMetrics(route, moduleResolutionMetric);
         }
+        
+        if(handlers.onAllReady) {
+          handlers.onAllReady(route);
+        }
+        if(mergedPipeableStreamOptions?.onAllReady) {
+          mergedPipeableStreamOptions.onAllReady();
+        }
       },
-      onError(error: unknown) {
+      onError(error, errorInfo) {
         if (verbose) {
           logger.error(
             `[html-worker:${route}] React rendering error: ${error}`
           );
         }
 
-        handlers.onError(route, error, {
-          componentStack: undefined,
-          digest: undefined,
-        });
+        handlers.onError(route, error, errorInfo);
+        if(handlers.onError) {
+          handlers.onError(route, error, errorInfo);
+        }
+        if(mergedPipeableStreamOptions?.onError) {
+          mergedPipeableStreamOptions.onError(error, errorInfo);
+        }
       },
     });
 
-    // Pipe the React stream to our pass through immediately
-    pipe(passThrough as any);
+    // Create a custom writable stream that pipes directly to onData
+    const customWritable = {
+      write(chunk: any, _encoding?: any, callback?: any) {
+        handlers.onData(id, chunk);
+        if (callback) callback();
+      },
+      end(chunk?: any, _encoding?: any, callback?: any) {
+        if (chunk) {
+          handlers.onData(id, chunk);
+        }
+        handlers.onEnd(id);
+        if (callback) callback();
+      },
+      on() {}, // No-op for event listeners
+      once() {}, // No-op for event listeners
+      emit() { return false; }, // No-op for event emitters
+    };
 
-    // Set up pass through event handlers
-    passThrough.on("data", (chunk) => {
-      handlers.onData(id, chunk);5
-    });
-
-    passThrough.on("end", () => {
-      handlers.onEnd(id);
-    });
-
-    passThrough.on("error", (error) => {
-      handlers.onError(id, error, {
-        componentStack: undefined,
-        digest: undefined,
-      });
-    });
+    // Pipe the React stream directly to our custom writable
+    pipe(customWritable as any);
 
     // Set up RSC stream error handling
     rscStream.on("error", (error) => {

@@ -1,24 +1,21 @@
 import { resolve } from "path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { setupTestProject, setupLinkClientTSX } from "../setup.js";
-import { doBuild } from "../doBuild.js";
-import { readFile, writeFile } from "fs/promises";
-import { existsSync } from "fs";
-import { getCondition } from "vite-plugin-react-server/config";
-import { getSharedBuild, cleanupSharedBuilds } from './shared-build.js';
+import { setupTestProject} from "../setup.js";
+import { writeFile } from "fs/promises";
+import { getSharedBuild, SharedBuildResult } from './shared-build.js';
 
 describe("hash consistency test", () => {
-  let buildResult: any;
+  let buildResult: SharedBuildResult;
 
   beforeAll(async () => {
     // Use shared build for the first build
-    buildResult = await getSharedBuild('hash-consistency', {
+    buildResult = await getSharedBuild('test-project', 'hash-consistency', {
       pages: [], // No pages = no SSG, just bundle building
     });
   });
 
   afterAll(async () => {
-    // Don't cleanup shared builds since other tests might be using them
+    // No cleanup needed - each build uses its own fixture directory
     // The cleanup will happen at the end of the test suite
   });
 
@@ -27,9 +24,9 @@ describe("hash consistency test", () => {
     const testDir = buildResult.testDir;
 
     // Find the Link.client files in all environments from the shared build events
-    const staticFiles1 = buildResult.staticFiles.filter(f => f.includes('Link.client-'));
-    const clientFiles1 = buildResult.clientFiles.filter(f => f.includes('Link.client-'));
-    const serverFiles1 = buildResult.serverFiles.filter(f => f.includes('Link.client-'));
+    const staticFiles1 = buildResult.staticFiles().map(([filename]) => filename).filter(f => f.includes('Link.client-'));
+    const clientFiles1 = buildResult.clientFiles().map(([filename]) => filename).filter(f => f.includes('Link.client-'));
+    const serverFiles1 = buildResult.serverFiles().map(([filename]) => filename).filter(f => f.includes('Link.client-'));
     
     const staticFile1 = staticFiles1[0];
     const clientFile1 = clientFiles1[0];
@@ -58,7 +55,8 @@ describe("hash consistency test", () => {
     expect(staticHash1).toBeTruthy();
 
     // Second build with modified content using shared build system
-    const buildResult2 = await getSharedBuild('hash-consistency-modified', {
+    // Use a different shared test name to get a completely separate fixture directory
+    const buildResult2 = await getSharedBuild('test-project-modified', 'hash-consistency-modified', {
       setupProject: async (testDir: string) => {
         // First do the normal setup
         await setupTestProject(testDir);
@@ -78,9 +76,9 @@ export function Link({ to, children }: { to: string, children: React.ReactNode }
     });
 
     // Find the new Link.client files from the second build
-    const staticFiles2 = buildResult2.staticFiles.filter(f => f.includes('Link.client-'));
-    const clientFiles2 = buildResult2.clientFiles.filter(f => f.includes('Link.client-'));
-    const serverFiles2 = buildResult2.serverFiles.filter(f => f.includes('Link.client-'));
+    const staticFiles2 = buildResult2.staticFiles().map(([filename]) => filename).filter(f => f.includes('Link.client-'));
+    const clientFiles2 = buildResult2.clientFiles().map(([filename]) => filename).filter(f => f.includes('Link.client-'));
+    const serverFiles2 = buildResult2.serverFiles().map(([filename]) => filename).filter(f => f.includes('Link.client-'));
     
     const staticFile2 = staticFiles2[0];
     const clientFile2 = clientFiles2[0];

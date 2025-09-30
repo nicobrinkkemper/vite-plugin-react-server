@@ -6,6 +6,7 @@ import {
   clearStashedUserOptions,
   getEnvironmentId,
 } from "../config/stashedOptionsState.js";
+import { getCondition } from "../config/getCondition.js";
 
 /**
  * Server version of resolveStreamElements.
@@ -20,7 +21,7 @@ export async function resolveStreamElements(
   options: ResolveStreamElementsOptions
 ) {
   const shouldClearStashed = false;
-  const envId = getEnvironmentId("react-server", "test");
+  const envId = getEnvironmentId(getCondition(), process.env.NODE_ENV ?? "production");
 
 
   try {

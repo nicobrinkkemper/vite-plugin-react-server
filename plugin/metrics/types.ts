@@ -87,7 +87,7 @@ export type WorkerStartupMetrics = {
 export type ModuleResolutionMetrics = {
   route: string;
   type: "module-resolution";
-  workerType: "rsc" | "html";
+  workerType: "rsc" | "html" | "mainThread";
   startupTime?: never;
   resolutionTime: number;
   fromMainThread: boolean;

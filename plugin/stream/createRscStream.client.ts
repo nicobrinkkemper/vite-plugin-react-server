@@ -5,6 +5,7 @@ import type { CreateRscStreamFn } from "./createRscStream.types.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
 
+
 assertNonReactServer();
 
 
@@ -59,4 +60,4 @@ assertNonReactServer();
 export const createRscStream: CreateRscStreamFn<"client"> = function _createRscStreamClient(options) {
   // Use the new two-port architecture for client-side RSC streams
   return createRscStreamTwoPort(options);
-}; 
+};

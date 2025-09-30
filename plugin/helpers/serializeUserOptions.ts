@@ -91,10 +91,6 @@ const PLUGIN_NON_SERIALIZABLE_FUNCTIONS = new Set([
   "Html",
   "onEvent",
   "onMetrics",
-  "build.entryFile",
-  "build.chunkFile",
-  "build.assetFile",
-  "build.pages",
   "autoDiscover",
 ]);
 
@@ -299,6 +295,7 @@ export const serializedOptions = <T extends ResolvedUserOptions>(
       ? Array.from(autoDiscoveredFiles.urlMap.keys())
       : [],
   };
+  
   const {
     isServerFunctionCode: _isServerFunctionCode,
     isClientComponentCode: _isClientComponentCode,
@@ -367,8 +364,7 @@ export const serializedOptions = <T extends ResolvedUserOptions>(
   } as const
 
   // Clean the object to remove non-serializable properties and process RegExp objects
-  const finalResult = processForSerialization(
-    cleanObject(result, customNonSerializableFunctions)
-  );
+  const cleanedResult = cleanObject(result, customNonSerializableFunctions);
+  const finalResult = processForSerialization(cleanedResult);
   return finalResult as never
 };

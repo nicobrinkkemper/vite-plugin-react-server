@@ -1,5 +1,36 @@
 import { mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
+import { beforeAll, afterEach, afterAll } from "vitest";
+
+// Store the original working directory
+const originalCwd = process.cwd();
+
+// Ensure working directory is restored before all tests
+beforeAll(() => {
+  // Reset to original working directory before any tests run
+  if (process.cwd() !== originalCwd) {
+    process.chdir(originalCwd);
+  }
+});
+
+// Ensure working directory is restored after each test
+afterEach(() => {
+  // Reset to original working directory after each test
+  if (process.cwd() !== originalCwd) {
+    process.chdir(originalCwd);
+  }
+});
+
+// Ensure working directory is restored after all tests
+afterAll(() => {
+  // Final cleanup - ensure we're back to the original directory
+  if (process.cwd() !== originalCwd) {
+    process.chdir(originalCwd);
+  }
+});
+
+// Export the original CWD for tests that need it
+export { originalCwd };
 
 export async function setupIndexHTML(testDir: string) {
   await mkdir(testDir, { recursive: true });

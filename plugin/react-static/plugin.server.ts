@@ -41,6 +41,7 @@ import {
 import { performance } from "node:perf_hooks";
 import { baseURL } from "../utils/envUrls.node.js";
 import { handleError } from "../error/handleError.js";
+import { shouldCausePanic } from "../error/panicThresholdHandler.js";
 import { renderPage } from "./renderPage.server.js";
 import { temporaryReferences } from "./temporaryReferences.server.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
@@ -52,6 +53,7 @@ import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { assertReactServer } from "../config/getCondition.js";
+import { toError } from "../error/toError.js";
 
 assertReactServer();
 
@@ -66,6 +68,9 @@ assertReactServer();
  * 5. Managing worker threads for parallel rendering (html worker)
  * 6. Handling error reporting and metrics collection
  */
+// Global worker instance to prevent duplicate creation across plugin instances
+let globalWorker: Worker | undefined;
+
 export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
   options
 ) {
@@ -98,16 +103,14 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       configEnv = viteConfigEnv;
     },
     applyToEnvironment(partialEnvironment) {
-      console.log(`[SSG Server Plugin] applyToEnvironment called with environment: ${partialEnvironment.name}`);
+
       if (
         ["server"].includes(
           partialEnvironment.name as "client" | "server" | "ssr"
         )
       ) {
-        console.log(`[SSG Server Plugin] Returning true for server environment`);
         return true;
       }
-      console.log(`[SSG Server Plugin] Returning false for ${partialEnvironment.name} environment`);
       return false;
     },
     async configResolved(config) {
@@ -149,7 +152,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           });
           if (panicError != null) {
             worker?.terminate();
-            this.error(panicError);
+            throw panicError;
           } else {
             this.error(new Error("Failed to emit build.start event"));
           }
@@ -172,8 +175,15 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       timing.renderStart = performance.now();
     },
     async writeBundle(_options, bundle) {
+      // Only execute static generation for the server environment
+      if (this.environment.name !== "server") {
+        if (userOptions.verbose) {
+          logger?.info(`[plugin.server] Skipping static generation for environment: ${this.environment.name}`);
+        }
+        return;
+      }
       
-
+      
       let panicError: Error | null = null;
       let bundleManifest:
         | {
@@ -291,15 +301,35 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           ...userOptions.clientPipeableStreamOptions,
           bootstrapScripts: [
             ...(indexHtml ? [baseURL(indexHtml)] : []),
-            ...(userOptions.clientPipeableStreamOptions?.bootstrapScripts ?? []),
+            ...(userOptions.clientPipeableStreamOptions?.bootstrapScripts ??
+              []),
           ],
+        };
+        // Get routes for worker configuration
+        const routes = !autoDiscoveredFiles
+          ? []
+          : Array.from(autoDiscoveredFiles!.urlMap.keys());
+
+        // If no pages to generate, skip static generation entirely (including worker creation)
+        if (routes.length === 0) {
+          logger?.info(
+            "[plugin.server] No pages to generate, skipping static generation"
+          );
+          return;
         }
+
         const serializedUserOptions = serializedOptions(
           userOptions,
           autoDiscoveredFiles!
         );
         // Create HTML worker for HTML generation
-        if (!worker) {
+        // IMPORTANT: We create a new worker for each page render to ensure completely clean state
+        // This prevents race conditions where worker state persists between renders
+        // Guard against duplicate worker creation if plugin is instantiated multiple times
+        if (globalWorker) {
+          logger?.warn("[plugin.server] Global worker already exists, reusing existing worker");
+          worker = globalWorker;
+        } else {
           const workerStartTime = performance.now();
           const viteEnvPrefix = envPrefixFromConfig(resolvedConfig);
           const routeCount = autoDiscoveredFiles?.urlMap.size ?? 0;
@@ -340,25 +370,19 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
                 fromHtmlWorker: false,
                 description: `HTML worker startup for server-side static generation`,
               });
-              userOptions.onMetrics(workerStartupMetric);
+              // Only emit metrics from the server environment to prevent duplicates
+              if (this.environment.name === "server") {
+                userOptions.onMetrics(workerStartupMetric);
+              }
             }
+            // Store the worker globally to prevent duplicate creation
+            globalWorker = worker;
           }
         }
-
-        // Get routes for worker configuration
-        const routes = !autoDiscoveredFiles
-          ? []
-          : Array.from(autoDiscoveredFiles!.urlMap.keys());
 
         // No RSC worker needed for static generation - main thread runs with react-server conditions
         // Render pages - component resolution now happens per-route in renderPage
         const { onEvent, ...handlerOptions } = userOptions;
-
-        // If no pages to generate, skip static generation
-        if (routes.length === 0) {
-          logger?.info("[plugin.server] No pages to generate, skipping static generation");
-          return;
-        }
 
         // Emit the static site generation start event
         if (typeof userOptions.onEvent === "function") {
@@ -395,7 +419,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           {
             ...handlerOptions,
             loader: buildLoader,
-            worker: worker, // Pass the worker for HTML generation
+            worker: worker,
+            htmlWorker: worker, // Pass the HTML worker for HTML generation
             logger: logger,
             // Pass global CSS to downstream renderer
             globalCss,
@@ -414,35 +439,48 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
         // Process render results
         let finalResult: RenderPagesResult | undefined;
-        for await (const result of renderPagesGenerator) {
-          // Handle error results immediately
-          if (result.type === "error") {
-            throw result.error;
-          }
+        try {
+          for await (const result of renderPagesGenerator) {
+            // Handle error results immediately
+            if (result.type === "error") {
+              throw result.error;
+            }
 
-          // Handle failed routes based on panic threshold
-          if (
-            result.type === "success" &&
-            result.failedRoutes &&
-            result.failedRoutes.size > 0
-          ) {
-            if (userOptions.panicThreshold === "all_errors") {
-              // For "all_errors", throw on any failed route
+            // Handle failed routes based on panic threshold
+            if (
+              result.type === "success" &&
+              result.failedRoutes &&
+              result.failedRoutes.size > 0
+            ) {
+              // Use centralized panic threshold logic
               const firstError = result.failedRoutes.values().next().value;
-              if (firstError != null) {
+              if (firstError != null && shouldCausePanic(firstError, { panicThreshold: userOptions.panicThreshold })) {
+                // This should cause a panic, throw the error
                 throw firstError;
               }
-              throw new Error("Failed to render pages");
+              // For non-panic errors, log warnings but continue
+              for (const [route, error] of result.failedRoutes) {
+                const err = error instanceof Error ? error : toError(error);
+                this.warn(
+                  new Error("Failed to render route: " + route + "\n" + err.message + "\n" + err.stack, { cause: err })
+                );
+              }
             }
-            // For other panic thresholds, log warnings but continue
-            for (const [route, error] of result.failedRoutes) {
-              this.warn(
-                new Error("Failed to render route: " + route, { cause: error })
-              );
-            }
-          }
 
-          finalResult = result;
+            finalResult = result;
+          }
+        } catch (renderError) {
+          // Handle render errors with panic threshold logic
+          const renderPanicError = handleError({
+            error: renderError,
+            logger: logger,
+            panicThreshold: userOptions.panicThreshold,
+            context: "renderPages",
+          });
+          if (renderPanicError != null) {
+            throw renderPanicError;
+          }
+          throw renderError;
         }
 
         if (!finalResult) {
@@ -497,12 +535,24 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           context: "writeBundle",
         });
 
-
         // Let the finally block handle additional cleanup
       } finally {
         // Reset any cached state to prevent issues in subsequent builds
         autoDiscoveredFiles = null;
         serverManifest = undefined;
+        
+        // Clean up worker if it exists
+        if (worker) {
+          try {
+            worker.removeAllListeners();
+            worker.terminate();
+          } catch (terminateError) {
+            // Ignore termination errors
+          }
+          worker = undefined;
+          // Reset global worker since it's been terminated
+          globalWorker = undefined;
+        }
       }
 
       if (panicError != null) {
@@ -520,7 +570,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         // Copy any additional properties that might be needed
         if (errorToThrow.name) finalError.name = errorToThrow.name;
 
-        this.error(finalError);
+        throw finalError;
       }
     },
 
@@ -540,12 +590,27 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
               const messageHandler = (message: any) => {
                 if (message.type === "SHUTDOWN_COMPLETE") {
+                  if (userOptions.verbose) {
+                    logger.info("Worker shutdown complete");
+                  }
                   clearTimeout(timeout);
                   clearTimeout(backupTimeout);
                   worker?.removeListener("message", messageHandler);
                   // Remove all other event listeners as well
                   worker?.removeAllListeners();
                   resolve();
+                } else if (message.type === "CLEANUP_COMPLETE") {
+                  // Handle cleanup complete messages during shutdown - this is normal
+                  if (userOptions.verbose) {
+                    logger.info("Worker cleanup completed during shutdown");
+                  }
+                  // Don't resolve here - wait for SHUTDOWN_COMPLETE
+                } else {
+                  if (userOptions.verbose) {
+                    logger.info(
+                      "Worker is still busy, received message " + message?.type
+                    );
+                  }
                 }
               };
 
@@ -564,10 +629,20 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             "Worker shutdown protocol failed, forcing termination: " +
               (error instanceof Error ? error.message : String(error))
           );
+          // Don't try to clean up listeners in error case - just force terminate
         } finally {
-          worker.removeAllListeners();
-          worker.terminate();
-          worker = undefined;
+          // Always force cleanup and termination
+          if (worker) {
+            try {
+              worker.removeAllListeners();
+              worker.terminate();
+            } catch (terminateError) {
+              // Ignore termination errors
+            }
+            worker = undefined;
+            // Reset global worker since it's been terminated
+            globalWorker = undefined;
+          }
         }
       }
     },

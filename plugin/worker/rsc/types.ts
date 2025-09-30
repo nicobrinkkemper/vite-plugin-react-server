@@ -42,7 +42,9 @@ export type HandleRscRenderOptions = {
 export type HandleRscRenderFn = <Opt extends HandleRscRenderOptions = HandleRscRenderOptions>(
   options: Opt,
   handlers: StreamHandlers<"server">,
-  overrideStream?: PassThrough
+  overrideStream?: PassThrough,
+  headlessStreamElements?: Map<string, any>,
+  headlessStreamErrors?: Map<string, Error>
 ) => void;
 
 

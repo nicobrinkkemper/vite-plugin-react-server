@@ -24,6 +24,10 @@ export interface RscWorkerStreamOptions {
   // RSC-specific options
   rscTimeout?: number;
   build?: any;
+  pagePath?: string;
+  propsPath?: string;
+  rootPath?: string;
+  htmlPath?: string;
 }
 
 /**
@@ -46,12 +50,31 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
     serverPipeableStreamOptions,
     onError,
     rscTimeout,
-    build
+    build,
+    pagePath,
+    propsPath,
+    rootPath,
+    htmlPath
   } = options;
 
   // Create two separate MessagePorts for clean separation of concerns
   const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
   const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
+  
+  // Ensure cleanup happens even if process exits
+  const cleanup = () => {
+    // Don't close MessagePorts on process exit - this breaks React consumption
+    // MessagePorts should be closed by the consuming side (main thread) when done
+    // This follows the idiomatic Node.js streams pattern per the Worker Threads docs
+    if (verbose) {
+      logger?.info(`[createRscWorkerStream] Process cleanup - not closing MessagePorts (consumer will handle)`);
+    }
+  };
+
+  // Clean up on process exit (but don't close ports)
+  process.on('exit', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
   
   // Create the RSC output stream
   const rscStream = new PassThrough({
@@ -69,6 +92,9 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
         logger?.info(`[createRscWorkerStream] End of RSC stream via dataPort`);
       }
       rscStream.end();
+      
+      // Note: We don't close ports here - let the stream consumer manage port lifecycle
+      // This ensures ReactDOMClient.createFromNodeStream() can fully consume the stream
     } else {
       // Raw RSC data - direct piping
       if (verbose) {
@@ -99,6 +125,7 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
         }
         const error = toError(message.error);
         rscStream.destroy(error);
+        
         if (onError) {
           onError(error);
         }
@@ -133,6 +160,10 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
       panicThreshold,
       rscTimeout,
       serverPipeableStreamOptions,
+      pagePath,
+      propsPath,
+      rootPath,
+      htmlPath,
       build: build ? {
         outDir: build.outDir,
         assetsDir: build.assetsDir,
@@ -143,6 +174,17 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
       } : undefined,
     }
   }, [dataPort2, controlPort2] as any); // Transfer both ports to the worker
+
+  // Add cleanup method to the stream
+  (rscStream as any).cleanup = () => {
+    // Remove process listeners to prevent memory leaks
+    process.off("exit", cleanup);
+    process.off("SIGINT", cleanup);
+    process.off("SIGTERM", cleanup);
+    
+    // Don't close the ports here as they might still be in use
+    // The ports will be garbage collected when the stream is destroyed
+  };
 
   return rscStream;
 }

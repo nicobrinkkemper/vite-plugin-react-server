@@ -100,7 +100,7 @@ describe('handleWorkerRscStream', () => {
     HtmlComponent: undefined, // Add missing required property
     serverPipeableStreamOptions: {},
     clientPipeableStreamOptions: {},
-    verbose: true,
+    verbose: false,
     panicThreshold: 'none' as const,
     rscTimeout: 1000,
     rscWorkerPath: 'dist/worker/rsc-worker.js',

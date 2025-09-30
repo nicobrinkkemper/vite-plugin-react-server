@@ -23,20 +23,16 @@ import {
 function createLoader(
   verbose: boolean,
   logger: Logger,
-  hmrState: Map<string, { invalidated: boolean }>,
   projectRoot: string,
   build: any,
   manifest: Record<string, { file: string } | string>,
-  clientPattern?: RegExp
 ) {
   return createRscWorkerLoader({
     verbose,
     logger,
-    hmrState,
     projectRoot,
     build,
     manifest,
-    clientPattern,
   });
 }
 
@@ -55,7 +51,6 @@ export function hydrateRscRenderMessage(
     HtmlComponent,
     userOptions,
     logger,
-    hmrState,
     manifest,
   }: {
     message: RscRenderMessage;
@@ -65,7 +60,6 @@ export function hydrateRscRenderMessage(
     HtmlComponent: HtmlComponentType | typeof React.Fragment | undefined;
     userOptions: ResolvedUserOptions;
     logger: Logger;
-    hmrState: Map<string, { invalidated: boolean }>;
     manifest: Record<string, { file: string } | string>;
   },
   // defaults
@@ -91,11 +85,9 @@ export function hydrateRscRenderMessage(
   const loader = createLoader(
     mergedValues.verbose,
     logger,
-    hmrState,
     mergedValues.projectRoot,
     mergedValues.build,
     manifest,
-    userOptions.autoDiscover?.clientPattern
   );
 
   // Step 7: Return the fully hydrated render context

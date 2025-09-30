@@ -571,22 +571,42 @@ export const resolveUserConfig: ResolveUserConfigFn =
                     // Ensure react-server condition is available during server builds
                     if (!process.env.NODE_OPTIONS?.includes("react-server")) {
                       this.warn(
-                        `NODE_OPTIONS was set wrong for ${this.environment.name}, adding --conditions react-server`
+                        `NODE_OPTIONS may be wrong for ${this.environment.name}`
                       );
-                      process.env.NODE_OPTIONS =
-                        (process.env.NODE_OPTIONS || "") +
-                        " --conditions react-server";
+                      if(this.environment.config.define) {
+                        this.environment.config.define = {
+                          ...this.environment.config.define,
+                          "process.env.NODE_OPTIONS": `"${process.env.NODE_OPTIONS} --conditions react-server"`
+                        }
+                      } else {
+                        this.environment.config.define = {
+                          "process.env.NODE_OPTIONS": `"${process.env.NODE_OPTIONS} --conditions react-server"`
+                        }
+                      }
+                      // process.env.NODE_OPTIONS =
+                      //   (process.env.NODE_OPTIONS || "") +
+                      //   " --conditions react-server";
                     }
                   } else {
                     if (process.env.NODE_OPTIONS?.includes("react-server")) {
                       this.warn(
-                        `NODE_OPTIONS was set wrong for ${this.environment.name}, removing --conditions react-server`
+                        `NODE_OPTIONS may be wrong for ${this.environment.name}`
                       );
-                      process.env.NODE_OPTIONS =
-                        process.env.NODE_OPTIONS.replace(
-                          " --conditions react-server",
-                          ""
-                        );
+                      if(this.environment.config.define && this.environment.config.define["process.env.NODE_OPTIONS"] && this.environment.config.define["process.env.NODE_OPTIONS"].includes("react-server")) {
+                        this.environment.config.define = {
+                          ...this.environment.config.define,
+                          "process.env.NODE_OPTIONS": this.environment.config.define["process.env.NODE_OPTIONS"].replace(/--conditions[=\s]react-server/, "")
+                        }
+                      } else {
+                        this.environment.config.define = {
+                          "process.env.NODE_OPTIONS": ""
+                        }
+                      }
+                      //process.env.NODE_OPTIONS =
+                        //process.env.NODE_OPTIONS.replace(
+                          //" --conditions react-server",
+                          //""
+                        //);
                     }
                   }
                 },

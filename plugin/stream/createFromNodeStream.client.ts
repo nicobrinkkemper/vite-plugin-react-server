@@ -68,16 +68,20 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
         }, destroyed: ${rscStream.destroyed}`
       );
     }
+
+    // Convert RSC stream to React elements using ReactDOMClient.createFromNodeStream
+    // This is the same approach used by the HTML worker
+    // IMPORTANT: ReactDOMClient.createFromNodeStream returns a Promise that needs to be awaited
     return {
       type: "client" as const,
-      children: React.createElement(() =>
-        React.use(
-          ReactDOMClient.createFromNodeStream(
-            rscStream,
-            moduleRootPath,
-            moduleBaseURL
-          )
-        )
-      ),
+      children: React.createElement(() => {
+        const promise = ReactDOMClient.createFromNodeStream(
+          rscStream,
+          moduleRootPath,
+          moduleBaseURL
+        );
+        
+        return React.use(promise);
+      }),
     };
   };

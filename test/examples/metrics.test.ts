@@ -13,8 +13,8 @@ let metrics: any[];
 
 describe("Metrics Collection", () => {
   beforeAll(async () => {
-    const buildResult = await getSharedBuild("default-setup", {
-      setupProject: setupTestProject,
+    const buildResult = await getSharedBuild("default-setup", "metrics", {
+      pages: ["/"],
     });
 
     events = buildResult.events;

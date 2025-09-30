@@ -9,14 +9,14 @@ export const setupGlobalErrorHandler: SetupGlobalErrorHandlerFn =
   function _setupGlobalErrorHandler(options) {
     const { panicThreshold, logger, verbose = false } = options;
 
-    // Only set up global error handling for all_errors panic threshold
-    if (panicThreshold !== "all_errors" || isGlobalHandlerSetup) {
+    // Set up global error handling for all panic threshold levels
+    if (isGlobalHandlerSetup) {
       return;
     }
 
     if (verbose) {
       logger.info(
-        "[react-client] Setting up global error handler for all_errors panic threshold"
+        `Setting up global error handler for panic threshold: ${panicThreshold}`
       );
     }
 
@@ -24,14 +24,13 @@ export const setupGlobalErrorHandler: SetupGlobalErrorHandlerFn =
     process.on("uncaughtException", (error: Error) => {
       if (verbose) {
         logger.info(
-          `[react-client] Global error handler caught uncaught exception: ${error.message}`
+          `Global error handler caught uncaught exception: ${error.message}`
         );
       }
 
-      // For all_errors panic threshold, we want to handle the error gracefully
-      // and prevent it from crashing the process
+      // Handle the error gracefully based on panic threshold
       logger.warn(
-        `[react-client] Uncaught exception handled by all_errors panic threshold: ${error.message}`
+        `Uncaught exception handled by panic threshold (${panicThreshold}): ${error.message}`
       );
 
       // Don't call process.exit - let the error be handled gracefully
@@ -42,13 +41,13 @@ export const setupGlobalErrorHandler: SetupGlobalErrorHandlerFn =
       (reason: unknown, _promise: Promise<unknown>) => {
         if (verbose) {
           logger.info(
-            `[react-client] Global error handler caught unhandled rejection: ${reason}`
+            `Global error handler caught unhandled rejection: ${reason}`
           );
         }
 
-        // For all_errors panic threshold, we want to handle the rejection gracefully
+        // Handle the rejection gracefully based on panic threshold
         logger.warn(
-          `[react-client] Unhandled rejection handled by all_errors panic threshold: ${reason}`
+          `Unhandled rejection handled by panic threshold (${panicThreshold}): ${reason}`
         );
 
         // Don't call process.exit - let the rejection be handled gracefully

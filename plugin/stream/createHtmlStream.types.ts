@@ -46,6 +46,7 @@ export type CreateHtmlStreamOptions = Pick<
   css?: CreateHandlerOptions["css"];
   build?: CreateHandlerOptions["build"];
   children?: React.ReactNode;
+  onError?: (error: Error, isPanic: boolean) => void;
 };
 
 /**

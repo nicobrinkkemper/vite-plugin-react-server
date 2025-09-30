@@ -5,7 +5,7 @@ import { createTransformer } from "vite-plugin-react-server/loader";
 const loadReact = async (source: string, url = "test.js") => {
   const transformer = createTransformer({
     options: {
-      verbose: true, // Enable verbose logging
+      verbose: false, // Enable verbose logging
     },
     isServerEnvironment: true, // Test in server environment
   });

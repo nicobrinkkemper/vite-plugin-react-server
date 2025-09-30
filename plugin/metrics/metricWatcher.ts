@@ -40,6 +40,8 @@ function formatTime(ms: number): string {
 }
 
 let startedLogging = false;
+// Track logged worker startups to prevent duplicates
+const loggedWorkerStartups = new Set<string>();
 
 export function metricWatcher({
   maxTime = 200,
@@ -90,14 +92,20 @@ export function metricWatcher({
       // Store worker startup metrics separately
       pageMetrics.workerStartupMetrics.push(metrics as WorkerStartupMetrics);
 
-      // Display worker startup metric as standalone entry
+      // Display worker startup metric as standalone entry (deduplicated)
       if (!warnOnly) {
         const workerStartupMetric = metrics as WorkerStartupMetrics;
-        const startupTime = formatTime(workerStartupMetric.startupTime);
-        const workerType = workerStartupMetric.workerType.toUpperCase();
-        info(
-          `\x1b[35m${workerType}-worker started in \x1b[0m ${startupTime} (initial route: ${route})`
-        );
+        const workerKey = `${workerStartupMetric.workerType}-${workerStartupMetric.route}`;
+        
+        // Only log if we haven't seen this worker type for this route before
+        if (!loggedWorkerStartups.has(workerKey)) {
+          loggedWorkerStartups.add(workerKey);
+          const startupTime = formatTime(workerStartupMetric.startupTime);
+          const workerType = workerStartupMetric.workerType;
+          info(
+            `\x1b[35m${workerType.toUpperCase()}-worker started in \x1b[0m ${startupTime} (initial route: ${route})`
+          );
+        }
       }
       return; // Don't process worker startup metrics for rendering checks
     } else if (metrics.type === "module-resolution") {

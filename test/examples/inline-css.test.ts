@@ -1,69 +1,49 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { resolve } from "path";
-import { mkdir, rm } from "fs/promises";
 import { setupTestProject } from "../setup.js";
-import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
-import { doBuild } from "../doBuild.js";
-import { getCondition } from "vite-plugin-react-server/config";
+import { getSharedBuild } from "./shared-build.js";
 
 describe("Plugin Inline Css Event hooks", () => {
-  const testDir = resolve(__dirname, `../fixtures/examples/${getCondition()}/inline-css.test`);
-  let events: PluginEvent[];
+  let buildResult: any;
   let htmlContent: string;
   let rscContent: string;
+
   beforeAll(async () => {
-    await mkdir(testDir, { recursive: true });
-    await setupTestProject(testDir);
-    events = await doBuild({
-      projectRoot: testDir,
+    buildResult = await getSharedBuild('test-project', 'inline-css', {
+      setupProject: setupTestProject,
+      pages: ['/'],
       css: {
         inlineCss: true,
         inlineThreshold: 0,
       }
     });
 
-    // Get HTML content from file.write.done event
-    const htmlDoneEvent = events.find(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "html" &&
-        e.data.route === '/'
-    ) as FileWriteDoneEvent;
-    
-    if (htmlDoneEvent) {
-      htmlContent = htmlDoneEvent.data.content;
+    // Get HTML content using the new API
+    const htmlFiles = buildResult.htmlFiles();
+    if (htmlFiles.length > 0) {
+      htmlContent = htmlFiles[0][1]; // Get content from first HTML file
     }
 
-    // Get RSC content from file.write.done event
-    const rscDoneEvent = events.find(
-      (e) =>
-        e.type === "file.write.done" &&
-        e.data.fileType === "rsc" &&
-        e.data.route === '/'
-    ) as FileWriteDoneEvent;
-    
-    if (rscDoneEvent) {
-      rscContent = rscDoneEvent.data.content;
+    // Get RSC content using the new API
+    const rscFiles = buildResult.rscFiles();
+    if (rscFiles.length > 0) {
+      rscContent = rscFiles[0][1]; // Get content from first RSC file
     }
   });
   
   afterAll(async () => {
-    try {
-      // await rm(testDir, { recursive: true, force: true });
-    } catch {
-    }
+    // Cleanup is handled globally at the end of the test suite
   });
 
   it("emits file.write events for html and rsc files", async () => {
-    const fileWriteEvents = events.filter((e): e is FileWriteDoneEvent => e.type === "file.write.done");
+    const fileWriteEvents = buildResult.events.filter((e: any) => e.type === "file.write.done");
     expect(fileWriteEvents.length).toBeGreaterThanOrEqual(2);
     if(!fileWriteEvents.length) {
-      throw events;
+      throw buildResult.events;
     }
     
     // Find HTML and RSC file write events
-    const htmlEvent = fileWriteEvents.find(e => e.data.fileType === "html");
-    const rscEvent = fileWriteEvents.find(e => e.data.fileType === "rsc");
+    const htmlEvent = fileWriteEvents.find((e: any) => e.data.fileType === "html");
+    const rscEvent = fileWriteEvents.find((e: any) => e.data.fileType === "rsc");
     
     expect(htmlEvent).toBeDefined();
     expect(rscEvent).toBeDefined();

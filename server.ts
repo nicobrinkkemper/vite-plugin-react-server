@@ -1,6 +1,6 @@
 "use strict";
 
-export { vitePluginReactServer, vitePluginReactClient } from "./plugin/plugin.server.js"
+export { vitePluginReactServer } from "./plugin/plugin.server.js"
 
 
 export * from './plugin/react-server/index.js'

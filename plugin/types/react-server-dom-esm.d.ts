@@ -268,8 +268,8 @@ declare module 'react-server-dom-esm/server.node' {
   
   export type RenderToPipeableStreamOptions = {
     onError?: (error: unknown) => void;
-    identifierPrefix?: string;
     onPostpone?: (reason: string) => void;
+    identifierPrefix?: string;
     temporaryReferences?: WeakMap<any, any>;
     environmentName?: string;
     filterStackFrame?: (stackFrame: string) => string;

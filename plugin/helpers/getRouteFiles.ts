@@ -67,23 +67,34 @@ export const getRouteFiles = async (
     let { root, html } = cached;
 
     if (userOptions.verbose) {
-      if (page && page !== "") {
-        logger.info(`[getRouteFiles] Page: \"${page}\"`);
-      }
-      if (props && props !== "") {
-        logger.info(`[getRouteFiles] Props: \"${props}\"`);
-      }
-      if (root && root !== "") {
-        logger.info(`[getRouteFiles] Root: \"${root}\"`);
-      }
-      if (html && html !== "") {
-        logger.info(`[getRouteFiles] Html: \"${html}\"`);
-      }
+      logger.info(`[getRouteFiles] Found cached route: ${route}, page: "${page}", props: "${props}"`);
     }
 
-    // For cached routes, we still need to resolve Root and Html dynamically if they are functions
-    // and not already cached
-    if (!root && userOptions.Root) {
+    // If the cached page is undefined, fall back to resolveUrlOption
+    if (!page) {
+      if (userOptions.verbose) {
+        logger.info("[getRouteFiles] Cached page is undefined, falling back to resolveUrlOption");
+      }
+      // Fall through to the resolveUrlOption logic below
+    } else {
+      if (userOptions.verbose) {
+        if (page && page !== "") {
+          logger.info(`[getRouteFiles] Page: \"${page}\"`);
+        }
+        if (props && props !== "") {
+          logger.info(`[getRouteFiles] Props: \"${props}\"`);
+        }
+        if (root && root !== "") {
+          logger.info(`[getRouteFiles] Root: \"${root}\"`);
+        }
+        if (html && html !== "") {
+          logger.info(`[getRouteFiles] Html: \"${html}\"`);
+        }
+      }
+
+      // For cached routes, we still need to resolve Root and Html dynamically if they are functions
+      // and not already cached
+      if (!root && userOptions.Root) {
       const {
         type: rootType,
         error: rootError,
@@ -111,7 +122,8 @@ export const getRouteFiles = async (
       autoDiscoveredFiles.urlMap.set(route, { page, props, root, html });
     }
 
-    return { type: "success", page, props, root, html };
+      return { type: "success", page, props, root, html };
+    }
   }
   if (userOptions.verbose) {
     logger.info("[getRouteFiles] Not in urlMap, resolving Page option");

@@ -10,12 +10,13 @@ import { getCondition } from "vite-plugin-react-server/config";
 resolveOptions({ 
   moduleBase: "test/streams", 
   Page: "test/streams/TestPage.tsx", 
-  verbose: false,
+  // Html component should default automatically when not requesting headless stream
+  verbose: true,
   dev: {
     // we need this flag, since normally we don't need a html worker in dev mode
     // since its all handled in the browser
     useHtmlWorker: getCondition() === "react-server",
-    useRscWorker: true,
+    // do not set other flags, useRscWorker should be automatically set to true if react-server condition is not met
   }
 });
 

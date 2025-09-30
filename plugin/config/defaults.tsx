@@ -170,7 +170,7 @@ export const DEFAULT_CONFIG = {
   HTML_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for HTML worker startup
   RSC_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for RSC worker startup
   FILE_WRITE_TIMEOUT: 10000, // 10 seconds default timeout for file write operations
-  WORKER_SHUTDOWN_TIMEOUT: 5000, // 5 seconds default timeout for worker shutdown operations
+  WORKER_SHUTDOWN_TIMEOUT: 1000, // Reduced to 1 second for faster test cleanup
   COMPONENTS: {
     Html: Html,
     Root: Root,

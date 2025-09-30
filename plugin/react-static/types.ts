@@ -192,7 +192,9 @@ export type RscToHtmlOptions = Pick<
   | "htmlTimeout"
   | "onMetrics"
   | "rscStream"
->;
+> & {
+  onError?: (error: Error, isPanic: boolean) => void;
+};
 
 export type RscToHtmlStreamFn = (options: RscToHtmlOptions) => {
   abort: (reason?: unknown) => void;

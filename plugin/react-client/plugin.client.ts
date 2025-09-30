@@ -63,11 +63,10 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
       
       
       if(typeof config?.build?.ssr === "boolean" || typeof config?.build?.ssr === "string") {
-        implicitSsr = config?.build?.ssr === "true" || config?.build?.ssr === true;
+        implicitSsr = Boolean(config?.build?.ssr);
         
       } else if(implicitSsr === undefined) {
         implicitSsr = configEnv.isSsrBuild;
-        
       }
       
       

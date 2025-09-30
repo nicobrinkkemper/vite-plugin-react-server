@@ -1,7 +1,7 @@
 import type { MessagePort } from "node:worker_threads";
 import type { CreateHandlerOptions, RenderMetrics } from "../types.js";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
-import type { RscRenderMessage, RscWorkerOutputMessage } from "./rsc/types.js";
+import type { RscWorkerOutputMessage } from "./rsc/types.js";
 import type { ModuleResolutionMetrics, WorkerStartupMetrics } from "../metrics/types.js";
 
 // Base message types
@@ -144,7 +144,6 @@ export type ClientOnlyStreamHandlers = {
 };
 
 export type ServerOnlyStreamHandlers = {
-  onRscRender: (id: string, message: RscRenderMessage) => void;
   onServerModule?: (id: string, url: string, source: string) => void;
   onServerAction?: (id: string, args: unknown[]) => void;
   onServerActionResponse?: (
@@ -152,7 +151,8 @@ export type ServerOnlyStreamHandlers = {
     result?: unknown,
     error?: string
   ) => void;
-  onError: (id: string, error: unknown, errorInfo?: never) => void;
+  onError: (id: string, error: unknown, errorInfo?: { route?: string; context?: string }) => void;
+  onPostpone?: (id: string, reason: string) => void;
 };
 
 // Common handlers
@@ -167,10 +167,15 @@ export type StreamHandlers<
   onEnd: (id: string) => void;
   onMetrics: (id: string, metrics: RenderMetrics<'rsc-full' | 'rsc-headless' | 'html'> | WorkerStartupMetrics | ModuleResolutionMetrics) => void;
   onHmrAccept: (id: string, routes?: string[]) => void;
+  // Optional method for two-port communication
+  getWritable?: () => NodeJS.WritableStream;
   onHmrUpdate: (id: string, routes?: string[]) => void;
   onShutdown?: (id: string) => void;
   onCssFile?: (id: string, code: string) => void;
   onCleanup?: (id: string) => void;
+  onShellReady?: (id: string) => void;
+  onRscRender?: (id: string, message?: any) => void;
+  onAllReady?: (id: string) => void;
 };
 
 export type ClientStreamHandlers = StreamHandlers<"client">;

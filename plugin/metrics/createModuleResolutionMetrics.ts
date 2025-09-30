@@ -12,7 +12,7 @@ export function createModuleResolutionMetrics({
   description,
 }: {
   route: string;
-  workerType: "rsc" | "html";
+  workerType: "rsc" | "html" | "mainThread";
   resolutionTime: number;
   fromMainThread?: boolean;
   fromRscWorker?: boolean;

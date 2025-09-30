@@ -1,6 +1,6 @@
 import type { RootComponentType } from "../types.js";
 import { Css } from "./css.js";
-import React from 'react'
+import React from "react";
 
 /**
  * A upgraded Root component that adds the cssFiles to the bottom of the page,,

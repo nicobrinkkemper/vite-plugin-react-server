@@ -48,9 +48,13 @@ export interface SerializableHandlerOptions {
   
   // Build configuration
   build: CreateHandlerOptions["build"];
+  dev: CreateHandlerOptions["dev"];
   
   // CSS configuration
   css: CreateHandlerOptions["css"];
+  
+  // Auto-discovery configuration
+  autoDiscover?: CreateHandlerOptions["autoDiscover"]
   
   // CSS data
   cssFiles?: Map<string, any>;
@@ -66,8 +70,8 @@ export interface SerializableHandlerOptions {
   htmlTimeout?: number;
   
   // Stream options
-  clientPipeableStreamOptions?: any;
-  serverPipeableStreamOptions?: any;
+  clientPipeableStreamOptions?: Omit<NonNullable<CreateHandlerOptions["clientPipeableStreamOptions"]>, `on${string}` | 'filterStackFrame'>;
+  serverPipeableStreamOptions?: Omit<NonNullable<CreateHandlerOptions["serverPipeableStreamOptions"]>, `on${string}`>;
 }
 
 /**
@@ -105,6 +109,7 @@ export function createSerializableHandlerOptions(
     globalCss,
     pageProps,
     css,
+    autoDiscover,
     clientPipeableStreamOptions,
     serverPipeableStreamOptions,
     ...rest
@@ -150,6 +155,11 @@ export function createSerializableHandlerOptions(
   ]));
   const processedRest = processForSerialization(cleanedOptions);
   if (css != null) result.css = css;
+  if (autoDiscover != null) {
+    // Clean the autoDiscover object to remove functions that can't be cloned
+    const cleanedAutoDiscover = cleanObject(autoDiscover);
+    result.autoDiscover = processForSerialization(cleanedAutoDiscover);
+  }
   if (cssFiles != null) result.cssFiles = cssFiles;
   if (globalCss != null) result.globalCss = globalCss;
   if (pageProps != null) result.pageProps = pageProps;

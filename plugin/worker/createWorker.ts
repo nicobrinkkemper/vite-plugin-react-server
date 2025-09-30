@@ -23,6 +23,67 @@ import type { OutputBundle } from "rollup";
 import { handleError } from "../error/handleError.js";
 import { toError } from "../error/toError.js";
 
+// Global worker registry for graceful shutdown
+const activeWorkers = new Set<Worker>();
+
+// Graceful shutdown function using the existing SHUTDOWN protocol
+export async function shutdownAllWorkers(timeout: number = 1000): Promise<void> {
+  if (activeWorkers.size === 0) return;
+
+  const shutdownPromises = Array.from(activeWorkers).map(worker => {
+    return new Promise<void>((resolve) => {
+      let messageHandler: ((message: any) => void) | undefined;
+      
+      const timeoutId = setTimeout(() => {
+        worker.removeListener("message", messageHandler!);
+        worker.removeAllListeners();
+        try {
+          worker.terminate();
+        } catch (error) {
+          // Ignore termination errors
+        }
+        activeWorkers.delete(worker);
+        resolve();
+      }, timeout);
+
+      messageHandler = (message: any) => {
+        if (message.type === "SHUTDOWN_COMPLETE") {
+          clearTimeout(timeoutId);
+          worker.removeListener("message", messageHandler!);
+          worker.removeAllListeners();
+          activeWorkers.delete(worker);
+          resolve();
+        }
+      };
+
+      worker.on("message", messageHandler);
+      
+      // Send graceful shutdown message
+      try {
+        worker.postMessage({
+          type: "SHUTDOWN",
+          id: "*",
+        });
+      } catch (error) {
+        // If we can't send the message, force terminate
+        clearTimeout(timeoutId);
+        worker.removeListener("message", messageHandler!);
+        worker.removeAllListeners();
+        try {
+          worker.terminate();
+        } catch (terminateError) {
+          // Ignore termination errors
+        }
+        activeWorkers.delete(worker);
+        resolve();
+      }
+    });
+  });
+
+  await Promise.all(shutdownPromises);
+  activeWorkers.clear();
+}
+
 type CreateWorkerSuccess = {
   type: "success";
   workerPath: string;
@@ -116,24 +177,29 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
   if (!workerPathWithDefault) {
     // Use the default worker paths that include the full filename
     const isProduction = mode === "production";
-    const workerFileName = reverseCondition === "react-server" 
-      ? `rsc-worker.${isProduction ? "production" : "development"}.js`
-      : `html-worker.${isProduction ? "production" : "development"}.js`;
-    
+    const workerFileName =
+      reverseCondition === "react-server"
+        ? `rsc-worker.${isProduction ? "production" : "development"}.js`
+        : `html-worker.${isProduction ? "production" : "development"}.js`;
+
     // Try source directory first
     const sourcePath = join(pluginRoot, id, workerFileName);
-    
+
     // Always log the paths for debugging
-    if(verbose) {
-      logger.info(`[create:${id}] Checking paths - Source: ${sourcePath}, PluginRoot: ${pluginRoot}`);
+    if (verbose) {
+      logger.info(
+        `[create:${id}] Checking paths - Source: ${sourcePath}, PluginRoot: ${pluginRoot}`
+      );
     }
-    
+
     // If source path doesn't exist, try built directory
     if (!existsSync(sourcePath)) {
-      throw new Error(`[create:${id}] Worker file doesn't exist: ${sourcePath}`);
+      throw new Error(
+        `[create:${id}] Worker file doesn't exist: ${sourcePath}`
+      );
       // const builtPath = join(pluginRoot.replace("/plugin/", "/dist/plugin/"), id, workerFileName);
       // logger.info(`[create:${id}] Source path doesn't exist, checking built path: ${builtPath}`);
-      
+
       // if (existsSync(builtPath)) {
       //   workerPathWithDefault = builtPath;
       //   logger.info(`[create:${id}] Using built worker path: ${builtPath}`);
@@ -143,7 +209,7 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       // }
     } else {
       workerPathWithDefault = sourcePath;
-      if(verbose) {
+      if (verbose) {
         logger.info(`[create:${id}] Using source worker path: ${sourcePath}`);
       }
     }
@@ -159,14 +225,17 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
 
   try {
     // Ensure consistent NODE_ENV between main thread and worker
-    const isTestEnv =
-      process.env["VITEST"] || process.env["NODE_ENV"] === "test";
-    const nodeEnv = isTestEnv ? "test" : mode;
 
     if (verbose) {
-      logger.info(`[create:${id}] Creating worker with path: ${workerPathWithDefault}`);
-      logger.info(`[create:${id}] Node environment: ${nodeEnv}`);
-      logger.info(`[create:${id}] Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`);
+      logger.info(
+        `[create:${id}] workerData.userOptions.build:
+${JSON.stringify(workerData.userOptions?.build)}
+
+Call stack: ${new Error().stack?.split("\n").slice(1, 4).join("\n")}
+Creating worker with path: ${workerPathWithDefault}
+Node environment: ${mode}
+Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
+      );
     }
 
     // Compute execArgv for the worker with exactly one --conditions flag
@@ -190,18 +259,24 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       "--conditions",
       reverseCondition,
     ];
-    
+
     // Always log the condition setup for debugging
-    if(verbose) {
-      logger.info(`[create:${id}] Setting up worker with reverse condition: ${reverseCondition}`);
-      logger.info(`[create:${id}] Computed execArgv: ${JSON.stringify(computedExecArgv)}`);
-      logger.info(`[create:${id}] Current NODE_OPTIONS: ${process.env["NODE_OPTIONS"]}`);
+    if (verbose) {
+      logger.info(
+        `[create:${id}] Setting up worker with reverse condition: ${reverseCondition}`
+      );
+      logger.info(
+        `[create:${id}] Computed execArgv: ${JSON.stringify(computedExecArgv)}`
+      );
+      logger.info(
+        `[create:${id}] Current NODE_OPTIONS: ${process.env["NODE_OPTIONS"]}`
+      );
     }
 
     const env = {
       // Inherit all existing environment variables
       ...process.env,
-      
+
       // Override with our specific variables
       [envPrefix + "DEV"]: mode === "development" ? "1" : "0",
       [envPrefix + "MODE"]: mode,
@@ -209,13 +284,14 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       [envPrefix + "SSR"]: "true",
       [envPrefix + "BASE_URL"]: workerData.userOptions?.moduleBaseURL ?? "",
       [envPrefix + "PUBLIC_ORIGIN"]: workerData.userOptions?.publicOrigin ?? "",
-      NODE_ENV: process.env["NODE_ENV"] ?? 'production',
+      NODE_ENV: process.env["NODE_ENV"] ?? "production",
       NODE_PATH: nodePath,
-      
+
       // Ensure NODE_OPTIONS has the correct condition
       NODE_OPTIONS: process.env["NODE_OPTIONS"]?.includes(reverseCondition)
         ? process.env["NODE_OPTIONS"]
-        : currentCondition != null && process.env["NODE_OPTIONS"]?.includes(currentCondition)
+        : currentCondition != null &&
+          process.env["NODE_OPTIONS"]?.includes(currentCondition)
         ? process.env["NODE_OPTIONS"]?.replaceAll(
             currentCondition,
             reverseCondition
@@ -226,12 +302,15 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       HTML_CHUNK_SIZE: htmlChunkSize.toString(),
     };
 
-
     if (verbose) {
       // Always log the NODE_OPTIONS for debugging
-      logger.info(`[create:${id}] Worker NODE_OPTIONS will be: ${env.NODE_OPTIONS}`);
-      logger.info(`[create:${id}] Environment variables: ${Object.keys(env).join(', ')}`);
-      logger.info(`[create:${id}] execArgv: ${computedExecArgv.join(' ')}`);
+      logger.info(
+        `[create:${id}] Worker NODE_OPTIONS will be: ${env.NODE_OPTIONS}`
+      );
+      logger.info(
+        `[create:${id}] Environment variables: ${Object.keys(env).join(", ")}`
+      );
+      logger.info(`[create:${id}] execArgv: ${computedExecArgv.join(" ")}`);
     }
 
     // Create worker with proper environment and loaders
@@ -243,96 +322,122 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       transferList,
     });
 
+    // Register worker for graceful shutdown
+    activeWorkers.add(worker);
+
     worker.setMaxListeners(maxListeners);
 
     if (verbose) {
-      logger.info(`[create:${id}] Worker created, waiting for READY message...`);
+      logger.info(
+        `[create:${id}] Worker created, waiting for READY message...`
+      );
     }
 
-    return await new Promise<CreateWorkerSuccess | CreateWorkerSkip>((resolve, reject) => {
-      // Use appropriate timeout based on worker type
-      const workerType = reverseCondition === "react-server" ? "rsc" : "html";
-      const startupTimeout = workerType === "rsc" 
-        ? options.workerData.userOptions?.rscWorkerStartupTimeout 
-        : options.workerData.userOptions?.htmlWorkerStartupTimeout;
-      
-      const timeout = setTimeout(() => {
-        reject({ type: "error", error: new Error("Worker ready timeout") });
-      }, startupTimeout);
-      const exitHandler = (code: number) => {
-        clearTimeout(timeout);
-        worker.removeListener("message", messageHandler);
-        // Do not remove exit handler here, let it fire if needed
-        if (code !== 0) {
-          reject({
-            type: "error",
-            error: new Error(`[create:${id}] Worker exited with code ${code}`),
-            workerPath: workerPathWithDefault,
-          });
-        }
-      };
-      const messageHandler = (
-        msg: RscWorkerOutputMessage | HtmlWorkerOutputMessage
-      ) => {
-        if (verbose)
-          logger.info(`[create:${id}] Initial worker message ${msg.type}`);
-        if (msg.type === "READY") {
-          if (verbose)
-            logger.info(`[create:${id}] Worker running for ${msg.env}`);
+    return await new Promise<CreateWorkerSuccess | CreateWorkerSkip>(
+      (resolve, reject) => {
+        // Use appropriate timeout based on worker type
+        const workerType = reverseCondition === "react-server" ? "rsc" : "html";
+        const startupTimeout =
+          workerType === "rsc"
+            ? options.workerData.userOptions?.rscWorkerStartupTimeout
+            : options.workerData.userOptions?.htmlWorkerStartupTimeout;
+
+        const timeout = setTimeout(() => {
+          reject({ type: "error", error: new Error("Worker ready timeout") });
+        }, startupTimeout);
+        const exitHandler = (code: number) => {
           clearTimeout(timeout);
           worker.removeListener("message", messageHandler);
-          worker.removeListener("exit", exitHandler);
-          if (msg.env !== nodeEnv) {
-            if (verbose)
-              logger.info(`[create:${id}] Worker environment mismatch.`);
+          // Remove worker from registry when it exits
+          activeWorkers.delete(worker);
+          // Do not remove exit handler here, let it fire if needed
+          if (code !== 0) {
             reject({
               type: "error",
               error: new Error(
-                `Worker environment mismatch: ${msg.env} !== ${nodeEnv}`
+                `[create:${id}] Worker exited with code ${code}`
               ),
               workerPath: workerPathWithDefault,
-            } satisfies CreateWorkerError);
+            });
           }
-          resolve({
-            type: "success",
-            worker,
-            workerPath: workerPathWithDefault,
-          } satisfies CreateWorkerSuccess);
-        }
-      };
-      worker.once("message", messageHandler);
-      worker.once("exit", exitHandler);
-      worker.on('error', (err) => {
-        if (verbose && err != null) {
-          logger.error(`[create:${id}] Worker error: ${err.message}.\n${err.stack}`, { error: err });
-        }
-        const panicError = handleError({
-          error: err,
-          logger: logger,
-          panicThreshold: workerData.userOptions?.panicThreshold,
-          critical: false,
-          context: `Worker thread error for route ${id}`,
-        });
-        if(panicError != null) {
-          if (verbose) {
-            logger.error(`[create:${id}] Panic error detected: ${panicError.message}`, { error: panicError });
+        };
+        const messageHandler = (
+          msg: RscWorkerOutputMessage | HtmlWorkerOutputMessage
+        ) => {
+          if (verbose)
+            logger.info(`[create:${id}] Initial worker message ${msg.type}`);
+          if (msg.type === "READY" && msg.id === id) {
+            if (verbose)
+              logger.info(`[create:${id}] Worker running for ${msg.env}`);
+            clearTimeout(timeout);
+            worker.removeListener("message", messageHandler);
+            worker.removeListener("exit", exitHandler);
+            if (msg.env !== mode) {
+              if (verbose)
+                logger.info(`[create:${id}] Worker environment mismatch.`);
+              reject({
+                type: "error",
+                error: new Error(
+                  `Worker environment mismatch: ${msg.env} !== ${mode}`
+                ),
+                workerPath: workerPathWithDefault,
+              } satisfies CreateWorkerError);
+            }
+            resolve({
+              type: "success",
+              worker,
+              workerPath: workerPathWithDefault,
+            } satisfies CreateWorkerSuccess);
+          }
+        };
+        worker.once("message", messageHandler);
+        worker.once("exit", exitHandler);
+        worker.on("error", (err) => {
+          // Remove worker from registry on error
+          activeWorkers.delete(worker);
+          
+          if (verbose && err != null) {
+            logger.error(
+              `[create:${id}] Worker error: ${err.message}.\n${err.stack}`,
+              { error: err }
+            );
+          }
+          const panicError = handleError({
+            error: err,
+            logger: logger,
+            panicThreshold: workerData.userOptions?.panicThreshold,
+            critical: false,
+            context: `Worker thread error for route ${id}`,
+          });
+          if (panicError != null) {
+            if (verbose) {
+              logger.error(
+                `[create:${id}] Panic error detected: ${panicError.message}`,
+                { error: panicError }
+              );
+            }
+            reject({
+              type: "error",
+              error: err,
+              workerPath: workerPathWithDefault,
+            });
           }
           reject({
             type: "error",
-            error: err,
+            error: new Error("Worker thread error", { cause: err }),
             workerPath: workerPathWithDefault,
           });
-        }
-        reject({
-          type: "error",
-          error: new Error("Worker thread error", { cause: err }),
-          workerPath: workerPathWithDefault,
         });
-      });
-    });
+      }
+    );
   } catch (error) {
     if (verbose) {
-      logger.error(`[create:${id}] Caught error during worker creation: ${toError(error).message}`, { error: error instanceof Error ? error : new Error(String(error)) });
+      logger.error(
+        `[create:${id}] Caught error during worker creation: ${
+          toError(error).message
+        }`,
+        { error: error instanceof Error ? error : new Error(String(error)) }
+      );
     }
     const panicError = handleError({
       error: error,
@@ -341,9 +446,12 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
       critical: false,
       context: `Worker thread error for route ${id}`,
     });
-    if(panicError != null) {
+    if (panicError != null) {
       if (verbose) {
-        logger.error(`[create:${id}] Panic error in catch block: ${panicError.message}`, { error: panicError });
+        logger.error(
+          `[create:${id}] Panic error in catch block: ${panicError.message}`,
+          { error: panicError }
+        );
       }
       return {
         type: "error",
@@ -358,4 +466,3 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     };
   }
 };
-

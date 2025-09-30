@@ -9,3 +9,5 @@ const ReactDOMServer = nodeRequire("react-server-dom-esm/server.node") as typeof
 const React = nodeRequire("react") as typeof import("react");
 
 export { ReactDOMServer, React };
+export type * from "react-server-dom-esm/server.node";
+export type React = typeof import("react");

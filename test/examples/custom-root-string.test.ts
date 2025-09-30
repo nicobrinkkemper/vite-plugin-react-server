@@ -2,12 +2,12 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { resolve } from "path";
 import { rm, writeFile } from "fs/promises";
 import { setupTestProject } from "../setup.js";
-import type { PluginEvent, FileWriteDoneEvent } from "../../dist/plugin/types.js";
+import type { PluginEvent, FileWriteDoneEvent, RenderMetrics, WorkerStartupMetrics, ModuleResolutionMetrics } from "../../dist/plugin/types.js";
 import { doBuild } from "../doBuild.js";
 
 describe("Custom Root Component - String Path", () => {
   const testDir = resolve(__dirname, "../fixtures/custom-root-string.test");
-  let events: PluginEvent[];
+  let buildInfo: {events: PluginEvent[]; metrics: (RenderMetrics | WorkerStartupMetrics | ModuleResolutionMetrics)[]};
   let htmlContent: string;
 
   beforeAll(async () => {
@@ -43,23 +43,27 @@ export const Root: RootComponentType = ({ Page, pageProps = {}, as: As = React.F
       `.trim()
     );
 
-    events = await doBuild({
+    buildInfo = await doBuild({
       projectRoot: testDir,
+      verbose: false,
       Root: "src/CustomRoot.tsx", // String path reference
     });
 
-    const htmlEvent = events.find(
+    const htmlEvent = buildInfo.events.find(
       (e) => e.type === "file.write.done" && e.data.fileType === "html"
     ) as FileWriteDoneEvent;
 
     if (htmlEvent) {
       htmlContent = htmlEvent.data.content;
+    } else {
+      
+      throw buildInfo.events;
     }
   });
 
   afterAll(async () => {
     try {
-      await rm(testDir, { recursive: true, force: true });
+     // await rm(testDir, { recursive: true, force: true });
     } catch {
     }
   });

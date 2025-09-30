@@ -24,14 +24,11 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
   return {
     name: "vite-plugin-react-server:dev-server-server",
     applyToEnvironment(partialEnvironment: any) {
-      console.log(`[Dev Server Plugin] applyToEnvironment called with environment:`, partialEnvironment);
       // Only apply to server environment
       const result = partialEnvironment?.consumer === 'server';
-      console.log(`[Dev Server Plugin] Returning ${result} for ${partialEnvironment?.consumer} environment`);
       return result;
     },
     configureServer(server: ViteDevServer) {      
-      console.log(`[Dev Server Plugin] configureServer hook called for server environment`);
       // Configure the React server for server environment (direct RSC processing)
       // This uses the existing configureReactServer.server.js implementation
       configureReactServer({

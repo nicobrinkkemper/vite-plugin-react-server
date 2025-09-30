@@ -6,7 +6,7 @@ import type { ReadyMessage } from "../types.js";
 parentPort?.on("message", messageHandler);
 parentPort?.postMessage({
   type: "READY",
-  id: "html-worker",
+  id: "worker/html",
   env: process.env["NODE_ENV"],
   pid: process.pid,
 } satisfies ReadyMessage);

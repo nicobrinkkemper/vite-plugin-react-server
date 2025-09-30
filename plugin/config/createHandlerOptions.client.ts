@@ -8,6 +8,7 @@ import {
   serializedOptions,
   serializeResolvedConfig,
 } from "../helpers/serializeUserOptions.js";
+
 import {
   getStashedUserOptions,
   getStashedHandlerOptions,
@@ -321,7 +322,12 @@ export async function createHandlerOptions(
   // Create client-specific handler options
   const handlerOptions: CreateHandlerOptions = {
     ...userOptions,
-    // File paths
+    // File paths - these are passed directly to the worker for component resolution
+    // The worker handles the distinction between undefined vs "" for Root and Html:
+    // - undefined = use built-in default component
+    // - "" = explicitly disable (headless mode for Html, React.Fragment for Root)
+    // - string path = resolve custom component from specified path
+    // This approach maintains consistency between server and client paradigms
     pagePath: routeFilesResult.page,
     propsPath: routeFilesResult.props,
     rootPath: routeFilesResult.root,

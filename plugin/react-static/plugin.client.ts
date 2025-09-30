@@ -14,9 +14,18 @@
  * Additionally, this can make it easier to use the --app flag to build all the modules + static generation at once.
  */
 
-import { createLogger, type ResolvedConfig, type Manifest, type ConfigEnv } from "vite";
+import {
+  createLogger,
+  type ResolvedConfig,
+  type Manifest,
+  type ConfigEnv,
+} from "vite";
 import { resolveOptions } from "../config/resolveOptions.js";
-import type { BuildTiming, VitePluginFn, AutoDiscoveredFiles } from "../types.js";
+import type {
+  BuildTiming,
+  VitePluginFn,
+  AutoDiscoveredFiles,
+} from "../types.js";
 import type { OutputBundle } from "rollup";
 import { renderPages } from "./renderPages.js";
 import { performance } from "node:perf_hooks";
@@ -30,6 +39,7 @@ import {
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 
 import { handleError } from "../error/handleError.js";
+import { shouldCausePanic } from "../error/panicThresholdHandler.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
@@ -38,7 +48,11 @@ import { processCssFilesForPages } from "./processCssFilesForPages.js";
 import { createBuildLoader } from "./createBuildLoader.client.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { toError } from "../error/toError.js";
-import { addStaticManifest, manifests } from "../bundle/manifests.js";
+import {
+  addStaticManifest,
+  manifests,
+  getSharedManifestStore,
+} from "../bundle/manifests.js";
 import type { Worker } from "node:worker_threads";
 import { resolveAutoDiscover } from "../config/index.js";
 import { join } from "node:path";
@@ -68,13 +82,12 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 ) {
   let logger: ReturnType<typeof createLogger>;
   let autoDiscoveredFiles: AutoDiscoveredFiles | null = null;
-  let rscWorker: Worker | undefined = undefined; 
+  let rscWorker: Worker | undefined = undefined;
   let resolvedConfig: ResolvedConfig | null = null;
   let serverManifest: Manifest | undefined = undefined;
   let staticBundle: OutputBundle | undefined = undefined;
   let serverBundle: OutputBundle | undefined = undefined;
 
-  let clientComponentMessageHandler: ((message: any) => void) | undefined;
   let configEnv: ConfigEnv | undefined;
   const timing: BuildTiming = {
     start: performance.now(),
@@ -89,8 +102,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
   }
   const userOptions = resolvedOptions.userOptions;
 
-
-
   return {
     name: "vite:plugin-react-server/client-static",
     enforce: "post",
@@ -101,7 +112,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       configEnv = viteConfigEnv;
     },
     applyToEnvironment(partialEnvironment) {
-      // Client static plugin should only apply to client environment
+      // Client static plugin should apply to client environment in reverse paradigm
       // In traditional builds, we force it to apply via custom environment setup
       if (
         ["server"].includes(
@@ -139,7 +150,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
     async buildStart() {
       timing.buildStart = performance.now();
-      logger?.info("[react-static-client] Build started");
+      if(userOptions.verbose) {
+        logger?.info("[react-static-client] Build started");
+      }
 
       if (userOptions.onEvent && autoDiscoveredFiles) {
         try {
@@ -159,8 +172,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           });
           if (panicError != null) {
             rscWorker?.terminate();
-            this.error(panicError);
-            throw panicError;
+          throw panicError;
           }
         }
       }
@@ -168,7 +180,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
     async renderStart() {
       timing.renderStart = performance.now();
-      logger?.info("[react-static-client] Render started");
+      if(userOptions.verbose) { 
+        logger?.info("[react-static-client] Render started");
+      }
     },
 
     // the preview server helps to view the generated static folder, but only when the static plugin is enabled
@@ -186,9 +200,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       // Capture manifests from all environments
       try {
         if (!autoDiscoveredFiles?.urlMap) {
-          logger?.warn(
-            "[react-static-client] No pages found for static generation"
-          );
           return;
         }
 
@@ -201,59 +212,34 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         if (this.environment.name === "static") {
           // Store in global manifest store for environment plugin access
           addStaticManifest(bundleManifest);
-          logger?.info(
-            `[react-static-client] Stored static manifest with ${Object.keys(bundleManifest).length} entries`
-          );
+
           staticBundle = bundle;
-          // Collect CSS from static build
-          // cssCollector removed - using filesystem-based CSS processing
-          logger?.info(
-            "[react-static-client] Captured static manifest and CSS"
-          );
         } else if (this.environment.name === "client") {
           // Client build manifest (SSR modules) - stored globally now
-          
-          // Update client build filenames to match static manifest
-          logger?.info(
-            `[react-static-client] Client build: static manifest available: ${manifests.static ? 'yes' : 'no'}`
-          );
+
           if (manifests.static) {
             const staticManifest = manifests.static;
-            
+
             // Update bundle filenames to match static manifest
-            for (const [key, chunk] of Object.entries(bundle)) {
-              if (chunk.type === 'chunk' && chunk.fileName) {
+            for (const [, chunk] of Object.entries(bundle)) {
+              if (chunk.type === "chunk" && chunk.fileName) {
                 const normalized = userOptions.normalizer(chunk.fileName);
                 let value = normalized[1];
                 if (value.startsWith(userOptions.moduleBasePath)) {
                   value = value.slice(userOptions.moduleBasePath.length);
                 }
-                
+
                 const entry = staticManifest[value];
                 if (entry && entry.file !== chunk.fileName) {
                   // Update the filename to match static manifest
                   chunk.fileName = entry.file;
-                  logger?.info(
-                    `[react-static-client] Updated client filename: ${key} -> ${entry.file}`
-                  );
                 }
               }
             }
           }
-          
-          // Collect CSS from client build
-          // cssCollector removed - using filesystem-based CSS processing
-          logger?.info(
-            "[react-static-client] Captured client manifest and CSS"
-          );
         } else if (this.environment.name === "server") {
           // Server build manifest (server components) - stored globally now
           serverBundle = bundle;
-          // Collect CSS from server build
-          // cssCollector removed - using filesystem-based CSS processing
-          logger?.info(
-            "[react-static-client] Captured server manifest and CSS"
-          );
         }
 
         // Skip the static generation here - it will happen in closeBundle
@@ -266,7 +252,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           context: "writeBundle",
         });
         if (panicError != null) {
-          this.error(panicError);
           throw panicError;
         }
       }
@@ -274,56 +259,50 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
     async closeBundle() {
       // This runs after all writeBundle hooks are complete
-      // Now we can do static generation with access to both client and server builds
-      console.log(`[react-static-client] closeBundle called`);
-      console.log(`[react-static-client] autoDiscoveredFiles?.urlMap:`, autoDiscoveredFiles?.urlMap);
-      console.log(`[react-static-client] autoDiscoveredFiles?.urlMap.size:`, autoDiscoveredFiles?.urlMap?.size);
       try {
-        if (!autoDiscoveredFiles?.urlMap || autoDiscoveredFiles?.urlMap.size === 0) {
-          logger?.warn(
-            "[react-static-client] No pages found for static generation"
-          );
+        if (
+          !autoDiscoveredFiles?.urlMap ||
+          autoDiscoveredFiles?.urlMap.size === 0
+        ) {
           return;
         }
 
-
-        // Load server manifest from filesystem
-        console.log(`[react-static-client] Loading server manifest from filesystem`);
-        const serverManifestPath = join(userOptions.build.outDir, userOptions.build.server);
-        const manifestPath = resolvedConfig?.build.manifest ?? ".vite/manifest.json";
-        console.log(`[react-static-client] Looking for server manifest at: ${userOptions.projectRoot}/${serverManifestPath}/${manifestPath}`);
-        
-        const serverManifestResult = await tryManifest({
-          root: userOptions.projectRoot,
-          outDir: serverManifestPath,
-          manifestPath: manifestPath,
-          ssrManifest: false,
-        });
-
-        console.log(`[react-static-client] tryManifest result type: ${serverManifestResult.type}`);
-
-        if (serverManifestResult.type === "error") {
-          logger?.warn(
-            `[react-static-client] Failed to load server manifest: ${serverManifestResult.error.message}`
+        // Check if we can access the shared manifest store
+        try {
+          const sharedState = getSharedManifestStore(this);
+          if (sharedState.server) {
+            serverManifest = sharedState.server;
+          } else {
+            throw new Error("No server manifest in shared state");
+          }
+        } catch (error) {
+          const serverManifestPath = join(
+            userOptions.build.outDir,
+            userOptions.build.server
           );
-          return;
-        }
+          const manifestPath =
+            resolvedConfig?.build.manifest ?? ".vite/manifest.json";
 
-        if (serverManifestResult.type === "skip") {
-          logger?.warn(
-            "[react-static-client] Server build not found, skipping static generation"
-          );
-          return;
-        }
+          const serverManifestResult = await tryManifest({
+            root: userOptions.projectRoot,
+            outDir: serverManifestPath,
+            manifestPath: manifestPath,
+            ssrManifest: false,
+          });
 
-        serverManifest = serverManifestResult.manifest;
-        console.log(`[react-static-client] Successfully loaded server manifest from filesystem with ${Object.keys(serverManifest).length} entries`);
-        logger?.info(
-          "[react-static-client] Loaded server manifest from filesystem for static generation"
-        );
+          if (serverManifestResult.type === "error") {
+            return;
+          }
+
+          if (serverManifestResult.type === "skip") {
+            return;
+          }
+
+          serverManifest = serverManifestResult.manifest;
+        }
 
         // Load static manifest from filesystem for CSS path mapping
-        
+
         const staticManifestResult = await tryManifest({
           root: userOptions.projectRoot,
           outDir: join(userOptions.build.outDir, userOptions.build.static),
@@ -350,9 +329,10 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           ...userOptions.clientPipeableStreamOptions,
           bootstrapScripts: [
             ...(indexHtml ? [baseURL(indexHtml)] : []),
-            ...(userOptions.clientPipeableStreamOptions?.bootstrapScripts ?? []),
+            ...(userOptions.clientPipeableStreamOptions?.bootstrapScripts ??
+              []),
           ],
-        }
+        };
         // Create CSS props for each CSS file (same as server-static)
         const { cssFilesByPage, globalCss } = processCssFilesForPages({
           userOptions,
@@ -364,9 +344,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         });
 
         if (userOptions.verbose) {
-          logger.info(
-            `[react-static-client] cssFilesByPage size: ${cssFilesByPage.size}`
-          );
           for (const [route, cssMap] of cssFilesByPage.entries()) {
             logger.info(
               `[react-static-client] Route ${route}: ${cssMap.size} CSS files`
@@ -384,13 +361,14 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         const routes = Array.from(
           autoDiscoveredFiles.urlMap.keys()
         ) as string[];
-        logger?.info(
-          `[react-static-client] Generating ${routes.length} static pages`
-        );
 
         // If no pages to generate, skip static generation
         if (routes.length === 0) {
-          logger?.info("[react-static-client] No pages to generate, skipping static generation");
+          if (userOptions.verbose) {
+            logger?.info(
+              "[react-static-client] No pages to generate, skipping static generation"
+            );
+          }
           return;
         }
 
@@ -402,9 +380,11 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         const buildLoader = createBuildLoader();
 
         // Create an RSC worker for generating RSC content
-        logger?.info(
-          `[react-static-client] Creating RSC worker with path: ${userOptions.rscWorkerPath}`
-        );
+        if (userOptions.verbose) {
+          logger?.info(
+            `[react-static-client] Creating RSC worker with path: ${userOptions.rscWorkerPath}`
+          );
+        }
 
         const workerStartTime = performance.now();
         const rscWorkerResult = await createWorker({
@@ -421,31 +401,34 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
             resolvedConfig: serializeResolvedConfig(resolvedConfig as any),
             configEnv: (() => {
-              const fallback = resolvedConfig ? {
-                command: resolvedConfig.command,
-                mode: resolvedConfig.mode,
-                isSsrBuild: false,
-                isPreview: false,
-              } : undefined;
+              const fallback = resolvedConfig
+                ? {
+                    command: resolvedConfig.command,
+                    mode: resolvedConfig.mode,
+                    isSsrBuild: false,
+                    isPreview: false,
+                  }
+                : undefined;
               const finalConfigEnv = configEnv || fallback;
-              console.log(`[react-static-client] Worker configEnv - original:`, configEnv, `fallback:`, fallback, `resolvedConfig:`, resolvedConfig ? 'available' : 'null', `final:`, finalConfigEnv);
-              console.log(`[react-static-client] Environment info - NODE_ENV:`, process.env.NODE_ENV, `MODE:`, process.env['MODE'], `VITE_MODE:`, process.env['VITE_MODE']);
-              console.log(`[react-static-client] Config env info - command:`, resolvedConfig?.command, `mode:`, resolvedConfig?.mode);
+
               return finalConfigEnv;
             })(),
-            serverManifest: staticManifest || {}, // Use static manifest for client-side path resolution
-            bundle: staticBundle || serverBundle || {}, // Use static bundle for client-side path resolution, server bundle as fallback
+            serverManifest: serverManifest || {}, // Use server manifest for page component resolution
+            bundle: staticBundle || {}, // Use static bundle (client build) for page component resolution
             staticBundle: staticBundle || {}, // Pass static bundle separately for path resolution
+
             id: "static-client-rsc-worker",
           },
         });
 
         if (rscWorkerResult.type !== "success") {
-          const errorMessage = toError(rscWorkerResult.error).message;
-          logger?.error(
-            `[react-static-client] RSC worker creation failed: ${errorMessage}`
-          );
-          throw new Error(`Failed to create RSC worker: ${errorMessage}`);
+          const err = rscWorkerResult.error ?? new Error(`Failed to create RSC worker`);
+          if (userOptions.verbose) {
+            logger?.error(
+              `[react-static-client] RSC worker creation failed, throwing error`, { error: err }
+            );
+          }
+          throw err;
         }
 
         rscWorker = rscWorkerResult.worker;
@@ -509,7 +492,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               context: "onEvent(build.ssg.start)",
             });
             if (eventPanicError != null) {
-              this.error(eventPanicError);
               throw eventPanicError; // Re-throw to abort the build
             }
           }
@@ -549,18 +531,30 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             result.failedRoutes &&
             result.failedRoutes.size > 0
           ) {
-            if (userOptions.panicThreshold === "all_errors") {
-              // For "all_errors", throw on any failed route
-              const firstError = result.failedRoutes.values().next().value;
-              if (firstError != null) {
-                throw firstError;
-              }
-              throw new Error("Failed to render pages");
+            // Use centralized panic threshold logic (same as server plugin)
+            const firstError = result.failedRoutes.values().next().value;
+            if (
+              firstError != null &&
+              shouldCausePanic(firstError, {
+                panicThreshold: userOptions.panicThreshold,
+              })
+            ) {
+              // This should cause a panic, throw the error
+              throw firstError;
             }
             // For other panic thresholds, log warnings but continue
             for (const [route, error] of result.failedRoutes) {
+              const err = error instanceof Error ? error : toError(error);
               this.warn(
-                new Error("Failed to render route: " + route, { cause: error })
+                new Error(
+                  "Failed to render route: " +
+                    route +
+                    "\n" +
+                    err.message +
+                    "\n" +
+                    err.stack,
+                  { cause: err }
+                )
               );
             }
           }
@@ -617,7 +611,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               context: "onEvent(build.ssg.end)",
             });
             if (eventPanicError != null) {
-              this.error(eventPanicError);
               throw eventPanicError; // Re-throw to abort the build
             }
           }
@@ -630,22 +623,41 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           panicThreshold: userOptions.panicThreshold,
         });
 
-        // Ensure immediate cleanup on error
+        // Ensure graceful shutdown on error
         if (rscWorker) {
+          const workerToCleanup = rscWorker;
           try {
-            // Remove specific listeners first
-            if (typeof clientComponentMessageHandler === "function") {
-              rscWorker.removeListener(
-                "message",
-                clientComponentMessageHandler
-              );
-            }
-            // Force immediate termination on error to prevent resource leaks
-            rscWorker.removeAllListeners();
-            rscWorker.terminate();
+            // Use graceful shutdown protocol even on error
+            await Promise.race([
+              new Promise<void>((resolve) => {
+                const timeoutId = setTimeout(() => {
+                  workerToCleanup.removeAllListeners();
+                  workerToCleanup.terminate();
+                  resolve();
+                }, 1000); // 1 second timeout for graceful shutdown
+
+                const messageHandler = (message: any) => {
+                  if (message.type === "SHUTDOWN_COMPLETE") {
+                    clearTimeout(timeoutId);
+                    workerToCleanup.removeListener("message", messageHandler);
+                    resolve();
+                  }
+                };
+                workerToCleanup.on("message", messageHandler);
+                workerToCleanup.postMessage({ type: "SHUTDOWN" });
+              }),
+            ]);
             rscWorker = undefined;
           } catch (cleanupError) {
             logger.warn(`Failed to cleanup worker on error: ${cleanupError}`);
+            // Force terminate if graceful shutdown fails
+            try {
+              workerToCleanup.removeAllListeners();
+              workerToCleanup.terminate();
+            } catch (terminateError) {
+              // Ignore termination errors
+            }
+            rscWorker = undefined;
           }
         }
 
@@ -664,12 +676,12 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           // Copy any additional properties that might be needed
           if (errorToThrow.name) finalError.name = errorToThrow.name;
 
-          this.error(finalError);
-          throw finalError;
+        throw finalError;
         }
 
         // Graceful worker shutdown - only at the end of the entire build process
         if (rscWorker) {
+          let shutdownMessageHandler: ((message: any) => void) | undefined;
           try {
             await Promise.race([
               new Promise<void>((resolve, reject) => {
@@ -681,21 +693,14 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
                   reject(new Error("Worker shutdown backup timeout"));
                 }, Math.floor(userOptions.workerShutdownTimeout * 0.6)); // 60% of main timeout
 
-                const shutdownMessageHandler = (message: any) => {
+                shutdownMessageHandler = (message: any) => {
                   if (message.type === "SHUTDOWN_COMPLETE") {
                     clearTimeout(timeout);
                     clearTimeout(backupTimeout);
                     rscWorker?.removeListener(
                       "message",
-                      shutdownMessageHandler
+                      shutdownMessageHandler!
                     );
-                    // Remove client component message handler
-                    if (clientComponentMessageHandler) {
-                      rscWorker?.removeListener(
-                        "message",
-                        clientComponentMessageHandler
-                      );
-                    }
                     // Remove all other event listeners as well
                     rscWorker?.removeAllListeners();
                     resolve();
@@ -717,17 +722,18 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               "Worker shutdown protocol failed, forcing termination: " +
                 (error instanceof Error ? error.message : String(error))
             );
+            // Don't try to clean up listeners in error case - just force terminate
           } finally {
-            // Remove specific listeners first
-            if (clientComponentMessageHandler) {
-              rscWorker.removeListener(
-                "message",
-                clientComponentMessageHandler
-              );
+            // Always force cleanup and termination
+            if (rscWorker) {
+              try {
+                (rscWorker as Worker).removeAllListeners();
+                (rscWorker as Worker).terminate();
+              } catch (terminateError) {
+                // Ignore termination errors
+              }
+              rscWorker = undefined;
             }
-            rscWorker.removeAllListeners();
-            rscWorker.terminate();
-            rscWorker = undefined;
           }
         }
       } finally {
@@ -736,7 +742,5 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         serverManifest = undefined;
       }
     },
-
-
   };
 };

@@ -48,6 +48,8 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = function _createRscToHtm
     panicThreshold,
     clientPipeableStreamOptions,
     build,
+    onMetrics: options.onMetrics,
+    onError: options.onError,
   });
 
   // Handle abort signal

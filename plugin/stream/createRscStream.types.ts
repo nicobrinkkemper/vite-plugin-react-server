@@ -1,11 +1,13 @@
 import type { StreamMetrics } from "../helpers/metrics.js";
 import type { Stream } from "node:stream";
 import type { OnMetrics, PanicThreshold } from "../types.js";
+import type { SerializableHandlerOptions } from "../helpers/createSerializableHandlerOptions.js";
 
 /**
  * Base RSC Stream Result - common interface for both client and server
  */
 export interface BaseRscStreamResult {
+  id: string;
   rscStream: Stream.Readable;
   pipe: <Writable extends NodeJS.WritableStream>(
     destination: Writable
@@ -36,14 +38,14 @@ export type RscStreamResult = ClientRscStreamResult | ServerRscStreamResult;
 /**
  * Client-specific RSC Stream Options
  */
-export interface ClientRscStreamOptions {
+export type ClientRscStreamOptions = SerializableHandlerOptions &  {
   // Required core options
   route: string;
-  pagePath: string;
+  pagePath: string | undefined;
   projectRoot: string;
   moduleBaseURL: string;
-  build: any;
-  
+  build: SerializableHandlerOptions['build'];
+  dev: SerializableHandlerOptions['dev'];
   // Required for client-side rendering
   cssFiles: Map<string, any>;
   globalCss: Map<string, any>;
@@ -76,6 +78,8 @@ export interface ClientRscStreamOptions {
   serverPipeableStreamOptions?: any;
   url: string;
   onMetrics?: OnMetrics; // Callback for worker startup metrics
+  onEvent?: (event: any) => void; // Callback for route events (like route.error)
+  reuseHeadlessStreamId?: string; // ID of headless stream to reuse for efficiency
 }
 
 /**
@@ -126,6 +130,7 @@ export interface ServerRscStreamOptions {
   fileWriteTimeout?: number;
   workerShutdownTimeout?: number;
   css?: any;
+  onEvent?: (event: any) => void;
 }
 
 /**

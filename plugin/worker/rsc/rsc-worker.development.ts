@@ -16,7 +16,6 @@ import { handleError } from "../../error/handleError.js";
 import { sendMessage } from "../sendMessage.js";
 import { serializeError } from "../../error/serializeError.js";
 
-
 // Initialize worker
 if (!parentPort) {
   throw new Error("This module must be run as a worker");
@@ -44,16 +43,21 @@ const reactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
 
 try {
   // Check if we're in build mode - if so, skip loader registration since files are already built
-  const isBuildMode = workerData.configEnv?.command === "build" || 
-                     workerData.resolvedConfig?.mode === "production";
+  const isBuildMode =
+    workerData.configEnv?.command === "build" ||
+    workerData.resolvedConfig?.mode === "production";
   const isDevServerMode = workerData.configEnv?.command === "serve";
-  
 
-  
-  if (isBuildMode) {
-    logger.info("Build mode detected - skipping loader registration since files are already built");
-  } else if (isDevServerMode) {
-    logger.info("Development/dev server mode detected - registering loaders for source file processing");
+  if (workerData.verbose) {
+    if (isBuildMode) {
+      logger.info(
+        "Build mode detected - skipping loader registration since files are already built"
+      );
+    } else if (isDevServerMode) {
+      logger.info(
+        "Development/dev server mode detected - registering loaders for source file processing"
+      );
+    }
   }
 
   // Create channels for each loader (only needed if not in build mode)
@@ -105,41 +109,24 @@ try {
   }
 
   // Use projectRoot for loader paths, fallback to resolvedConfig.root
-  const projectRoot = workerData.userOptions?.projectRoot || workerData.resolvedConfig?.root;
-  
+  const projectRoot =
+    workerData.userOptions?.projectRoot || workerData.resolvedConfig?.root;
+
   const reactLoaderPath =
     "file://" +
     (workerData.userOptions.reactLoaderPath
-      ? resolve(
-          projectRoot,
-          workerData.userOptions.reactLoaderPath
-        )
-      : resolve(
-          projectRoot,
-          DEFAULT_CONFIG.REACT_LOADER_PATH
-        ));
+      ? resolve(projectRoot, workerData.userOptions.reactLoaderPath)
+      : resolve(projectRoot, DEFAULT_CONFIG.REACT_LOADER_PATH));
   const cssLoaderPath =
     "file://" +
     (workerData.userOptions.cssLoaderPath
-      ? resolve(
-          projectRoot,
-          workerData.userOptions.cssLoaderPath
-        )
-      : resolve(
-          projectRoot,
-          DEFAULT_CONFIG.CSS_LOADER_PATH
-        ));
+      ? resolve(projectRoot, workerData.userOptions.cssLoaderPath)
+      : resolve(projectRoot, DEFAULT_CONFIG.CSS_LOADER_PATH));
   const envLoaderPath =
     "file://" +
     (workerData.userOptions.envLoaderPath
-      ? resolve(
-          projectRoot,
-          workerData.userOptions.envLoaderPath
-        )
-      : resolve(
-          projectRoot,
-          DEFAULT_CONFIG.ENV_LOADER_PATH
-        ));
+      ? resolve(projectRoot, workerData.userOptions.envLoaderPath)
+      : resolve(projectRoot, DEFAULT_CONFIG.ENV_LOADER_PATH));
 
   // Only register loaders if not in build mode
   if (!isBuildMode) {
@@ -214,7 +201,7 @@ try {
     // In build mode, just register tsx for basic TypeScript support
     registerTsx();
   }
-  
+
   parentPort!.on("messageerror", (error: Error) => {
     logger.error("Parent port message serialization failed.", { error });
     // Can't send via parentPort since that's what failed, so just log
@@ -228,7 +215,7 @@ try {
     type: "READY",
     env: process.env["NODE_ENV"],
     pid: process.pid,
-    id: "rsc-worker",
+    id: "worker/rsc",
   } satisfies ReadyMessage);
 
   if (process.env["NODE_ENV"] === "production") {
@@ -243,10 +230,13 @@ try {
   });
   // In dev mode, try to send error message before exiting
   if (parentPort && handledError != null) {
-    sendMessage({
-      type: "ERROR",
-      id: "rsc-worker",
-      error: handledError,
-    }, parentPort);
+    sendMessage(
+      {
+        type: "ERROR",
+        id: "worker/rsc",
+        error: handledError,
+      },
+      parentPort
+    );
   }
 }

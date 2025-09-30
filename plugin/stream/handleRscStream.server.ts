@@ -9,7 +9,6 @@ import { getNodeEnv } from "../config/getNodeEnv.js";
 export const handleRscStream: HandleRscStreamFn<"server"> = function _handleRscStream({
   options,
 }) {
-  console.log('handleRscStream.server.ts called with options:', options);
   // Note: worker parameter is ignored in server version
   const verbose = options.verbose;
   const logger = options.logger;

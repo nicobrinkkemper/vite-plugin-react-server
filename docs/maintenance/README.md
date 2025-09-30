@@ -5,7 +5,144 @@ This guide covers maintenance tasks, troubleshooting, and development practices 
 ## Table of Contents
 
 - [Testing](./TESTING.md) - Testing practices and test infrastructure
+- [Current Refactor Status](#current-refactor-status) - Recent progress and ongoing work
+- [Worker Thread Communication](#worker-thread-communication) - Main thread <> worker thread architecture
 - [Traditional Build Compatibility](#traditional-build-compatibility) - Supporting legacy Vite build patterns
+
+## Current Refactor Status
+
+The project is currently undergoing a major refactor to improve worker thread communication and modernize the testing infrastructure.
+
+### ✅ **Completed Work**
+
+#### **Client-side Static Generation**
+- **Fixed HTML Stream Generation**: HTML stream now works correctly and produces content (138 bytes vs 0 bytes before)
+- **Fixed RSC Content Structure**: RSC worker correctly generates full HTML structure with CSS data (1,518 bytes)
+- **Implemented Proper Worker Pattern**: Successfully replicated the server-side worker pattern for client-side
+- **Fixed Stream Processing**: RSC chunks are now properly accumulated and processed to HTML
+- **Fixed Timing Issues**: Resolved critical timing issue where HTML content was being pushed after file writer completion
+- **All Tests Passing**: Client-side metrics tests are now passing successfully
+
+#### **Worker Thread Communication Architecture**
+- **Two-Port Communication**: Implemented clean separation between data and control channels
+- **Message Port Streams**: Created `MessagePortWritable` and `MessagePortReadable` for stream-based communication
+- **Worker Thread Isolation**: Proper isolation between RSC worker and HTML worker threads
+- **File Writing Coordination**: Improved coordination between worker threads and main thread for file operations
+
+### 🔄 **Currently Working On**
+
+#### **Test Infrastructure Modernization**
+- **test/examples**: ⚠️ **PARTIALLY WORKING** - Some tests pass, but experiencing timeout issues (13 failed, 17 passed)
+- **test/server**: ❌ **Outdated** - Legacy tests that may fail, need updating
+- **test/client**: ⚠️ **Emptied** - Content moved to examples for better organization
+- **test/unit**: ✅ **FULLY WORKING** - 324/324 tests passing, all issues resolved
+
+#### **Known Issues**
+1. **Test Timeouts**: Many example tests are timing out (5s-15s), indicating worker thread communication issues
+2. **Worker Connection Closures**: "Connection closed" errors in MessagePortReadable during stream processing  
+3. **Traditional Build Transformer**: Transformer plugin not being applied in traditional builds
+4. **Environment Detection**: Some edge cases in environment detection for traditional builds
+
+### 🔮 **Next Steps**
+
+**Priority 1: Fix Worker Thread Communication**
+1. **Debug MessagePort connection closures** - Worker threads are disconnecting prematurely
+2. **Fix test timeouts** - Many tests timing out indicating stream/worker issues
+3. **Improve worker lifecycle management** - Better cleanup and error handling
+
+**Priority 2: Test Infrastructure** 
+4. **Update test/server legacy tests**
+5. **Stabilize test/examples suite** - Currently only 17/30 tests passing
+
+**Priority 3: Build System**
+7. **Complete transformer plugin integration for traditional builds**
+8. **Improve environment detection robustness**
+
+## Worker Thread Communication
+
+The plugin uses a sophisticated worker thread architecture for processing React Server Components and HTML generation. This system enables efficient parallel processing while maintaining clean separation of concerns.
+
+### Two-Port Communication Architecture
+
+The core innovation is the **two-port communication pattern** that separates data flow from control messages:
+
+```typescript
+// Create two separate MessagePorts for clean separation
+const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
+const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
+```
+
+#### **Data Port** - Stream Data Only
+- **Purpose**: Raw RSC/HTML stream data transfer
+- **Direction**: Worker → Main Thread
+- **Content**: Binary chunks, stream end signals
+- **Implementation**: `MessagePortWritable` for workers, direct piping on main thread
+
+#### **Control Port** - Control Messages Only
+- **Purpose**: Coordination, metrics, errors, lifecycle events
+- **Direction**: Bidirectional
+- **Content**: Error messages, metrics data, stream status, HMR events
+- **Implementation**: Direct message posting with structured message types
+
+### Worker Communication Patterns
+
+#### **RSC Worker Communication**
+```typescript
+// In RSC Worker (plugin/worker/rsc/)
+const messagePortWritable = new MessagePortWritable(dataPort2);
+renderToPipeableStream(element).pipe(messagePortWritable);
+
+// Control messages sent via controlPort2
+controlPort2.postMessage({
+  type: "RSC_METRICS",
+  id: streamId,
+  metrics: performanceData
+});
+```
+
+#### **HTML Worker Communication**
+```typescript
+// In HTML Worker (plugin/worker/html/)
+// Receives RSC data via dataPort, processes to HTML
+dataPort.onmessage = (event) => {
+  if (event.data === null) {
+    rscStream.end(); // End of RSC stream
+  } else {
+    rscStream.write(event.data); // RSC chunk
+  }
+};
+
+// Sends HTML data back via same dataPort
+dataPort.postMessage(htmlChunk);
+```
+
+### File Writing Coordination
+
+The main thread coordinates file writing from multiple worker streams:
+
+1. **RSC Worker** generates RSC streams → Main thread writes `.rsc` files
+2. **HTML Worker** processes RSC streams → Main thread writes `.html` files
+3. **Stream Synchronization** ensures proper timing and completion
+4. **Error Handling** propagates errors through control ports
+
+### Stream Processing Classes
+
+#### **MessagePortWritable**
+- Converts Node.js writable streams to MessagePort communication
+- Handles backpressure through drain signals
+- Used by workers to send stream data to main thread
+
+#### **MessagePortReadable**
+- Converts MessagePort communication back to Node.js readable streams  
+- Enables standard Node.js stream processing on main thread
+- Used for receiving worker stream data
+
+### Performance Benefits
+
+- **Parallel Processing**: RSC and HTML generation happen simultaneously
+- **Stream-based**: Memory-efficient streaming instead of buffering
+- **Worker Isolation**: Crashes in workers don't affect main thread
+- **Clean Architecture**: Separation of data and control concerns
 
 ## Traditional Build Compatibility
 

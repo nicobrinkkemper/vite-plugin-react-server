@@ -1,9 +1,7 @@
-import { PassThrough } from "node:stream";
 import { createRenderToPipeableStreamHandler } from "./createRenderToPipeableStreamHandler.server.js";
 import type {
   CreateRscStreamFn,
   ServerRscStreamResult,
-  ServerRscStreamOptions,
 } from "./createRscStream.types.js";
 import { assertReactServer } from "../config/getCondition.js";
 import {
@@ -101,22 +99,29 @@ export const createRscStream: CreateRscStreamFn<"server"> =
           rscTimeout: options.rscTimeout,
           serverPipeableStreamOptions: options.serverPipeableStreamOptions,
           build: options.build,
+          pagePath: options.pagePath,
+          propsPath: options.propsPath,
+          rootPath: options.rootPath,
+          htmlPath: options.htmlPath,
         });
 
         // Return worker stream with consistent interface
         const serverResult: ServerRscStreamResult = {
           type: "server" as const,
           rscStream: workerStream,
+          id: options.id || options.route,
           pipe: <Writable extends NodeJS.WritableStream>(
             destination: Writable
           ) => {
             workerStream.pipe(destination);
             return destination;
           },
-          abort: (reason?: unknown) => {
-            workerStream.destroy(
-              new Error(String(reason || "Aborted RSC worker stream"))
-            );
+          abort: () => {
+            workerStream.destroy();
+            // Clean up process listeners
+            if ((workerStream as any).cleanup) {
+              (workerStream as any).cleanup();
+            }
           },
           metrics: createStreamMetrics(), // Worker will provide real metrics
         };
@@ -145,10 +150,11 @@ export const createRscStream: CreateRscStreamFn<"server"> =
         result.rscStream,
         result.pipe,
         result.abort,
-        result.metrics
+        result.metrics,
+        options.id || options.route
       );
 
-      // Return server-specific result
+      // Return server-specific results
       const serverResult: ServerRscStreamResult = {
         ...baseResult,
         type: "server" as const,
@@ -167,135 +173,3 @@ export const createRscStream: CreateRscStreamFn<"server"> =
       throw error;
     }
   };
-
-/**
- * Creates an RSC stream using two-port communication for clean separation of concerns
- * 
- * **Purpose**: Creates RSC streams with separate data and control ports
- * **When to use**: 
- * - You want clean separation between RSC data and control messages
- * - You need better performance and simpler logic
- * - You're using the new two-port architecture
- * 
- * **Flow**: Route + Components → RSC Worker (Two-Port) → RSC Stream
- */
-export function createRscStreamTwoPort(options: ServerRscStreamOptions): ServerRscStreamResult {
-  const logger = options.logger;
-  const verbose = options.verbose || false;
-
-  // Validate common options
-  validateRscStreamOptions(options, "createRscStream.server");
-
-  if (verbose) {
-    logger?.info(
-      `[createRscStream.server:${options.route}] Creating RSC stream with two-port communication`
-    );
-  }
-
-  if (!options.rscWorker) {
-    throw new Error("RSC worker is required for two-port RSC streaming");
-  }
-
-  // Create two separate MessagePorts for clean separation of concerns
-  const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
-  const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
-  
-  // Create the RSC output stream
-  const rscStream = new PassThrough();
-  
-  // Data port - ONLY for raw RSC stream data (no type checking needed!)
-  dataPort1.onmessage = (event: any) => {
-    const data = event.data;
-    
-    console.log(`[MAIN-THREAD-DEBUG] Received RSC data on dataPort:`, typeof data, data === null ? 'null' : data instanceof Buffer ? 'Buffer' : data instanceof Uint8Array ? 'Uint8Array' : 'object');
-    
-    if (data === null) {
-      // End of stream
-      console.log(`[MAIN-THREAD-DEBUG] End of RSC stream via dataPort`);
-      rscStream.end();
-    } else {
-      // Raw RSC data - direct piping, no type checking!
-      console.log(`[MAIN-THREAD-DEBUG] Writing raw RSC data to stream via dataPort`);
-      rscStream.write(data);
-    }
-  };
-  
-  // Control port - ONLY for control messages
-  controlPort1.onmessage = (event: any) => {
-    const message = event.data;
-    
-    console.log(`[MAIN-THREAD-DEBUG] Received RSC control message:`, message.type);
-    
-    switch (message.type) {
-      case 'END':
-        console.log(`[MAIN-THREAD-DEBUG] RSC stream ended by control message`);
-        rscStream.end();
-        break;
-      case 'ERROR':
-        console.log(`[MAIN-THREAD-DEBUG] RSC stream error:`, message.error);
-        const error = new Error(message.error);
-        rscStream.destroy(error);
-        break;
-      case 'METRICS':
-        console.log(`[MAIN-THREAD-DEBUG] Received RSC metrics:`, message.metrics);
-        break;
-      case 'RSC_RENDER_START':
-        console.log(`[MAIN-THREAD-DEBUG] RSC render started`);
-        break;
-      default:
-        console.log(`[MAIN-THREAD-DEBUG] Unknown RSC control message type:`, message.type);
-    }
-  };
-
-  // Send the RSC stream request to the worker with both MessagePorts
-  options.rscWorker.postMessage({
-    type: "INIT",
-    id: options.route,
-    dataPort: dataPort2,
-    controlPort: controlPort2,
-    options: {
-      route: options.route,
-      url: options.url,
-      pagePath: options.pagePath,
-      propsPath: options.propsPath,
-      rootPath: options.rootPath,
-      htmlPath: options.htmlPath,
-      pageExportName: options.pageExportName,
-      propsExportName: options.propsExportName,
-      rootExportName: options.rootExportName,
-      htmlExportName: options.htmlExportName,
-      moduleRootPath: options.moduleRootPath,
-      moduleBasePath: options.moduleBasePath,
-      moduleBaseURL: options.moduleBaseURL,
-      projectRoot: options.projectRoot,
-      verbose: options.verbose,
-      rscTimeout: options.rscTimeout,
-      build: options.build,
-      manifest: options.manifest,
-      cssFiles: options.cssFiles,
-      globalCss: options.globalCss,
-      // Add component overrides if available
-      HtmlComponent: (options as any).HtmlComponent,
-      RootComponent: (options as any).RootComponent,
-      PageComponent: (options as any).PageComponent,
-    }
-  }, [dataPort2, controlPort2] as any); // Transfer both ports to the worker
-
-  const serverResult: ServerRscStreamResult = {
-    type: "server" as const,
-    rscStream,
-    pipe: <Writable extends NodeJS.WritableStream>(
-      destination: Writable
-    ) => {
-      rscStream.pipe(destination);
-      return destination;
-    },
-    abort: (reason?: unknown) => {
-      controlPort1.postMessage({ type: "ABORT", reason: "Stream aborted" });
-      rscStream.destroy(new Error(String(reason || "Aborted RSC worker stream")));
-    },
-    metrics: createStreamMetrics(), // Worker will provide real metrics
-  };
-
-  return serverResult;
-}

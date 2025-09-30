@@ -26,7 +26,7 @@ import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
  *
  * Environment mapping:
  * - client (Vite client = browser) → dist/client (React client components - real implementations)
- * - ssr (Vite SSR = SSR-safe) → dist/static (SSR-compatible static files)  
+ * - ssr (Vite SSR = SSR-safe) → dist/static (SSR-compatible static files)
  * - server (custom) → dist/server (React server components with registerClientReference)
  */
 export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
@@ -50,9 +50,14 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       // Add single dynamic transformer that adapts based on current environment
       // Check if transformer plugin already exists to prevent duplicates
       const existingTransformer = config.plugins?.find(
-        (plugin) => plugin && typeof plugin === 'object' && 'name' in plugin && plugin.name === "vite-plugin-react-server:transform-dynamic"
+        (plugin) =>
+          plugin &&
+          typeof plugin === "object" &&
+          "name" in plugin &&
+          plugin.name === "vite-plugin-react-server:transform-dynamic"
       );
-      
+      // todo: support legacy build
+      // const isLegacyBuild = userOptions.strategy?.legacyBuilder && !config?.builder;
       if (!existingTransformer) {
         config.plugins.push(
           createTransformerPlugin({
@@ -136,14 +141,14 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       ];
 
       // Filter environments based on availableEnvironments from orchestrator
-      console.log(`[Environment Plugin] userOptions keys:`, Object.keys(userOptions));
-      console.log(`[Environment Plugin] userOptions.availableEnvironments:`, (userOptions as any).availableEnvironments);
-      const availableEnvironments = (userOptions as any).availableEnvironments || ["client", "ssr", "server"];
-      console.log(`[Environment Plugin] Available environments from orchestrator:`, availableEnvironments);
-      const environmentConfigs = allEnvironmentConfigs.filter(config => 
+
+      const availableEnvironments = (userOptions as any)
+        .availableEnvironments || ["client", "ssr", "server"];
+
+      const environmentConfigs = allEnvironmentConfigs.filter((config) =>
         availableEnvironments.includes(config.name)
       );
-      console.log(`[Environment Plugin] Filtered environment configs:`, environmentConfigs.map(c => c.name));
+
 
       // Resolve all environment configurations using resolveUserConfig
       const environments: Record<string, import("vite").EnvironmentOptions> =
@@ -183,8 +188,6 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         // Map the resolved user config to Environment API compatible options
         const userConfig = configResult.userConfig;
 
-
-
         // Log the rollup inputs for this environment (only in verbose mode)
         if (userOptions.verbose) {
           logger?.info(
@@ -215,29 +218,56 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             )}`
           );
           logger?.info(
-            `${envConfig.name} userConfig.build.rollupOptions.external: ${JSON.stringify(
+            `${
+              envConfig.name
+            } userConfig.build.rollupOptions.external: ${JSON.stringify(
               userConfig.build.rollupOptions.external,
               null,
               2
             )}`
           );
         }
+        // detect if legacy build or not
+        const legacyBuild = userOptions.strategy?.legacyBuilder && !config?.builder;
+        const implicitSsr =
+          userOptions.strategy?.mainThreadCondition === "react-server" &&
+          userOptions.strategy?.legacyBuilder;
+        // this follows vite's logic for legacy builds
+        const implicitViteBuildName =
+          userOptions.strategy?.legacyBuilder && !config.build?.ssr
+            ? "client"
+            : "ssr";
+        const consumer = legacyBuild
+          ? implicitViteBuildName === "ssr"
+            ? "server"
+            : "client"
+          : envConfig.name === "server" || envConfig.name === "ssr"
+          ? "server"
+          : "client";
 
         // Note: Path normalization should be handled in the file naming functions
         environments[envConfig.name] = {
           keepProcessEnv: envConfig.name === "server" ? true : false,
           define: userConfig.define,
-          consumer: envConfig.name === "server" || envConfig.name === "ssr" ? "server" : "client",
+          consumer: consumer,
           resolve: {
             ...userConfig.resolve,
             // IMPORTANT: Map externals from resolveUserConfig (rollupOptions.external) to Environment API format
             // In Environment API, externals go in resolve.external, not build.rollupOptions.external
-            external: Array.isArray(userConfig.build.rollupOptions.external) 
-              ? userConfig.build.rollupOptions.external.filter((item): item is string => typeof item === 'string')
+            external: Array.isArray(userConfig.build.rollupOptions.external)
+              ? userConfig.build.rollupOptions.external.filter(
+                  (item): item is string => typeof item === "string"
+                )
               : [],
           },
           build: {
             ...userConfig.build,
+            ssr:
+              envConfig.name === "server"
+                ? true
+                : legacyBuild
+                ? implicitSsr
+                : envConfig.name === "ssr",
             target: userConfig.build.target,
             // Remove externals from rollupOptions since they should be in resolve.external for Environment API
             rollupOptions: {

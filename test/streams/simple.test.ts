@@ -10,11 +10,7 @@ import { Writable } from "node:stream";
 resolveOptions({ 
   moduleBase: "test/streams", 
   Page: "test/streams/TestPage.tsx", 
-  verbose: false,
-  dev: {
-    useRscWorker: true,
-    useHtmlWorker: false,
-  }
+  verbose: true,
 });
 
 describe("Simple Stream Test", () => {
@@ -23,7 +19,14 @@ describe("Simple Stream Test", () => {
     // Pass configEnv to make worker behave like development mode (load from source files)
     // Both environments should load and stream the actual page component
     const config = await createHandlerOptions("/", {
-      configEnv: { command: "serve", mode: "development" }
+      configEnv: { command: "serve", mode: "development" },
+      // Override route files to force RSC-only (no HTML generation)
+      routeFiles: {
+        page: "test/streams/TestPage.tsx",
+        props: undefined,
+        html: "", // Empty string = headless mode (RSC-only)
+        root: undefined
+      }
     });
     // console.log({ config: Object.keys(config) });
     

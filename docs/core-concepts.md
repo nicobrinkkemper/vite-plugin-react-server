@@ -1,10 +1,15 @@
 # Core Concepts
 
-This document explains the fundamental concepts and implementation of the Vite React Server Plugin, which uses **React conditions** to provide optimal execution environments for both client and server contexts.
+This document explains the fundamental concepts and implementation of the Vite React Server Plugin, which uses **React conditions** to provide adaptive execution environments for both React Paradigms: client and server.
 
 ## React Conditions
 
 The plugin uses Node.js conditions to dynamically load the appropriate implementation for each execution environment:
+
+- react-server (server for short)
+- non-react-server (client for short)
+
+Not all coding projects are the same. For example, our project might just be a server or our project might be a static site without a server. In both those cases we can benefit from React Server Components during development with vite. 
 
 ### Condition-Based Module Loading
 
@@ -14,7 +19,7 @@ The plugin automatically detects the execution environment and loads the correct
 // Automatic condition detection and module loading
 import { getCondition } from './config/getCondition.js';
 
-const condition = getCondition(); // Returns 'client' or 'server'
+const condition = getCondition(''); // Returns 'client' or 'server'
 const { vitePluginReactServer, vitePluginReactClient } = await import(`./plugin.${condition}.js`);
 ```
 
@@ -27,16 +32,121 @@ const { vitePluginReactServer, vitePluginReactClient } = await import(`./plugin.
 
 ## Development Modes & Conditions
 
-The plugin provides two development modes that offer **identical user experiences** but differ in their internal implementation:
+The plugin provides two development modes that offer **similar user experiences** but differ in their internal implementation:
 
-### Development Modes
+### Server First
+
+It uses the main thread to stream the server components and the `html-worker` transforms it to html.
+
+### client first
+
+It uses the `rsc-worker` to stream the server components and the main thread to transform it to html.
+
+### Agnostic modules
+
+With the right precautions modules can be agnostic to the condition.
+Take the following test as example:
+
+```tsx
+import React from "react";
+
+function TestPage() {
+  return (
+    <div>
+      <h1>Simple Test Page</h1>
+      <p>Hello from the test page component!</p>
+    </div>
+  );
+}
+
+export { TestPage as Page };
+```
+
+```typescript
+// Configure the plugin for our test
+// This is only needed if the plugin didn't already resolve the options
+resolveOptions({ 
+  moduleBase: "test/streams", 
+  Page: "test/streams/TestPage.tsx",
+  verbose: false, 
+  dev: {
+    // during dev we don't enable html rendering, so it won't start the html-worker by default.
+    useHtmlWorker: getCondition() === "react-server",
+    // no other flags needed, useRscWorker should be automatically set to true if react-server condition is not met
+  }
+});
+
+describe("HTML Stream Test", () => {
+  it("should create HTML stream with correct properties and output", async () => {
+    const config = await createHandlerOptions("/", {
+      configEnv: { command: "serve", mode: "development" }
+    });
+    
+    
+    // First create an RSC stream (React Server Components)
+    const { rscStream } = createRscStream(config);
+
+    // Then create HTML stream with the RSC stream directly
+    const htmlStream = createHtmlStream({
+      ...config,
+      rscStream,
+    });
+
+    const chunks: string[] = [];
+    
+    await new Promise<void>((resolve, reject) => {
+
+      const writable = new Writable({
+        write(chunk: Buffer | string, _encoding, callback) {
+          const chunkStr = chunk.toString();
+          chunks.push(chunkStr);
+          callback();
+        }
+      });
+
+      writable.on("finish", () => {
+        resolve();
+      });
+
+      writable.on("error", (error: Error) => {
+        reject(error);
+      });
+
+      // Pipe the HTML stream to our writable
+      htmlStream.pipe(writable);
+    });
+
+    // Verify we actually got HTML content
+    const fullHtml = chunks.join("");
+    expect(fullHtml).toContain("<!DOCTYPE html>");
+    expect(fullHtml).toContain("<html");
+    expect(fullHtml).toContain("</html>");
+    
+    // Should contain our test page content
+    expect(fullHtml).toContain("Simple Test Page");
+  });
+});
+```
+
+We can now run vitest with and without `NODE_OPTIONS='--conditions react-server'` and the output will be the same. When turning on verbose, we can see that both take a different code path to get to the result in the optimal manner for the current thread configuration. The plugin will prefer the main thread for things it *can do* there and the worker thread for things it *can't do* on the main thread. This will only work for simple config.
+
+No (not serializable)
+- Direct React components (`components.Html`, `components.Root`, etc)
+- `children`
+- server functions, client components, etc
+
+Yes (gets send to worker)
+- URL functions (top-level `Page`, `Root`, `Html`, `props`)
+- rscStream
+- htmlStream 
+- Regex
 
 Both modes start your application in the browser and provide the same development experience. The difference is purely internal - how the plugin handles React Server Components processing.
 
-#### **RSC Worker Mode** (Default)
-**Condition:** `null` (no special condition)  
-**Command:** `vite` or `npm run dev:client`  
-**Internal Implementation:** Uses RSC worker thread
+#### **Client first / RSC Worker Mode** (Default)
+- **Condition:** `null` (no special condition)  
+- **Command:** `vite`
+- **Internal Implementation:** Worker thread for RSC, main thread for HTML
 
 ```mermaid
 graph TD
@@ -54,16 +164,16 @@ graph TD
 **Why use this mode:**
 - Default Vite behavior (no special setup)
 - Worker thread isolation for RSC processing
-- Good for testing client-side behavior
+- HTML rendering is done on main thread
 
-#### **Direct Server Mode** (Optimized)
-**Condition:** `react-server`  
-**Command:** `NODE_OPTIONS="--conditions react-server" vite` or `npm run dev`  
-**Internal Implementation:** Direct main thread processing
+#### **Server first / HTML Worker mode** (Optimized)
+- **Condition:** `react-server`  
+- **Command:** `NODE_OPTIONS="--conditions react-server" vite`  
+- **Internal Implementation:** Main thread for RSC, worker thread for HTML
 
 ```mermaid
 graph TD
-    A[Direct Server Mode<br/>Condition: react-server<br/>Command: NODE_OPTIONS="--conditions react-server" vite] --> B[Main Thread: RSC Environment]
+    A[Direct Server Mode<br/>Condition: react-server<br/>Command: NODE_OPTIONS='--conditions react-server' vite] --> B[Main Thread: RSC Environment]
     B --> C[Direct React Server Components Processing]
     B --> D[Server Actions in Main Thread]
     B --> E[Module Loading with react-server condition]
@@ -80,9 +190,10 @@ graph TD
 - More efficient for server-side development
 
 ### Build Environment (Static Generation)
-**Condition:** `react-server` (for final build step)  
-**Command:** `npm run build` (runs all three builds)  
-**Purpose:** Static site generation
+
+- **Condition:** `react-server` (for final build step)  
+- **Command:** `npm run build` (runs all three builds)  
+- **Purpose:** Static site generation
 
 ```mermaid
 graph TD

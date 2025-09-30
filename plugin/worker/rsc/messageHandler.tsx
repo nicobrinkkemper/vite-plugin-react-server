@@ -4,13 +4,13 @@ import { createLogger } from "vite";
 import { workerData } from "node:worker_threads";
 import { join } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
-import { createRenderToPipeableStreamHandler } from "../../stream/createRenderToPipeableStreamHandler.js";
+import { handleRscRender } from "./handleRscRender.js";
 import type {
   RscWorkerInputMessage,
   ComponentsResolvedMessage,
 } from "./types.js";
 import { toError } from "../../error/toError.js";
-import { handleError } from "../../error/handleError.js";
+
 import { createHandlers } from "./handlers.js";
 import {
   addCssFileContent,
@@ -29,7 +29,9 @@ import { routeToURL } from "../../utils/routeToURL.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
 import { resolveComponent } from "../../helpers/resolveComponent.js";
-import { userOptions } from "./userOptions.js";
+import { Root as DefaultRoot } from "../../components/root.js";
+import { workerUserOptions } from "./workerUserOptions.js";
+import { hydrateUserOptions } from "../../helpers/hydrateUserOptions.js";
 import { React } from "../../vendor/vendor.server.js";
 import { sendMessage } from "../sendMessage.js";
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
@@ -37,14 +39,109 @@ import { createModuleResolutionMetrics } from "../../metrics/createModuleResolut
 const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info");
 const verbose = workerData.userOptions.verbose ?? false;
 
+// Add uncaught exception handler to catch React rendering errors
+process.on("uncaughtException", (error) => {
+  if (verbose) {
+    logger?.error(`[RSC-WORKER] Uncaught exception: ${error.message}`, {
+      error,
+    });
+  }
+
+  // Send error through control port if we have active handlers
+  if (parentPort) {
+    parentPort.postMessage({
+      type: "ERROR",
+      id: "uncaught-exception",
+      error: {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      },
+      context: "Uncaught Exception in RSC Worker",
+    });
+  }
+
+  // Exit the worker with error code
+  process.exit(1);
+});
+
+// Render state to track user options per render ID
+const renderStates = new Map<
+  string,
+  {
+    userOptions: any;
+    initialized: boolean;
+  }
+>();
+
+// Cache for fallback user options to avoid re-hydrating
+let fallbackUserOptions: any = null;
+
+// Helper function to get user options for a specific render
+function getUserOptions(renderId?: string) {
+  // If we have a render ID and it's initialized, use the render-specific options
+  if (renderId && renderStates.has(renderId)) {
+    const renderState = renderStates.get(renderId)!;
+    if (renderState.initialized) {
+      return renderState.userOptions;
+    }
+  }
+
+  // Use cached fallback if available
+  if (fallbackUserOptions) {
+    return fallbackUserOptions;
+  }
+
+  // Fallback to workerData userOptions if no render-specific options are available
+  const userOptionsResult = hydrateUserOptions(workerData.userOptions);
+  if (userOptionsResult.type === "error") {
+    throw userOptionsResult.error;
+  }
+  // Cache the result
+  fallbackUserOptions = userOptionsResult.userOptions;
+  if (verbose) {
+    logger?.info(
+      `[FALLBACK] Using fallback userOptions for renderId: ${
+        renderId || "none"
+      }`
+    );
+    logger?.info(
+      `[FALLBACK] fallbackUserOptions.build: ${JSON.stringify(
+        fallbackUserOptions.build
+      )}`
+    );
+  }
+  return fallbackUserOptions;
+}
+
+// Helper function to set user options for a specific render
+function setRenderUserOptions(renderId: string, userOptions: any) {
+  renderStates.set(renderId, {
+    userOptions,
+    initialized: true,
+  });
+}
+
+// Helper function to cleanup render state
+function cleanupRenderState(renderId: string) {
+  renderStates.delete(renderId);
+}
+
 // Track active renders - store the RSC stream for each unique render (id)
 const activeRenders = new Map<string, PassThrough>();
+
+// Global variable to store the correct build configuration from INIT case
+// let correctBuildConfig: any = null;
 
 // Track active streams by route for reuse
 const activeStreamsByRoute = new Map<string, string>(); // route -> streamId
 
+// Track headless stream elements by stream ID for reuse in full streams
+const headlessStreamElements = new Map<string, any>(); // streamId -> React elements
+
 // Track headless stream errors by route for full stream error propagation
 const headlessStreamErrors = new Map<string, Error>(); // route -> error
+
 
 function cleanupRender(id: string) {
   const rscStream = activeRenders.get(id);
@@ -59,7 +156,14 @@ function cleanupRender(id: string) {
         break;
       }
     }
+
+    // Clean up reusable elements only if we know which headless stream this full stream consumed
+    // The caller should tell us which headless stream to clean up, not infer from ID patterns
+    // Note: Element cleanup should be handled explicitly by the stream reuse system
   }
+
+  // Clean up render state
+  cleanupRenderState(id);
 }
 
 function clearHeadlessError(route: string) {
@@ -92,6 +196,7 @@ async function loadComponentsWithCache(options: {
     propsExportName = "props",
     rootExportName = "Root",
     htmlExportName = "Html",
+    url,
     loader,
     verbose,
     logger,
@@ -103,49 +208,81 @@ async function loadComponentsWithCache(options: {
   let HtmlComponent: any;
 
   // Load page and props using the unified helper
+  if (verbose) {
+    logger?.info(
+      `[loadComponentsWithCache] pagePath=${pagePath}, propsPath=${propsPath}, url=${url}`
+    );
+  }
   if (pagePath) {
-    const pageAndPropsResult = await resolvePageAndProps({
-      pagePath,
-      propsPath,
-      pageExportName,
-      propsExportName,
-      url: "/",
-      loader,
-      verbose: verbose || false,
-      logger,
-    });
-
-    if (pageAndPropsResult.type === "success") {
-      PageComponent = pageAndPropsResult.PageComponent;
-      pageProps = pageAndPropsResult.pageProps;
-
-      // Cache the components
-      const pageId = `${pagePath}#${pageExportName}`;
-      cacheComponent(pageId, PageComponent);
-
-      if (propsPath) {
-        const propsId = `${propsPath}#${propsExportName}`;
-        cacheComponent(propsId, pageProps);
-      }
+    if (verbose) {
+      logger?.info(
+        `[loadComponentsWithCache] Loading page and props for pagePath=${pagePath}`
+      );
+    }
+    try {
+      const pageAndPropsResult = await resolvePageAndProps({
+        pagePath,
+        propsPath,
+        pageExportName,
+        propsExportName,
+        url,
+        loader,
+        verbose: verbose || false,
+        logger,
+      });
 
       if (verbose) {
         logger?.info(
-          `[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`
+          `[loadComponentsWithCache] pageAndPropsResult for ${pagePath}:`,
+          pageAndPropsResult
         );
+      }
+
+      if (pageAndPropsResult.type === "success") {
+        PageComponent = pageAndPropsResult.PageComponent;
+        pageProps = pageAndPropsResult.pageProps;
+
+        // Cache the components
+        const pageId = `${pagePath}#${pageExportName}`;
+        cacheComponent(pageId, PageComponent);
+
         if (propsPath) {
+          const propsId = `${propsPath}#${propsExportName}`;
+          cacheComponent(propsId, pageProps);
+        }
+
+        if (verbose) {
           logger?.info(
-            `[rsc-worker] Loaded and cached pageProps from: ${propsPath}`
+            `[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`
+          );
+          if (propsPath) {
+            logger?.info(
+              `[rsc-worker] Loaded and cached pageProps from: ${propsPath}`
+            );
+          }
+          if (verbose) {
+            logger?.info(`[rsc-worker] Loaded pageProps:`, pageProps);
+          }
+        }
+      } else {
+        // Handle component resolution failure gracefully (same as server environment)
+        if (verbose) {
+          logger?.warn(
+            `[rsc-worker] Failed to load page and props: ${pageAndPropsResult.error?.message}`
           );
         }
+        // Use React.Fragment as fallback (same as server environment)
+        PageComponent = React.Fragment;
+        pageProps = {};
       }
-    } else {
-      // Handle component resolution failure gracefully (same as server environment)
+    } catch (error) {
       if (verbose) {
-        logger?.warn(
-          `[rsc-worker] Failed to load page and props: ${pageAndPropsResult.error?.message}`
+        logger?.error(
+          `[loadComponentsWithCache] Failed to resolve page and props for ${pagePath}`,
+          { error }
         );
       }
-      // Use React.Fragment as fallback (same as server environment)
+      // Handle error gracefully - use fallback components
       PageComponent = React.Fragment;
       pageProps = {};
     }
@@ -188,23 +325,32 @@ async function loadComponentsWithCache(options: {
       }
     }
   } else {
-    // Use default Root component
-    try {
-      const { Root } = await import("../../components/root.js");
-      RootComponent = Root;
-      if (verbose) {
-        logger?.info(`[rsc-worker] Using default Root component`);
-      }
-    } catch (error) {
-      logger?.warn(
-        `[rsc-worker] Error loading default Root component: ${error}`
-      );
+    // No rootPath provided - use built-in default Root component
+    RootComponent = DefaultRoot;
+    if (verbose) {
+      logger?.info(`[rsc-worker] Using built-in default Root component`);
     }
   }
 
   // Load Html component
   if (htmlPath === "") {
-    HtmlComponent = React.Fragment; // Empty string = headless (no HTML wrapper)
+    HtmlComponent = React.Fragment; // Empty string = explicitly headless (no HTML wrapper)
+  } else if (htmlPath === undefined) {
+    // undefined = use default HTML component
+    try {
+      const { Html } = await import("../../components/html.js");
+      HtmlComponent = Html;
+      if (verbose) {
+        logger?.info(`[rsc-worker] Using default Html component`);
+      }
+    } catch (error) {
+      logger?.warn(
+        `[rsc-worker] Error loading default Html component: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      HtmlComponent = React.Fragment; // Fallback to headless if default fails
+    }
   } else if (htmlPath) {
     const htmlId = `${htmlPath}#${htmlExportName}`;
     if (hasCachedComponent(htmlId)) {
@@ -253,15 +399,44 @@ async function loadComponentsWithCache(options: {
   return { PageComponent, pageProps, RootComponent, HtmlComponent };
 }
 
+/**
+ * Main message handler for RSC worker thread.
+ *
+ * **Purpose**: Processes messages from the main thread and handles RSC stream creation,
+ * component resolution, and error handling in the worker thread.
+ *
+ * **Key Responsibilities**:
+ * - **Component Resolution**: Loads and caches React components for routes
+ * - **RSC Stream Creation**: Creates React Server Component streams using ReactDOMServer
+ * - **Error Handling**: Catches React rendering errors and communicates them to main thread
+ * - **Stream Reuse**: Manages headless stream element reuse for performance optimization
+ * - **Lifecycle Management**: Handles worker initialization, shutdown, and cleanup
+ *
+ * **Error Handling Strategy**:
+ * - React rendering errors are caught by ReactDOMServer.onError callback
+ * - Errors are sent to main thread via control port with context information
+ * - Uncaught exceptions are handled by process.on('uncaughtException') handler
+ * - Main thread decides panic behavior based on panicThreshold configuration
+ *
+ * @param msg - Message from main thread (INIT, RESOLVE_COMPONENTS, SHUTDOWN, etc.)
+ * @param port - MessagePort for communication (defaults to parentPort)
+ */
+// Store ports for consistent two-port communication
+let storedFromWorker: any;
+let storedToWorker: any;
+
 export async function messageHandler(
   msg: RscWorkerInputMessage,
   port = parentPort
 ) {
-  // Create handlers based on whether we have ports (two-port) or not (single-port)
-  const effectiveHandlers = createHandlers(
-    msg.type === "INIT" ? (msg as any).dataPort : undefined,
-    msg.type === "INIT" ? (msg as any).controlPort : undefined
-  );
+  // Store ports from INIT message for consistent two-port communication
+  if (msg.type === "INIT") {
+    storedFromWorker = msg.dataPort;    // dataPort: worker → main (for streaming data out)
+    storedToWorker = msg.controlPort;   // controlPort: main → worker (for control messages in)
+  }
+
+  // Create handlers for two-port communication using stored ports
+  const effectiveHandlers = createHandlers(storedFromWorker, storedToWorker);
 
   try {
     if (verbose) {
@@ -272,41 +447,86 @@ export async function messageHandler(
 
     switch (msg.type) {
       case "INIT":
-        // Clean up any previous render for this id
-        cleanupRender(msg.id);
+        // Use the ID from options if provided, otherwise fall back to msg.id
+        const currentStreamId = msg.options.id || msg.id;
 
-        // Determine if this is a headless or full RSC request
-        const isHeadless = msg.options.htmlPath === "" || !msg.options.htmlPath;
+        // Initialize render-specific user options from init message
+        const renderUserOptions = workerUserOptions(msg.options);
+        setRenderUserOptions(currentStreamId, renderUserOptions);
+        if (verbose) {
+          logger?.info(
+            `[INIT] Set render state for renderId: ${currentStreamId}`
+          );
+          logger?.info(
+            `[INIT] renderUserOptions.build: ${JSON.stringify(
+              renderUserOptions.build
+            )}`
+          );
+        }
+
+        // Cache user options to avoid repeated getUserOptions calls
+        const userOptions = renderUserOptions;
+
+        // Clean up any previous render for this id
+        cleanupRender(currentStreamId);
+
+        // Determine if this is a headless RSC stream (no HTML wrapper)
+        // undefined = use default HTML component, "" = explicitly headless
+        const isHeadless = msg.options.htmlPath === "";
         const rscVariant = isHeadless ? "rsc-headless" : "rsc-full";
 
         if (verbose) {
           logger.info(
-            `[rsc-worker] Processing ${rscVariant} render for route: ${msg.options.route}`
+            `[rsc-worker] Processing ${rscVariant} render for route: ${msg.options.route} with ID: ${currentStreamId}`
           );
         }
 
         // Create a new PassThrough stream for this render, or use the one provided
         const rscStream = (msg as any).rscStream || new PassThrough();
-        activeRenders.set(msg.id, rscStream);
+        activeRenders.set(currentStreamId, rscStream);
 
         // Start measuring module resolution time from first module load
         const moduleResolutionStartTime = performance.now();
 
         // Load modules (page, props, and components together) - same as server environment
+        const projectRoot = msg.options.projectRoot || userOptions.projectRoot || workerData.userOptions?.projectRoot || process.cwd();
+        const buildConfig = {
+          server:
+            msg.options.build?.server || userOptions.build?.server || DEFAULT_CONFIG.BUILD.server,
+          client:
+            msg.options.build?.client || userOptions.build?.client || DEFAULT_CONFIG.BUILD.client,
+          static:
+            msg.options.build?.static || userOptions.build?.static || DEFAULT_CONFIG.BUILD.static,
+          outDir:
+            msg.options.build?.outDir || userOptions.build?.outDir || DEFAULT_CONFIG.BUILD.outDir,
+          assetsDir: 
+            msg.options.build?.assetsDir || userOptions.build?.assetsDir || DEFAULT_CONFIG.BUILD.assetsDir,
+          rscOutputPath:
+            msg.options.build?.rscOutputPath || userOptions.build?.rscOutputPath || DEFAULT_CONFIG.BUILD.rscOutputPath,
+          htmlOutputPath:
+            msg.options.build?.htmlOutputPath || userOptions.build?.htmlOutputPath || DEFAULT_CONFIG.BUILD.htmlOutputPath,
+          preserveModulesRoot: 
+            msg.options.build?.preserveModulesRoot || userOptions.build?.preserveModulesRoot || DEFAULT_CONFIG.BUILD.preserveModulesRoot,
+        };
+        const serverManifest = workerData.serverManifest || msg.options.manifest || {};
+
+        // Always log build config for debugging
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker:${msg.options.route}] 
+msg.options.build: ${JSON.stringify(msg.options.build)}
+msg.options.route
+userOptions.build: ${JSON.stringify(userOptions.build)}
+final buildConfig: ${JSON.stringify(buildConfig)}`
+          );
+        }
         const loader = createRscWorkerLoader({
           verbose: msg.options.verbose ?? workerData.userOptions.verbose,
           logger,
-          hmrState,
-          projectRoot: workerData.userOptions?.projectRoot || process.cwd(),
-          manifest: msg.options.manifest || workerData.serverManifest || {},
-          build: {
-            server: userOptions.build?.server || "server",
-            client: userOptions.build?.client || "client",
-            static: userOptions.build?.static || "static",
-            outDir: userOptions.build?.outDir || "dist",
-          },
-          bundle: workerData.bundle || {},
-          clientPattern: userOptions.autoDiscover?.clientPattern,
+          projectRoot,
+          manifest: serverManifest,
+          build: buildConfig,
+          // bundle: workerData.bundle || {},
         });
 
         const url =
@@ -326,22 +546,28 @@ export async function messageHandler(
             rootPath: msg.options.rootPath,
             htmlPath: msg.options.htmlPath,
             pageExportName:
-              msg.options.pageExportName ??
-              workerData.userOptions.pageExportName,
+              msg.options.pageExportName ?? userOptions.pageExportName,
             propsExportName:
-              msg.options.propsExportName ??
-              workerData.userOptions.propsExportName,
+              msg.options.propsExportName ?? userOptions.propsExportName,
             rootExportName:
-              msg.options.rootExportName ??
-              workerData.userOptions.rootExportName,
+              msg.options.rootExportName ?? userOptions.rootExportName,
             htmlExportName:
-              msg.options.htmlExportName ??
-              workerData.userOptions.htmlExportName,
+              msg.options.htmlExportName ?? userOptions.htmlExportName,
             url,
             loader,
             verbose,
             logger,
           });
+
+        if (verbose) {
+          logger.info(
+            `[rsc-worker] Loaded components for route ${msg.options.route}:`
+          );
+          logger.info(`[rsc-worker] - PageComponent: ${typeof PageComponent}`);
+          logger.info(`[rsc-worker] - pageProps: ${JSON.stringify(pageProps)}`);
+          logger.info(`[rsc-worker] - RootComponent: ${typeof RootComponent}`);
+          logger.info(`[rsc-worker] - HtmlComponent: ${typeof HtmlComponent}`);
+        }
 
         // Emit module resolution metric after components are loaded
         const moduleResolutionTime =
@@ -408,45 +634,171 @@ export async function messageHandler(
           rscTimeout: msg.options.rscTimeout,
           serverPipeableStreamOptions: (() => {
             // Both headless and full streams should use the constructed serverPipeableStreamOptions with bootstrapModules
-            const options = msg.options.serverPipeableStreamOptions || workerData.userOptions?.serverPipeableStreamOptions;
-            
+            const options =
+              msg.options.serverPipeableStreamOptions ||
+              workerData.userOptions?.serverPipeableStreamOptions;
+
             if (verbose) {
               logger.info(
-                `[rsc-worker] ${isHeadless ? 'Headless' : 'Full'} stream serverPipeableStreamOptions: ${JSON.stringify(options)}`
+                `[rsc-worker] ${
+                  isHeadless ? "Headless" : "Full"
+                } stream serverPipeableStreamOptions: ${JSON.stringify(
+                  options
+                )}`
               );
             }
-            
+
             return options;
           })(),
-          clientPipeableStreamOptions: msg.options.clientPipeableStreamOptions,
-          onEvent: userOptions.onEvent,
-          onMetrics: userOptions.onMetrics,
         };
 
-        // Use the same createRenderToPipeableStreamHandler as server environment
-        let result;
-        
+        // Use handleRscRender for proper worker-side rendering
+        let result: void;
+
         // Check if there was a headless error for this route
         const headlessError = headlessStreamErrors.get(msg.options.route);
         const shouldUseFallback = headlessError && !isHeadless;
-        
+
+        // If this is a headless stream, we need to track any errors that occur
+        // so that subsequent full streams can use fallback components
+        if (isHeadless) {
+          // Clear any previous error for this route when starting a new headless stream
+          headlessStreamErrors.delete(msg.options.route);
+        }
+
+        // Check if we should reuse elements from a previous headless stream
+        const shouldReuseElements =
+          !isHeadless && msg.options.reuseHeadlessStreamId;
+        let reusableElements = null;
+
+        if (shouldReuseElements && msg.options.reuseHeadlessStreamId) {
+          // Look up elements directly by the headless stream ID
+          reusableElements = headlessStreamElements.get(
+            msg.options.reuseHeadlessStreamId
+          );
+          if (verbose) {
+            if (reusableElements) {
+              logger.info(
+                `[rsc-worker] Found reusable elements from headless stream ${msg.options.reuseHeadlessStreamId}`
+              );
+            } else if (msg.options.reuseHeadlessStreamId) {
+              logger.info(
+                `[rsc-worker] No reusable elements found for headless stream ${msg.options.reuseHeadlessStreamId}`
+              );
+            }
+          }
+        }
+
+        const isStaticGeneration =
+          msg.options.build &&
+          (msg.options.build.outDir || msg.options.build.static);
+
+        if (verbose) {
+          logger.info(
+            `[rsc-worker] Route: ${msg.options.route}, isHeadless: ${isHeadless}, isStaticGeneration: ${isStaticGeneration}`
+          );
+          logger.info(
+            `[rsc-worker] msg.options.build: ${JSON.stringify(
+              msg.options.build
+            )}`
+          );
+        }
+
         if (shouldUseFallback) {
           if (verbose) {
             logger.info(
-              `[rsc-worker] Using fallback components for full stream due to headless error: ${headlessError.message}`
+              `[rsc-worker] Using fallback components due to previous error: ${headlessError.message}`
             );
           }
           // Create a fallback handler with React.Fragment for PageComponent but keep original HtmlComponent
-          // This ensures bootstrapScripts are still rendered even in fallback scenarios
           const fallbackHandlerOptions = {
             ...handlerOptions,
             PageComponent: React.Fragment,
             // Keep the original HtmlComponent to ensure bootstrapScripts are rendered
           };
-          result = createRenderToPipeableStreamHandler(fallbackHandlerOptions);
+          result = handleRscRender(
+            {
+              ...fallbackHandlerOptions,
+              id: currentStreamId,
+              reuseHeadlessStreamId: msg.options.reuseHeadlessStreamId,
+            },
+            effectiveHandlers,
+            undefined,
+            headlessStreamElements,
+            headlessStreamErrors
+          );
         } else {
           try {
-            result = createRenderToPipeableStreamHandler(handlerOptions);
+            if (isHeadless) {
+              // Headless stream: use HtmlComponent: React.Fragment (no HTML wrapper) but keep RootComponent
+              if (verbose) {
+                logger.info(
+                  `[rsc-worker] Creating headless RSC stream for route ${msg.options.route} (no HTML wrapper)`
+                );
+              }
+
+              const headlessHandlerOptions = {
+                ...handlerOptions,
+                HtmlComponent: React.Fragment, // Headless RSC - no HTML wrapper
+              };
+
+              result = handleRscRender(
+                {
+                  ...headlessHandlerOptions,
+                  id: currentStreamId,
+                  reuseHeadlessStreamId: msg.options.reuseHeadlessStreamId,
+                },
+                effectiveHandlers,
+                undefined,
+                headlessStreamElements,
+                headlessStreamErrors
+              );
+            } else {
+              // Full stream: reuse elements from headless stream if available
+              if (shouldReuseElements && reusableElements) {
+                if (verbose) {
+                  logger.info(
+                    `[rsc-worker] Creating full RSC stream with reused elements from headless stream for route ${msg.options.route}`
+                  );
+                }
+
+                // Create handler options that reuse the headless stream's elements
+                const reuseHandlerOptions = {
+                  ...handlerOptions,
+                  PageComponent: (() => reusableElements) as any, // Reuse the headless stream's elements
+                };
+
+                result = handleRscRender(
+                  {
+                    ...reuseHandlerOptions,
+                    id: currentStreamId,
+                    reuseHeadlessStreamId: msg.options.reuseHeadlessStreamId,
+                  },
+                  effectiveHandlers,
+                  undefined,
+                  headlessStreamElements,
+                  headlessStreamErrors
+                );
+              } else {
+                // No reusable elements - create normal full stream
+                if (verbose) {
+                  logger.info(
+                    `[rsc-worker] Creating full RSC stream for route ${msg.options.route} (no element reuse)`
+                  );
+                }
+                result = handleRscRender(
+                  {
+                    ...handlerOptions,
+                    id: currentStreamId,
+                    reuseHeadlessStreamId: msg.options.reuseHeadlessStreamId,
+                  },
+                  effectiveHandlers,
+                  undefined,
+                  headlessStreamElements,
+                  headlessStreamErrors
+                );
+              }
+            }
           } catch (error) {
             // Handle error the same way as server environment - create fallback with React.Fragment
             if (verbose) {
@@ -456,104 +808,47 @@ export async function messageHandler(
             }
 
             // Create a fallback handler with React.Fragment for PageComponent but keep original HtmlComponent
-            // This ensures bootstrapScripts are still rendered even in fallback scenarios
             const fallbackHandlerOptions = {
               ...handlerOptions,
               PageComponent: React.Fragment,
               // Keep the original HtmlComponent to ensure bootstrapScripts are rendered
             };
 
-            result = createRenderToPipeableStreamHandler(fallbackHandlerOptions);
-          }
-        }
-
-        // Track headless streams by route for potential reuse
-        if (isHeadless) {
-          activeStreamsByRoute.set(msg.options.route, msg.id);
-          // Clear any previous headless error for this route
-          clearHeadlessError(msg.options.route);
-          if (verbose) {
-            logger.info(
-              `[rsc-worker] Tracked headless stream ${msg.id} for route: ${msg.options.route}`
+            result = handleRscRender(
+              {
+                ...fallbackHandlerOptions,
+                id: currentStreamId,
+                reuseHeadlessStreamId: msg.options.reuseHeadlessStreamId,
+              },
+              effectiveHandlers,
+              undefined,
+              headlessStreamElements,
+              headlessStreamErrors
             );
           }
-        } else {
-          // This is a full stream - check if there was a headless error for this route
-          const headlessError = headlessStreamErrors.get(msg.options.route);
-          if (headlessError) {
-            if (verbose) {
-              logger.info(
-                `[rsc-worker] Full stream ${msg.id} for route ${msg.options.route} detected headless error: ${headlessError.message}`
-              );
-            }
-            // Track the error but let the main thread handle the PageComponent modification
-            // (same approach as server environment)
-          }
         }
 
-        // Process the stream using the handlers
-        const streamId = msg.id;
-        const passThrough = result.rscStream;
-
-        // Set up stream event handlers
-        if (passThrough) {
-          passThrough.on("data", (chunk) => {
-            if (verbose) {
-              logger.info(
-                `[rsc-worker] RSC stream data chunk: ${chunk.length} bytes`
-              );
-            }
-            effectiveHandlers.onData(streamId, chunk);
-          });
-
-          passThrough.on("end", () => {
-            if (verbose) {
-              logger.info(`[rsc-worker] RSC stream ended`);
-            }
-            
-            // If headless stream completed successfully, clear any error tracking
-            if (isHeadless) {
-              clearHeadlessError(msg.options.route);
-              if (verbose) {
-                logger.info(
-                  `[rsc-worker] Headless stream completed successfully for route ${msg.options.route}, cleared error tracking`
-                );
-              }
-            }
-            
-            effectiveHandlers.onEnd(streamId);
-            cleanupRender(streamId);
-          });
-
-          passThrough.on("error", (error) => {
-            if (verbose) {
-              logger.error(`[rsc-worker] RSC stream error: ${error.message}`);
-            }
-            
-            // Track headless stream errors for full stream error propagation
-            if (isHeadless) {
-              headlessStreamErrors.set(msg.options.route, error);
-              if (verbose) {
-                logger.info(
-                  `[rsc-worker] Tracked headless error for route ${msg.options.route}: ${error.message}`
-                );
-              }
-              // Send control message to inform about headless error
-              effectiveHandlers.onError(streamId, toError(error));
-            } else {
-              effectiveHandlers.onError(streamId, toError(error));
-            }
-            
-            cleanupRender(streamId);
-          });
+        // Do not automatically track streams for reuse
+        // Only full streams that explicitly request reuse of a headless stream will trigger reuse logic
+        if (verbose) {
+          logger.info(
+            `[rsc-worker] Processing single-use stream ${currentStreamId} for route: ${msg.options.route}`
+          );
         }
 
-        // Send RSC_RENDER_START control message
-        effectiveHandlers.onRscRender(streamId, msg);
+        // Clear any previous error for this route
+        clearHeadlessError(msg.options.route);
+
+        // handleRscRender handles everything internally including error handling
+
+        // handleRscRender handles everything internally including error handling and control messages
 
         return result;
       case "RESOLVE_COMPONENTS": {
         const resolutionStartTime = performance.now();
+
+        // Cache user options to avoid repeated getUserOptions calls
+        const resolveUserOptions = getUserOptions(msg.id);
 
         try {
           if (verbose) {
@@ -565,22 +860,50 @@ export async function messageHandler(
             logger.info(`[rsc-worker] rootPath: ${msg.rootPath}`);
             logger.info(`[rsc-worker] htmlPath: ${msg.htmlPath}`);
           }
+          if (verbose) {
+            logger?.info(
+              `[rsc-worker:${msg.route}] pagePath=${msg.pagePath}, propsPath=${msg.propsPath}`
+            );
+          }
 
-          // Create loader for component resolution
+          // Create loader for component resolution with correct build config
+          // Use the render-specific build config from the INIT case
+          const buildConfig = {
+            server: resolveUserOptions.build?.server || "server",
+            client: resolveUserOptions.build?.client || "client",
+            static: resolveUserOptions.build?.static || "static",
+            outDir: resolveUserOptions.build?.outDir || "dist",
+          };
+
+          // Debug log to see what outDir we're using
+          if (verbose) {
+            logger?.info(
+              `[RESOLVE_COMPONENTS] Using outDir: ${buildConfig.outDir}`
+            );
+            logger?.info(
+              `[RESOLVE_COMPONENTS] renderId: ${
+                msg.id
+              }, hasRenderState: ${renderStates.has(msg.id)}`
+            );
+            if (renderStates.has(msg.id)) {
+              const renderState = renderStates.get(msg.id)!;
+              logger?.info(
+                `[RESOLVE_COMPONENTS] renderState.initialized: ${renderState.initialized}`
+              );
+              logger?.info(
+                `[RESOLVE_COMPONENTS] renderState.userOptions.build: ${JSON.stringify(
+                  renderState.userOptions.build
+                )}`
+              );
+            }
+          }
+
           const loader = createRscWorkerLoader({
             verbose: verbose,
             logger,
-            hmrState,
             projectRoot: workerData.userOptions?.projectRoot,
             manifest: workerData.serverManifest || {},
-            build: {
-              server: userOptions.build?.server || "server",
-              client: userOptions.build?.client || "client",
-              static: userOptions.build?.static || "static",
-              outDir: userOptions.build?.outDir || "dist",
-            },
-            bundle: workerData.bundle || {},
-            clientPattern: userOptions.autoDiscover?.clientPattern,
+            build: buildConfig,
           });
 
           // Load components using the unified helper function (caching is handled internally)
@@ -623,18 +946,19 @@ export async function messageHandler(
             `[rsc-worker] Failed to resolve components for route ${msg.route}: ${error}`
           );
 
-          // Send error response
-          parentPort?.postMessage({
-            type: "ERROR",
-            id: msg.id,
+          // Always send error to main thread - let main thread decide panic status
+          effectiveHandlers.onError(msg.id, toError(error), {
             route: msg.route,
-            error: toError(error),
+            context: `Component resolution failed for route ${msg.route}`,
           });
         }
         return;
       }
       case "SERVER_ACTION": {
         try {
+          // Cache user options to avoid repeated getUserOptions calls
+          const serverActionUserOptions = getUserOptions();
+
           // Parse the server action ID to get the file path and export name
           const [filePath, exportName] = msg.id.split("#");
           if (!filePath || !exportName) {
@@ -643,8 +967,10 @@ export async function messageHandler(
             );
           }
           // Convert the server action ID to a file path
-          const actionPath = filePath.startsWith(userOptions.moduleBasePath)
-            ? filePath.slice(userOptions.moduleBasePath.length)
+          const actionPath = filePath.startsWith(
+            serverActionUserOptions.moduleBasePath
+          )
+            ? filePath.slice(serverActionUserOptions.moduleBasePath.length)
             : filePath;
           const fullPath = join(
             workerData.userOptions?.projectRoot,
@@ -701,8 +1027,10 @@ export async function messageHandler(
         return;
       case "CSS_FILE":
         if (msg.id) {
+          // Cache user options to avoid repeated getUserOptions calls
+          const cssFileUserOptions = getUserOptions();
           // Add to CSS registry
-          addCssFileContent(msg.id, msg.content, userOptions);
+          addCssFileContent(msg.id, msg.content, cssFileUserOptions);
         }
         effectiveHandlers.onCssFile?.(msg.id, msg.content);
         return;
@@ -722,7 +1050,8 @@ export async function messageHandler(
         }
         return;
       }
-      case "SHUTDOWN": {
+    case "SHUTDOWN": {
+        
         // If id is "*", clean up all render states and worker state
         // activeStreams.forEach((stream, renderId) => { // This line was removed as per the new_code
         //   stream.end();
@@ -748,37 +1077,9 @@ export async function messageHandler(
       }
     }
   } catch (error) {
-    // Handle panic threshold logic
-    const panicError = handleError({
-      error: error,
-      logger: logger,
-      panicThreshold: workerData.userOptions.panicThreshold,
-      critical: false,
-      context: "RSC Worker Error",
-    });
-    if (panicError != null) {
-      if (port) {
-        sendMessage(
-          {
-            type: "ERROR",
-            id: "rsc-worker",
-            error: panicError,
-          },
-          port
-        );
-      }
-      // Don't throw the error - it's already been sent as a message to the main thread
-      // The main thread will handle it according to the panic threshold
-    }
-    // Always send SHUTDOWN_COMPLETE to prevent hanging, regardless of panic threshold
-    if (port) {
-      sendMessage(
-        {
-          type: "SHUTDOWN_COMPLETE",
-          id: "*",
-        },
-        port
-      );
-    }
+    // Just communicate the error directly - let the main thread handle panic threshold logic
+    effectiveHandlers.onError("worker/rsc", toError(error));
+    // Always send SHUTDOWN_COMPLETE to prevent hanging
+    effectiveHandlers.onShutdown?.("*");
   }
 }

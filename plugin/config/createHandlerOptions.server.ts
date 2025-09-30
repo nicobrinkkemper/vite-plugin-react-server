@@ -9,11 +9,14 @@ import {
   stashHandlerOptions,
   getEnvironmentId,
 } from "./stashedOptionsState.js";
+
 import { getNodeEnv } from "./getNodeEnv.js";
 import { createLogger } from "vite";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { CreateHandlerOptionsParams, ResolvedDefaults } from "./createHandlerOptions.types.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
+import { serializedOptions } from "../helpers/serializeUserOptions.js";
+import { createWorker } from "../worker/createWorker.js";
 
 /**
  * Server-specific handler options creation for React Server Components (RSC).
@@ -141,7 +144,6 @@ export async function createHandlerOptions(
   // Load Page component if pagePath is available
   if (routeFilesResult.page && !PageComponent) {
     try {
-      const { resolveComponent } = await import("../helpers/resolveComponent.js");
       if (userOptions.verbose) {
         logger.info(`[createHandlerOptions] Attempting to load component from: ${routeFilesResult.page} export: ${userOptions.pageExportName}`);
       }
@@ -153,7 +155,7 @@ export async function createHandlerOptions(
             if (userOptions.verbose) {
               logger.info(`[createHandlerOptions] Development mode: loading ${path} via dynamic import`);
             }
-            return import(path);
+            return await import(path);
           }
         : defaults.loader || (() => Promise.resolve({}));
       
@@ -249,7 +251,7 @@ export async function createHandlerOptions(
         // Use same development mode loader logic
         const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
         const componentLoader = isServeMode 
-          ? async (path: string) => import(path)
+          ? async (path: string) => await import(path)
           : defaults.loader || (() => Promise.resolve({}));
         
         const htmlResult = await resolveComponent({
@@ -307,14 +309,15 @@ export async function createHandlerOptions(
     }
     
     try {
-      const { createWorker } = await import("../worker/createWorker.js");
-      const { serializedOptions } = await import("../helpers/serializeUserOptions.js");
       
       const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles);
       
+      // We don't need to create the RSC worker, but if the user wants to use their own worker
+      // it can be done by setting dev.useRscWorker=true or build.useRscWorker=true
       const workerResult = await createWorker({
         currentCondition: "react-server",
-        reverseCondition: "react-client",
+        // same CONDITION as the current one (this worker may be redundant)
+        reverseCondition: "react-server",
         workerPath: userOptions.rscWorkerPath,
         verbose: userOptions.verbose,
         logger,
@@ -359,8 +362,6 @@ export async function createHandlerOptions(
     }
     
     try {
-      const { createWorker } = await import("../worker/createWorker.js");
-      const { serializedOptions } = await import("../helpers/serializeUserOptions.js");
       
       const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles);
       

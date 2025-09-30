@@ -11,8 +11,8 @@ import { join } from "node:path";
 interface ProcessCssFilesForPagesOptions {
   userOptions: ResolvedUserOptions;
   autoDiscoveredFiles: AutoDiscoveredFiles | null;
-  serverManifest: Manifest | undefined;
   staticManifest: Manifest | undefined;
+  serverManifest: Manifest | undefined;
   bundle: any;
   logger: Logger;
 }
@@ -47,20 +47,30 @@ export function processCssFilesForPages({
   };
 
   // transform the server manifest to include the css files from the static manifest
+  // The server manifest needs CSS info for inlining or requesting .js modules for classnames
   const transformedServerManifest = Object.fromEntries(
     Object.entries(serverManifest ?? {}).map(([key, value]) => {
       const manifestEntry = value as any;
-      if (!manifestEntry.css?.length) {
-        return [key, value];
+      
+      // If it's a bundle entry, just use the file property directly
+      if (manifestEntry.isEntry && manifestEntry.file) {
+        // Find the corresponding static manifest entry by matching the file path
+        for (const [, staticValue] of Object.entries(staticManifest ?? {})) {
+          if (staticValue && typeof staticValue === 'object' && 'file' in staticValue) {
+            if (staticValue.file === manifestEntry.file && staticValue.css?.length) {
+              return [
+                key,
+                {
+                  ...manifestEntry,
+                  css: staticValue.css,
+                },
+              ];
+            }
+          }
+        }
       }
-      return [
-        key,
-        {
-          ...manifestEntry,
-          css:
-            staticManifest?.[key]?.css ?? manifestEntry.css,
-        },
-      ];
+      
+      return [key, value];
     })
   );
   const globalCss = new Map();
@@ -71,7 +81,7 @@ export function processCssFilesForPages({
     userOptions,
     logger,
     verbose: userOptions.verbose,
-    staticOutDir: staticManifest ? join(userOptions.build.outDir, userOptions.build.static) : undefined,
+    staticOutDir: staticManifest ? join(userOptions.projectRoot || '', userOptions.build.outDir, userOptions.build.client) : undefined,
     staticManifest,
     bundle,
   });
@@ -83,6 +93,26 @@ export function processCssFilesForPages({
         `[plugin.server] Processing route: ${url}, page: ${page}, props: ${props}`
       );
     }
+    // Use the transformed server manifest which now includes CSS info from the static manifest
+    // This allows the server to inline CSS or request .js modules for classnames
+    if (userOptions.verbose) {
+      logger.info(`[plugin.server] transformedServerManifest keys: ${Object.keys(transformedServerManifest).join(', ')}`);
+      logger.info(`[plugin.server] Looking for CSS starting from: ${page} and ${props || 'none'}`);
+      if (transformedServerManifest[page]) {
+        logger.info(`[plugin.server] Page entry: ${JSON.stringify(transformedServerManifest[page], null, 2)}`);
+      }
+      if (props && transformedServerManifest[props]) {
+        logger.info(`[plugin.server] Props entry: ${JSON.stringify(transformedServerManifest[props], null, 2)}`);
+      }
+      
+      // Debug: Check what CSS entries exist in the transformed manifest
+      for (const [key, value] of Object.entries(transformedServerManifest)) {
+        if (value && typeof value === 'object' && 'css' in value && Array.isArray(value.css) && value.css.length > 0) {
+          logger.info(`[plugin.server] Found CSS entry: ${key} -> ${JSON.stringify(value.css)}`);
+        }
+      }
+    }
+    
     const cssInputs = collectManifestCss(
       transformedServerManifest,
       props ? [page, props] : page

@@ -22,7 +22,7 @@ import type { LoaderConfig } from "../loader/types.js";
 import { handleError } from "../error/handleError.js";
 import { createLogger, type Logger } from "vite";
 import { getCondition } from "./getCondition.js";
-import { stashUserOptions, getStashedUserOptions } from "./stashedOptionsState.js";
+import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./stashedOptionsState.js";
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 
@@ -120,7 +120,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       ? options.panicThreshold
       : DEFAULT_CONFIG.PANIC_THRESHOLD;
   // since panicThreshold affects the behavior of the plugin, we need to re-resolve the options if it changes
-  const envId = getCondition() + "." + (process.env.NODE_ENV ?? "production");
+  const envId = getEnvironmentId(getCondition(), process.env.NODE_ENV ?? "production");
 
   // Return stashed options if available
   const stashedOptions = getStashedUserOptions(envId);

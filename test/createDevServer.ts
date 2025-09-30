@@ -53,7 +53,7 @@ export async function createClientDevServer(optionOverrides: Partial<StreamPlugi
     },
 
     // Use a unique cache directory to prevent race conditions
-    cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
+    cacheDir: join(process.cwd(), "node_modules", `.vite-temp`, `.vite-test-${port}`),
   });
   
   // Add timeout to prevent hanging

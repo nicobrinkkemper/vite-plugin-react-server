@@ -1,6 +1,6 @@
 import type { HandleRscStreamFn } from "./handleRscStream.types.js";
-import { PassThrough } from "node:stream";
-import type { TransferListItem } from "node:worker_threads";
+import { PassThrough, Readable } from "node:stream";
+import { createMessageChannels, createTransferList } from "./createMessageChannels.js";
 
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { join } from "node:path";
@@ -28,13 +28,12 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
         .toString(36)
         .substring(2, 11)}`;
 
-    // Create a PassThrough stream to handle RSC chunks
-    const rscStream = new PassThrough();
-    const route = options.route;
-
     // Create MessageChannels for two-port communication
-    const dataChannel = new MessageChannel();
-    const controlChannel = new MessageChannel();
+    const { dataPort1, dataPort2, controlPort1, controlPort2 } = createMessageChannels();
+    
+    // Create a PassThrough stream that preserves Uint8Array data without mutation
+    const rscStream = new PassThrough({ objectMode: false });
+    const route = options.route;
 
     const worker = options.rscWorker || options.worker;
     if (!worker) {
@@ -42,8 +41,7 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
     }
 
     // Set up control message handlers
-    controlChannel.port1.onmessage = (event) => {
-      const message = event.data;
+    controlPort1.on("message", (message) => {
       if (options.verbose) {
         options.logger?.info(
           `[client] Received control message: ${message.type}`
@@ -82,44 +80,51 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
             );
           }
       }
-    };
+    });
 
-    // Set up data message handlers
-    dataChannel.port1.onmessage = (event) => {
-      const data = event.data;
+    // Set up data message handlers - pass Uint8Array data without mutation
+    dataPort1.on("message", (data) => {
 
       if (data === null) {
-        // End of data stream signal - but don't end the stream yet
-        // Wait for RSC_END control message to confirm stream is finished
+        // End of data stream signal - React Server Component rendering is complete
         if (options.verbose) {
-          options.logger?.info(`[client] Received end signal via dataPort`);
+          options.logger?.info(`[client] Received end signal via dataPort - completing stream`);
         }
-        // Don't call rscStream.end() here - wait for RSC_END control message
-      } else if (data && data.error) {
-        // Stream error
+        // Signal that the stream is complete so React can finish consuming
+        rscStream.end();
+      } else if (data && data.type === 'ERROR') {
+        // Stream error via data port
         if (options.verbose) {
           options.logger?.error(
             `[client] RSC stream error via dataPort: ${data.error}`
           );
         }
         rscStream.destroy(new Error(data.error));
-      } else {
-        // RSC chunk data
+      } else if (Buffer.isBuffer(data) || data instanceof Uint8Array) {
+        // RSC chunk data - pass through without mutation
         if (options.verbose) {
           options.logger?.info(
             `[client] Received RSC chunk via dataPort: ${data.length} bytes`
           );
         }
+        // Write the Uint8Array directly without conversion - keep it as raw bytes
         rscStream.write(data);
+      } else {
+        // Unknown data format - log and ignore
+        if (options.verbose) {
+          options.logger?.warn(
+            `[client] Unknown data format via dataPort: ${typeof data}`
+          );
+        }
       }
-    };
+    });
 
     // Send the render message to the worker with ports
     worker.postMessage({
       type: "INIT",
       id: requestId,
-      dataPort: dataChannel.port2,
-      controlPort: controlChannel.port2,
+      dataPort: dataPort2,
+      controlPort: controlPort2,
       options: {
         route: route,
         url: options.url || "",
@@ -161,46 +166,8 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
         css: options.css,
         build: options.build,
       },
-    }, [dataChannel.port2 as unknown as TransferListItem, controlChannel.port2 as unknown as TransferListItem]); // Transfer the ports properly
+    }, createTransferList(dataPort2, controlPort2)); // Transfer the ports properly
 
-    // Convert the RSC stream directly to a ReadableStream to avoid complex piping
-    return new ReadableStream<Uint8Array>({
-      start(controller) {
-        rscStream.on("data", (chunk: Buffer) => {
-          if (options.verbose) {
-            options.logger?.info(
-              `[client] Enqueuing RSC chunk: ${chunk.length} bytes`
-            );
-          }
-          controller.enqueue(new Uint8Array(chunk));
-        });
-
-        rscStream.on("end", () => {
-          if (options.verbose) {
-            options.logger?.info(`[client] RSC stream ended`);
-          }
-          controller.close();
-        });
-
-        rscStream.on("error", (error) => {
-          if (options.verbose) {
-            options.logger?.error(
-              `[client] RSC stream error: ${error.message}`
-            );
-          }
-          controller.error(error);
-        });
-      },
-      cancel() {
-        if (options.verbose) {
-          options.logger?.info(`[client] RSC stream cancelled`);
-        }
-        // Close the message channels
-        dataChannel.port1.close();
-        controlChannel.port1.close();
-        if (!rscStream.destroyed) {
-          rscStream.destroy();
-        }
-      },
-    });
+    // Convert Node.js Readable to Web ReadableStream as required by the function signature
+    return Readable.toWeb(rscStream) as ReadableStream<Uint8Array>;
   };

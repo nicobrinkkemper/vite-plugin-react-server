@@ -1,265 +1,204 @@
-import { PassThrough } from "node:stream";
-import { createStreamMetrics } from "../helpers/metrics.js";
-import { handleError } from "../error/handleError.js";
-import { createLogger } from "vite";
 import type { CreateRenderToPipeableStreamHandlerFn } from "./createRenderToPipeableStreamHandler.types.js";
-import { assertNonReactServer } from "../config/getCondition.js";
 import { ReactDOMServer } from "../vendor/vendor.client.js";
+import { assertNonReactServer } from "../config/getCondition.js";
 import { createFromNodeStream } from "./createFromNodeStream.client.js";
+import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
+import { handleError } from "../error/handleError.js";
+import { PassThrough } from "node:stream";
 
 assertNonReactServer();
 
 /**
- * Creates an HTML stream from React elements using ReactDOMServer.renderToPipeableStream.
+ * Client version of createRenderToPipeableStreamHandler.
  *
- * **Purpose**: Converts React elements to HTML markup for client-side rendering.
- * **When to use**:
- * - You have React elements and need to render them to HTML
- * - You're in a client environment (browser or client-side worker)
- * - You need to create HTML files or serve HTML content
- *
- * **Flow**: React Elements → HTML Stream
- *
- * @example
- * ```typescript
- * // Create HTML stream from React elements
- * const htmlHandler = createRenderToPipeableStreamHandler({
- *   route: "/about",
- *   logger: myLogger,
- *   // The handler will use createNodeStream to get React elements
- *   // from the provided options, then render them to HTML
- * });
- *
- * // Pipe to file or response
- * htmlHandler.pipe(fileStream);
- * ```
- *
- * @example
- * ```typescript
- * // Use with RSC stream to create HTML
- * const rscStream = createRscStream({ route: "/about" });
- * const htmlHandler = createRenderToPipeableStreamHandler({
- *   route: "/about",
- *   rscStream: rscStream.rscStream, // RSC stream will be converted to React elements
- * });
- * ```
- *
- * @param handlerOptions - Options for HTML stream creation
- * @returns HTML stream with pipe/abort interface
+ * Strategy: Use simple Node.js stream APIs to naturally handle RSC-to-HTML conversion.
+ * This follows the HTML worker pattern exactly - create a custom writable stream
+ * and pipe the React stream directly to it, then provide a proper stream for fileWriter.
  */
 export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHandlerFn<"client"> =
-  function _createHtmlStreamHandler(handlerOptions) {
+  function _createRenderToPipeableStreamHandler(options) {
     const {
       route,
-      logger = createLogger(),
+      logger,
       verbose = false,
-      panicThreshold = "none",
-      htmlTimeout = 15000,
-      htmlStream,
-      clientPipeableStreamOptions = {},
-    } = handlerOptions;
+      rscStream,
+      children,
+      moduleRootPath,
+      moduleBasePath,
+      moduleBaseURL,
+      clientPipeableStreamOptions,
+    } = options;
 
     if (verbose) {
-      logger.info(`[createHtmlStream:${route}] Starting HTML stream creation`);
+      logger?.info(
+        `[createRenderToPipeableStreamHandler.client:${route}] Starting RSC-to-HTML conversion using natural Node.js streams`
+      );
     }
 
-    // Create a pass through stream for enhanced handling
-    const passThrough = (htmlStream as PassThrough) || new PassThrough();
+    // Create stream metrics
     const streamMetrics = createStreamMetrics();
-    streamMetrics.startTime = performance.now();
-    const streamTimeout = setTimeout(() => {
+
+    // Get React elements - either from children or by converting RSC stream
+    let reactElements: React.ReactElement;
+    if (children) {
       if (verbose) {
-        logger.info(
-          `[createHtmlStream:${route}] Stream timeout reached, forcing completion`
+        logger?.info(
+          `[createRenderToPipeableStreamHandler.client:${route}] Using provided children directly`
         );
       }
-      if (!passThrough.destroyed) {
-        passThrough.end();
+      // Ensure children is a React element
+      if (typeof children === 'string' || typeof children === 'number' || typeof children === 'boolean') {
+        throw new Error(`[createRenderToPipeableStreamHandler.client:${route}] Children must be a React element, got: ${typeof children}`);
       }
-    }, htmlTimeout);
-    // If rscStream is provided, use it; otherwise use createNodeStream
-    if (!handlerOptions.rscStream) {
+      reactElements = children as React.ReactElement;
+    } else if (rscStream) {
+      if (verbose) {
+        logger?.info(
+          `[createRenderToPipeableStreamHandler.client:${route}] Converting RSC stream to React elements using natural Node.js streams`
+        );
+      }
+      const result = createFromNodeStream({
+        rscStream,
+        moduleRootPath,
+        moduleBasePath,
+        moduleBaseURL,
+        logger,
+        verbose,
+      });
+      reactElements = result.children;
+    } else {
       throw new Error(
-        "[createRenderToPipeableStreamHandler.client] rscStream is required"
+        `[createRenderToPipeableStreamHandler.client:${route}] Either children or rscStream is required`
       );
     }
-    
-    // For client builds, we need to convert RSC stream to React elements for HTML generation
-    if (verbose) {
-      logger.info(`[createRenderToPipeableStreamHandler.client:${route}] Converting RSC stream to React elements`);
-    }
-    
-    const result = createFromNodeStream(handlerOptions as typeof handlerOptions & { rscStream: any });
-    const children = result.children;
 
-    if (!children) {
-      throw new Error(
-        "[createRenderToPipeableStreamHandler.client] children is required"
+    if (verbose) {
+      logger?.info(
+        `[createRenderToPipeableStreamHandler.client:${route}] React elements ready, starting HTML rendering`
       );
     }
-    // Create React stream with proper error handling
-    const { pipe, abort } = ReactDOMServer.renderToPipeableStream(children, {
-      ...clientPipeableStreamOptions,
-      onAllReady: () => {
+
+    // Create the React HTML stream using ReactDOMServer.renderToPipeableStream
+    const { pipe, abort } = ReactDOMServer.renderToPipeableStream(reactElements, {
+      bootstrapScripts:
+        clientPipeableStreamOptions?.bootstrapScripts || [],
+      onShellReady() {
         if (verbose) {
-          logger.info(`[createHtmlStream:${route}] All ready`);
-        }
-        clientPipeableStreamOptions.onAllReady?.();
-      },
-      onError: (error: unknown, errorInfo?: any) => {
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream:${route}] React stream onError: ${error}`
+          logger?.info(
+            `[createRenderToPipeableStreamHandler.client:${route}] Shell ready, starting to pipe HTML`
           );
         }
-
+      },
+      onAllReady() {
+        if (verbose) {
+          logger?.info(
+            `[createRenderToPipeableStreamHandler.client:${route}] All ready, HTML rendering complete`
+          );
+        }
+      },
+      onError(error: unknown) {
+        if (verbose) {
+          logger?.error(
+            `[createRenderToPipeableStreamHandler.client:${route}] React rendering error: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+        
+        // Destroy the HTML stream with the error to prevent hanging
+        if (verbose) {
+          logger?.info(
+            `[createRenderToPipeableStreamHandler.client:${route}] Destroying HTML stream due to React error`
+          );
+        }
+        htmlStream.destroy(error instanceof Error ? error : new Error(String(error)));
+        
+        // Handle error according to panic threshold
         const panicError = handleError({
           error: error,
-          errorInfo: errorInfo,
           logger: logger,
-          panicThreshold: panicThreshold,
-          context: `HTML stream onError for route ${route}`,
+          panicThreshold: options.panicThreshold,
+          context: `RSC stream onError for route ${route}`,
         });
 
         if (panicError != null) {
-          if (verbose) {
-            logger.info(`[createHtmlStream:${route}] Panic error detected`);
-          }
-          // Emit panic error event
-          handlerOptions.onEvent?.({
+          // This is a panic threshold error, emit event to notify parent
+          options.onEvent?.({
             type: "route.error",
             data: {
               route: route,
               error: panicError,
-              isPanic: true,
             },
           });
         } else {
-          // Log non-panic errors
-          logger.error(`HTML stream error: ${error}`, {
-            error: error as Error,
-          });
-        }
-
-        clientPipeableStreamOptions.onError?.(error, errorInfo);
-      },
-      onShellReady: () => {
-        if (verbose) {
-          logger.info(`[createHtmlStream:${route}] Shell ready`);
-        }
-        clientPipeableStreamOptions.onShellReady?.();
-      },
-      onShellError: (error: unknown) => {
-        if (verbose) {
-          logger.info(`[createHtmlStream:${route}] Shell error: ${error}`);
-        }
-
-        const panicError = handleError({
-          error: error,
-          logger: logger,
-          panicThreshold: panicThreshold,
-          context: `HTML stream onShellError for route ${route}`,
-        });
-
-        if (panicError != null) {
-          handlerOptions.onEvent?.({
+          // For non-panic errors, just log and send event
+          options.onEvent?.({
             type: "route.error",
             data: {
               route: route,
-              error: panicError,
-              isPanic: true,
+              error: error,
             },
           });
         }
-
-        clientPipeableStreamOptions.onShellError?.(error);
       },
     });
 
-    // Pipe the React stream to our pass through
-    pipe(passThrough);
+    // Create a PassThrough stream that the fileWriter can consume
+    // This follows the HTML worker pattern but provides a proper stream interface
+    const htmlStream = new PassThrough();
 
-    // Set up stream event handlers for metrics collection
-    passThrough.on("data", (chunk: Buffer) => {
-      if (verbose) {
-        logger.info(
-          `[createHtmlStream:${route}] Received data chunk: ${chunk.length} bytes`
-        );
-      }
-      streamMetrics.chunks++;
-      streamMetrics.bytes += chunk.length;
-    });
-
-    passThrough.on("end", () => {
-      if (verbose) {
-        logger.info(`[createHtmlStream:${route}] Stream ended`);
-      }
-      clearTimeout(streamTimeout);
-      streamMetrics.duration = performance.now() - streamMetrics.startTime;
-      streamMetrics.endTime = performance.now();
-    });
-
-    passThrough.on("error", (error: Error) => {
-      if (verbose) {
-        logger.info(
-          `[createHtmlStream:${route}] Stream error: ${error.message}`
-        );
-      }
-      clearTimeout(streamTimeout);
-
-      const panicError = handleError({
-        error: error,
-        logger: logger,
-        panicThreshold: panicThreshold,
-        context: `HTML stream error for route ${route}`,
-      });
-
-      if (panicError != null) {
-        handlerOptions.onEvent?.({
-          type: "route.error",
-          data: {
-            route: route,
-            error: panicError,
-            isPanic: true,
-          },
-        });
-      }
-    });
-
-    // Handle backpressure
-    passThrough.on("drain", () => {
-      if (verbose) {
-        logger.info(
-          `[createHtmlStream:${route}] Stream drain - backpressure resolved`
-        );
-      }
-    });
-
-    // Track backpressure when write buffer is full
-    const originalWrite = passThrough.write.bind(passThrough);
-    passThrough.write = function (chunk: any, encoding?: any, callback?: any) {
-      const result = originalWrite(chunk, encoding, callback);
-      if (!result) {
-        streamMetrics.backpressureCount++;
-        if (verbose) {
-          logger.warn(`[createHtmlStream:${route}] Backpressure detected`);
+    // Create a custom writable stream that pipes to our PassThrough
+    // This ensures the stream is consumed to completion naturally
+    const customWritable = {
+      write(chunk: any, _encoding?: any, callback?: any) {
+        // Pipe the chunk to our PassThrough stream
+        htmlStream.write(chunk);
+        if (callback) callback();
+      },
+      end(chunk?: any, _encoding?: any, callback?: any) {
+        if (chunk) {
+          htmlStream.write(chunk);
         }
-      }
-      return result;
+        // End the PassThrough stream
+        htmlStream.end();
+        if (callback) callback();
+      },
+      destroy(error?: Error) {
+        // Destroy the PassThrough stream with the error
+        htmlStream.destroy(error);
+      },
+      on() {}, // No-op for event listeners
+      once() {}, // No-op for event listeners
+      emit() { return false; }, // No-op for event emitters
     };
 
+    // Pipe the React stream directly to our custom writable
+    // This ensures the stream is consumed to completion naturally
+    pipe(customWritable as any);
+
+    if (verbose) {
+      logger?.info(
+        `[createRenderToPipeableStreamHandler.client:${route}] React stream piped to custom writable, using natural Node.js stream handling`
+      );
+    }
+
+    // Return a result that provides a proper stream for fileWriter
     return {
       type: "client" as const,
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-        passThrough.pipe(destination);
+        // Pipe our PassThrough stream to the destination
+        htmlStream.pipe(destination);
         return destination;
       },
       abort: (reason?: unknown) => {
         abort();
-        passThrough.destroy(new Error(String(reason || "Aborted HTML stream")));
+        htmlStream.destroy(new Error(String(reason || "Aborted HTML stream")));
+        if (verbose) {
+          logger?.info(
+            `[createRenderToPipeableStreamHandler.client:${route}] HTML stream aborted: ${reason}`
+          );
+        }
       },
-      htmlStream: passThrough,
-      elements: children,
+      htmlStream: htmlStream,
+      elements: reactElements,
       metrics: streamMetrics,
     };
   };

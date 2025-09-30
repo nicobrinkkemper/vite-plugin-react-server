@@ -39,6 +39,8 @@ import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type { WorkerMessage } from "./worker/types.js";
 import type { Strategy } from "./orchestrator/createPluginOrchestrator.js";
+import type { RenderToPipeableStreamOptions as ClientRenderToPipeableStreamOptions } from "react-dom/server";
+import type { RenderToPipeableStreamOptions as ServerRenderToPipeableStreamOptions } from "react-server-dom-esm/server.node";
 
 export type OnEvent<
   Interface extends ViteReactServerComponentsPlugin = ViteReactServerComponentsPlugin
@@ -506,6 +508,7 @@ export type RouteErrorEvent = {
     };
     reason?: unknown;
     isPanic?: boolean;
+    panicThreshold?: PanicThreshold;
   };
 };
 
@@ -948,6 +951,10 @@ export type CreateHandlerOptions<
   | "htmlWorkerPath"
 > & {
   id?: string;
+  /** ID of headless stream to reuse for efficiency */
+  reuseHeadlessStreamId?: string;
+  /** Storage for headless stream reuse Map<id, { PageComponent: any, errored: boolean }> */
+  headlessStreamElements?: Map<string, { PageComponent: any; errored: boolean }>;
   signal?: AbortSignal;
   logger: Logger;
   loader: BuildModuleLoader | GenericModuleLoader;
@@ -980,6 +987,8 @@ export type CreateHandlerOptions<
   as?: Interface["As"];
   manifest: Manifest;
   staticManifest?: Manifest;
+  serverManifest?: Manifest;
+  clientManifest?: Manifest;
   worker?: Worker; // if available, is preferred worker for inverse streaming
   rscWorker?: Worker; // if rscWorker available, its used for createRscStream
   htmlWorker?: Worker; // if htmlWorker available, its used for createHtmlStream
@@ -987,8 +996,8 @@ export type CreateHandlerOptions<
   importedCss?: Set<string>;
   cssFiles: Map<string, InterfaceAwareCssContent<Interface>>;
   globalCss: Map<string, InterfaceAwareCssContent<Interface>>;
-  serverPipeableStreamOptions?: import("react-server-dom-esm/server.node").RenderToPipeableStreamOptions;
-  clientPipeableStreamOptions?: import("react-dom/server").RenderToPipeableStreamOptions;
+  serverPipeableStreamOptions?: ServerRenderToPipeableStreamOptions;
+  clientPipeableStreamOptions?: ClientRenderToPipeableStreamOptions;
   rscStream?: import("node:stream").Readable; // Optional RSC PassThrough stream to use instead of creating a new one
   htmlStream?: import("node:stream").Readable; // Optional HTML PassThrough stream to use instead of creating a new one
   metrics?: import("./metrics/types.js").StreamMetrics; // Optional metrics to use instead of creating new ones
@@ -1002,6 +1011,7 @@ export type CreateHandlerOptions<
     | "rscOutputPath"
     | "htmlOutputPath"
     | "assetsDir"
+    | "preserveModulesRoot"
   >;
   dev: Pick<ResolvedUserOptions["dev"], "useHtmlWorker" | "useRscWorker">;
   children?: React.ReactNode;
@@ -1406,7 +1416,8 @@ export type FlightConfig = {
 export type VitePluginMainFn = <
   Opt extends StreamPluginOptions<any> = StreamPluginOptions<any>
 >(
-  options: Opt
+  options: Opt,
+  strategy?: Strategy
 ) => Plugin<Opt>[];
 
 export type VitePluginMainAsyncFn = <

@@ -15,6 +15,8 @@ import { inspect } from "node:util";
  */
 export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
   const events: PluginEvent[] = [];
+  const metrics: any[] = [];
+  
   // check directory
   const options = {
     ...testUserOptions,
@@ -25,11 +27,22 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
         inspect(event.type, { colors: true, depth: 0 })
       );
       if (event.type === "route.error") {
-        console.trace("Tests error for route", event.data.route, event.data.error);
+        console.info("Test error for route: " + event.data.route);
+        console.error(event.data.error);
       }
       events.push(event);
       if (optionOverrides?.onEvent) {
         optionOverrides.onEvent(event);
+      }
+    },
+    onMetrics: (metric: any) => {
+      metrics.push(metric);
+      // Call the metricWatcher from testUserOptions
+      if (testUserOptions.onMetrics) {
+        testUserOptions.onMetrics(metric);
+      }
+      if (optionOverrides?.onMetrics) {
+        optionOverrides.onMetrics(metric);
       }
     },
     build: {
@@ -47,7 +60,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     // Use the Environment API with createBuilder to get full control
     // The environment configuration is now handled by the createEnvironmentPlugin
     const builder = await createBuilder({
-      plugins: [vitePluginReactServer(options)],
+      plugins: vitePluginReactServer(options),
       mode: "test",
       root: options.projectRoot,
     });
@@ -55,11 +68,11 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     // Manually call buildApp() to build all environments
     // Debug logging removed for performance
     await builder.buildApp();
-    process.chdir(originalCwd);
-  } catch (error) {
+  } catch(error){
     process.chdir(originalCwd);
     throw error;
   }
+  process.chdir(originalCwd);
 
-  return events;
+  return { events, metrics };
 }

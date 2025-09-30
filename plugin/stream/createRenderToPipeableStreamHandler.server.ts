@@ -68,13 +68,31 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       // CSS options
       cssFiles = new Map(),
       globalCss = new Map(),
+      // Stream reuse options
+      reuseHeadlessStreamId,
+      headlessStreamElements,
     } = handlerOptions;
+
+    // Type assertion for headlessStreamElements
+    const streamElements = headlessStreamElements as Map<string, { PageComponent: any; errored: boolean }> | undefined;
 
     if (verbose) {
       logger?.info(`[createRscStream:${route}] Starting RSC stream creation`);
     }
 
     try {
+      // Check if we should reuse a Page component from a headless stream
+      let finalPageComponent = PageComponent;
+      if (reuseHeadlessStreamId && streamElements?.has(reuseHeadlessStreamId)) {
+        const reusableData = streamElements.get(reuseHeadlessStreamId);
+        if (reusableData && !reusableData.errored) {
+          finalPageComponent = reusableData.PageComponent;
+          if (verbose) {
+            logger?.info(`[createRscStream:${route}] Reusing Page component from headless stream ${reuseHeadlessStreamId}`);
+          }
+        }
+      }
+
       // Create React element from components and props
       const children =
         "children" in handlerOptions
@@ -85,7 +103,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
               moduleBase: handlerOptions.moduleBase || "",
               manifest: handlerOptions.manifest || {},
               projectRoot: handlerOptions.projectRoot || process.cwd(),
-              PageComponent: PageComponent || React.Fragment,
+              PageComponent: finalPageComponent || React.Fragment,
               RootComponent: RootComponent || React.Fragment,
               HtmlComponent: HtmlComponent || React.Fragment,
               pageProps,
@@ -126,6 +144,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
                 route: route,
                 error: panicError,
                 isPanic: true,
+                panicThreshold: panicThreshold,
               },
             });
           } else {
@@ -139,6 +158,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
             });
           }
 
+          // Call the original onError handler if it exists
           serverPipeableStreamOptions.onError?.(error);
         },
         onShellError(error: unknown) {
@@ -164,6 +184,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
                 route: route,
                 error: panicError,
                 isPanic: true,
+                panicThreshold: panicThreshold,
               },
             });
           } else {

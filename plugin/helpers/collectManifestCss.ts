@@ -13,13 +13,32 @@ export function collectManifestCss(
   // Convert startFile to array and ensure we have valid file paths
   const toVisit = Array.isArray(startFile) ? startFile : [startFile];
 
+  // Helper function to find manifest entry by file property
+  const findManifestEntryByFile = (filePath: string) => {
+    for (const [key, value] of Object.entries(manifest)) {
+      if (value && typeof value === 'object' && 'file' in value && value.file === filePath) {
+        return { key, value };
+      }
+    }
+    return null;
+  };
   
   while (toVisit.length > 0) {
     const currentFile = toVisit.pop()!;
     if (visited.has(currentFile)) continue;
     visited.add(currentFile);
     
-    const fileInfo = manifest[currentFile];
+    // First try to find by key (for direct matches)
+    let fileInfo = manifest[currentFile];
+    
+    // If not found by key, try to find by file property
+    if (!fileInfo) {
+      const found = findManifestEntryByFile(currentFile);
+      if (found) {
+        fileInfo = found.value;
+      }
+    }
+    
     if (!fileInfo) {
       continue;
     }
@@ -42,10 +61,10 @@ export function collectManifestCss(
         // Add the import to visit
         toVisit.push(importPath);
         
-        // Check if the imported file has CSS
-        const importedFile = manifest[importPath];
-        if (importedFile?.css) {
-          for (const cssFile of importedFile.css) {
+        // Check if the imported file has CSS by finding it in the manifest
+        const importedEntry = findManifestEntryByFile(importPath);
+        if (importedEntry?.value.css) {
+          for (const cssFile of importedEntry.value.css) {
             cssInputs[cssFile] = cssFile;
           }
         }

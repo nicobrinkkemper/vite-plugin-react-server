@@ -274,7 +274,7 @@ try {
     type: "READY",
     env: process.env["NODE_ENV"],
     pid: process.pid,
-    id: "rsc-worker",
+    id: "worker/rsc",
   } satisfies ReadyMessage);
 
   if (process.env["NODE_ENV"] === "production") {
@@ -291,7 +291,7 @@ try {
   if (parentPort && handledError != null) {
     sendMessage({
       type: "ERROR",
-      id: "rsc-worker",
+      id: "worker/rsc",
       error: handledError,
     }, parentPort);
   }

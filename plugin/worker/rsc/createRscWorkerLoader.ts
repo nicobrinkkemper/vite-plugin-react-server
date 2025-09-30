@@ -18,7 +18,7 @@ export const createRscWorkerLoader = ({
   }),
   projectRoot,
   build,
-  clientPattern,
+  manifest,
 }: {
   verbose?: boolean;
   logger?: Logger;
@@ -30,10 +30,12 @@ export const createRscWorkerLoader = ({
     outDir?: string;
   };
   manifest?: Record<string, any>;
-  bundle?: Record<string, any>;
-  hmrState?: any;
-  clientPattern?: RegExp;
 } = {}): GenericModuleLoader => {
+  // Debug log the build config
+  if (verbose) {
+    logger.info(`[createRscWorkerLoader] build config: ${JSON.stringify(build)}`);
+  }
+  
   // Determine projectRoot based on configEnv if not provided
   // In dev mode, configEnv.command should be "serve", but if it's undefined,
   // we can detect dev mode by checking if we're in a dev server environment
@@ -42,6 +44,16 @@ export const createRscWorkerLoader = ({
   const effectiveProjectRoot =
     projectRoot || workerData.userOptions?.projectRoot || process.cwd();
 
+  // Log build config for debugging
+  if (verbose) {
+    logger.info(
+      `[createRscWorkerLoader] build config: ${JSON.stringify(build)}`
+    );
+    logger.info(
+      `[createRscWorkerLoader] manifest: ${JSON.stringify(manifest)}`
+    );
+  }
+  
   if (verbose) {
     logger.info(
       `[createRscWorkerLoader] configEnv: ${JSON.stringify(
@@ -59,9 +71,6 @@ export const createRscWorkerLoader = ({
     logger.info(`[createRscWorkerLoader] NODE_ENV: ${process.env.NODE_ENV}`);
     logger.info(`[createRscWorkerLoader] isServeMode: ${isServeMode}`);
     logger.info(`[createRscWorkerLoader] projectRoot: ${effectiveProjectRoot}`);
-    logger.info(
-      `[createRscWorkerLoader] build config: ${JSON.stringify(build)}`
-    );
   }
 
   // Simple GenericModuleLoader following the same pattern as main thread server
@@ -73,7 +82,7 @@ export const createRscWorkerLoader = ({
     const [moduleID, exportName] = id.split("#");
 
     // In dev mode (serve mode), load directly from source files
-    // In build mode, determine the correct build directory based on module type
+    // In build mode, use bundle information to resolve source paths to built paths
     let resolvedModuleID = moduleID;
     if (isServeMode) {
       // Dev mode: load directly from source files, no build path prefixing
@@ -83,7 +92,78 @@ export const createRscWorkerLoader = ({
         );
       }
     } else if (build && isBuildMode) {
-      // Check if the moduleID already contains a build directory path
+      // Build mode: try to resolve source path using manifest first, then bundle information
+      let resolvedEntry = null;
+      
+      // First try manifest - try direct key lookup first, then search by file field
+      if (manifest) {
+        if (verbose) {
+          logger.info(`[RSC Worker Loader] Searching manifest for moduleID: ${moduleID}`);
+        }
+        
+        // Try direct key lookup first (in case manifest is keyed by built paths)
+        if (manifest[moduleID]) {
+          resolvedEntry = manifest[moduleID];
+          if (verbose) {
+            logger.info(
+              `[RSC Worker Loader] Build mode: found manifest entry for ${moduleID} via direct key: ${JSON.stringify(resolvedEntry)}`
+            );
+          }
+        } else {
+          // Search manifest entries for one where file matches moduleID
+          for (const [sourcePath, entry] of Object.entries(manifest)) {
+            if (entry && typeof entry === 'object' && 'file' in entry && entry.file === moduleID) {
+              resolvedEntry = entry;
+              if (verbose) {
+                logger.info(
+                  `[RSC Worker Loader] Build mode: found manifest entry for ${moduleID} via source path ${sourcePath}: ${JSON.stringify(resolvedEntry)}`
+                );
+              }
+              break;
+            }
+          }
+          
+          if (!resolvedEntry && verbose) {
+            logger.info(`[RSC Worker Loader] No manifest entry found for ${moduleID}, will fall back to build directory logic`);
+          }
+        }
+      }
+      
+      // Fall back to bundle if no manifest entry
+      if (!resolvedEntry) {
+        const bundle = workerData.bundle || {};
+        resolvedEntry = bundle[moduleID];
+        if (verbose && resolvedEntry) {
+          logger.info(
+            `[RSC Worker Loader] Build mode: found bundle entry for ${moduleID}: ${JSON.stringify(resolvedEntry)}`
+          );
+        }
+      }
+      
+      // Set the base module ID from manifest/bundle or use original
+      if (resolvedEntry && resolvedEntry.file) {
+        // Found entry, use the built file path
+        resolvedModuleID = resolvedEntry.file;
+        if (verbose) {
+          logger.info(
+            `[RSC Worker Loader] Build mode: found manifest/bundle entry, using file path: ${resolvedModuleID}`
+          );
+        }
+        
+        // For manifest entries, fall through to normal path construction
+        // The manifest lookup is working, so we'll rely on the normal path construction
+      } else {
+        // No manifest/bundle entry found, use original moduleID
+        resolvedModuleID = moduleID;
+        if (verbose) {
+          logger.info(
+            `[RSC Worker Loader] Build mode: no manifest/bundle entry found, using original: ${moduleID}`
+          );
+        }
+      }
+      
+      // Now construct the full path with build directory
+      // Check if the resolvedModuleID already contains a build directory path
       const buildDirs = [
         build.outDir || "dist",
         build.client || "client",
@@ -91,48 +171,28 @@ export const createRscWorkerLoader = ({
         build.static || "static",
       ];
       const alreadyHasBuildPath = buildDirs.some((dir) =>
-        moduleID.includes(dir)
+        resolvedModuleID.startsWith(dir + "/") || resolvedModuleID.startsWith(dir + "\\")
       );
+      
 
       if (alreadyHasBuildPath) {
         // Path already contains build directory, don't add another prefix
         if (verbose) {
           logger.info(
-            `[RSC Worker Loader] Build mode: path already contains build directory, using as-is: ${moduleID}`
+            `[RSC Worker Loader] Build mode: path already contains build directory, using as-is: ${resolvedModuleID}`
           );
         }
-        resolvedModuleID = moduleID;
       } else {
-        // Build mode: determine the correct build directory based on module type
-        // Check if this is a client component using the configured pattern
-        const isClientComponent = clientPattern
-          ? clientPattern.test(moduleID)
-          : false;
-
-        if (isClientComponent) {
-          // Client components should be loaded from the static build (browser files)
-          const staticBuildPath = join(
-            build.outDir || "dist",
-            build.static || "static"
+        // Build mode: always use server build directory since we're in RSC worker (server environment)
+        const serverBuildPath = join(
+          build.outDir || "dist",
+          build.server || "server"
+        );
+        resolvedModuleID = join(serverBuildPath, moduleID);
+        if (verbose) {
+          logger.info(
+            `[RSC Worker Loader] Build mode: RSC worker environment, prefixing with ${serverBuildPath}`
           );
-          resolvedModuleID = join(staticBuildPath, moduleID);
-          if (verbose) {
-            logger.info(
-              `[RSC Worker Loader] Build mode: client component, prefixing with ${staticBuildPath}`
-            );
-          }
-        } else {
-          // Server components/pages/props should be loaded from the server build
-          const serverBuildPath = join(
-            build.outDir || "dist",
-            build.server || "server"
-          );
-          resolvedModuleID = join(serverBuildPath, moduleID);
-          if (verbose) {
-            logger.info(
-              `[RSC Worker Loader] Build mode: server component, prefixing with ${serverBuildPath}`
-            );
-          }
         }
       }
     }

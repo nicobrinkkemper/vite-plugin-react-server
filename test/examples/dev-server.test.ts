@@ -22,7 +22,7 @@ describe("Dev Server", () => {
 
     server = await createClientDevServer({
       projectRoot: testDir,
-      verbose: true,
+      verbose: false,
     }, port);
     port = server.config.server.port;
     pageURL = `http://localhost:${port}/index.rsc`;

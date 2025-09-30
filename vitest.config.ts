@@ -5,8 +5,9 @@ export default defineConfig({
   mode: "development",
   test: {
     globals: true,
-    hookTimeout: 30000,
-    testTimeout: 30000, // Increase test timeout to 30 seconds
+    // hookTimeout: 10000, // builds are done in beforeAll hooks
+    //testTimeout: 15000, // Doesn't have to be as long as the hook timeout
+    // If you have an old/slow machine simply increase the hookTimeout and testTimeout
     environment: "node",
     setupFiles: ["./test/setup.ts"],
     // Let worker processes inherit Node.js conditions from parent process
