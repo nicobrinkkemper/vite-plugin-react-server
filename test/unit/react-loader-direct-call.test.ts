@@ -8,7 +8,7 @@ import { load as load2 } from "vite-plugin-react-server/loader";
 describe("React Loader Direct Call Tests (Unit)", () => {
   test("should transform re-exports directly using React's load function", async () => {
     // Create test files content
-    const originalActionsContent = \`
+    const originalActionsContent = `
 "use server";
 
 export async function addTodo(formData) {
@@ -21,13 +21,13 @@ export async function deleteTodo(id) {
   console.log("Deleting todo:", id);
   return { success: true, id };
 }
-\`;
+`;
 
-    const reexportActionsContent = \`
+    const reexportActionsContent = `
 "use server";
 
 export { addTodo, deleteTodo } from "./original-actions.js";
-\`;
+`;
 
     // Test direct call to React's loader
     const originalResult = await load(
@@ -45,7 +45,7 @@ export { addTodo, deleteTodo } from "./original-actions.js";
             source: originalActionsContent,
           };
         }
-        throw new Error(\`Unexpected URL: \${url}\`);
+        throw new Error(`Unexpected URL: ${url}`);
       }
     );
 
@@ -59,11 +59,11 @@ export { addTodo, deleteTodo } from "./original-actions.js";
   });
 
   test("should handle re-exports correctly", async () => {
-    const reexportActionsContent = \`
+    const reexportActionsContent = `
 "use server";
 
 export { addTodo, deleteTodo } from "./original-actions.js";
-\`;
+`;
 
     // Test re-export handling
     const reexportResult = await load(
@@ -80,7 +80,7 @@ export { addTodo, deleteTodo } from "./original-actions.js";
             source: reexportActionsContent,
           };
         }
-        throw new Error(\`Unexpected URL: \${url}\`);
+        throw new Error(`Unexpected URL: ${url}`);
       }
     );
 
@@ -95,13 +95,13 @@ export { addTodo, deleteTodo } from "./original-actions.js";
 
   test("should handle our plugin loader", async () => {
     // Test our plugin's loader function
-    const testContent = \`
+    const testContent = `
 "use server";
 
 export async function testAction() {
   return { test: true };
 }
-\`;
+`;
 
     try {
       const result = await load2(
@@ -135,7 +135,7 @@ export async function testAction() {
   });
 
   test("should maintain proper function signatures after transformation", async () => {
-    const functionsContent = \`
+    const functionsContent = `
 "use server";
 
 export async function multiParamAction(param1, param2, formData) {
@@ -146,7 +146,7 @@ export async function multiParamAction(param1, param2, formData) {
 export async function simpleAction() {
   return { simple: true };
 }
-\`;
+`;
 
     const result = await load(
       "file:///test/functions.js",
