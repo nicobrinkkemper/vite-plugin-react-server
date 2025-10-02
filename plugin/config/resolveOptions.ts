@@ -476,13 +476,50 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // File naming functions - defined as regular functions to avoid closure issues
   function entryFile(n: PreRenderedChunk, ssr: boolean, sourceContent?: string): string {
     const normalizedName = normalizer(n.name)[0];
-    const outputPath = getOutputPath(normalizedName);
+    let outputPath = getOutputPath(normalizedName);
+    
+    // When preserveModulesRoot is true, preserve the src/ prefix in output paths
+    if (preserveModulesRoot && n.name.startsWith("src/")) {
+      // If the normalized name doesn't have src/, add it back
+      if (!outputPath.startsWith("src/")) {
+        // Handle the case where outputPath starts with a slash
+        if (outputPath.startsWith("/")) {
+          outputPath = "src" + outputPath;
+        } else {
+          outputPath = "src/" + outputPath;
+        }
+        if (options.verbose) {
+          console.log(`[DEBUG] entryFile preserving src/ prefix:`, {
+            originalName: n.name,
+            normalizedName,
+            originalOutputPath: getOutputPath(normalizedName),
+            newOutputPath: outputPath,
+            preserveModulesRoot
+          });
+        }
+      }
+    }
+    
     return hash(outputPath, ssr, sourceContent);
   }
 
   function chunkFile(n: PreRenderedChunk, ssr: boolean, sourceContent?: string): string {
     const normalizedName = normalizer(n.name)[0];
-    const outputPath = getOutputPath(normalizedName);
+    let outputPath = getOutputPath(normalizedName);
+    
+    // When preserveModulesRoot is true, preserve the src/ prefix in output paths
+    if (preserveModulesRoot && n.name.startsWith("src/")) {
+      // If the normalized name doesn't have src/, add it back
+      if (!outputPath.startsWith("src/")) {
+        // Handle the case where outputPath starts with a slash
+        if (outputPath.startsWith("/")) {
+          outputPath = "src" + outputPath;
+        } else {
+          outputPath = "src/" + outputPath;
+        }
+      }
+    }
+    
     return hash(outputPath, ssr, sourceContent);
   }
 

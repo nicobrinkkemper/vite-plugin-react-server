@@ -1,0 +1,17 @@
+
+> vite-plugin-react-server@1.2.0-alpha.2 pretest:client
+> npm run build
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 build
+> npm run clean && npm run build:types && npm run build:vite
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 clean
+> rm -rf dist
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 build:types
+> tsc --build --force
+
+plugin/config/resolveUserConfig.ts(229,9): error TS2448: Block-scoped variable 'preserveModulesRootString' used before its declaration.

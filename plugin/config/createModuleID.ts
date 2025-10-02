@@ -33,7 +33,18 @@ export const createDefaultModuleID = (
   const isBuild = configEnv?.command === "build";
   const isProd = mode === "production" || isBuild;
   const removeModuleBase =
-    isProd || isBuild || options.build.preserveModulesRoot;
+    (isProd || isBuild) && !options.build.preserveModulesRoot;
+  
+  // Debug logging
+  if (options.build.preserveModulesRoot !== undefined) {
+    console.log("[DEBUG] createModuleID config:", {
+      preserveModulesRoot: options.build.preserveModulesRoot,
+      isProd,
+      isBuild,
+      removeModuleBase,
+      moduleBase
+    });
+  }
 
   // Hash configuration
   const hashOption = build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
@@ -129,6 +140,15 @@ export const createDefaultModuleID = (
   return (id: string, sourceContent?: string) => {
     // console.log(`[createDefaultModuleID] Called with id: ${id}, configEnv: ${configEnv?.command}, mode: ${mode}`);
     
+    // Debug logging for preserveModulesRoot
+    if (options.build.preserveModulesRoot !== undefined && id.includes('.client')) {
+      console.log("[DEBUG] moduleID input:", {
+        id,
+        preserveModulesRoot: options.build.preserveModulesRoot,
+        removeModuleBase
+      });
+    }
+    
     // For transformer usage (when we're in build mode and processing server components),
     // we want to strip build directory prefixes to get relative paths
     // This ensures the RSC stream contains paths that can be resolved by the HTML transform
@@ -165,9 +185,19 @@ export const createDefaultModuleID = (
         }
         
         // Step 2: Apply extension mapping for build
+        const beforeExtension = transformedId;
         transformedId = replaceExtension(transformedId, {
           build: { extensionMap: build.extensionMap },
         });
+        
+        // Debug logging
+        if (options.build.preserveModulesRoot !== undefined && beforeExtension !== transformedId) {
+          console.log("[DEBUG] replaceExtension:", {
+            before: beforeExtension,
+            after: transformedId,
+            extensionMap: build.extensionMap
+          });
+        }
         
         // Step 3: Apply hashing for client components
         transformedId = hash(transformedId, false, sourceContent);
@@ -233,10 +263,29 @@ export const createDefaultModuleID = (
     
     // Don't add leading slash for relative paths - this causes module resolution issues
     if (moduleBasePath === '') {
+      // Debug logging for preserveModulesRoot
+      if (options.build.preserveModulesRoot !== undefined && id.includes('.client')) {
+        console.log("[DEBUG] moduleID output (no moduleBasePath):", {
+          id,
+          hasNullBytes: id.includes('\x00')
+        });
+      }
       return id; // Return as-is without leading slash
     }
     
-    return `${moduleBasePath}${id}`;
+    const result = `${moduleBasePath}${id}`;
+    
+    // Debug logging for preserveModulesRoot
+    if (options.build.preserveModulesRoot !== undefined && id.includes('.client')) {
+      console.log("[DEBUG] moduleID output (with moduleBasePath):", {
+        id,
+        moduleBasePath,
+        result,
+        hasNullBytes: result.includes('\x00')
+      });
+    }
+    
+    return result;
   };
 };
 

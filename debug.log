@@ -1,0 +1,1589 @@
+
+> vite-plugin-react-server@1.2.0-alpha.2 pretest:client
+> npm run build
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 build
+> npm run clean && npm run build:types && npm run build:vite
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 clean
+> rm -rf dist
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 build:types
+> tsc --build --force
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 build:vite
+> vite build && chmod +x bin/patch.mjs
+
+vite v6.3.5 building SSR bundle for production...
+transforming...
+✓ 211 modules transformed.
+rendering chunks...
+dist/plugin/utils/env.js                                            0.32 kB │ map:  0.10 kB
+dist/plugin/vendor/index.js                                         0.33 kB │ map:  0.09 kB
+dist/plugin/worker/index.js                                         0.35 kB │ map:  0.09 kB
+dist/plugin/orchestrator/plugin.js                                  0.35 kB │ map:  0.10 kB
+dist/plugin/components/index.js                                     0.38 kB │ map:  0.10 kB
+dist/client.js                                                      0.54 kB │ map:  0.10 kB
+dist/server.js                                                      0.57 kB │ map:  0.10 kB
+dist/plugin/error/index.js                                          0.60 kB │ map:  0.10 kB
+dist/plugin/dev-server/index.server.js                              0.65 kB │ map:  0.11 kB
+dist/plugin/dev-server/index.client.js                              0.65 kB │ map:  0.11 kB
+dist/plugin/metrics/index.js                                        0.67 kB │ map:  0.10 kB
+dist/plugin/loader/index.js                                         0.70 kB │ map:  0.10 kB
+dist/plugin/stream/server.js                                        0.72 kB │ map:  0.10 kB
+dist/plugin/stream/client.js                                        0.72 kB │ map:  0.10 kB
+dist/plugin/utils/index.js                                          0.73 kB │ map:  0.10 kB
+dist/static.js                                                      0.78 kB │ map:  0.10 kB
+dist/plugin/utils/callServer.js                                     0.82 kB │ map:  0.37 kB
+dist/plugin/worker/rsc/index.js                                     0.82 kB │ map:  0.41 kB
+dist/plugin/error/assertPanic.js                                    0.87 kB │ map:  0.43 kB
+dist/_virtual/dynamic-import-helper.js                              0.91 kB │ map:  0.13 kB
+dist/plugin/transformer/plugin.js                                   1.06 kB │ map:  0.43 kB
+dist/plugin/worker/html/index.js                                    1.21 kB │ map:  0.54 kB
+dist/plugin/helpers/validateRscRenderMessage.js                     1.29 kB │ map:  0.73 kB
+dist/plugin/helpers/workerManager.js                                1.29 kB │ map:  0.70 kB
+dist/plugin/react-server/plugin.js                                  1.33 kB │ map:  0.70 kB
+dist/plugin/stream/createRscStream.js                               1.36 kB │ map:  0.70 kB
+dist/plugin/helpers/moduleRefs.js                                   1.37 kB │ map:  0.72 kB
+dist/plugin/dev-server/handleServerAction.js                        1.40 kB │ map:  0.72 kB
+dist/plugin/dev-server/configureReactServer.js                      1.42 kB │ map:  0.73 kB
+dist/plugin/react-client/index.js                                   1.47 kB │ map:  0.78 kB
+dist/plugin/stream/handleRscStream.js                               1.52 kB │ map:  0.82 kB
+dist/plugin/loader/directives/index.js                              1.52 kB │ map:  0.11 kB
+dist/plugin/config/interpolatePattern.js                            1.53 kB │ map:  0.90 kB
+dist/plugin/error/serializeErrorInfo.js                             1.56 kB │ map:  0.85 kB
+dist/plugin/vendor/vendor.js                                        1.58 kB │ map:  0.85 kB
+dist/plugin/root.js                                                 1.59 kB │ map:  0.82 kB
+dist/plugin/dev-server/handleServerAction.server.js                 1.59 kB │ map:  0.79 kB
+dist/plugin/config/getPaths.js                                      1.65 kB │ map:  0.86 kB
+dist/plugin/loader/removeDirectives.js                              1.68 kB │ map:  0.91 kB
+dist/plugin/dev-server/cleanupServerAction.server.js                1.77 kB │ map:  1.02 kB
+dist/plugin/helpers/resolveStreamElements.js                        1.78 kB │ map:  0.99 kB
+dist/plugin/vendor/vendor.server.js                                 1.83 kB │ map:  0.98 kB
+dist/plugin/vendor/vendor.static.js                                 1.83 kB │ map:  0.98 kB
+dist/plugin/react-server/index.js                                   1.85 kB │ map:  1.01 kB
+dist/plugin/helpers/logRenderStart.js                               1.87 kB │ map:  1.14 kB
+dist/plugin/error/shouldPanic.js                                    1.88 kB │ map:  1.00 kB
+dist/plugin/config/getNodeEnv.js                                    1.89 kB │ map:  1.07 kB
+dist/plugin/components/root.js                                      1.99 kB │ map:  1.07 kB
+dist/plugin/loader/removeRanges.js                                  2.04 kB │ map:  1.16 kB
+dist/plugin/loader/transformWithAcornLoose.js                       2.11 kB │ map:  1.25 kB
+dist/index.js                                                       2.16 kB │ map:  1.18 kB
+dist/plugin/components/html.js                                      2.19 kB │ map:  1.15 kB
+dist/plugin/vendor/vendor.client.js                                 2.21 kB │ map:  1.14 kB
+dist/plugin/react-static/index.js                                   2.27 kB │ map:  1.29 kB
+dist/plugin/dev-server/index.js                                     2.30 kB │ map:  1.26 kB
+dist/plugin/helpers/resolveRenderUrl.js                             2.32 kB │ map:  1.32 kB
+dist/plugin/helpers/resolveWithDefaultRootAndHtml.js                2.36 kB │ map:  1.42 kB
+dist/plugin/helpers/handleServerAction.js                           2.38 kB │ map:  1.19 kB
+dist/plugin/helpers/hydrateUserOptions.js                           2.38 kB │ map:  1.37 kB
+dist/plugin/orchestrator/createPluginOrchestrator.js                2.45 kB │ map:  1.46 kB
+dist/plugin/loader/directives/getExports.js                         2.54 kB │ map:  1.39 kB
+dist/plugin/metrics/createModuleResolutionMetrics.js                2.55 kB │ map:  1.41 kB
+dist/plugin/error/panicThresholdHandler.js                          2.61 kB │ map:  1.70 kB
+dist/plugin/config/index.js                                         2.68 kB │ map:  0.12 kB
+dist/plugin/metrics/createStreamMetrics.js                          2.70 kB │ map:  1.46 kB
+dist/plugin/config/autoDiscover/customWorkerFiles.js                2.76 kB │ map:  1.55 kB
+dist/plugin/loader/directives/collectExportsFromModule.js           2.80 kB │ map:  1.53 kB
+dist/plugin/config/resolveDirectiveMatcher.js                       2.82 kB │ map:  1.75 kB
+dist/plugin/helpers/stashReturnValue.js                             2.87 kB │ map:  1.57 kB
+dist/plugin/utils/createCallServer.js                               2.87 kB │ map:  1.51 kB
+dist/plugin/metrics/convertStreamMetrics.js                         2.92 kB │ map:  1.57 kB
+dist/plugin/stream/createFromNodeStream.server.js                   2.95 kB │ map:  1.63 kB
+dist/plugin/config/resolvePatternWithValues.js                      2.98 kB │ map:  1.88 kB
+dist/plugin/utils/createReactFetcher.js                             3.05 kB │ map:  1.60 kB
+dist/plugin/config/autoDiscover/pageAndPropFiles.js                 3.13 kB │ map:  1.86 kB
+dist/plugin/utils/routeToURL.js                                     3.16 kB │ map:  1.83 kB
+dist/plugin/stream/createMessageChannels.js                         3.23 kB │ map:  1.88 kB
+dist/plugin/stream/createRscStream.client.js                        3.48 kB │ map:  2.26 kB
+dist/plugin/config/autoDiscover/createGlobAutoDiscover.js           3.60 kB │ map:  2.02 kB
+dist/plugin/metrics/collectStreamMetrics.js                         3.62 kB │ map:  2.02 kB
+dist/plugin/loader/directives/utils.js                              3.64 kB │ map:  2.01 kB
+dist/plugin/config/createHandlerOptions.js                          3.69 kB │ map:  2.43 kB
+dist/plugin/loader/directives/getFunctionBody.js                    3.72 kB │ map:  2.01 kB
+dist/plugin/components/css.js                                       3.73 kB │ map:  2.10 kB
+dist/plugin/dev-server/cleanupServerAction.client.js                3.73 kB │ map:  2.17 kB
+dist/plugin/error/enhanceError.js                                   3.89 kB │ map:  2.19 kB
+dist/plugin/metrics/createRenderMetrics.js                          3.98 kB │ map:  2.17 kB
+dist/plugin/plugin.client.js                                        4.02 kB │ map:  2.30 kB
+dist/plugin/metrics/formatMetrics.js                                4.03 kB │ map:  2.22 kB
+dist/plugin/dev-server/configureRequestHandler.server.js            4.11 kB │ map:  2.25 kB
+dist/plugin/config/resolvePages.js                                  4.15 kB │ map:  2.32 kB
+dist/plugin/worker/rsc/workerUserOptions.js                         4.40 kB │ map:  2.47 kB
+dist/plugin/helpers/tryManifest.js                                  4.41 kB │ map:  2.59 kB
+dist/plugin/dev-server/configureReactServer.client.js               4.50 kB │ map:  2.51 kB
+dist/plugin/loader/transformModuleIfNeeded.js                       4.57 kB │ map:  2.99 kB
+dist/plugin/plugin.server.js                                        4.66 kB │ map:  2.64 kB
+dist/plugin/error/serializeError.js                                 4.72 kB │ map:  2.63 kB
+dist/plugin/helpers/requestToRoute.js                               4.80 kB │ map:  2.68 kB
+dist/plugin/config/resolveAllowedDirectives.js                      4.90 kB │ map:  2.94 kB
+dist/plugin/loader/parse.js                                         5.20 kB │ map:  2.87 kB
+dist/plugin/worker/sendMessage.js                                   5.32 kB │ map:  2.89 kB
+dist/plugin/loader/directives/findDirectiveMatches.js               5.34 kB │ map:  3.07 kB
+dist/plugin/stream/createHtmlStream.client.js                       5.60 kB │ map:  3.01 kB
+dist/plugin/env/getEnvKey.js                                        5.82 kB │ map:  3.67 kB
+dist/plugin/error/setupGlobalErrorHandler.js                        5.86 kB │ map:  3.29 kB
+dist/plugin/error/handleError.js                                    6.05 kB │ map:  3.39 kB
+dist/plugin/dev-server/plugin.server.js                             6.06 kB │ map:  3.23 kB
+dist/plugin/config/stashedOptionsState.js                           6.06 kB │ map:  3.96 kB
+dist/plugin/helpers/index.js                                        6.11 kB │ map:  2.48 kB
+dist/plugin/loader/directives/getFunctionName.js                    6.27 kB │ map:  3.63 kB
+dist/plugin/config/extMap.js                                        6.35 kB │ map:  3.62 kB
+dist/plugin/loader/directives/addLocalExportedNames.js              6.38 kB │ map:  3.60 kB
+dist/plugin/env/plugin.js                                           6.42 kB │ map:  3.48 kB
+dist/plugin/loader/directives/analyzeModule.js                      6.45 kB │ map:  3.59 kB
+dist/plugin/config/parsePattern.js                                  6.62 kB │ map:  4.34 kB
+dist/plugin/helpers/collectManifestCss.js                           6.67 kB │ map:  3.81 kB
+dist/plugin/helpers/pipeToResponse.js                               6.80 kB │ map:  3.90 kB
+dist/plugin/helpers/moduleResolver.js                               6.91 kB │ map:  3.92 kB
+dist/plugin/config/resolveRegExp.js                                 7.01 kB │ map:  4.42 kB
+dist/plugin/stream/MessagePortWritable.js                           7.28 kB │ map:  4.36 kB
+dist/plugin/error/logError.js                                       7.63 kB │ map:  4.33 kB
+dist/plugin/stream/index.js                                         7.67 kB │ map:  5.09 kB
+dist/plugin/dev-server/plugin.client.js                             7.78 kB │ map:  4.16 kB
+dist/plugin/helpers/createPatternMatcher.js                         7.81 kB │ map:  4.65 kB
+dist/plugin/helpers/resolvePage.js                                  7.93 kB │ map:  4.68 kB
+dist/plugin/stream/handleRscStream.server.js                        8.06 kB │ map:  4.47 kB
+dist/plugin/stream/createFromNodeStream.client.js                   8.84 kB │ map:  4.90 kB
+dist/plugin/config/mimeTypes.js                                     8.85 kB │ map:  4.72 kB
+dist/plugin/dev-server/handleServerAction.client.js                 8.89 kB │ map:  5.01 kB
+dist/plugin/loader/directives/getQualifiedName.js                   9.13 kB │ map:  5.02 kB
+dist/plugin/loader/directives/getExportedName.js                    9.22 kB │ map:  5.29 kB
+dist/plugin/worker/rsc/state.js                                     9.45 kB │ map:  5.40 kB
+dist/plugin/helpers/createElementWithReact.js                       9.56 kB │ map:  5.41 kB
+dist/plugin/helpers/createCssProps.js                               9.60 kB │ map:  5.57 kB
+dist/plugin/loader/transformNonServerEnvironment.js                 9.61 kB │ map:  5.49 kB
+dist/plugin/loader/transformModule.js                               9.69 kB │ map:  5.50 kB
+dist/plugin/helpers/cleanObject.js                                  9.80 kB │ map:  5.65 kB
+dist/plugin/helpers/mergeMessageWithDefaults.js                     9.89 kB │ map:  5.34 kB
+dist/plugin/stream/MessagePortReadable.js                          10.01 kB │ map:  5.91 kB
+dist/plugin/stream/createRscStreamTwoPort.client.js                10.17 kB │ map:  5.84 kB
+dist/plugin/config/resolveUrlOption.js                             10.78 kB │ map:  6.49 kB
+dist/plugin/loader/directives/processFunctionNode.js               10.97 kB │ map:  6.05 kB
+dist/plugin/helpers/resolveComponent.js                            11.26 kB │ map:  6.99 kB
+dist/plugin/react-static/configurePreviewServer.js                 11.29 kB │ map:  6.24 kB
+dist/plugin/loader/createDefaultLoader.js                          11.35 kB │ map:  6.51 kB
+dist/plugin/stream/createRscStream.utils.js                        12.41 kB │ map:  7.30 kB
+dist/plugin/helpers/getBundleManifest.js                           12.59 kB │ map:  7.23 kB
+dist/plugin/react-static/collectRscContent.js                      12.62 kB │ map:  7.21 kB
+dist/plugin/file-preserver/plugin.js                               12.68 kB │ map:  7.26 kB
+dist/plugin/loader/env-loader.js                                   12.69 kB │ map:  7.18 kB
+dist/plugin/helpers/createUnifiedCssProcessor.js                   12.93 kB │ map:  7.61 kB
+dist/plugin/loader/transformClientModule.js                        13.00 kB │ map:  7.27 kB
+dist/plugin/dev-server/restartWorker.client.js                     13.51 kB │ map:  7.33 kB
+dist/plugin/worker/rsc/handlers.js                                 13.96 kB │ map:  7.82 kB
+dist/plugin/stream/createRscStream.server.js                       14.51 kB │ map:  8.32 kB
+dist/plugin/loader/directives/typeGuards.js                        14.82 kB │ map:  8.36 kB
+dist/plugin/helpers/resolveComponents.client.js                    14.91 kB │ map:  8.37 kB
+dist/plugin/helpers/createSerializableHandlerOptions.js            15.12 kB │ map:  8.94 kB
+dist/plugin/loader/directives/collectExports.js                    15.39 kB │ map:  8.73 kB
+dist/plugin/stream/createRscWorkerStream.js                        15.51 kB │ map:  9.03 kB
+dist/plugin/error/toError.js                                       15.58 kB │ map:  8.85 kB
+dist/plugin/loader/sourceMap.js                                    15.91 kB │ map:  9.19 kB
+dist/plugin/config/autoDiscover/resolveAutoDiscover.js             16.08 kB │ map:  9.16 kB
+dist/plugin/loader/css-loader.js                                   16.22 kB │ map:  9.49 kB
+dist/plugin/helpers/resolveProps.js                                17.40 kB │ map: 10.43 kB
+dist/plugin/helpers/resolvePageAndProps.js                         18.21 kB │ map: 10.14 kB
+dist/plugin/helpers/getRouteFiles.js                               18.22 kB │ map: 10.61 kB
+dist/plugin/helpers/collectViteModuleGraphCss.js                   18.68 kB │ map: 10.81 kB
+dist/plugin/stream/handleRscStream.client.js                       18.71 kB │ map: 10.57 kB
+dist/plugin/utils/urls.js                                          19.83 kB │ map: 11.96 kB
+dist/plugin/stream/createRenderToPipeableStreamHandler.client.js   19.99 kB │ map: 11.20 kB
+dist/plugin/loader/transformServerModule.js                        21.71 kB │ map: 12.41 kB
+dist/plugin/metrics/metricWatcher.js                               22.49 kB │ map: 12.90 kB
+dist/plugin/config/resolveEnv.js                                   23.18 kB │ map: 13.10 kB
+dist/plugin/config/flightBindings.js                               23.96 kB │ map: 12.75 kB
+dist/plugin/helpers/requestInfo.js                                 23.99 kB │ map: 13.33 kB
+dist/plugin/worker/rsc/rsc-worker.development.js                   24.12 kB │ map: 13.31 kB
+dist/plugin/worker/rsc/createRscWorkerLoader.js                    24.50 kB │ map: 13.76 kB
+dist/plugin/config/getCondition.js                                 24.51 kB │ map: 14.10 kB
+dist/plugin/config/createModuleID.js                               25.27 kB │ map: 14.98 kB
+dist/plugin/dev-server/configureRequestHandler.client.js           26.78 kB │ map: 14.74 kB
+dist/plugin/loader/react-loader.js                                 27.26 kB │ map: 15.41 kB
+dist/plugin/worker/rsc/rsc-worker.production.js                    28.18 kB │ map: 15.62 kB
+dist/plugin/helpers/inputNormalizer.js                             29.90 kB │ map: 17.08 kB
+dist/plugin/react-static/fileWriter.js                             30.36 kB │ map: 17.03 kB
+dist/plugin/loader/createTransformer.js                            30.82 kB │ map: 17.24 kB
+dist/plugin/stream/createHtmlStream.server.js                      30.97 kB │ map: 17.63 kB
+dist/plugin/config/autoDiscover/resolveBuildPages.js               31.93 kB │ map: 17.87 kB
+dist/plugin/stream/createRenderToPipeableStreamHandler.server.js   32.41 kB │ map: 18.32 kB
+dist/plugin/helpers/serializeUserOptions.js                        33.51 kB │ map: 18.68 kB
+dist/plugin/config/defaults.js                                     34.35 kB │ map: 18.55 kB
+dist/plugin/dev-server/configureReactServer.server.js              35.77 kB │ map: 19.77 kB
+dist/plugin/config/createHandlerOptions.client.js                  38.65 kB │ map: 20.94 kB
+dist/plugin/loader/directives/analyzeDirectives.js                 39.63 kB │ map: 22.08 kB
+dist/plugin/worker/createWorker.js                                 44.25 kB │ map: 25.06 kB
+dist/plugin/worker/rsc/handleRscRender.js                          47.59 kB │ map: 27.02 kB
+dist/plugin/config/createHandlerOptions.server.js                  50.75 kB │ map: 27.92 kB
+dist/plugin/config/resolveUserConfig.js                            71.91 kB │ map: 40.54 kB
+dist/plugin/react-static/renderPages.js                            82.04 kB │ map: 45.35 kB
+dist/plugin/config/resolveOptions.js                               85.27 kB │ map: 47.81 kB
+dist/plugin/worker/rsc/messageHandler.js                          116.02 kB │ map: 64.47 kB
+✓ built in 583ms
+
+> vite-plugin-react-server@1.2.0-alpha.2 test:client
+> vitest run test/examples/preserve-modules-root.test.ts --no-coverage
+
+[?25l
+ RUN  v3.0.4 /home/nico/code/vite-plugin-react-server
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[plugin.client] input options.projectRoot: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project
+[plugin.client] resolved userOptions.projectRoot: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+options changed, forcing re-resolve
+options changed, forcing re-resolve
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+[resolveBuildPages] resolveBuildPages - first time resolving pages
+
+(node:145777) ExperimentalWarning: glob is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+client environment rollup inputs: {
+  "index": "index.html",
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+client environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+client userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+client userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+ssr environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+ssr environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+ssr userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+ssr userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+server environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css",
+  "src/page/page": "src/page/page.tsx",
+  "src/page/props": "src/page/props.ts"
+}
+server environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+server userConfig.resolve: {
+  "externalConditions": [
+    "react-server"
+  ]
+}
+server userConfig.build.rollupOptions.external: [
+  "react",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-dom",
+  "react-server-dom-esm/server",
+  "react-server-dom-esm/server.node"
+]
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-static-client] Auto-discovery completed
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+options changed, forcing re-resolve
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+client environment rollup inputs: {
+  "index": "index.html",
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+client environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+client userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+client userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+ssr environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+ssr environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+ssr userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+ssr userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+server environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css",
+  "src/page/page": "src/page/page.tsx",
+  "src/page/props": "src/page/props.ts"
+}
+server environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+server userConfig.resolve: {
+  "externalConditions": [
+    "react-server"
+  ]
+}
+server userConfig.build.rollupOptions.external: [
+  "react",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-dom",
+  "react-server-dom-esm/server",
+  "react-server-dom-esm/server.node"
+]
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+options changed, forcing re-resolve
+[vite-plugin-react-server:transform-client-as-dynamic] configResolved: isBuild=true isSSR=false mode=test allowed=["client","ssr","server"] defaultEnv=client importServerPath=react-server-dom-esm/server.node
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-static-client] Auto-discovery completed
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+options changed, forcing re-resolve
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+client environment rollup inputs: {
+  "index": "index.html",
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+client environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+client userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+client userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+ssr environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+ssr environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+ssr userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+ssr userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+server environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css",
+  "src/page/page": "src/page/page.tsx",
+  "src/page/props": "src/page/props.ts"
+}
+server environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+server userConfig.resolve: {
+  "externalConditions": [
+    "react-server"
+  ]
+}
+server userConfig.build.rollupOptions.external: [
+  "react",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-dom",
+  "react-server-dom-esm/server",
+  "react-server-dom-esm/server.node"
+]
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+options changed, forcing re-resolve
+[vite-plugin-react-server:transform-client-as-dynamic] configResolved: isBuild=true isSSR=true mode=test allowed=["client","ssr","server"] defaultEnv=client importServerPath=react-server-dom-esm/server.node
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-static-client] Auto-discovery completed
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+options changed, forcing re-resolve
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+client environment rollup inputs: {
+  "index": "index.html",
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+client environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+client userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+client userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+ssr environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css"
+}
+ssr environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+ssr userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+ssr userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+server environment rollup inputs: {
+  "src/components/Link.client": "src/components/Link.client.tsx",
+  "src/page2/test.module": "src/page2/test.module.css",
+  "src/page/test.module": "src/page/test.module.css",
+  "src/page/page": "src/page/page.tsx",
+  "src/page/props": "src/page/props.ts"
+}
+server environment output preserveModulesRoot: {
+  "format": "esm",
+  "exports": "named"
+}
+server userConfig.resolve: {
+  "externalConditions": [
+    "react-server"
+  ]
+}
+server userConfig.build.rollupOptions.external: [
+  "react",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-dom",
+  "react-server-dom-esm/server",
+  "react-server-dom-esm/server.node"
+]
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+options changed, forcing re-resolve
+[vite-plugin-react-server:transform-client-as-dynamic] configResolved: isBuild=true isSSR=true mode=test allowed=["client","ssr","server"] defaultEnv=client importServerPath=react-server-dom-esm/server.node
+[resolveBuildPages] resolveBuildPages called with pages:1 and Root: undefined Html: undefined
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-static-client] Auto-discovery completed
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+vite v6.3.5 building for test...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+transforming...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: src/client.tsx -> src/client.tsx
+[createTransformer] moduleID function called: src/client.tsx -> src/client.tsx
+[createTransformer:client] Loading: src/client.tsx
+[createTransformer:client] Transforming client component without directives: src/client.tsx
+[react-dynamic-transform] ModuleID transformation: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer] moduleID function called: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer:client] Loading: src/components/Link.client.tsx
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[analyzeDirectives] Processing node: ImportDeclaration start: 0 end: 26
+directive: none
+beforeNode: none
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 27 end: 73
+directive: none
+beforeNode: "import React from \"react\";\n"
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import React from \"react\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 74 end: 131
+directive: none
+beforeNode: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";\n"
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ExpressionStatement start: 132 end: 208
+directive: none
+beforeNode: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";\nconst root = create
+[analyzeDirectives] Found non-directive expression before first directive, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";\nconst root = createRoot(do", setting foundNonDirective=true
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[analyzeModule] exports:
+Name: Link Type: function Range: Link
+
+[analyzeDirectives] Processing node: ExpressionStatement start: 0 end: 13
+directive: use client
+beforeNode: none
+[analyzeDirectives] Found first directive: use client at range: 0,13
+[analyzeDirectives] Processing node: ImportDeclaration start: 14 end: 40
+directive: none
+beforeNode: "\"use client\";\n"
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 41 end: 158
+directive: none
+beforeNode: "\"use client\";\nimport React from \"react\";\n"
+[createTransformer:client] Transformed result for src/client.tsx: import React from "react";
+import { createRoot } from "react-dom/client";
+const root = createRoot(do
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] Link.client.tsx (client) (directives processed)
+[react-dynamic-transform] 
+import React from "react";
+export function Link({ to, children }) {
+  return /* @__PURE__ */ React....
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react/index.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react/index.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js
+[createTransformer:client] Loading: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[analyzeModule] exports:
+Name: __require Type: function Range: requireReactDomClient_development
+
+[analyzeDirectives] Processing node: ImportDeclaration start: 0 end: 55
+directive: none
+beforeNode: none
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 56 end: 237
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\n"
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 238 end: 376
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 377 end: 511
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 512 end: 650
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 652 end: 694
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: FunctionDeclaration start: 696 end: 1025413
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: FunctionDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 1025415 end: 1025473
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ExportNamedDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] react-dom-client.development.js (directives already processed)
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+[createTransformer:client] Loading: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+[createTransformer:client] Transforming client component without directives: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[analyzeModule] exports:
+Name: __require Type: function Range: requireClient
+
+[analyzeDirectives] Processing node: ImportDeclaration start: 0 end: 55
+directive: none
+beforeNode: none
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 56 end: 195
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\n"
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 196 end: 230
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 231 end: 396
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 398 end: 420
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: FunctionDeclaration start: 422 end: 1060
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: FunctionDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 1062 end: 1100
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: ExportNamedDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[createTransformer:client] Transformed result for home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js: import * as commonjsHelpers from " commonjsHelpers.js";
+import { __module as clientModule } from "\u
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+✓ 24 modules transformed.
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+rendering chunks...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+Test Event: [32m'build.writeBundle.client'[39m
+computing gzip size...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+dist/static/index.html                          0.24 kB │ gzip:   0.17 kB
+dist/static/.vite/manifest.json                 0.89 kB │ gzip:   0.24 kB
+dist/static/.vite/ssr-manifest.json             1.93 kB │ gzip:   0.31 kB
+dist/static/assets/page/test.css                0.09 kB │ gzip:   0.10 kB
+dist/static/assets/page2/test.css               0.09 kB │ gzip:   0.10 kB
+dist/static/components/Link.client-wj6rwp.js    0.12 kB │ gzip:   0.13 kB
+dist/static/page2/test.js                       0.15 kB │ gzip:   0.12 kB
+dist/static/page/test.js                        0.15 kB │ gzip:   0.12 kB
+dist/static/index2.js                          21.51 kB │ gzip:   7.75 kB
+dist/static/index.js                          396.32 kB │ gzip: 118.68 kB
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+✓ built in 1.02s
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+vite v6.3.5 building SSR bundle for test...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+transforming...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer] moduleID function called: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer:client] Loading: src/components/Link.client.tsx
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[analyzeModule] exports:
+Name: Link Type: function Range: Link
+
+[analyzeDirectives] Processing node: ExpressionStatement start: 0 end: 13
+directive: use client
+beforeNode: none
+[analyzeDirectives] Found first directive: use client at range: 0,13
+[analyzeDirectives] Processing node: ImportDeclaration start: 14 end: 40
+directive: none
+beforeNode: "\"use client\";\n"
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 41 end: 158
+directive: none
+beforeNode: "\"use client\";\nimport React from \"react\";\n"
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] Link.client.tsx (client) (directives processed)
+[react-dynamic-transform] 
+import React from "react";
+export function Link({ to, children }) {
+  return /* @__PURE__ */ React....
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+✓ 3 modules transformed.
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+rendering chunks...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+Test Event: [32m'build.writeBundle.static'[39m
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+dist/client/.vite/ssr-manifest.json           0.11 kB
+dist/client/.vite/manifest.json               0.62 kB
+dist/client/assets/page/test.css              0.09 kB
+dist/client/assets/page2/test.css             0.09 kB
+dist/client/components/Link.client-wj6rwp.js  0.16 kB
+dist/client/page2/test.js                     0.22 kB
+dist/client/page/test.js                      0.22 kB
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+✓ built in 15ms
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+vite v6.3.5 building SSR bundle for test...
+
+stderr | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[plugin react-server-conditions] NODE_OPTIONS may be wrong for server
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-static-client] Build started
+Test Event: [32m'build.start'[39m
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+transforming...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] ModuleID transformation: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer] moduleID function called: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer:server] Loading: src/components/Link.client.tsx
+[react-dynamic-transform] ModuleID transformation: src/page/page.tsx -> src/page/page.tsx
+[createTransformer] moduleID function called: src/page/page.tsx -> src/page/page.tsx
+[react-dynamic-transform] ModuleID transformation: src/page/props.ts -> src/page/props.ts
+[createTransformer] moduleID function called: src/page/props.ts -> src/page/props.ts
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[analyzeModule] exports:
+Name: Link Type: function Range: Link
+
+[analyzeDirectives] Processing node: ExpressionStatement start: 0 end: 13
+directive: use client
+beforeNode: none
+[analyzeDirectives] Found first directive: use client at range: 0,13
+[analyzeDirectives] Processing node: ImportDeclaration start: 14 end: 40
+directive: none
+beforeNode: "\"use client\";\n"
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 41 end: 158
+directive: none
+beforeNode: "\"use client\";\nimport React from \"react\";\n"
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-dynamic-transform] Link.client.tsx (client) (directives processed)
+[react-dynamic-transform] import { registerClientReference } from "react-server-dom-esm/server.node";
+export const Link = regi...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+✓ 5 modules transformed.
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[react-static-client] Render started
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+rendering chunks...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[manifests] Successfully updated shared state for server
+Test Event: [32m'build.writeBundle.server'[39m
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+dist/server/.vite/ssr-manifest.json           0.17 kB
+dist/server/.vite/manifest.json               1.00 kB
+dist/server/page/props.js                     0.07 kB
+dist/server/page/test.js                      0.21 kB
+dist/server/page2/test.js                     0.22 kB
+dist/server/components/Link.client-wj6rwp.js  0.25 kB
+dist/server/page/page.js                      0.52 kB
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+✓ built in 19ms
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[plugin.server] Processing route: /, page: src/page/page.tsx, props: src/page/props.ts
+[plugin.server] transformedServerManifest keys: src/page2/test.module.css, src/page/page.tsx, src/components/Link.client.tsx, src/page/test.module.css, src/page/props.ts, .vite/manifest.json, .vite/ssr-manifest.json
+[plugin.server] Looking for CSS starting from: src/page/page.tsx and src/page/props.ts
+[plugin.server] Page entry: {
+  "file": "page/page.js",
+  "name": "src/page/page",
+  "src": "src/page/page.tsx",
+  "isEntry": true,
+  "imports": [
+    "react",
+    "page/test.js",
+    "components/Link.client-wj6rwp.js",
+    "react-server-dom-esm/server.node"
+  ]
+}
+[plugin.server] Props entry: {
+  "file": "page/props.js",
+  "name": "src/page/props",
+  "src": "src/page/props.ts",
+  "isEntry": true
+}
+[plugin.server] Found CSS entry: src/page2/test.module.css -> ["assets/page2/test.css"]
+[plugin.server] Found CSS entry: src/page/test.module.css -> ["assets/page/test.css"]
+[plugin.server] CSS inputs for /: 1 files
+[plugin.server] CSS input: assets/page/test.css -> assets/page/test.css
+[unified-css] Loading CSS content for assets/page/test.css
+[unified-css] Got CSS from static build file: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/client/assets/page/test.css
+[unified-css] CSS content for assets/page/test.css: string, length: 89, preview: ._test_x2k9h_1{color:red}._shared_x2k9h_2{background:#fff}._unused_x2k9h_3{display:none}
+
+[unified-css] Added CSS file assets/page/test.css to map
+[react-static-client] Route /: 1 CSS files
+[react-static-client]   CSS file: assets/page/test.css -> link (link)
+[react-static-client] Creating RSC worker with path: /home/nico/code/vite-plugin-react-server/dist/plugin/worker/rsc/rsc-worker.development.js
+[create:worker/rsc] workerData.userOptions.build:
+{"pages":["/"],"client":"client","server":"server","static":"static","api":"api","outDir":"dist","assetsDir":"assets","hash":"hash","preserveModulesRoot":true,"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+
+Call stack:     at _createWorker (/home/nico/code/vite-plugin-react-server/plugin/worker/createWorker.ts:234:15)
+    at Object.closeBundle (/home/nico/code/vite-plugin-react-server/dist/plugin/react-static/plugin.client.js:314:59)
+    at async Promise.all (index 0)
+Creating worker with path: /home/nico/code/vite-plugin-react-server/dist/plugin/worker/rsc/rsc-worker.development.js
+Node environment: test
+Current condition: react-client, Reverse condition: react-server
+[create:worker/rsc] Setting up worker with reverse condition: react-server
+[create:worker/rsc] Computed execArgv: ["--conditions","react-server"]
+[create:worker/rsc] Current NODE_OPTIONS: undefined
+[create:worker/rsc] Worker NODE_OPTIONS will be:  --conditions react-server
+[create:worker/rsc] Environment variables: TEST, VITEST, NODE_ENV, VITEST_MODE, FORCE_TTY, LESSOPEN, VSCODE_CWD, VSCODE_ESM_ENTRYPOINT, USER, VSCODE_NLS_CONFIG, npm_config_user_agent, VSCODE_WSL_EXT_LOCATION, VSCODE_HANDLES_UNCAUGHT_ERRORS, npm_node_execpath, SHLVL, npm_config_noproxy, HOME, OLDPWD, NVM_BIN, VSCODE_IPC_HOOK_CLI, npm_package_json, NVM_INC, npm_package_engines_node, npm_config_userconfig, npm_config_local_prefix, NO_COLOR, DBUS_SESSION_BUS_ADDRESS, WSL_DISTRO_NAME, COLOR, NVM_DIR, WAYLAND_DISPLAY, VSCODE_L10N_BUNDLE_LOCATION, LOGNAME, FORCE_COLOR, NAME, WSL_INTEROP, VSCODE_HANDLES_SIGPIPE, PULSE_SERVER, _, npm_config_prefix, npm_config_npm_version, TERM, npm_config_cache, COMPOSER_NO_INTERACTION, npm_config_node_gyp, PATH, NODE, npm_package_name, XDG_RUNTIME_DIR, CURSOR_AGENT, DISPLAY, LANG, LS_COLORS, npm_lifecycle_script, SHELL, npm_package_version, npm_lifecycle_event, LESSCLOSE, npm_config_globalconfig, npm_config_init_module, PWD, npm_execpath, npm_package_bin_patch, NVM_CD_FLAGS, XDG_DATA_DIRS, npm_config_global_prefix, npm_command, WSL2_GUI_APPS_ENABLED, HOSTTYPE, WSLENV, INIT_CWD, EDITOR, PROD, DEV, VITE_BASE_URL, VITE_PUBLIC_ORIGIN, BASE_URL, MODE, TINYPOOL_WORKER_ID, VITEST_WORKER_ID, VITEST_POOL_ID, SSR, VITE_DEV, VITE_MODE, VITE_PROD, VITE_SSR, NODE_PATH, NODE_OPTIONS, HTML_CHUNK_SIZE
+[create:worker/rsc] execArgv: --conditions react-server
+[create:worker/rsc] Worker created, waiting for READY message...
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[create:worker/rsc] Initial worker message READY
+[create:worker/rsc] Worker running for test
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+_______ vite-plugin-react-server ______
+[35mRSC-worker started in [0m 187ms (initial route: /)
+Test Event: [32m'build.ssg.start'[39m
+[renderPages] Resolved paths for route /:
+  page: src/page/page.tsx -> page/page.js
+  props: src/page/props.ts -> page/props.js
+  root: undefined -> undefined
+  html: undefined -> undefined
+[renderPages] Global CSS: 0 files
+[renderPages] CSS files: 1 files
+[renderPages] CSS file: assets/page/test.css -> link (link)
+[renderPages] Starting to process route: /
+[renderPage.client] onEvent callback exists: true
+[renderPage.client] onMetrics callback exists: true
+[renderPage.client] Client-side rendering for route: /
+[renderPage.client] Resolved paths for route /:
+  page: page/page.js -> page/page.js
+  props: page/props.js -> page/props.js
+  root: undefined -> undefined
+  html: undefined -> undefined
+  manifest keys: src/page2/test.module.css, src/page/page.tsx, src/components/Link.client.tsx, src/page/test.module.css, src/page/props.ts, .vite/manifest.json, .vite/ssr-manifest.json
+  HTML path issue: htmlPath='undefined', resolved='undefined', manifest has Html entry: false
+  About to pass htmlPath='undefined' to RSC stream
+[resolveComponents.client] Resolving components for route: /
+[resolveComponents.client] pagePath: page/page.js
+[resolveComponents.client] propsPath: page/props.js
+[resolveComponents.client] rootPath: undefined
+[resolveComponents.client] htmlPath: undefined
+
+[rsc-worker] Received message: RESOLVE_COMPONENTS for id: /-resolve-1759236235067
+[FALLBACK] Using fallback userOptions for renderId: /-resolve-1759236235067
+[FALLBACK] fallbackUserOptions.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+[rsc-worker] Resolving components for route: /
+[rsc-worker] pagePath: page/page.js
+[rsc-worker] propsPath: page/props.js
+[rsc-worker] rootPath: undefined
+[rsc-worker] htmlPath: undefined
+[rsc-worker:/] pagePath=page/page.js, propsPath=page/props.js
+[RESOLVE_COMPONENTS] Using outDir: dist
+[RESOLVE_COMPONENTS] renderId: /-resolve-1759236235067, hasRenderState: false
+[createRscWorkerLoader] build config: {"server":"server","client":"client","static":"static","outDir":"dist"}
+[createRscWorkerLoader] build config: {"server":"server","client":"client","static":"static","outDir":"dist"}
+[createRscWorkerLoader] manifest: {"src/page2/test.module.css":{"file":"page2/test.js","name":"src/page2/test.module","src":"src/page2/test.module.css","isEntry":true,"css":["assets/page2/test.css"]},"src/page/page.tsx":{"file":"page/page.js","name":"src/page/page","src":"src/page/page.tsx","isEntry":true,"imports":["react","page/test.js","components/Link.client-wj6rwp.js","react-server-dom-esm/server.node"]},"src/components/Link.client.tsx":{"file":"components/Link.client-wj6rwp.js","name":"src/components/Link.client","src":"src/components/Link.client.tsx","isEntry":true,"imports":["react-server-dom-esm/server.node"]},"src/page/test.module.css":{"file":"page/test.js","name":"src/page/test.module","src":"src/page/test.module.css","isEntry":true,"css":["assets/page/test.css"]},"src/page/props.ts":{"file":"page/props.js","name":"src/page/props","src":"src/page/props.ts","isEntry":true},".vite/manifest.json":{"file":".vite/manifest.json","src":".vite/manifest.json","source":"{\n  \"src/components/Link.client.tsx\": {\n    \"file\": \"components/Link.client-wj6rwp.js\",\n    \"name\": \"src/components/Link.client\",\n    \"src\": \"src/components/Link.client.tsx\",\n    \"isEntry\": true\n  },\n  \"src/page/page.tsx\": {\n    \"file\": \"page/page.js\",\n    \"name\": \"src/page/page\",\n    \"src\": \"src/page/page.tsx\",\n    \"isEntry\": true,\n    \"imports\": [\n      \"src/page/test.module.css\",\n      \"src/components/Link.client.tsx\"\n    ]\n  },\n  \"src/page/props.ts\": {\n    \"file\": \"page/props.js\",\n    \"name\": \"src/page/props\",\n    \"src\": \"src/page/props.ts\",\n    \"isEntry\": true\n  },\n  \"src/page/test.module.css\": {\n    \"file\": \"page/test.js\",\n    \"name\": \"src/page/test.module\",\n    \"src\": \"src/page/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page/test.css\"\n    ]\n  },\n  \"src/page2/test.module.css\": {\n    \"file\": \"page2/test.js\",\n    \"name\": \"src/page2/test.module\",\n    \"src\": \"src/page2/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page2/test.css\"\n    ]\n  }\n}","isEntry":false},".vite/ssr-manifest.json":{"file":".vite/ssr-manifest.json","src":".vite/ssr-manifest.json","source":"{\n  \"src/components/Link.client.tsx\": [],\n  \"src/page/page.tsx\": [],\n  \"src/page/props.ts\": [],\n  \"src/page/test.module.css\": [],\n  \"src/page2/test.module.css\": []\n}","isEntry":false}}
+[createRscWorkerLoader] configEnv: {"mode":"test","command":"build","isSsrBuild":false,"isPreview":false}
+[createRscWorkerLoader] config.env: {"VITE_BASE_URL":"","VITE_PUBLIC_ORIGIN":"","BASE_URL":"/","MODE":"test","DEV":true,"PROD":false}
+[createRscWorkerLoader] mode: test
+[createRscWorkerLoader] NODE_ENV: test
+[createRscWorkerLoader] isServeMode: false
+[createRscWorkerLoader] projectRoot: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project
+[loadComponentsWithCache] pagePath=page/page.js, propsPath=page/props.js, url=//
+[loadComponentsWithCache] Loading page and props for pagePath=page/page.js
+[resolvePageAndProps] Starting resolution for route: undefined
+[resolvePageAndProps] URL resolved: //
+[resolvePageAndProps] Starting page resolution
+[RSC Worker Loader] Loading module: page/page.js#Page
+[RSC Worker Loader] Searching manifest for moduleID: page/page.js
+[RSC Worker Loader] Build mode: found manifest entry for page/page.js via source path src/page/page.tsx: {"file":"page/page.js","name":"src/page/page","src":"src/page/page.tsx","isEntry":true,"imports":["react","page/test.js","components/Link.client-wj6rwp.js","react-server-dom-esm/server.node"]}
+[RSC Worker Loader] Build mode: found manifest/bundle entry, using file path: page/page.js
+[RSC Worker Loader] Build mode: RSC worker environment, prefixing with dist/server
+[RSC Worker Loader] Importing from: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/server/page/page.js
+[resolvePageAndProps] Starting props resolution
+[resolvePageAndProps] Props loader called
+[resolvePageAndProps] Waiting for both promises to resolve
+[RSC Worker Loader] Module loaded successfully, exports: Page
+[resolvePageAndProps] Loading props from separate file: page/props.js
+[RSC Worker Loader] Loading module: page/props.js
+[RSC Worker Loader] Searching manifest for moduleID: page/props.js
+[RSC Worker Loader] Build mode: found manifest entry for page/props.js via source path src/page/props.ts: {"file":"page/props.js","name":"src/page/props","src":"src/page/props.ts","isEntry":true}
+[RSC Worker Loader] Build mode: found manifest/bundle entry, using file path: page/props.js
+[RSC Worker Loader] Build mode: RSC worker environment, prefixing with dist/server
+[RSC Worker Loader] Importing from: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/server/page/props.js
+[RSC Worker Loader] Module loaded successfully, exports: props
+[resolvePageAndProps] Both promises resolved
+[resolvePageAndProps] Both page and props resolved successfully
+[loadComponentsWithCache] pageAndPropsResult for page/page.js:
+[rsc-worker] Loaded and cached PageComponent from: page/page.js
+[rsc-worker] Loaded and cached pageProps from: page/props.js
+[rsc-worker] Loaded pageProps:
+[rsc-worker] Using built-in default Root component
+[DEBUG] RSC worker Html component resolution: htmlPath='undefined' (type: undefined)
+[rsc-worker] Html component resolution: htmlPath='undefined' (type: undefined)
+[rsc-worker] htmlPath is undefined, using default Html component
+[rsc-worker] Successfully loaded default Html component
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[resolveComponents.client] Components resolved for route: / in 10.14ms
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[renderPage.client] handlerOptions.clientPipeableStreamOptions: {"bootstrapScripts":["index.js"]}
+[renderPage.client] newHandlerOptions.clientPipeableStreamOptions: {"bootstrapScripts":["index.js"]}
+[renderPage.client] newHandlerOptions page paths: pagePath=page/page.js, propsPath=page/props.js, rootPath=undefined, htmlPath=undefined
+[renderPage.client] Creating HTML transform stream with clientPipeableStreamOptions: {"bootstrapScripts":["index.js"]}
+[createRscToHtmlStream:/] Creating RSC to HTML transform stream (client-side, using createHtmlStream)
+[createRenderToPipeableStreamHandler.client:/] Starting RSC-to-HTML conversion using natural Node.js streams
+[createRenderToPipeableStreamHandler.client:/] Converting RSC stream to React elements using natural Node.js streams
+[createNodeStream.client] Converting RSC stream to React elements, moduleRootPath: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/client, moduleBasePath: , moduleBaseURL:  (type: string)
+[createNodeStream.client] Using ReactDOMClient.createFromNodeStream from react-server-dom-esm/client.node
+[createNodeStream.client] rscStream type: object, readable: true, destroyed: false
+[createRenderToPipeableStreamHandler.client:/] React elements ready, starting HTML rendering
+[createRenderToPipeableStreamHandler.client:/] React stream piped to custom writable, using natural Node.js stream handling
+
+[rsc-worker] Components resolved for route: / in 9.05ms
+[rsc-worker] Received message: INIT for id: /
+options changed, forcing re-resolve
+[INIT] Set render state for renderId: /-headless-/-1759236235066-rvnn0mv3m
+[INIT] renderUserOptions.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+[rsc-worker] Processing rsc-headless render for route: / with ID: /-headless-/-1759236235066-rvnn0mv3m
+[rsc-worker:/] 
+msg.options.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+msg.options.route
+userOptions.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+final buildConfig: {"server":"server","client":"client","static":"static","outDir":"dist","assetsDir":"assets","rscOutputPath":"index.rsc","htmlOutputPath":"index.html","preserveModulesRoot":true}
+[createRscWorkerLoader] build config: {"server":"server","client":"client","static":"static","outDir":"dist","assetsDir":"assets","rscOutputPath":"index.rsc","htmlOutputPath":"index.html","preserveModulesRoot":true}
+[createRscWorkerLoader] build config: {"server":"server","client":"client","static":"static","outDir":"dist","assetsDir":"assets","rscOutputPath":"index.rsc","htmlOutputPath":"index.html","preserveModulesRoot":true}
+[createRscWorkerLoader] manifest: {"src/page2/test.module.css":{"file":"page2/test.js","name":"src/page2/test.module","src":"src/page2/test.module.css","isEntry":true,"css":["assets/page2/test.css"]},"src/page/page.tsx":{"file":"page/page.js","name":"src/page/page","src":"src/page/page.tsx","isEntry":true,"imports":["react","page/test.js","components/Link.client-wj6rwp.js","react-server-dom-esm/server.node"]},"src/components/Link.client.tsx":{"file":"components/Link.client-wj6rwp.js","name":"src/components/Link.client","src":"src/components/Link.client.tsx","isEntry":true,"imports":["react-server-dom-esm/server.node"]},"src/page/test.module.css":{"file":"page/test.js","name":"src/page/test.module","src":"src/page/test.module.css","isEntry":true,"css":["assets/page/test.css"]},"src/page/props.ts":{"file":"page/props.js","name":"src/page/props","src":"src/page/props.ts","isEntry":true},".vite/manifest.json":{"file":".vite/manifest.json","src":".vite/manifest.json","source":"{\n  \"src/components/Link.client.tsx\": {\n    \"file\": \"components/Link.client-wj6rwp.js\",\n    \"name\": \"src/components/Link.client\",\n    \"src\": \"src/components/Link.client.tsx\",\n    \"isEntry\": true\n  },\n  \"src/page/page.tsx\": {\n    \"file\": \"page/page.js\",\n    \"name\": \"src/page/page\",\n    \"src\": \"src/page/page.tsx\",\n    \"isEntry\": true,\n    \"imports\": [\n      \"src/page/test.module.css\",\n      \"src/components/Link.client.tsx\"\n    ]\n  },\n  \"src/page/props.ts\": {\n    \"file\": \"page/props.js\",\n    \"name\": \"src/page/props\",\n    \"src\": \"src/page/props.ts\",\n    \"isEntry\": true\n  },\n  \"src/page/test.module.css\": {\n    \"file\": \"page/test.js\",\n    \"name\": \"src/page/test.module\",\n    \"src\": \"src/page/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page/test.css\"\n    ]\n  },\n  \"src/page2/test.module.css\": {\n    \"file\": \"page2/test.js\",\n    \"name\": \"src/page2/test.module\",\n    \"src\": \"src/page2/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page2/test.css\"\n    ]\n  }\n}","isEntry":false},".vite/ssr-manifest.json":{"file":".vite/ssr-manifest.json","src":".vite/ssr-manifest.json","source":"{\n  \"src/components/Link.client.tsx\": [],\n  \"src/page/page.tsx\": [],\n  \"src/page/props.ts\": [],\n  \"src/page/test.module.css\": [],\n  \"src/page2/test.module.css\": []\n}","isEntry":false}}
+[createRscWorkerLoader] configEnv: {"mode":"test","command":"build","isSsrBuild":false,"isPreview":false}
+[createRscWorkerLoader] config.env: {"VITE_BASE_URL":"","VITE_PUBLIC_ORIGIN":"","BASE_URL":"/","MODE":"test","DEV":true,"PROD":false}
+[createRscWorkerLoader] mode: test
+[createRscWorkerLoader] NODE_ENV: test
+[createRscWorkerLoader] isServeMode: false
+[createRscWorkerLoader] projectRoot: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project
+[rsc-worker:messageHandler] Component paths for route /:
+  pagePath: page/page.js
+  propsPath: page/props.js
+  rootPath: undefined
+  htmlPath: 
+[loadComponentsWithCache] pagePath=page/page.js, propsPath=page/props.js, url=/
+[loadComponentsWithCache] Loading page and props for pagePath=page/page.js
+[resolvePageAndProps] Starting resolution for route: undefined
+[resolvePageAndProps] URL resolved: /
+[resolvePageAndProps] Starting page resolution
+[RSC Worker Loader] Loading module: page/page.js#Page
+[RSC Worker Loader] Searching manifest for moduleID: page/page.js
+[RSC Worker Loader] Build mode: found manifest entry for page/page.js via source path src/page/page.tsx: {"file":"page/page.js","name":"src/page/page","src":"src/page/page.tsx","isEntry":true,"imports":["react","page/test.js","components/Link.client-wj6rwp.js","react-server-dom-esm/server.node"]}
+[RSC Worker Loader] Build mode: found manifest/bundle entry, using file path: page/page.js
+[RSC Worker Loader] Build mode: RSC worker environment, prefixing with dist/server
+[RSC Worker Loader] Importing from: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/server/page/page.js
+[resolvePageAndProps] Starting props resolution
+[resolvePageAndProps] Props loader called
+[resolvePageAndProps] Waiting for both promises to resolve
+[rsc-worker] Received message: INIT for id: /
+options changed, forcing re-resolve
+[INIT] Set render state for renderId: /-full-/-1759236235066-rvnn0mv3m
+[INIT] renderUserOptions.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+[rsc-worker] Processing rsc-full render for route: / with ID: /-full-/-1759236235066-rvnn0mv3m
+[rsc-worker:/] 
+msg.options.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+msg.options.route
+userOptions.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+final buildConfig: {"server":"server","client":"client","static":"static","outDir":"dist","assetsDir":"assets","rscOutputPath":"index.rsc","htmlOutputPath":"index.html","preserveModulesRoot":true}
+[createRscWorkerLoader] build config: {"server":"server","client":"client","static":"static","outDir":"dist","assetsDir":"assets","rscOutputPath":"index.rsc","htmlOutputPath":"index.html","preserveModulesRoot":true}
+[createRscWorkerLoader] build config: {"server":"server","client":"client","static":"static","outDir":"dist","assetsDir":"assets","rscOutputPath":"index.rsc","htmlOutputPath":"index.html","preserveModulesRoot":true}
+[createRscWorkerLoader] manifest: {"src/page2/test.module.css":{"file":"page2/test.js","name":"src/page2/test.module","src":"src/page2/test.module.css","isEntry":true,"css":["assets/page2/test.css"]},"src/page/page.tsx":{"file":"page/page.js","name":"src/page/page","src":"src/page/page.tsx","isEntry":true,"imports":["react","page/test.js","components/Link.client-wj6rwp.js","react-server-dom-esm/server.node"]},"src/components/Link.client.tsx":{"file":"components/Link.client-wj6rwp.js","name":"src/components/Link.client","src":"src/components/Link.client.tsx","isEntry":true,"imports":["react-server-dom-esm/server.node"]},"src/page/test.module.css":{"file":"page/test.js","name":"src/page/test.module","src":"src/page/test.module.css","isEntry":true,"css":["assets/page/test.css"]},"src/page/props.ts":{"file":"page/props.js","name":"src/page/props","src":"src/page/props.ts","isEntry":true},".vite/manifest.json":{"file":".vite/manifest.json","src":".vite/manifest.json","source":"{\n  \"src/components/Link.client.tsx\": {\n    \"file\": \"components/Link.client-wj6rwp.js\",\n    \"name\": \"src/components/Link.client\",\n    \"src\": \"src/components/Link.client.tsx\",\n    \"isEntry\": true\n  },\n  \"src/page/page.tsx\": {\n    \"file\": \"page/page.js\",\n    \"name\": \"src/page/page\",\n    \"src\": \"src/page/page.tsx\",\n    \"isEntry\": true,\n    \"imports\": [\n      \"src/page/test.module.css\",\n      \"src/components/Link.client.tsx\"\n    ]\n  },\n  \"src/page/props.ts\": {\n    \"file\": \"page/props.js\",\n    \"name\": \"src/page/props\",\n    \"src\": \"src/page/props.ts\",\n    \"isEntry\": true\n  },\n  \"src/page/test.module.css\": {\n    \"file\": \"page/test.js\",\n    \"name\": \"src/page/test.module\",\n    \"src\": \"src/page/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page/test.css\"\n    ]\n  },\n  \"src/page2/test.module.css\": {\n    \"file\": \"page2/test.js\",\n    \"name\": \"src/page2/test.module\",\n    \"src\": \"src/page2/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page2/test.css\"\n    ]\n  }\n}","isEntry":false},".vite/ssr-manifest.json":{"file":".vite/ssr-manifest.json","src":".vite/ssr-manifest.json","source":"{\n  \"src/components/Link.client.tsx\": [],\n  \"src/page/page.tsx\": [],\n  \"src/page/props.ts\": [],\n  \"src/page/test.module.css\": [],\n  \"src/page2/test.module.css\": []\n}","isEntry":false}}
+[createRscWorkerLoader] configEnv: {"mode":"test","command":"build","isSsrBuild":false,"isPreview":false}
+[createRscWorkerLoader] config.env: {"VITE_BASE_URL":"","VITE_PUBLIC_ORIGIN":"","BASE_URL":"/","MODE":"test","DEV":true,"PROD":false}
+[createRscWorkerLoader] mode: test
+[createRscWorkerLoader] NODE_ENV: test
+[createRscWorkerLoader] isServeMode: false
+[createRscWorkerLoader] projectRoot: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project
+[rsc-worker:messageHandler] Component paths for route /:
+  pagePath: page/page.js
+  propsPath: page/props.js
+  rootPath: undefined
+  htmlPath: undefined
+[loadComponentsWithCache] pagePath=page/page.js, propsPath=page/props.js, url=/
+[loadComponentsWithCache] Loading page and props for pagePath=page/page.js
+[resolvePageAndProps] Starting resolution for route: undefined
+[resolvePageAndProps] URL resolved: /
+[resolvePageAndProps] Starting page resolution
+[RSC Worker Loader] Loading module: page/page.js#Page
+[RSC Worker Loader] Searching manifest for moduleID: page/page.js
+[RSC Worker Loader] Build mode: found manifest entry for page/page.js via source path src/page/page.tsx: {"file":"page/page.js","name":"src/page/page","src":"src/page/page.tsx","isEntry":true,"imports":["react","page/test.js","components/Link.client-wj6rwp.js","react-server-dom-esm/server.node"]}
+[RSC Worker Loader] Build mode: found manifest/bundle entry, using file path: page/page.js
+[RSC Worker Loader] Build mode: RSC worker environment, prefixing with dist/server
+[RSC Worker Loader] Importing from: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/server/page/page.js
+[resolvePageAndProps] Starting props resolution
+[resolvePageAndProps] Props loader called
+[resolvePageAndProps] Waiting for both promises to resolve
+[RSC Worker Loader] Module loaded successfully, exports: Page
+[resolvePageAndProps] Loading props from separate file: page/props.js
+[RSC Worker Loader] Loading module: page/props.js
+[RSC Worker Loader] Searching manifest for moduleID: page/props.js
+[RSC Worker Loader] Build mode: found manifest entry for page/props.js via source path src/page/props.ts: {"file":"page/props.js","name":"src/page/props","src":"src/page/props.ts","isEntry":true}
+[RSC Worker Loader] Build mode: found manifest/bundle entry, using file path: page/props.js
+[RSC Worker Loader] Build mode: RSC worker environment, prefixing with dist/server
+[RSC Worker Loader] Importing from: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/server/page/props.js
+[RSC Worker Loader] Module loaded successfully, exports: Page
+[resolvePageAndProps] Loading props from separate file: page/props.js
+[RSC Worker Loader] Loading module: page/props.js
+[RSC Worker Loader] Searching manifest for moduleID: page/props.js
+[RSC Worker Loader] Build mode: found manifest entry for page/props.js via source path src/page/props.ts: {"file":"page/props.js","name":"src/page/props","src":"src/page/props.ts","isEntry":true}
+[RSC Worker Loader] Build mode: found manifest/bundle entry, using file path: page/props.js
+[RSC Worker Loader] Build mode: RSC worker environment, prefixing with dist/server
+[RSC Worker Loader] Importing from: /home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/server/page/props.js
+[RSC Worker Loader] Module loaded successfully, exports: props
+[resolvePageAndProps] Both promises resolved
+[resolvePageAndProps] Both page and props resolved successfully
+[loadComponentsWithCache] pageAndPropsResult for page/page.js:
+[rsc-worker] Loaded and cached PageComponent from: page/page.js
+[rsc-worker] Loaded and cached pageProps from: page/props.js
+[rsc-worker] Loaded pageProps:
+[rsc-worker] Using built-in default Root component
+[DEBUG] RSC worker Html component resolution: htmlPath='' (type: string)
+[rsc-worker] Html component resolution: htmlPath='' (type: string)
+[rsc-worker] Using headless Html component (empty string)
+[rsc-worker] Loaded components for route /:
+[rsc-worker] - PageComponent: function
+[rsc-worker] - pageProps: {"title":"Test","url":"/"}
+[rsc-worker] - RootComponent: function
+[rsc-worker] - HtmlComponent: symbol
+[rsc-worker] Headless stream serverPipeableStreamOptions: {"bootstrapScripts":["index.js"]}
+[rsc-worker] Route: /, isHeadless: true, isStaticGeneration: dist
+[rsc-worker] msg.options.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+[rsc-worker] Creating headless RSC stream for route / (no HTML wrapper)
+[rsc-worker:/] Creating RSC stream
+[rsc-worker:/] htmlPath in handlerOptions: "undefined" (type: undefined)
+[rsc-worker:/] HtmlComponent in handlerOptions: present
+[createElementWithReact] Creating element for route: /
+[createElementWithReact] CSS files: 1 files
+[createElementWithReact] Global CSS: 0 files
+[createElementWithReact] Returning Root only
+[rsc-worker:/] About to render element for route: /
+[rsc-worker:/] Element to render: {
+  "key": "/",
+  "props": {
+    "cssFiles": {},
+    "pageProps": {
+      "title": "Test",
+      "url": "/"
+    }
+  },
+  "_owner": null,
+  "_store": {}
+}
+[rsc-worker:/] Props: {
+  "moduleBase": "src",
+  "projectRoot": "/home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project",
+  "cssFiles": {},
+  "globalCss": {},
+  "manifest": {
+    "src/page2/test.module.css": {
+      "file": "page2/test.js",
+      "name": "src/page2/test.module",
+      "src": "src/page2/test.module.css",
+      "isEntry": true,
+      "css": [
+        "assets/page2/test.css"
+      ]
+    },
+    "src/page/page.tsx": {
+      "file": "page/page.js",
+      "name": "src/page/page",
+      "src": "src/page/page.tsx",
+      "isEntry": true,
+      "imports": [
+        "react",
+        "page/test.js",
+        "components/Link.client-wj6rwp.js",
+        "react-server-dom-esm/server.node"
+      ]
+    },
+    "src/components/Link.client.tsx": {
+      "file": "components/Link.client-wj6rwp.js",
+      "name": "src/components/Link.client",
+      "src": "src/components/Link.client.tsx",
+      "isEntry": true,
+      "imports": [
+        "react-server-dom-esm/server.node"
+      ]
+    },
+    "src/page/test.module.css": {
+      "file": "page/test.js",
+      "name": "src/page/test.module",
+      "src": "src/page/test.module.css",
+      "isEntry": true,
+      "css": [
+        "assets/page/test.css"
+      ]
+    },
+    "src/page/props.ts": {
+      "file": "page/props.js",
+      "name": "src/page/props",
+      "src": "src/page/props.ts",
+      "isEntry": true
+    },
+    ".vite/manifest.json": {
+      "file": ".vite/manifest.json",
+      "src": ".vite/manifest.json",
+      "source": "{\n  \"src/components/Link.client.tsx\": {\n    \"file\": \"components/Link.client-wj6rwp.js\",\n    \"name\": \"src/components/Link.client\",\n    \"src\": \"src/components/Link.client.tsx\",\n    \"isEntry\": true\n  },\n  \"src/page/page.tsx\": {\n    \"file\": \"page/page.js\",\n    \"name\": \"src/page/page\",\n    \"src\": \"src/page/page.tsx\",\n    \"isEntry\": true,\n    \"imports\": [\n      \"src/page/test.module.css\",\n      \"src/components/Link.client.tsx\"\n    ]\n  },\n  \"src/page/props.ts\": {\n    \"file\": \"page/props.js\",\n    \"name\": \"src/page/props\",\n    \"src\": \"src/page/props.ts\",\n    \"isEntry\": true\n  },\n  \"src/page/test.module.css\": {\n    \"file\": \"page/test.js\",\n    \"name\": \"src/page/test.module\",\n    \"src\": \"src/page/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page/test.css\"\n    ]\n  },\n  \"src/page2/test.module.css\": {\n    \"file\": \"page2/test.js\",\n    \"name\": \"src/page2/test.module\",\n    \"src\": \"src/page2/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page2/test.css\"\n    ]\n  }\n}",
+      "isEntry": false
+    },
+    ".vite/ssr-manifest.json": {
+      "file": ".vite/ssr-manifest.json",
+      "src": ".vite/ssr-manifest.json",
+      "source": "{\n  \"src/components/Link.client.tsx\": [],\n  \"src/page/page.tsx\": [],\n  \"src/page/props.ts\": [],\n  \"src/page/test.module.css\": [],\n  \"src/page2/test.module.css\": []\n}",
+      "isEntry": false
+    }
+  },
+  "route": "/",
+  "url": "/",
+  "pageProps": {
+    "title": "Test",
+    "url": "/"
+  },
+  "moduleBasePath": "",
+  "moduleBaseURL": "/",
+  "moduleRootPath": "/home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/client",
+  "verbose": true,
+  "logger": {
+    "hasWarned": false
+  },
+  "panicThreshold": "all_errors",
+  "rscTimeout": 5000,
+  "serverPipeableStreamOptions": {
+    "bootstrapScripts": [
+      "index.js"
+    ]
+  },
+  "id": "/-headless-/-1759236235066-rvnn0mv3m"
+}
+[rsc-worker:/] *** CALLING renderToPipeableStream ***
+[rsc-worker:/] *** renderToPipeableStream returned pipe function ***
+[rsc-worker:/] *** CALLING pipe(passThrough) ***
+[rsc-worker:/] *** pipe(passThrough) call completed ***
+[rsc-worker:/] Two-port mode: using standard pipe interface, React will call _final when complete
+[rsc-worker:/] Two-port mode: using data-flow completion detection
+[rsc-worker:/] Render setup complete for route: / - function returning, worker should continue
+[rsc-worker] Processing single-use stream /-headless-/-1759236235066-rvnn0mv3m for route: /
+Test Page rendering { title: 'Test', url: '/' } _test_x2k9h_1 _shared_x2k9h_2
+[rsc-worker:/] *** STREAM FINISH EVENT FIRED ***
+[rsc-worker:/] *** STREAM FINISH EVENT FIRED ***
+[rsc-worker:/] *** STREAM CLOSE EVENT FIRED ***
+[rsc-worker:/] Stored Page component for headless stream /-headless-/-1759236235066-rvnn0mv3m (from close event)
+[rsc-worker:/] Calling handlers.onEnd(/-headless-/-1759236235066-rvnn0mv3m) from close event to trigger completion
+[RSC Worker Loader] Module loaded successfully, exports: props
+[resolvePageAndProps] Both promises resolved
+[resolvePageAndProps] Both page and props resolved successfully
+[loadComponentsWithCache] pageAndPropsResult for page/page.js:
+[rsc-worker] Loaded and cached PageComponent from: page/page.js
+[rsc-worker] Loaded and cached pageProps from: page/props.js
+[rsc-worker] Loaded pageProps:
+[rsc-worker] Using built-in default Root component
+[DEBUG] RSC worker Html component resolution: htmlPath='undefined' (type: undefined)
+[rsc-worker] Html component resolution: htmlPath='undefined' (type: undefined)
+[rsc-worker] htmlPath is undefined, using default Html component
+[rsc-worker] Successfully loaded default Html component
+[rsc-worker] Loaded components for route /:
+[rsc-worker] - PageComponent: function
+[rsc-worker] - pageProps: {"title":"Test","url":"/"}
+[rsc-worker] - RootComponent: function
+[rsc-worker] - HtmlComponent: function
+[rsc-worker] Full stream serverPipeableStreamOptions: {"bootstrapScripts":["index.js"]}
+[rsc-worker] Found reusable elements from headless stream /-headless-/-1759236235066-rvnn0mv3m
+[rsc-worker] Route: /, isHeadless: false, isStaticGeneration: dist
+[rsc-worker] msg.options.build: {"pages":["/"],"assetsDir":"assets","client":"client","server":"server","static":"static","api":"api","preserveModulesRoot":true,"outDir":"dist","hash":"hash","extensionMap":{".css":".css",".json":".json",".html":".html",".rsc":".rsc",".node":".node.js","\\.(m|c)?(j|t)sx?$":".js"},"rscOutputPath":"index.rsc","htmlOutputPath":"index.html","moduleExtension":".js","jsExtension":".js","cssExtension":".css","htmlExtension":".html","jsonExtension":".json","rscExtension":".rsc","cssModuleExtension":".module.css.js","nodeExtension":".node","useRscWorker":false,"useHtmlWorker":true}
+[rsc-worker] Creating full RSC stream with reused elements from headless stream for route /
+[rsc-worker:/] Creating RSC stream
+[rsc-worker:/] htmlPath in handlerOptions: "undefined" (type: undefined)
+[rsc-worker:/] HtmlComponent in handlerOptions: present
+[rsc-worker:/] Found reusable stream from headless stream /-headless-/-1759236235066-rvnn0mv3m
+[rsc-worker:/] Reusing Page component from headless stream /-headless-/-1759236235066-rvnn0mv3m
+[createElementWithReact] Creating element for route: /
+[createElementWithReact] CSS files: 1 files
+[createElementWithReact] Global CSS: 0 files
+[createElementWithReact] Returning Full HTML structure
+[rsc-worker:/] About to render element for route: /
+[rsc-worker:/] Element to render: {
+  "key": null,
+  "props": {
+    "moduleBase": "src",
+    "moduleBaseURL": "/",
+    "moduleBasePath": "",
+    "moduleRootPath": "/home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/client",
+    "projectRoot": "/home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project",
+    "url": "/",
+    "route": "/",
+    "pageProps": {
+      "title": "Test",
+      "url": "/"
+    },
+    "cssFiles": {},
+    "globalCss": {},
+    "manifest": {
+      "src/page2/test.module.css": {
+        "file": "page2/test.js",
+        "name": "src/page2/test.module",
+        "src": "src/page2/test.module.css",
+        "isEntry": true,
+        "css": [
+          "assets/page2/test.css"
+        ]
+      },
+      "src/page/page.tsx": {
+        "file": "page/page.js",
+        "name": "src/page/page",
+        "src": "src/page/page.tsx",
+        "isEntry": true,
+        "imports": [
+          "react",
+          "page/test.js",
+          "components/Link.client-wj6rwp.js",
+          "react-server-dom-esm/server.node"
+        ]
+      },
+      "src/components/Link.client.tsx": {
+        "file": "components/Link.client-wj6rwp.js",
+        "name": "src/components/Link.client",
+        "src": "src/components/Link.client.tsx",
+        "isEntry": true,
+        "imports": [
+          "react-server-dom-esm/server.node"
+        ]
+      },
+      "src/page/test.module.css": {
+        "file": "page/test.js",
+        "name": "src/page/test.module",
+        "src": "src/page/test.module.css",
+        "isEntry": true,
+        "css": [
+          "assets/page/test.css"
+        ]
+      },
+      "src/page/props.ts": {
+        "file": "page/props.js",
+        "name": "src/page/props",
+        "src": "src/page/props.ts",
+        "isEntry": true
+      },
+      ".vite/manifest.json": {
+        "file": ".vite/manifest.json",
+        "src": ".vite/manifest.json",
+        "source": "{\n  \"src/components/Link.client.tsx\": {\n    \"file\": \"components/Link.client-wj6rwp.js\",\n    \"name\": \"src/components/Link.client\",\n    \"src\": \"src/components/Link.client.tsx\",\n    \"isEntry\": true\n  },\n  \"src/page/page.tsx\": {\n    \"file\": \"page/page.js\",\n    \"name\": \"src/page/page\",\n    \"src\": \"src/page/page.tsx\",\n    \"isEntry\": true,\n    \"imports\": [\n      \"src/page/test.module.css\",\n      \"src/components/Link.client.tsx\"\n    ]\n  },\n  \"src/page/props.ts\": {\n    \"file\": \"page/props.js\",\n    \"name\": \"src/page/props\",\n    \"src\": \"src/page/props.ts\",\n    \"isEntry\": true\n  },\n  \"src/page/test.module.css\": {\n    \"file\": \"page/test.js\",\n    \"name\": \"src/page/test.module\",\n    \"src\": \"src/page/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page/test.css\"\n    ]\n  },\n  \"src/page2/test.module.css\": {\n    \"file\": \"page2/test.js\",\n    \"name\": \"src/page2/test.module\",\n    \"src\": \"src/page2/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page2/test.css\"\n    ]\n  }\n}",
+        "isEntry": false
+      },
+      ".vite/ssr-manifest.json": {
+        "file": ".vite/ssr-manifest.json",
+        "src": ".vite/ssr-manifest.json",
+        "source": "{\n  \"src/components/Link.client.tsx\": [],\n  \"src/page/page.tsx\": [],\n  \"src/page/props.ts\": [],\n  \"src/page/test.module.css\": [],\n  \"src/page2/test.module.css\": []\n}",
+        "isEntry": false
+      }
+    },
+    "as": "div"
+  },
+  "_owner": null,
+  "_store": {}
+}
+[rsc-worker:/] Props: {
+  "moduleBase": "src",
+  "projectRoot": "/home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project",
+  "cssFiles": {},
+  "globalCss": {},
+  "manifest": {
+    "src/page2/test.module.css": {
+      "file": "page2/test.js",
+      "name": "src/page2/test.module",
+      "src": "src/page2/test.module.css",
+      "isEntry": true,
+      "css": [
+        "assets/page2/test.css"
+      ]
+    },
+    "src/page/page.tsx": {
+      "file": "page/page.js",
+      "name": "src/page/page",
+      "src": "src/page/page.tsx",
+      "isEntry": true,
+      "imports": [
+        "react",
+        "page/test.js",
+        "components/Link.client-wj6rwp.js",
+        "react-server-dom-esm/server.node"
+      ]
+    },
+    "src/components/Link.client.tsx": {
+      "file": "components/Link.client-wj6rwp.js",
+      "name": "src/components/Link.client",
+      "src": "src/components/Link.client.tsx",
+      "isEntry": true,
+      "imports": [
+        "react-server-dom-esm/server.node"
+      ]
+    },
+    "src/page/test.module.css": {
+      "file": "page/test.js",
+      "name": "src/page/test.module",
+      "src": "src/page/test.module.css",
+      "isEntry": true,
+      "css": [
+        "assets/page/test.css"
+      ]
+    },
+    "src/page/props.ts": {
+      "file": "page/props.js",
+      "name": "src/page/props",
+      "src": "src/page/props.ts",
+      "isEntry": true
+    },
+    ".vite/manifest.json": {
+      "file": ".vite/manifest.json",
+      "src": ".vite/manifest.json",
+      "source": "{\n  \"src/components/Link.client.tsx\": {\n    \"file\": \"components/Link.client-wj6rwp.js\",\n    \"name\": \"src/components/Link.client\",\n    \"src\": \"src/components/Link.client.tsx\",\n    \"isEntry\": true\n  },\n  \"src/page/page.tsx\": {\n    \"file\": \"page/page.js\",\n    \"name\": \"src/page/page\",\n    \"src\": \"src/page/page.tsx\",\n    \"isEntry\": true,\n    \"imports\": [\n      \"src/page/test.module.css\",\n      \"src/components/Link.client.tsx\"\n    ]\n  },\n  \"src/page/props.ts\": {\n    \"file\": \"page/props.js\",\n    \"name\": \"src/page/props\",\n    \"src\": \"src/page/props.ts\",\n    \"isEntry\": true\n  },\n  \"src/page/test.module.css\": {\n    \"file\": \"page/test.js\",\n    \"name\": \"src/page/test.module\",\n    \"src\": \"src/page/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page/test.css\"\n    ]\n  },\n  \"src/page2/test.module.css\": {\n    \"file\": \"page2/test.js\",\n    \"name\": \"src/page2/test.module\",\n    \"src\": \"src/page2/test.module.css\",\n    \"isEntry\": true,\n    \"css\": [\n      \"assets/page2/test.css\"\n    ]\n  }\n}",
+      "isEntry": false
+    },
+    ".vite/ssr-manifest.json": {
+      "file": ".vite/ssr-manifest.json",
+      "src": ".vite/ssr-manifest.json",
+      "source": "{\n  \"src/components/Link.client.tsx\": [],\n  \"src/page/page.tsx\": [],\n  \"src/page/props.ts\": [],\n  \"src/page/test.module.css\": [],\n  \"src/page2/test.module.css\": []\n}",
+      "isEntry": false
+    }
+  },
+  "route": "/",
+  "url": "/",
+  "pageProps": {
+    "title": "Test",
+    "url": "/"
+  },
+  "moduleBasePath": "",
+  "moduleBaseURL": "/",
+  "moduleRootPath": "/home/nico/code/vite-plugin-react-server/test/fixtures/shared/preserve-modules-root-test-project/dist/client",
+  "verbose": true,
+  "logger": {
+    "hasWarned": false
+  },
+  "panicThreshold": "all_errors",
+  "rscTimeout": 5000,
+  "serverPipeableStreamOptions": {
+    "bootstrapScripts": [
+      "index.js"
+    ]
+  },
+  "id": "/-full-/-1759236235066-rvnn0mv3m",
+  "reuseHeadlessStreamId": "/-headless-/-1759236235066-rvnn0mv3m"
+}
+[rsc-worker:/] *** CALLING renderToPipeableStream ***
+[rsc-worker:/] *** renderToPipeableStream returned pipe function ***
+[rsc-worker:/] *** CALLING pipe(passThrough) ***
+[rsc-worker:/] *** pipe(passThrough) call completed ***
+[rsc-worker:/] Two-port mode: using standard pipe interface, React will call _final when complete
+[rsc-worker:/] Two-port mode: using data-flow completion detection
+[rsc-worker:/] Render setup complete for route: / - function returning, worker should continue
+[rsc-worker] Processing single-use stream /-full-/-1759236235066-rvnn0mv3m for route: /
+Test Page rendering { title: 'Test', url: '/' } _test_x2k9h_1 _shared_x2k9h_2
+[rsc-worker:/] *** STREAM FINISH EVENT FIRED ***
+[rsc-worker:/] *** STREAM FINISH EVENT FIRED ***
+[rsc-worker:/] *** STREAM CLOSE EVENT FIRED ***
+[rsc-worker:/] Calling handlers.onEnd(/-full-/-1759236235066-rvnn0mv3m) from close event to trigger completion
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[createRenderToPipeableStreamHandler.client:/] Shell ready, starting to pipe HTML
+[createRenderToPipeableStreamHandler.client:/] All ready, HTML rendering complete
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[renderPages] Received result for route /: success
+[renderPages] Success for route /, starting file writes
+[fileWriter] Starting file write for rsc on route /
+Test Event: [32m'file.write'[39m
+[fileWriter] Starting file write for html on route /
+[renderPage.client] Piping HTML stream to destination for route: /
+Test Event: [32m'file.write'[39m
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[fileWriter] Completed file write for rsc on route /
+[fileWriter:rsc] Emitting file.write.done with content length: 3140 bytes, chunks: 4
+[fileWriter:rsc] Content preview: :N1759236235081.0815
+1:"$Sreact.fragment"
+4:"$Sreact.fragment"
+7:I["components/Link.client-wj6rwp.js","Link"]
+2:[["assets/page/test.css",{"id":"assets/page/test.css","as":"link","rel":"stylesheet","hr...
+Test Event: [32m'file.write.done'[39m
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[fileWriter] Completed file write for html on route /
+[fileWriter:html] Emitting file.write.done with content length: 426 bytes, chunks: 2
+[fileWriter:html] Content preview: <!DOCTYPE html><html><head><link rel="stylesheet" href="assets/page/test.css" data-precedence="high"/><link rel="preload" as="script" fetchPriority="low" href="index.js"/><link rel="expect" href="#«R»...
+Test Event: [32m'file.write.done'[39m
+[2mdist/static[0m[36m/index.html[0m [1m426 B[0m [90m116ms[0m
+[2mdist/static[0m[36m/index.rsc[0m [1m3.1 kB[0m [90m2ms[0m
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[renderPages] Successfully wrote files for route: /
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[renderPages] Final state - completedRoutes: 1, failedRoutes: 0
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[renderPages] Returning success result
+[renderPages] About to return success result
+[renderPages] Panic check - failedRoutes.size: 0, panicThreshold: all_errors, shouldPanic: false
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[plugin vite:plugin-react-server/client-static] Rendered 1 pages in 316ms
+[react-static-client] Static generation completed
+Test Event: [32m'build.ssg.end'[39m
+
+stderr | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment)
+[plugin vite:plugin-react-server/client-static] THIS BUILD IS NOT INTENDED FOR PRODUCTION (test)
+
+stdout | test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment) > should preserve module structure in server build when preserveModulesRoot is true
+[DEBUG] All server chunks: [
+  'page2/test.js',
+  'page/page.js',
+  'components/Link.client-wj6rwp.js',
+  'page/test.js',
+  'page/props.js'
+]
+[DEBUG] Preserved modules with src/: []
+
+ ❯ test/examples/preserve-modules-root.test.ts (4 tests | 2 failed) 1461ms
+   × Preserve Modules Root (Cross-Environment) > should preserve module structure in server build when preserveModulesRoot is true 2ms
+     → expected 0 to be greater than 0
+   × Preserve Modules Root (Cross-Environment) > should preserve module structure in client build when preserveModulesRoot is true 0ms
+     → expected 0 to be greater than 0
+   ✓ Preserve Modules Root (Cross-Environment) > should handle static generation with preserved modules
+   ✓ Preserve Modules Root (Cross-Environment) > should maintain proper module resolution with preserved structure
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment) > should preserve module structure in server build when preserveModulesRoot is true
+AssertionError: expected 0 to be greater than 0
+ ❯ test/examples/preserve-modules-root.test.ts:37:37
+     35|     console.log("[DEBUG] Preserved modules with src/:", preservedModul…
+     36|     
+     37|     expect(preservedModules.length).toBeGreaterThan(0);
+       |                                     ^
+     38|     
+     39|     // Verify that the module paths preserve the source structure incl…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/examples/preserve-modules-root.test.ts > Preserve Modules Root (Cross-Environment) > should preserve module structure in client build when preserveModulesRoot is true
+AssertionError: expected 0 to be greater than 0
+ ❯ test/examples/preserve-modules-root.test.ts:56:37
+     54|     
+     55|     // Client build should also preserve some module structure
+     56|     expect(preservedModules.length).toBeGreaterThan(0);
+       |                                     ^
+     57|   });
+     58| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  14:43:52
+   Duration  2.39s (transform 383ms, setup 40ms, collect 649ms, tests 1.46s, environment 0ms, prepare 55ms)
+
+[?25h

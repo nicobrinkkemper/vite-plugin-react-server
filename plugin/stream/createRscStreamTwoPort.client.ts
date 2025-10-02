@@ -60,14 +60,8 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
         rscStream.destroy();
         break;
       case 'RSC_END':
-        // Worker has finished sending data - ensure stream is properly ended
-        // This is critical for error cases where the data port may have failed to send null
-        // For MessagePortReadable, we need to push null to signal end-of-stream
-        try {
-          (rscStream as any).push(null);
-        } catch (error) {
-          // Stream may already be ended, ignore
-        }
+        // Worker has finished sending data - don't close ports yet
+        // Let the MessagePortReadable handle the natural end of stream
         break;
       case 'METRICS':
         // Metrics are handled by the worker internally

@@ -257,7 +257,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       handlerOptions.logger?.info(`  root: ${handlerOptions.rootPath} -> ${resolvedRootPath}`);
       handlerOptions.logger?.info(`  html: ${handlerOptions.htmlPath} -> ${resolvedHtmlPath}`);
       handlerOptions.logger?.info(`  manifest keys: ${Object.keys(manifest).join(', ')}`);
-      handlerOptions.logger?.info(`  manifest entries: ${JSON.stringify(manifest, null, 2)}`);
+      handlerOptions.logger?.info(`  HTML path issue: htmlPath='${handlerOptions.htmlPath}', resolved='${resolvedHtmlPath}', manifest has Html entry: ${!!manifest[handlerOptions.htmlPath || '']}`);
+      handlerOptions.logger?.info(`  About to pass htmlPath='${resolvedHtmlPath}' to RSC stream`);
     }
     const worker = handlerOptions.worker ?? handlerOptions.rscWorker;
 
@@ -411,7 +412,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       rscTimeout: handlerOptions.rscTimeout || 5000,
       onMetrics: handlerOptions.onMetrics,
       // Full RSC stream: include HTML wrapper (for HTML generation)
-      htmlPath: undefined, // Full RSC stream: include HTML wrapper (for HTML generation)
+      // Pass through the resolved htmlPath so custom Html components work in client mode
+      htmlPath: resolvedHtmlPath,
       pagePath: newHandlerOptions.pagePath || '', // Ensure pagePath is always a string
       url: newHandlerOptions.url || '', // Ensure url is always a string
       pageProps: newHandlerOptions.pageProps || {}, // Ensure pageProps is always an object

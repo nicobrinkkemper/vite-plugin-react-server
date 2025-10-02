@@ -48,16 +48,16 @@ const isChunk = (
   entry: [string, OutputChunk | OutputAsset]
 ): entry is [string, OutputChunk] => entry[1].type === "chunk";
 const chunkToString = (entry: [string, OutputChunk]) =>
-  [entry[0], entry[1].code.toString()];
+  [entry[1].fileName, entry[1].code.toString()];
 
 const isAsset = (
   entry: [string, OutputChunk | OutputAsset]
 ): entry is [string, OutputAsset] => entry[1].type === "asset";
 const assetToString = (entry: [string, OutputAsset]) =>
-  [entry[0], entry[1].source.toString()];
+  [entry[1].fileName, entry[1].source.toString()];
 
 const noMap = (entry: [string, OutputChunk | OutputAsset]) =>
-  !entry[0].endsWith(".map");
+  !entry[1].fileName.endsWith(".map");
 
 const isHtmlGeneratedEvent = (event: PluginEvent): event is FileWriteDoneEvent & { data: { fileType: "html" } } => event.type === "file.write.done" && event.data.fileType === "html";
 
@@ -134,6 +134,8 @@ export async function getSharedBuild(
     projectRoot: testDir,
     build: {
       ...testUserOptions.build,
+      // Apply custom build options AFTER testUserOptions.build so they take precedence
+      ...options.build,
       // modify outDir so we can inspect both dists after the tests
       // will be dist-${actualTestName}-${condition}
       // use shared setup but different dist directory by default

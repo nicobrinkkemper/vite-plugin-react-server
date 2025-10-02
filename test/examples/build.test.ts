@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { setupTestProject } from "../setup.js";
 import { getSharedBuild } from "./shared-build.js";
+import { rmSync } from 'fs';
+import { join } from 'path';
 
 describe("plugin examples build test", () => {
   let buildResult: any;
@@ -8,6 +10,9 @@ describe("plugin examples build test", () => {
   const rscContent: string[] = [];
   
   beforeAll(async () => {
+    // Let the shared build system handle its own cleanup
+    // Don't aggressively delete the shared directory as other tests might be using it
+    
     buildResult = await getSharedBuild('test-project', 'build', {
       setupProject: setupTestProject,
       pages: ['/', '/page2'],

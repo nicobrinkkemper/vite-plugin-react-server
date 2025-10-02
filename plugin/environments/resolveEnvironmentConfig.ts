@@ -195,6 +195,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
         userOptions.build.preserveModulesRoot === false
           ? userOptions.moduleBase // Strip src/ from output paths
           : undefined; // Keep src/ in output paths
+      
 
       // Basic rollup options - the file naming will be handled by resolveUserConfig mapping
       const rollupOptions = {
@@ -202,6 +203,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
         output: {
           format: "esm" as const,
           exports: "named" as const,
+          preserveModules: true, // Required for preserveModulesRoot to work
           preserveModulesRoot: preserveModulesRootString,
           // Note: entryFileNames, chunkFileNames, assetFileNames will be overridden by createEnvironmentPlugin mapping
           entryFileNames: userDefinedEntryFileNames,
@@ -267,6 +269,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
             output: {
               format: "esm" as const,
               exports: "named" as const,
+              preserveModules: true, // Required for preserveModulesRoot to work
               preserveModulesRoot: preserveModulesRootString,
               // Note: entryFileNames, chunkFileNames, assetFileNames will be overridden by createEnvironmentPlugin mapping
               entryFileNames: userDefinedEntryFileNames,

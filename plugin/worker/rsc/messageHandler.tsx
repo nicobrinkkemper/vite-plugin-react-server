@@ -333,15 +333,25 @@ async function loadComponentsWithCache(options: {
   }
 
   // Load Html component
+  if (verbose) {
+    logger?.info(`[rsc-worker] Html component resolution: htmlPath='${htmlPath}' (type: ${typeof htmlPath})`);
+  }
+  
   if (htmlPath === "") {
     HtmlComponent = React.Fragment; // Empty string = explicitly headless (no HTML wrapper)
+    if (verbose) {
+      logger?.info(`[rsc-worker] Using headless Html component (empty string)`);
+    }
   } else if (htmlPath === undefined) {
     // undefined = use default HTML component
+    if (verbose) {
+      logger?.info(`[rsc-worker] htmlPath is undefined, using default Html component`);
+    }
     try {
       const { Html } = await import("../../components/html.js");
       HtmlComponent = Html;
       if (verbose) {
-        logger?.info(`[rsc-worker] Using default Html component`);
+        logger?.info(`[rsc-worker] Successfully loaded default Html component`);
       }
     } catch (error) {
       logger?.warn(
@@ -352,6 +362,9 @@ async function loadComponentsWithCache(options: {
       HtmlComponent = React.Fragment; // Fallback to headless if default fails
     }
   } else if (htmlPath) {
+    if (verbose) {
+      logger?.info(`[rsc-worker] Attempting to load custom Html component from: ${htmlPath}`);
+    }
     const htmlId = `${htmlPath}#${htmlExportName}`;
     if (hasCachedComponent(htmlId)) {
       HtmlComponent = getCachedComponent(htmlId);
@@ -361,6 +374,9 @@ async function loadComponentsWithCache(options: {
         );
       }
     } else {
+      if (verbose) {
+        logger?.info(`[rsc-worker] Component not cached, calling resolveComponent with path: ${htmlPath}, exportName: ${htmlExportName}`);
+      }
       const htmlResult = await resolveComponent({
         componentPath: htmlPath,
         exportName: htmlExportName,
@@ -376,9 +392,15 @@ async function loadComponentsWithCache(options: {
           );
         }
       } else {
-        throw new Error(
-          `Failed to load Html component: ${htmlResult.error?.message}`
-        );
+        // Handle component resolution failure gracefully (same as server environment)
+        if (verbose) {
+          logger?.warn(
+            `[rsc-worker] Failed to load Html component from ${htmlPath}: ${htmlResult.error?.message || 'Unknown error'}`
+          );
+          logger?.warn(`[rsc-worker] Html resolution error details:`, htmlResult.error);
+        }
+        // Use React.Fragment as fallback (same as server environment)
+        HtmlComponent = React.Fragment;
       }
     }
   } else {
@@ -539,6 +561,14 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           );
 
         // Load components using the unified helper function
+        if (verbose) {
+          logger?.info(`[rsc-worker:messageHandler] Component paths for route ${msg.options.route}:`);
+          logger?.info(`  pagePath: ${msg.options.pagePath}`);
+          logger?.info(`  propsPath: ${msg.options.propsPath}`);
+          logger?.info(`  rootPath: ${msg.options.rootPath}`);
+          logger?.info(`  htmlPath: ${msg.options.htmlPath}`);
+        }
+
         const { PageComponent, pageProps, RootComponent, HtmlComponent } =
           await loadComponentsWithCache({
             pagePath: msg.options.pagePath,

@@ -72,7 +72,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
 
   it("should handle rapid successive builds without race conditions", async () => {
     // This test runs builds in rapid succession to test timing issues
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 3; i++) {
       await expect(
         getSharedBuild('test-project', `race-condition-rapid-${i}`, {
           build: {

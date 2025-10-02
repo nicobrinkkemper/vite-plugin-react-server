@@ -198,9 +198,16 @@ export const resolveUserConfig: ResolveUserConfigFn =
     const preserveModulesRootString =
       userOptions.build.preserveModulesRoot === false
         ? userOptions.moduleBase // Strip src/ from output paths
-        : undefined; // Keep src/ in output paths
+        : ""; // Keep src/ in output paths by setting root to empty string
+    
+    if (userOptions.verbose) {
+      console.log(`[DEBUG] resolveUserConfig preserveModulesRootString:`, preserveModulesRootString);
+      console.log(`[DEBUG] resolveUserConfig userOptions.build.preserveModulesRoot:`, userOptions.build.preserveModulesRoot);
+      console.log(`[DEBUG] resolveUserConfig userOptions.moduleBase:`, userOptions.moduleBase);
+    }
 
     const pluginOutput = {
+      preserveModules: true, // Required for preserveModulesRoot to work
       preserveModulesRoot: preserveModulesRootString,
       entryFileNames:
         userDefinedEntryFileNames ??
@@ -289,6 +296,13 @@ export const resolveUserConfig: ResolveUserConfigFn =
         config.build?.rollupOptions?.output !== null
       ? [config.build?.rollupOptions?.output, pluginOutput]
       : pluginOutput;
+    
+    if (userOptions.verbose) {
+      console.log(`[DEBUG] resolveUserConfig newOutput:`, JSON.stringify(newOutput, null, 2));
+      console.log(`[DEBUG] resolveUserConfig pluginOutput:`, JSON.stringify(pluginOutput, null, 2));
+      console.log(`[DEBUG] resolveUserConfig pluginOutput keys:`, Object.keys(pluginOutput));
+      console.log(`[DEBUG] resolveUserConfig pluginOutput.preserveModulesRoot:`, pluginOutput.preserveModulesRoot);
+    }
     const vitePrefix = config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
 
     // Get environment variables (env vars take precedence over config)

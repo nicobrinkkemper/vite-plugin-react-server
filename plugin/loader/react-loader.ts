@@ -208,6 +208,10 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     }
 
     if(typeof userOptions.moduleID !== "function") {
+      // Ensure we have proper build context for RSC worker
+      // If configEnv is not available or doesn't indicate build mode, create a build-compatible configEnv
+      const buildConfigEnv = resolvedConfig?.configEnv ?? { command: "build", mode: "production" };
+      
       userOptions.moduleID = createDefaultModuleID({
         moduleBase: userOptions.moduleBase,
         moduleBasePath: userOptions.moduleBasePath,
@@ -216,7 +220,7 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         dev: userOptions.dev,
         moduleBaseURL: userOptions.moduleBaseURL,
         projectRoot: userOptions.projectRoot,
-      }, resolvedConfig?.configEnv);
+      }, buildConfigEnv);
     }
 
     // Normalize the URL using the same logic as plugin.server.ts

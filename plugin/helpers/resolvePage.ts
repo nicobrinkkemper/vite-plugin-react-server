@@ -37,6 +37,7 @@ export const resolvePage: ResolvePageFn = async function _resolvePage({
   exportName,
   loader,
 }) {
+  console.log(`[resolvePage] Resolving page: ${id}#${exportName}`);
   // Check if this is a stashed page that needs special handling
   const pageLoadResult = await (async () => {
     try {

@@ -273,6 +273,60 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             rollupOptions: {
               ...userConfig.build.rollupOptions,
               external: undefined, // Remove external from rollupOptions, it's now in resolve.external
+              // Set preserveModules in the output configuration, not at the top level
+              output: (() => {
+                const output = userConfig.build.rollupOptions.output;
+                if (userOptions.verbose) {
+                  console.log(`[DEBUG] ${envConfig.name} environment output config:`, JSON.stringify(output, null, 2));
+                  console.log(`[DEBUG] ${envConfig.name} output type:`, Array.isArray(output) ? 'array' : typeof output);
+                  if (Array.isArray(output)) {
+                    console.log(`[DEBUG] ${envConfig.name} output array length:`, output.length);
+                    output.forEach((item, index) => {
+                      console.log(`[DEBUG] ${envConfig.name} output[${index}]:`, JSON.stringify(item, null, 2));
+                    });
+                  }
+                }
+                
+                // Handle array output configuration - extract the plugin output that contains preserveModulesRoot
+                if (Array.isArray(output)) {
+                  const pluginOutput = output.find(o => o && typeof o === 'object' && 'preserveModulesRoot' in o);
+                  if (pluginOutput) {
+                    if (userOptions.verbose) {
+                      console.log(`[DEBUG] ${envConfig.name} found pluginOutput with preserveModulesRoot:`, JSON.stringify(pluginOutput, null, 2));
+                    }
+                    return pluginOutput;
+                  }
+                  // If no pluginOutput found, use the first output configuration
+                  if (output.length > 0) {
+                    return output[0];
+                  }
+                }
+                
+                // Ensure preserveModulesRoot is always present in the output configuration
+                if (output && typeof output === 'object' && !Array.isArray(output)) {
+                  // Check if the property exists in the object (not just checking the value)
+                  const hasPreserveModulesRoot = 'preserveModulesRoot' in output;
+                  if (userOptions.verbose) {
+                    console.log(`[DEBUG] ${envConfig.name} hasPreserveModulesRoot:`, hasPreserveModulesRoot);
+                  }
+                  
+                  if (hasPreserveModulesRoot) {
+                    // Property exists, return the object with preserveModules: true to enable the feature
+                    return { ...output, preserveModules: true };
+                  } else {
+                    // Property missing, add it based on user options
+                    if (userOptions.verbose) {
+                      console.log(`[DEBUG] ${envConfig.name} output missing preserveModulesRoot, adding from userOptions`);
+                    }
+                    const preserveModulesRootString = userOptions.build.preserveModulesRoot === false
+                      ? userOptions.moduleBase
+                      : undefined;
+                    return { ...output, preserveModulesRoot: preserveModulesRootString };
+                  }
+                }
+                
+                return output;
+              })(),
             },
           },
         };

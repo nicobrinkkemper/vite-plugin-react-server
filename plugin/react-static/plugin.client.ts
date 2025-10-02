@@ -376,7 +376,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         // The static manifest contains the correct hashes that should be used for both builds
         // (staticManifest already loaded above)
 
-        // Create a simple no-op loader for client mode (RSC worker handles module loading)
+        // Create a build loader for client mode (reuse server's sophisticated loader)
         const buildLoader = createBuildLoader();
 
         // Create an RSC worker for generating RSC content
