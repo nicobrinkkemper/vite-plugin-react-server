@@ -9,7 +9,7 @@ import {
 resolveOptions({ 
   moduleBase: "test/streams", 
   Page: "test/streams/TestPage.tsx", 
-  verbose: true,
+  verbose: false,
 });
 
 describe("RSC Stream Completion Detection", () => {

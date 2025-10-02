@@ -39,7 +39,7 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
   const rscStream = new MessagePortReadable(dataPort1, controlPort1);
 
   // Control port - handles control messages
-  controlPort1.on('message', (message: any) => {
+  const controlMessageHandler = (message: any) => {
     switch (message.type) {
       case 'ERROR':
         const error = toError(message.error, message.errorInfo);
@@ -67,7 +67,9 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
         // Metrics are handled by the worker internally
         break;
     }
-  });
+  };
+  
+  controlPort1.on('message', controlMessageHandler);
 
   // Send initialization to worker
   options.rscWorker.postMessage({
@@ -93,6 +95,9 @@ export const createRscStreamTwoPort: CreateRscStreamFn<"client"> = function _cre
       } catch (error) {
         // Port may already be closed
       }
+      
+      // Clean up event listeners to prevent memory leaks
+      controlPort1.removeListener('message', controlMessageHandler);
       
       // Immediate cleanup for abort to prevent hanging
       rscStream.destroy();

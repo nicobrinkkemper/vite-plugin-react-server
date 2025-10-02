@@ -12,6 +12,9 @@ export class MessagePortReadable extends Readable {
   private toWorker?: MessagePort;
   private ended = false;
   public closed = false;
+  private messageHandler?: (chunk: any) => void;
+  private closeHandler?: () => void;
+  private errorHandler?: (error: any) => void;
 
   constructor(fromWorker: MessagePort, toWorker?: MessagePort) {
     super({
@@ -25,7 +28,7 @@ export class MessagePortReadable extends Readable {
   }
 
   private setupMessageListener() {
-    this.fromWorker.on('message', (chunk: any) => {
+    this.messageHandler = (chunk: any) => {
       if (this.closed || this.ended) {
         return; // Ignore messages after close/end
       }
@@ -66,23 +69,27 @@ export class MessagePortReadable extends Readable {
           // Port may be closed - ignore drain signal
         }
       }
-    });
+    };
 
-    this.fromWorker.on('close', () => {
+    this.closeHandler = () => {
       this.closed = true;
       if (!this.ended) {
         this.ended = true;
         this.push(null);
       }
-    });
+    };
 
-    this.fromWorker.on('error', (error: any) => {
+    this.errorHandler = (error: any) => {
       this.closed = true;
       if (!this.ended) {
         this.ended = true;
         this.destroy(error);
       }
-    });
+    };
+
+    this.fromWorker.on('message', this.messageHandler);
+    this.fromWorker.on('close', this.closeHandler);
+    this.fromWorker.on('error', this.errorHandler);
   }
 
   _read() {
@@ -102,6 +109,17 @@ export class MessagePortReadable extends Readable {
     // Let the consuming side (React) manage the port lifecycle
     // This prevents "Connection closed" errors when React is still consuming
     this.closed = true;
+    
+    // Clean up event listeners to prevent memory leaks
+    if (this.messageHandler) {
+      this.fromWorker.removeListener('message', this.messageHandler);
+    }
+    if (this.closeHandler) {
+      this.fromWorker.removeListener('close', this.closeHandler);
+    }
+    if (this.errorHandler) {
+      this.fromWorker.removeListener('error', this.errorHandler);
+    }
     
     // Note: We don't call this.port.close() here. The port will be closed
     // by the higher-level stream management when React is completely done.

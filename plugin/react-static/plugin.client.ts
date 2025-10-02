@@ -145,7 +145,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         throw autoDiscoverResult.error;
       }
       autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles;
-      logger?.info("[react-static-client] Auto-discovery completed");
+      if(userOptions.verbose) {
+        logger?.info(`Auto-discovery ${autoDiscoverResult.type === "success" ? "completed" : "skipped"}`);
+      }
     },
 
     async buildStart() {
@@ -587,7 +589,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         timing.render =
           performance.now() - (timing.renderStart ?? timing.start);
 
-        logger?.info("[react-static-client] Static generation completed");
+        if (userOptions.verbose) {
+          logger?.info("[react-static-client] Static generation completed");
+        }
 
         // Emit the static site generation completion event once
         if (typeof userOptions.onEvent === "function") {

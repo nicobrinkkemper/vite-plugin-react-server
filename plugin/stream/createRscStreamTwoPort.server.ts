@@ -36,7 +36,7 @@ export function createRscStreamTwoPort(options: ServerRscStreamOptions): ServerR
   const rscStream = new PassThrough();
 
   // Data port - receives RSC data from worker and writes to our stream
-  dataPort1.on('message', (chunk: any) => {
+  const dataMessageHandler = (chunk: any) => {
     if (chunk === null) {
       // End of stream
       rscStream.end();
@@ -44,10 +44,12 @@ export function createRscStreamTwoPort(options: ServerRscStreamOptions): ServerR
       // Write RSC data to our stream - let Node.js handle back pressure automatically
       rscStream.write(chunk);
     }
-  });
+  };
+  
+  dataPort1.on('message', dataMessageHandler);
 
   // Control port - handles control messages
-  controlPort1.on('message', (message: any) => {
+  const controlMessageHandler = (message: any) => {
     switch (message.type) {
       case 'ERROR':
         const error = message.error instanceof Error ? message.error : new Error("RSC stream error");
@@ -71,7 +73,9 @@ export function createRscStreamTwoPort(options: ServerRscStreamOptions): ServerR
         // Metrics are handled by the worker internally
         break;
     }
-  });
+  };
+  
+  controlPort1.on('message', controlMessageHandler);
 
   // Send initialization to worker
   options.rscWorker.postMessage({
@@ -118,6 +122,11 @@ export function createRscStreamTwoPort(options: ServerRscStreamOptions): ServerR
     },
     abort: (reason?: unknown) => {
       controlPort1.postMessage({ type: "ABORT", reason });
+      
+      // Clean up event listeners to prevent memory leaks
+      dataPort1.removeListener('message', dataMessageHandler);
+      controlPort1.removeListener('message', controlMessageHandler);
+      
       rscStream.end();
       // Don't close ports - let React handle cleanup to prevent "Connection closed" errors
       // Ports will be cleaned up when worker terminates

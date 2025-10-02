@@ -20,7 +20,7 @@ describe("Preserve Modules Root (Cross-Environment)", () => {
     buildResult = await getSharedBuild('preserve-modules-root-test-project', 'preserve-modules-root', {
       setupProject: setupTestProject,
       pages: ["/"],
-      verbose: true,
+      verbose: false,
       build: {
         preserveModulesRoot: true,
       },

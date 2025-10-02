@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer } from "vite";
-import { vitePluginReactServer } from "vite-plugin-react-server/server";
+import { vitePluginReactServer } from "vite-plugin-react-server";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
@@ -61,34 +61,34 @@ describe("Development Server Environment Handling (Cross-Environment)", () => {
 
   it("should handle environment variables properly in dev mode", async () => {
     expect(response).toBeDefined();
-    expect(response.status).toBe(200);
-    expect(response.contentType).toMatch(/text\/html/);
+    expect(response.statusCode).toBe(200);
+    expect(response.responseHeaders.get("content-type")).toMatch(/text\/x-component/);
   });
 
   it("should serve RSC stream with proper content type", () => {
-    expect(response.contentType).toMatch(/text\/html/);
-    expect(response.body).toBeDefined();
-    expect(typeof response.body).toBe("string");
+    expect(response.responseHeaders.get("content-type")).toMatch(/text\/x-component/);
+    expect(response.result).toBeDefined();
+    expect(typeof response.result).toBe("string");
   });
 
   it("should generate valid RSC content", () => {
-    expect(response.body.length).toBeGreaterThan(0);
+    expect(response.result.length).toBeGreaterThan(0);
     
     // RSC content should contain React streaming data
-    expect(response.body).toMatch(/^[0-9a-f]+:/m); // RSC chunk format
+    expect(response.result).toMatch(/^[0-9a-f]+:/m); // RSC chunk format
   });
 
   it("should handle page component resolution in dev mode", () => {
     // The fact that we got a successful response means component resolution worked
-    expect(response.status).toBe(200);
-    expect(response.body).toContain("Test Page"); // From our test page component
+    expect(response.statusCode).toBe(200);
+    expect(response.result).toContain("Home Page"); // From our test page component
   });
 
   it("should handle props resolution in dev mode", () => {
     // Verify that props were resolved and used
-    expect(response.body).toBeTruthy();
+    expect(response.result).toBeTruthy();
     // The response should contain serialized component data
-    expect(response.body.includes("Test") || response.body.includes("Page")).toBe(true);
+    expect(response.result.includes("Test") || response.result.includes("Page")).toBe(true);
   });
 
   it("should properly initialize development server", () => {

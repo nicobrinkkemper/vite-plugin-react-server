@@ -10,7 +10,7 @@ import { Writable } from "node:stream";
 resolveOptions({ 
   moduleBase: "test/streams", 
   Page: "test/streams/TestPage.tsx", 
-  verbose: true,
+  verbose: false,
 });
 
 describe("Simple Stream Test", () => {
@@ -21,12 +21,7 @@ describe("Simple Stream Test", () => {
     const config = await createHandlerOptions("/", {
       configEnv: { command: "serve", mode: "development" },
       // Override route files to force RSC-only (no HTML generation)
-      routeFiles: {
-        page: "test/streams/TestPage.tsx",
-        props: undefined,
-        html: "", // Empty string = headless mode (RSC-only)
-        root: undefined
-      }
+
     });
     // console.log({ config: Object.keys(config) });
     

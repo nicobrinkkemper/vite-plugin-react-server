@@ -19,22 +19,24 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
   async function _resolvePageAndProps(handlerOptions) {
     try {
       if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(`[resolvePageAndProps] Starting resolution for route: ${handlerOptions.route}`);
-    }
-
-      const url = handlerOptions.url ?? routeToURL(
-        handlerOptions.route ?? "",
-        handlerOptions.moduleBaseURL ?? "/",
-        handlerOptions?.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath
-      );
-
-      if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(`[resolvePageAndProps] URL resolved: ${url}`);
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] Starting resolution for route: ${handlerOptions.route}`
+        );
       }
 
-      // Load the page component
+      const url =
+        handlerOptions.url ??
+        routeToURL(
+          handlerOptions.route ?? "",
+          handlerOptions.moduleBaseURL ?? "/",
+          handlerOptions?.build?.rscOutputPath ??
+            DEFAULT_CONFIG.BUILD.rscOutputPath
+        );
+
       if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(`[resolvePageAndProps] Starting page resolution`);
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] URL resolved: ${url}. Starting page resolution`
+        );
       }
 
       const resolvePagePromise = resolvePage({
@@ -45,7 +47,9 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       });
 
       if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(`[resolvePageAndProps] Starting props resolution`);
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] Starting props resolution`
+        );
       }
 
       const resolvePropsPromise = resolveProps({
@@ -55,7 +59,9 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
         loader: async () => {
           if (handlerOptions.verbose) {
-            handlerOptions.logger?.info(`[resolvePageAndProps] Props loader called`);
+            handlerOptions.logger?.info(
+              `[resolvePageAndProps] Props loader called`
+            );
           }
           const resolvePageResult = await resolvePagePromise;
           if (resolvePageResult.type === "error") {
@@ -64,7 +70,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
                 error: resolvePageResult.error,
               });
             }
-            if(resolvePageResult.error != null) {
+            if (resolvePageResult.error != null) {
               throw resolvePageResult.error;
             }
             throw new Error("Failed to resolve page in props loader");
@@ -74,20 +80,28 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
             handlerOptions.propsExportName in resolvePageResult.module
           ) {
             if (handlerOptions.verbose) {
-              handlerOptions.logger?.info(`[resolvePageAndProps] Props found in page module`);
+              handlerOptions.logger?.info(
+                `[resolvePageAndProps] Props found in page module`
+              );
             }
             // return the module
             return resolvePageResult.module;
           }
           if (handlerOptions.propsPath) {
             if (handlerOptions.verbose) {
-              handlerOptions.logger?.info(`[resolvePageAndProps] Loading props from separate file: ${handlerOptions.propsPath}`);
+              handlerOptions.logger?.info(
+                `[resolvePageAndProps] Loading props from separate file: ${handlerOptions.propsPath}`
+              );
             }
-            const result = await handlerOptions.loader(handlerOptions.propsPath);
+            const result = await handlerOptions.loader(
+              handlerOptions.propsPath
+            );
             return result;
           }
           if (handlerOptions.verbose) {
-            handlerOptions.logger?.info(`[resolvePageAndProps] Using default props with URL`);
+            handlerOptions.logger?.info(
+              `[resolvePageAndProps] Using default props with URL`
+            );
           }
           return {
             [handlerOptions.propsExportName]: { url: url },
@@ -96,7 +110,9 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       });
 
       if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(`[resolvePageAndProps] Waiting for both promises to resolve`);
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] Waiting for both promises to resolve`
+        );
       }
 
       const [resolvePageResult, resolvePropsResult] = await Promise.all([
@@ -105,30 +121,38 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       ]);
 
       if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(`[resolvePageAndProps] Both promises resolved`);
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] Both promises resolved`
+        );
       }
 
       if (resolvePageResult.type != "success") {
         if (handlerOptions.verbose) {
-          handlerOptions.logger?.error(`[resolvePageAndProps] Page resolution failed: ${resolvePageResult.type}`);
+          handlerOptions.logger?.error(
+            `[resolvePageAndProps] Page resolution failed: ${resolvePageResult.type}`
+          );
         }
         return resolvePageResult;
       }
       if (resolvePropsResult.type != "success") {
         if (handlerOptions.verbose) {
-          handlerOptions.logger?.error(`[resolvePageAndProps] Props resolution failed: ${resolvePropsResult.type}`);
+          handlerOptions.logger?.error(
+            `[resolvePageAndProps] Props resolution failed: ${resolvePropsResult.type}`
+          );
         }
         return resolvePropsResult;
       }
 
       if (handlerOptions.verbose) {
-        handlerOptions.logger?.info(`[resolvePageAndProps] Both page and props resolved successfully`);
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] Both page and props resolved successfully`
+        );
       }
 
       const pageProps = resolvePropsResult.module?.[
         handlerOptions.propsExportName as keyof typeof resolvePropsResult.module
       ] as never;
-      
+
       return {
         type: "success" as const,
         PageComponent: resolvePageResult.module[
@@ -138,7 +162,9 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       };
     } catch (error) {
       if (handlerOptions.verbose) {
-        handlerOptions.logger?.error(`[resolvePageAndProps] Error in resolvePageAndProps: ${error}`);
+        handlerOptions.logger?.error(
+          `[resolvePageAndProps] Error in resolvePageAndProps: ${error}`
+        );
       }
       return {
         type: "error" as const,
@@ -180,7 +206,7 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
   > & {
     moduleBaseURL?: string;
     route?: string;
-    url?:string;
+    url?: string;
     build?: {
       rscOutputPath: string;
       outDir?: never;
@@ -191,6 +217,6 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
       pageExportName?: never;
       propsExportName?: never;
       rootExportName?: never;
-    }
+    };
   }
 ) => Promise<ResolvePageAndPropsResult<T>>;

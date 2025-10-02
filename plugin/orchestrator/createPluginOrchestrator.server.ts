@@ -29,10 +29,8 @@ export const createPluginOrchestrator = (
 
   // SSG plugin for server
   if (capabilities.staticGeneration) {
-    console.log(`[Server Orchestrator] Including SSG plugin for server condition`);
     plugins.push(reactStaticPlugin(userOptions));
   }
 
-  console.log(`[Server Orchestrator] Returning ${plugins.length} plugins:`, plugins.map(p => p.name));
   return plugins;
 };

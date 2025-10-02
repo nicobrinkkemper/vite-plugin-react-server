@@ -11,7 +11,7 @@ resolveOptions({
   moduleBase: "test/streams", 
   Page: "test/streams/TestPage.tsx", 
   // Html component should default automatically when not requesting headless stream
-  verbose: true,
+  verbose: false,
   dev: {
     // we need this flag, since normally we don't need a html worker in dev mode
     // since its all handled in the browser

@@ -488,15 +488,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         } else {
           outputPath = "src/" + outputPath;
         }
-        if (options.verbose) {
-          console.log(`[DEBUG] entryFile preserving src/ prefix:`, {
-            originalName: n.name,
-            normalizedName,
-            originalOutputPath: getOutputPath(normalizedName),
-            newOutputPath: outputPath,
-            preserveModulesRoot
-          });
-        }
       }
     }
     

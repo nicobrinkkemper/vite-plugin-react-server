@@ -10,7 +10,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
         build: {
           pages: ["/"],
         },
-        verbose: true,
+        verbose: false,
       })
     ).resolves.not.toThrow();
   });
@@ -25,7 +25,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
         build: {
           pages: ["/"],
         },
-        verbose: true,
+        verbose: false,
         onEvent: (event: any) => {
           if (event.type === testEvent) {
             throw new Error(errString);
@@ -45,7 +45,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
         build: {
           pages: ["/"],
         },
-        verbose: true,
+        verbose: false,
         onEvent: (event: any) => {
           if (event.type === testEvent) {
             throw new Error(errString);
@@ -63,7 +63,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
           build: {
             pages: ["/"],
           },
-          verbose: true,
+          verbose: false,
         })
       ).resolves.not.toThrow();
       
@@ -78,7 +78,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
           build: {
             pages: ["/", "/page2"],
           },
-          verbose: true,
+          verbose: false,
         })
       ).resolves.not.toThrow();
       

@@ -1,7 +1,10 @@
 import type { ServerResponse } from "http";
 import { React } from "../vendor/vendor.server.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
+import { createRscStream } from "../stream/createRscStream.server.js";
 import { createRenderToPipeableStreamHandler } from "../stream/createRenderToPipeableStreamHandler.server.js";
+import { createWorker } from "../worker/createWorker.js";
+import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { handleServerAction } from "./handleServerAction.js";
@@ -267,13 +270,60 @@ export const configureReactServer: ConfigureReactServerFn =
           }
         }
 
-        const rscResult = createRenderToPipeableStreamHandler({
-          ...handlerOptions,
-          url: handlerOptions.route,
-          PageComponent: PageComponent as any,
-          RootComponent: RootComponent as any,
-          HtmlComponent: HtmlComponent as any,
-        });
+        // Create RSC worker for consistent RSC stream formats
+        let rscWorker;
+        try {
+          if (verbose) {
+            logger.info(`Creating RSC worker for route: ${info.route}`);
+          }
+          
+          const workerResult = await createWorker({
+            projectRoot: _userOptions.projectRoot || server.config.root,
+            workerData: {
+              userOptions: serializedOptions(_userOptions, autoDiscoveredFiles),
+              resolvedConfig: server.config,
+              configEnv: { command: "serve", mode: "development" },
+            },
+            verbose,
+            logger,
+          });
+          
+          if (workerResult.type === "success") {
+            rscWorker = workerResult.worker;
+            if (verbose) {
+              logger.info(`RSC worker created successfully for route: ${info.route}`);
+            }
+          } else {
+            if (verbose) {
+              logger.warn(`RSC worker creation skipped for route: ${info.route}: ${workerResult.reason}`);
+            }
+          }
+        } catch (error) {
+          if (verbose) {
+            logger.warn(`Failed to create RSC worker for route: ${info.route}: ${error}`);
+          }
+        }
+
+        // Use worker-based RSC stream if worker is available, otherwise fall back to direct rendering
+        const rscResult = rscWorker 
+          ? createRscStream({
+              ...handlerOptions,
+              url: info.url,
+              pagePath,
+              propsPath,
+              rootPath: undefined,
+              htmlPath: undefined,
+              rscWorker,
+              cssFiles: new Map(),
+              globalCss: new Map(),
+            })
+          : createRenderToPipeableStreamHandler({
+              ...handlerOptions,
+              url: info.url,
+              PageComponent: PageComponent as any,
+              RootComponent: RootComponent as any,
+              HtmlComponent: HtmlComponent as any,
+            });
 
         if (verbose) {
           logger.info(

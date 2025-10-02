@@ -196,7 +196,7 @@
     "test:typecheck": "NODE_OPTIONS='--conditions react-server' vitest run ./test/types --typecheck ",
     "pretest": "npm run build",
     "test-all": "npm run test:server && npm run test:client && npm run test:unit && npm run test:typecheck",
-    "test": "NODE_OPTIONS='--conditions react-server' vitest run",
+    "test": "npm run test:both",
     "test-base-url": "export BASE_URL='/test-base-url/' && npm run build && npm run test:server",
     "test:coverage": "NODE_OPTIONS='--conditions react-server' vitest run --typecheck --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",

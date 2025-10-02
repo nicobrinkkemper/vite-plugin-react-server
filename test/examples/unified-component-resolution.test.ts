@@ -68,7 +68,7 @@ export const Html: HtmlComponentType = ({
         );
       },
       pages: ["/"],
-      verbose: true,
+      verbose: false,  
       Root: "src/Root.tsx",
       Html: "src/Html.tsx",
     });
