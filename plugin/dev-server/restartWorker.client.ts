@@ -1,4 +1,5 @@
 import { createWorker } from "../worker/createWorker.js";
+import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
@@ -9,6 +10,9 @@ import { handleError } from "../error/handleError.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
+let currentHmrChannel: MessageChannel | null = null;
+let currentMessageHandler: ((event: Event) => void) | null = null;
+let currentErrorHandler: ((error: any) => void) | null = null;
 
 export const restartWorker: RestartWorkerFn = async function _restartWorker({
   server,
@@ -18,15 +22,34 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
   hmrChannel,
 }) {
   if (isRestarting) {
+    // Wait for the current restart to complete
+    while (isRestarting) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
     return currentWorker;
   }
   isRestarting = true;
 
   try {
     // Terminate the current worker if it exists
-    if (currentWorker) {
-      currentWorker.removeAllListeners();
-      currentWorker = null;
+    cleanupWorker(currentWorker);
+    currentWorker = null;
+
+    // Clean up any existing HMR channel
+    if (currentHmrChannel) {
+      currentHmrChannel.port1.close();
+      currentHmrChannel.port2.close();
+      currentHmrChannel = null;
+    }
+
+    // Clean up any existing event listeners on the main HMR channel
+    if (currentMessageHandler) {
+      hmrChannel.port1.removeEventListener("message", currentMessageHandler);
+      currentMessageHandler = null;
+    }
+    if (currentErrorHandler) {
+      hmrChannel.port1.removeEventListener("messageerror", currentErrorHandler);
+      currentErrorHandler = null;
     }
 
     const routeCount = autoDiscoveredFiles.urlMap.size;
@@ -35,9 +58,10 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
 
     // Create a new MessageChannel for this worker
     const workerHmrChannel = new MessageChannel();
+    currentHmrChannel = workerHmrChannel;
 
     // Forward messages from the plugin's HMR channel to the worker's channel
-    hmrChannel.port1.addEventListener("message", (event: Event) => {
+    const messageHandler = (event: Event) => {
       try {
         workerHmrChannel.port1.postMessage((event as MessageEvent).data);
       } catch (error) {
@@ -46,14 +70,25 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
           server.config.logger.info(`[restartWorker] HMR message error: ${error}`);
         }
       }
-    });
+    };
 
     // Handle HMR channel errors
-    hmrChannel.port1.addEventListener("messageerror", (error) => {
+    const errorHandler = (error: any) => {
       if (userOptions.verbose) {
         server.config.logger.warn(`[restartWorker] HMR message error: ${error}`);
       }
-    });
+    };
+
+        // Store handlers for cleanup
+        currentMessageHandler = messageHandler;
+        currentErrorHandler = errorHandler;
+
+        // Increase max listeners to prevent warnings during development
+        // This is a targeted fix for the memory leak warnings
+        hmrChannel.port1.setMaxListeners(20);
+
+        hmrChannel.port1.addEventListener("message", messageHandler);
+        hmrChannel.port1.addEventListener("messageerror", errorHandler);
 
     if (userOptions.verbose) {
       server.config.logger.info(`[restartWorker] userOptions.projectRoot: ${userOptions.projectRoot}`);

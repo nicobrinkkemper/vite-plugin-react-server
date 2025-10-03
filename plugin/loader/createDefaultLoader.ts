@@ -47,7 +47,6 @@ const defaultNextLoad: Parameters<LoadHook>[2] = async (url) => {
 export function createDefaultLoader(
   defaultSource: string,
   defaultId = "index",
-  verbose = false
 ): (
   url: string,
   context?: Partial<LoadHookContext>,
@@ -82,28 +81,11 @@ export function createDefaultLoader(
     },
     nextLoad = defaultSourceNextLoad
   ) => {
-    if (verbose) {
-      console.log("[createDefaultLoader] Loading:", url);
-      console.log("[createDefaultLoader] Context:", {
-        format: context.format,
-        conditions: context.conditions,
-      });
-    }
 
     const { format } = context;
     if (format === "module" || format === "module-typescript") {
-      if (verbose) {
-        console.log("[createDefaultLoader] Loading module:", url);
-      }
 
       const result = await nextLoad(url, context);
-      if (verbose) {
-        console.log("[createDefaultLoader] Next load result:", {
-          format: result.format,
-          shortCircuit: result.shortCircuit,
-          source: typeof result.source,
-        });
-      }
 
       const source =
         typeof result.source === "string"
@@ -130,9 +112,6 @@ export function createDefaultLoader(
       };
     }
 
-    if (verbose) {
-      console.log("[createDefaultLoader] Skipping non-module format:", format);
-    }
     return nextLoad(url, context);
   };
 }

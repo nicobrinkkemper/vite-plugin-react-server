@@ -38,7 +38,11 @@ export interface RscWorkerStreamOptions {
  * 
  * **Flow**: Route + Components → RSC Worker (two-port) → RSC Stream
  */
-export function createRscWorkerStream(options: RscWorkerStreamOptions) {
+export function createRscWorkerStream(options: RscWorkerStreamOptions): {
+  stream: PassThrough;
+  dataPort1: MessagePort;
+  controlPort1: MessagePort;
+} {
   const {
     worker,
     route,
@@ -61,20 +65,8 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
   const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
   const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
   
-  // Ensure cleanup happens even if process exits
-  const cleanup = () => {
-    // Don't close MessagePorts on process exit - this breaks React consumption
-    // MessagePorts should be closed by the consuming side (main thread) when done
-    // This follows the idiomatic Node.js streams pattern per the Worker Threads docs
-    if (verbose) {
-      logger?.info(`[createRscWorkerStream] Process cleanup - not closing MessagePorts (consumer will handle)`);
-    }
-  };
-
-  // Clean up on process exit (but don't close ports)
-  process.on('exit', cleanup);
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
+  // Note: Cleanup is handled by the response close handler in configureReactServer.server.ts
+  // This prevents multiple cleanup mechanisms from conflicting
   
   // Create the RSC output stream
   const rscStream = new PassThrough({
@@ -175,16 +167,12 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions) {
     }
   }, [dataPort2, controlPort2] as any); // Transfer both ports to the worker
 
-  // Add cleanup method to the stream
-  (rscStream as any).cleanup = () => {
-    // Remove process listeners to prevent memory leaks
-    process.off("exit", cleanup);
-    process.off("SIGINT", cleanup);
-    process.off("SIGTERM", cleanup);
-    
-    // Don't close the ports here as they might still be in use
-    // The ports will be garbage collected when the stream is destroyed
-  };
+  // Note: Cleanup is handled by the response close handler in configureReactServer.server.ts
+  // No need for a cleanup method on the stream itself
 
-  return rscStream;
+  return {
+    stream: rscStream,
+    dataPort1,
+    controlPort1
+  };
 }

@@ -282,13 +282,6 @@ export const createBuildLoader: CreateBuildLoaderFn =
               serverEntry.file
             );
             
-            // Debug: Check if we have the right conditions when loading server components
-            if (serverEntry.file.includes('page/page.js')) {
-              console.log(`[buildLoader] Loading server component: ${modulePath}`);
-              console.log(`[buildLoader] NODE_OPTIONS: ${process.env.NODE_OPTIONS}`);
-              console.log(`[buildLoader] execArgv: ${process.execArgv.join(' ')}`);
-            }
-            
             const module = await import(modulePath);
             temporaryReferences?.set(moduleRef, module);
             

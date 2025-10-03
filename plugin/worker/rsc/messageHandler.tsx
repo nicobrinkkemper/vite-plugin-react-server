@@ -1,7 +1,6 @@
-import { parentPort } from "node:worker_threads";
+import { parentPort, workerData } from "node:worker_threads";
 import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
-import { workerData } from "node:worker_threads";
 import { join } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
 import { handleRscRender } from "./handleRscRender.js";
@@ -448,8 +447,7 @@ let storedFromWorker: any;
 let storedToWorker: any;
 
 export async function messageHandler(
-  msg: RscWorkerInputMessage,
-  port = parentPort
+  msg: RscWorkerInputMessage
 ) {
   // Store ports from INIT message for consistent two-port communication
   if (msg.type === "INIT") {
@@ -1081,6 +1079,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
         return;
       }
     case "SHUTDOWN": {
+        logger?.info(`[SHUTDOWN] Received shutdown message with id: ${msg.id}`);
         
         // If id is "*", clean up all render states and worker state
         // activeStreams.forEach((stream, renderId) => { // This line was removed as per the new_code
@@ -1090,14 +1089,17 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
         // parentPort?.removeAllListeners(); // This line was removed as per the new_code
         effectiveHandlers.onShutdown?.(msg.id);
         // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
-        if (port) {
+        if (parentPort) {
+          logger?.info(`[SHUTDOWN] Sending SHUTDOWN_COMPLETE message with id: ${msg.id}`);
           sendMessage(
             {
               type: "SHUTDOWN_COMPLETE",
               id: msg.id,
             },
-            port
+            parentPort
           );
+        } else {
+          logger?.warn(`[SHUTDOWN] No parentPort available to send SHUTDOWN_COMPLETE`);
         }
         return;
       }

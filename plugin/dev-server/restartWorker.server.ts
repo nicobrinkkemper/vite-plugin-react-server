@@ -1,4 +1,5 @@
 import { createWorker } from "../worker/createWorker.js";
+import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { React } from "../vendor/vendor.server.js";
@@ -9,6 +10,7 @@ import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
+let currentHmrChannel: MessageChannel | null = null;
 
 export const restartWorker: RestartWorkerFn = async function _restartWorker({
   server,
@@ -18,15 +20,24 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
   hmrChannel,
 }) {
   if (isRestarting) {
+    // Wait for the current restart to complete
+    while (isRestarting) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
     return currentWorker;
   }
   isRestarting = true;
 
   try {
     // Terminate the current worker if it exists
-    if (currentWorker) {
-      currentWorker.removeAllListeners();
-      currentWorker = null;
+    cleanupWorker(currentWorker);
+    currentWorker = null;
+
+    // Clean up any existing HMR channel
+    if (currentHmrChannel) {
+      currentHmrChannel.port1.close();
+      currentHmrChannel.port2.close();
+      currentHmrChannel = null;
     }
 
     const routeCount = autoDiscoveredFiles.urlMap.size;
@@ -35,11 +46,16 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
 
     // Create a new MessageChannel for this worker
     const workerHmrChannel = new MessageChannel();
+    currentHmrChannel = workerHmrChannel;
+    
+    
 
     // Forward messages from the plugin's HMR channel to the worker's channel
-    hmrChannel.port1.addEventListener("message", (event: Event) => {
+    const messageHandler = (event: Event) => {
       workerHmrChannel.port1.postMessage((event as MessageEvent).data);
-    });
+    };
+    
+    hmrChannel.port1.addEventListener("message", messageHandler);
 
     const workerResult = await createWorker({
       projectRoot: server.config.root,

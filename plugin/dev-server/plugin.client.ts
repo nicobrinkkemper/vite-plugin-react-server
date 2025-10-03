@@ -14,7 +14,6 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
   }
 
   if (options.verbose) {
-    console.log(`[plugin.client] input options.projectRoot: ${options.projectRoot}`);
   }
   
   const resolvedOptions = resolveOptions(options);
@@ -26,9 +25,6 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
   }
   const userOptions = resolvedOptions.userOptions;
   
-  if (options.verbose) {
-    console.log(`[plugin.client] resolved userOptions.projectRoot: ${userOptions.projectRoot}`);
-  }
 
   let configEnv: ConfigEnv | undefined;
 
@@ -41,9 +37,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
     },
     config(_config, viteConfigEnv) {
       configEnv = viteConfigEnv;
-      if (options.verbose) {
-        console.log(`[plugin.client] configEnv:`, viteConfigEnv);
-      }
+  
     },
     configureServer(server) {      
       // Configure the React server for client environment (worker-based)

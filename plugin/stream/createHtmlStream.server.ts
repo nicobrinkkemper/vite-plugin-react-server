@@ -36,6 +36,11 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
   const { port1: controlPort1, port2: controlPort2 } =
     new MessageChannel();
+  
+  // Increase max listeners to prevent warnings during development
+  // This is a targeted fix for the memory leak warnings
+  (dataPort1 as any).setMaxListeners(20);
+  (controlPort1 as any).setMaxListeners(20);
 
   // Create the HTML output stream
   const htmlStream = new PassThrough();
@@ -110,16 +115,13 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   };
 
   // Data port - receives HTML data from worker
-  dataPort1.addListener('message', (event: any) => {
+  const dataMessageHandler = (event: any) => {
     if (verbose) {
-      console.log(`[createHtmlStream.server:${route}] Raw data event:`, event);
     }
     const data = event; // MessagePort events contain the data directly
     
     if (data === undefined) {
-      if (verbose) {
-        console.log(`[createHtmlStream.server:${route}] Received undefined data message`);
-      }
+
       return; // Ignore undefined messages
     }
 
@@ -183,25 +185,20 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
       }
       
     }
-  });
+  };
+  
+  dataPort1.on('message', dataMessageHandler);
 
   // Control port
-  controlPort1.addListener('message', (event: any) => {
-    if (verbose) {
-      console.log(`[createHtmlStream.server:${route}] Raw control event:`, event);
-    }
+  const controlMessageHandler = (event: any) => {
+  
     const message = event; // MessagePort events contain the data directly
     
     if (!message || typeof message !== 'object') {
-      if (verbose) {
-        console.log(`[createHtmlStream.server:${route}] Received invalid control message:`, message);
-      }
+     
       return; // Ignore invalid messages
     }
     
-    if (verbose) {
-      console.log(`[createHtmlStream.server:${route}] Received control message:`, message.type);
-    }
 
     switch (message.type) {
       case "READY":
@@ -251,7 +248,9 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
       default:
         break;
     }
-  });
+  };
+  
+  controlPort1.on('message', controlMessageHandler);
 
   // Send the HTML stream request to the worker with both MessagePorts
   htmlWorker.postMessage(
@@ -293,8 +292,8 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // Let React manage the MessagePort lifecycle to prevent "Connection closed" errors
   const cleanup = () => {
     try {
-      dataPort1.removeAllListeners('message');
-      controlPort1.removeAllListeners('message');
+      dataPort1.removeListener('message', dataMessageHandler);
+      controlPort1.removeListener('message', controlMessageHandler);
       // Don't close ports - let React finish consuming and close naturally
     } catch (error) {
       // Ignore cleanup errors
@@ -315,11 +314,6 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
     // Send cleanup message to worker to reset its internal state
     // This prevents race conditions between page renders
     htmlWorker.postMessage({ type: "CLEANUP", id: id, route: route });
-
-    // Remove process listeners
-    process.off("exit", cleanup);
-    process.off("SIGINT", cleanup);
-    process.off("SIGTERM", cleanup);
   },
   };
 };

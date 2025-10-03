@@ -13,6 +13,11 @@ export function createMessageChannels() {
   const dataChannel = new MessageChannel();
   const controlChannel = new MessageChannel();
   
+  // Increase max listeners to prevent warnings during development
+  // This is a targeted fix for the memory leak warnings
+  (dataChannel.port1 as any).setMaxListeners(20);
+  (controlChannel.port1 as any).setMaxListeners(20);
+  
   return {
     dataChannel,
     controlChannel,

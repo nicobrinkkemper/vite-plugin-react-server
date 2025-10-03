@@ -25,7 +25,6 @@ export const vitePluginReactServer: VitePluginMainFn =
       throw new Error("options is required");
     }
 
-    console.log(`[Plugin Server] vitePluginReactServer called with options:`, options, "strategy:", strategy);
 
     // Use the intelligent orchestrator for plugin composition with server context
     const userStrategy = (options as UserOptions).strategy || {};
@@ -38,7 +37,6 @@ export const vitePluginReactServer: VitePluginMainFn =
     };
     
 
-    console.log(`[Plugin Server] Strategy for vitePluginReactServer:`, finalStrategy);
     return createPluginOrchestrator({
       ...options,
       strategy: finalStrategy

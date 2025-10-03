@@ -11,9 +11,7 @@ type NestedEnv = {
 function setNestedEnv(obj: NestedEnv, path: string[], value: string, verbose = false) {
   if (!path.length) return;
   const key = path[0];
-  if (verbose) {
-    console.log("setNestedEnv:", { key, path, value, currentObj: obj[key] });
-  }
+
   if (path.length === 1) {
     obj[key] = value;
     return;

@@ -1,14 +1,12 @@
-import { createRscStreamTwoPort } from "./createRscStreamTwoPort.client.js";
-
-import type { CreateRscStreamFn } from "./createRscStream.types.js";
-
+import { createSerializableHandlerOptions } from "../helpers/createSerializableHandlerOptions.js";
+import type { CreateRscStreamFn, ClientRscStreamResult } from "./createRscStream.types.js";
 import { assertNonReactServer } from "../config/getCondition.js";
-
-
+import { validateRscStreamOptions } from "./createRscStream.utils.js";
+import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
+import { MessageChannel } from "node:worker_threads";
+import { MessagePortReadable } from "./MessagePortReadable.js";
 
 assertNonReactServer();
-
-
 
 /**
  * Creates an RSC stream by communicating with the RSC worker.
@@ -22,42 +20,64 @@ assertNonReactServer();
  * 
  * **Flow**: Route + Components → RSC Worker → RSC Stream
  * 
- * @example
- * ```typescript
- * // Create RSC stream for a route
- * const rscStream = createRscStream({
- *   route: "/about",
- *   pagePath: "/src/pages/about.tsx",
- *   propsPath: "/src/pages/about.props.ts",
- *   logger: myLogger,
- *   worker: rscWorker, // Optional: provide existing worker
- * });
- * 
- * // Pipe to file
- * rscStream.pipe(fileStream);
- * ```
- * 
- * @example
- * ```typescript
- * // Create headless RSC (no HTML wrapper)
- * const rscHeadless = createRscStream({
- *   route: "/about",
- *   pagePath: "/src/pages/about.tsx",
- *   htmlPath: "", // Empty for headless
- * });
- * 
- * // Create full RSC (with HTML wrapper)
- * const rscFull = createRscStream({
- *   route: "/about", 
- *   pagePath: "/src/pages/about.tsx",
- *   htmlPath: "/src/pages/about.html.tsx", // HTML wrapper
- * });
- * ```
- * 
  * @param options - Options for RSC stream creation
  * @returns RSC stream with pipe/abort interface
  */
 export const createRscStream: CreateRscStreamFn<"client"> = function _createRscStreamClient(options) {
-  // Use the new two-port architecture for client-side RSC streams
-  return createRscStreamTwoPort(options);
+  // Validate options
+  validateRscStreamOptions(options, "createRscStream.client");
+
+  if (!options.rscWorker) {
+    throw new Error("RSC worker is required for client-side RSC streaming");
+  }
+
+  // Create two separate MessagePorts for clean separation of concerns
+  const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
+  const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
+
+  // Create the RSC output stream
+  const rscStream = new MessagePortReadable(dataPort1);
+
+  // Create serializable handler options for the worker
+  const serializedOptions = createSerializableHandlerOptions({
+    ...options,
+    dataPort: dataPort2,
+    controlPort: controlPort2,
+  });
+
+  // Send render request to worker
+  options.rscWorker.postMessage({
+    type: "INIT",
+    id: options.id || `${options.route}-${Date.now()}`,
+    options: serializedOptions,
+  });
+
+  // Create stream metrics
+  const metrics = createStreamMetrics({
+    route: options.route,
+    startTime: Date.now(),
+  });
+
+  // Return client result with consistent interface
+  const clientResult: ClientRscStreamResult = {
+    type: "client" as const,
+    id: options.id || `${options.route}-${Date.now()}`,
+    rscStream,
+    metrics,
+    pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
+      return rscStream.pipe(destination);
+    },
+    abort: () => {
+      try {
+        controlPort1.postMessage({ type: "ABORT", reason: "Stream aborted" });
+        rscStream.destroy();
+        dataPort1.close();
+        controlPort1.close();
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    },
+  };
+
+  return clientResult;
 };

@@ -85,7 +85,7 @@ export const createRscStream: CreateRscStreamFn<"server"> =
           );
         }
 
-        const workerStream = createRscWorkerStream({
+        const workerStreamResult = createRscWorkerStream({
           worker: options.rscWorker,
           route: options.route,
           url: options.url,
@@ -105,6 +105,8 @@ export const createRscStream: CreateRscStreamFn<"server"> =
           htmlPath: options.htmlPath,
         });
 
+        const { stream: workerStream, dataPort1, controlPort1 } = workerStreamResult;
+
         // Return worker stream with consistent interface
         const serverResult: ServerRscStreamResult = {
           type: "server" as const,
@@ -118,9 +120,16 @@ export const createRscStream: CreateRscStreamFn<"server"> =
           },
           abort: () => {
             workerStream.destroy();
-            // Clean up process listeners
-            if ((workerStream as any).cleanup) {
-              (workerStream as any).cleanup();
+            // Clean up MessagePort listeners to prevent memory leaks
+            try {
+              // Remove onmessage handlers (property assignment cleanup)
+              dataPort1.onmessage = null;
+              controlPort1.onmessage = null;
+              // Close MessagePorts
+              dataPort1.close();
+              controlPort1.close();
+            } catch (error) {
+              // Ignore cleanup errors
             }
           },
           metrics: createStreamMetrics(), // Worker will provide real metrics

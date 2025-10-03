@@ -699,6 +699,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
                 shutdownMessageHandler = (message: any) => {
                   if (message.type === "SHUTDOWN_COMPLETE") {
+                    logger?.info("[SHUTDOWN] Received SHUTDOWN_COMPLETE from worker");
                     clearTimeout(timeout);
                     clearTimeout(backupTimeout);
                     rscWorker?.removeListener(
@@ -714,6 +715,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
                 rscWorker?.on("message", shutdownMessageHandler);
 
                 // Send shutdown message
+                logger?.info("[SHUTDOWN] Sending SHUTDOWN message to worker");
                 rscWorker?.postMessage({
                   type: "SHUTDOWN",
                   id: "*",

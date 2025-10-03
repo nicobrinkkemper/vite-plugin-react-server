@@ -55,6 +55,9 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     }),
   } = handlerOptions;
 
+  // Always log that we're starting RSC rendering
+  console.log(`[rsc-worker:${route}] Starting RSC rendering for route: ${route}`);
+
   try {
     if (verbose) {
       logger?.info(`[rsc-worker:${route}] Creating RSC stream`);
@@ -159,9 +162,20 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     // Set up completion detection logic before React callbacks
     const isMessagePortWritable = handlers.getWritable;
 
+    if (verbose) {
+      logger?.info(`[rsc-worker:${route}] isMessagePortWritable: ${!!isMessagePortWritable}`);
+    }
+
     if (isMessagePortWritable) {
       // Two-port mode: The stream will complete naturally when React finishes
       // No manual completion logic needed - React will signal completion through proper stream events
+      if (verbose) {
+        logger?.info(`[rsc-worker:${route}] Two-port mode detected`);
+      }
+    } else {
+      if (verbose) {
+        logger?.info(`[rsc-worker:${route}] Single-port mode detected`);
+      }
     }
 
     const {
@@ -251,6 +265,7 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       },
     } satisfies RenderToPipeableStreamOptions;
 
+    console.log(`[rsc-worker:${route}] About to call renderToPipeableStream`);
     if (verbose) {
       logger?.info(
         `[rsc-worker:${route}] *** CALLING renderToPipeableStream ***`
@@ -262,6 +277,7 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       finalHandlerOptions.moduleBasePath,
       serverPipeableStreamOptions
     );
+    console.log(`[rsc-worker:${route}] renderToPipeableStream returned successfully`);
 
     if (verbose) {
       logger?.info(
@@ -274,6 +290,7 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     }
 
     pipe(passThrough);
+    console.log(`[rsc-worker:${route}] Pipe call completed`);
 
     if (verbose) {
       logger?.info(
@@ -309,18 +326,24 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
 
     // Set up completion detection based on stream type
 
+    // Set up completion detection for both single-port and two-port modes
+    // Since onAllReady is not working in the patched version, use stream end event
+    if (verbose) {
+      logger?.info(
+        `[rsc-worker:${route}] Setting up stream completion detection (onAllReady not working in patched version)`
+      );
+    }
+    
     if (isMessagePortWritable) {
-      // Two-port mode: React Server DOM renderToPipeableStream doesn't support onAllReady
-      // We use data-flow monitoring to detect when React finishes sending data
+      // Two-port mode: monitor data flow
       if (verbose) {
-        logger?.info(
-          `[rsc-worker:${route}] Two-port mode: using data-flow completion detection`
-        );
+        logger?.info(`[rsc-worker:${route}] Two-port mode detected`);
       }
     } else {
       // Single-port mode: Set up data-based completion detection
 
       passThrough.on("data", (chunk: Buffer) => {
+        console.log(`[rsc-worker:${route}] Data chunk received: ${chunk.length} bytes`);
         if (verbose) {
           logger?.info(
             `[rsc-worker:${route}] Single-port mode data chunk received: ${
@@ -348,13 +371,17 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       });
     } // End of single-port mode else block
 
+    // Unified stream end handler for both single-port and two-port modes
+    console.log(`[rsc-worker:${route}] Setting up stream end handler`);
     passThrough.on("end", () => {
+      console.log(`[rsc-worker:${route}] *** STREAM END EVENT FIRED ***`);
       if (verbose) {
         logger?.info(`[rsc-worker:${route}] *** STREAM END EVENT FIRED ***`);
       }
 
 
       // Stream completed naturally
+      console.log(`[rsc-worker:${route}] Stream completed naturally, calling onEnd`);
       if (verbose) {
         logger?.info(
           `[rsc-worker:${route}] Stream completed naturally, checking for headless stream reuse`
@@ -382,12 +409,14 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
 
       // Call onEnd for both single-port and two-port communication
       // This mirrors the HTML worker pattern and ensures proper stream cleanup
+      console.log(`[rsc-worker:${route}] About to call handlers.onEnd(${id}) from end event`);
       if (verbose) {
         logger?.info(
           `[rsc-worker:${route}] Calling handlers.onEnd(${id}) from end event to trigger completion`
         );
       }
       handlers.onEnd(id);
+      console.log(`[rsc-worker:${route}] handlers.onEnd(${id}) completed from end event`);
       renderMetrics.streamMetrics.duration =
         performance.now() - renderMetrics.streamMetrics.startTime;
       handlers.onMetrics(id, renderMetrics as any);

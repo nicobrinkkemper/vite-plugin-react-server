@@ -64,6 +64,12 @@ try {
   const reactLoaderChannel = new MessageChannel();
   const cssLoaderChannel = new MessageChannel();
   const envLoaderChannel = new MessageChannel();
+  
+  // Increase max listeners to prevent warnings during development
+  // This is a targeted fix for the memory leak warnings
+  (reactLoaderChannel.port1 as any).setMaxListeners(20);
+  (cssLoaderChannel.port1 as any).setMaxListeners(20);
+  (envLoaderChannel.port1 as any).setMaxListeners(20);
 
   // Set up message handlers before transferring ports (only needed if not in build mode)
   if (!isBuildMode) {

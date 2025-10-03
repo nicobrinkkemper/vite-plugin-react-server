@@ -185,6 +185,8 @@
     "test:inline-css": "npm run test:examples -- test/examples/inline-css.test.ts",
     "test:dev-server-env": "npm run test:dev -- test/dev/dev-server-env.test.ts",
     "test:rsc-server": "npm run test:dev -- test/dev/rsc-server.test.ts",
+    "test:stress": "npm run build && vitest run test/stress",
+    "stress-test": "npx tsx test/stress/stress-test-cli.ts",
     "test:client-env": "npm run build && vitest run test/client/dev-client-server-env.test.ts",
     "test:todo": "npm run test:examples -- test/examples/todo-server-actions.test.ts",
     "test:server-action": "npm run test:examples -- test/examples/server-actions.test.ts",

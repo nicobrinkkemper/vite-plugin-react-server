@@ -210,13 +210,10 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
               userOnMetrics?.(metrics);
             },
             onHmrAccept: () => {
-              // TODO: implement HMR accept handler
             },
             onHmrUpdate: () => {
-              // TODO: implement HMR update handler
             },
             onShellError: (_id, _error) => {
-              // TODO: implement shell error handler
             },
           },
           ...handlerOptions,

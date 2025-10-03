@@ -1,5 +1,5 @@
 import type { HandleRscStreamFn } from "./handleRscStream.types.js";
-import { PassThrough, Readable } from "node:stream";
+import { PassThrough } from "node:stream";
 import { createMessageChannels, createTransferList } from "./createMessageChannels.js";
 
 import { DEFAULT_CONFIG } from "../config/defaults.js";
@@ -41,7 +41,7 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
     }
 
     // Set up control message handlers
-    controlPort1.on("message", (message) => {
+    const controlMessageHandler = (message: any) => {
       if (options.verbose) {
         options.logger?.info(
           `[client] Received control message: ${message.type}`
@@ -80,11 +80,12 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
             );
           }
       }
-    });
+    };
+
+    controlPort1.on("message", controlMessageHandler);
 
     // Set up data message handlers - pass Uint8Array data without mutation
-    dataPort1.on("message", (data) => {
-
+    const dataMessageHandler = (data: any) => {
       if (data === null) {
         // End of data stream signal - React Server Component rendering is complete
         if (options.verbose) {
@@ -117,7 +118,9 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           );
         }
       }
-    });
+    };
+
+    dataPort1.on("message", dataMessageHandler);
 
     // Send the render message to the worker with ports
     worker.postMessage({
@@ -168,6 +171,44 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
       },
     }, createTransferList(dataPort2, controlPort2)); // Transfer the ports properly
 
-    // Convert Node.js Readable to Web ReadableStream as required by the function signature
-    return Readable.toWeb(rscStream) as ReadableStream<Uint8Array>;
+    // Convert Node.js Readable to Web ReadableStream with proper cleanup
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        rscStream.on("data", (chunk: Buffer) => {
+          controller.enqueue(new Uint8Array(chunk));
+        });
+
+        rscStream.on("end", () => {
+          controller.close();
+          // Clean up MessagePort listeners when stream ends successfully
+          try {
+            dataPort1.removeListener('message', dataMessageHandler);
+            controlPort1.removeListener('message', controlMessageHandler);
+            // Close MessagePorts
+            dataPort1.close();
+            controlPort1.close();
+          } catch (error) {
+            // Ignore cleanup errors
+          }
+        });
+
+        rscStream.on("error", (error) => {
+          controller.error(error);
+        });
+      },
+      cancel() {
+        // Clean up MessagePort listeners to prevent memory leaks
+        try {
+          dataPort1.removeListener('message', dataMessageHandler);
+          controlPort1.removeListener('message', controlMessageHandler);
+          // Close MessagePorts
+          dataPort1.close();
+          controlPort1.close();
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+        // Destroy the stream
+        rscStream.destroy();
+      },
+    });
   };

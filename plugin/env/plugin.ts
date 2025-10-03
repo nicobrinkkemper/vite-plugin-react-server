@@ -34,17 +34,11 @@ export function ensureConditionalConfigResolution(environmentName: string) {
       environmentName === "server" ? "react-server" : "react-client";
 
     if (!appModeConfig.resolvedInConditions.has(condition)) {
-      console.log(
-        `🔧 Ensuring config resolution in ${condition} condition for ${environmentName} environment`
-      );
       appModeConfig.resolvedInConditions.add(condition);
 
       // This could trigger additional config resolution if needed
       return true;
     } else {
-      console.log(
-        `✅ Config already resolved in ${condition} condition for ${environmentName} environment`
-      );
       return false;
     }
   }

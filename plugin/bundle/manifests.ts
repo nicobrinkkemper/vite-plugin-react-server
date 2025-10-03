@@ -41,7 +41,6 @@ export const updateSharedManifest = (context: any, name: "server" | "client" | "
   try {
     const sharedState = createSharedManifestStore(context);
     sharedState[name] = manifest;
-    console.log(`[manifests] Successfully updated shared state for ${name}`);
   } catch (error) {
     console.warn(`[manifests] Could not update shared state for ${name}: ${error}`);
   }

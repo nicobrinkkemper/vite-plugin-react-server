@@ -6,8 +6,7 @@ import type {
   ResolvedUserOptions,
   SerializedUserOptions,
 } from "../../types.js";
-import type { MessageChannel } from "node:worker_threads";
-import type { Worker } from "node:worker_threads";
+import type { MessageChannel, Worker } from "node:worker_threads";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
   RscChunkOutputMessage,

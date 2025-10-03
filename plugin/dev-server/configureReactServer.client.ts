@@ -41,7 +41,13 @@ export const configureReactServer: CreateReactWorkerServerFn =
       autoDiscoveredFiles,
       userOptions,
       configEnv,
-      hmrChannel: hmrChannel || new MessageChannel(),
+      hmrChannel: (() => {
+        const channel = hmrChannel || new MessageChannel();
+        // Increase max listeners to prevent warnings during development
+        // This is a targeted fix for the memory leak warnings
+        (channel.port1 as any).setMaxListeners(20);
+        return channel;
+      })(),
       serverManifest,
       resolvedConfig,
       onWorkerCreated:

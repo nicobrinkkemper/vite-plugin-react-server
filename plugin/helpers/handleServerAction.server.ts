@@ -3,11 +3,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { logError, toError } from "../error/index.js";
 import { PassThrough } from "node:stream";
 import type {
-  ServerActionRequest,
   ServerActionHandlerOptions,
 } from "./handleServerActionHelper.js";
 import {
   parseServerActionRequest as parseServerActionRequestHelper,
+  createServerActionResponse,
   resolveServerAction,
   loadServerAction,
   executeServerAction,
@@ -15,57 +15,9 @@ import {
   handleServerActionError as handleServerActionErrorHelper,
 } from "./handleServerActionHelper.js";
 
-export type ServerActionResponse = {
-  type: "server-action-response";
-  returnValue: unknown;
-};
+// Use shared helper instead of duplicating logic
 
-/**
- * Parses a server action request from the request body.
- * Supports two formats:
- * 1. Direct args array: [arg1, arg2, ...]
- * 2. Object with id and args: { id: string, args: unknown[] }
- */
-export function parseServerActionRequest(body: string, url?: string): ServerActionRequest {
-  const parsed = JSON.parse(body);
-  
-  if (Array.isArray(parsed)) {
-    // Format 1: Direct args array
-    return {
-      args: parsed,
-      id: url?.split("?")[0] ?? "",
-    };
-  } else if (parsed && typeof parsed === "object" && "id" in parsed) {
-    // Format 2: Object with id and args
-    return {
-      id: parsed.id,
-      args: parsed.args ?? [],
-    };
-  }
-  
-  throw new Error("Invalid server action request format");
-}
-
-/**
- * Creates a server action response with the given result or error.
- */
-export function createServerActionResponse(result?: unknown, error?: string): ServerActionResponse {
-  return {
-    type: "server-action-response",
-    returnValue: error 
-      ? { success: false, error }
-      : result
-  };
-}
-
-/**
- * Sets up common response headers for server actions.
- */
-export function setupServerActionHeaders(res: ServerResponse) {
-  res.setHeader("Content-Type", "text/x-component; charset=utf-8");
-  res.setHeader("Transfer-Encoding", "chunked");
-  res.setHeader("Connection", "keep-alive");
-}
+// Use shared helper instead of duplicating logic
 
 /**
  * Creates a pass-through stream for server action responses.

@@ -4,12 +4,14 @@ import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.
 import { createRscStream } from "../stream/createRscStream.server.js";
 import { createRenderToPipeableStreamHandler } from "../stream/createRenderToPipeableStreamHandler.server.js";
 import { createWorker } from "../worker/createWorker.js";
+import type { Worker } from "node:worker_threads";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { handleServerAction } from "./handleServerAction.js";
 import type { ConfigureReactServerFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
+import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
 
 export const configureReactServer: ConfigureReactServerFn =
@@ -26,6 +28,8 @@ export const configureReactServer: ConfigureReactServerFn =
       { abort: (reason?: unknown) => void }
     >();
     let isRestarting = false;
+    
+    
     const logger = server.config.customLogger || server.config.logger;
     const {
       Html: _UserHtmlComponent,
@@ -40,6 +44,7 @@ export const configureReactServer: ConfigureReactServerFn =
       server.config,
       resolvedConfig
     ) as ResolvedConfig;
+
 
     // Handle Vite server restarts
     server.ws.on("restart", (path) => {
@@ -156,6 +161,9 @@ export const configureReactServer: ConfigureReactServerFn =
         return;
       }
 
+      // Create RSC worker for consistent RSC stream formats
+      let rscWorker: Worker | undefined;
+      
       try {
         const routeFiles = await getRouteFiles(
           info.route,
@@ -270,8 +278,6 @@ export const configureReactServer: ConfigureReactServerFn =
           }
         }
 
-        // Create RSC worker for consistent RSC stream formats
-        let rscWorker;
         try {
           if (verbose) {
             logger.info(`Creating RSC worker for route: ${info.route}`);
@@ -370,7 +376,20 @@ export const configureReactServer: ConfigureReactServerFn =
         activeStreams.add(res);
         res.on("close", () => {
           activeStreams.delete(res);
+          
+          // Abort the RSC stream to clean up MessagePorts
+          const controller = activeControllers.get(res);
+          if (controller && typeof controller.abort === "function") {
+            try {
+              controller.abort();
+            } catch (error) {
+              // Ignore cleanup errors
+            }
+          }
           activeControllers.delete(res);
+          
+          // Clean up worker when request completes
+          cleanupWorker(rscWorker);
         });
       } catch (error) {
         const panicError = handleError({
@@ -387,6 +406,8 @@ export const configureReactServer: ConfigureReactServerFn =
         res.statusCode = 500;
         res.setHeader("Content-Type", "text/x-component; charset=utf-8");
         res.setHeader("Content-Length", "0"); // Will be updated after streaming
+        
+        // Note: Worker cleanup is handled by the response close handler
       }
     });
   };

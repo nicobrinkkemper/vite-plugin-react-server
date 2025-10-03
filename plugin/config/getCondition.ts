@@ -203,7 +203,6 @@ export function assertReactServer(): asserts this is {
   const currentCondition = getCurrentCondition();
   if (currentCondition !== "react-server") {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
-    // console.log(process.env['NODE_OPTIONS'], process.execArgv)
     throw new Error(
       `Condition mismatch, should be react-server. Set NODE_OPTIONS="--conditions=react-server" or --conditions=react-server`
     );
@@ -216,7 +215,6 @@ export function assertNonReactServer(): asserts this is {
   const currentCondition = getCurrentCondition();
   if (currentCondition === "react-server") {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
-    // console.log(process.env['NODE_OPTIONS'], process.execArgv)
     throw new Error(
       `Condition mismatch, should not be react-server. Remove NODE_OPTIONS="--conditions=react-server" or --conditions=react-server`
     );

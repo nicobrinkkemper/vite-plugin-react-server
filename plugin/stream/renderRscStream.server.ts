@@ -157,7 +157,6 @@ export function renderRscStream(
       },
       metrics,
     };
-
   } catch (error) {
     // Handle errors gracefully - always return a valid stream
     handlers?.onError?.(id, error, {

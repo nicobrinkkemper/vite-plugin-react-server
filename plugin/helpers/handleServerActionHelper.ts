@@ -17,6 +17,58 @@ export type ServerActionRequest = {
 };
 
 /**
+ * Parses a server action request from the request body.
+ * Supports two formats:
+ * 1. Direct args array: [arg1, arg2, ...]
+ * 2. Object with id and args: { id: string, args: unknown[] }
+ */
+export function parseServerActionRequestBody(body: string, url?: string): ServerActionRequest {
+  const parsed = JSON.parse(body);
+  
+  if (Array.isArray(parsed)) {
+    // Format 1: Direct args array
+    return {
+      args: parsed,
+      id: url?.split("?")[0] ?? "",
+    };
+  } else if (parsed && typeof parsed === "object" && "id" in parsed) {
+    // Format 2: Object with id and args
+    return {
+      id: parsed.id,
+      args: parsed.args ?? [],
+    };
+  }
+  
+  throw new Error("Invalid server action request format");
+}
+
+export type ServerActionResponse = {
+  type: "server-action-response";
+  returnValue: unknown;
+};
+
+/**
+ * Creates a server action response with the given result or error.
+ */
+export function createServerActionResponse(result?: unknown, error?: string): ServerActionResponse {
+  return {
+    type: "server-action-response",
+    returnValue: error 
+      ? { success: false, error }
+      : result
+  };
+}
+
+/**
+ * Sets up common response headers for server actions.
+ */
+export function setupServerActionHeaders(res: ServerResponse) {
+  res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+  res.setHeader("Transfer-Encoding", "chunked");
+  res.setHeader("Connection", "keep-alive");
+}
+
+/**
  * Parses a server action request from the request body and URL
  */
 export async function parseServerActionRequest(
