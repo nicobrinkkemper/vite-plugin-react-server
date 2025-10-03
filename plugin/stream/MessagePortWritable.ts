@@ -50,6 +50,15 @@ export class MessagePortWritable extends Writable {
         return;
       }
       
+      // Check if the chunk contains an error - if so, don't send it through the data stream
+      // Errors should be handled through the control port, not the data stream
+      if (chunk && typeof chunk === 'object' && chunk.type === 'error') {
+        // This is an error object being sent through the data stream
+        // We should not send this through the data port - it should go through control port
+        callback(new Error('Error sent through data stream - this should be handled by control port'));
+        return;
+      }
+      
       // Send the chunk through the MessagePort
       this.fromWorker.postMessage(chunk);
       

@@ -2,6 +2,7 @@ import { createSerializableHandlerOptions } from "../helpers/createSerializableH
 import type { CreateRscStreamFn, ClientRscStreamResult } from "./createRscStream.types.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 import { validateRscStreamOptions } from "./createRscStream.utils.js";
+import { toError } from "../error/toError.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { MessageChannel } from "node:worker_threads";
 import { MessagePortReadable } from "./MessagePortReadable.js";
@@ -36,7 +37,38 @@ export const createRscStream: CreateRscStreamFn<"client"> = function _createRscS
   const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
 
   // Create the RSC output stream
-  const rscStream = new MessagePortReadable(dataPort1);
+  const rscStream = new MessagePortReadable(dataPort1, controlPort1);
+
+  // Control port - handles control messages
+  controlPort1.on('message', (message: any) => {
+    switch (message.type) {
+      case 'ERROR':
+        const error = toError(message.error, message.errorInfo);
+        
+        // Emit route.error event for panic handling
+        if (options.onEvent) {
+          options.onEvent({
+            type: "route.error",
+            data: {
+              error: error,
+              route: options.route,
+              panicThreshold: options.panicThreshold
+            }
+          });
+        }
+        
+        // End the stream normally
+        rscStream.destroy();
+        break;
+      case 'RSC_END':
+        // Worker has finished sending data - don't close ports yet
+        // Let the MessagePortReadable handle the natural end of stream
+        break;
+      case 'METRICS':
+        // Metrics are handled by the worker internally
+        break;
+    }
+  });
 
   // Create serializable handler options for the worker
   const serializedOptions = createSerializableHandlerOptions({
@@ -45,12 +77,14 @@ export const createRscStream: CreateRscStreamFn<"client"> = function _createRscS
     controlPort: controlPort2,
   });
 
-  // Send render request to worker
+  // Send initialization to worker
   options.rscWorker.postMessage({
     type: "INIT",
-    id: options.id || `${options.route}-${Date.now()}`,
+    id: options.route,
+    dataPort: dataPort2,
+    controlPort: controlPort2,
     options: serializedOptions,
-  });
+  }, [dataPort2, controlPort2] as any);
 
   // Create stream metrics
   const metrics = createStreamMetrics({
@@ -67,15 +101,21 @@ export const createRscStream: CreateRscStreamFn<"client"> = function _createRscS
     pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
       return rscStream.pipe(destination);
     },
-    abort: () => {
+    abort: (reason?: unknown) => {
       try {
-        controlPort1.postMessage({ type: "ABORT", reason: "Stream aborted" });
-        rscStream.destroy();
-        dataPort1.close();
-        controlPort1.close();
+        controlPort1.postMessage({ type: "ABORT", reason });
       } catch (error) {
-        // Ignore cleanup errors
+        // Port may already be closed
       }
+      
+      // Immediate cleanup for abort to prevent hanging
+      try {
+        rscStream.destroy();
+      } catch (error) {
+        // Stream may already be destroyed, ignore
+      }
+      // Don't close ports - let React handle cleanup to prevent "Connection closed" errors
+      // Ports will be cleaned up when worker terminates
     },
   };
 

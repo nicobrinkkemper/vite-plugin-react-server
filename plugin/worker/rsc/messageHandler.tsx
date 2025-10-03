@@ -1079,18 +1079,9 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
         return;
       }
     case "SHUTDOWN": {
-        logger?.info(`[SHUTDOWN] Received shutdown message with id: ${msg.id}`);
-        
-        // If id is "*", clean up all render states and worker state
-        // activeStreams.forEach((stream, renderId) => { // This line was removed as per the new_code
-        //   stream.end();
-        //   activeStreams.delete(renderId);
-        // });
-        // parentPort?.removeAllListeners(); // This line was removed as per the new_code
         effectiveHandlers.onShutdown?.(msg.id);
         // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
         if (parentPort) {
-          logger?.info(`[SHUTDOWN] Sending SHUTDOWN_COMPLETE message with id: ${msg.id}`);
           sendMessage(
             {
               type: "SHUTDOWN_COMPLETE",
@@ -1098,8 +1089,6 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             },
             parentPort
           );
-        } else {
-          logger?.warn(`[SHUTDOWN] No parentPort available to send SHUTDOWN_COMPLETE`);
         }
         return;
       }

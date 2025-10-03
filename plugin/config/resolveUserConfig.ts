@@ -573,9 +573,6 @@ export const resolveUserConfig: ResolveUserConfigFn =
                   if (this.environment.name === "server") {
                     // Ensure react-server condition is available during server builds
                     if (!process.env.NODE_OPTIONS?.includes("react-server")) {
-                      this.warn(
-                        `NODE_OPTIONS may be wrong for ${this.environment.name}`
-                      );
                       if(this.environment.config.define) {
                         this.environment.config.define = {
                           ...this.environment.config.define,
@@ -592,9 +589,6 @@ export const resolveUserConfig: ResolveUserConfigFn =
                     }
                   } else {
                     if (process.env.NODE_OPTIONS?.includes("react-server")) {
-                      this.warn(
-                        `NODE_OPTIONS may be wrong for ${this.environment.name}`
-                      );
                       if(this.environment.config.define && this.environment.config.define["process.env.NODE_OPTIONS"] && this.environment.config.define["process.env.NODE_OPTIONS"].includes("react-server")) {
                         this.environment.config.define = {
                           ...this.environment.config.define,

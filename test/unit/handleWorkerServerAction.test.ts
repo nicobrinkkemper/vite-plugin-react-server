@@ -4,10 +4,10 @@ import type { Worker } from 'node:worker_threads';
 import type { Logger } from 'vite';
 import { PassThrough } from 'node:stream';
 import { EventEmitter } from 'events';
-import { createServerActionStream } from '../../dist/plugin/helpers/handleServerAction.client.js';
+import { createServerActionStream } from '../../dist/plugin/helpers/handleServerAction.js';
 
 // Mock the handleServerAction module
-vi.mock('../../dist/plugin/helpers/handleServerAction.client.js', () => ({
+vi.mock('../../dist/plugin/helpers/handleServerAction.js', () => ({
   parseServerActionRequest: vi.fn((body, url) => {
     const data = JSON.parse(body);
     if (Array.isArray(data)) {

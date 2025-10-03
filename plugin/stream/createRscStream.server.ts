@@ -119,7 +119,11 @@ export const createRscStream: CreateRscStreamFn<"server"> =
             return destination;
           },
           abort: () => {
-            workerStream.destroy();
+            try {
+              workerStream.destroy();
+            } catch (error) {
+              // Stream may already be destroyed, ignore
+            }
             // Clean up MessagePort listeners to prevent memory leaks
             try {
               // Remove onmessage handlers (property assignment cleanup)

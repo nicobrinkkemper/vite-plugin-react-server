@@ -144,6 +144,14 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
     // Create a PassThrough stream that the fileWriter can consume
     // This follows the HTML worker pattern but provides a proper stream interface
     const htmlStream = new PassThrough();
+    
+    // Add error handler to prevent unhandled errors
+    htmlStream.on('error', (error) => {
+      // Ignore errors during abort - they're expected
+      if (verbose) {
+        logger?.info(`[createRenderToPipeableStreamHandler.client:${route}] HTML stream error (ignored): ${error.message}`);
+      }
+    });
 
     // Create a custom writable stream that pipes to our PassThrough
     // This ensures the stream is consumed to completion naturally
@@ -163,7 +171,11 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       },
       destroy(error?: Error) {
         // Destroy the PassThrough stream with the error
-        htmlStream.destroy(error);
+        try {
+          htmlStream.destroy(error);
+        } catch (destroyError) {
+          // Stream may already be destroyed, ignore
+        }
       },
       on() {}, // No-op for event listeners
       once() {}, // No-op for event listeners
@@ -189,8 +201,16 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
         return destination;
       },
       abort: (reason?: unknown) => {
-        abort();
-        htmlStream.destroy(new Error(String(reason || "Aborted HTML stream")));
+        try {
+          abort();
+        } catch (error) {
+          // React abort may already be called, ignore
+        }
+        try {
+          htmlStream.destroy(new Error(String(reason || "Aborted HTML stream")));
+        } catch (error) {
+          // Stream may already be destroyed, ignore
+        }
         if (verbose) {
           logger?.info(
             `[createRenderToPipeableStreamHandler.client:${route}] HTML stream aborted: ${reason}`
