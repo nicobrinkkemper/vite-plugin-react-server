@@ -79,7 +79,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
           build: {
             pages: ["/"],
           },
-          verbose: false,
+          verbose: true,
           panicThreshold: "all_errors",
           onEvent: (event: any) => {
             if (event.type === testEvent) {
