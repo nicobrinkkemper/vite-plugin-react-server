@@ -279,40 +279,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         }
         const staticManifest = staticManifestResult.manifest;
         
-        // Proactively create _virtual/dynamic-import-helper.js if it doesn't exist
-        // This is needed because Rollup might generate relative imports to it,
-        // and Node.js's module resolution needs the file to exist.
-        try {
-          const { writeFileSync, mkdirSync } = await import("node:fs");
-          const { join, resolve } = await import("node:path");
-          
-          const resolvedOutDir = this.environment.config.build?.outDir 
-            ? resolve(this.environment.config.root || userOptions.projectRoot, this.environment.config.build.outDir)
-            : resolve(userOptions.projectRoot, userOptions.build.outDir);
-          
-          const serverOutDir = join(resolvedOutDir, userOptions.build.server || "server");
-          const virtualDir = join(serverOutDir, "_virtual");
-          const helperPath = join(virtualDir, "dynamic-import-helper.js");
-          
-          // Always create the file (overwrite if exists) to ensure it's there
-          mkdirSync(virtualDir, { recursive: true });
-          
-          const helperContent = `// Vite dynamic import helper shim
-// This file is created to support variable dynamic imports like import(variable)
-export default function __variableDynamicImportRuntimeHelper(specifier) {
-  return import(specifier);
-}
-
-export { __variableDynamicImportRuntimeHelper };
-`;
-          
-          writeFileSync(helperPath, helperContent, "utf-8");
-          
-          logger?.info(`[plugin.server] Created _virtual/dynamic-import-helper.js at ${helperPath}`);
-        } catch (error) {
-          logger?.warn(`[plugin.server] Failed to create _virtual/dynamic-import-helper.js: ${error}`);
-          // Don't throw - this is non-critical, but log it
-        }
+        // Don't create helper file - let resolveVirtualAndNodeModules shim handle it
+        // Same approach as client environment - no special file needed
         
         const buildLoader = createBuildLoader(
           {
@@ -646,21 +614,15 @@ export { __variableDynamicImportRuntimeHelper };
             ? resolve(this.environment.config.root || userOptions.projectRoot, this.environment.config.build.outDir)
             : resolve(userOptions.projectRoot, userOptions.build.outDir);
           
-          // Clean up _virtual from all output directories
-          const outputDirs = [
-            join(resolvedOutDir, userOptions.build.static || "static"),
-            join(resolvedOutDir, userOptions.build.server || "server"),
-            resolvedOutDir, // Also check root outDir
-          ];
-          
-          for (const outDir of outputDirs) {
-            const virtualDir = join(outDir, "_virtual");
-            if (existsSync(virtualDir)) {
-              const { rmSync } = await import("node:fs");
-              rmSync(virtualDir, { recursive: true, force: true });
-              if (userOptions.verbose) {
-                logger?.info(`[plugin.server] Cleaned up _virtual directory: ${virtualDir}`);
-              }
+          // Don't clean up server/_virtual - we need dynamic-import-helper.js for runtime
+          // Only clean up static/_virtual if it exists (shouldn't, but just in case)
+          const staticOutDir = join(resolvedOutDir, userOptions.build.static || "static");
+          const staticVirtualDir = join(staticOutDir, "_virtual");
+          if (existsSync(staticVirtualDir)) {
+            const { rmSync } = await import("node:fs");
+            rmSync(staticVirtualDir, { recursive: true, force: true });
+            if (userOptions.verbose) {
+              logger?.info(`[plugin.server] Cleaned up _virtual directory: ${staticVirtualDir}`);
             }
           }
         } catch (error) {

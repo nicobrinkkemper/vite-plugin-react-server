@@ -292,11 +292,11 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             ? resolve(this.environment.config.root || userOptions.projectRoot, this.environment.config.build.outDir)
             : resolve(userOptions.projectRoot, userOptions.build.outDir);
           
-          // Clean up _virtual from all output directories
+          // Clean up _virtual from client/static output directories only
+          // Don't clean up server/_virtual since we need dynamic-import-helper.js there
           const outputDirs = [
             join(resolvedOutDir, userOptions.build.static || "static"),
             join(resolvedOutDir, userOptions.build.client || "client"),
-            resolvedOutDir, // Also check root outDir
           ];
           
           for (const outDir of outputDirs) {

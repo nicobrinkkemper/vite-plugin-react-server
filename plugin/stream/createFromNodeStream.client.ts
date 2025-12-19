@@ -38,14 +38,17 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
       );
     }
 
-    // Ensure moduleBaseURL is a string
-    if (typeof moduleBaseURL !== "string") {
-      logger?.warn?.(
-        `[createNodeStream.client] moduleBaseURL is not a string: ${JSON.stringify(
-          moduleBaseURL
-        )} (type: ${typeof moduleBaseURL})`
-      );
-      moduleBaseURL = String(moduleBaseURL || "/");
+    // Ensure moduleBaseURL is a string and not empty
+    // React Server DOM needs a valid base URL to resolve modules in the RSC stream
+    if (typeof moduleBaseURL !== "string" || !moduleBaseURL) {
+      if (verbose && logger) {
+        logger.warn(
+          `[createNodeStream.client] moduleBaseURL is not a valid string: ${JSON.stringify(
+            moduleBaseURL
+          )} (type: ${typeof moduleBaseURL}), defaulting to "/"`
+        );
+      }
+      moduleBaseURL = "/";
     }
     if (!moduleRootPath) {
       moduleRootPath = "";

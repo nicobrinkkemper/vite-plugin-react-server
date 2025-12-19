@@ -487,43 +487,46 @@ export const renderPages: RenderPagesFn = (
                       }
 
                       // Also emit RSC Full metrics (the RSC chunks sent to HTML worker)
-                      const rscFullEndTime = performance.now();
-                      const rscFullMetrics = createRenderMetrics({
-                        route: route,
-                        type: routeResult.metrics.rscFull.type,
-                        fromMainThread:
-                          routeResult.metrics.rscFull.fromMainThread,
-                        fromRscWorker:
-                          routeResult.metrics.rscFull.fromRscWorker,
-                        fromHtmlWorker:
-                          routeResult.metrics.rscFull.fromHtmlWorker,
-                        processingTime:
-                          rscFullEndTime -
-                          routeResult.metrics.rscFull.streamMetrics.startTime,
-                        chunks:
-                          routeResult.metrics.rscFull.streamMetrics.chunks,
-                        chunkRate:
-                          routeResult.metrics.rscFull.streamMetrics.chunks /
-                          ((rscFullEndTime -
-                            routeResult.metrics.rscFull.streamMetrics
-                              .startTime) /
-                            1000),
-                        fileName: event.data.fileName,
-                        outputPath: event.data.path,
-                        baseDir: event.data.baseDir,
-                        routePath: event.data.routePath,
-                        streamMetrics: createStreamMetrics({
-                          ...routeResult.metrics.rscFull.streamMetrics,
-                          duration:
+                      // Only if metrics.rscFull exists (might be missing on errors)
+                      if (routeResult.metrics?.rscFull) {
+                        const rscFullEndTime = performance.now();
+                        const rscFullMetrics = createRenderMetrics({
+                          route: route,
+                          type: routeResult.metrics.rscFull.type,
+                          fromMainThread:
+                            routeResult.metrics.rscFull.fromMainThread,
+                          fromRscWorker:
+                            routeResult.metrics.rscFull.fromRscWorker,
+                          fromHtmlWorker:
+                            routeResult.metrics.rscFull.fromHtmlWorker,
+                          processingTime:
                             rscFullEndTime -
                             routeResult.metrics.rscFull.streamMetrics.startTime,
-                          endTime: rscFullEndTime,
-                        }),
-                        // this stream is consumed by the html stream
-                      });
+                          chunks:
+                            routeResult.metrics.rscFull.streamMetrics.chunks,
+                          chunkRate:
+                            routeResult.metrics.rscFull.streamMetrics.chunks /
+                            ((rscFullEndTime -
+                              routeResult.metrics.rscFull.streamMetrics
+                                .startTime) /
+                              1000),
+                          fileName: event.data.fileName,
+                          outputPath: event.data.path,
+                          baseDir: event.data.baseDir,
+                          routePath: event.data.routePath,
+                          streamMetrics: createStreamMetrics({
+                            ...routeResult.metrics.rscFull.streamMetrics,
+                            duration:
+                              rscFullEndTime -
+                              routeResult.metrics.rscFull.streamMetrics.startTime,
+                            endTime: rscFullEndTime,
+                          }),
+                          // this stream is consumed by the html stream
+                        });
 
-                      if (options.onMetrics) {
-                        options.onMetrics(rscFullMetrics);
+                        if (options.onMetrics) {
+                          options.onMetrics(rscFullMetrics);
+                        }
                       }
                     } else if (event.data.fileType === "rsc") {
                       // Update RSC metrics with actual file data

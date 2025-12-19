@@ -3,9 +3,9 @@ import { pathToFileURL } from "node:url";
 import { getModuleRef } from "../helpers/moduleRefs.js";
 import { toError } from "../error/toError.js";
 import { handleError } from "../error/handleError.js";
-import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
+import { createSharedLoader } from "../helpers/createSharedLoader.js";
+import { resolveVirtualAndNodeModules } from "../helpers/resolveVirtualAndNodeModules.js";
 
-import { existsSync } from "fs";
 import type { CreateBuildLoaderFn } from "./types.js";
 import { createLogger } from "vite";
 
@@ -38,9 +38,18 @@ export const createBuildLoader: CreateBuildLoaderFn =
       // Normalize the moduleId early (used throughout the function)
       const [normalizedKey, normalizedValue] = userOptions.normalizer(moduleId);
       
-      // For virtual modules and node_modules with relative paths, let Node.js handle them naturally
-      // These are resolved by Node.js when importing built files that contain relative imports
-      // We only intercept absolute paths if needed (but typically not for relative imports)
+      // For virtual modules and node_modules, use shared utility (same as RSC worker loader)
+      // This handles _virtual/dynamic-import-helper.js and provides shims if needed
+      // Check this early, before build-specific handling
+      const virtualOrNodeModule = await resolveVirtualAndNodeModules(
+        moduleId,
+        exportName,
+        userOptions.verbose,
+        logger
+      );
+      if (virtualOrNodeModule !== null) {
+        return virtualOrNodeModule;
+      }
       
       const moduleRef = getModuleRef(id);
 
@@ -249,127 +258,49 @@ export const createBuildLoader: CreateBuildLoaderFn =
           }
         }
 
-        // Use shared utility to resolve module from manifest
-        const manifestResolution = resolveModuleFromManifest({
-          moduleId,
-          normalizer: userOptions.normalizer,
-          manifest: serverManifest,
-          moduleBase: userOptions.moduleBase,
-          preserveModulesRoot: userOptions.build.preserveModulesRoot,
-          projectRoot: userOptions.projectRoot,
-          buildOutDir: userOptions.build.outDir,
-          buildServerDir: userOptions.build.server,
-          verbose: userOptions.verbose,
-          logger,
-        });
-        
-        if (userOptions.verbose) {
-          logger.info(
-            `[buildLoader] moduleId: ${moduleId}, manifestResolution: ${JSON.stringify({
-              hasEntry: !!manifestResolution.manifestEntry,
-              builtModuleId: manifestResolution.builtModuleId,
-              resolvedPath: manifestResolution.resolvedPath,
-            })}`
-          );
-        }
-
-        // If we found a manifest entry, try to load it
-        if (manifestResolution.manifestEntry && manifestResolution.resolvedPath) {
-          try {
-            const modulePath = manifestResolution.resolvedPath;
-            
-            if (userOptions.verbose) {
-              logger.info(`[buildLoader] Loading module from manifest: ${modulePath}`);
-            }
-            
-            const module = await import(pathToFileURL(modulePath).href);
-            temporaryReferences?.set(moduleRef, module);
-            
-            // If we have an export name, make sure it's a key
-            if (exportName && !(exportName in module)) {
-              throw new Error(
-                `Export ${exportName} not found in module ${moduleId}`
-              );
-            }
-            return module;
-          } catch (error) {
-            const err = toError(error);
-            const panicError = handleError({
-              error: err,
-              logger,
-              panicThreshold: userOptions.panicThreshold,
-              context: "Build Loader Error (server)",
-            });
-            temporaryReferences?.delete(moduleRef);
-            if (panicError != null) {
-              throw panicError;
-            }
-          }
-        }
-        
-        // Fallback: Try to load the built file from server directory using resolved builtModuleId
-        const builtFilePath = join(
-          userOptions.projectRoot,
-          userOptions.build.outDir,
-          userOptions.build.server,
-          manifestResolution.builtModuleId
-        );
-
-        if (existsSync(builtFilePath)) {
-          if (userOptions.verbose) {
-            logger.info(`[buildLoader] Loading built file: ${builtFilePath}`);
-            logger.info(`[buildLoader] NODE_OPTIONS: ${process.env.NODE_OPTIONS}`);
-            logger.info(`[buildLoader] execArgv: ${process.execArgv.join(' ')}`);
-            
-            // Import condition detection functions
-            const { getCurrentCondition, hasReactServerCondition } = await import("../config/getCondition.js");
-            logger.info(`[buildLoader] getCurrentCondition(): ${getCurrentCondition()}`);
-            logger.info(`[buildLoader] hasReactServerCondition(): ${hasReactServerCondition()}`);
-          }
+        // Use shared loader utility for common cases (virtual modules, manifest resolution, imports)
+        // This handles the same logic as RSC worker loader
+        try {
+          const module = await createSharedLoader({
+            moduleId,
+            exportName,
+            verbose: userOptions.verbose,
+            logger,
+            resolveVirtual: true,
+            manifest: serverManifest,
+            normalizer: userOptions.normalizer,
+            moduleBase: userOptions.moduleBase,
+            preserveModulesRoot: userOptions.build.preserveModulesRoot,
+            projectRoot: userOptions.projectRoot,
+            buildOutDir: userOptions.build.outDir,
+            buildServerDir: userOptions.build.server,
+            isBuildMode: true,
+            isServeMode: false,
+            effectiveProjectRoot: userOptions.projectRoot,
+            build: {
+              outDir: userOptions.build.outDir,
+              server: userOptions.build.server,
+              client: userOptions.build.client,
+              static: userOptions.build.static,
+            },
+          });
           
-          // Load the built file with proper URL format
-          // Note: With esnext target, Rollup may still generate _virtual/dynamic-import-helper.js
-          // for variable dynamic imports (import(variable)). This is a Rollup limitation.
-          // The helper is just a wrapper around native import(), so it's effectively a no-op.
-          // We handle it via the shim at the top of this function when requested directly.
-          // For transitive imports, we need to create the file so Node.js can resolve it.
-          
-          const fileUrl = pathToFileURL(builtFilePath).href;
-          try {
-            const module = await import(fileUrl);
-            temporaryReferences?.set(moduleRef, module);
-            if (exportName && !(exportName in module)) {
-              throw new Error(
-                `Export ${exportName} not found in module ${withoutQuery}`
-              );
-            }
-            return module;
-          } catch (importError) {
-            // Re-throw the error - Node.js will handle _virtual and node_modules naturally
-            // The virtual module file should already exist (created in writeBundle)
-            throw importError;
+          // Store in temporary references for caching
+          temporaryReferences?.set(moduleRef, module);
+          return module;
+        } catch (error) {
+          const err = toError(error);
+          const panicError = handleError({
+            error: err,
+            logger,
+            panicThreshold: userOptions.panicThreshold,
+            context: "Build Loader Error (shared)",
+          });
+          temporaryReferences?.delete(moduleRef);
+          if (panicError != null) {
+            throw panicError;
           }
         }
-
-        // For React imports, use the vendor system instead of direct imports
-        // Use static vendor for static generation (has static.node instead of server.node)
-        if (moduleId === "react" || moduleId.startsWith("react/")) {
-          throw new Error("You're not supposed to load react using the build loader. Simply use import React from 'react'.");
-        }
-        
-        const modPath = resolve(
-          userOptions.projectRoot,
-          userOptions.build.outDir,
-          userOptions.build.server,
-          moduleId
-        );
-        const mod = await import(pathToFileURL(modPath).href);
-        if (typeof mod === "object" && mod !== null && !(exportName in mod)) {
-          throw new Error(
-            `Export ${exportName} not found in module ${moduleId}`
-          );
-        }
-        return mod;
       } catch (error) {
         // Enhance React Server DOM errors with import context
         let enhancedError = error instanceof Error ? error : new Error(String(error));
