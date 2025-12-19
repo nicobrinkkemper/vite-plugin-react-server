@@ -4,7 +4,7 @@ import type { CreateHtmlStreamFn } from "./createHtmlStream.types.js";
 import { createSerializableHandlerOptions } from "../helpers/createSerializableHandlerOptions.js";
 import { toError } from "../error/toError.js";
 import { serializeError } from "../error/serializeError.js";
-import { MessageChannel } from "node:worker_threads";
+import { createMessageChannels } from "./createMessageChannels.js";
 /**
  * Creates an HTML stream using a MessagePort for direct communication with the HTML worker
  */
@@ -33,14 +33,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   }
 
   // Create two separate MessagePorts for clean separation of concerns
-  const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
-  const { port1: controlPort1, port2: controlPort2 } =
-    new MessageChannel();
-  
-  // Increase max listeners to prevent warnings during development
-  // This is a targeted fix for the memory leak warnings
-  (dataPort1 as any).setMaxListeners(20);
-  (controlPort1 as any).setMaxListeners(20);
+  const { dataPort1, dataPort2, controlPort1, controlPort2 } = createMessageChannels();
 
   // Create the HTML output stream
   const htmlStream = new PassThrough();

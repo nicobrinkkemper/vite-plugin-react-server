@@ -30,8 +30,11 @@ export type CreateReactWorkerServerFn = (props: {
   hmrChannel?: MessageChannel;
   serverManifest: Manifest;
   resolvedConfig: ResolvedConfig;
-  onWorkerCreated?: (worker: any) => void;
-}) => void;
+  onWorkerCreated?: (worker: any, restart?: () => Promise<void>) => void;
+}) => {
+  restart: (() => Promise<void>) | null;
+  sendHmrUpdate: (file: string, routes?: string[]) => void;
+} | null;
 
 export type HandleServerActionFn = (
   req: IncomingMessage,
@@ -50,7 +53,7 @@ export type ConfigureReactServerFn = (options: {
   serverManifest: Manifest;
   resolvedConfig: ResolvedConfig;
   hmrChannel?: MessageChannel;
-  onWorkerCreated?: (worker: Worker) => void;
+  onWorkerCreated?: (worker: Worker, restart?: () => Promise<void>) => void;
 }) => void;
 
 

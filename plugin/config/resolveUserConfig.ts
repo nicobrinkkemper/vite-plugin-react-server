@@ -195,15 +195,26 @@ export const resolveUserConfig: ResolveUserConfigFn =
     // Rollup's preserveModulesRoot works in reverse of what you'd expect:
     // - When user wants preservation (true): pass undefined to Rollup (don't strip anything)
     // - When user wants stripping (false): pass moduleBase to Rollup (strip this path)
+    // For static builds: use empty string to preserve only module names (not paths) to prevent _virtual files
     const preserveModulesRootString =
       userOptions.build.preserveModulesRoot === false
         ? userOptions.moduleBase // Strip src/ from output paths
         : ""; // Keep src/ in output paths by setting root to empty string
     
 
+    // For static builds (browser/ESM): bundle everything - no need to preserve modules or node_modules structure
+    // For client/server environments (SSR): preserve modules to maintain module structure for server-side rendering
+    // Use preserveModules: true for SSR, but for static builds use false to prevent _virtual files
+    const shouldPreserveModules = ssr || condition === "react-server";
+    
     const pluginOutput = {
-      preserveModules: true, // Required for preserveModulesRoot to work
-      preserveModulesRoot: preserveModulesRootString,
+      // For static builds: false to bundle everything and prevent _virtual files
+      // For SSR builds: use preserveModules with preserveModulesRoot set to preserve only module names (not paths)
+      // This prevents _virtual files by flattening the output structure
+      preserveModules: shouldPreserveModules,
+      // For static builds: undefined (not needed when preserveModules is false)
+      // For SSR builds: set to empty string to preserve only module names, preventing _virtual files
+      preserveModulesRoot: shouldPreserveModules ? (preserveModulesRootString === "" ? "" : preserveModulesRootString) : undefined,
       entryFileNames:
         userDefinedEntryFileNames ??
         ((info) => {
@@ -425,11 +436,15 @@ export const resolveUserConfig: ResolveUserConfigFn =
         envPrefix: vitePrefix,
         resolve: {
           ...config.resolve,
-          external: config.resolve?.external ?? [
-            "react",
-            "react-dom",
-            "react-server-dom-esm/client",
-          ],
+          // For static builds (browser/ESM): don't externalize anything - bundle everything
+          // For client/server builds (SSR): externalize React modules as usual
+          external: ssr
+            ? (config.resolve?.external ?? [
+                "react",
+                "react-dom",
+                "react-server-dom-esm/client",
+              ])
+            : undefined, // Bundle everything for static builds
         },
         define: define,
         ssr: srrConfig,
@@ -475,7 +490,43 @@ export const resolveUserConfig: ResolveUserConfigFn =
             preserveEntrySignatures:
               config.build?.rollupOptions?.preserveEntrySignatures ??
               "exports-only",
-            external: config.build?.rollupOptions?.external ?? ["fsevents"],
+            // For static builds (browser/ESM): bundle everything including node_modules to avoid _virtual files
+            // For client/server builds (SSR): externalize node_modules as usual
+            external: ssr 
+              ? (id: string, _parent?: string, _isResolved?: boolean) => {
+                  // Don't externalize virtual modules - let Vite inline them during build
+                  // Virtual modules are Vite's internal helpers that should be inlined, not externalized
+                  if (id.includes("_virtual/") || id.startsWith("_virtual")) {
+                    return false; // Let Vite handle virtual modules by inlining them
+                  }
+                  // Use user's external config or default to fsevents
+                  const userExternal = config.build?.rollupOptions?.external ?? ["fsevents"];
+                  if (Array.isArray(userExternal)) {
+                    return userExternal.includes(id);
+                  }
+                  if (typeof userExternal === "function") {
+                    return userExternal(id, _parent, _isResolved ?? false);
+                  }
+                  return false;
+                }
+              : (() => {
+                  // For static builds, only externalize fsevents (macOS-specific, not needed in browser)
+                  // Don't externalize node_modules - they should be bundled to avoid _virtual files
+                  const userExternal = config.build?.rollupOptions?.external ?? ["fsevents"];
+                  if (Array.isArray(userExternal)) {
+                    // Only keep fsevents, filter out everything else (including node_modules)
+                    return userExternal.filter((ext) => typeof ext === "string" && ext === "fsevents");
+                  }
+                  // If user provided a function or RegExp, wrap it to only allow fsevents
+                  if (typeof userExternal === "function") {
+                    return (id: string) => {
+                      if (id === "fsevents") return true;
+                      return false; // Don't externalize anything else for static builds
+                    };
+                  }
+                  // Default: only fsevents
+                  return ["fsevents"];
+                })(),
           },
           ssr: ssr,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
@@ -514,7 +565,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
           emptyOutDir: config.build?.emptyOutDir ?? true,
           outDir:
             config.build?.outDir ?? join(userOptions.build.outDir, envDir),
-          target: config.build?.target ?? "node18",
+          target: config.build?.target ?? "esnext", // Use esnext for pure ESM - no helpers needed
           minify: minify,
           ssr: ssr,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,

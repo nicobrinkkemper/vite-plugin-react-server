@@ -75,7 +75,7 @@ export type ConfigureWorkerRequestHandlerFn = (props: {
   serverManifest: Manifest;
   resolvedConfig: ResolvedConfig;
   hmrChannel: MessageChannel;
-  onWorkerCreated?: (worker: Worker) => void;
+  onWorkerCreated?: (worker: Worker, restart?: () => Promise<void>) => void;
 }) => void;
 
 export type ConfigureRequestHandlerFn = (

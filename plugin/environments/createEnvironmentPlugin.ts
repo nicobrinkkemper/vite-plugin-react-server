@@ -1,6 +1,5 @@
 import type { Plugin, UserConfig } from "vite";
 import type { VitePluginFn } from "../types.js";
-import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -47,26 +46,8 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         config.plugins = [];
       }
 
-      // Add single dynamic transformer that adapts based on current environment
-      // Check if transformer plugin already exists to prevent duplicates
-      const existingTransformer = config.plugins?.find(
-        (plugin) =>
-          plugin &&
-          typeof plugin === "object" &&
-          "name" in plugin &&
-          plugin.name === "vite-plugin-react-server:transform-dynamic"
-      );
-      // todo: support legacy build
-      // const isLegacyBuild = userOptions.strategy?.legacyBuilder && !config?.builder;
-      if (!existingTransformer) {
-        config.plugins.push(
-          createTransformerPlugin({
-            name: "dynamic",
-            defaultEnvironment: "client", // Default fallback, will be overridden by actual environment
-            allowedEnvironments: ["client", "ssr", "server"], // Allow all environments
-          })(options)
-        );
-      }
+      // Note: Transformer is now added via orchestrator, so skip adding it here
+      // to avoid duplicates and ensure proper registration
 
       // Note: Hash coordination is handled by the sequential build approach
       // Each environment will use the manifest from the previous build
@@ -254,11 +235,21 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             ...userConfig.resolve,
             // IMPORTANT: Map externals from resolveUserConfig (rollupOptions.external) to Environment API format
             // In Environment API, externals go in resolve.external, not build.rollupOptions.external
-            external: Array.isArray(userConfig.build.rollupOptions.external)
-              ? userConfig.build.rollupOptions.external.filter(
-                  (item): item is string => typeof item === "string"
-                )
-              : [],
+            // For static builds (browser/ESM): don't externalize anything - bundle everything to avoid _virtual files
+            // For client/server builds (SSR): externalize as configured
+            external: (() => {
+              const isStaticBuild = envConfig.name === "static" || (!envConfig.ssr && envConfig.name === "client");
+              if (isStaticBuild) {
+                // For static builds, don't externalize anything (bundle everything)
+                return [];
+              }
+              // For SSR builds, use configured externals
+              return Array.isArray(userConfig.build.rollupOptions.external)
+                ? userConfig.build.rollupOptions.external.filter(
+                    (item): item is string => typeof item === "string"
+                  )
+                : [];
+            })(),
           },
           build: {
             ...userConfig.build,
@@ -295,8 +286,9 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
                   const hasPreserveModulesRoot = 'preserveModulesRoot' in output;
                   
                   if (hasPreserveModulesRoot) {
-                    // Property exists, return the object with preserveModules: true to enable the feature
-                    return { ...output, preserveModules: true };
+                    // Property exists, preserve the preserveModules value from the output (don't override it)
+                    // This is critical for static builds where preserveModules: false is set
+                    return output; // Return as-is, preserveModules is already set correctly
                   } else {
                     // Property missing, add it based on user options
                     const preserveModulesRootString = userOptions.build.preserveModulesRoot === false

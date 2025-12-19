@@ -27,6 +27,11 @@ export const createTransformer: TransformerFactory = ({
     loader = DEFAULT_LOADER_CONFIG,
   } = options;
 
+  // Track if forceServerFunction/forceClientComponent were explicitly passed (for testing)
+  // vs auto-detected from directives (for normal builds)
+  const explicitForceServerFunction = forceServerFunction !== undefined;
+  const explicitForceClientComponent = forceClientComponent !== undefined;
+
   return async (
     source: string,
     moduleId: string,
@@ -262,14 +267,24 @@ export const createTransformer: TransformerFactory = ({
     }
 
     // Transform the module
+    // Only use explicit forceServerFunction/forceClientComponent in client environments
+    // In client environments, auto-detected directives should go to transformNonServerEnvironment
+    // (which throws errors for "use server" directives)
+    const finalForceServerFunction = isServerEnvironment
+      ? (forceServerFunction ?? hasServerDirective)
+      : (explicitForceServerFunction ? forceServerFunction : undefined);
+    const finalForceClientComponent = isServerEnvironment
+      ? (forceClientComponent ?? hasClientDirective)
+      : (explicitForceClientComponent ? forceClientComponent : undefined);
+
     return await transformModule(
       source,
       moduleId,
       transformedModuleId,
       parseResult,
       {
-        forceServerFunction: forceServerFunction ?? hasServerDirective,
-        forceClientComponent: forceClientComponent ?? hasClientDirective,
+        forceServerFunction: finalForceServerFunction,
+        forceClientComponent: finalForceClientComponent,
         isServerEnvironment,
         loader: options.loader,
         directiveWarnings: parseResult.directiveInfo.warnings,

@@ -18,7 +18,7 @@
 
 // Client-side modules (browser environment)
 declare module 'react-server-dom-esm/client' {
-  import type { ReactNode } from 'react';
+  import type { ReactNode, Usable } from 'react';
 
   export type CreateFromFetchOptions = {
     moduleBaseURL?: string;
@@ -92,7 +92,7 @@ declare module 'react-server-dom-esm/client.browser' {
       replayConsoleLogs?: boolean;
       environmentName?: string;
     }
-  ): Promise<ReactNode>;
+  ): Usable<ReactNode>;
 
   export function createFromReadableStream(
     stream: ReadableStream,
@@ -104,7 +104,7 @@ declare module 'react-server-dom-esm/client.browser' {
       replayConsoleLogs?: boolean;
       environmentName?: string;
     }
-  ): Promise<ReactNode>;
+  ): Usable<ReactNode>;
 
   export function encodeReply(
     value: any,
@@ -112,7 +112,7 @@ declare module 'react-server-dom-esm/client.browser' {
       signal?: AbortSignal;
       temporaryReferences?: Map<any, any>;
     }
-  ): Promise<string | FormData>;
+  ): Usable<string | FormData>;
 }
 
 // Node.js client module

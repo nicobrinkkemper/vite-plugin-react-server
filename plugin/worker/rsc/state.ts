@@ -18,6 +18,10 @@ export const moduleIds = new Map<string, string>();
 // Track resolved components cache using WeakMap for better memory management
 export const temporaryReferences = ReactDOMServer.createTemporaryReferenceSet();
 
+// Track all cached component IDs so we can clear them on HMR
+// This is necessary because temporaryReferences doesn't support iteration
+const cachedComponentIds = new Set<string>();
+
 export const hmrState = new Map<string, HmrState>();
 
 if (workerData) {
@@ -36,6 +40,12 @@ if (workerData) {
             invalidated: true,
             routes: msg.routes || [],
           });
+          
+          // CRITICAL: Clear component cache for invalidated modules
+          // This ensures file changes are picked up immediately
+          // We need to clear all cached components that might use this file
+          // Since we can't iterate temporaryReferences, we'll rely on the
+          // cache checks in messageHandler to skip invalidated modules
         } else if (msg.type === "HMR_ACCEPT") {
           // Normalize the path relative to project root
           const normalizedPath = relative(
@@ -107,6 +117,8 @@ export function addModuleId(id: string, url: string) {
 export function cacheComponent(id: string, component: any) {
   const moduleRef = getModuleRef(id);
   temporaryReferences.set(moduleRef, component);
+  // Track the ID so we can clear it later
+  cachedComponentIds.add(id);
 }
 
 // Helper to get a cached component
@@ -119,6 +131,23 @@ export function getCachedComponent(id: string): any {
 export function hasCachedComponent(id: string): boolean {
   const moduleRef = getModuleRef(id);
   return temporaryReferences.has(moduleRef);
+}
+
+// Helper to clear a cached component
+export function clearCachedComponent(id: string): void {
+  const moduleRef = getModuleRef(id);
+  temporaryReferences.delete(moduleRef);
+  cachedComponentIds.delete(id);
+}
+
+// Helper to clear all cached components (for HMR)
+export function clearAllCachedComponents(): void {
+  // Clear all tracked component IDs from temporaryReferences
+  for (const id of cachedComponentIds) {
+    const moduleRef = getModuleRef(id);
+    temporaryReferences.delete(moduleRef);
+  }
+  cachedComponentIds.clear();
 }
 
 export function getModuleId(id: string): string | undefined {

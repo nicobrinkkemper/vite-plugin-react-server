@@ -4,7 +4,7 @@ import { assertNonReactServer } from "../config/getCondition.js";
 import { validateRscStreamOptions } from "./createRscStream.utils.js";
 import { toError } from "../error/toError.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
-import { MessageChannel } from "node:worker_threads";
+import { createMessageChannels } from "./createMessageChannels.js";
 import { MessagePortReadable } from "./MessagePortReadable.js";
 
 assertNonReactServer();
@@ -33,8 +33,7 @@ export const createRscStream: CreateRscStreamFn<"client"> = function _createRscS
   }
 
   // Create two separate MessagePorts for clean separation of concerns
-  const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
-  const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
+  const { dataPort1, dataPort2, controlPort1, controlPort2 } = createMessageChannels();
 
   // Create the RSC output stream
   const rscStream = new MessagePortReadable(dataPort1, controlPort1);

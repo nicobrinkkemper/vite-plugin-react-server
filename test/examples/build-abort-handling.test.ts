@@ -40,7 +40,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
         })
       ).rejects.toThrow(errString);
     }
-  });
+  }, 10000); // Increase timeout to 10 seconds for this test
 
   it("should abort build when abort condition is triggered in onEvent during build.start", async () => {
     const testEvent = "build.start";

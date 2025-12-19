@@ -3,6 +3,7 @@ import { createEnvironmentPlugin } from "../environments/createEnvironmentPlugin
 import { createBuildEventPlugin } from "../environments/createBuildEventPlugin.js";
 import { vitePluginReactDevServer } from "../dev-server/plugin.server.js";
 import { reactStaticPlugin } from "../react-static/plugin.server.js";
+import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 
 // Server-first orchestrator - only imports server plugins
 export const createPluginOrchestrator = (
@@ -18,6 +19,15 @@ export const createPluginOrchestrator = (
   };
 
   const plugins: Plugin[] = [];
+  
+  // Add transformer first so it runs before other plugins
+  plugins.push(
+    createTransformerPlugin({
+      name: "dynamic",
+      defaultEnvironment: "server",
+      allowedEnvironments: ["client", "ssr", "server"],
+    })(userOptions)
+  );
   
   // Core plugins
   plugins.push(createEnvironmentPlugin({

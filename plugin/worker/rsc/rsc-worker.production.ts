@@ -16,6 +16,7 @@ import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { createLogger } from "vite";
 import { handleError } from "../../error/handleError.js";
 import { sendMessage } from "../sendMessage.js";
+import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -57,10 +58,14 @@ try {
   const envLoaderChannel = new MessageChannel();
   
   // Increase max listeners to prevent warnings during development
-  // This is a targeted fix for the memory leak warnings
-  (reactLoaderChannel.port1 as any).setMaxListeners(20);
-  (cssLoaderChannel.port1 as any).setMaxListeners(20);
-  (envLoaderChannel.port1 as any).setMaxListeners(20);
+  // Loader channels are created once per worker, so 20 should be sufficient
+  // Using 20 instead of 15 to account for potential extra listeners during cleanup
+  setMaxListenersOnPort(reactLoaderChannel.port1, 20);
+  setMaxListenersOnPort(reactLoaderChannel.port2, 20);
+  setMaxListenersOnPort(cssLoaderChannel.port1, 20);
+  setMaxListenersOnPort(cssLoaderChannel.port2, 20);
+  setMaxListenersOnPort(envLoaderChannel.port1, 20);
+  setMaxListenersOnPort(envLoaderChannel.port2, 20);
 
   // Set up message handlers before transferring ports (only needed if not in build mode)
   if (!isBuildMode) {
@@ -223,6 +228,9 @@ try {
     // In build mode, just register tsx for basic TypeScript support
     registerTsx();
   }
+
+  // Increase max listeners on parentPort to prevent warnings
+  setMaxListenersOnPort(parentPort, 20);
 
   // Handle all messages through the unified messageHandler
   parentPort!.on("message", messageHandler);

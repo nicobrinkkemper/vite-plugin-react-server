@@ -27,16 +27,23 @@ export const createDefaultModuleID = (
   configEnv?: ConfigEnv,
   mode = getNodeEnv()
 ) => {
-  const { moduleBase, moduleBasePath, build, moduleBaseURL, projectRoot } = options;
+  const { moduleBase, moduleBasePath, build, moduleBaseURL, projectRoot, autoDiscover } = options;
   const assetsDir = build.assetsDir || DEFAULT_CONFIG.BUILD.assetsDir;
   const isBuild = configEnv?.command === "build";
+  // CRITICAL: In development mode, NEVER hash, even if command is "build" (optimizer)
+  const isDevelopment = mode === "development";
+  const shouldHash = isBuild && !isDevelopment;
   const isProd = mode === "production" || isBuild;
+  // CRITICAL: In development mode, NEVER remove moduleBase (src/), even if command is "build" (optimizer)
   const removeModuleBase =
-    (isProd || isBuild) && !options.build.preserveModulesRoot;
+    (isProd || isBuild) && !isDevelopment && !options.build.preserveModulesRoot;
   
 
   // Hash configuration
   const hashOption = build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
+  
+  // Virtual pattern for excluding virtual modules from hashing
+  const virtualPattern = autoDiscover?.virtualPattern ?? DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern;
   
   // Client component pattern for hashing
   const clientPattern = /\.client\.[cm]?[jt]sx?$/;
@@ -69,6 +76,16 @@ export const createDefaultModuleID = (
   const hash = (input: string | null, _ssr: boolean, sourceContent?: string) => {
     if (!input) return "";
     if (new RegExp(/\.(node|d\.ts)$/).test(input)) {
+      return input;
+    }
+    
+    // CRITICAL: Never hash node_modules files - Vite/Rollup handles those
+    if (input.includes("node_modules")) {
+      return input;
+    }
+    
+    // CRITICAL: Never hash virtual modules (_virtual or matching virtualPattern) - Vite handles those
+    if (input.includes("_virtual") || (virtualPattern && virtualPattern.test(input))) {
       return input;
     }
     
@@ -127,12 +144,10 @@ export const createDefaultModuleID = (
   const buildDirs = isBuild ? [serverDist, ssrClientDist, staticClientDist] : [];
 
   return (id: string, sourceContent?: string) => {
-    
-    
     // For transformer usage (when we're in build mode and processing server components),
     // we want to strip build directory prefixes to get relative paths
     // This ensures the RSC stream contains paths that can be resolved by the HTML transform
-    if (isBuild) {
+    if (shouldHash) {
       // Strip build directory prefixes to get relative paths
       for (const buildDir of buildDirs) {
         if (id.startsWith(buildDir)) {
@@ -217,8 +232,10 @@ export const createDefaultModuleID = (
       id = assetsDir + sep + id;
     }
     
-    // Step 8: Apply hashing for client components
-    id = hash(id, false, sourceContent);
+    // Step 8: Apply hashing for client components (only in production builds, not dev)
+    if (shouldHash) {
+      id = hash(id, false, sourceContent);
+    }
     
     // For client components, ensure no leading slash to allow proper relative resolution
     const isClientComponent = clientPattern.test(id);

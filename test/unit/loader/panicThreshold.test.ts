@@ -51,7 +51,8 @@ export async function test() {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     
     const transformer = createTransformer({
-      options: createMockOptions({ panicThreshold: 'none' })
+      options: createMockOptions({ panicThreshold: 'none' }),
+      isServerEnvironment: true,
     });
 
     const result = await transformer(sourceWithWarning, 'test.js');
@@ -90,7 +91,8 @@ export async function test() {
 
   it("should not throw when panicThreshold='all_errors' but no warnings exist", async () => {
     const transformer = createTransformer({
-      options: createMockOptions({ panicThreshold: 'all_errors' })
+      options: createMockOptions({ panicThreshold: 'all_errors' }),
+      isServerEnvironment: true,
     });
 
     const result = await transformer(sourceWithoutWarning, 'test.js');
@@ -124,7 +126,8 @@ export async function test() {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     
     const transformer = createTransformer({
-      options: createMockOptions({ panicThreshold: 'none' })
+      options: createMockOptions({ panicThreshold: 'none' }),
+      isServerEnvironment: true,
     });
 
     await transformer(sourceWithWarning, 'test.js');

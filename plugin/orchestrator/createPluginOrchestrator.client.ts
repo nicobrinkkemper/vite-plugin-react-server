@@ -3,6 +3,7 @@ import { createEnvironmentPlugin } from "../environments/createEnvironmentPlugin
 import { createBuildEventPlugin } from "../environments/createBuildEventPlugin.js";
 import { vitePluginReactDevServer } from "../dev-server/plugin.client.js";
 import { reactStaticPlugin } from "../react-static/plugin.client.js";
+import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 
 // Client-first orchestrator - includes client SSG plugin for reverse paradigm
 export const createPluginOrchestrator = (
@@ -12,6 +13,15 @@ export const createPluginOrchestrator = (
   const availableEnvironments = ["client", "ssr", "server"];
 
   const plugins: Plugin[] = [];
+  
+  // Add transformer first so it runs before other plugins
+  plugins.push(
+    createTransformerPlugin({
+      name: "dynamic",
+      defaultEnvironment: "client",
+      allowedEnvironments: ["client", "ssr", "server"],
+    })(userOptions)
+  );
   
   // Core plugins
   plugins.push(createEnvironmentPlugin({

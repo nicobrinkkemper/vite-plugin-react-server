@@ -14,6 +14,17 @@ import { getNodeEnv } from "../config/getNodeEnv.js";
 import { setupGlobalErrorHandler, cleanupGlobalErrorHandler } from "../error/setupGlobalErrorHandler.js";
 import { pipeToResponse } from "../helpers/pipeToResponse.js";
 
+// Shared state to track if modules have been invalidated
+// This allows us to restart the worker on the next request to clear Node.js module cache
+let hasInvalidatedModules = false;
+
+/**
+ * Mark that modules have been invalidated - worker will be restarted on next request
+ */
+export function markModulesInvalidated(): void {
+  hasInvalidatedModules = true;
+}
+
 /**
  * Configures the worker request handler.
  * @param server - The Vite dev server
@@ -50,6 +61,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
 
     // Start the worker
     let currentWorker: Worker | null = null;
+    let restartWorkerForHMR: (() => Promise<void>) | null = null;
 
     // Handle server restarts
     server.ws.on("restart", async () => {
@@ -96,6 +108,36 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         handlerOptionsWithUrl,
         autoDiscoveredFiles
       );
+      
+      // Define restart function for HMR (needs serializedUserOptions)
+      if (!restartWorkerForHMR) {
+        restartWorkerForHMR = async () => {
+          if (currentWorker) {
+            currentWorker = await restartWorker({
+              server,
+              autoDiscoveredFiles,
+              userOptions: serializedUserOptions,
+              configEnv: configEnv,
+              hmrChannel,
+            });
+            if (currentWorker && restartWorkerForHMR) {
+              onWorkerCreated?.(currentWorker, restartWorkerForHMR);
+            }
+          } else {
+            // Worker doesn't exist yet, create it
+            currentWorker = await restartWorker({
+              server,
+              autoDiscoveredFiles,
+              userOptions: serializedUserOptions,
+              configEnv: configEnv,
+              hmrChannel,
+            });
+            if (currentWorker && restartWorkerForHMR) {
+              onWorkerCreated?.(currentWorker, restartWorkerForHMR);
+            }
+          }
+        };
+      }
       
       if (handlerOptions.verbose) {
         server.config.logger.info(`[configureRequestHandler] serializedUserOptions.projectRoot: ${serializedUserOptions.projectRoot}`);
@@ -146,15 +188,24 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
       const rootPath = routeFiles.root;
-      const htmlPath = routeFiles.html;
+      // Note: htmlPath not used for RSC requests (always "" for headless mode)
       try {
         // Set up response headers for streaming
         res.setHeader("Content-Type", info.contentType);
         res.setHeader("Transfer-Encoding", "chunked");
         res.setHeader("Connection", "keep-alive");
+        
+        // CRITICAL: Disable caching in development mode
+        // Without this, browsers cache RSC streams and don't show updates
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
 
         const userOnMetrics = handlerOptions.onMetrics;
         
+        // CRITICAL: If modules have been invalidated, restart the worker to clear Node.js's ES module cache
+        // This ensures file changes are picked up even on refresh
+        // Node.js caches ES modules, and the only way to clear that cache is to restart the worker
         if (!currentWorker) {
           currentWorker = await restartWorker({
             server,
@@ -163,15 +214,27 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             configEnv: configEnv,
             hmrChannel,
           });
+          hasInvalidatedModules = false; // Reset flag after creating worker
+        } else if (hasInvalidatedModules) {
+          // Worker exists but modules are invalidated - restart to clear Node.js cache
+          logger.info(`[configureRequestHandler] Modules invalidated, restarting worker to clear Node.js module cache...`);
+          currentWorker = await restartWorker({
+            server,
+            autoDiscoveredFiles,
+            userOptions: serializedUserOptions,
+            configEnv: configEnv,
+            hmrChannel,
+          });
+          hasInvalidatedModules = false; // Reset flag after restarting
         } else {
-          // Worker already exists, reuse it
+          // Worker already exists and no invalidations - reuse it
           // Note: unified worker streams handle their own listeners
         }
         if (!currentWorker) {
           throw new Error("Failed to start worker");
         }
         // Notify about worker creation
-        onWorkerCreated?.(currentWorker);
+        onWorkerCreated?.(currentWorker, restartWorkerForHMR);
 
         const stream = handleRscStream({
           options: {
@@ -186,7 +249,9 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             pagePath: pagePath,
             propsPath: propsPath,
             rootPath: rootPath,
-            htmlPath: htmlPath,
+            // CRITICAL: For RSC requests, use htmlPath: "" for headless mode (no Html wrapper)
+            // This prevents hydration errors where <html> would be rendered inside #root div
+            htmlPath: "",  // Empty string = headless RSC (no Html wrapper)
             // Component overrides (undefined for file-based components in client dev)
             HtmlComponent: undefined,
             RootComponent: undefined,

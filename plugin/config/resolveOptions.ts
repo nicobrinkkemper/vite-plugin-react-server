@@ -22,6 +22,7 @@ import type { LoaderConfig } from "../loader/types.js";
 import { handleError } from "../error/handleError.js";
 import { createLogger, type Logger } from "vite";
 import { getCondition } from "./getCondition.js";
+import { getNodeEnv } from "./getNodeEnv.js";
 import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./stashedOptionsState.js";
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -150,12 +151,17 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     options.build?.preserveModulesRoot ??
     DEFAULT_CONFIG.BUILD.preserveModulesRoot;
 
+  // Get current mode to check if we're in development
+  const currentMode = getNodeEnv(process.env.NODE_ENV);
+  const isDevelopment = currentMode === "development";
+
   // Rollup's preserveModulesRoot works in reverse of what you'd expect:
   // - When user wants preservation (true): pass undefined to Rollup (don't strip anything)
   // - When user wants stripping (false): pass moduleBase to Rollup (strip this path)
+  // CRITICAL: In development mode, NEVER strip moduleBase (src/) because Vite serves from source locations
   const preserveModulesRootString =
-    preserveModulesRoot === false
-      ? moduleBase // Strip src/ from output paths
+    !isDevelopment && preserveModulesRoot === false
+      ? moduleBase // Strip src/ from output paths (production only)
       : undefined; // Keep src/ in output paths
 
   const client =
@@ -375,6 +381,20 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return input;
     }
     
+    // CRITICAL: Never hash node_modules files - Vite/Rollup handles those
+    if (input.includes("node_modules")) {
+      return input;
+    }
+    
+    // CRITICAL: Never hash virtual modules (_virtual or matching virtualPattern) - Vite handles those
+    const virtualPattern = resolveRegExp(
+      options.autoDiscover?.virtualPattern,
+      DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern
+    );
+    if (input.includes("_virtual") || (virtualPattern && virtualPattern.test(input))) {
+      return input;
+    }
+    
     // Check if hashing is disabled
     if (hashOption === "false") {
       return input;
@@ -434,12 +454,28 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   };
 
   // Output path resolution
-  const getOutputPath = (n: string | null) => {
+  const getOutputPath = (n: string | null, isAsset: boolean = false) => {
     if (!n) return "";
     let path = handleSearchQuery(n);
     path = path.startsWith(moduleBase + moduleBasePath)
       ? path.slice(moduleBase.length + moduleBasePath.length)
       : path;
+
+    // For assets that are not modules, preserve the original extension
+    // Only apply module transformations if the file actually matches module patterns
+    if (isAsset) {
+      // Check if this is a module file (JS/TS/JSX/TSX) - if so, apply module transformations
+      const isModuleFile = modulePattern.test(path) || 
+                          clientPattern.test(path) || 
+                          serverPattern.test(path) ||
+                          propsPattern.test(path) ||
+                          pagePattern.test(path);
+      
+      // If it's not a module file, preserve the original extension
+      if (!isModuleFile) {
+        return path;
+      }
+    }
 
     if (vendorPattern.test(path))
       return registerPath(path, vendorPattern, jsExtension);
@@ -461,6 +497,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return registerPath(path, serverPattern, jsExtension);
     if (modulePattern.test(path))
       return registerPath(path, modulePattern, jsExtension);
+    
+    // Fallback: only apply module pattern if we're sure it's a module
+    // For assets, we've already returned above, so this is safe
     return registerPath(path, modulePattern, jsExtension);
   };
 
@@ -555,7 +594,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     }
 
     // For other assets, apply the extension mapping if needed
-    return hash(getOutputPath(firstName), false);
+    // Pass isAsset=true to preserve extensions for non-module assets
+    return hash(getOutputPath(firstName, true), false);
   }
 
   /**

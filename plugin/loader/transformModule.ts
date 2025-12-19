@@ -67,7 +67,29 @@ export const transformModule: TransformFunction = async (
     );
   }
   if (!isServerEnvironment) {
-    // only remove the directives
+    // If forceServerFunction is true, we should still transform server functions
+    // (stub them out) even in client environment - this is needed for testing
+    if (forceServerFunction) {
+      return transformServerModule(
+        source,
+        moduleId,
+        transformedModuleId,
+        parseResult,
+        loader,
+      );
+    }
+    // If forceClientComponent is true, we should still transform client components
+    // (stub them out) even in client environment - this is needed for testing
+    if (forceClientComponent) {
+      return transformClientModule(
+        source,
+        moduleId,
+        transformedModuleId,
+        parseResult,
+        loader,
+      );
+    }
+    // Otherwise, only remove the directives
     return transformNonServerEnvironment(
       source,
       moduleId,

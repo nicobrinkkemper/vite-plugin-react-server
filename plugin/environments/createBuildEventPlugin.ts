@@ -100,9 +100,11 @@ export function createBuildEventPlugin(options: StreamPluginOptions): Plugin {
             context: `onEvent(${eventType})`,
           });
           if (eventPanicError != null) {
-            this.error(eventPanicError); // Re-throw to abort the build
+            this.error(eventPanicError); // Log the error
+            throw eventPanicError; // Re-throw to abort the build
           } else {
             this.warn(error as any);
+            // For non-panic errors, don't throw - just warn
           }
         }
       }

@@ -174,6 +174,36 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
     async renderStart() {
       timing.renderStart = performance.now();
     },
+    generateBundle(_options, bundle) {
+      // Filter out _virtual files from the bundle before they're written to disk
+      // These are Vite's internal virtual modules (CommonJS interop, etc.) and aren't needed in the final output
+      // Note: Static builds are handled by plugin.client.ts, this only handles server builds
+      if (this.environment.name === "server") {
+        const keysToDelete: string[] = [];
+        for (const [key, chunk] of Object.entries(bundle)) {
+          if (chunk.type === "chunk") {
+            // Check fileName, key, moduleIds, and facadeModuleId for _virtual
+            const isVirtual = 
+              chunk.fileName?.includes("_virtual") ||
+              key.includes("_virtual") ||
+              chunk.facadeModuleId?.includes("_virtual") ||
+              chunk.moduleIds?.some(id => id.includes("_virtual"));
+            
+            if (isVirtual) {
+              keysToDelete.push(key);
+              if (userOptions.verbose) {
+                logger?.info(`[plugin.server] Filtered out virtual file: ${chunk.fileName || key} (moduleId: ${chunk.facadeModuleId || chunk.moduleIds?.[0]})`);
+              }
+            }
+          }
+        }
+        // Delete after iteration to avoid modifying while iterating
+        for (const key of keysToDelete) {
+          delete bundle[key];
+        }
+      }
+    },
+
     async writeBundle(_options, bundle) {
       // Only execute static generation for the server environment
       if (this.environment.name !== "server") {
@@ -182,7 +212,6 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         }
         return;
       }
-      
       
       let panicError: Error | null = null;
       let bundleManifest:
@@ -249,6 +278,42 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           throw staticManifestResult.error;
         }
         const staticManifest = staticManifestResult.manifest;
+        
+        // Proactively create _virtual/dynamic-import-helper.js if it doesn't exist
+        // This is needed because Rollup might generate relative imports to it,
+        // and Node.js's module resolution needs the file to exist.
+        try {
+          const { writeFileSync, mkdirSync } = await import("node:fs");
+          const { join, resolve } = await import("node:path");
+          
+          const resolvedOutDir = this.environment.config.build?.outDir 
+            ? resolve(this.environment.config.root || userOptions.projectRoot, this.environment.config.build.outDir)
+            : resolve(userOptions.projectRoot, userOptions.build.outDir);
+          
+          const serverOutDir = join(resolvedOutDir, userOptions.build.server || "server");
+          const virtualDir = join(serverOutDir, "_virtual");
+          const helperPath = join(virtualDir, "dynamic-import-helper.js");
+          
+          // Always create the file (overwrite if exists) to ensure it's there
+          mkdirSync(virtualDir, { recursive: true });
+          
+          const helperContent = `// Vite dynamic import helper shim
+// This file is created to support variable dynamic imports like import(variable)
+export default function __variableDynamicImportRuntimeHelper(specifier) {
+  return import(specifier);
+}
+
+export { __variableDynamicImportRuntimeHelper };
+`;
+          
+          writeFileSync(helperPath, helperContent, "utf-8");
+          
+          logger?.info(`[plugin.server] Created _virtual/dynamic-import-helper.js at ${helperPath}`);
+        } catch (error) {
+          logger?.warn(`[plugin.server] Failed to create _virtual/dynamic-import-helper.js: ${error}`);
+          // Don't throw - this is non-critical, but log it
+        }
+        
         const buildLoader = createBuildLoader(
           {
             userOptions: userOptions,
@@ -277,13 +342,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             logger.info(
               `[plugin.server] Route ${route}: ${cssMap.size} CSS files`
             );
-            for (const [key, value] of cssMap.entries()) {
-              logger.info(
-                `[plugin.server]   CSS file: ${key} -> ${value.as} (${
-                  value.children ? "inline" : "link"
-                })`
-              );
-            }
+            
           }
         }
 
@@ -575,6 +634,43 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
     },
 
     async closeBundle() {
+      // Clean up _virtual files after build completes
+      // These are Vite's internal virtual modules and aren't needed in the final output
+      if (this.environment.name === "server") {
+        try {
+          const { existsSync } = await import("node:fs");
+          const { join, resolve } = await import("node:path");
+          
+          // Use the resolved output directory from the environment config
+          const resolvedOutDir = this.environment.config.build?.outDir 
+            ? resolve(this.environment.config.root || userOptions.projectRoot, this.environment.config.build.outDir)
+            : resolve(userOptions.projectRoot, userOptions.build.outDir);
+          
+          // Clean up _virtual from all output directories
+          const outputDirs = [
+            join(resolvedOutDir, userOptions.build.static || "static"),
+            join(resolvedOutDir, userOptions.build.server || "server"),
+            resolvedOutDir, // Also check root outDir
+          ];
+          
+          for (const outDir of outputDirs) {
+            const virtualDir = join(outDir, "_virtual");
+            if (existsSync(virtualDir)) {
+              const { rmSync } = await import("node:fs");
+              rmSync(virtualDir, { recursive: true, force: true });
+              if (userOptions.verbose) {
+                logger?.info(`[plugin.server] Cleaned up _virtual directory: ${virtualDir}`);
+              }
+            }
+          }
+        } catch (error) {
+          // Non-critical - log but don't fail the build
+          if (userOptions.verbose) {
+            logger?.warn(`[plugin.server] Failed to clean up _virtual directory: ${error}`);
+          }
+        }
+      }
+
       // Graceful worker shutdown - only at the end of the entire build process
       if (worker) {
         try {

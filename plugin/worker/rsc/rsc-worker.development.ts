@@ -15,6 +15,7 @@ import { createLogger } from "vite";
 import { handleError } from "../../error/handleError.js";
 import { sendMessage } from "../sendMessage.js";
 import { serializeError } from "../../error/serializeError.js";
+import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -25,6 +26,13 @@ if (!parentPort) {
 const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info", {
   prefix: "rsc-worker",
 });
+
+// Increase max listeners on parentPort to prevent warnings
+// parentPort handles all messages, so needs a higher limit
+if (parentPort) {
+  setMaxListenersOnPort(parentPort, 20);
+}
+
 // Handle all messages through the unified messageHandler
 parentPort?.on("message", messageHandler);
 
@@ -66,10 +74,14 @@ try {
   const envLoaderChannel = new MessageChannel();
   
   // Increase max listeners to prevent warnings during development
-  // This is a targeted fix for the memory leak warnings
-  (reactLoaderChannel.port1 as any).setMaxListeners(20);
-  (cssLoaderChannel.port1 as any).setMaxListeners(20);
-  (envLoaderChannel.port1 as any).setMaxListeners(20);
+  // Loader channels are created once per worker, so 20 should be sufficient
+  // Using 20 instead of 15 to account for potential extra listeners during cleanup
+  setMaxListenersOnPort(reactLoaderChannel.port1, 20);
+  setMaxListenersOnPort(reactLoaderChannel.port2, 20);
+  setMaxListenersOnPort(cssLoaderChannel.port1, 20);
+  setMaxListenersOnPort(cssLoaderChannel.port2, 20);
+  setMaxListenersOnPort(envLoaderChannel.port1, 20);
+  setMaxListenersOnPort(envLoaderChannel.port2, 20);
 
   // Set up message handlers before transferring ports (only needed if not in build mode)
   if (!isBuildMode) {

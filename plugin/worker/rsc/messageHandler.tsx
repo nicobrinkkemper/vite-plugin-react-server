@@ -1,9 +1,10 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
 import { handleRscRender } from "./handleRscRender.js";
+import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
 import type {
   RscWorkerInputMessage,
   ComponentsResolvedMessage,
@@ -19,6 +20,9 @@ import {
   cacheComponent,
   getCachedComponent,
   hasCachedComponent,
+  clearCachedComponent,
+  isModuleInvalidated,
+  clearAllCachedComponents,
 } from "./state.js";
 import {
   combineCssFiles,
@@ -218,79 +222,136 @@ async function loadComponentsWithCache(options: {
         `[loadComponentsWithCache] Loading page and props for pagePath=${pagePath}`
       );
     }
-    try {
-      const pageAndPropsResult = await resolvePageAndProps({
-        pagePath,
-        propsPath,
-        pageExportName,
-        propsExportName,
-        url,
-        loader,
-        verbose: verbose || false,
-        logger,
-      });
-
+    
+    // CRITICAL: Check if Page module is invalidated before using cache
+    const pageId = `${pagePath}#${pageExportName}`;
+    const isPageInvalidated = isModuleInvalidated(pagePath);
+    
+    // Check cache first, but only if not invalidated
+    if (hasCachedComponent(pageId) && !isPageInvalidated) {
+      PageComponent = getCachedComponent(pageId);
       if (verbose) {
         logger?.info(
-          `[loadComponentsWithCache] pageAndPropsResult for ${pagePath}:`,
-          pageAndPropsResult
+          `[rsc-worker] Using cached Page component from: ${pagePath}`
         );
       }
-
-      if (pageAndPropsResult.type === "success") {
-        PageComponent = pageAndPropsResult.PageComponent;
-        pageProps = pageAndPropsResult.pageProps;
-
-        // Cache the components
-        const pageId = `${pagePath}#${pageExportName}`;
-        cacheComponent(pageId, PageComponent);
-
-        if (propsPath) {
-          const propsId = `${propsPath}#${propsExportName}`;
-          cacheComponent(propsId, pageProps);
+      
+      // Also check props cache if propsPath exists
+      if (propsPath) {
+        const propsId = `${propsPath}#${propsExportName}`;
+        const isPropsInvalidated = isModuleInvalidated(propsPath);
+        if (hasCachedComponent(propsId) && !isPropsInvalidated) {
+          pageProps = getCachedComponent(propsId);
+          if (verbose) {
+            logger?.info(
+              `[rsc-worker] Using cached pageProps from: ${propsPath}`
+            );
+          }
+        } else {
+          // Props invalidated or not cached - need to reload
+          if (isPropsInvalidated && hasCachedComponent(propsId)) {
+            clearCachedComponent(propsId);
+          }
+          // Will reload props below
+          pageProps = undefined;
         }
+      }
+    } else {
+      // Page invalidated or not cached - need to reload
+      if (isPageInvalidated && hasCachedComponent(pageId)) {
+        clearCachedComponent(pageId);
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker] Cleared invalidated Page component cache: ${pagePath}`
+          );
+        }
+      }
+      
+      // Also clear props cache if page is invalidated
+      if (propsPath && isPageInvalidated) {
+        const propsId = `${propsPath}#${propsExportName}`;
+        if (hasCachedComponent(propsId)) {
+          clearCachedComponent(propsId);
+        }
+      }
+      
+      // Reload page and props
+      try {
+        const pageAndPropsResult = await resolvePageAndProps({
+          pagePath,
+          propsPath,
+          pageExportName,
+          propsExportName,
+          url,
+          loader,
+          verbose: verbose || false,
+          logger,
+        });
 
         if (verbose) {
           logger?.info(
-            `[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`
+            `[loadComponentsWithCache] pageAndPropsResult for ${pagePath}:`,
+            pageAndPropsResult
           );
+        }
+
+        if (pageAndPropsResult.type === "success") {
+          PageComponent = pageAndPropsResult.PageComponent;
+          pageProps = pageAndPropsResult.pageProps;
+
+          // Cache the components
+          cacheComponent(pageId, PageComponent);
+
           if (propsPath) {
+            const propsId = `${propsPath}#${propsExportName}`;
+            cacheComponent(propsId, pageProps);
+          }
+
+          if (verbose) {
             logger?.info(
-              `[rsc-worker] Loaded and cached pageProps from: ${propsPath}`
+              `[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`
+            );
+            if (propsPath) {
+              logger?.info(
+                `[rsc-worker] Loaded and cached pageProps from: ${propsPath}`
+              );
+            }
+            if (verbose) {
+              logger?.info(`[rsc-worker] Loaded pageProps:`, pageProps);
+            }
+          }
+        } else {
+          // Handle component resolution failure gracefully (same as server environment)
+          if (verbose) {
+            logger?.warn(
+              `[rsc-worker] Failed to load page and props: ${pageAndPropsResult.error?.message}`
             );
           }
-          if (verbose) {
-            logger?.info(`[rsc-worker] Loaded pageProps:`, pageProps);
-          }
+          // Use React.Fragment as fallback (same as server environment)
+          PageComponent = React.Fragment;
+          pageProps = {};
         }
-      } else {
-        // Handle component resolution failure gracefully (same as server environment)
+      } catch (error) {
         if (verbose) {
-          logger?.warn(
-            `[rsc-worker] Failed to load page and props: ${pageAndPropsResult.error?.message}`
+          logger?.error(
+            `[loadComponentsWithCache] Failed to resolve page and props for ${pagePath}`,
+            { error }
           );
         }
-        // Use React.Fragment as fallback (same as server environment)
+        // Handle error gracefully - use fallback components
         PageComponent = React.Fragment;
         pageProps = {};
       }
-    } catch (error) {
-      if (verbose) {
-        logger?.error(
-          `[loadComponentsWithCache] Failed to resolve page and props for ${pagePath}`,
-          { error }
-        );
-      }
-      // Handle error gracefully - use fallback components
-      PageComponent = React.Fragment;
-      pageProps = {};
     }
   }
 
   // Load Root component
   if (rootPath) {
     const rootId = `${rootPath}#${rootExportName}`;
-    if (hasCachedComponent(rootId)) {
+    // CRITICAL: Check if module is invalidated before using cache
+    // This ensures file changes are picked up immediately
+    const isRootInvalidated = isModuleInvalidated(rootPath);
+    if (hasCachedComponent(rootId) && !isRootInvalidated) {
       RootComponent = getCachedComponent(rootId);
       if (verbose) {
         logger?.info(
@@ -298,6 +359,15 @@ async function loadComponentsWithCache(options: {
         );
       }
     } else {
+      // Clear cache if invalidated
+      if (isRootInvalidated && hasCachedComponent(rootId)) {
+        clearCachedComponent(rootId);
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker] Cleared invalidated Root component cache: ${rootPath}`
+          );
+        }
+      }
       const rootResult = await resolveComponent({
         componentPath: rootPath,
         exportName: rootExportName,
@@ -365,7 +435,9 @@ async function loadComponentsWithCache(options: {
       logger?.info(`[rsc-worker] Attempting to load custom Html component from: ${htmlPath}`);
     }
     const htmlId = `${htmlPath}#${htmlExportName}`;
-    if (hasCachedComponent(htmlId)) {
+    // CRITICAL: Check if module is invalidated before using cache
+    const isHtmlInvalidated = isModuleInvalidated(htmlPath);
+    if (hasCachedComponent(htmlId) && !isHtmlInvalidated) {
       HtmlComponent = getCachedComponent(htmlId);
       if (verbose) {
         logger?.info(
@@ -373,6 +445,15 @@ async function loadComponentsWithCache(options: {
         );
       }
     } else {
+      // Clear cache if invalidated
+      if (isHtmlInvalidated && hasCachedComponent(htmlId)) {
+        clearCachedComponent(htmlId);
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker] Cleared invalidated Html component cache: ${htmlPath}`
+          );
+        }
+      }
       if (verbose) {
         logger?.info(`[rsc-worker] Component not cached, calling resolveComponent with path: ${htmlPath}, exportName: ${htmlExportName}`);
       }
@@ -453,6 +534,14 @@ export async function messageHandler(
   if (msg.type === "INIT") {
     storedFromWorker = msg.dataPort;    // dataPort: worker → main (for streaming data out)
     storedToWorker = msg.controlPort;   // controlPort: main → worker (for control messages in)
+    
+    // Increase max listeners on transferred ports to prevent warnings
+    if (storedFromWorker) {
+      setMaxListenersOnPort(storedFromWorker, 20);
+    }
+    if (storedToWorker) {
+      setMaxListenersOnPort(storedToWorker, 20);
+    }
   }
 
   // Create handlers for two-port communication using stored ports
@@ -1034,14 +1123,53 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
       case "INITIALIZED_ENV_LOADER":
         return;
       case "HMR_UPDATE":
+        // Normalize the path - use path if provided (full path), otherwise use id (normalized path)
+        const filePath = (msg as any).path || msg.id;
+        const hmrProjectRoot = workerData.userOptions?.projectRoot || process.cwd();
+        const normalizedPath = filePath.startsWith(hmrProjectRoot)
+          ? relative(hmrProjectRoot, filePath)
+          : filePath;
+        
         // Mark the module as invalidated
-        hmrState.set(msg.id, {
-          timestamp: msg.timestamp || Date.now(),
+        hmrState.set(normalizedPath, {
+          timestamp: (msg as any).timestamp || Date.now(),
           invalidated: true,
-          routes: msg.routes || [],
+          routes: (msg as any).routes || [],
         });
+        
+        // Always log HMR updates for debugging
+        logger?.info(
+          `[rsc-worker] HMR_UPDATE: Invalidated module ${normalizedPath} (from ${filePath})`
+        );
+        
+        // CRITICAL: Clear ALL caches when files change
+        // This ensures fresh components are loaded instead of cached ones
+        
+        // Clear headless stream elements cache
+        if (headlessStreamElements.size > 0) {
+          if (verbose) {
+            logger?.info(
+              `[rsc-worker] HMR_UPDATE: Clearing ${headlessStreamElements.size} cached headless stream elements`
+            );
+          }
+          headlessStreamElements.clear();
+        }
+        
+        // Clear all component caches (temporaryReferences)
+        // This is critical because Node.js caches ES modules, and even if we reload,
+        // the component cache might still have the old component
+        clearAllCachedComponents();
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker] HMR_UPDATE: Cleared all cached components from temporaryReferences`
+          );
+        }
+        
+        // Also clear headless stream errors since we're reloading
+        headlessStreamErrors.clear();
+        
         // Notify the main thread that we've processed the update
-        effectiveHandlers.onHmrUpdate(msg.id, msg.routes || []);
+        effectiveHandlers.onHmrUpdate(normalizedPath, (msg as any).routes || []);
         return;
       case "ABORT":
         // Abort the stream

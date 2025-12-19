@@ -82,9 +82,10 @@ describe("RSC Server", () => {
     // Verify the response contains RSC streaming data
     expect(response.result).toContain(":N"); // RSC stream format starts with timestamp
     // Handle different RSC stream formats between client and server environments
+    // Headless: 1:"$Sreact.fragment", 2:[], 3:{"name":"Root"...}
     // Client: 1:[], 2:[], 3:{"name":"Html"...
     // Server: 1:{"name":"Page"...}, 0:D{...}, 0:["$",...]
-    expect(response.result).toMatch(/1:(\[\]|\{.*"name".*\})/); // First chunk (empty array or component data)
+    expect(response.result).toMatch(/1:(\[\]|\{.*"name".*\}|"\$Sreact\.fragment")/); // First chunk (empty array, component data, or React.Fragment)
     // Client has 2:[] and 3:{"name":"Html"...}, Server has 0:D{...} and 0:["$",...]
     expect(response.result).toMatch(/(2:(\[\]|\{.*"name".*\})|0:D\{.*\})/); // Second chunk or server data chunk
     expect(response.result).toMatch(/(3:(\[\]|\{.*"name".*\})|0:\[.*\])/); // Third chunk or server element chunk
@@ -101,9 +102,10 @@ describe("RSC Server", () => {
     // Verify the response contains RSC streaming data
     expect(response2.result).toContain(":N"); // RSC stream format starts with timestamp
     // Handle different RSC stream formats between client and server environments
+    // Headless: 1:"$Sreact.fragment", 2:[], 3:{"name":"Root"...}
     // Client: 1:[], 2:[], 3:{"name":"Html"...
     // Server: 1:{"name":"Page"...}, 0:D{...}, 0:["$",...]
-    expect(response2.result).toMatch(/1:(\[\]|\{.*"name".*\})/); // First chunk (empty array or component data)
+    expect(response2.result).toMatch(/1:(\[\]|\{.*"name".*\}|"\$Sreact\.fragment")/); // First chunk (empty array, component data, or React.Fragment)
     // Client has 2:[] and 3:{"name":"Html"...}, Server has 0:D{...} and 0:["$",...]
     expect(response2.result).toMatch(/(2:(\[\]|\{.*"name".*\})|0:D\{.*\})/); // Second chunk or server data chunk
     expect(response2.result).toMatch(/(3:(\[\]|\{.*"name".*\})|0:\[.*\])/); // Third chunk or server element chunk

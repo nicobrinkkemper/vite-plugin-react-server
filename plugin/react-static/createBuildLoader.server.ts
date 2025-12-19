@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { getModuleRef } from "../helpers/moduleRefs.js";
 import { toError } from "../error/toError.js";
 import { handleError } from "../error/handleError.js";
+import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
 
 import { existsSync } from "fs";
 import type { CreateBuildLoaderFn } from "./types.js";
@@ -33,22 +34,14 @@ export const createBuildLoader: CreateBuildLoaderFn =
       }
       const [withoutQuery, query] = id.split("?", 2);
       const [moduleId, exportName] = withoutQuery.split("#", 2);
+      
+      // Normalize the moduleId early (used throughout the function)
       const [normalizedKey, normalizedValue] = userOptions.normalizer(moduleId);
-      // Use the normalized value (which preserves src/ when preserveModulesRoot is true) for manifest lookups
-      const manifestKey = normalizedValue;
-      if (userOptions.verbose) {
-        logger.info(
-          `[buildLoader] moduleId: ${moduleId}, normalizedKey: ${normalizedKey}, normalizedValue: ${normalizedValue}, manifestKey: ${manifestKey}`
-        );
-        logger.info(
-          `[buildLoader] Bundle keys: ${Object.keys(bundle)
-            .slice(0, 10)
-            .join(", ")}...`
-        );
-        logger.info(
-          `[buildLoader] Looking for: withoutQuery=${withoutQuery}, normalizedValue=${normalizedValue}`
-        );
-      }
+      
+      // For virtual modules and node_modules with relative paths, let Node.js handle them naturally
+      // These are resolved by Node.js when importing built files that contain relative imports
+      // We only intercept absolute paths if needed (but typically not for relative imports)
+      
       const moduleRef = getModuleRef(id);
 
       // Check if we have a temporary reference (cached module)
@@ -64,6 +57,7 @@ export const createBuildLoader: CreateBuildLoaderFn =
       try {
         // For inline modules, handle them directly
         if (query === "inline") {
+          const manifestKey = normalizedValue;
           if (userOptions.verbose) {
             logger.info(
               `[buildLoader] Looking for inline module: ${normalizedValue}`
@@ -255,40 +249,46 @@ export const createBuildLoader: CreateBuildLoaderFn =
           }
         }
 
-        // Check server manifest for any remaining modules (including Html/Root components)
-        // Try direct bundle lookup first, then fall back to manifest
-        let serverEntry =
-          serverManifest[manifestKey] ?? serverManifest[normalizedKey];
-
-        // If not found and preserveModulesRoot is false, try with the moduleBase prefix
-        if (
-          !serverEntry &&
-          userOptions.build.preserveModulesRoot === false &&
-          normalizedValue.startsWith(userOptions.moduleBase + "/")
-        ) {
-          const withoutModuleBase = normalizedValue.replace(
-            userOptions.moduleBase + "/",
-            ""
+        // Use shared utility to resolve module from manifest
+        const manifestResolution = resolveModuleFromManifest({
+          moduleId,
+          normalizer: userOptions.normalizer,
+          manifest: serverManifest,
+          moduleBase: userOptions.moduleBase,
+          preserveModulesRoot: userOptions.build.preserveModulesRoot,
+          projectRoot: userOptions.projectRoot,
+          buildOutDir: userOptions.build.outDir,
+          buildServerDir: userOptions.build.server,
+          verbose: userOptions.verbose,
+          logger,
+        });
+        
+        if (userOptions.verbose) {
+          logger.info(
+            `[buildLoader] moduleId: ${moduleId}, manifestResolution: ${JSON.stringify({
+              hasEntry: !!manifestResolution.manifestEntry,
+              builtModuleId: manifestResolution.builtModuleId,
+              resolvedPath: manifestResolution.resolvedPath,
+            })}`
           );
-          serverEntry = serverManifest[withoutModuleBase];
         }
 
-                if (serverEntry) {
+        // If we found a manifest entry, try to load it
+        if (manifestResolution.manifestEntry && manifestResolution.resolvedPath) {
           try {
-            const modulePath = join(
-              userOptions.projectRoot,
-              userOptions.build.outDir,
-              userOptions.build.server,
-              serverEntry.file
-            );
+            const modulePath = manifestResolution.resolvedPath;
             
-            const module = await import(modulePath);
+            if (userOptions.verbose) {
+              logger.info(`[buildLoader] Loading module from manifest: ${modulePath}`);
+            }
+            
+            const module = await import(pathToFileURL(modulePath).href);
             temporaryReferences?.set(moduleRef, module);
             
             // If we have an export name, make sure it's a key
             if (exportName && !(exportName in module)) {
               throw new Error(
-                `Export ${exportName} not found in module ${normalizedValue}`
+                `Export ${exportName} not found in module ${moduleId}`
               );
             }
             return module;
@@ -306,13 +306,13 @@ export const createBuildLoader: CreateBuildLoaderFn =
             }
           }
         }
-
-        // Try to load the built file from server directory
+        
+        // Fallback: Try to load the built file from server directory using resolved builtModuleId
         const builtFilePath = join(
           userOptions.projectRoot,
           userOptions.build.outDir,
           userOptions.build.server,
-          moduleId
+          manifestResolution.builtModuleId
         );
 
         if (existsSync(builtFilePath)) {
@@ -328,15 +328,27 @@ export const createBuildLoader: CreateBuildLoaderFn =
           }
           
           // Load the built file with proper URL format
+          // Note: With esnext target, Rollup may still generate _virtual/dynamic-import-helper.js
+          // for variable dynamic imports (import(variable)). This is a Rollup limitation.
+          // The helper is just a wrapper around native import(), so it's effectively a no-op.
+          // We handle it via the shim at the top of this function when requested directly.
+          // For transitive imports, we need to create the file so Node.js can resolve it.
+          
           const fileUrl = pathToFileURL(builtFilePath).href;
-          const module = await import(fileUrl);
-          temporaryReferences?.set(moduleRef, module);
-          if (exportName && !(exportName in module)) {
-            throw new Error(
-              `Export ${exportName} not found in module ${withoutQuery}`
-            );
+          try {
+            const module = await import(fileUrl);
+            temporaryReferences?.set(moduleRef, module);
+            if (exportName && !(exportName in module)) {
+              throw new Error(
+                `Export ${exportName} not found in module ${withoutQuery}`
+              );
+            }
+            return module;
+          } catch (importError) {
+            // Re-throw the error - Node.js will handle _virtual and node_modules naturally
+            // The virtual module file should already exist (created in writeBundle)
+            throw importError;
           }
-          return module;
         }
 
         // For React imports, use the vendor system instead of direct imports

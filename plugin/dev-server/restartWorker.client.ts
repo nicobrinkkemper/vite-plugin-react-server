@@ -7,6 +7,7 @@ import { React } from "../vendor/vendor.client.js";
 import type { RestartWorkerFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
+import { setMaxListenersOnPort } from "../stream/setMaxListeners.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
@@ -59,6 +60,11 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
     // Create a new MessageChannel for this worker
     const workerHmrChannel = new MessageChannel();
     currentHmrChannel = workerHmrChannel;
+    
+    // Increase max listeners to prevent warnings during development
+    // We need to set this on BOTH ports because listeners can be added to either side
+    setMaxListenersOnPort(workerHmrChannel.port1, maxListeners);
+    setMaxListenersOnPort(workerHmrChannel.port2, maxListeners);
 
     // Forward messages from the plugin's HMR channel to the worker's channel
     const messageHandler = (event: Event) => {
@@ -85,7 +91,7 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
 
         // Increase max listeners to prevent warnings during development
         // This is a targeted fix for the memory leak warnings
-        hmrChannel.port1.setMaxListeners(20);
+        setMaxListenersOnPort(hmrChannel.port1, maxListeners);
 
         hmrChannel.port1.addEventListener("message", messageHandler);
         hmrChannel.port1.addEventListener("messageerror", errorHandler);

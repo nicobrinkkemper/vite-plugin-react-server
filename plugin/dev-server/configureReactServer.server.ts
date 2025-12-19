@@ -13,6 +13,7 @@ import type { ConfigureReactServerFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
+import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({
@@ -118,10 +119,8 @@ export const configureReactServer: ConfigureReactServerFn =
           `Module \"${resolvedModuleID}\" is a module, but does not have any exports so it can't find ${exportName}`
         );
 
-      if (exportName && !(exportName in result))
-        throw new Error(
-          `Module \"${moduleID}\" exists, but does not export \"${exportName}\"`
-        );
+      // Always return the full module - callers will extract the specific export if needed
+      // This is consistent with how resolvePage and resolveProps work
       return result;
     };
     server.middlewares.use(async (req, res, next) => {
@@ -255,27 +254,98 @@ export const configureReactServer: ConfigureReactServerFn =
           logger.info(`Creating RSC handler for route: ${info.route}`);
         }
 
-        // Load actual components like the client environment does
+        // Load actual components and props like the client environment does
         let PageComponent: React.ComponentType<any> = React.Fragment;
         const RootComponent: React.ComponentType<any> = React.Fragment;
-        const HtmlComponent: React.ComponentType<any> = (_UserHtmlComponent as React.ComponentType<any>) || React.Fragment;
+        // Note: HtmlComponent not used for RSC requests (they use React.Fragment for headless mode)
+        let pageProps: any = {};
 
         // Load the page component
         if (pagePath) {
           try {
-            const pageModule = await loader(`${pagePath}#Page`);
-            if (pageModule && typeof pageModule === 'function') {
-              PageComponent = pageModule as React.ComponentType<any>;
-            } else if (pageModule && pageModule['Page'] && typeof pageModule['Page'] === 'function') {
-              PageComponent = pageModule['Page'] as React.ComponentType<any>;
+            const pageExportName = userHandlerOptions.pageExportName || "Page";
+            // Loader returns the full module, extract the export
+            const pageModule = await loader(pagePath);
+            
+            if (pageModule && pageModule[pageExportName] && typeof pageModule[pageExportName] === 'function') {
+              PageComponent = pageModule[pageExportName] as React.ComponentType<any>;
+              if (verbose) {
+                logger.info(`Loaded Page component for route ${info.route} from ${pagePath}#${pageExportName}`);
+              }
             } else if (pageModule && pageModule['default'] && typeof pageModule['default'] === 'function') {
               PageComponent = pageModule['default'] as React.ComponentType<any>;
+              if (verbose) {
+                logger.info(`Loaded default export as Page component for route ${info.route}`);
+              }
+            } else if (pageModule && typeof pageModule === 'function') {
+              // If the module itself is a function (default export)
+              PageComponent = pageModule as React.ComponentType<any>;
+              if (verbose) {
+                logger.info(`Loaded module as Page component for route ${info.route}`);
+              }
+            } else {
+              if (verbose) {
+                logger.warn(`Page component not found in ${pagePath}, using React.Fragment`);
+              }
             }
           } catch (error) {
             if (verbose) {
               logger.warn(`Failed to load page component from ${pagePath}: ${error}`);
             }
           }
+        }
+
+        // Load props using the resolvePageAndProps helper
+        try {
+          if (verbose) {
+            logger.info(`[configureReactServer] Loading props for route ${info.route}, pagePath: ${pagePath}, propsPath: ${propsPath}, url: ${info.url}`);
+          }
+          
+          const propsResult = await resolvePageAndProps({
+            pagePath,
+            propsPath,
+            pageExportName: userHandlerOptions.pageExportName,
+            propsExportName: userHandlerOptions.propsExportName,
+            url: info.url,
+            route: info.route,
+            moduleBaseURL: server.config.base,
+            loader,
+            verbose: true, // Force verbose for debugging
+            logger,
+            build: {
+              rscOutputPath: userHandlerOptions.build?.rscOutputPath || ".rsc",
+            },
+          });
+
+          if (verbose) {
+            logger.info(`[configureReactServer] Props resolution result type: ${propsResult.type}`);
+          }
+
+          if (propsResult.type === "success") {
+            pageProps = propsResult.pageProps || {};
+            if (verbose) {
+              logger.info(`[configureReactServer] Loaded props for route ${info.route}: ${JSON.stringify(pageProps, null, 2)}`);
+            }
+          } else if (propsResult.type === "skip") {
+            if (verbose) {
+              logger.info(`[configureReactServer] Props resolution skipped for route ${info.route}, using empty props`);
+            }
+            pageProps = {};
+          } else {
+            if (verbose) {
+              logger.warn(`[configureReactServer] Failed to load props for route ${info.route}: ${propsResult.error}`);
+            }
+            pageProps = {};
+          }
+        } catch (error) {
+          if (verbose) {
+            logger.warn(`[configureReactServer] Error loading props for route ${info.route}: ${error}`);
+            if (error instanceof Error) {
+              logger.warn(`[configureReactServer] Error stack: ${error.stack}`);
+            }
+          }
+          // Continue with empty props if loading fails
+          pageProps = {};
         }
 
         try {
@@ -311,6 +381,8 @@ export const configureReactServer: ConfigureReactServerFn =
         }
 
         // Use worker-based RSC stream if worker is available, otherwise fall back to direct rendering
+        // CRITICAL: For RSC requests, use htmlPath: "" for headless mode (no Html wrapper)
+        // This prevents hydration errors where <html> would be rendered inside #root div
         const rscResult = rscWorker 
           ? createRscStream({
               ...handlerOptions,
@@ -318,7 +390,7 @@ export const configureReactServer: ConfigureReactServerFn =
               pagePath,
               propsPath,
               rootPath: undefined,
-              htmlPath: undefined,
+              htmlPath: "",  // Empty string = headless RSC (no Html wrapper)
               rscWorker,
               cssFiles: new Map(),
               globalCss: new Map(),
@@ -328,7 +400,8 @@ export const configureReactServer: ConfigureReactServerFn =
               url: info.url,
               PageComponent: PageComponent as any,
               RootComponent: RootComponent as any,
-              HtmlComponent: HtmlComponent as any,
+              HtmlComponent: React.Fragment,  // Headless stream - no Html wrapper
+              pageProps: pageProps,  // Pass the loaded props
             });
 
         if (verbose) {
@@ -346,6 +419,12 @@ export const configureReactServer: ConfigureReactServerFn =
 
           // set headers
           res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+          
+          // CRITICAL: Disable caching in development mode
+          // Without this, browsers cache RSC streams and don't show updates
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
           
           // Add CORS headers for RSC files
           const origin = req.headers.origin;

@@ -224,9 +224,27 @@ export const parseURL = (
   | { type: "success"; url: URL; error?: never; base?: never }
   | { type: "error"; url: string; base: string; error: Error } => {
   try {
+    // If base is empty or not a valid absolute URL, use window.location.origin as fallback (browser only)
+    let effectiveBase = base;
+    if (!effectiveBase || effectiveBase === "/" || !isAbsoluteURL(effectiveBase)) {
+      if (typeof window !== "undefined" && window.location) {
+        effectiveBase = window.location.origin;
+      } else if (!effectiveBase) {
+        effectiveBase = "http://localhost"; // Fallback for non-browser environments
+      }
+    }
+    
+    // If url is already absolute, use it directly
+    if (isAbsoluteURL(url)) {
+      return {
+        type: "success",
+        url: new URL(url),
+      };
+    }
+    
     return {
       type: "success",
-      url: new URL(url, base),
+      url: new URL(url, effectiveBase),
     };
   } catch (error) {
     return { type: "error", url: url, base: base, error: error as Error };

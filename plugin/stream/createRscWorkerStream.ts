@@ -3,6 +3,7 @@ import type { Logger } from "vite";
 import { PassThrough } from "node:stream";
 import type { SerializeableRenderToPipeableStreamOptions } from "../worker/rsc/types.js";
 import { toError } from "../error/toError.js";
+import { createMessageChannels } from "./createMessageChannels.js";
 
 /**
  * RSC-specific options for worker stream
@@ -40,8 +41,8 @@ export interface RscWorkerStreamOptions {
  */
 export function createRscWorkerStream(options: RscWorkerStreamOptions): {
   stream: PassThrough;
-  dataPort1: MessagePort;
-  controlPort1: MessagePort;
+  dataPort1: any;
+  controlPort1: any;
 } {
   const {
     worker,
@@ -62,8 +63,7 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
   } = options;
 
   // Create two separate MessagePorts for clean separation of concerns
-  const { port1: dataPort1, port2: dataPort2 } = new MessageChannel();
-  const { port1: controlPort1, port2: controlPort2 } = new MessageChannel();
+  const { dataPort1, dataPort2, controlPort1, controlPort2 } = createMessageChannels();
   
   // Note: Cleanup is handled by the response close handler in configureReactServer.server.ts
   // This prevents multiple cleanup mechanisms from conflicting
@@ -75,7 +75,7 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
   });
   
   // Data port - ONLY for raw RSC stream data
-  dataPort1.onmessage = (event) => {
+  (dataPort1 as any).onmessage = (event: any) => {
     const data = event.data;
     
     if (data === null) {
@@ -97,7 +97,7 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
   };
   
   // Control port - ONLY for control messages
-  controlPort1.onmessage = (event) => {
+  (controlPort1 as any).onmessage = (event: any) => {
     const message = event.data;
     
     if (verbose) {

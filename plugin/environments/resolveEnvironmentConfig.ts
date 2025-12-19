@@ -250,7 +250,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
             typeof config.build?.copyPublicDir === "boolean"
               ? config.build?.copyPublicDir
               : false,
-          target: config.build?.target ?? "node18",
+          target: config.build?.target ?? "esnext", // Use esnext for pure ESM - no helpers needed
           minify: config.build?.minify ?? true,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
           ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,

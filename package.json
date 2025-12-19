@@ -167,7 +167,7 @@
     "lint": "eslint ./plugin --fix",
     "setup:test-fixtures": "npx tsx test/setup.ts",
     "pretest:server": "npm run build",
-    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run", 
+    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
     "pretest:client": "npm run build",
     "test:client": "vitest run",
     "test:examples": "npm run test:both -- test/examples",
@@ -237,8 +237,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^0.0.0-experimental-0ff1d13b-20250507",
-    "react-dom": "^0.0.0-experimental-0ff1d13b-20250507",
+    "react": "^0.0.0-experimental-f93b9fd4-20251217",
+    "react-dom": "^0.0.0-experimental-f93b9fd4-20251217",
     "react-server-dom-esm": "^0.0.1",
     "vite": "*"
   },

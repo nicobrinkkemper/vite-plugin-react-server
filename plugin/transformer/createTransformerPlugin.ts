@@ -106,16 +106,8 @@ export const createTransformerPlugin = (
       enforce: "post",
       // CRITICAL: Enable per-environment hooks during dev to prevent cache contamination
       perEnvironmentStartEndDuringDev: true,
-      applyToEnvironment(partialEnvironment) {
-        if (
-          allowedEnvironments.includes(
-            partialEnvironment.name as "client" | "server" | "ssr"
-          )
-        ) {
-          return true;
-        }
-        return false;
-      },
+      // Note: Removed applyToEnvironment - let transform hook handle filtering
+      // With --app builds, applyToEnvironment may not be called correctly
       configResolved(config) {
         isBuild = config.command === "build";
         isSSR = Boolean(config.build.ssr);
@@ -126,19 +118,21 @@ export const createTransformerPlugin = (
 
         // CRITICAL: Re-resolve options with runtime mode to get correct importServerPath
         // This ensures test mode uses react-server-dom-esm/server.node instead of server
+        // Force re-resolve to avoid cached moduleID functions from different build contexts
         const runtimeOptionsResult = resolveOptions({
           ...userOptions,
           loader: {
             ...userOptions.loader,
             mode: mode,
           },
-        });
+        }, true); // Force resolve to bypass cache
         if (runtimeOptionsResult.type === "success") {
           runtimeResolvedUserOptions = runtimeOptionsResult.userOptions;
         }
 
         // CRITICAL: Update moduleID function with correct configEnv for build mode
         // This ensures client component hashing uses the correct build context
+        // ALWAYS recreate the moduleID to ensure it matches the current command
         if (runtimeResolvedUserOptions.loader) {
           runtimeResolvedUserOptions.loader.moduleID = createDefaultModuleID(
             runtimeResolvedUserOptions,
@@ -273,6 +267,11 @@ export const createTransformerPlugin = (
             );
           }
 
+          // Determine if this is a server environment
+          // Check both the environment name and if we're doing server-side rendering for static generation
+          const envName = this.environment?.name?.toLowerCase() || "";
+          const isServerEnvironment = envName === "server" || envName === "rsc" || envName === "react-server";
+
           const transformer = createTransformer({
             parseFn: (source) => {
               const ast = this.parse(source, {
@@ -292,7 +291,7 @@ export const createTransformerPlugin = (
             // Pass the actual environment context to the transformer
             // Only the actual "server" environment should transform client components to registerClientReference
             // SSR environment needs actual React components, not placeholders
-            isServerEnvironment: this.environment?.name === "server",
+            isServerEnvironment: isServerEnvironment,
             ssr: ssr,
           });
 

@@ -118,7 +118,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
     let PageComponent: any = null;
     let RootComponent: any = null;
     let HtmlComponent: any = null;
-    let pageProps: any = {};
+    let pageProps: any = {}; // Initialize as empty object - props function will populate it
 
     // Use resolvePageAndProps helper to properly load page and props
     if (handlerOptions.pagePath) {
@@ -141,6 +141,8 @@ export const renderPage: RenderPageFn = async function* renderPage(
 
         if (pageAndPropsResult.type === "success") {
           PageComponent = pageAndPropsResult.PageComponent;
+          // Always use the props returned from the props function
+          // Root components can handle empty props with their defaults
           pageProps = pageAndPropsResult.pageProps || {};
           
           if (handlerOptions.verbose) {

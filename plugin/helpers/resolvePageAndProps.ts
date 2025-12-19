@@ -57,12 +57,25 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         id: handlerOptions.propsPath || handlerOptions.pagePath,
         exportName:
           handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-        loader: async () => {
+        loader: async (idWithExport?: string) => {
           if (handlerOptions.verbose) {
             handlerOptions.logger?.info(
-              `[resolvePageAndProps] Props loader called`
+              `[resolvePageAndProps] Props loader called with: ${idWithExport}`
             );
           }
+          
+          // Parse the id to extract the path and export name if using # syntax
+          let propsId = handlerOptions.propsPath || handlerOptions.pagePath;
+          let propsExportName = handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME;
+          
+          if (idWithExport && idWithExport.includes('#')) {
+            const [id, exportName] = idWithExport.split('#');
+            propsId = id;
+            if (exportName) {
+              propsExportName = exportName;
+            }
+          }
+          
           const resolvePageResult = await resolvePagePromise;
           if (resolvePageResult.type === "error") {
             if (handlerOptions.verbose) {
@@ -77,7 +90,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           }
           if (
             resolvePageResult.type === "success" &&
-            handlerOptions.propsExportName in resolvePageResult.module
+            propsExportName in resolvePageResult.module
           ) {
             if (handlerOptions.verbose) {
               handlerOptions.logger?.info(
@@ -87,15 +100,35 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
             // return the module
             return resolvePageResult.module;
           }
-          if (handlerOptions.propsPath) {
+          if (propsId && propsId !== handlerOptions.pagePath) {
+            // Separate props file
             if (handlerOptions.verbose) {
               handlerOptions.logger?.info(
-                `[resolvePageAndProps] Loading props from separate file: ${handlerOptions.propsPath}`
+                `[resolvePageAndProps] Loading props from separate file: ${propsId}`
               );
             }
-            const result = await handlerOptions.loader(
-              handlerOptions.propsPath
-            );
+            const result = await handlerOptions.loader(propsId);
+            return result;
+          } else if (propsId === handlerOptions.pagePath) {
+            // Props might be in the page module
+            if (handlerOptions.verbose) {
+              handlerOptions.logger?.info(
+                `[resolvePageAndProps] Checking page module for props: ${propsId}`
+              );
+            }
+            if (resolvePageResult.type === "success") {
+              const pageModule = resolvePageResult.module;
+              if (propsExportName in pageModule) {
+                if (handlerOptions.verbose) {
+                  handlerOptions.logger?.info(
+                    `[resolvePageAndProps] Props found in page module`
+                  );
+                }
+                return pageModule;
+              }
+            }
+            // Try loading the page module directly
+            const result = await handlerOptions.loader(propsId);
             return result;
           }
           if (handlerOptions.verbose) {
@@ -104,7 +137,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
             );
           }
           return {
-            [handlerOptions.propsExportName]: { url: url },
+            [propsExportName]: { url: url },
           };
         },
       });
@@ -153,12 +186,21 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         handlerOptions.propsExportName as keyof typeof resolvePropsResult.module
       ] as never;
 
+      if (handlerOptions.verbose) {
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] Extracted pageProps: ${JSON.stringify(pageProps, null, 2)}`
+        );
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] resolvePropsResult.module keys: ${Object.keys(resolvePropsResult.module || {}).join(", ")}`
+        );
+      }
+
       return {
         type: "success" as const,
         PageComponent: resolvePageResult.module[
           handlerOptions.pageExportName
         ] as never,
-        pageProps,
+        pageProps: pageProps ?? {}, // Ensure pageProps is always an object, not undefined
       };
     } catch (error) {
       if (handlerOptions.verbose) {
