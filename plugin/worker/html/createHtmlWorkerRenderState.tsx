@@ -55,7 +55,7 @@ export function createHtmlWorkerRenderState(
         id,
         args
       } as HtmlWorkerOutputMessage);
-      console.log('[html-worker] callServer', id, args);
+      // callServer invoked — silent in production
       // Wait for response
       return new Promise((resolve, reject) => {
         const handler = (msg: any) => {

@@ -154,7 +154,7 @@ export function reactServerPlugin<
       if (!timing.buildStart) {
         timing.buildStart = performance.now();
       } else {
-        console.log("Build already started");
+        // Build already started — skip
       }
     },
     async generateBundle(_options, bundle) {

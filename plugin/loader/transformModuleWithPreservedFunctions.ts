@@ -302,7 +302,7 @@ export function transformModuleWithPreservedFunctions(
 
   if (Boolean(isServerFunction) && !hasFileLevelServerDirective && !hasFunctionLevelServerDirective) {
     if(process.env['NODE_ENV'] !== "production") {
-      console.log("Error for file", moduleId, source);
+      console.error(`[rsc] Error transforming ${moduleId}`);
     }
     throw new Error(`Module ${moduleId} is marked as a server function but has no "use server" directive`);
   }

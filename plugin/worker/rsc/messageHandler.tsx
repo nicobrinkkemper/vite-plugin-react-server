@@ -69,7 +69,7 @@ export async function messageHandler(
         return;
       }
       default: {
-        console.log("Unknown message", msg);
+        // Unknown message types are silently ignored
         return;
       }
     }
