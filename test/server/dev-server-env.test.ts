@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createServer } from "vite";
+import { createDevServer } from "../createDevServer.js";
 import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
@@ -21,20 +21,16 @@ describe("RSC Server", () => {
     await setupTestProjectEnv(testDir);
     try {
       // Start the server
-      server = await createServer({
+      server = await createDevServer({
         root: testDir,
+        port,
         plugins: [
           vitePluginReactServer({
             ...testUserOptions,
             projectRoot: testDir,
           }),
         ],
-        server: {
-          port: port,
-        },
       });
-
-      await server.listen();
       if (server.config?.server?.port) {
         port = server.config.server.port;
       }
@@ -42,7 +38,7 @@ describe("RSC Server", () => {
     } catch (error) {
       console.log("error", error);
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     await server.close();

@@ -6,7 +6,6 @@ import {
 interface ServerActionResponse {
   returnValue: unknown;
   type: 'server-action-response';
-  error?: string;
 }
 
 export const createCallServer = (moduleBaseURL: string) => {
@@ -28,8 +27,9 @@ export const createCallServer = (moduleBaseURL: string) => {
     // Check if this is a server action response
     if (response && typeof response === 'object' && 'returnValue' in response) {
       const serverResponse = response as ServerActionResponse;
-      if (serverResponse.error) {
-        throw new Error(serverResponse.error);
+      const returnValue = serverResponse.returnValue as any;
+      if (returnValue && returnValue.success === false && returnValue.error) {
+        throw new Error(returnValue.error);
       }
       return serverResponse.returnValue;
     }

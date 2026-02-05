@@ -195,6 +195,8 @@ export type ResolvedUserOptions<
     | "moduleID"
     | "publicOrigin"
     | "verbose"
+    | "rscRuntime"
+    | "rscTimeoutMs"
   >
 > & {
   props:
@@ -519,6 +521,8 @@ export interface StreamPluginOptions<
   // Escape hatches
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
+  rscRuntime?: "worker" | "main-thread";
+  rscTimeoutMs?: number;
   loaderPath?: string;
   pageExportName?: string;
   propsExportName?: string;

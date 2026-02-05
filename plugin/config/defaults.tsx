@@ -21,6 +21,7 @@ export const DEFAULT_CONFIG = {
   }.js`,
   LOADER_PATH: "worker/loader.js",
   RSC_EXTENSION: ".rsc",
+  RSC_RUNTIME: "worker",
   CSS_COLLECTOR: CssCollector,
   HTML: Html,
   ON_METRICS: ()=>{},
@@ -145,4 +146,5 @@ export const DEFAULT_CONFIG = {
   },
   MODULE_ID: (id: string) => id,
   VERBOSE: false,
+  RSC_TIMEOUT_MS: 5000,
 } as const;

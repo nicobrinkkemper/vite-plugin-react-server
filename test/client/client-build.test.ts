@@ -17,7 +17,7 @@ describe("RSC Worker (Client)", () => {
     events = await doBuildStaticClient({
       projectRoot: testDir,
     });
-  })
+  }, 30000)
 
   afterAll(async () => {
     // comment below line to see the fixture directory

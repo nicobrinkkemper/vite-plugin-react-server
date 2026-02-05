@@ -132,13 +132,7 @@ export async function* createWorkerStream({
       if (verbose)
         logger.info(`[react-client] received server action response ${id}`);
       if (typeof onServerActionResponse === "function") {
-        const response = {
-          type: "server-action-response",
-          returnValue: error 
-            ? { success: false, error }
-            : result
-        };
-        onServerActionResponse(id, response);
+        onServerActionResponse(id, result, error);
       }
     },
   };

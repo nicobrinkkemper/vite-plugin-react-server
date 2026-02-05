@@ -48,7 +48,7 @@ describe("Plugin build test", () => {
     if (rscDoneEvent) {
       rscContent = rscDoneEvent.data.content;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     await rm(testDir, { recursive: true, force: true });

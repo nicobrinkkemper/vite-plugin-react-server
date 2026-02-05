@@ -9,6 +9,7 @@ import type {
 import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { resolvePublicOrigin } from "./publicOrigin.js";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
@@ -236,8 +237,13 @@ export function resolveUserConfig<
       ],
     },
   };
-  let publicOrigin =
-    userOptions.publicOrigin ?? process.env[`${vitePrefix}PUBLIC_ORIGIN`] ?? "";
+  let publicOrigin = resolvePublicOrigin({
+    userOption: userOptions.publicOrigin,
+    envPublicOrigin: process.env[`${vitePrefix}PUBLIC_ORIGIN`] ?? "",
+    command: configEnv.command,
+    isPreview: configEnv.isPreview,
+    server: config.server,
+  });
   let PROD = mode === "production";
   let DEV = mode === "development";
   let port =
@@ -245,13 +251,7 @@ export function resolveUserConfig<
   let strictPort = config.server?.strictPort ?? true;
   let host =
     typeof config.server?.host === "string" ? config.server?.host : "localhost";
-  if (configEnv.command === "serve" && !configEnv.isPreview) {
-    if (strictPort) {
-      publicOrigin = `http${config.server?.https ? "s" : ""}://${host}:${port}`;
-    } else {
-      publicOrigin = "";
-    }
-  }
+  // publicOrigin is resolved via resolvePublicOrigin
   const ssrDefine = ssr
     ? {
         [`process.env.${vitePrefix}SSR`]: `${ssr}`,

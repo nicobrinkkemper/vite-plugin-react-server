@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createServer } from "vite";
+import { createDevServer } from "../createDevServer.js";
 import { vitePluginReactServer } from "../../dist/plugin/plugin.server.js";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -24,8 +24,9 @@ describe("Server Action Integration", () => {
     await setupTestServerActionJS(testDir);
     try {
       // Start the server
-      server = await createServer({
+      server = await createDevServer({
         root: testDir,
+        port,
         plugins: [
           vitePluginReactServer({
             ...testUserOptions,
@@ -36,12 +37,7 @@ describe("Server Action Integration", () => {
             },
           }),
         ],
-        server: {
-          port: port,
-        },
       });
-
-      await server.listen();
       if (server.config?.server?.port) {
         port = server.config.server.port;
       }
@@ -49,11 +45,11 @@ describe("Server Action Integration", () => {
     } catch (error) {
       throw error;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     await server?.close();
-    // await rm(testDir, { recursive: true, force: true });
+    await rm(testDir, { recursive: true, force: true });
   });
 
   it("should have the right headers", async () => {
@@ -134,21 +130,23 @@ export function subtract(a, b) {
     const errorResponse = await handleRSCStream(pageURL);
 
     // The error should be caught and handled gracefully
-    const response = await fetch(pageURL.replace("index.rsc", "actions.server.ts#add"), {
-      method: "POST",
-      body: JSON.stringify({
-        "id": "subtract",
-        "args": [1, 2]
-      }),
-      headers: {
-        Accept: "text/x-component",
-      },
-    });
+    const response = await fetch(
+      pageURL.replace("index.rsc", "actions.server.ts"),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          id: "/src/page/actions.server.ts#add",
+          args: [1, 2],
+        }),
+        headers: {
+          Accept: "text/x-component",
+        },
+      }
+    );
     const result = await response.text();
     console.log(result);
     expect(result).toContain(
-      '5:E{"digest":"","name":"Error","message":"Test error"'
-    ); // Error marker in RSC format
-    expect(result).toContain("Test error");
+      '"returnValue":{"success":false,"error":"Test error"}'
+    );
   });
 });

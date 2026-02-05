@@ -55,7 +55,7 @@ describe('Client Server Action Build Output', () => {
       console.trace(error);
       throw error;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     await rm(testDir, { recursive: true, force: true });

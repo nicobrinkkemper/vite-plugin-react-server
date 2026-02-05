@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createServer } from 'vite';
+import { createDevServer } from '../createDevServer.js';
 import { vitePluginReactServer } from '../../dist/plugin/plugin.client.js';
 import { testUserOptions } from '../test-config.js';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -22,8 +22,9 @@ describe('Client Server Action Integration', () => {
 
     try {
       // Start the server
-      server = await createServer({
+      server = await createDevServer({
         root: testDir,
+        port,
         plugins: [
           vitePluginReactServer({
             ...testUserOptions,
@@ -34,12 +35,7 @@ describe('Client Server Action Integration', () => {
             },
           }),
         ],
-        server: {
-          port: port,
-        },
       });
-
-      await server.listen();
       if (server.config?.server?.port) {
         port = server.config.server.port;
       }

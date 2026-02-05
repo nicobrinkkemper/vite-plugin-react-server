@@ -95,6 +95,18 @@ export function reactClientPlugin<
     },
     // setup dev server
     async configureServer(server) {
+      if (userOptions.rscRuntime === "main-thread") {
+        const { configureReactServer } = await import(
+          "../react-server/configureReactServer.js"
+        );
+        await configureReactServer<T, InlineCSS>({
+          server,
+          autoDiscoveredFiles,
+          userOptions,
+          serverManifest: autoDiscoveredFiles.staticManifest,
+        });
+        return;
+      }
       // Create HMR message channel
       hmrChannel = new MessageChannel();
       await configureWorkerRequestHandler<T, InlineCSS>({

@@ -119,6 +119,12 @@ export const resolveOptions = <
     typeof options.publicOrigin === "string"
       ? options.publicOrigin
       : process.env.VITE_PUBLIC_ORIGIN ?? DEFAULT_CONFIG.PUBLIC_ORIGIN;
+  const rscRuntime =
+    options.rscRuntime === "main-thread" ? "main-thread" : DEFAULT_CONFIG.RSC_RUNTIME;
+  const rscTimeoutMs =
+    typeof options.rscTimeoutMs === "number"
+      ? options.rscTimeoutMs
+      : DEFAULT_CONFIG.RSC_TIMEOUT_MS;
 
   // Worker and loader paths
   const rscWorkerPath =
@@ -498,6 +504,8 @@ export const resolveOptions = <
         verbose: options.verbose ?? DEFAULT_CONFIG.VERBOSE,
         onMetrics: options.onMetrics ?? DEFAULT_CONFIG.ON_METRICS,
         onEvent: options.onEvent,
+        rscRuntime,
+        rscTimeoutMs,
         Page: options.Page ?? undefined,
         props: options.props ?? undefined,
         Html: options.Html ?? DEFAULT_CONFIG.HTML,

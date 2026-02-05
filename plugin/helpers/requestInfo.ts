@@ -47,25 +47,32 @@ export function requestInfo(
       "application/x-www-form-urlencoded"
     ) || !!req.headers["content-type"]?.includes("multipart/form-data");
   
+  // Form action detection
+  const isFormActionRequest =
+    req.method === "POST" &&
+    (isFormContentType ||
+      (req.headers["sec-fetch-dest"] === "document" &&
+        req.headers["sec-fetch-mode"] === "navigate"));
+
   // Server action detection
   const hasServerActionHeaders =
     req.method === "POST" &&
     (req.headers["sec-fetch-dest"] === "empty" ||
       req.headers["sec-fetch-dest"] === "") &&
     req.headers["sec-fetch-mode"] === "cors";
-  const isServerActionRequest = hasServerActionHeaders;
-
-  const isFormActionRequest = !isServerActionRequest && (
-    req.method === "POST" ||
-    (isFormContentType &&
-      req.headers["sec-fetch-dest"] === "document" &&
-      req.headers["sec-fetch-mode"] === "navigate")
-  );
+  const isServerActionRequest =
+    req.method === "POST" &&
+    !isFormActionRequest &&
+    (hasServerActionHeaders || hasRscHeader);
 
   const isJsRequest =
-    !isFormActionRequest && !isJson && !isHtml && !isCss && !isRsc && (isJS || hasJsHeader);
+    !isFormActionRequest &&
+    !isJson &&
+    !isHtml &&
+    !isCss &&
+    !isRsc &&
+    (isJS || hasJsHeader);
   const isJsonRequest = isJson || (hasJsonHeader && !isJsRequest);
-  // Form action detection
   
   const isHtmlRequest =
     isHtml ||

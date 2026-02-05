@@ -2,6 +2,7 @@ import type { Logger } from "vite";
 import type { RscRenderMessage, StreamHandlers } from "../worker/types.js";
 import { createWorkerStream } from "./createWorkerStream.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
+import { createServerActionResponse } from "../helpers/handleServerAction.js";
 /**
  * Handles the RSC stream from the worker.
  * Creates a ReadableStream that pipes RSC chunks to the response.
@@ -43,14 +44,10 @@ export function handleWorkerRscStream({
             onServerActionResponse: (id: string, result?: unknown, error?: string) => {
               if (verbose) logger.info(`[react-client] Forwarding server action response ${id} from worker`);
               if (typeof handlers.onServerActionResponse === "function") {
-                // Ensure consistent response format
-                const response = {
-                  type: "server-action-response",
-                  returnValue: error 
-                    ? { success: false, error }
-                    : result  // Direct result, no success/data wrapper
-                };
-                handlers.onServerActionResponse(id, response);
+                handlers.onServerActionResponse(
+                  id,
+                  createServerActionResponse(result, error)
+                );
               }
             }
           },

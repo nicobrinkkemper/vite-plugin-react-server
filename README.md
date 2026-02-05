@@ -77,6 +77,24 @@ The main entry point adapts based on the environment:
 - **Server Mode** (`NODE_OPTIONS="--conditions react-server"`) → Does not need worker thread for RSC requests
   - Direct pipeline from vite to react
 
+### Main Thread vs Worker Runtime
+
+By default, client mode uses the `rsc-worker` to access the server-only React conditions. If you want client mode to run the same RSC pipeline in the main thread (to mirror server mode more closely), you can opt into it:
+
+```ts
+// vite.config.ts
+export default defineConfig({
+  plugins: vitePluginReactServer({
+    moduleBase: "src",
+    Page: "src/page.tsx",
+    rscRuntime: "main-thread",
+    rscTimeoutMs: 5000,
+  }),
+});
+```
+
+This keeps user options and the dev server orchestration consistent across client and server conditions. If you want the default worker behavior, omit this option or set `rscRuntime: "worker"`.
+
 ### Custom composition
 
 You can pick and choose only the plugins you like to get the desired behavior as well. For example, we can choose only to use the preserver, the transformer, static plugin, etc.
@@ -215,7 +233,7 @@ If your app grows and you need more control, see the [docs](./docs) - check out 
 
 ### Worker support
 
-The client plugin uses the `rsc-worker` to create server side streams. The server plugin uses the `html-worker` to create client side html. If you don't want to use the rsc-worker, simply don't serve the plugin without the `react-server` condition. If you don't want to use the `html-worker` simply don't configure the `build.pages` option.
+The client plugin uses the `rsc-worker` to create server side streams by default. The server plugin uses the `html-worker` to create client side html. If you want to run client mode without the worker, set `rscRuntime: "main-thread"` as shown above. If you don't want to use the `html-worker` simply don't configure the `build.pages` option.
 
 ### Custom Worker
 

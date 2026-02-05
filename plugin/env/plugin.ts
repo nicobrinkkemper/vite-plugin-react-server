@@ -2,6 +2,7 @@ import type { Plugin } from "vite";
 import { resolveConfigDefine, resolveEnv } from "../config/resolveEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { userProjectRoot } from "../root.js";
+import { getServerOrigin } from "../config/publicOrigin.js";
 const isBuild = process.argv[process.argv.length - 1] === "build";
 const isPreview = process.argv.findIndex((arg) => arg === "preview") !== -1;
 
@@ -83,32 +84,26 @@ export function envPlugin(): Plugin {
       cleanupEnv?.();
     },
     configureServer(server) {
-      let envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
-      let publicOrigin = process.env[`${envPrefix}PUBLIC_ORIGIN`] ?? ""
+      const envPrefix = Array.isArray(server.config.envPrefix)
+        ? server.config.envPrefix[0]
+        : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
+      const publicOrigin = process.env[`${envPrefix}PUBLIC_ORIGIN`] ?? "";
+      if (!publicOrigin) return;
 
-      let desiredPort = server.config.server.port;
-      let shouldUpdatePublicOrigin = false;
-      if (publicOrigin && publicOrigin.includes(`:${desiredPort}`)) {
-        shouldUpdatePublicOrigin = true;
-      }
-      // Listen for when the server actually starts
-      if (shouldUpdatePublicOrigin) {
-        server.httpServer?.once("listening", () => {
-          const address = server.httpServer?.address();
-          if (address && typeof address !== "string") {
-            const port = address.port;
-            if (port !== desiredPort) {
-              let envPrefix = Array.isArray(server.config.envPrefix) ? server.config.envPrefix[0] : server.config.envPrefix ?? DEFAULT_CONFIG.ENV_PREFIX;
-              const newOrigin = publicOrigin.replace(
-                `:${desiredPort}`,
-                `:${port}`
-              );
-              process.env[`${envPrefix}PUBLIC_ORIGIN`] = newOrigin
-              console.warn("PUBLIC_ORIGIN did not match the port: " + port);
-            }
+      const desiredOrigin = getServerOrigin(server.config.server);
+      server.httpServer?.once("listening", () => {
+        const address = server.httpServer?.address();
+        if (address && typeof address !== "string") {
+          const actualOrigin = getServerOrigin({
+            ...server.config.server,
+            port: address.port,
+          });
+          if (publicOrigin !== actualOrigin && publicOrigin === desiredOrigin) {
+            process.env[`${envPrefix}PUBLIC_ORIGIN`] = actualOrigin;
+            console.warn("PUBLIC_ORIGIN did not match the port: " + address.port);
           }
-        });
-      }
+        }
+      });
     }
   };
 }

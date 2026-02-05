@@ -3,9 +3,10 @@ import type { StreamHandlers } from "../types.js";
 import { toError } from "../../error/toError.js";
 import { userOptions } from "./userOptions.js";
 import { addCssFileContent, addModuleId } from "./state.js";
-import { join } from "path";
 import { ReactDOMServer } from "../../vendor/vendor.server.js";
 import { PassThrough } from "node:stream";
+import { createServerActionResponse } from "../../helpers/handleServerAction.js";
+import { executeServerAction } from "../../helpers/executeServerAction.js";
 
 export const handlers: Required<StreamHandlers> = {
   onError: (id, error, errorInfo) => {
@@ -63,12 +64,9 @@ export const handlers: Required<StreamHandlers> = {
       source,
     });
   },
-  onServerActionResponse: (id, result) => {
+  onServerActionResponse: (id, result, error) => {
     const stream = ReactDOMServer.renderToPipeableStream(
-      {
-        type: "server-action-response",
-        returnValue: result
-      },
+      createServerActionResponse(result, error),
       userOptions.moduleBasePath,
       {
         onError(error: Error) {
@@ -109,36 +107,15 @@ export const handlers: Required<StreamHandlers> = {
   },
   onServerAction: async (id, args) => {
     try {
-      // Parse the server action ID to get the file path and export name
-      const [filePath, exportName] = id.split("#");
-      if (!filePath || !exportName) {
-        throw new Error(
-          `Invalid server action ID format: ${id}. Expected format: "path/to/file.ts#exportName"`
-        );
-      }
-      // Convert the server action ID to a file path
-      const actionPath = filePath.startsWith(userOptions.moduleBasePath)
-        ? filePath.slice(userOptions.moduleBasePath.length)
-        : filePath;
-      const fullPath = join(userOptions.projectRoot, actionPath);
-
-      // Load the server action module
-      const module = await import(fullPath);
-      const action = module[exportName];
-
-      if (typeof action !== "function") {
-        throw new Error(`Server action not found: ${id}`);
-      }
-
-      // Execute the server action
-      const result = await action(...args);
+      const result = await executeServerAction(id, args, {
+        projectRoot: userOptions.projectRoot,
+        moduleBasePath: userOptions.moduleBasePath,
+        loader: (fullPath) => import(fullPath),
+      });
 
       // Send success response using RSC stream
       const stream = ReactDOMServer.renderToPipeableStream(
-        {
-          type: "server-action-response",
-          returnValue: result
-        },
+        createServerActionResponse(result),
         userOptions.moduleBasePath,
         {
           onError(error: Error) {
@@ -180,10 +157,7 @@ export const handlers: Required<StreamHandlers> = {
       const errorMessage = toError(error).message;
       // Send error response using RSC stream
       const stream = ReactDOMServer.renderToPipeableStream(
-        {
-          type: "server-action-response",
-          returnValue: { success: false, error: errorMessage }
-        },
+        createServerActionResponse(undefined, errorMessage),
         userOptions.moduleBasePath,
         {
           onError(error: Error) {

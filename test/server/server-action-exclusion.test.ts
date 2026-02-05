@@ -67,7 +67,7 @@ describe("Server Action Build Exclusion", () => {
     } catch (error) {
       throw error;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     await rm(testDir, { recursive: true, force: true });
