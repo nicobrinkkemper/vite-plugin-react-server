@@ -144,6 +144,21 @@ export async function createSharedLoader({
         `[createSharedLoader] Dev mode: loading directly from source`
       );
     }
+  } else if (isBuildMode && effectiveProjectRoot && build) {
+    // Build mode fallback: prefix with server build directory even without manifest/normalizer
+    if (!isAbsolute(resolvedModuleID)) {
+      const serverBuildPath = join(
+        effectiveProjectRoot,
+        build.outDir || "dist",
+        build.server || "server"
+      );
+      resolvedModuleID = join(serverBuildPath, resolvedModuleID);
+      if (verbose) {
+        logger?.info(
+          `[createSharedLoader] Build mode fallback: prefixing with ${serverBuildPath}: ${resolvedModuleID}`
+        );
+      }
+    }
   }
 
   // Step 3: Construct the full path and import

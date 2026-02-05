@@ -185,6 +185,11 @@ export const createDefaultModuleID = (
         // Step 3: Apply hashing for client components
         transformedId = hash(transformedId, false, sourceContent);
         
+        // Step 4: Ensure paths start with moduleBasePath
+        if (moduleBasePath && !transformedId.startsWith(moduleBasePath)) {
+          transformedId = moduleBasePath + transformedId;
+        }
+        
         return transformedId;
       }
       
