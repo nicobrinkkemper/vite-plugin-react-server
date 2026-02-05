@@ -175,8 +175,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       timing.renderStart = performance.now();
     },
     generateBundle(_options, bundle) {
-      // Filter out _virtual files from the bundle before they're written to disk
-      // These are Vite's internal virtual modules (CommonJS interop, etc.) and aren't needed in the final output
+      // Filter out unnecessary _virtual files from the bundle
+      // Keep dynamic-import-helper.js since it's needed for dynamic imports
       // Note: Static builds are handled by plugin.client.ts, this only handles server builds
       if (this.environment.name === "server") {
         const keysToDelete: string[] = [];
@@ -189,7 +189,12 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
               chunk.facadeModuleId?.includes("_virtual") ||
               chunk.moduleIds?.some(id => id.includes("_virtual"));
             
-            if (isVirtual) {
+            // Keep dynamic-import-helper.js - it's needed for dynamic imports
+            const isDynamicImportHelper = 
+              chunk.fileName?.includes("dynamic-import-helper") ||
+              key.includes("dynamic-import-helper");
+            
+            if (isVirtual && !isDynamicImportHelper) {
               keysToDelete.push(key);
               if (userOptions.verbose) {
                 logger?.info(`[plugin.server] Filtered out virtual file: ${chunk.fileName || key} (moduleId: ${chunk.facadeModuleId || chunk.moduleIds?.[0]})`);
