@@ -207,7 +207,7 @@ export async function configureWorkerRequestHandler<
                     if (message.type === "SHUTDOWN_COMPLETE") {
                       resolve(true);
                     } else {
-                      reject("Dit not receive SHUTDOWN_COMPLETE");
+                      reject("Did not receive SHUTDOWN_COMPLETE");
                     }
                   });
                 });

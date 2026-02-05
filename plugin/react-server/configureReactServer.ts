@@ -150,6 +150,11 @@ export async function configureReactServer<
             globalCss: new Map(),
           });
           if (rscResult.type === "success") {
+            // Track before piping so restarts can clean up in-flight streams
+            activeStreams.add(res);
+            res.on("close", () => {
+              activeStreams.delete(res);
+            });
             // set headers
             setupRscResponseHeaders(res, "text/x-component; charset=utf-8", true);
             await pipeRscStreamToResponse(res, rscResult.stream!, {
@@ -158,10 +163,6 @@ export async function configureReactServer<
               timeoutMessage: "RSC render timeout.",
             });
           }
-          activeStreams.add(res);
-          res.on("close", () => {
-            activeStreams.delete(res);
-          });
         } catch (error) {
           logError(error, server.config.logger);
           res.end();

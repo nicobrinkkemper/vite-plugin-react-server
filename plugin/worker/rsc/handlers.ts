@@ -8,6 +8,56 @@ import { PassThrough } from "node:stream";
 import { createServerActionResponse } from "../../helpers/handleServerAction.js";
 import { executeServerAction } from "../../helpers/executeServerAction.js";
 
+/**
+ * Pipes a server action response through an RSC stream and sends chunks
+ * back to the main thread via worker messages.
+ */
+function pipeServerActionResponse(
+  id: string,
+  result?: unknown,
+  error?: string
+) {
+  const stream = ReactDOMServer.renderToPipeableStream(
+    createServerActionResponse(result, error),
+    userOptions.moduleBasePath,
+    {
+      onError(error: Error) {
+        sendRscWorkerMessage({
+          type: "ERROR",
+          id,
+          error: toError(error),
+        });
+      },
+    }
+  );
+
+  const passThrough = new PassThrough();
+  stream.pipe(passThrough);
+
+  passThrough.on("data", (chunk) => {
+    sendRscWorkerMessage({
+      type: "RSC_CHUNK",
+      id,
+      chunk,
+    });
+  });
+
+  passThrough.on("end", () => {
+    sendRscWorkerMessage({
+      type: "RSC_END",
+      id,
+    });
+  });
+
+  passThrough.on("error", (error) => {
+    sendRscWorkerMessage({
+      type: "ERROR",
+      id,
+      error: toError(error),
+    });
+  });
+}
+
 export const handlers: Required<StreamHandlers> = {
   onError: (id, error, errorInfo) => {
     sendRscWorkerMessage({
@@ -65,45 +115,7 @@ export const handlers: Required<StreamHandlers> = {
     });
   },
   onServerActionResponse: (id, result, error) => {
-    const stream = ReactDOMServer.renderToPipeableStream(
-      createServerActionResponse(result, error),
-      userOptions.moduleBasePath,
-      {
-        onError(error: Error) {
-          sendRscWorkerMessage({
-            type: "ERROR",
-            id,
-            error: toError(error),
-          });
-        },
-      }
-    );
-
-    const passThrough = new PassThrough();
-    stream.pipe(passThrough);
-
-    passThrough.on("data", (chunk) => {
-      sendRscWorkerMessage({
-        type: "RSC_CHUNK",
-        id,
-        chunk,
-      });
-    });
-
-    passThrough.on("end", () => {
-      sendRscWorkerMessage({
-        type: "RSC_END",
-        id,
-      });
-    });
-
-    passThrough.on("error", (error) => {
-      sendRscWorkerMessage({
-        type: "ERROR",
-        id,
-        error: toError(error),
-      });
-    });
+    pipeServerActionResponse(id, result, error);
   },
   onServerAction: async (id, args) => {
     try {
@@ -112,93 +124,12 @@ export const handlers: Required<StreamHandlers> = {
         moduleBasePath: userOptions.moduleBasePath,
         loader: (fullPath) => import(fullPath),
       });
-
-      // Send success response using RSC stream
-      const stream = ReactDOMServer.renderToPipeableStream(
-        createServerActionResponse(result),
-        userOptions.moduleBasePath,
-        {
-          onError(error: Error) {
-            sendRscWorkerMessage({
-              type: "ERROR",
-              id,
-              error: toError(error),
-            });
-          },
-        }
-      );
-
-      const passThrough = new PassThrough();
-      stream.pipe(passThrough);
-
-      passThrough.on("data", (chunk) => {
-        sendRscWorkerMessage({
-          type: "RSC_CHUNK",
-          id,
-          chunk,
-        });
-      });
-
-      passThrough.on("end", () => {
-        sendRscWorkerMessage({
-          type: "RSC_END",
-          id,
-        });
-      });
-
-      passThrough.on("error", (error) => {
-        sendRscWorkerMessage({
-          type: "ERROR",
-          id,
-          error: toError(error),
-        });
-      });
+      pipeServerActionResponse(id, result);
     } catch (error: unknown) {
-      const errorMessage = toError(error).message;
-      // Send error response using RSC stream
-      const stream = ReactDOMServer.renderToPipeableStream(
-        createServerActionResponse(undefined, errorMessage),
-        userOptions.moduleBasePath,
-        {
-          onError(error: Error) {
-            sendRscWorkerMessage({
-              type: "ERROR",
-              id,
-              error: toError(error),
-            });
-          },
-        }
-      );
-
-      const passThrough = new PassThrough();
-      stream.pipe(passThrough);
-
-      passThrough.on("data", (chunk) => {
-        sendRscWorkerMessage({
-          type: "RSC_CHUNK",
-          id,
-          chunk,
-        });
-      });
-
-      passThrough.on("end", () => {
-        sendRscWorkerMessage({
-          type: "RSC_END",
-          id,
-        });
-      });
-
-      passThrough.on("error", (error) => {
-        sendRscWorkerMessage({
-          type: "ERROR",
-          id,
-          error: toError(error),
-        });
-      });
+      pipeServerActionResponse(id, undefined, toError(error).message);
     }
   },
   onShutdown: (id: string) => {
-    // Send SHUTDOWN_COMPLETE message to signal that shutdown is complete
     sendRscWorkerMessage({
       type: "SHUTDOWN_COMPLETE",
       id: id,
@@ -206,10 +137,7 @@ export const handlers: Required<StreamHandlers> = {
   },
   onCssFile: (id, code) => {
     if (id) {
-      // Add to CSS registry
       addCssFileContent(id, code, userOptions);
-
-      // Send CSS file message
       sendRscWorkerMessage({
         type: "CSS_FILE",
         id,
