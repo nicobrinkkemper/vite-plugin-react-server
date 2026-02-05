@@ -33,6 +33,14 @@ export function requestInfo(
   const isCss = userOptions.autoDiscover.cssPattern(value);
   const isJson = userOptions.autoDiscover.jsonPattern(value);
   const isRsc = userOptions.autoDiscover.rscPattern(value);
+  const isStaticAsset =
+    !!ext &&
+    !isJS &&
+    !isCss &&
+    !isHtml &&
+    !isJson &&
+    !isRsc &&
+    !!MIME_TYPES[ext];
   const hasJsHeader =
     req.headers["sec-fetch-dest"] === "script" ||
     req.headers["accept"]?.includes("*/*") ||
@@ -71,6 +79,7 @@ export function requestInfo(
     !isHtml &&
     !isCss &&
     !isRsc &&
+    !isStaticAsset &&
     (isJS || hasJsHeader);
   const isJsonRequest = isJson || (hasJsonHeader && !isJsRequest);
   

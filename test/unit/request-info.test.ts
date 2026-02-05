@@ -37,4 +37,22 @@ describe("requestInfo", () => {
     expect(info.isFormActionRequest).toBe(true);
     expect(info.isServerActionRequest).toBe(false);
   });
+
+  it("does not treat font assets as JS requests", () => {
+    const info = requestInfo(
+      {
+        url: "/assets/inter.woff2",
+        method: "GET",
+        headers: {
+          accept: "font/woff2,*/*;q=0.8",
+          "sec-fetch-dest": "font",
+        },
+      } as any,
+      testUserOptions,
+      "",
+    );
+    expect(info.isJsRequest).toBe(false);
+    expect(info.contentType).toContain("font/woff2");
+    expect(info.filePath.endsWith(".js")).toBe(false);
+  });
 });
