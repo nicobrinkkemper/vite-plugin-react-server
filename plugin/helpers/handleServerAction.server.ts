@@ -120,10 +120,24 @@ export async function handleServerActionWithViteServer(
     projectRoot: string;
   }
 ): Promise<void> {
+  // Use server environment runner for proper react-server condition handling
+  // This ensures client components are transformed to registerClientReference
+  const serverEnv = server.environments['server'];
+  let ssrLoadModule: (url: string) => Promise<Record<string, unknown>>;
+  
+  if (serverEnv && 'runner' in serverEnv && serverEnv.runner) {
+    // Vite 6 Environment API: use server environment runner for RSC
+    ssrLoadModule = (url: string) => 
+      (serverEnv.runner as { import: (url: string) => Promise<Record<string, unknown>> }).import(url);
+  } else {
+    // Fallback to ssrLoadModule (should not happen in Vite 6+)
+    ssrLoadModule = server.ssrLoadModule;
+  }
+  
   return handleServerAction(req, res, {
     projectRoot: handlerOptions.projectRoot,
     verbose: handlerOptions.verbose,
     logger: server.config.customLogger || server.config.logger,
-    ssrLoadModule: server.ssrLoadModule,
+    ssrLoadModule,
   });
 }

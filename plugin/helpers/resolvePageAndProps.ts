@@ -188,7 +188,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
 
       if (handlerOptions.verbose) {
         handlerOptions.logger?.info(
-          `[resolvePageAndProps] Extracted pageProps: ${JSON.stringify(pageProps, null, 2)}`
+          `[resolvePageAndProps] Extracted pageProps: ${JSON.stringify(Object.keys(pageProps).length, null, 2)} keys`
         );
         handlerOptions.logger?.info(
           `[resolvePageAndProps] resolvePropsResult.module keys: ${Object.keys(resolvePropsResult.module || {}).join(", ")}`

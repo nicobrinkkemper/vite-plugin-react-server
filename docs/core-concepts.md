@@ -166,14 +166,14 @@ graph TD
 - Worker thread isolation for RSC processing
 - HTML rendering is done on main thread
 
-#### **Server first / HTML Worker mode** (Optimized)
+#### **RSC Mode** (`dev:rsc`)
 - **Condition:** `react-server`  
 - **Command:** `NODE_OPTIONS="--conditions react-server" vite`  
-- **Internal Implementation:** Main thread for RSC, worker thread for HTML
+- **Architecture:** Main thread has react-server condition, RSC processing runs directly
 
 ```mermaid
 graph TD
-    A[Direct Server Mode<br/>Condition: react-server<br/>Command: NODE_OPTIONS='--conditions react-server' vite] --> B[Main Thread: RSC Environment]
+    A[RSC Mode<br/>npm run dev:rsc] --> B[Main Thread: react-server condition]
     B --> C[Direct React Server Components Processing]
     B --> D[Server Actions in Main Thread]
     B --> E[Module Loading with react-server condition]
@@ -183,43 +183,37 @@ graph TD
     F --> G[Browser: Same User Experience]
 ```
 
-**Why use this mode:**
-- No worker thread overhead
-- Direct RSC processing in main thread
-- Better debugging experience for server components
-- More efficient for server-side development
+**Why use RSC mode:**
+- Easier debugging (breakpoints work in server components)
+- Supports React in config files (e.g., `vite.react.config.tsx`)
+- Simpler mental model - one thread handles RSC
 
-### Build Environment (Static Generation)
+### Build
 
-- **Condition:** `react-server` (for final build step)  
-- **Command:** `npm run build` (runs all three builds)  
-- **Purpose:** Static site generation
+- **Command:** `npm run build`
+- **Purpose:** Static site generation with all environments
 
 ```mermaid
 graph TD
-    A[Build Environment<br/>Condition: react-server<br/>Command: npm run build] --> B[Static Build<br/>vite build]
-    A --> C[Client Build<br/>vite build --ssr]
-    A --> D[Server Build<br/>NODE_OPTIONS='--conditions react-server' vite build --ssr]
+    A[Build<br/>NODE_OPTIONS='--conditions react-server' vite build --app] --> B[Client Environment]
+    A --> C[SSR Environment]
+    A --> D[Server Environment]
     
-    B --> E[dist/static/]
-    C --> F[dist/client/]
+    B --> E[dist/client/]
+    C --> F[dist/static/]
     D --> G[dist/server/]
     
-    D --> H[HTML Worker<br/>Only during builds]
+    D --> H[Static HTML Generation]
     H --> I[index.html + index.rsc]
-    I --> E
+    I --> F
 ```
 
-**Traditional Build Sequence:**
-1. **Static Build:** `vite build` → `dist/static/`
-2. **Client Build:** `vite build --ssr` → `dist/client/`
-3. **Server Build:** `NODE_OPTIONS="--conditions react-server" vite build --ssr` → `dist/server/` + final `dist/static/`
+**Build Command:**
+```bash
+NODE_OPTIONS='--conditions react-server' vite build --app
+```
 
-**Note:** The HTML worker is only used during builds, not during development. There's no RSC worker → HTML worker communication in development mode.
-
-**App Builder:**
-
-Simply run `vite build --app` to run all builds. To run the app-builder in server-first mode, run it like `NODE_OPTIONS='--conditions react-server' vite build --app`.
+This builds all three Vite environments (client, ssr, server) and generates static HTML.
 
 ## Module Structure
 

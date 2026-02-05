@@ -108,9 +108,18 @@ export const configureReactServer: ConfigureReactServerFn =
       // Create the full path from our project root
       const fullModulePath = `${_userOptions.projectRoot}/${resolvedModuleID}`;
       
-
+      // Use server environment runner for proper react-server condition handling
+      // This ensures client components are transformed to registerClientReference
+      const serverEnv = server.environments['server'];
+      let result: Record<string, unknown>;
       
-      const result = await server.ssrLoadModule(fullModulePath);
+      if (serverEnv && 'runner' in serverEnv && serverEnv.runner) {
+        // Vite 6 Environment API: use server environment runner for RSC
+        result = await (serverEnv.runner as { import: (url: string) => Promise<Record<string, unknown>> }).import(fullModulePath);
+      } else {
+        // Fallback to ssrLoadModule (should not happen in Vite 6+)
+        result = await server.ssrLoadModule(fullModulePath);
+      }
       if (result == null)
         throw new Error(`Module \"${resolvedModuleID}\" does not have any exports`);
 

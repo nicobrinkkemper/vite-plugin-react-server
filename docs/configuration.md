@@ -393,9 +393,9 @@ Example `package.json` setup:
 ```json
 "scripts": {
   "build": "build:client && build:server",
-  "dev": "NODE_OPTIONS='--conditions react-server' vite",
-  "dev:client": "vite",
-  "build:server": "NODE_OPTIONS='--conditions react-server' vite build",
+  "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
+  "dev:ssr": "vite",
+  "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
   "build:client": "vite build --ssr",
   "build:static": "vite build"
 }

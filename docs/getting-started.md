@@ -53,17 +53,14 @@ export const props = {
 
 ### 3. Add Package Scripts
 
-The plugin automatically adapts to different environments using Node.js conditions:
+The plugin supports two development paradigms using Node.js conditions:
 
 ```json
 {
   "scripts": {
-    "dev": "NODE_OPTIONS='--conditions react-server' vite",
-    "dev:client": "vite",
-    "build": "vite build --app",
-    "build:static": "vite build",
-    "build:client": "vite build --ssr",
-    "build:server": "NODE_OPTIONS='--conditions react-server' vite build --ssr",
+    "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
+    "dev:ssr": "vite",
+    "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
     "preview": "vite preview"
   }
 }
@@ -71,23 +68,23 @@ The plugin automatically adapts to different environments using Node.js conditio
 
 ## Development Modes
 
-The plugin provides two development modes that offer **identical user experiences** but differ in their internal implementation:
+The plugin provides two development paradigms. Both produce identical output but differ in architecture:
 
-### Direct Server Mode (Recommended)
+### RSC Mode (`dev:rsc`)
 ```bash
-npm run dev
+npm run dev:rsc
 ```
-- **Condition**: `react-server`
-- **Implementation**: Direct main thread processing
-- **Benefits**: No worker overhead, better debugging experience, more efficient for server-side development
+- **Condition**: `react-server` on main thread
+- **Architecture**: RSC processing runs directly on the main Vite thread
+- **Benefits**: Easier debugging (breakpoints work), simpler mental model, supports React in config files
 
-### RSC Worker Mode
+### SSR Mode (`dev:ssr`)
 ```bash
-npm run dev:client
+npm run dev:ssr
 ```
-- **Condition**: `null` (default)
-- **Implementation**: Uses RSC worker thread
-- **Benefits**: Default Vite behavior, worker isolation, good for testing client-side behavior
+- **Condition**: Default (client-focused main thread)
+- **Architecture**: RSC processing runs in isolated worker thread
+- **Benefits**: Better isolation, closer to traditional SSR/client split
 
 ### Environment Detection
 

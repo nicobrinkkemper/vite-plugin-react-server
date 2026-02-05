@@ -137,46 +137,35 @@ This has the benefit of controlling and debugging each build separately
 {
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS='--conditions react-server' vite",
-    "dev:client": "vite",
-    "build": "npm run build:static && npm run build:client && npm run build:server",
-    "build:static": "vite build",
-    "build:client": "vite build --ssr",
-    "build:server": "NODE_OPTIONS='--conditions react-server' vite build"
+    "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
+    "dev:ssr": "vite",
+    "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
+    "preview": "vite preview"
   }
-}
-```
-
-#### Environment API approach:
-
-```json
-{
-  "build": "vite build --app"
 }
 ```
 
 ### Development Modes
 
-Both development modes provide **identical user experiences** - they both start your application and it will work the same way in the browser. The difference is purely internal implementation.
+The plugin supports two development paradigms. Both produce **identical output** but differ in architecture:
 
-| Mode | Condition | Command | Internal Implementation | Benefits |
-|------|-----------|---------|----------------------|----------|
-| **RSC Worker** | `null` | `npm run dev:client` | RSC Worker Thread | Default Vite behavior, worker isolation |
-| **Direct Server** | `react-server` | `npm run dev` | Direct Main Thread | No worker overhead, better debugging |
+| Mode | Condition | Command | Architecture | Benefits |
+|------|-----------|---------|--------------|----------|
+| **RSC** | `react-server` | `npm run dev:rsc` | RSC on main thread | Easier debugging, React in config |
+| **SSR** | `null` (default) | `npm run dev:ssr` | RSC in worker | Better isolation, traditional SSR split |
 
 ### Development Mode Details
 
-- **`npm run dev`** (Direct Server Mode):
-  - Condition: `react-server`
-  - Direct RSC processing in main thread (no worker overhead)
-  - Better debugging experience for server components
-  - More efficient for server-side development
+- **`npm run dev:rsc`** (RSC Mode):
+  - Main thread has `react-server` condition
+  - RSC processing runs directly (no worker)
+  - Easier debugging - breakpoints work in server components
+  - Supports React in config files (e.g., `vite.react.config.tsx`)
 
-- **`npm run dev:client`** (RSC Worker Mode):
-  - Condition: `null` (default)
-  - Uses RSC worker thread for server component processing
-  - Worker thread isolation
-  - Good for testing client-side behavior
+- **`npm run dev:ssr`** (SSR Mode):
+  - Main thread is client-focused
+  - RSC processing runs in isolated worker thread
+  - Closer to traditional SSR/client architecture
 
 ### Build Process
 
@@ -208,24 +197,21 @@ if (getCondition() !== "react-server") {
 
 ### Execution Modes
 
-- **RSC Worker Mode** (Condition: `null`):
-  - Command: `vite` or `npm run dev:client`
-  - Uses RSC worker thread for server component processing
-  - Worker thread isolation
-  - Good for testing client-side behavior
+- **RSC Mode** (`npm run dev:rsc`):
+  - Condition: `react-server` on main thread
+  - RSC processing runs directly on the main Vite thread
+  - Easier debugging - breakpoints work in server components
+  - Supports React in config files
 
-- **Direct Server Mode** (Condition: `react-server`):
-  - Command: `NODE_OPTIONS="--conditions react-server" vite` or `npm run dev`
-  - Direct React Server Components processing in main thread
-  - No worker thread overhead
-  - Better debugging experience for server components
-  - More efficient for server-side development
+- **SSR Mode** (`npm run dev:ssr`):
+  - Condition: default (client-focused main thread)
+  - RSC processing runs in isolated worker thread
+  - Traditional SSR/client architecture
 
-- **Build Mode** (Condition: `react-server` for final step):
-  - Command: `npm run build`
-  - Build-time environment for static generation
-  - Runs all three build steps in sequence
-  - HTML worker only used during builds (not development)
+- **Build Mode** (`npm run build`):
+  - Command: `NODE_OPTIONS='--conditions react-server' vite build --app`
+  - Builds all Vite environments (client, ssr, server)
+  - Generates static HTML files
 
 ### Module Structure
 
