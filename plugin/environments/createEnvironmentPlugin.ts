@@ -306,31 +306,10 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       }
 
       // Return the configuration with all environments
-      // Configure builder to build server BEFORE client/static so dist/server exists
-      // when the RSC worker runs during static generation
       return {
         root: userOptions.projectRoot,
         ...config,
         environments,
-        builder: {
-          ...config.builder,
-          buildApp: async (builder: any) => {
-            // Build order: server first (so RSC worker can load built files),
-            // then ssr/client which triggers static generation in closeBundle
-            const envNames = Object.keys(builder.environments);
-            const serverEnvs = envNames.filter(name => name === "server");
-            const otherEnvs = envNames.filter(name => name !== "server");
-            
-            // Build server environment(s) first
-            for (const name of serverEnvs) {
-              await builder.build(builder.environments[name]);
-            }
-            // Then build the rest (client/ssr which includes static generation)
-            for (const name of otherEnvs) {
-              await builder.build(builder.environments[name]);
-            }
-          },
-        },
       };
     },
   };
