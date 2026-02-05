@@ -16,7 +16,7 @@ import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { createLogger } from "vite";
 import { handleError } from "../../error/handleError.js";
 import { sendMessage } from "../sendMessage.js";
-import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
+import { setMaxListenersOnPort, unrefPort } from "../../stream/setMaxListeners.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -52,20 +52,26 @@ try {
     logger.info("Development/test mode detected - registering loaders for source file processing");
   }
 
-  // Create channels for each loader (only needed if not in build mode)
+  // Create channels for each loader
   const reactLoaderChannel = new MessageChannel();
   const cssLoaderChannel = new MessageChannel();
   const envLoaderChannel = new MessageChannel();
   
   // Increase max listeners to prevent warnings during development
-  // Loader channels are created once per worker, so 20 should be sufficient
-  // Using 20 instead of 15 to account for potential extra listeners during cleanup
   setMaxListenersOnPort(reactLoaderChannel.port1, 20);
   setMaxListenersOnPort(reactLoaderChannel.port2, 20);
   setMaxListenersOnPort(cssLoaderChannel.port1, 20);
   setMaxListenersOnPort(cssLoaderChannel.port2, 20);
   setMaxListenersOnPort(envLoaderChannel.port1, 20);
   setMaxListenersOnPort(envLoaderChannel.port2, 20);
+
+  // Unref all ports so they don't keep the event loop alive
+  unrefPort(reactLoaderChannel.port1);
+  unrefPort(reactLoaderChannel.port2);
+  unrefPort(cssLoaderChannel.port1);
+  unrefPort(cssLoaderChannel.port2);
+  unrefPort(envLoaderChannel.port1);
+  unrefPort(envLoaderChannel.port2);
 
   // Set up message handlers before transferring ports (only needed if not in build mode)
   if (!isBuildMode) {

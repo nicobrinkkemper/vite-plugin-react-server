@@ -1,7 +1,7 @@
 import { configureRequestHandler } from "./configureRequestHandler.client.js";
 import { MessageChannel } from "node:worker_threads";
 import type { CreateReactWorkerServerFn } from "./types.js";
-import { setMaxListenersOnPort } from "../stream/setMaxListeners.js";
+import { setMaxListenersOnPort, unrefPort } from "../stream/setMaxListeners.js";
 
 
 /**
@@ -48,6 +48,8 @@ export const configureReactServer: CreateReactWorkerServerFn =
       // Use a reasonable default (20) for the main HMR channel
       setMaxListenersOnPort(channel.port1, 20);
       setMaxListenersOnPort(channel.port2, 20);
+      unrefPort(channel.port1);
+      unrefPort(channel.port2);
       return channel;
     })();
 

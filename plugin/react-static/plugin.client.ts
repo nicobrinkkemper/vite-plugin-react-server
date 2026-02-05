@@ -864,10 +864,9 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
         throw finalError;
         }
-
-        // Graceful worker shutdown - only at the end of the entire build process
+      } finally {
+        // Graceful worker shutdown — runs on both success and error paths
         if (rscWorker) {
-          let shutdownMessageHandler: ((message: any) => void) | undefined;
           try {
             await Promise.race([
               new Promise<void>((resolve, reject) => {
@@ -877,52 +876,43 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
                 const backupTimeout = setTimeout(() => {
                   reject(new Error("Worker shutdown backup timeout"));
-                }, Math.floor(userOptions.workerShutdownTimeout * 0.6)); // 60% of main timeout
+                }, Math.floor(userOptions.workerShutdownTimeout * 0.6));
 
-                shutdownMessageHandler = (message: any) => {
+                const shutdownMessageHandler = (message: any) => {
                   if (message.type === "SHUTDOWN_COMPLETE") {
                     clearTimeout(timeout);
                     clearTimeout(backupTimeout);
                     rscWorker?.removeListener(
                       "message",
-                      shutdownMessageHandler!
+                      shutdownMessageHandler
                     );
-                    // Remove all other event listeners as well
                     rscWorker?.removeAllListeners();
                     resolve();
                   }
                 };
 
                 rscWorker?.on("message", shutdownMessageHandler);
-
-                // Send shutdown message
                 rscWorker?.postMessage({
                   type: "SHUTDOWN",
                   id: "*",
                 });
               }),
             ]);
-          } catch (error) {
-            // If shutdown protocol fails, force terminate
-            this.warn(
-              "Worker shutdown protocol failed, forcing termination: " +
-                (error instanceof Error ? error.message : String(error))
-            );
-            // Don't try to clean up listeners in error case - just force terminate
+          } catch {
+            // Shutdown protocol failed — force terminate below
           } finally {
-            // Always force cleanup and termination
             if (rscWorker) {
               try {
                 (rscWorker as Worker).removeAllListeners();
                 (rscWorker as Worker).terminate();
-              } catch (terminateError) {
+              } catch {
                 // Ignore termination errors
               }
               rscWorker = undefined;
             }
           }
         }
-      } finally {
+
         // Reset any cached state to prevent issues in subsequent builds
         autoDiscoveredFiles = null;
         serverManifest = undefined;

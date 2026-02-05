@@ -17,3 +17,14 @@ export function setMaxListenersOnPort(
   (port as unknown as { setMaxListeners: (n: number) => void }).setMaxListeners(maxListeners);
 }
 
+/**
+ * Unref a MessagePort so it doesn't keep the event loop alive.
+ * Always unref ports — only active message listeners should keep the process alive,
+ * not the port's existence.
+ */
+export function unrefPort(port: MessagePort): void {
+  if (typeof (port as any).unref === "function") {
+    (port as any).unref();
+  }
+}
+

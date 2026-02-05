@@ -7,7 +7,7 @@ import type { RestartWorkerFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
 import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
-import { setMaxListenersOnPort } from "../stream/setMaxListeners.js";
+import { setMaxListenersOnPort, unrefPort } from "../stream/setMaxListeners.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
@@ -50,9 +50,10 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
     currentHmrChannel = workerHmrChannel;
     
     // Increase max listeners to prevent warnings during development
-    // We need to set this on BOTH ports because listeners can be added to either side
     setMaxListenersOnPort(workerHmrChannel.port1, maxListeners);
     setMaxListenersOnPort(workerHmrChannel.port2, maxListeners);
+    unrefPort(workerHmrChannel.port1);
+    unrefPort(workerHmrChannel.port2);
     
 
     // Forward messages from the plugin's HMR channel to the worker's channel

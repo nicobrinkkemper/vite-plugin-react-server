@@ -1,5 +1,5 @@
 import { MessageChannel } from "node:worker_threads";
-import { setMaxListenersOnPort } from "./setMaxListeners.js";
+import { setMaxListenersOnPort, unrefPort } from "./setMaxListeners.js";
 
 /**
  * Creates a pair of MessageChannels for two-port communication pattern.
@@ -15,12 +15,16 @@ export function createMessageChannels() {
   const controlChannel = new MessageChannel();
   
   // Increase max listeners to prevent warnings during development
-  // These channels are created per-request, so 20 should be sufficient for most cases
-  // Using 20 instead of 15 to account for potential extra listeners during cleanup
   setMaxListenersOnPort(dataChannel.port1, 20);
   setMaxListenersOnPort(dataChannel.port2, 20);
   setMaxListenersOnPort(controlChannel.port1, 20);
   setMaxListenersOnPort(controlChannel.port2, 20);
+
+  // Unref all ports so they don't keep the event loop alive
+  unrefPort(dataChannel.port1);
+  unrefPort(dataChannel.port2);
+  unrefPort(controlChannel.port1);
+  unrefPort(controlChannel.port2);
   
   return {
     dataChannel,
