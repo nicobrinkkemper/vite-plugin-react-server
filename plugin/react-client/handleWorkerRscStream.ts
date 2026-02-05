@@ -6,6 +6,7 @@ import type {
 } from "../worker/types.js";
 import type { Worker as NodeWorker } from "node:worker_threads";
 import { logError } from "../error/toError.js";
+import { createPluginLogger } from "../helpers/logger.js";
 
 const WORKER_STARTUP_TIMEOUT_MS = 5000;
 
@@ -26,8 +27,9 @@ export function handleWorkerRscStream({
     Partial<Pick<RscRenderMessage, "id">>;
   logger: Logger;
   handlers: Pick<StreamHandlers, "onMetrics" | "onHmrAccept" | "onHmrUpdate">;
-  verbose?: boolean;
+  verbose?: boolean | import("../helpers/logger.js").LogLevel;
 }): ReadableStream<Uint8Array> {
+  const log = createPluginLogger(verbose, logger);
   return new ReadableStream<Uint8Array>({
     start(controller) {
       let startupTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -93,11 +95,9 @@ export function handleWorkerRscStream({
             break;
 
           default:
-            if (verbose) {
-              logger.warn(
-                `[react-client] Unknown worker message type: ${(msg as { type: string }).type}`
-              );
-            }
+            log.debug(
+              `[react-client] Unknown worker message type: ${(msg as { type: string }).type}`
+            );
         }
       };
 

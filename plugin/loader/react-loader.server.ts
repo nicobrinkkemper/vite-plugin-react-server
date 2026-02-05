@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { hydrateUserOptions } from "../helpers/index.js";
+import { createPluginLogger, type PluginLogger } from "../helpers/logger.js";
 
 export interface LoaderOptions {
   id: string;
@@ -29,14 +30,12 @@ export type LoaderFunction = (options: LoaderOptions) => Promise<ModuleInfo>;
 
 let userOptions: ResolvedUserOptions | undefined;
 let loaderPort: MessagePort | undefined;
+let log: PluginLogger = createPluginLogger(false);
 export async function initialize(data: {
   id: string;
   port: MessagePort;
   userOptions: SerializedUserOptions;
 }) {
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Initializing with options:", data.id);
-  }
   const resolvedUserOptions = resolveOptions(
     hydrateUserOptions(data.userOptions)
   );
@@ -44,6 +43,8 @@ export async function initialize(data: {
     throw new Error(resolvedUserOptions.error.message);
   }
   userOptions = resolvedUserOptions.userOptions;
+  log = createPluginLogger(userOptions?.verbose);
+  log.debug(`[react-loader] Initializing with options: ${data.id}`);
   loaderPort = data.port;
   loaderPort.postMessage({
     type: "INITIALIZED_REACT_LOADER",
@@ -52,27 +53,25 @@ export async function initialize(data: {
 }
 
 export async function load(url: string, context: LoaderContext, nextLoad: any) {
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Attempting to load:", url);
-    console.log("[react-loader] Context:", {
+  log.debug(`[react-loader] Attempting to load: ${url}`);
+  log.debug(
+    `[react-loader] Context: ${JSON.stringify({
       format: context.format,
       conditions: context.conditions,
-    });
-  }
+    })}`
+  );
 
   const { format } = context;
   if (format === "module" || format === "module-typescript") {
-    if (userOptions?.verbose) {
-      console.log("[react-loader] Loading module:", url);
-    }
+    log.debug(`[react-loader] Loading module: ${url}`);
     const result = await nextLoad(url, context);
-    if (userOptions?.verbose) {
-      console.log("[react-loader] Next load result:", {
+    log.debug(
+      `[react-loader] Next load result: ${JSON.stringify({
         format: result.format,
         shortCircuit: result.shortCircuit,
         source: typeof result.source,
-      });
-    }
+      })}`
+    );
 
     const source =
       typeof result.source === "string"
@@ -83,28 +82,24 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
 
     const isServer = userOptions?.autoDiscover?.isServerFunctionCode(source);
     const isClient = userOptions?.autoDiscover?.isClientComponentCode(source);
-    if (userOptions?.verbose) {
-      console.log("[react-loader] Module analysis:", {
+    log.debug(
+      `[react-loader] Module analysis: ${JSON.stringify({
         url,
         isServer,
         isClient,
         sourceLength: source.length,
         sourcePreview: source.slice(0, 100) + "...",
-      });
-    }
+      })}`
+    );
 
     if (!isServer && !isClient) {
-      if (userOptions?.verbose) {
-        console.log("[react-loader] Skipping non-server/non-client module:", url);
-      }
+      log.debug(`[react-loader] Skipping non-server/non-client module: ${url}`);
       return result;
     }
 
     // Handle file URLs
     const filePath = url.startsWith("file://") ? fileURLToPath(url) : url;
-    if (userOptions?.verbose) {
-      console.log("[react-loader] File path:", filePath);
-    }
+    log.debug(`[react-loader] File path: ${filePath}`);
 
     // Normalize the URL using the same logic as plugin.server.ts
     let moduleID = filePath;
@@ -113,9 +108,9 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
       const [, value] = userOptions.normalizer(filePath);
       moduleID = join(userOptions.moduleBasePath, value);
       finalID = userOptions.moduleID(moduleID);
-      if (userOptions?.verbose) {
-        console.log("[react-loader] Normalized IDs:", { moduleID, finalID });
-      }
+      log.debug(
+        `[react-loader] Normalized IDs: ${JSON.stringify({ moduleID, finalID })}`
+      );
     }
 
     const transformed = transformModuleIfNeeded(
@@ -126,18 +121,16 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
       true // isServerEnvironment
     );
 
-    if (userOptions?.verbose) {
-      console.log("[react-loader] Transformation result:", {
-      originalLength: source.length,
-      transformedLength: transformed.length,
+    log.debug(
+      `[react-loader] Transformation result: ${JSON.stringify({
+        originalLength: source.length,
+        transformedLength: transformed.length,
         wasTransformed: source !== transformed,
-      });
-    }
+      })}`
+    );
 
     if (loaderPort) {
-      if (userOptions?.verbose) {
-        console.log("[react-loader] Sending SERVER_MODULE message");
-      }
+      log.debug("[react-loader] Sending SERVER_MODULE message");
       loaderPort.postMessage({
         type: "SERVER_MODULE",
         id: finalID,
@@ -162,9 +155,7 @@ export async function load(url: string, context: LoaderContext, nextLoad: any) {
     };
   }
 
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Skipping non-module format:", format);
-  }
+  log.debug(`[react-loader] Skipping non-module format: ${format}`);
   return nextLoad(url, context);
 }
 
@@ -173,13 +164,9 @@ export async function resolve(
   context: any,
   nextResolve: any
 ) {
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Resolving:", specifier);
-    console.log("[react-loader] Resolve context:", context);
-  }
+  log.debug(`[react-loader] Resolving: ${specifier}`);
+  log.debug(`[react-loader] Resolve context: ${JSON.stringify(context)}`);
   const result = await nextResolve(specifier, context);
-  if (userOptions?.verbose) {
-    console.log("[react-loader] Resolve result:", result);
-  }
+  log.debug(`[react-loader] Resolve result: ${JSON.stringify(result)}`);
   return result;
 }

@@ -13,6 +13,7 @@ import { createLogger, type Logger } from "vite";
 import type { HtmlWorkerOutputMessage } from "./types.js";
 import type { RscWorkerOutputMessage } from "./types.js";
 import { toError } from "../error/toError.js";
+import { createPluginLogger } from "../helpers/logger.js";
 
 export type CreateWorkerOptions = {
   projectRoot?: string;
@@ -74,6 +75,7 @@ export async function createWorker(
     logger = createLogger(),
     verbose = false,
   } = options;
+  const log = createPluginLogger(verbose, logger);
   const id = reverseCondition === "react-server" ? "worker/rsc" : "worker/html";
   let workerPathWithDefault =
     typeof workerPath === "string" ? workerPath : undefined;
@@ -157,14 +159,14 @@ export async function createWorker(
         const messageHandler = (
           msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage
         ) => {
-          if (verbose) logger.info(`[create:${id}] Initial worker message ${msg.type}`);
+          log.info(`[create:${id}] Initial worker message ${msg.type}`);
           if (msg.type === "READY") {
-            if (verbose) logger.info(`[create:${id}] Worker running for ${msg.env}`);
+            log.info(`[create:${id}] Worker running for ${msg.env}`);
             clearTimeout(timeout);
             worker.removeListener("message", messageHandler);
             worker.removeListener("exit", exitHandler);
             if (msg.env !== nodeEnv) {
-              if (verbose) logger.info(`[create:${id}] Worker environment mismatch.`);
+              log.info(`[create:${id}] Worker environment mismatch.`);
               reject({
                 type: "error",
                 error: new Error(

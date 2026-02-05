@@ -1,16 +1,17 @@
 import { messageHandler } from "./messageHandler.js";
 import { parentPort, workerData } from "node:worker_threads";
 import type { ReadyMessage } from "../types.js";
+import { createPluginLogger } from "../../helpers/logger.js";
 
-const verbose = workerData.verbose;
+const log = createPluginLogger(workerData.verbose);
 
 function developmentMessageHandler(msg: any) {
-  if (verbose) {
+  if (log.isDebug) {
     if ("chunk" in msg) {
       let preview = Buffer.from(msg.chunk).toString("utf-8");
-      console.log(`[html-worker:${msg.type}] ${preview}`);
+      log.debug(`[html-worker:${msg.type}] ${preview}`);
     } else {
-      console.log(`[html-worker:${msg.type}] ${JSON.stringify(msg)}`);
+      log.debug(`[html-worker:${msg.type}] ${JSON.stringify(msg)}`);
     }
   }
   messageHandler(msg);

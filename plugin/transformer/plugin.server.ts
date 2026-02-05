@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { setStashedResolve } from "../helpers/moduleResolver.js";
 import { transformModuleIfNeeded } from "../loader/transformModuleIfNeeded.js";
 import { logError } from "../error/toError.js";
+import { createPluginLogger, type PluginLogger } from "../helpers/logger.js";
 
 /**
  * Plugin for transforming React Client Components.
@@ -52,6 +53,7 @@ export function reactTransformPlugin<
   let staticManifest: Manifest = {};
   let isBuild = true;
   let isSSR = false;
+  let log: PluginLogger = createPluginLogger(userOptions.verbose);
 
   return {
     name: "vite:react-server-transform",
@@ -59,6 +61,7 @@ export function reactTransformPlugin<
     async configResolved(config) {
       isBuild = config.command === "build";
       isSSR = config.build?.ssr === true;
+      log = createPluginLogger(userOptions.verbose, config.logger);
 
       if (isBuild && isSSR) {
         const staticManifestResult = await tryManifest({
@@ -132,26 +135,20 @@ export function reactTransformPlugin<
         isClientComponentCode,
         true
       );
-      if (userOptions.verbose)
-        if (transformed !== code) {
-          if (id !== finalID) {
-            this.environment.logger.info(
-              "[react-server-transform] " +
-                id.split("/").pop() +
-                " -> " +
-                finalID
-            );
-          } else {
-            this.environment.logger.info(
-              "[react-server-transform] " +
-                id.split("/").pop() +
-                (code.startsWith('"use client"') ? " (client)" : "")
-            );
-          }
-          this.environment.logger.info(
-            "[react-server-transform] " + transformed
+      if (transformed !== code) {
+        if (id !== finalID) {
+          log.debug(
+            "[react-server-transform] " + id.split("/").pop() + " -> " + finalID
+          );
+        } else {
+          log.debug(
+            "[react-server-transform] " +
+              id.split("/").pop() +
+              (code.startsWith('"use client"') ? " (client)" : "")
           );
         }
+        log.debug("[react-server-transform] " + transformed);
+      }
       if (!transformed) {
         return {
           code: "",

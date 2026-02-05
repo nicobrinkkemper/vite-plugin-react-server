@@ -536,7 +536,14 @@ export interface StreamPluginOptions<
   onEvent?: (event: PluginEvent) => void;
   normalizer?: InputNormalizer;
   moduleID?: (id: string) => string;
-  verbose?: boolean;
+  /**
+   * Log level for plugin output.
+   * - `true` / `"debug"`: all output (old verbose behavior)
+   * - `"info"`: lifecycle events only
+   * - `"error"` / `false`: errors only (default)
+   * - `"silent"`: no output
+   */
+  verbose?: boolean | import("./helpers/logger.js").LogLevel;
 }
 
 export type MultiPageHandlerOptions<

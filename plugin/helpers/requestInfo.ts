@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import type { ResolvedUserOptions } from "../types.js";
 import { createLogger, type Connect, type Logger } from "vite";
 import { MIME_TYPES } from "../config/mimeTypes.js";
+import { createPluginLogger } from "./logger.js";
 
 /**
  * # Request info
@@ -22,6 +23,7 @@ export function requestInfo(
   hostDir: string,
   logger: Logger = createLogger()
 ) {
+  const log = createPluginLogger(userOptions.verbose, logger);
   const [, value] = userOptions.normalizer(req.url);
   const dotIndex = value.lastIndexOf(".");
   const ext = dotIndex === -1 ? "" : value.slice(dotIndex);
@@ -157,26 +159,22 @@ export function requestInfo(
     ? routeWithoutTrailingSlash
     : `/${routeWithoutTrailingSlash}`;
 
-  if (userOptions.verbose) {
-    if (isFormActionRequest) {
-      logger.info(`[react-dev-server] (form-action) ${routeWithLeadingSlash}`);
-    } else if (isServerActionRequest) {
-      logger.info(
-        `[react-dev-server] (server-action) ${routeWithLeadingSlash}`
-      );
-    } else if (isHtmlRequest) {
-      logger.info(`[react-dev-server] (html) ${routeWithLeadingSlash}`);
-    } else if (isRscRequest) {
-      logger.info(`[react-dev-server] (rsc) ${routeWithLeadingSlash}`);
-    } else if (isCssRequest) {
-      logger.info(`[react-dev-server] (css) ${routeWithLeadingSlash}`);
-    } else if (isJsRequest) {
-      logger.info(`[react-dev-server] (js) ${routeWithLeadingSlash}`);
-    } else if (isJsonRequest) {
-      logger.info(`[react-dev-server] (json) ${routeWithLeadingSlash}`);
-    } else {
-      logger.info(`[react-dev-server] (other) ${routeWithLeadingSlash}`);
-    }
+  if (isFormActionRequest) {
+    log.info(`[react-dev-server] (form-action) ${routeWithLeadingSlash}`);
+  } else if (isServerActionRequest) {
+    log.info(`[react-dev-server] (server-action) ${routeWithLeadingSlash}`);
+  } else if (isHtmlRequest) {
+    log.info(`[react-dev-server] (html) ${routeWithLeadingSlash}`);
+  } else if (isRscRequest) {
+    log.info(`[react-dev-server] (rsc) ${routeWithLeadingSlash}`);
+  } else if (isCssRequest) {
+    log.info(`[react-dev-server] (css) ${routeWithLeadingSlash}`);
+  } else if (isJsRequest) {
+    log.info(`[react-dev-server] (js) ${routeWithLeadingSlash}`);
+  } else if (isJsonRequest) {
+    log.info(`[react-dev-server] (json) ${routeWithLeadingSlash}`);
+  } else {
+    log.info(`[react-dev-server] (other) ${routeWithLeadingSlash}`);
   }
   return {
     route: routeWithLeadingSlash,

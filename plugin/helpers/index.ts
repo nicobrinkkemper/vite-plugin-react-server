@@ -31,3 +31,6 @@ export * from "./getBundleManifest.js";
 
 // Module handling
 export * from "./moduleRefs.js";
+
+// Logging
+export * from "./logger.js";

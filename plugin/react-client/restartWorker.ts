@@ -7,6 +7,7 @@ import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { createPluginLogger } from "../helpers/logger.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
@@ -26,6 +27,7 @@ export async function restartWorker({
       return currentWorker;
     }
     isRestarting = true;
+    const log = createPluginLogger(userOptions.verbose, server.config.logger);
   
     try {
       // Terminate the current worker if it exists
@@ -69,7 +71,7 @@ export async function restartWorker({
   
       if (workerResult.type === "success") {
         currentWorker = workerResult.worker;
-        if(userOptions.verbose) server.config.logger.info(
+        log.info(
           `[react-client] Set max listeners to ${maxListeners} for ${routeCount} routes`
         );
       } else if (workerResult.type === "error") {

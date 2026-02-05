@@ -10,6 +10,7 @@ import { join } from "node:path";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { resolvePublicOrigin } from "./publicOrigin.js";
+import { createPluginLogger } from "../helpers/logger.js";
 
 let stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 
@@ -38,6 +39,7 @@ export function resolveUserConfig<
   userOptions,
   autoDiscoveredFiles,
 }: ResolveUserConfigProps<T, InlineCSS>): ResolveUserConfigReturn {
+  const log = createPluginLogger(userOptions.verbose);
   const ssr =
     typeof config.build?.ssr === "boolean"
       ? config.build?.ssr
@@ -148,9 +150,7 @@ export function resolveUserConfig<
             userOptions.build.entryFile,
             ssr
           );
-          if (userOptions.verbose) {
-            console.log("entryFileNames", input, r);
-          }
+          log.debug(`entryFileNames ${input} ${r}`);
           stashedReturns[inputId] = r;
         }
         // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
@@ -167,9 +167,7 @@ export function resolveUserConfig<
           if (!stashedReturns[inputId]) {
             const r = handleSsrName(i, input, userOptions.build.assetFile, ssr);
 
-            if (userOptions.verbose) {
-              console.log("assetFileNames", input, stashedReturns[input]);
-            }
+            log.debug(`assetFileNames ${input} ${stashedReturns[input]}`);
             stashedReturns[inputId] = r;
           }
           // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here
@@ -192,9 +190,7 @@ export function resolveUserConfig<
             ssr
           );
 
-          if (userOptions.verbose) {
-            console.log("chunkFileNames", input, stashedReturns[input]);
-          }
+          log.debug(`chunkFileNames ${input} ${stashedReturns[input]}`);
           stashedReturns[inputId] = r;
         }
         // in the case of empty basePath, it will not be sliced from the path, so, we need to slice it here

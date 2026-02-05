@@ -10,6 +10,7 @@ import type {
   ReadyMessage,
 } from "../types.js";
 import { toError } from "../../error/toError.js";
+import { createPluginLogger } from "../../helpers/logger.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -19,38 +20,32 @@ if (!parentPort) {
 // In test mode, we want errors to propagate up immediately
 const isTestEnv = process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 const isDevEnv = process.env["NODE_ENV"] !== "production";
-const verbose = workerData.verbose;
+const log = createPluginLogger(workerData.verbose);
 
 const developmentMessageHandler = (msg: any) => {
-  if (verbose) {
+  if (log.isDebug) {
     if ("chunk" in msg) {
       let preview = Buffer.from(msg.chunk).toString("utf-8");
-      console.log(`[rsc-worker:${msg.type}] ${preview}`);
+      log.debug(`[rsc-worker:${msg.type}] ${preview}`);
     } else {
-      console.log(`[rsc-worker:${msg.type}] ${JSON.stringify(msg)}`);
+      log.debug(`[rsc-worker:${msg.type}] ${JSON.stringify(msg)}`);
     }
   }
   messageHandler(msg);
 };
 
 const developmentCssLoaderMessageHandler = (msg: any) => {
-  if (verbose) {
-    console.log(`[css-loader:${msg.type}] ${JSON.stringify(msg)}`);
-  }
+  log.debug(`[css-loader:${msg.type}] ${JSON.stringify(msg)}`);
   messageHandler(msg);
 };
 
 const developmentEnvLoaderMessageHandler = (msg: any) => {
-  if (verbose) {
-    console.log(`[env-loader:${msg.type}] ${JSON.stringify(msg)}`);
-  }
+  log.debug(`[env-loader:${msg.type}] ${JSON.stringify(msg)}`);
   messageHandler(msg);
 };
 
 const developmentReactLoaderMessageHandler = (msg: any) => {
-  if (verbose) {
-    console.log(`[react-loader:${msg.type}] ${JSON.stringify(msg)}`);
-  }
+  log.debug(`[react-loader:${msg.type}] ${JSON.stringify(msg)}`);
   messageHandler(msg);
 };
 
