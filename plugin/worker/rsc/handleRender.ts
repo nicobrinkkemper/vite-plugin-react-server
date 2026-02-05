@@ -99,7 +99,18 @@ export async function handleRender<
       return;
     }
 
-    const { stream, metrics } = streamResult;
+    const { stream } = streamResult;
+
+    // Track stream metrics locally
+    const streamMetrics = {
+      chunks: 0,
+      bytes: 0,
+      backpressureCount: 0,
+      drainCount: 0,
+      errorCount: 0,
+      duration: 0,
+      startTime: performance.now(),
+    };
 
     // Create pass-through stream
     const passThrough = new PassThrough();
@@ -110,18 +121,18 @@ export async function handleRender<
 
     // Handle data chunks
     passThrough.on("data", (chunk) => {
-      metrics.chunks++;
-      metrics.bytes += chunk.length;
-      metrics.duration = performance.now() - metrics.startTime;
+      streamMetrics.chunks++;
+      streamMetrics.bytes += chunk.length;
+      streamMetrics.duration = performance.now() - streamMetrics.startTime;
       handlers.onData(id, chunk);
     });
 
     // Handle stream end
     passThrough.on("end", () => {
-      metrics.duration = performance.now() - metrics.startTime;
+      streamMetrics.duration = performance.now() - streamMetrics.startTime;
       handlers.onEnd(id);
       if (activeStreams.has(id)) {
-        handlers.onMetrics(id, metrics);
+        handlers.onMetrics(id, streamMetrics);
         activeStreams.delete(id);
       }
     });

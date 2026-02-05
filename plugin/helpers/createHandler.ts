@@ -9,61 +9,24 @@ export function createHandler<
   if (!handlerOptions.PageComponent) {
     throw new Error("PageComponent is required");
   }
-  try {
-    const adaptedOnEvent = (event: "error" | "postpone", data: any) => {
-      if (event === "error") {
-        handlerOptions.onEvent?.({
-          type: "route.error",
-          data: {
-            route: handlerOptions.route,
-            ...data,
-          },
-        });
-      } else if (event === "postpone") {
-        handlerOptions.onEvent?.({
-          type: "route.postpone",
-          data: {
-            route: handlerOptions.route,
-            ...data,
-          },
-        });
-      }
-    };
 
-    const streamResult = createRscStream({
-      ...handlerOptions,
-      onEvent: adaptedOnEvent,
-      cssFiles: handlerOptions.cssFiles,
-      PageComponent: handlerOptions.PageComponent as any,
-      pageProps: handlerOptions.pageProps,
-    });
-
-    if (streamResult.type === "error") {
-      handlerOptions.onEvent?.({
-        type: "route.error",
-        data: {
-          route: handlerOptions.route,
-          error: streamResult.error,
-        },
-      });
-      throw streamResult.error;
-    }
-
-    return {
-      type: "success",
-      stream: streamResult.stream,
-    };
-  } catch (error) {
+  const onEvent = (type: string, data: any) =>
     handlerOptions.onEvent?.({
-      type: "route.error",
-      data: {
-        route: handlerOptions.route,
-        error,
-      },
+      type: `route.${type}` as any,
+      data: { route: handlerOptions.route, ...data },
     });
-    return {
-      type: "error",
-      error: error as Error,
-    };
+
+  const streamResult = createRscStream({
+    ...handlerOptions,
+    onEvent: (event, data) => onEvent(event, data),
+    cssFiles: handlerOptions.cssFiles,
+    PageComponent: handlerOptions.PageComponent as any,
+    pageProps: handlerOptions.pageProps,
+  });
+
+  if (streamResult.type === "error") {
+    onEvent("error", { error: streamResult.error });
   }
+
+  return streamResult;
 }

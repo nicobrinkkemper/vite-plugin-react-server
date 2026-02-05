@@ -12,7 +12,6 @@ export * from "./cleanObject.js";
 export * from "./inputNormalizer.js";
 
 // CSS handling
-export * from "./collectBundleManifestCss.js";
 export * from "./collectManifestCss.js";
 export * from "./collectViteModuleGraphCss.js";
 export * from "./createCssProps.js";
@@ -32,7 +31,3 @@ export * from "./getBundleManifest.js";
 
 // Module handling
 export * from "./moduleRefs.js";
-
-// Utility functions
-export * from "./stashReturnValue.js";
-export * from "./defaultFileWriter.js";

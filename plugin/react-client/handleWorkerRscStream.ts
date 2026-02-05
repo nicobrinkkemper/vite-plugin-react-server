@@ -44,14 +44,23 @@ export function handleWorkerRscStream({
         if (!msg) return;
 
         switch (msg.type) {
-          case "RSC_CHUNK":
+          case "RSC_CHUNK": {
             // Clear startup timeout on first data
             if (startupTimeout) {
               clearTimeout(startupTimeout);
               startupTimeout = null;
             }
-            controller.enqueue(msg.chunk);
+            // Worker thread structured clone may deliver Buffer as a plain
+            // object — ensure we always enqueue a proper Uint8Array/Buffer.
+            const raw = msg.chunk as any;
+            const chunk = Buffer.isBuffer(raw)
+              ? raw
+              : raw instanceof Uint8Array
+                ? raw
+                : Buffer.from(raw);
+            controller.enqueue(chunk);
             break;
+          }
 
           case "RSC_END":
             cleanup();
