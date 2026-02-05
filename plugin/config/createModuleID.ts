@@ -215,8 +215,8 @@ export const createDefaultModuleID = (
       id = id.slice(moduleBase.length + sep.length);
     }
 
-    // Step 5: Ensure paths start with a moduleBasePath
-    if (!id.startsWith(moduleBasePath)) {
+    // Step 5: Ensure paths start with moduleBasePath (avoid double-prefix)
+    if (moduleBasePath && !id.startsWith(moduleBasePath)) {
       id = moduleBasePath + id;
     }
     
@@ -248,10 +248,8 @@ export const createDefaultModuleID = (
       return id; // Return as-is without leading slash
     }
     
-    const result = `${moduleBasePath}${id}`;
-    
-    
-    return result;
+    // id already has moduleBasePath from Step 5 — return as-is
+    return id;
   };
 };
 
