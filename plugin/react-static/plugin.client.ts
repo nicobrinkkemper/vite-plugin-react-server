@@ -27,7 +27,7 @@ import type {
   AutoDiscoveredFiles,
 } from "../types.js";
 import type { OutputBundle } from "rollup";
-import { renderPages } from "./renderPages.js";
+import { renderPagesBatched } from "./renderPagesBatched.js";
 import { performance } from "node:perf_hooks";
 import { renderPage } from "./renderPage.client.js";
 
@@ -663,7 +663,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           logger?.warn(`[react-static-client] No onEvent handler available to emit build.ssg.start`);
         }
 
-        const renderPagesGenerator = renderPages(
+        const renderPagesGenerator = renderPagesBatched(
           routes,
           {
             ...handlerOptions, // Use the clean options instead of the original handlerOptions
