@@ -233,8 +233,13 @@ export const configureReactServer: ConfigureReactServerFn =
           logger.info(`Collecting CSS files for route: ${info.route}`);
         }
 
+        // Use the server environment's module graph for CSS collection
+        // since we load modules via server.environments['server'].runner.import()
+        const serverEnv = server.environments['server'];
+        const moduleGraphForCss = serverEnv?.moduleGraph ?? server.moduleGraph;
+        
         const cssFilesResult = await collectViteModuleGraphCss({
-          moduleGraph: server.moduleGraph,
+          moduleGraph: moduleGraphForCss,
           parentUrl: pagePath,
           handlerOptions: handlerOptions,
         });
