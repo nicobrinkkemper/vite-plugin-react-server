@@ -41,6 +41,8 @@ export async function createSharedLoader({
   isServeMode = false,
   effectiveProjectRoot,
   build,
+  // Cache busting for dynamic imports (props with db calls)
+  bustCache = false,
 }: {
   moduleId: string;
   exportName?: string;
@@ -60,6 +62,8 @@ export async function createSharedLoader({
   isBuildMode?: boolean;
   isServeMode?: boolean;
   effectiveProjectRoot?: string;
+  // Cache busting for dynamic imports (props with db calls)
+  bustCache?: boolean;
   build?: {
     server?: string;
     client?: string;
@@ -173,8 +177,10 @@ export async function createSharedLoader({
   }
 
   // Step 4: Import the module
+  // Add timestamp query param to bust Node's module cache when needed (e.g., props with db calls)
   const fileUrl = isAbsolute(fullPath) ? pathToFileURL(fullPath).href : fullPath;
-  const result = await import(fileUrl);
+  const importUrl = bustCache ? `${fileUrl}?t=${Date.now()}` : fileUrl;
+  const result = await import(importUrl);
 
   // Step 5: Validate exports
   if (result == null) {

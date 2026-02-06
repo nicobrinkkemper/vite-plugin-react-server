@@ -240,26 +240,9 @@ async function loadComponentsWithCache(options: {
         );
       }
       
-      // Also check props cache if propsPath exists (skip if resolvedPageProps provided)
-      if (propsPath && !resolvedPageProps) {
-        const propsId = `${propsPath}#${propsExportName}`;
-        const isPropsInvalidated = isModuleInvalidated(propsPath);
-        if (hasCachedComponent(propsId) && !isPropsInvalidated) {
-          pageProps = getCachedComponent(propsId);
-          if (verbose) {
-            logger?.info(
-              `[rsc-worker] Using cached pageProps from: ${propsPath}`
-            );
-          }
-        } else {
-          // Props invalidated or not cached - need to reload
-          if (isPropsInvalidated && hasCachedComponent(propsId)) {
-            clearCachedComponent(propsId);
-          }
-          // Will reload props below
-          pageProps = undefined;
-        }
-      } else if (resolvedPageProps) {
+      // Don't cache props - they may call database functions that return different data
+      // Skip props cache check, always reload props fresh
+      if (resolvedPageProps) {
         if (verbose) {
           logger?.info(
             `[rsc-worker] Using pre-resolved pageProps from main thread: ${Object.keys(resolvedPageProps).length} keys`
@@ -277,15 +260,7 @@ async function loadComponentsWithCache(options: {
         }
       }
       
-      // Also clear props cache if page is invalidated
-      if (propsPath && isPageInvalidated) {
-        const propsId = `${propsPath}#${propsExportName}`;
-        if (hasCachedComponent(propsId)) {
-          clearCachedComponent(propsId);
-        }
-      }
-      
-      // Reload page and props
+      // Reload page and props (props are never cached - they may return different data from db)
       try {
         const pageAndPropsResult = await resolvePageAndProps({
           pagePath,
@@ -312,13 +287,8 @@ async function loadComponentsWithCache(options: {
             pageProps = pageAndPropsResult.pageProps;
           }
 
-          // Cache the components
+          // Cache the page component (but NOT props - they may return different data from db)
           cacheComponent(pageId, PageComponent);
-
-          if (propsPath) {
-            const propsId = `${propsPath}#${propsExportName}`;
-            cacheComponent(propsId, pageProps);
-          }
 
           if (verbose) {
             logger?.info(
@@ -326,7 +296,7 @@ async function loadComponentsWithCache(options: {
             );
             if (propsPath) {
               logger?.info(
-                `[rsc-worker] Loaded and cached pageProps from: ${propsPath}`
+                `[rsc-worker] Loaded pageProps (not cached) from: ${propsPath}`
               );
             }
             if (verbose) {
