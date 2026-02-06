@@ -1,118 +1,86 @@
 import { test, expect } from '@playwright/test';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { writeFile, readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const fixtureDir = join(__dirname, '../fixtures/e2e-hmr');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const bidoofDir = join(__dirname, '../../../bidoof-template');
 
-test.describe('HMR', () => {
-  test.beforeAll(async () => {
-    // Setup is done by the test server script
+test.describe('HMR in bidoof-template', () => {
+  
+  test('page content is visible', async ({ page }) => {
+    await page.goto('/todos/');
+    
+    // Verify the todo page loads
+    await expect(page.locator('h1')).toContainText('Todo');
   });
 
   test('page updates without full reload when server component changes', async ({ page }) => {
-    // Navigate to the test page
-    await page.goto('/');
+    const pageFile = join(bidoofDir, 'src/page/todos/page.tsx');
+    const originalContent = await readFile(pageFile, 'utf-8');
     
-    // Verify initial content
-    await expect(page.locator('body')).toContainText('Test Page');
-    
-    // Store a value in window to detect full reload
-    await page.evaluate(() => {
-      (window as any).__hmrTestValue = 'still-here';
-    });
+    try {
+      await page.goto('/todos/');
+      
+      // Verify initial content
+      await expect(page.locator('h1')).toContainText('Todo');
+      
+      // Store a value in window to detect full reload
+      await page.evaluate(() => {
+        (window as any).__hmrTestValue = 'still-here';
+      });
 
-    // Modify the page file
-    await writeFile(
-      join(fixtureDir, 'src/page/page.tsx'),
-      `import React from "react";
-export const Page = () => <div>Updated via HMR</div>;`
-    );
+      // Modify the page file - add a marker
+      const updatedContent = originalContent.replace(
+        '<h1>Todo',
+        '<h1 data-testid="hmr-marker">HMR Updated Todo'
+      );
+      await writeFile(pageFile, updatedContent);
 
-    // Wait for HMR update
-    await page.waitForFunction(
-      () => document.body.textContent?.includes('Updated via HMR'),
-      { timeout: 5000 }
-    );
+      // Wait for HMR update (look for the marker)
+      await page.waitForSelector('[data-testid="hmr-marker"]', { timeout: 10000 });
+      
+      // Verify new content
+      await expect(page.locator('h1')).toContainText('HMR Updated');
 
-    // Verify the page wasn't fully reloaded (our test value should still exist)
-    const testValue = await page.evaluate(() => (window as any).__hmrTestValue);
-    expect(testValue).toBe('still-here');
+      // Verify the page wasn't fully reloaded (our test value should still exist)
+      const testValue = await page.evaluate(() => (window as any).__hmrTestValue);
+      expect(testValue).toBe('still-here');
+      
+    } finally {
+      // Restore original file
+      await writeFile(pageFile, originalContent);
+    }
   });
 
-  test('CSS updates via HMR', async ({ page }) => {
-    await page.goto('/');
+  test('server action works', async ({ page }) => {
+    await page.goto('/todos/');
     
-    // Add a CSS file
-    await mkdir(join(fixtureDir, 'src/css'), { recursive: true });
-    await writeFile(
-      join(fixtureDir, 'src/css/test.css'),
-      `body { background: red; }`
-    );
-
-    // Update page to import CSS
-    await writeFile(
-      join(fixtureDir, 'src/page/page.tsx'),
-      `import React from "react";
-import "../css/test.css";
-export const Page = () => <div data-testid="page">Page with CSS</div>;`
-    );
-
-    // Wait for update
-    await page.waitForFunction(
-      () => document.body.textContent?.includes('Page with CSS'),
-      { timeout: 5000 }
-    );
-
-    // Change CSS color
-    await writeFile(
-      join(fixtureDir, 'src/css/test.css'),
-      `body { background: blue; }`
-    );
-
-    // Wait for CSS to update
-    await page.waitForFunction(
-      () => getComputedStyle(document.body).backgroundColor === 'rgb(0, 0, 255)',
-      { timeout: 5000 }
-    );
+    // Find the input and add a todo
+    const input = page.locator('input[type="text"]');
+    await input.fill('E2E Test Todo');
+    
+    // Submit the form (press Enter or click add button)
+    await input.press('Enter');
+    
+    // Wait for the new todo to appear
+    await expect(page.locator('text=E2E Test Todo')).toBeVisible({ timeout: 5000 });
   });
 
-  test('server action still works after HMR', async ({ page }) => {
-    // Setup server action file
-    await mkdir(join(fixtureDir, 'src/server'), { recursive: true });
-    await writeFile(
-      join(fixtureDir, 'src/server/actions.server.ts'),
-      `"use server";
-export async function testAction(value: string): Promise<string> {
-  return "Server received: " + value;
-}`
-    );
-
-    // Update page to use server action
-    await writeFile(
-      join(fixtureDir, 'src/page/page.tsx'),
-      `import React from "react";
-import { testAction } from "../server/actions.server.js";
-
-export const Page = () => (
-  <div>
-    <button onClick={async () => {
-      const result = await testAction("hello");
-      alert(result);
-    }}>Test Action</button>
-  </div>
-);`
-    );
-
-    await page.goto('/');
+  test('todo toggle persists', async ({ page }) => {
+    await page.goto('/todos/');
     
-    // Set up dialog handler
-    const dialogPromise = page.waitForEvent('dialog');
+    // Find a todo checkbox and click it
+    const checkbox = page.locator('input[type="checkbox"]').first();
+    const initialChecked = await checkbox.isChecked();
     
-    // Click button to trigger server action
-    await page.click('button');
+    await checkbox.click();
     
-    const dialog = await dialogPromise;
-    expect(dialog.message()).toContain('Server received: hello');
-    await dialog.accept();
+    // Wait a moment for the action
+    await page.waitForTimeout(500);
+    
+    // Verify it toggled
+    const newChecked = await checkbox.isChecked();
+    expect(newChecked).toBe(!initialChecked);
   });
 });

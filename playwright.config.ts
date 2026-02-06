@@ -6,7 +6,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: 'html',
+  reporter: process.env.CI ? 'github' : 'html',
+  timeout: 30000,
   
   use: {
     baseURL: 'http://localhost:3200',
@@ -20,11 +21,13 @@ export default defineConfig({
     },
   ],
 
-  // Run dev server before tests
+  // Run bidoof-template dev server before tests
   webServer: {
     command: 'npm run test:e2e:server',
     url: 'http://localhost:3200',
     reuseExistingServer: !process.env.CI,
-    timeout: 30000,
+    timeout: 60000, // Give more time for server startup
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
 });
