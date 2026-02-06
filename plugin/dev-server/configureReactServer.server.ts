@@ -394,35 +394,59 @@ export const configureReactServer: ConfigureReactServerFn =
           pageProps = {};
         }
 
-        try {
-          if (verbose) {
-            logger.info(`Creating RSC worker for route: ${info.route}`);
-          }
-          
-          const workerResult = await createWorker({
-            projectRoot: _userOptions.projectRoot || server.config.root,
-            workerData: {
-              userOptions: serializedOptions(_userOptions, autoDiscoveredFiles),
-              resolvedConfig: server.config,
-              configEnv: { command: "serve", mode: "development" },
-            },
-            verbose,
-            logger,
-          });
-          
-          if (workerResult.type === "success") {
-            rscWorker = workerResult.worker;
+        // DEV MODE OPTIMIZATION: Skip worker, use direct rendering on main thread
+        // 
+        // Why: In dev:rsc mode, the main thread already has react-server condition and 
+        // loads modules via Vite's environment runner which handles HMR automatically.
+        // The worker uses raw import() which bypasses Vite's module graph and HMR.
+        //
+        // Benefits of direct rendering in dev:
+        // - Proper HMR: file changes are picked up immediately via Vite's module graph
+        // - No module caching issues: environment runner handles cache invalidation
+        // - Simpler debugging: all code runs in main thread
+        //
+        // The worker is still valuable for:
+        // - Production builds (isolation, consistent behavior)
+        // - Future: Running RSC in different runtimes (workerd, etc.)
+        //
+        // Users can opt-in to worker in dev via config if needed for testing production behavior.
+        const useWorkerInDev = _userOptions.dev?.useRscWorker === true;
+        
+        if (useWorkerInDev) {
+          try {
             if (verbose) {
-              logger.info(`RSC worker created successfully for route: ${info.route}`);
+              logger.info(`Creating RSC worker for route: ${info.route} (useRscWorker=true)`);
             }
-          } else {
+            
+            const workerResult = await createWorker({
+              projectRoot: _userOptions.projectRoot || server.config.root,
+              workerData: {
+                userOptions: serializedOptions(_userOptions, autoDiscoveredFiles),
+                resolvedConfig: server.config,
+                configEnv: { command: "serve", mode: "development" },
+              },
+              verbose,
+              logger,
+            });
+            
+            if (workerResult.type === "success") {
+              rscWorker = workerResult.worker;
+              if (verbose) {
+                logger.info(`RSC worker created successfully for route: ${info.route}`);
+              }
+            } else {
+              if (verbose) {
+                logger.warn(`RSC worker creation skipped for route: ${info.route}: ${workerResult.reason}`);
+              }
+            }
+          } catch (error) {
             if (verbose) {
-              logger.warn(`RSC worker creation skipped for route: ${info.route}: ${workerResult.reason}`);
+              logger.warn(`Failed to create RSC worker for route: ${info.route}: ${error}`);
             }
           }
-        } catch (error) {
+        } else {
           if (verbose) {
-            logger.warn(`Failed to create RSC worker for route: ${info.route}: ${error}`);
+            logger.info(`[dev:rsc] Using direct rendering (no worker) for proper HMR support`);
           }
         }
 
