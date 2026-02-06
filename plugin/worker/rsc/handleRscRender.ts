@@ -142,18 +142,10 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
         `[rsc-worker:${route}] About to render element for route: ${route}`
       );
       logger?.info(
-        `[rsc-worker:${route}] Element to render: ${JSON.stringify(
-          element,
-          null,
-          2
-        )}`
+        `[rsc-worker:${route}] Element to render: ${JSON.stringify(Object.keys(element).length, null, 2)} keys`
       );
       logger?.info(
-        `[rsc-worker:${route}] Props: ${JSON.stringify(
-          finalHandlerOptions,
-          null,
-          2
-        )}`
+        `[rsc-worker:${route}] Props: ${JSON.stringify(Object.keys(finalHandlerOptions).length, null, 2)} keys`
       );
     }
 

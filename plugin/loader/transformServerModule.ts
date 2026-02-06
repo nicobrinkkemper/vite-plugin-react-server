@@ -144,17 +144,26 @@ export async function transformServerModule(
   const transformedCode = removeDirectives(source, rangesToRemove);
 
   // Register all exports as server references
+  // If this function is called, it means the caller determined this is a server module
+  // (either via AST directive detection or regex-based fast path)
   const registrations = [];
+  const hasFileLevelServerDirective = parseResult.directiveInfo.fileLevel?.type === "server";
+  
   for (const exp of parseResult.exports.exports.values()) {
-    // Check if any exports have server directives
-    const hasServerDirective = parseResult.directiveInfo.functionLevel.some(
+    // Check if any exports have server directives at function level
+    const hasFunctionLevelDirective = parseResult.directiveInfo.functionLevel.some(
       (d) => d.type === "server" && d.name === exp.localName
     );
-    // Register if it has its own server directive or if there's a file-level directive
-    if (
-      hasServerDirective ||
-      parseResult.directiveInfo.fileLevel?.type === "server"
-    ) {
+    // Register if:
+    // 1. Has function-level server directive, OR
+    // 2. Has file-level server directive, OR  
+    // 3. No file-level directive detected (AST might miss pre-compiled directives)
+    //    In this case, we trust the caller's decision to call transformServerModule
+    const shouldRegister = hasFunctionLevelDirective || 
+                          hasFileLevelServerDirective || 
+                          !parseResult.directiveInfo.fileLevel;
+    
+    if (shouldRegister) {
       // Use original module ID for re-exports, current module ID for local exports
       const targetModuleId = exp.originalModuleId || transformedModuleId;
       registrations.push(
