@@ -356,7 +356,7 @@ export const configureReactServer: ConfigureReactServerFn =
             route: info.route,
             moduleBaseURL: server.config.base,
             loader,
-            verbose: true, // Force verbose for debugging
+            verbose,
             logger,
             build: {
               rscOutputPath: userHandlerOptions.build?.rscOutputPath || ".rsc",
