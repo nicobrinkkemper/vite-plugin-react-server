@@ -186,6 +186,12 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         handlerOptions.propsExportName as keyof typeof resolvePropsResult.module
       ] as any;
 
+      if (handlerOptions.verbose) {
+        handlerOptions.logger?.info(
+          `[resolvePageAndProps] Raw pageProps type: ${typeof pageProps}, isFunction: ${typeof pageProps === "function"}`
+        );
+      }
+
       // If props is a function, call it with the URL
       if (typeof pageProps === "function") {
         if (handlerOptions.verbose) {
