@@ -63,15 +63,17 @@ export const handleServerAction: HandleWorkerServerActionFn =
               cleanupServerAction(passThrough, worker, messageHandler, res);
             }
           } else if (message.type === "SERVER_ACTION_RESPONSE") {
-            // Server action completed - write result and end stream
+            // Server action completed - write result in RSC format and end stream
+            // RSC format: 0:<json-value>\n
             if (message.error?.message) {
               logger.error(`[handleServerAction] Server action error: ${message.error?.message}`);
-              passThrough.write(JSON.stringify({ error: message.error?.message }));
+              passThrough.write(`0:${JSON.stringify({ error: message.error.message })}\n`);
             } else if(typeof message.error === "string") {
               logger.error(`[handleServerAction] Server action error: ${message.error}`);
-              passThrough.write(JSON.stringify({ error: message.error?.message }));
+              passThrough.write(`0:${JSON.stringify({ error: message.error })}\n`);
             } else {
-              passThrough.write(JSON.stringify({ returnValue: message.result }));
+              // Write the result directly - React will unwrap it
+              passThrough.write(`0:${JSON.stringify(message.result)}\n`);
             }
             if (messageHandler) {
               cleanupServerAction(passThrough, worker, messageHandler, res);
