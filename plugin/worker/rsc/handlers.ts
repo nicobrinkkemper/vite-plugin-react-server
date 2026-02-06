@@ -159,6 +159,14 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
         id: id,
       });
     },
+    onServerActionResponse: (id, result, error) => {
+      sendMessage({
+        type: "SERVER_ACTION_RESPONSE",
+        id: id,
+        result: result,
+        error: error,
+      });
+    },
   };
 }
 

@@ -58,6 +58,17 @@ export const handleServerAction: HandleWorkerServerActionFn =
             if (messageHandler) {
               cleanupServerAction(passThrough, worker, messageHandler, res);
             }
+          } else if (message.type === "SERVER_ACTION_RESPONSE") {
+            // Server action completed - write result and end stream
+            if (message.error) {
+              logger.error(`[handleServerAction] Server action error: ${message.error}`);
+              passThrough.write(JSON.stringify({ error: message.error }));
+            } else {
+              passThrough.write(JSON.stringify({ returnValue: message.result }));
+            }
+            if (messageHandler) {
+              cleanupServerAction(passThrough, worker, messageHandler, res);
+            }
           } else if (message.type === "ERROR") {
             if (messageHandler) {
               cleanupServerAction(
