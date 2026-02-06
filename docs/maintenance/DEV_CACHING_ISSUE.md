@@ -1,6 +1,14 @@
 # Dev Mode HMR Issues
 
-## Two Related Problems
+## Solution Summary
+
+**The fix**: Skip the RSC worker in dev mode. Use Vite's environment runner for direct rendering on the main thread, which properly handles module cache invalidation via Vite's module graph.
+
+- Set via `dev.useRscWorker: false` (default)
+- Worker is still used for production builds
+- See `configureReactServer.server.ts` for implementation
+
+## Two Related Problems (Historical Context)
 
 ### Problem 1: Server-side Module Caching
 

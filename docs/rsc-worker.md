@@ -2,6 +2,8 @@
 
 This guide covers the worker system implementation, including RSC workers, HTML workers, and worker communication patterns.
 
+> **Note**: In development mode (`dev:rsc`), the RSC worker is **skipped by default**. RSC rendering happens directly on the main thread using Vite's environment runner, which provides proper HMR support. Set `dev.useRscWorker: true` to use the worker in dev mode. See [Configuration Guide](./configuration.md#devuserscworker) for details.
+
 ## Worker System
 
 The plugin uses a worker-based system to handle React Server Components processing and HTML generation. This provides isolation, performance benefits, and the ability to run different React conditions in separate environments.

@@ -246,6 +246,59 @@ propsExportName: "props",
 
 Basically a router for mapping urls to source code. It can be any implementation you want. The props is optional to use, but it's very powerful since anything it returns will be the props for the page component as well as be accessible in the Html component. If you didn't define a props router, you can still define the `props` in the Page file.
 
+## Dev Configuration
+
+### dev.useRscWorker
+
+```ts
+{
+  dev: {
+    useRscWorker: false, // default
+  }
+}
+```
+
+Controls whether to use the RSC worker in development mode.
+
+**Default behavior (`false`)**: In dev mode, RSC rendering happens directly on the main thread using Vite's environment runner. This provides:
+- Proper HMR support (file changes are picked up immediately)
+- No module caching issues
+- Simpler debugging (all code runs in main thread)
+
+**With `useRscWorker: true`**: Uses the same RSC worker as production builds. Useful for:
+- Testing production behavior in development
+- Debugging worker-specific issues
+
+```ts
+// To test production-like behavior in dev:
+export default {
+  dev: {
+    useRscWorker: true,
+  },
+  // ... other options
+} satisfies StreamPluginOptions;
+```
+
+### HMR in Development
+
+When a server component file changes, the plugin:
+1. Invalidates the module in Vite's cache
+2. Sends a `vite-plugin-react-server:server-component-update` WebSocket event
+3. The client can listen for this event to refetch the RSC stream
+
+For automatic RSC refetching on HMR, use the `setupRscHmr` helper in your client entry:
+
+```tsx
+import { createReactFetcher, setupRscHmr } from "vite-plugin-react-server/utils";
+
+const { initialContent, refetch } = createReactFetcher({ callServer });
+
+// Enable HMR for server components
+if (import.meta.hot) {
+  setupRscHmr(import.meta.hot, refetch);
+}
+```
+
 ## Build Configuration
 
 ### build
