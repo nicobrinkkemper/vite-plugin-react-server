@@ -98,7 +98,7 @@ export const configureReactServer: ConfigureReactServerFn =
       }, 5000); // 5 second timeout
     });
 
-    const loader = async (id: string) => {
+    const loader = async (id: string, bustCache = false) => {
       const [moduleID, exportName] = id.split("#");
       
       // Resolve the module path relative to our project root, not the server config root
@@ -107,7 +107,10 @@ export const configureReactServer: ConfigureReactServerFn =
         : moduleID;
       
       // Create the full path from our project root
-      const fullModulePath = `${_userOptions.projectRoot}/${resolvedModuleID}`;
+      // Add timestamp query param to bust Vite's module cache when needed (e.g., for props with db calls)
+      const fullModulePath = bustCache 
+        ? `${_userOptions.projectRoot}/${resolvedModuleID}?t=${Date.now()}`
+        : `${_userOptions.projectRoot}/${resolvedModuleID}`;
       
       // Use server environment runner for proper react-server condition handling
       // This ensures client components are transformed to registerClientReference
