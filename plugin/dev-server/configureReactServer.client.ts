@@ -45,9 +45,11 @@ export const configureReactServer: CreateReactWorkerServerFn =
       // Increase max listeners to prevent warnings during development
       // This is a targeted fix for the memory leak warnings
       // We need to set this on BOTH ports because listeners can be added to either side
-      // Use a reasonable default (20) for the main HMR channel
-      setMaxListenersOnPort(channel.port1, 20);
-      setMaxListenersOnPort(channel.port2, 20);
+      // Use a high default (500) to accommodate large projects with many routes
+      // restartWorker will adjust this based on actual route count
+      const initialMaxListeners = 500;
+      setMaxListenersOnPort(channel.port1, initialMaxListeners);
+      setMaxListenersOnPort(channel.port2, initialMaxListeners);
       unrefPort(channel.port1);
       unrefPort(channel.port2);
       return channel;

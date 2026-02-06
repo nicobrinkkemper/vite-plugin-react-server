@@ -219,9 +219,12 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             propsModule = null;
           }
           const propsExportName = handlerOptions.propsExportName || "props";
-          const propsExport = propsModule[propsExportName];
           
-          if (typeof propsExport === "function") {
+          // Only process if we got a module (server runner succeeded)
+          if (propsModule) {
+            const propsExport = propsModule[propsExportName];
+          
+            if (typeof propsExport === "function") {
             // Call the props function with the URL
             let result = propsExport(info.url);
             if (result instanceof Promise) {
@@ -234,6 +237,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           } else if (propsExport && typeof propsExport === "object") {
             resolvedPageProps = propsExport;
           }
+          }  // end if (propsModule)
         } catch (error) {
           if (handlerOptions.verbose) {
             logger.warn(`[configureRequestHandler] Failed to pre-load props: ${error}`);
