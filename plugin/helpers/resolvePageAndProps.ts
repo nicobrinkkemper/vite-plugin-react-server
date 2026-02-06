@@ -182,13 +182,36 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         );
       }
 
-      const pageProps = resolvePropsResult.module?.[
+      let pageProps = resolvePropsResult.module?.[
         handlerOptions.propsExportName as keyof typeof resolvePropsResult.module
-      ] as never;
+      ] as any;
+
+      // If props is a function, call it with the URL
+      if (typeof pageProps === "function") {
+        if (handlerOptions.verbose) {
+          handlerOptions.logger?.info(
+            `[resolvePageAndProps] Props is a function, calling with url: ${url}`
+          );
+        }
+        try {
+          pageProps = pageProps(url);
+          // Await if it returns a Promise
+          if (pageProps instanceof Promise) {
+            pageProps = await pageProps;
+          }
+        } catch (error) {
+          if (handlerOptions.verbose) {
+            handlerOptions.logger?.error(
+              `[resolvePageAndProps] Error calling props function: ${error}`
+            );
+          }
+          pageProps = {};
+        }
+      }
 
       if (handlerOptions.verbose) {
         handlerOptions.logger?.info(
-          `[resolvePageAndProps] Extracted pageProps: ${JSON.stringify(Object.keys(pageProps).length, null, 2)} keys`
+          `[resolvePageAndProps] Extracted pageProps: ${JSON.stringify(Object.keys(pageProps || {}).length, null, 2)} keys`
         );
         handlerOptions.logger?.info(
           `[resolvePageAndProps] resolvePropsResult.module keys: ${Object.keys(resolvePropsResult.module || {}).join(", ")}`
