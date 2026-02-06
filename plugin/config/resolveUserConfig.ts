@@ -408,12 +408,22 @@ export const resolveUserConfig: ResolveUserConfigFn =
         publicOrigin = "";
       }
     }
+    const isDev = configEnv.mode === 'development' || configEnv.command === 'serve';
     const ssrDefine = {
       [`process.env.${primaryPrefix}BASE_URL`]: `"${base}"`,
       [`process.env.${primaryPrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
+      [`process.env.NODE_ENV`]: `"${configEnv.mode}"`,
+      [`process.env.VITE_DEV`]: isDev ? 'true' : 'false',
+      [`process.env.VITE_PROD`]: isDev ? 'false' : 'true',
     };
     const define = {
       ...config.define,
+      // Standard Vite env vars
+      [`import.meta.env.DEV`]: isDev ? 'true' : 'false',
+      [`import.meta.env.PROD`]: isDev ? 'false' : 'true',
+      [`import.meta.env.MODE`]: `"${configEnv.mode}"`,
+      [`import.meta.env.SSR`]: 'false', // Will be overridden per-environment
+      // Custom env vars
       [`import.meta.env.BASE_URL`]: `"${base}"`,
       [`import.meta.env.PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
       ...ssrDefine,

@@ -101,13 +101,19 @@ export const configureReactServer: ConfigureReactServerFn =
     const loader = async (id: string) => {
       const [moduleID, exportName] = id.split("#");
       
-      // Resolve the module path relative to our project root, not the server config root
-      const resolvedModuleID = moduleID.startsWith("/") 
-        ? moduleID.slice(1) 
-        : moduleID;
+      // Determine the full module path
+      let fullModulePath: string;
       
-      // Create the full path from our project root
-      const fullModulePath = `${_userOptions.projectRoot}/${resolvedModuleID}`;
+      // Check if already an absolute path (from server environment module graph)
+      if (moduleID.startsWith(_userOptions.projectRoot)) {
+        fullModulePath = moduleID;
+      } else {
+        // Resolve relative path against project root
+        const resolvedModuleID = moduleID.startsWith("/") 
+          ? moduleID.slice(1) 
+          : moduleID;
+        fullModulePath = `${_userOptions.projectRoot}/${resolvedModuleID}`;
+      }
       
       // Use server environment runner for proper react-server condition handling
       // This ensures client components are transformed to registerClientReference
@@ -122,11 +128,11 @@ export const configureReactServer: ConfigureReactServerFn =
         result = await server.ssrLoadModule(fullModulePath);
       }
       if (result == null)
-        throw new Error(`Module \"${resolvedModuleID}\" does not have any exports`);
+        throw new Error(`Module \"${moduleID}\" does not have any exports`);
 
       if (!Object.keys(result).length && exportName.length)
         throw new Error(
-          `Module \"${resolvedModuleID}\" is a module, but does not have any exports so it can't find ${exportName}`
+          `Module \"${moduleID}\" is a module, but does not have any exports so it can't find ${exportName}`
         );
 
       // Always return the full module - callers will extract the specific export if needed
@@ -231,52 +237,11 @@ export const configureReactServer: ConfigureReactServerFn =
           verbose: verbose,
         };
 
-        if (verbose) {
-          logger.info(`Collecting CSS files for route: ${info.route}`);
-        }
-
-        // Use the main module graph for CSS collection
-        // This is the mixed graph that contains modules from all environments
-        const moduleGraphForCss = server.moduleGraph;
-        
-        const cssFilesResult = await collectViteModuleGraphCss({
-          moduleGraph: moduleGraphForCss,
-          parentUrl: pagePath,
-          handlerOptions: handlerOptions,
-        });
-
-        if (verbose) {
-          logger.info(`CSS collection completed for route: ${info.route}`);
-        }
-
-        if (cssFilesResult.type === "skip") {
-          if (verbose) {
-            logger.info(`CSS collection skipped for route: ${info.route}, continuing with RSC rendering`);
-          }
-          // Continue with RSC rendering even if CSS collection is skipped
-        }
-        if (cssFilesResult.type === "error") {
-          return next(cssFilesResult.error);
-        }
-
-        if (verbose) {
-          logger.info(
-            `Creating final handler options for route: ${info.route}`
-          );
-        }
-
-        if (verbose) {
-          logger.info(`Creating RSC handler for route: ${info.route}`);
-        }
-
-        // Load actual components and props like the client environment does
+        // Load actual components first - this registers them in the module graph
+        // which is required for CSS collection to work
         let PageComponent: React.ComponentType<any> = React.Fragment;
-        let RootComponent: React.ComponentType<any> = DefaultRoot;  // Use default Root, not Fragment
-        // Note: HtmlComponent not used for RSC requests (they use React.Fragment for headless mode)
+        let RootComponent: React.ComponentType<any> = DefaultRoot;
         let pageProps: any = {};
-        
-        // Collect CSS files from the module graph
-        const collectedCssFiles = cssFilesResult.type === "success" ? cssFilesResult.cssFiles : new Map();
         
         // Load the Root component
         if (rootPath) {
@@ -306,11 +271,10 @@ export const configureReactServer: ConfigureReactServerFn =
           }
         }
 
-        // Load the page component
+        // Load the page component (registers it in module graph for CSS collection)
         if (pagePath) {
           try {
             const pageExportName = userHandlerOptions.pageExportName || "Page";
-            // Loader returns the full module, extract the export
             const pageModule = await loader(pagePath);
             
             if (pageModule && pageModule[pageExportName] && typeof pageModule[pageExportName] === 'function') {
@@ -324,7 +288,6 @@ export const configureReactServer: ConfigureReactServerFn =
                 logger.info(`Loaded default export as Page component for route ${info.route}`);
               }
             } else if (pageModule && typeof pageModule === 'function') {
-              // If the module itself is a function (default export)
               PageComponent = pageModule as React.ComponentType<any>;
               if (verbose) {
                 logger.info(`Loaded module as Page component for route ${info.route}`);
@@ -339,6 +302,39 @@ export const configureReactServer: ConfigureReactServerFn =
               logger.warn(`Failed to load page component from ${pagePath}: ${error}`);
             }
           }
+        }
+
+        // NOW collect CSS - page is registered in module graph
+        if (verbose) {
+          logger.info(`Collecting CSS files for route: ${info.route}`);
+        }
+
+        const serverEnv = server.environments['server'];
+        const moduleGraphForCss = serverEnv?.moduleGraph ?? server.moduleGraph;
+        
+        const cssFilesResult = await collectViteModuleGraphCss({
+          moduleGraph: moduleGraphForCss,
+          parentUrl: pagePath,
+          handlerOptions: handlerOptions,
+        });
+
+        if (verbose) {
+          logger.info(`CSS collection completed for route: ${info.route}`);
+        }
+
+        if (cssFilesResult.type === "skip") {
+          if (verbose) {
+            logger.info(`CSS collection skipped for route: ${info.route}, continuing with RSC rendering`);
+          }
+        }
+        if (cssFilesResult.type === "error") {
+          return next(cssFilesResult.error);
+        }
+
+        const collectedCssFiles = cssFilesResult.type === "success" ? cssFilesResult.cssFiles : new Map();
+
+        if (verbose) {
+          logger.info(`Creating RSC handler for route: ${info.route}`);
         }
 
         // Load props using the resolvePageAndProps helper

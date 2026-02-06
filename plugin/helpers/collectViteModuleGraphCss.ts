@@ -98,10 +98,31 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
     if(verbose) {
       logger.info(`Getting module by URL: ${pagePath}`);
     }
-    const pageModule = await moduleGraph.getModuleByUrl(pagePath, true);
+    
+    // Try multiple path formats since different module graphs use different URL schemes
+    let pageModule = await moduleGraph.getModuleByUrl(pagePath, true);
+    
+    // If not found, try with full path (server environment uses full paths)
+    if (!pageModule && projectRoot && !pagePath.startsWith('/')) {
+      const fullPath = `${projectRoot}/${pagePath}`;
+      if(verbose) {
+        logger.info(`Trying full path: ${fullPath}`);
+      }
+      pageModule = await moduleGraph.getModuleByUrl(fullPath, true);
+    }
+    
+    // Also try with leading slash
+    if (!pageModule && !pagePath.startsWith('/')) {
+      const slashPath = `/${pagePath}`;
+      if(verbose) {
+        logger.info(`Trying slash path: ${slashPath}`);
+      }
+      pageModule = await moduleGraph.getModuleByUrl(slashPath, true);
+    }
+    
     if (!pageModule) {
       if(verbose) {
-        logger.info(`No page module found, skipping`);
+        logger.info(`No page module found for any path variant, skipping`);
       }
       return { type: "skip" };
     }

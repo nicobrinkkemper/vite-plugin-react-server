@@ -137,7 +137,8 @@ describe("RSC Stream Format", () => {
   it("should include client component references with .js extension", () => {
     // Client references should be .js, not .tsx
     // The transformer should convert the extension for browser compatibility
-    expect(response.result).toMatch(/I\[.*\.client\.js.*Link/);
+    // Note: filenames may include hashes like Link.client-14k4vk9.js
+    expect(response.result).toMatch(/I\[.*Link\.client.*\.js.*Link/);
     expect(response.result).not.toMatch(/I\[.*\.client\.tsx.*Link/);
   });
 
