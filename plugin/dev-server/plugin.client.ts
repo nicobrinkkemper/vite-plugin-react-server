@@ -149,11 +149,18 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           server.config.logger.error(`[vite-plugin-react-server] Error handling HMR update: ${error}`);
           isProcessingHmr = false;
         }
+        
+        // Return empty array for server files - we handle them ourselves
+        // This prevents Vite from doing a full reload which would try to import
+        // the server module in the wrong environment (without react-server condition)
+        return [];
       } else if (isServerFile && !hmrHandler) {
         server.config.logger.warn(`[vite-plugin-react-server] Server file changed but HMR handler not available yet: ${file}`);
+        // Still prevent Vite's full reload for server files
+        return [];
       }
       
-      // Return undefined to allow other plugins to handle the update
+      // Return undefined to allow other plugins to handle the update (non-server files)
       return undefined;
     },
   };
