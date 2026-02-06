@@ -1,12 +1,17 @@
 import type { ServerResponse } from "http";
 import { React } from "../vendor/vendor.server.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
+import { createRscStream } from "../stream/createRscStream.server.js";
 import { createRenderToPipeableStreamHandler } from "../stream/createRenderToPipeableStreamHandler.server.js";
+import { createWorker } from "../worker/createWorker.js";
+import type { Worker } from "node:worker_threads";
+import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { handleServerAction } from "./handleServerAction.js";
 import type { ConfigureReactServerFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
+import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { Root as DefaultRoot } from "../components/root.js";
@@ -93,7 +98,7 @@ export const configureReactServer: ConfigureReactServerFn =
       }, 5000); // 5 second timeout
     });
 
-    const loader = async (id: string, bustCache = false) => {
+    const loader = async (id: string) => {
       const [moduleID, exportName] = id.split("#");
       
       // Resolve the module path relative to our project root, not the server config root
@@ -102,10 +107,7 @@ export const configureReactServer: ConfigureReactServerFn =
         : moduleID;
       
       // Create the full path from our project root
-      // Add timestamp query param to bust Vite's module cache when needed (e.g., for props with db calls)
-      const fullModulePath = bustCache 
-        ? `${_userOptions.projectRoot}/${resolvedModuleID}?t=${Date.now()}`
-        : `${_userOptions.projectRoot}/${resolvedModuleID}`;
+      const fullModulePath = `${_userOptions.projectRoot}/${resolvedModuleID}`;
       
       // Use server environment runner for proper react-server condition handling
       // This ensures client components are transformed to registerClientReference
@@ -168,6 +170,9 @@ export const configureReactServer: ConfigureReactServerFn =
         return;
       }
 
+      // Create RSC worker for consistent RSC stream formats
+      let rscWorker: Worker | undefined;
+      
       try {
         const routeFiles = await getRouteFiles(
           info.route,
@@ -389,27 +394,62 @@ export const configureReactServer: ConfigureReactServerFn =
           pageProps = {};
         }
 
-        // DEV MODE: Skip worker, use direct rendering on main thread
-        // This uses Vite's environment runner which handles cache invalidation properly
-        // Worker is only needed for production builds where isolation matters
-        // In dev, fresh module loading on every request is more important than isolation
-        if (verbose) {
-          logger.info(`[dev:rsc] Using direct rendering (no worker) for route: ${info.route}`);
+        try {
+          if (verbose) {
+            logger.info(`Creating RSC worker for route: ${info.route}`);
+          }
+          
+          const workerResult = await createWorker({
+            projectRoot: _userOptions.projectRoot || server.config.root,
+            workerData: {
+              userOptions: serializedOptions(_userOptions, autoDiscoveredFiles),
+              resolvedConfig: server.config,
+              configEnv: { command: "serve", mode: "development" },
+            },
+            verbose,
+            logger,
+          });
+          
+          if (workerResult.type === "success") {
+            rscWorker = workerResult.worker;
+            if (verbose) {
+              logger.info(`RSC worker created successfully for route: ${info.route}`);
+            }
+          } else {
+            if (verbose) {
+              logger.warn(`RSC worker creation skipped for route: ${info.route}: ${workerResult.reason}`);
+            }
+          }
+        } catch (error) {
+          if (verbose) {
+            logger.warn(`Failed to create RSC worker for route: ${info.route}: ${error}`);
+          }
         }
 
-        // DEV MODE: Use direct rendering on main thread (no worker)
-        // This uses Vite's environment runner which handles cache invalidation properly
+        // Use worker-based RSC stream if worker is available, otherwise fall back to direct rendering
         // CRITICAL: For RSC requests, use htmlPath: "" for headless mode (no Html wrapper)
         // This prevents hydration errors where <html> would be rendered inside #root div
-        const rscResult = createRenderToPipeableStreamHandler({
-          ...handlerOptions,
-          url: info.url,
-          PageComponent: PageComponent as any,
-          RootComponent: RootComponent as any,
-          HtmlComponent: React.Fragment,  // Headless stream - no Html wrapper
-          pageProps: pageProps,  // Pass the loaded props
-          cssFiles: collectedCssFiles,
-        });
+        const rscResult = rscWorker 
+          ? createRscStream({
+              ...handlerOptions,
+              url: info.url,
+              pagePath,
+              propsPath,
+              rootPath,  // Pass the root path for worker to load
+              htmlPath: "",  // Empty string = headless RSC (no Html wrapper)
+              rscWorker,
+              cssFiles: collectedCssFiles,
+              globalCss: new Map(),
+            })
+          : createRenderToPipeableStreamHandler({
+              ...handlerOptions,
+              url: info.url,
+              PageComponent: PageComponent as any,
+              RootComponent: RootComponent as any,
+              HtmlComponent: React.Fragment,  // Headless stream - no Html wrapper
+              pageProps: pageProps,  // Pass the loaded props
+              cssFiles: collectedCssFiles,
+            });
 
         if (verbose) {
           logger.info(
@@ -473,6 +513,9 @@ export const configureReactServer: ConfigureReactServerFn =
             }
           }
           activeControllers.delete(res);
+          
+          // Clean up worker when request completes
+          cleanupWorker(rscWorker);
         });
       } catch (error) {
         const panicError = handleError({

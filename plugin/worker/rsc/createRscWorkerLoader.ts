@@ -74,10 +74,9 @@ export const createRscWorkerLoader = ({
   }
 
   // Simple GenericModuleLoader using shared loader utility
-  // bustCache parameter allows callers to bypass Node's module cache (e.g., for props with db calls)
-  return async (id: string, bustCache = false) => {
+  return async (id: string) => {
     if (verbose) {
-      logger.info(`[RSC Worker Loader] Loading module: ${id}${bustCache ? ' (cache busted)' : ''}`);
+      logger.info(`[RSC Worker Loader] Loading module: ${id}`);
     }
 
     const [moduleID, exportName] = id.split("#");
@@ -100,7 +99,6 @@ export const createRscWorkerLoader = ({
       isServeMode,
       effectiveProjectRoot,
       build,
-      bustCache,
     });
   };
 };

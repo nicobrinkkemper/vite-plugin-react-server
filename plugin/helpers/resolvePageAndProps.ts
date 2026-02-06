@@ -107,9 +107,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
                 `[resolvePageAndProps] Loading props from separate file: ${propsId}`
               );
             }
-            // Always bust cache for props since they may call database functions
-            // The loader signature is (id: string, bustCache?: boolean)
-            const result = await (handlerOptions.loader as (id: string, bustCache?: boolean) => Promise<Record<string, unknown>>)(propsId, true);
+            const result = await handlerOptions.loader(propsId);
             return result;
           } else if (propsId === handlerOptions.pagePath) {
             // Props might be in the page module
