@@ -14,6 +14,7 @@ import { handleError } from "../error/handleError.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
+import { Root as DefaultRoot } from "../components/root.js";
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({
@@ -194,6 +195,7 @@ export const configureReactServer: ConfigureReactServerFn =
         }
         const pagePath = routeFiles.page;
         const propsPath = routeFiles.props;
+        const rootPath = routeFiles.root;
 
         // Check if we have a page path - if not, skip this route
         if (!pagePath) {
@@ -233,10 +235,9 @@ export const configureReactServer: ConfigureReactServerFn =
           logger.info(`Collecting CSS files for route: ${info.route}`);
         }
 
-        // Use the server environment's module graph for CSS collection
-        // since we load modules via server.environments['server'].runner.import()
-        const serverEnv = server.environments['server'];
-        const moduleGraphForCss = serverEnv?.moduleGraph ?? server.moduleGraph;
+        // Use the main module graph for CSS collection
+        // This is the mixed graph that contains modules from all environments
+        const moduleGraphForCss = server.moduleGraph;
         
         const cssFilesResult = await collectViteModuleGraphCss({
           moduleGraph: moduleGraphForCss,
@@ -270,9 +271,40 @@ export const configureReactServer: ConfigureReactServerFn =
 
         // Load actual components and props like the client environment does
         let PageComponent: React.ComponentType<any> = React.Fragment;
-        const RootComponent: React.ComponentType<any> = React.Fragment;
+        let RootComponent: React.ComponentType<any> = DefaultRoot;  // Use default Root, not Fragment
         // Note: HtmlComponent not used for RSC requests (they use React.Fragment for headless mode)
         let pageProps: any = {};
+        
+        // Collect CSS files from the module graph
+        const collectedCssFiles = cssFilesResult.type === "success" ? cssFilesResult.cssFiles : new Map();
+        
+        // Load the Root component
+        if (rootPath) {
+          try {
+            const rootExportName = userHandlerOptions.rootExportName || "Root";
+            const rootModule = await loader(rootPath);
+            
+            if (rootModule && rootModule[rootExportName] && typeof rootModule[rootExportName] === 'function') {
+              RootComponent = rootModule[rootExportName] as React.ComponentType<any>;
+              if (verbose) {
+                logger.info(`Loaded Root component for route ${info.route} from ${rootPath}#${rootExportName}`);
+              }
+            } else if (rootModule && rootModule['default'] && typeof rootModule['default'] === 'function') {
+              RootComponent = rootModule['default'] as React.ComponentType<any>;
+              if (verbose) {
+                logger.info(`Loaded default export as Root component for route ${info.route}`);
+              }
+            } else {
+              if (verbose) {
+                logger.warn(`Root component not found in ${rootPath}, using React.Fragment`);
+              }
+            }
+          } catch (error) {
+            if (verbose) {
+              logger.warn(`Failed to load Root component from ${rootPath}: ${error}`);
+            }
+          }
+        }
 
         // Load the page component
         if (pagePath) {
@@ -403,10 +435,10 @@ export const configureReactServer: ConfigureReactServerFn =
               url: info.url,
               pagePath,
               propsPath,
-              rootPath: undefined,
+              rootPath,  // Pass the root path for worker to load
               htmlPath: "",  // Empty string = headless RSC (no Html wrapper)
               rscWorker,
-              cssFiles: new Map(),
+              cssFiles: collectedCssFiles,
               globalCss: new Map(),
             })
           : createRenderToPipeableStreamHandler({
@@ -416,6 +448,7 @@ export const configureReactServer: ConfigureReactServerFn =
               RootComponent: RootComponent as any,
               HtmlComponent: React.Fragment,  // Headless stream - no Html wrapper
               pageProps: pageProps,  // Pass the loaded props
+              cssFiles: collectedCssFiles,
             });
 
         if (verbose) {
