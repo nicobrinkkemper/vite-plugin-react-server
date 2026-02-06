@@ -191,11 +191,26 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       // Note: htmlPath not used for RSC requests (always "" for headless mode)
       
       // Pre-load props on main thread to apply Vite transforms (server actions need this)
+      // Use the server environment runner if available (Vite 6+), otherwise fall back to ssrLoadModule
       let resolvedPageProps: Record<string, unknown> | undefined;
       if (propsPath) {
         try {
           const fullPropsPath = `${handlerOptions.projectRoot}/${propsPath}`;
-          const propsModule = await server.ssrLoadModule(fullPropsPath);
+          const serverEnv = server.environments?.['server'];
+          let propsModule: any;
+          
+          logger.info(`[configureRequestHandler] Pre-loading props from: ${fullPropsPath}`);
+          logger.info(`[configureRequestHandler] Server env exists: ${!!serverEnv}, has runner: ${serverEnv && 'runner' in serverEnv}`);
+          
+          if (serverEnv && 'runner' in serverEnv && serverEnv.runner) {
+            // Vite 6+ server environment with react-server conditions
+            logger.info(`[configureRequestHandler] Using server environment runner`);
+            propsModule = await (serverEnv.runner as any).import(fullPropsPath);
+          } else {
+            // Fallback to ssrLoadModule (may not work with server actions)
+            logger.info(`[configureRequestHandler] Falling back to ssrLoadModule`);
+            propsModule = await server.ssrLoadModule(fullPropsPath);
+          }
           const propsExportName = handlerOptions.propsExportName || "props";
           const propsExport = propsModule[propsExportName];
           
