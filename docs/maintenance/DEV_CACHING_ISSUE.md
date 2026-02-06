@@ -1,6 +1,45 @@
-# Dev Mode Module Caching Issue
+# Dev Mode HMR Issues
 
-## Problem Statement
+## Two Related Problems
+
+### Problem 1: Server-side Module Caching
+
+In development mode, modules loaded by the RSC worker are cached by Node.js's ESM system. When files change:
+
+### Problem 2: Missing Client-side HMR Handler
+
+The server sends WebSocket events on file changes:
+```js
+server.ws.send({
+  type: 'custom',
+  event: 'vite-plugin-react-server:server-component-update',
+  data: { file, path }
+});
+```
+
+**But no client-side code listens for this event!** The RSC stream is never refetched.
+
+## How Vite HMR Works
+
+1. `/@vite/client` is injected into the page
+2. It connects via WebSocket to dev server
+3. Server sends update events
+4. Client handles updates (CSS injection, module reload, etc.)
+
+For RSC to work similarly, we need client-side code that:
+```ts
+if (import.meta.hot) {
+  import.meta.hot.on('vite-plugin-react-server:server-component-update', async (data) => {
+    // Refetch RSC stream
+    const response = await fetch(window.location.pathname + '.rsc');
+    // Update React tree with createFromFetch
+  });
+}
+```
+
+---
+
+## Problem 1 Details: Server-side Caching
 
 In development mode, modules loaded by the RSC worker are cached by Node.js's ESM system. When files change:
 1. HMR correctly updates `hmrState` with `invalidated: true`
@@ -84,6 +123,95 @@ After fix:
 2. Edit a `.server.ts` file → changes should reflect without restart
 3. Edit CSS imported by server component → should hot reload
 4. Edit props file with database call → should return fresh data on refresh
+
+---
+
+## Problem 2 Fix: Client-side HMR Handler
+
+The plugin needs to inject or provide client-side code that handles RSC HMR.
+
+### Option A: Virtual Module (Recommended)
+
+Create a virtual module `virtual:vite-plugin-react-server/hmr` that users import in their client entry:
+
+```ts
+// plugin/virtual/hmr-client.ts
+export function setupRscHmr(refetch: () => Promise<void>) {
+  if (import.meta.hot) {
+    import.meta.hot.on('vite-plugin-react-server:server-component-update', async () => {
+      await refetch();
+    });
+  }
+}
+```
+
+User's client.tsx:
+```tsx
+import { setupRscHmr } from 'virtual:vite-plugin-react-server/hmr';
+import { createFromFetch } from 'react-server-dom-esm/client';
+
+// ... existing code ...
+
+if (import.meta.hot) {
+  setupRscHmr(async () => {
+    // Refetch and update
+    const response = fetch(window.location.pathname, {
+      headers: { Accept: 'text/x-component' }
+    });
+    const newRoot = await createFromFetch(response);
+    // Update React tree
+  });
+}
+```
+
+### Option B: Auto-inject via transformIndexHtml
+
+The plugin could auto-inject HMR handling script:
+
+```ts
+// In plugin
+transformIndexHtml(html) {
+  if (process.env.NODE_ENV === 'development') {
+    return html.replace('</body>', `
+      <script type="module">
+        if (import.meta.hot) {
+          import.meta.hot.on('vite-plugin-react-server:server-component-update', () => {
+            window.location.reload(); // Simple approach
+          });
+        }
+      </script>
+    </body>`);
+  }
+  return html;
+}
+```
+
+### Option C: Enhance createReactFetcher
+
+Make `createReactFetcher` automatically set up HMR:
+
+```ts
+export function createReactFetcher(options) {
+  // ... existing code ...
+  
+  // Set up HMR if available
+  if (import.meta.hot) {
+    import.meta.hot.on('vite-plugin-react-server:server-component-update', async (data) => {
+      // Invalidate and refetch affected routes
+      const affectedRoute = data.routes?.[0] || window.location.pathname;
+      // Trigger React to refetch
+    });
+  }
+  
+  return fetcher;
+}
+```
+
+## Files to Modify (Client-side)
+
+1. Create `plugin/virtual/hmr-client.ts` or add to existing virtual modules
+2. Update `plugin/index.ts` to register the virtual module
+3. Update docs to show how to enable RSC HMR in client entry
 
 ## Related Docs
 
