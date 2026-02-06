@@ -244,8 +244,9 @@ export function sendServerActionResponse(
     logger?.info(`[handleServerActionHelper] Sending response: ${JSON.stringify(result)}`);
   }
 
-  res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(result));
+  // Send in RSC wire format for createFromFetch compatibility
+  res.setHeader("Content-Type", "text/x-component");
+  res.end(`0:${JSON.stringify(result)}\n`);
 }
 
 /**
