@@ -176,13 +176,6 @@ export async function transformServerModule(
   // Check if this is a client component by checking for client directive
   const hasClientDirective =
     parseResult.directiveInfo?.fileLevel?.type === "client";
-  
-  // Debug logging
-  if (loader?.verbose) {
-    loader.logger?.info(
-      `[transformServerModule] ${moduleId}: hasFileLevelServerDirective=${hasFileLevelServerDirective}, hasClientDirective=${hasClientDirective}, fileLevel=${JSON.stringify(parseResult.directiveInfo?.fileLevel)}, registrations=${registrations.length}`
-    );
-  }
 
   let finalCode = transformedCode;
   let imports = [];
