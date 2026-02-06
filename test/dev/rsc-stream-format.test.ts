@@ -55,10 +55,27 @@ export const Page = ({ title }: { title: string }) => (
 );`
   );
 
-  // Props
+  // Props (function that takes url)
   await writeFile(
     join(testDir, "src/page/props.ts"),
-    `export const props = { title: "Test Page" };`
+    `export const props = (url: string) => ({ title: "Test Page", url });`
+  );
+
+  // Async props page
+  await mkdir(join(testDir, "src/page/async-props"), { recursive: true });
+  await writeFile(
+    join(testDir, "src/page/async-props/page.tsx"),
+    `import React from "react";
+export const Page = ({ items }: { items: string[] }) => (
+  <div><h1>Async Props</h1>{items.map((i, idx) => <p key={idx}>{i}</p>)}</div>
+);`
+  );
+  await writeFile(
+    join(testDir, "src/page/async-props/props.ts"),
+    `export const props = async () => {
+  await new Promise(r => setTimeout(r, 10));
+  return { items: ["a", "b", "c"] };
+};`
   );
 
   // Root component (optional, uses default if not provided)
@@ -92,8 +109,14 @@ describe("RSC Stream Format", () => {
           ...testUserOptions,
           projectRoot: testDir,
           moduleBase: "src",
-          Page: (url: string) => `src/page/page.tsx`,
-          props: (url: string) => `src/page/props.ts`,
+          Page: (url: string) => {
+            if (url.startsWith("/async-props")) return `src/page/async-props/page.tsx`;
+            return `src/page/page.tsx`;
+          },
+          props: (url: string) => {
+            if (url.startsWith("/async-props")) return `src/page/async-props/props.ts`;
+            return `src/page/props.ts`;
+          },
           Root: "src/Root.tsx",
         }),
       ],
@@ -142,5 +165,15 @@ describe("RSC Stream Format", () => {
     expect(response.result).toContain("0:");  // Has chunks
     expect(response.ok).toBe(true);
     expect(response.statusCode).toBe(200);
+  });
+
+  it("should resolve async props functions", async () => {
+    // Test async props page
+    const asyncResponse = await handleRSCStream(`http://localhost:${port}/async-props/index.rsc`);
+    expect(asyncResponse.ok).toBe(true);
+    // Verify the async props were resolved (items array should be in the stream)
+    expect(asyncResponse.result).toContain('"items"');
+    // Should contain the actual values
+    expect(asyncResponse.result).toMatch(/"a".*"b".*"c"/);
   });
 });
