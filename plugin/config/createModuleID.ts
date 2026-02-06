@@ -225,8 +225,11 @@ export const createDefaultModuleID = (
       id = moduleBasePath + id;
     }
     
-    // Step 6: Apply extension mapping for build
-    if (isBuild) {
+    // Step 6: Apply extension mapping
+    // ALWAYS replace extensions for client components (browser can't import .tsx)
+    // For other files, only replace in build mode
+    const isClientComponent = clientPattern.test(id);
+    if (isBuild || isClientComponent) {
       id = replaceExtension(id, {
         build: { extensionMap: build.extensionMap },
       });
@@ -243,7 +246,7 @@ export const createDefaultModuleID = (
     }
     
     // For client components, ensure no leading slash to allow proper relative resolution
-    const isClientComponent = clientPattern.test(id);
+    // (isClientComponent already defined in Step 6)
     if (isClientComponent && moduleBasePath === '') {
       return id; // No leading slash for client components
     }
