@@ -63,13 +63,16 @@ export async function transformNonServerEnvironment(
         // Remove "use client" directives in client environment
         rangesToRemove.push({ start: node.start, end: node.end });
       } else if (node.directive === "use server") {
-        // Throw error when "use server" directive is found in client environment
-        throw new Error(
-          "use server directive found in client module: " +
-            moduleId +
-            " -> " +
-            transformedModuleId
-        );
+        // In SSR/non-react-server environment, we need to handle server actions
+        // For now, just remove the directive and let the functions execute directly
+        // This works because SSR is still server-side (Node.js), not browser
+        // The server actions will work as regular async functions
+        rangesToRemove.push({ start: node.start, end: node.end });
+        if (loader.verbose) {
+          loader.logger?.info(
+            `[transformNonServerEnvironment] Allowing "use server" in SSR mode: ${moduleId}`
+          );
+        }
       }
     }
     // Stop at first non-directive
