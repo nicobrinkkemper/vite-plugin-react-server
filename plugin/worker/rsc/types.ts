@@ -152,6 +152,8 @@ export type RscRenderOpt = WorkerMessage & {
     pageProps?: any;
     RootComponent?: any;
     HtmlComponent?: any;
+    // Pre-resolved props from main thread (for server actions support in dev:ssr)
+    resolvedPageProps?: Record<string, unknown>;
   };
 };
 

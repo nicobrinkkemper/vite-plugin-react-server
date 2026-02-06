@@ -189,6 +189,7 @@ async function loadComponentsWithCache(options: {
   loader: any;
   verbose?: boolean;
   logger?: any;
+  resolvedPageProps?: Record<string, unknown>;  // Pre-resolved props from main thread
 }) {
   const {
     pagePath,
@@ -203,10 +204,11 @@ async function loadComponentsWithCache(options: {
     loader,
     verbose,
     logger,
+    resolvedPageProps,
   } = options;
 
   let PageComponent: any;
-  let pageProps: any;
+  let pageProps: any = resolvedPageProps;  // Use pre-resolved props if available
   let RootComponent: any;
   let HtmlComponent: any;
 
@@ -236,8 +238,8 @@ async function loadComponentsWithCache(options: {
         );
       }
       
-      // Also check props cache if propsPath exists
-      if (propsPath) {
+      // Also check props cache if propsPath exists (skip if resolvedPageProps provided)
+      if (propsPath && !resolvedPageProps) {
         const propsId = `${propsPath}#${propsExportName}`;
         const isPropsInvalidated = isModuleInvalidated(propsPath);
         if (hasCachedComponent(propsId) && !isPropsInvalidated) {
@@ -254,6 +256,12 @@ async function loadComponentsWithCache(options: {
           }
           // Will reload props below
           pageProps = undefined;
+        }
+      } else if (resolvedPageProps) {
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker] Using pre-resolved pageProps from main thread: ${Object.keys(resolvedPageProps).length} keys`
+          );
         }
       }
     } else {
@@ -297,7 +305,10 @@ async function loadComponentsWithCache(options: {
 
         if (pageAndPropsResult.type === "success") {
           PageComponent = pageAndPropsResult.PageComponent;
-          pageProps = pageAndPropsResult.pageProps;
+          // Use pre-resolved props from main thread if available, otherwise use loaded props
+          if (!resolvedPageProps) {
+            pageProps = pageAndPropsResult.pageProps;
+          }
 
           // Cache the components
           cacheComponent(pageId, PageComponent);
@@ -674,6 +685,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             loader,
             verbose,
             logger,
+            resolvedPageProps: msg.options.resolvedPageProps,  // Pre-resolved from main thread
           });
 
         if (verbose) {

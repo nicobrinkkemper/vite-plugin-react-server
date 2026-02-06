@@ -189,6 +189,37 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       const propsPath = routeFiles.props;
       const rootPath = routeFiles.root;
       // Note: htmlPath not used for RSC requests (always "" for headless mode)
+      
+      // Pre-load props on main thread to apply Vite transforms (server actions need this)
+      let resolvedPageProps: Record<string, unknown> | undefined;
+      if (propsPath) {
+        try {
+          const fullPropsPath = `${handlerOptions.projectRoot}/${propsPath}`;
+          const propsModule = await server.ssrLoadModule(fullPropsPath);
+          const propsExportName = handlerOptions.propsExportName || "props";
+          const propsExport = propsModule[propsExportName];
+          
+          if (typeof propsExport === "function") {
+            // Call the props function with the URL
+            let result = propsExport(info.url);
+            if (result instanceof Promise) {
+              result = await result;
+            }
+            resolvedPageProps = result;
+            if (handlerOptions.verbose) {
+              logger.info(`[configureRequestHandler] Pre-loaded props for ${info.route}: ${Object.keys(resolvedPageProps || {}).length} keys`);
+            }
+          } else if (propsExport && typeof propsExport === "object") {
+            resolvedPageProps = propsExport;
+          }
+        } catch (error) {
+          if (handlerOptions.verbose) {
+            logger.warn(`[configureRequestHandler] Failed to pre-load props: ${error}`);
+          }
+          // Continue without pre-loaded props, worker will try to load them
+        }
+      }
+      
       try {
         // Set up response headers for streaming
         res.setHeader("Content-Type", info.contentType);
@@ -248,6 +279,8 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             url: info.url,
             pagePath: pagePath,
             propsPath: propsPath,
+            // Pass pre-resolved props (loaded via Vite's ssrLoadModule for proper transforms)
+            resolvedPageProps: resolvedPageProps,
             rootPath: rootPath,
             // CRITICAL: For RSC requests, use htmlPath: "" for headless mode (no Html wrapper)
             // This prevents hydration errors where <html> would be rendered inside #root div
