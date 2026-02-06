@@ -164,7 +164,8 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
         type: "SERVER_ACTION_RESPONSE",
         id: id,
         result: result,
-        error: error,
+        // Only include error if it's truthy - prevents serializeError(undefined)
+        ...(error ? { error } : {}),
       });
     },
   };
