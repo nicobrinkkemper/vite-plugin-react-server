@@ -84,11 +84,14 @@ export function requestInfo(
     ) || !!req.headers["content-type"]?.includes("multipart/form-data");
 
   // Server action detection
+  const hasRscActionHeader = !!req.headers["x-rsc-action"];
   const hasServerActionHeaders =
     req.method === "POST" &&
-    (req.headers["sec-fetch-dest"] === "empty" ||
-      req.headers["sec-fetch-dest"] === "") &&
-    req.headers["sec-fetch-mode"] === "cors";
+    (hasRscActionHeader || (
+      (req.headers["sec-fetch-dest"] === "empty" ||
+        req.headers["sec-fetch-dest"] === "") &&
+      req.headers["sec-fetch-mode"] === "cors"
+    ));
   const isServerActionRequest = hasServerActionHeaders;
 
   const isFormActionRequest =

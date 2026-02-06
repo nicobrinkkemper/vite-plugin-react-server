@@ -10,6 +10,8 @@ import type {
   ComponentsResolvedMessage,
 } from "./types.js";
 import { toError } from "../../error/toError.js";
+// Import decodeReply for server action argument decoding
+import { decodeReply } from "react-server-dom-esm/server";
 
 import { createHandlers } from "./handlers.js";
 import {
@@ -1114,8 +1116,26 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             throw new Error(`Server action not found: ${msg.id}`);
           }
 
+          // Decode args if they're in React's encoded format
+          let decodedArgs = msg.args;
+          if (msg.args.length === 1 && typeof msg.args[0] === "string") {
+            // Might be React's encoded format - try to decode
+            try {
+              const moduleBasePath = serverActionUserOptions.moduleBasePath ?? "/";
+              decodedArgs = await decodeReply(msg.args[0], moduleBasePath);
+              if (verbose) {
+                logger?.info(`[rsc-worker] Decoded server action args: ${JSON.stringify(decodedArgs)}`);
+              }
+            } catch {
+              // Not encoded format, use as-is
+              if (verbose) {
+                logger?.info(`[rsc-worker] Using raw server action args`);
+              }
+            }
+          }
+
           // Execute the server action
-          const result = await action(...msg.args);
+          const result = await action(...decodedArgs);
 
           // Send success response
           effectiveHandlers.onServerActionResponse?.(msg.id, result);

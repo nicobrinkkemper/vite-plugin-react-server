@@ -76,10 +76,12 @@ export async function parseServerActionRequest(
   verbose = false,
   logger?: Logger
 ): Promise<ServerActionRequest> {
-  let id = req.url?.split("?")[0] ?? "";
+  // Get action ID from x-rsc-action header (preferred) or URL
+  let id = (req.headers["x-rsc-action"] as string) ?? req.url?.split("?")[0] ?? "";
   
   if (verbose) {
     logger?.info(`[handleServerActionHelper] Parsing request at ${req.url}`);
+    logger?.info(`[handleServerActionHelper] Action ID from header: ${req.headers["x-rsc-action"]}`);
   }
 
   // Parse the request body
@@ -92,23 +94,33 @@ export async function parseServerActionRequest(
     const body = Buffer.concat(chunks).toString();
     
     if (verbose) {
-      logger?.info(`[handleServerActionHelper] Request body: ${body}`);
+      logger?.info(`[handleServerActionHelper] Request body length: ${body.length}`);
     }
 
-    const parsed = JSON.parse(body);
-    if (Array.isArray(parsed)) {
-      // Format 1: Direct args array
-      args = parsed;
-      // Get the action ID from the request URL
-      if (verbose) {
-        logger?.info(`[handleServerActionHelper] Using action ID from URL: ${id}`);
+    // Try to parse as JSON first (for backwards compatibility)
+    try {
+      const parsed = JSON.parse(body);
+      if (Array.isArray(parsed)) {
+        // Format 1: Direct args array
+        args = parsed;
+        if (verbose) {
+          logger?.info(`[handleServerActionHelper] Parsed args as array`);
+        }
+      } else if (parsed && typeof parsed === "object" && "id" in parsed) {
+        // Format 2: Object with id and args (legacy format)
+        id = parsed.id;
+        args = parsed.args ?? [];
+      } else {
+        throw new Error("Invalid server action request format");
       }
-    } else if (parsed && typeof parsed === "object" && "id" in parsed) {
-      // Format 2: Object with id and args
-      id = parsed.id;
-      args = parsed.args ?? [];
-    } else {
-      throw new Error("Invalid server action request format");
+    } catch {
+      // Not JSON - assume it's React's encoded format
+      // For now, pass the raw body to the worker which can decode it
+      // using decodeReply from react-server-dom-esm/server
+      if (verbose) {
+        logger?.info(`[handleServerActionHelper] Body is not JSON, passing raw body`);
+      }
+      args = [body]; // Pass raw body as first arg, worker will decode
     }
   } catch (error: unknown) {
     throw new Error(`Failed to parse server action request`, {

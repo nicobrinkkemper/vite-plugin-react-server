@@ -141,3 +141,10 @@ export async function handleServerActionWithViteServer(
     ssrLoadModule,
   });
 }
+
+// Re-export helper functions for the entry point
+export { 
+  parseServerActionRequest, 
+  createServerActionResponse, 
+  setupServerActionHeaders 
+} from "./handleServerActionHelper.js";

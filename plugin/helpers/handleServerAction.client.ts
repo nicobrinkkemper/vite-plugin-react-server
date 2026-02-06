@@ -134,4 +134,11 @@ export async function handleServerActionWithViteServer(
     logger: server.config.customLogger || server.config.logger,
     worker: handlerOptions.worker,
   });
-} 
+}
+
+// Re-export helper functions for the entry point
+export { 
+  parseServerActionRequest, 
+  createServerActionResponse, 
+  setupServerActionHeaders 
+} from "./handleServerActionHelper.js"; 

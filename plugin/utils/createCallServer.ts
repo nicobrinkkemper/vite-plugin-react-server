@@ -9,12 +9,10 @@ export const createCallServer = (moduleBaseURL: string) => {
     const response = await createFromFetch(
       fetch(moduleBaseURL, {
         method: "POST",
-        body: await encodeReply({
-          id,
-          args,
-        }),
+        body: await encodeReply(args),
         headers: {
           Accept: "text/x-component",
+          "x-rsc-action": id,
         },
       }),
       { callServer, moduleBaseURL }
