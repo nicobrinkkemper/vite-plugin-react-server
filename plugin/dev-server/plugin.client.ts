@@ -84,13 +84,20 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       // Normalize paths for comparison (handle both absolute and relative)
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
-      const isServerFile = normalizedFile.startsWith(moduleBase + '/') && 
+      
+      // Check if this is a file we should handle for RSC HMR
+      const isRscFile = normalizedFile.startsWith(moduleBase + '/') && 
         (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
       
-      // Always log for debugging
-      server.config.logger.info(`[vite-plugin-react-server] handleHotUpdate: file=${file}, normalized=${normalizedFile}, isServerFile=${isServerFile}, hasHandler=${!!hmrHandler}`);
+      // Only BLOCK Vite's full reload for explicit .server. files
+      // These contain registerServerReference which fails in non-react-server env
+      const isExplicitServerFile = file.includes('.server.');
       
-      if (isServerFile && hmrHandler) {
+      // Always log for debugging
+      server.config.logger.info(`[vite-plugin-react-server] handleHotUpdate: file=${file}, normalized=${normalizedFile}, isRscFile=${isRscFile}, isExplicitServerFile=${isExplicitServerFile}, hasHandler=${!!hmrHandler}`);
+      
+      // Handle RSC file changes (send custom HMR to client)
+      if (isRscFile && hmrHandler) {
         isProcessingHmr = true;
         
         try {
@@ -150,14 +157,18 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           isProcessingHmr = false;
         }
         
-        // Return empty array for server files - we handle them ourselves
-        // This prevents Vite from doing a full reload which would try to import
-        // the server module in the wrong environment (without react-server condition)
-        return [];
-      } else if (isServerFile && !hmrHandler) {
-        server.config.logger.warn(`[vite-plugin-react-server] Server file changed but HMR handler not available yet: ${file}`);
-        // Still prevent Vite's full reload for server files
-        return [];
+        // Only BLOCK Vite's reload for explicit .server. files
+        // These have registerServerReference which fails in non-react-server env
+        // Let other files (page.tsx, CSS importers) go through normal Vite HMR
+        if (isExplicitServerFile) {
+          return [];
+        }
+      } else if (isRscFile && !hmrHandler) {
+        server.config.logger.warn(`[vite-plugin-react-server] RSC file changed but HMR handler not available yet: ${file}`);
+        // Only block .server. files
+        if (isExplicitServerFile) {
+          return [];
+        }
       }
       
       // Return undefined to allow other plugins to handle the update (non-server files)
