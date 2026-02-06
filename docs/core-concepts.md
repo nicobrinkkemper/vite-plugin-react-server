@@ -34,13 +34,36 @@ const { vitePluginReactServer, vitePluginReactClient } = await import(`./plugin.
 
 The plugin provides two development modes that offer **similar user experiences** but differ in their internal implementation:
 
-### Server First
+### dev:rsc (Server First)
 
-It uses the main thread to stream the server components and the `html-worker` transforms it to html.
+```bash
+NODE_OPTIONS='--conditions react-server' vite
+```
 
-### client first
+- Main thread has `react-server` condition
+- RSC rendering happens **directly on main thread** using Vite's environment runner
+- No RSC worker in dev (proper HMR support via Vite's module graph)
+- HTML worker optional for HTML transformation
 
-It uses the `rsc-worker` to stream the server components and the main thread to transform it to html.
+### dev:ssr (Client First)
+
+```bash
+vite
+```
+
+- Main thread does NOT have `react-server` condition  
+- Uses `rsc-worker` to stream server components (worker has react-server condition)
+- Main thread transforms RSC to HTML
+
+### Why No Worker in dev:rsc?
+
+In dev mode with `react-server` condition, the RSC worker is **skipped by default** because:
+
+1. **HMR works**: Vite's environment runner respects module invalidation
+2. **No caching issues**: Raw `import()` in workers bypasses Vite's module graph
+3. **Simpler debugging**: All code runs on main thread
+
+Set `dev.useRscWorker: true` to use the worker in dev mode (for testing production behavior).
 
 ### Agnostic modules
 
