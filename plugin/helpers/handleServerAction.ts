@@ -9,6 +9,7 @@ export const {
   handleServerAction,
   handleServerActionWithViteServer,
   parseServerActionRequest,
+  parseServerActionRequestBody,
   createServerActionResponse,
   setupServerActionHeaders,
   createServerActionStream,

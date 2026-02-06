@@ -138,7 +138,8 @@ export async function handleServerActionWithViteServer(
 
 // Re-export helper functions for the entry point
 export { 
-  parseServerActionRequest, 
+  parseServerActionRequest,
+  parseServerActionRequestBody,
   createServerActionResponse, 
   setupServerActionHeaders 
 } from "./handleServerActionHelper.js"; 

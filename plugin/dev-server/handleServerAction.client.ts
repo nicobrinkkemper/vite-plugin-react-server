@@ -4,7 +4,7 @@ import type {
   RscWorkerOutputMessage,
 } from "../worker/rsc/types.js";
 import {
-  parseServerActionRequest,
+  parseServerActionRequestBody,
   setupServerActionHeaders,
   createServerActionStream,
   handleServerActionError,
@@ -35,7 +35,11 @@ export const handleServerAction: HandleWorkerServerActionFn =
       const body = Buffer.concat(chunks).toString();
 
       // Parse the server action request
-      const { id, args } = parseServerActionRequest(body, req.url);
+      // Get action ID from x-rsc-action header (React's standard) or fall back to body/URL
+      const headerActionId = req.headers["x-rsc-action"] as string | undefined;
+      const parsed = parseServerActionRequestBody(body, req.url);
+      const id = headerActionId || parsed.id;
+      const args = parsed.args;
 
       // Set up response headers
       setupServerActionHeaders(res);
@@ -50,7 +54,7 @@ export const handleServerAction: HandleWorkerServerActionFn =
       // Create a pass-through stream for the response
 
       // Handle worker messages with proper error handling
-      messageHandler = (message: RscWorkerOutputMessage) => {
+      messageHandler = (message: RscWorkerOutputMessage & { error?: { message: string } }) => {
         try {
           if (message.type === "RSC_CHUNK") {
             passThrough.write(message.chunk);
@@ -60,9 +64,12 @@ export const handleServerAction: HandleWorkerServerActionFn =
             }
           } else if (message.type === "SERVER_ACTION_RESPONSE") {
             // Server action completed - write result and end stream
-            if (message.error) {
+            if (message.error?.message) {
+              logger.error(`[handleServerAction] Server action error: ${message.error?.message}`);
+              passThrough.write(JSON.stringify({ error: message.error?.message }));
+            } else if(typeof message.error === "string") {
               logger.error(`[handleServerAction] Server action error: ${message.error}`);
-              passThrough.write(JSON.stringify({ error: message.error }));
+              passThrough.write(JSON.stringify({ error: message.error?.message }));
             } else {
               passThrough.write(JSON.stringify({ returnValue: message.result }));
             }
