@@ -31,6 +31,10 @@ export const createTransformer: TransformerFactory = ({
   // vs auto-detected from directives (for normal builds)
   const explicitForceServerFunction = forceServerFunction !== undefined;
   const explicitForceClientComponent = forceClientComponent !== undefined;
+  
+  // Save initial values to reset on each call (closure bug fix)
+  const initialForceServerFunction = forceServerFunction;
+  const initialForceClientComponent = forceClientComponent;
 
   return async (
     source: string,
@@ -40,6 +44,10 @@ export const createTransformer: TransformerFactory = ({
     // can also be passed directly as a parameter
     transformedModuleId = loader?.moduleID?.(moduleId) ?? moduleId
   ): Promise<TransformResult> => {
+    // Reset flags at start of each call to prevent closure state pollution
+    // (Each transformation should start fresh, not inherit state from previous calls)
+    forceServerFunction = initialForceServerFunction;
+    forceClientComponent = initialForceClientComponent;
     
     if (verbose) {
       logger.info(`[createTransformer] moduleID function called: ${moduleId} -> ${transformedModuleId}`);

@@ -205,11 +205,18 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           if (serverEnv && 'runner' in serverEnv && serverEnv.runner) {
             // Vite 6+ server environment with react-server conditions
             logger.info(`[configureRequestHandler] Using server environment runner`);
-            propsModule = await (serverEnv.runner as any).import(fullPropsPath);
+            try {
+              propsModule = await (serverEnv.runner as any).import(fullPropsPath);
+            } catch (runnerError: any) {
+              // Server runner failed - this happens in dev:ssr mode where main thread 
+              // doesn't have react-server conditions. Let the worker handle it.
+              logger.info(`[configureRequestHandler] Server runner failed: ${runnerError.message}, worker will load props`);
+              propsModule = null;
+            }
           } else {
-            // Fallback to ssrLoadModule (may not work with server actions)
-            logger.info(`[configureRequestHandler] Falling back to ssrLoadModule`);
-            propsModule = await server.ssrLoadModule(fullPropsPath);
+            // No server environment - let the worker handle it
+            logger.info(`[configureRequestHandler] No server environment, worker will load props`);
+            propsModule = null;
           }
           const propsExportName = handlerOptions.propsExportName || "props";
           const propsExport = propsModule[propsExportName];
