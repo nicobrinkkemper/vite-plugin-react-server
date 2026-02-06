@@ -232,7 +232,9 @@ async function loadComponentsWithCache(options: {
     const isPageInvalidated = isModuleInvalidated(pagePath);
     
     // Check cache first, but only if not invalidated
-    if (hasCachedComponent(pageId) && !isPageInvalidated) {
+    const isPageCached = hasCachedComponent(pageId) && !isPageInvalidated;
+    
+    if (isPageCached) {
       PageComponent = getCachedComponent(pageId);
       if (verbose) {
         logger?.info(
@@ -240,13 +242,33 @@ async function loadComponentsWithCache(options: {
         );
       }
       
-      // Don't cache props - they may call database functions that return different data
-      // Skip props cache check, always reload props fresh
+      // Props are never cached - always reload them (they may call database functions)
       if (resolvedPageProps) {
+        pageProps = resolvedPageProps;
         if (verbose) {
           logger?.info(
             `[rsc-worker] Using pre-resolved pageProps from main thread: ${Object.keys(resolvedPageProps).length} keys`
           );
+        }
+      } else if (propsPath) {
+        // Load props fresh even when page is cached
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker] Loading fresh props (page cached): ${propsPath}`
+          );
+        }
+        const propsResult = await resolvePageAndProps({
+          pagePath,
+          propsPath,
+          pageExportName,
+          propsExportName,
+          url,
+          loader,
+          verbose: verbose || false,
+          logger,
+        });
+        if (propsResult.type === "success") {
+          pageProps = propsResult.pageProps;
         }
       }
     } else {
