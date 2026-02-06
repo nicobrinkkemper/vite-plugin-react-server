@@ -124,6 +124,7 @@ export default defineConfig({
         "react-dom",
         "react-dom/server",
         "react-dom/server.node",
+        "react-server-dom-esm/server",
         "react-server-dom-esm/server.node",
         "react-server-dom-esm/client.node",
         "react-server-dom-esm/client.browser",
