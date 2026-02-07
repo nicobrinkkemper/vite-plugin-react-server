@@ -29,7 +29,12 @@ export const createPluginOrchestrator = (
     availableEnvironments,
   }));
   plugins.push(createBuildEventPlugin(userOptions));
-  plugins.push(vitePluginReactDevServer(userOptions));
+  const devServerPlugins = vitePluginReactDevServer(userOptions);
+  if (Array.isArray(devServerPlugins)) {
+    plugins.push(...devServerPlugins);
+  } else {
+    plugins.push(devServerPlugins);
+  }
 
   // Client SSG plugin for reverse paradigm
   plugins.push(reactStaticPlugin(userOptions));

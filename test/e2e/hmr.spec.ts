@@ -34,9 +34,12 @@ test.describe('HMR in bidoof-template', () => {
         '<Link to="/" className={styles["Link"]}> back </Link>\n      <div data-testid="hmr-marker">HMR Updated</div>'
       );
       await writeFile(pageFile, updatedContent);
+      
+      // Give the file watcher time to detect the change
+      await page.waitForTimeout(1000);
 
       // Server components trigger a full page reload ("program reload")
-      await page.waitForSelector('[data-testid="hmr-marker"]', { timeout: 10000 });
+      await page.waitForSelector('[data-testid="hmr-marker"]', { timeout: 15000 });
       
       // Verify the marker appeared
       await expect(page.locator('[data-testid="hmr-marker"]')).toContainText('HMR Updated');
@@ -50,15 +53,23 @@ test.describe('HMR in bidoof-template', () => {
   test('server action works', async ({ page }) => {
     await page.goto('/todos/');
     
+    // Use unique name to avoid conflicts with leftover test data
+    const todoName = `E2E-${Date.now()}`;
+    
     // Find the input and add a todo
     const input = page.locator('input[type="text"]');
-    await input.fill('E2E Test Todo');
+    await input.fill(todoName);
     
-    // Submit the form (press Enter or click add button)
+    // Submit the form
     await input.press('Enter');
     
     // Wait for the new todo to appear
-    await expect(page.locator('text=E2E Test Todo')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(`text=${todoName}`)).toBeVisible({ timeout: 5000 });
+    
+    // Clean up: delete the todo we just added
+    const todoItem = page.locator('li', { hasText: todoName });
+    await todoItem.locator('button', { hasText: '×' }).click();
+    await expect(todoItem).not.toBeVisible({ timeout: 10000 });
   });
 
   test('todo toggle persists', async ({ page }) => {

@@ -18,8 +18,19 @@ async function main() {
   console.log('Starting bidoof-template dev server for e2e tests...');
   console.log('Directory:', bidoofDir);
   
+  // Create a temporary vite config override for e2e that enables polling (needed for WSL2)
+  const { writeFileSync } = await import('node:fs');
+  const overrideConfig = join(bidoofDir, 'vite.e2e.config.ts');
+  writeFileSync(overrideConfig, `
+import baseConfig from './vite.config.ts';
+import { mergeConfig, defineConfig } from 'vite';
+export default mergeConfig(baseConfig, defineConfig({
+  server: { watch: { usePolling: true, interval: 100 } }
+}));
+`);
+
   // Start vite directly with proper env vars (npm script chain mangles port args)
-  const proc = spawn('npx', ['vite', '--port', '3200', '--strictPort'], {
+  const proc = spawn('npx', ['vite', '--config', 'vite.e2e.config.ts', '--port', '3200', '--strictPort'], {
     cwd: bidoofDir,
     stdio: 'inherit',
     shell: true,
@@ -38,12 +49,18 @@ async function main() {
     process.exit(1);
   });
   
+  const cleanup = () => {
+    try { const { unlinkSync } = require('node:fs'); unlinkSync(overrideConfig); } catch {}
+  };
+
   process.on('SIGINT', () => {
+    cleanup();
     proc.kill('SIGINT');
     process.exit(0);
   });
   
   process.on('SIGTERM', () => {
+    cleanup();
     proc.kill('SIGTERM');
     process.exit(0);
   });

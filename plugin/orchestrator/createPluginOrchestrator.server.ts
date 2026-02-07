@@ -35,7 +35,12 @@ export const createPluginOrchestrator = (
     availableEnvironments,
   }));
   plugins.push(createBuildEventPlugin(userOptions));
-  plugins.push(vitePluginReactDevServer(userOptions));
+  const devServerPlugins = vitePluginReactDevServer(userOptions);
+  if (Array.isArray(devServerPlugins)) {
+    plugins.push(...devServerPlugins);
+  } else {
+    plugins.push(devServerPlugins);
+  }
 
   // SSG plugin for server
   if (capabilities.staticGeneration) {
