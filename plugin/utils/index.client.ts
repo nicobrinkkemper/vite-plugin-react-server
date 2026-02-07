@@ -1,6 +1,4 @@
-// Default barrel: same as client (includes all utils)
-// Under react-server condition, package.json exports map to index.server.js
-// which excludes browser-only modules
+// Client barrel: includes all utils including browser-only ones
 export * from "./createReactFetcher.js";
 export * from "./useRscHmr.js";
 export * from "./callServer.js";

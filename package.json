@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.2.0-alpha.2",
+  "version": "1.2.0",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -24,11 +24,14 @@
     "./rsc-worker": "./dist/plugin/worker/rsc/index.js",
     "./worker": "./dist/plugin/worker/index.js",
     "./package.json": "./package.json",
-    "./patch": "./scripts/patch.mjs",
+    "./patch": "./bin/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
     "./components": "./dist/plugin/components/index.js",
     "./types": "./dist/plugin/types.js",
-    "./utils": "./dist/plugin/utils/index.js",
+    "./utils": {
+      "react-server": "./dist/plugin/utils/index.server.js",
+      "default": "./dist/plugin/utils/index.js"
+    },
     "./metrics": "./dist/plugin/metrics/index.js",
     "./stream": "./dist/plugin/stream/index.js",
     "./stream/client": "./dist/plugin/stream/index.client.js",
@@ -44,9 +47,6 @@
     "./loader": "./dist/plugin/loader/index.js",
     "./helpers": "./dist/plugin/helpers/index.js",
     "./helpers/resolveStreamElements": "./dist/plugin/helpers/resolveStreamElements.js",
-    "./helpers/createHandler": "./dist/plugin/helpers/createHandler.js",
-    "./helpers/createRscStream": "./dist/plugin/helpers/createRscStream.js",
-    "./helpers/createHtmlStream": "./dist/plugin/helpers/createHtmlStream.js",
     "./dev-server": "./dist/plugin/dev-server/index.js",
     "./dev-server/configureReactServer": "./dist/plugin/dev-server/configureReactServer.js",
     "./dev-server/handleServerAction": "./dist/plugin/dev-server/handleServerAction.js",
@@ -70,7 +70,7 @@
         "./dist/plugin/react-server/plugin.d.ts"
       ],
       "static": [
-        "./dist/plugin/static/plugin.d.ts"
+        "./dist/plugin/react-static/index.d.ts"
       ],
       "components": [
         "./dist/plugin/components/index.d.ts"
