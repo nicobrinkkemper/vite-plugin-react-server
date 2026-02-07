@@ -1,16 +1,35 @@
 import { toError } from "../error/toError.js";
+import type { GenericModuleLoader, PagePropOpt, PropsName } from "../types.js";
 
-type ResolvePropsOptions<N extends string> = {
+type ResolvePropsOptions = {
   id: string;
   url: string;
-  exportName: N;
-  loader: (id: string) => Promise<any>;
+  exportName: string;
+  loader: GenericModuleLoader;
 };
 
-type ResolvePropsResult<T, N extends string> =
-  | { type: "success"; key: string; props: T; module?:  { [key in N]: T } }
-  | { type: "error"; error: Error }
-  | { type: "skip" };
+type ValidPropTypes<T> =
+  | T
+  | Promise<T>
+  | Array<T[keyof T]>
+  | Array<[string, T[keyof T]]>
+  | ((url: string) => ValidPropTypes<T>);
+
+// prototype classes
+
+type ResolvePropsResult<T extends PagePropOpt, N extends string> =
+  | {
+      type: "success";
+      key: string;
+      module?: {
+        [key in N]:
+          | ValidPropTypes<T>
+          | ((url: string) => ValidPropTypes<T>)
+          | (new (url: string) => T);
+      };
+    }
+  | { type: "error"; key: string; error: Error; module?: never }
+  | { type: "skip"; key: string; module?: never; error?: never };
 
 /**
  * Resolves props from a module, handling both real and virtual modules.
@@ -42,23 +61,30 @@ type ResolvePropsResult<T, N extends string> =
  *   - props: The resolved props if successful
  *   - error: Error message if failed
  */
-export const resolveProps = async <T, N extends string>({
+export const resolveProps = async <
+  T extends PagePropOpt = PagePropOpt,
+  N extends string = PropsName
+>({
   id,
   url,
   exportName,
   loader,
-}: ResolvePropsOptions<N>): Promise<ResolvePropsResult<T, N>> => {
+}: ResolvePropsOptions): Promise<ResolvePropsResult<T, N>> => {
   // Check if this is a stashed page that needs special handling
   const propsLoadResult = await (async (): Promise<
-    | { type: "success"; key: string; module: { [key in N]: T } }
+    | {
+        type: "success";
+        key: string;
+        module: { [key in N]: ValidPropTypes<T> };
+      }
     | { type: "error"; error: Error; module?: never }
   > => {
     try {
-      const result = await loader(id);
+      const result = await loader(`${id}#${exportName}`);
       return {
         type: "success",
         key: id,
-        module: result,
+        module: result as { [key in N]: T },
       };
     } catch (error) {
       return {
@@ -69,32 +95,35 @@ export const resolveProps = async <T, N extends string>({
   })();
 
   if (propsLoadResult.type !== "success") {
-    return propsLoadResult;
+    return {
+      key: id,
+      ...propsLoadResult,
+    };
   }
   const { module } = propsLoadResult;
   const props = module[exportName as N];
   // handle different props use-cases
   if (module instanceof Error) {
     return {
+      key: id,
       type: "error",
       error: module,
     };
   } else if (!(exportName in module)) {
     return {
+      key: id,
       type: "success",
-      key: exportName,
-      props: { url, ...module } as T,
-      module,
+      module: { [exportName]: { url, ...module } } as never,
     };
   } else if (!props) {
     return {
+      key: id,
       type: "success",
-      key: exportName,
-      props: { url } as T,
-      module: module as { [key in N]: T },
+      module: { [exportName]: { url } } as never,
     };
   } else if (props instanceof Error) {
     return {
+      key: id,
       type: "error",
       error: props,
     };
@@ -104,21 +133,51 @@ export const resolveProps = async <T, N extends string>({
       let propsResult;
       if (props.prototype && props.prototype.constructor) {
         // Class constructor case
-        propsResult = new (props as new (url: string) => T)(url);
+        propsResult = new (props as unknown as new (url: string) => T)(url);
       } else {
         // Regular function case
         propsResult = props(url);
       }
-      
+
+      // Handle recursive props validation
+      if (propsResult instanceof Promise) {
+        propsResult = await propsResult;
+      }
+      if (typeof propsResult === "function") {
+        // Recursively handle nested functions
+        return resolveProps<T, N>({
+          id,
+          url,
+          exportName,
+          loader: async () =>
+            ({ [exportName]: propsResult } as {
+              [key in N]: ValidPropTypes<T>;
+            }),
+        });
+      } else if (Array.isArray(propsResult)) {
+        // Handle array case
+        return {
+          type: "success",
+          key: id,
+          module: {
+            [exportName]: Object.fromEntries(
+              (propsResult as Array<[string, T[keyof T]]>).map((prop) =>
+                typeof prop === "string" ? [prop, prop] : prop
+              )
+            ) as T,
+          } as never,
+        };
+      }
+
       return {
         type: "success",
-        key: exportName,
-        props: propsResult instanceof Promise ? await propsResult : propsResult,
-        module: module as { [key in N]: T },
+        key: id,
+        module: { [exportName]: propsResult } as never,
       };
     } catch (error) {
       return {
         type: "error",
+        key: id,
         error: toError(error),
       };
     }
@@ -127,13 +186,13 @@ export const resolveProps = async <T, N extends string>({
     try {
       return {
         type: "success",
-        key: exportName,
-        props: await props,
-        module: propsLoadResult.module,
+        key: id,
+        module: { [exportName]: await props } as never,
       };
     } catch (error) {
       return {
         type: "error",
+        key: id,
         error: toError(error),
       };
     }
@@ -142,15 +201,19 @@ export const resolveProps = async <T, N extends string>({
     try {
       return {
         type: "success",
-        key: exportName,
-        props: Object.fromEntries(
-          props.map((prop) => (typeof prop === "string" ? [prop, prop] : prop))
-        ) as T,
-        module: propsLoadResult.module,
+        key: id,
+        module: {
+          [exportName]: Object.fromEntries(
+            (props as Array<[string, T[keyof T]]>).map((prop) =>
+              typeof prop === "string" ? [prop, prop] : prop
+            )
+          ) as T,
+        } as never,
       };
     } catch (error) {
       return {
         type: "error",
+        key: id,
         error: toError(error),
       };
     }
@@ -158,20 +221,20 @@ export const resolveProps = async <T, N extends string>({
     try {
       return {
         type: "success",
-        key: exportName,
-        props: JSON.parse(props),
+        key: id,
+        module: { [exportName]: JSON.parse(props) } as never,
       };
     } catch (error) {
       return {
         type: "error",
+        key: id,
         error: toError(error),
       };
     }
   }
   return {
     type: "success",
-    key: exportName,
-    props: props,
-    module: module as { [key in N]: T },
+    key: id,
+    module: { [exportName]: props } as never,
   };
 };

@@ -1,6 +1,8 @@
-import { getCondition } from "../config/getCondition.js"
-
-const condition  = getCondition('')
-const loader = await import(`react-loader.${condition}.ts`);
-
-export const { load, resolve } = loader;
+export { load, resolve } from "./react-loader.js";
+export { createDefaultLoader } from "./createDefaultLoader.js";
+export { createTransformer } from "./createTransformer.js";
+export { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
+export { transformWithAcornLoose } from "./transformWithAcornLoose.js";
+export { parse } from "./parse.js";
+export { analyzeModule } from "./directives/analyzeModule.js";
+export * from "./types.js";

@@ -1,15 +1,21 @@
-import { join } from "path";
-import type { RenderMetrics, StreamPluginOptions, PluginEvent } from "../plugin/types.js";
+import type {  StreamPluginOptions } from "vite-plugin-react-server/types";
+import { metricWatcher } from "vite-plugin-react-server/metrics";
 
-const resolvedTestConfig = {
+export const testUserOptions = {
   moduleBase: "src",
-  projectRoot: join(__dirname, '../fixtures/test-project/'),
   Page: "src/page/page.tsx",
   props: "src/page/props.ts",
   pageExportName: "Page",
-  moduleBasePath: '/',
-  moduleBaseURL: '/',
-  verbose: false, // Enable verbose mode for debugging
+  propsExportName: "props",
+  moduleBasePath: '',
+  moduleBaseURL: typeof process.env.VITE_BASE_URL === 'string' ? process.env.VITE_BASE_URL : '/',
+  verbose: false,
+  // Enable metricWatcher to catch backpressure issues
+  onMetrics: metricWatcher({
+    maxTime: 200,           // Warn if processing takes > 200ms
+    maxBackpressure: 0,     // Warn if ANY backpressure occurs (0 = warn on first occurrence)
+    warnOnly: false,        // Show both warnings and info messages
+  }),
   build: {
     pages: ["/"],
     assetsDir: 'assets',
@@ -18,13 +24,9 @@ const resolvedTestConfig = {
     static: "static",
     outDir: "dist",
   },
-  onMetrics: (() => {}) as ((metrics: RenderMetrics) => void) | undefined,
-  onEvent: undefined as ((event: PluginEvent) => void) | undefined,
   css: {
-    inlineCss: false as boolean,
+    inlineCss: false,
   },
 } satisfies StreamPluginOptions;
-
-export const testUserOptions = resolvedTestConfig;
 
 

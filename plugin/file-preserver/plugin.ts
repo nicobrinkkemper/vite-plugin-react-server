@@ -20,13 +20,13 @@ import { join, sep } from "node:path";
  * and use it in your client boundary files.
  */
 export function filePreserverPlugin(fileName: string | string[]): VitePlugin[] {
-  let sources: {
+  const sources: {
     id: string;
     originalCode: string;
     transformedCode: string;
     map: string;
   }[] = [];
-  let pluginName =
+  const pluginName =
     typeof fileName === "string" ? fileName : fileName.slice(3).join("-");
   let outDir: string = "dist";
   let root: string = process.cwd();
@@ -36,7 +36,7 @@ export function filePreserverPlugin(fileName: string | string[]): VitePlugin[] {
     target: "esnext",
     format: "esm",
   };
-  let shouldPreserve = Array.isArray(fileName)
+  const shouldPreserve = Array.isArray(fileName)
     ? (id: string) => fileName.some((f) => id.includes(f))
     : (id: string) => id.includes(fileName);
   return [

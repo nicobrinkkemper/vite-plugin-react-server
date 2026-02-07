@@ -8,11 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Hardcoded template version from our last successful patch
 const TEMPLATE_VERSION = "0.0.0-experimental-0ca8420f-20250504";
-const [templateVersionNumber, templateVersionSuffix] = TEMPLATE_VERSION.split("-");
+const [_templateVersionNumber, templateVersionSuffix] = TEMPLATE_VERSION.split("-experimental-");
 
 // Get installed version
 const installedVersion = React.version;
-const [installedVersionNumber, installedVersionSuffix] = installedVersion.split("-");
+const [_installedVersionNumber, installedVersionSuffix] = installedVersion.split("-experimental-");
 
 // Get peer dependency versions
 const peerReactVersion = packageJSON.peerDependencies.react.replace("^", "");
@@ -55,7 +55,7 @@ async function main() {
 
   // Process each patch
   for (const { template, output } of patches) {
-    let patchContent = await fs.readFile(template, "utf-8");
+    const patchContent = await fs.readFile(template, "utf-8");
     // Write patched file
     const outputPath = path.resolve(userPatchesDir, output);
     await fs.writeFile(outputPath, patchContent);

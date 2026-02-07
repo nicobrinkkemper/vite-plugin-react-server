@@ -1,60 +1,55 @@
-import type { ResolvedUserOptions } from "../types.js";
-import { DEFAULT_CONFIG } from "./defaults.js";
+import { DEFAULT_CONFIG, BASE_PATTERNS } from "./defaults.js";
 
-export const extMap = (
-  {
-    moduleExtension,
-    jsExtension,
-    cssExtension,
-    jsonExtension,
-    htmlExtension,
-    rscExtension,
-  }: Pick<
-    ResolvedUserOptions["autoDiscover"],
-    | "moduleExtension"
-    | "jsExtension"
-    | "cssExtension"
-    | "jsonExtension"
-    | "htmlExtension"
-    | "rscExtension"
-  > = {
-    moduleExtension: DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
-    jsExtension: DEFAULT_CONFIG.AUTO_DISCOVER.jsExtension,
-    cssExtension: DEFAULT_CONFIG.AUTO_DISCOVER.cssExtension,
-    jsonExtension: DEFAULT_CONFIG.AUTO_DISCOVER.jsonExtension,
-    htmlExtension: DEFAULT_CONFIG.AUTO_DISCOVER.htmlExtension,
-    rscExtension: DEFAULT_CONFIG.AUTO_DISCOVER.rscExtension,
+export const jsExtension = ".js";
+
+export const replaceExtension = (id: string, options: {
+  build: {
+    extensionMap: Record<string, string>
   }
-) => {
-  const map = {
-    // should not have just .client as extension
-    ".client": ".client" + jsExtension,
-    // should not have just .server as extension
-    ".server": ".server" + jsExtension,
-    // these transform to js
-    ".jsx": jsExtension,
-    ".ts": jsExtension,
-    ".tsx": jsExtension,
-    ".mjs": jsExtension,
-    ".cjs": jsExtension,
-    ".mts": jsExtension,
-    ".cts": jsExtension,
-    ".css": cssExtension,
-    ".json": jsonExtension,
-    ".html": htmlExtension,
-    ".rsc": rscExtension,
-    // otherwise do nothing
-  };
-  return (id: string) => {
-    const lastDotIndex = id.lastIndexOf(".");
-    if (lastDotIndex === -1) {
-      return id + jsExtension;
+}) => {
+  const buildConfig = options.build || DEFAULT_CONFIG.BUILD;
+  const extensionMap = buildConfig.extensionMap || DEFAULT_CONFIG.BUILD.extensionMap;
+
+  // Handle CSS files first - they should never be changed to .js
+  if (id.endsWith('.css')) {
+    return id; // Keep CSS files as .css
+  }
+
+  // Try extension mapping first (custom mappings should take precedence)
+  if (extensionMap) {
+    for (const [pattern, ext] of Object.entries(extensionMap)) {
+      if(pattern.startsWith('.')) {
+        // Simple extension pattern like ".css"
+        const regex = new RegExp('\\' + pattern + (pattern.endsWith('$') ? '' : '$'));
+        if (regex.test(id)) {
+          return id.replace(regex, ext);
+        }
+      } else if (pattern.startsWith('\\.')) {
+        // Regex pattern that starts with \. like "\.css$"
+        const regex = new RegExp(pattern + (pattern.endsWith('$') ? '' : '$'));
+        if (regex.test(id)) {
+          return id.replace(regex, ext);
+        }
+      } else if (pattern.endsWith(":")) {
+        // Pattern with colon
+        const regex = new RegExp((id.startsWith('^') ? '' : '^') + pattern);
+        if(regex.test(id)) {
+          return id.replace(regex, ext);
+        }
+      } else {
+        // Complex regex pattern like BASE_PATTERNS.MODULE
+        const regex = new RegExp(pattern);
+        if (regex.test(id)) {
+          return id.replace(regex, ext);
+        }
+      }
     }
-    let ext = id.slice(lastDotIndex);
-    let withoutExt = id.slice(0, lastDotIndex);
-    if (ext in map) {
-      return withoutExt + map[ext as keyof typeof map];
-    }
-    return id.replace(moduleExtension, jsExtension);
-  };
+  }
+
+  // Handle standard module extensions as fallback
+  if (new RegExp(BASE_PATTERNS.MODULE).test(id)) {
+    return id.replace(new RegExp(BASE_PATTERNS.MODULE), jsExtension);
+  }
+
+  return id;
 };

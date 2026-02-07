@@ -14,8 +14,9 @@ export const pageAndPropFiles = ({
   }) => {
     if (!files) return inputs;
   
-    // Add page files without extra prefix
+    // Add page files using the normalized key from pageMap
     for (const [key, value] of files.pageMap) {
+      // Use the normalized key so Vite can process it correctly
       if (!inputs[key]) {
         inputs[key] = value;
       } else {
@@ -23,8 +24,9 @@ export const pageAndPropFiles = ({
       }
     }
   
-    // Add props files without extra prefix
+    // Add props files using the normalized key from propsMap
     for (const [key, value] of files.propsMap) {
+      // Use the normalized key so Vite can process it correctly
       if (!inputs[key]) {
         inputs[key] = value;
       } else {

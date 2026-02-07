@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createAbsoluteURL, createBaseURL, createPageURL } from '../../plugin/utils/urls.js';
+import { createAbsoluteURL, createBaseURL, createPageURL } from 'vite-plugin-react-server/utils';
 
 //** These utilities are kind of like normalizers and parsers for the baseURL that we initially pass into the plugin
 //  This is because when you define the moduleBasePath, it will actually be removed from the stream - which is why we
@@ -102,7 +102,7 @@ describe('URL utilities', () => {
     it('should handle invalid public origin', () => {
       const pageURL = createPageURL('/', 'IGNORE_THIS_ERROR');
       const result = pageURL('/test');
-      expect(result.indexRSC).toBe('/index.rsc');
+      expect(result.indexRSC).toBe('/test/index.rsc');
       expect(result.moduleBaseURL).toBe('/');
     });
 

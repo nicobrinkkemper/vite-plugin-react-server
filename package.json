@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.1.20",
+  "version": "1.2.0-alpha.2",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -20,8 +20,9 @@
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",
     "./static": "./dist/static.js",
-    "./html-worker": "./dist/plugin/worker/html-worker.js",
-    "./rsc-worker": "./dist/plugin/worker/rsc-worker.js",
+    "./html-worker": "./dist/plugin/worker/html/index.js",
+    "./rsc-worker": "./dist/plugin/worker/rsc/index.js",
+    "./worker": "./dist/plugin/worker/index.js",
     "./package.json": "./package.json",
     "./patch": "./scripts/patch.mjs",
     "./check-react-version": "./scripts/check-react-version.mjs",
@@ -29,10 +30,33 @@
     "./types": "./dist/plugin/types.js",
     "./utils": "./dist/plugin/utils/index.js",
     "./metrics": "./dist/plugin/metrics/index.js",
+    "./stream": "./dist/plugin/stream/index.js",
+    "./stream/client": "./dist/plugin/stream/index.client.js",
+    "./stream/server": "./dist/plugin/stream/index.server.js",
     "./env": "./dist/plugin/env/plugin.js",
     "./config": "./dist/plugin/config/index.js",
+    "./error": "./dist/plugin/error/index.js",
     "./vendor": "./dist/plugin/vendor/index.js",
-    "./file-preserver": "./dist/plugin/file-preserver/plugin.js"
+    "./vendor.server": "./dist/plugin/vendor/vendor.server.js",
+    "./vendor.client": "./dist/plugin/vendor/vendor.client.js",
+    "./vendor.static": "./dist/plugin/vendor/vendor.static.js",
+    "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
+    "./loader": "./dist/plugin/loader/index.js",
+    "./helpers": "./dist/plugin/helpers/index.js",
+    "./helpers/resolveStreamElements": "./dist/plugin/helpers/resolveStreamElements.js",
+    "./helpers/createHandler": "./dist/plugin/helpers/createHandler.js",
+    "./helpers/createRscStream": "./dist/plugin/helpers/createRscStream.js",
+    "./helpers/createHtmlStream": "./dist/plugin/helpers/createHtmlStream.js",
+    "./dev-server": "./dist/plugin/dev-server/index.js",
+    "./dev-server/configureReactServer": "./dist/plugin/dev-server/configureReactServer.js",
+    "./dev-server/handleServerAction": "./dist/plugin/dev-server/handleServerAction.js",
+    "./stream/handleRscStream": "./dist/plugin/stream/handleRscStream.js",
+    "./stream/createRscStream": "./dist/plugin/stream/createRscStream.js",
+    "./dev-server/restartWorker": "./dist/plugin/dev-server/restartWorker.js",
+    "./dev-server/cleanupServerAction": "./dist/plugin/dev-server/cleanupServerAction.js",
+    "./env-loader": "./dist/plugin/loader/env-loader.js",
+    "./css-loader": "./dist/plugin/loader/css-loader.js",
+    "./directives": "./dist/plugin/loader/directives/index.js"
   },
   "typesVersions": {
     "*": {
@@ -40,16 +64,13 @@
         "./dist/plugin/index.d.ts"
       ],
       "client": [
-        "./dist/plugin/react-client/plugin.d.ts"
+        "./dist/plugin/react-client/index.d.ts"
       ],
       "server": [
         "./dist/plugin/react-server/plugin.d.ts"
       ],
       "static": [
         "./dist/plugin/static/plugin.d.ts"
-      ],
-      "worker": [
-        "./dist/plugin/worker/worker.d.ts"
       ],
       "components": [
         "./dist/plugin/components/index.d.ts"
@@ -60,17 +81,74 @@
       "metrics": [
         "./dist/plugin/metrics/index.d.ts"
       ],
+      "stream": [
+        "./dist/plugin/stream/index.d.ts"
+      ],
+      "stream/client": [
+        "./dist/plugin/stream/index.client.d.ts"
+      ],
+      "stream/server": [
+        "./dist/plugin/stream/index.server.d.ts"
+      ],
       "config": [
         "./dist/plugin/config/index.d.ts"
       ],
       "env": [
         "./dist/plugin/env/plugin.d.ts"
       ],
+      "vendor.server": [
+        "./dist/plugin/vendor/vendor.server.d.ts"
+      ],
+      "vendor.client": [
+        "./dist/plugin/vendor/vendor.client.d.ts"
+      ],
+      "vendor.static": [
+        "./dist/plugin/vendor/vendor.static.d.ts"
+      ],
       "vendor": [
         "./dist/plugin/vendor/index.d.ts"
       ],
+      "error": [
+        "./dist/plugin/error/index.d.ts"
+      ],
       "file-preserver": [
         "./dist/plugin/file-preserver/plugin.d.ts"
+      ],
+      "worker": [
+        "./dist/plugin/worker/index.d.ts"
+      ],
+      "rsc-worker": [
+        "./dist/plugin/worker/rsc/index.d.ts"
+      ],
+      "html-worker": [
+        "./dist/plugin/worker/html/index.d.ts"
+      ],
+      "loader": [
+        "./dist/plugin/loader/index.d.ts"
+      ],
+      "helpers": [
+        "./dist/plugin/helpers/index.d.ts"
+      ],
+      "dev-server": [
+        "./dist/plugin/dev-server/index.d.ts"
+      ],
+      "dev-server/configureReactServer": [
+        "./dist/plugin/dev-server/configureReactServer.d.ts"
+      ],
+      "dev-server/handleServerAction": [
+        "./dist/plugin/dev-server/handleServerAction.d.ts"
+      ],
+      "stream/handleRscStream": [
+        "./dist/plugin/stream/handleRscStream.d.ts"
+      ],
+      "stream/createRscStream": [
+        "./dist/plugin/stream/createRscStream.d.ts"
+      ],
+      "directives": [
+        "./dist/plugin/loader/directives/index.d.ts"
+      ],
+      "helpers/resolveStreamElements": [
+        "./dist/plugin/helpers/resolveStreamElements.d.ts"
       ]
     }
   },
@@ -79,35 +157,56 @@
     "version:major": "node scripts/bump-version.mjs major",
     "version:minor": "node scripts/bump-version.mjs minor",
     "version:patch": "node scripts/bump-version.mjs patch",
+    "docs:toc": "node scripts/generate-toc.mjs",
+    "docs:remove-toc": "node scripts/remove-toc.mjs",
     "build": "npm run clean && npm run build:types && npm run build:vite",
     "build:types": "tsc --build --force",
     "build:vite": "vite build && chmod +x bin/patch.mjs",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build",
-    "lint": "eslint ./src --fix",
+    "lint": "eslint ./plugin --fix",
     "setup:test-fixtures": "npx tsx test/setup.ts",
-    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run test/server",
-    "test:client": "vitest run test/client",
-    "test:build": "npm run setup:test-fixtures && npm test test/server/build.test.ts",
-    "test:unit": "NODE_OPTIONS='--conditions react-server' vitest run test/unit",
+    "pretest:server": "npm run build",
+    "test:server": "NODE_OPTIONS='--conditions react-server' vitest run",
+    "pretest:client": "npm run build",
+    "test:client": "vitest run",
+    "test:examples": "npm run test:both -- test/examples",
+    "test:streams": "npm run test:both -- test/streams",
+    "test:dev": "NODE_OPTIONS='--conditions react-server' vitest run test/dev",
+    "pretest:both": "npm run build",
+    "test:both": "./scripts/test-both.sh",
+    "test:build": "npm run test:examples -- test/examples/build.test.ts",
+    "test:unit": "NODE_OPTIONS='--conditions react-server' vitest run test/unit/*",
     "test:tee": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
     "test:rsc-worker": "npm run build && vitest run test/client/rsc-worker.test.ts",
-    "test:large-html": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/large-html.test.ts --reporter=verbose",
-    "test:metrics": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/metrics.test.ts --reporter=verbose",
-    "test:hooks": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/hooks.test.ts --reporter=verbose",
-    "test:inline-css": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/inline-css.test.ts --reporter=verbose",
-    "test:dev-server-env": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/dev-server-env.test.ts --reporter=verbose",
-    "test:rsc-server": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/rsc-server.test.ts --reporter=verbose",
-    "test:client-env": "npm run build && vitest run test/client/dev-client-server-env.test.ts --reporter=verbose",
-    "test:todo": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/todo.test.ts --reporter=verbose",
-    "test:server-action": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/server-action.test.ts --reporter=verbose",
-    "test:server-action-client": "npm run build && vitest run test/client/server-action.test.ts --reporter=verbose",
-    "test:server-action-integration": "npm run build && NODE_OPTIONS='--conditions react-server' vitest run test/server/server-action-integration.test.ts --reporter=verbose",
-    "test:server-action-integration-client": "npm run build && vitest run test/client/server-action-integration.test.ts --reporter=verbose",
-    "test": "npm run build && npm run test:server && npm run test:client && npm run test:unit",
-    "test-base-url": "BASE_URL='/test/' && npm run build && npm run test:server && npm run test:client",
-    "test:coverage": "npm run setup:test-fixtures && NODE_OPTIONS='--conditions react-server' vitest run --coverage",
+    "test:large-html": "npm run test:examples -- test/examples/large-html-handling.test.ts",
+    "test:metrics": "npm run test:examples -- test/examples/metrics.test.ts",
+    "test:error-boundaries": "npm run test:examples -- test/examples/error-boundaries-build.test.ts test/examples/error-boundaries.test.ts",
+    "test:inline-css": "npm run test:examples -- test/examples/inline-css.test.ts",
+    "test:dev-server-env": "npm run test:dev -- test/dev/dev-server-env.test.ts",
+    "test:rsc-server": "npm run test:dev -- test/dev/rsc-server.test.ts",
+    "test:stress": "npm run build && vitest run test/stress",
+    "stress-test": "npx tsx test/stress/stress-test-cli.ts",
+    "test:client-env": "npm run build && vitest run test/client/dev-client-server-env.test.ts",
+    "test:todo": "npm run test:examples -- test/examples/todo-server-actions.test.ts",
+    "test:server-action": "npm run test:examples -- test/examples/server-actions.test.ts",
+    "test:server-action-client": "npm run build && vitest run test/client/server-action.test.ts",
+    "test:server-action-integration": "npm run test:examples -- test/examples/server-action-integration.test.ts",
+    "test:directives": "npm run test -- test/unit/analyzeModule",
+    "test:server-action-integration-client": "vitest run test/client/server-action-integration.test.ts",
+    "test:cors": "node test/cors-test.js",
+    "test:typecheck": "NODE_OPTIONS='--conditions react-server' vitest run ./test/types --typecheck ",
+    "pretest": "npm run build",
+    "test-all": "npm run test:server && npm run test:client && npm run test:unit && npm run test:typecheck",
+    "test": "npm run test:both",
+    "test:e2e": "playwright test",
+    "test:e2e:server": "npx tsx test/e2e/server.ts",
+    "test-base-url": "export BASE_URL='/test-base-url/' && npm run build && npm run test:server",
+    "test:coverage": "NODE_OPTIONS='--conditions react-server' vitest run --typecheck --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
+    "test:bidoof-template": "cd ../bidoof-template && npm run build:preview",
+    "test:mmc": "cd ../mmc && npm run build",
+    "test:app-build": "cd ../bidoof-template && npx vite build --app; cd -",
     "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
@@ -115,7 +214,9 @@
     "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches",
     "experimental:patch-react": "npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs",
     "postinstall": "patch-package",
-    "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\""
+    "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\"",
+    "precoverage": "npm run build",
+    "coverage": "npm run test:coverage"
   },
   "keywords": [
     "vite",
@@ -138,8 +239,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^0.0.0-experimental-0ff1d13b-20250507",
-    "react-dom": "^0.0.0-experimental-0ff1d13b-20250507",
+    "react": "^0.0.0-experimental-f93b9fd4-20251217",
+    "react-dom": "^0.0.0-experimental-f93b9fd4-20251217",
     "react-server-dom-esm": "^0.0.1",
     "vite": "*"
   },
@@ -155,19 +256,26 @@
     }
   },
   "devDependencies": {
-    "@types/react": "^19.0.8",
+    "@eslint/js": "^9.28.0",
+    "@playwright/test": "^1.58.1",
+    "@types/react": "^19.0.9",
     "@types/react-dom": "^19.0.3",
     "@vitest/coverage-v8": "^3.0.4",
     "acorn-loose": "^8.3.0",
+    "eslint": "^9.28.0",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.2.0",
     "happy-dom": "^17.1.8",
     "patch-package": "^8.0.0",
-    "rollup": "^4.34.0",
+    "playwright": "^1.58.1",
     "source-map": "^0.7.4",
+    "supports-color": "^10.0.0",
     "ts-node": "^10.9.2",
     "tslib": "^2.8.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "vite": "^6.0.11",
+    "typescript-eslint": "^8.33.1",
+    "vite": "^6.3.5",
     "vitest": "^3.0.4",
     "webpack-sources": "^3.2.3"
   },

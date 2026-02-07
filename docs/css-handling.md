@@ -1,192 +1,227 @@
-# CSS Handling in RSC Static Site Generator
+# CSS Handling
 
-This document explains how CSS is handled in the React Server Components (RSC) static site generator.
+This document explains how CSS is handled in the Vite React Server Plugin for React Server Components (RSC) and static site generation.
 
-## Key Features
+## Overview
 
-The CSS handling system provides three main features that can be used independently or in combination:
+The plugin provides CSS collection and processing capabilities:
 
-1. **User-defined CssCollector**: 
-   -  **CssCollector: `(props)=><link href="my-file"/>`**
-2. **Alters the props for the CssCollector**
-   - **css.inlineCss**: Feature flag to disable inlining css completely
-   - **css.inlineThreshold**: Size in bytes (number)
-   - **inlinePatterns**: optional regex to force a `<style>` tag
-   - **linkPatterns**: optional regex to force a `<link>` tag
+1. **Collect CSS files** from your components and pages
+2. **Process CSS files** using `createCssProps` to determine inlining vs linking
+3. **Pass CSS as props** to your components at the beginning of the stream
 
+## CSS Collection and Processing
 
-## Default Configuration
+CSS files are automatically collected during the build process from:
 
-```typescript
-{
-  CSS_COLLECTOR: CssCollector,
-  CSS: {
-    inlineCss: false,
-    purgeCss: false, // not supported yet, for future reference
-    inlineThreshold: 4096, // 4KB
-    inlinePatterns: [/\.module\.css$/], // Always inline CSS modules
-    linkPatterns: [/node_modules/], // Always link node_modules CSS
-  }
-}
-```
+1. **Component imports**: CSS files imported by your React components
+2. **CSS Modules**: Scoped CSS that gets processed by Vite
 
-## User-defined CssCollector
+### CSS Processing Pipeline
 
-### Props Interface
+The plugin processes CSS files through `createCssProps` which:
 
-The props your custom collector receives depend on the imported css for each page & prop file combination.
+1. **Determines inlining strategy** based on file size and patterns
+2. **Creates CSS content objects** with either `as: "style"` or `as: "link"`
+3. **Passes processed CSS** as `cssFiles` prop to your components
 
-```typescript
-import styles from './styles.module.css';
-export const Page = () => {
- return <div className={styles.userClass}>Hello World</div>
-}
-```  
-then the module will basically contain whatever `styles` exported here. But how does it track css class usages
-during streaming?
-```ts
-const links = Array.from(cssFiles.values()).map(cssFile => <link rel="stylesheet" href={cssFile.path} />)
-```
-The types for cssFiles is an array of either CssProps and or InlineCssProps.
-```ts
-type BaseCssProps = {
-  as: string;
-  id: string;
-};
+### Example
 
-type CssProps = BaseCssProps & {
-  as: "link";
-  type?: never;
-  children?: InlineCssProps extends false ? never : React.ReactNode;
-  id: string;
-  href: string;
-  rel: "stylesheet";
-  precedence?: string;
-};
-type InlineCssProps = BaseCssProps & {
-  as: "style";
-  type: "text/css";
-  children?: React.ReactNode;
-  precedence?: never;
-  rel?: never;
-  href?: never;
-};
-```
+```tsx
+// src/page/page.tsx
+import React from 'react'
+import styles from './test.module.css'
+import { Link } from '../components/Link.client.js'
 
-### Basic Implementation
-
-```typescript
-function MyCustomCssCollector(props: CssCollectorProps) {
-  // Check if we're in inline mode
-  const isInlineMode = 'content' in props.cssFiles[0];
-  
+export function Page(props: any) {
   return (
-    <>
-      {props.cssFiles.map(cssFile => 
-        cssFile.as === 'style' ? (
-          <style key={cssFile.id} type={cssFile.type}>{cssFile.code}</style>
-        ) : (
-          <link key={cssFile.id} rel="stylesheet" href={cssFile.href} />
-        )
-      )}
-      {props.children}
-    </>
-  );
+    <div className={styles.test}>
+      <span className={styles.shared}>Page</span>
+      <Link to="/page2">Go to Page 2</Link>
+    </div>
+  )
 }
 ```
 
+```css
+/* src/page/test.module.css */
+.test {color: red}
+.shared {background: white}
+.unused {display: none}
+```
+
+## Configuration
+
+Configure CSS processing in your plugin options:
+
+```typescript
+export default defineConfig({
+  plugins: vitePluginReactServer({
+    css: {
+      inlineCss: true,           // Enable CSS inlining
+      inlineThreshold: 4096,     // Size threshold in bytes (4KB)
+      inlinePatterns: [],        // RegExp patterns to force inlining
+    }
+  }),
+});
+```
 
 ### Configuration Options
 
-- **inlinePatterns**: Files matching these patterns are always inlined
-- **linkPatterns**: Files matching these patterns are always linked
+- **`inlineCss`**: Enable/disable CSS inlining (default: `true`)
+- **`inlineThreshold`**: Files smaller than this size (in bytes) will be inlined (default: `4096`)
+- **`inlinePatterns`**: RegExp array - files matching these patterns are always inlined (default: `[]`)
 
-### About inlineThreshold
+## CSS Props
 
-The `inlineThreshold` feature will allow you to control which CSS files get inlined based on their size:
+### cssFiles Prop
 
-- Files smaller than the threshold (in bytes) will be inlined
-- Files larger than the threshold will be linked instead
+The `cssFiles` prop is a `Map<string, CssContent>` containing processed CSS files:
 
-This is useful for optimizing performance by:
-- Inlining small CSS files to reduce HTTP requests
-- Avoiding inlining large CSS files that would bloat the HTML document
+- **Key**: CSS file path
+- **Value**: CSS content object created by `createCssProps`
 
-## Purging css
+### CssContent Types
 
-By adding our own own CssCollector, we can have one final say over the cssFiles that we render. We could filter out some of the css files however we wish. Even though it's called a CssCollector, it's essentially your very own Root component and as such can be designed as a Root component.
+CSS files are processed into one of two types:
 
-Here's an example on how to 
+```typescript
+// Inlined CSS (small files or matching patterns)
+{
+  as: "style",
+  type: "text/css",
+  id: string,
+  children: string // CSS content
+}
 
-```tsx
-import React, { type Fragment } from "react";
-import { CssCollectorElements } from "vite-plugin-react-server/components";
-import type { CssCollectorProps } from "vite-plugin-react-server/types";
-import { themes } from "./config/themeConfig.js";
-
-// imagine semi-structured paths to css
-const removeableCSS = [
-  "/src/css/4ymm.module.css",
-  // but one exception
-  "/src/css/5-6ymm.module.css",
-  "/src/css/7mmc.module.css",
-  "/src/css/8mmc.module.css",
-  "/src/css/9mmc.module.css",
-];
-
-const createFilter = (theme: Theme) => {
-  // handle exception
-  if (theme === "5ymm" || theme === "6ymm") {
-    return [theme, removeableCSS.filter((css) => css.includes("5-6ymm"))];
-  }
-  // should not include any of the following
-  return [theme, removeableCSS.filter((css) => css.includes(theme))];
-};
-
-// a map of filters
-const filters = Object.fromEntries(themes.map(createFilter)) as {
-  [key in Theme]: string[];
-};
-
-
-export const MmcCssCollector = ({
-  as: Component,
-  cssFiles,
-  pageProps,
-  Page,
-  ...props
-}: CssCollectorProps<
-  {
-    pathInfo: { theme: Theme };
-  },
-  boolean,
-  "div" | typeof Fragment
->) => {
-  if (!cssFiles) return null;
-  if (!pageProps || !("pathInfo" in pageProps)) return null;
-  const theme = pageProps.pathInfo.theme;
-  const cssArray = Array.isArray(cssFiles)
-    ? cssFiles
-    : Array.from(cssFiles?.values() ?? []);
-  const removeNonCurrentThemeCss = new Map(
-    cssArray
-      .filter(
-        // remove any file that is "removeable" and does not include our id
-        (file) =>
-          !removeableCSS.includes(file.id) || filters[theme].includes(file.id)
-      )
-      .map((file) => [file.id, file])
-  );
-  // decide when and where to render the Wrapper, Page, CssCollector at the last moment
-  // which can be used during "react-server" dev mode and in static html/rsc files
-  return (
-    <Component {...props}>
-      <Page {...pageProps} />
-      <CssCollectorElements cssFiles={removeNonCurrentThemeCss} />
-    </Component>
-  );
-};
-
+// Linked CSS (larger files)
+{
+  as: "link",
+  id: string,
+  rel: "stylesheet",
+  href: string // CSS file URL
+}
 ```
 
-By moving this logic to the CssCollector itself, we can test out the behavior in development using the react-server condition. We can run a build and then run the preview server to verify that the css is correctly omitted from the static index.html and index.rsc streams.
+## CSS Rendering
+
+### Css Component
+
+Use the `Css` component to render the processed CSS:
+
+```tsx
+import { Css } from "vite-plugin-react-server/components";
+
+export const Root = ({ cssFiles, Page, pageProps, ...props }) => {
+  return (
+    <div {...props}>
+      <Page {...pageProps} />
+      <Css cssFiles={cssFiles} />
+    </div>
+  );
+};
+```
+
+## Examples
+
+### Basic CSS Usage
+
+```tsx
+// src/components/Root.tsx
+import React from "react";
+import { Css } from "vite-plugin-react-server/components";
+
+export const Root = ({ cssFiles, Page, pageProps, ...props }) => {
+  return (
+    <div {...props}>
+      <Page {...pageProps} />
+      <Css cssFiles={cssFiles} />
+    </div>
+  );
+};
+```
+
+### CSS Filtering
+
+```tsx
+// src/components/Root.tsx
+import React from "react";
+import { Css } from "vite-plugin-react-server/components";
+
+export const Root = ({ cssFiles, pageProps, Page, ...props }) => {
+  // Filter CSS files based on theme
+  const filteredCss = new Map();
+  
+  if (cssFiles) {
+    for (const [key, cssContent] of cssFiles.entries()) {
+      // Only include CSS files that match the current theme
+      if (pageProps?.theme === "dark") {
+        if (!key.includes(".light")) {
+          filteredCss.set(key, cssContent);
+        }
+      } else if (pageProps?.theme === "light") {
+        if (!key.includes(".dark")) {
+          filteredCss.set(key, cssContent);
+        }
+      } else {
+        filteredCss.set(key, cssContent);
+      }
+    }
+  }
+
+  return (
+    <div {...props}>
+      <Page {...pageProps} />
+      <Css cssFiles={filteredCss} />
+    </div>
+  );
+};
+```
+
+### Force All CSS Inlining
+
+```typescript
+export default defineConfig({
+  plugins: vitePluginReactServer({
+    css: {
+      inlineCss: true,
+      inlineThreshold: 0, // Force all CSS to be inlined
+    }
+  }),
+});
+```
+
+## Development vs Production
+
+### Development Server
+
+In development mode, CSS handling works differently:
+
+1. **CSS Collection**: CSS files are collected using `collectViteModuleGraphCss` from Vite's module graph
+2. **Real-time Processing**: CSS is processed on each request using the current module graph
+3. **Vite Integration**: CSS requests are handled by Vite's dev server, not the custom loader
+4. **HMR Support**: CSS changes trigger hot module replacement
+
+```typescript
+// Development: CSS collected from Vite's module graph
+const cssFilesResult = await collectViteModuleGraphCss({
+  moduleGraph: server.moduleGraph,
+  parentUrl: pagePath,
+  handlerOptions: handlerOptions,
+});
+```
+
+**Note**: Both `collectViteModuleGraphCss` and `createCssProps` functions are available for import if you need to use them directly:
+
+```typescript
+import { collectViteModuleGraphCss, createCssProps } from "vite-plugin-react-server/helpers";
+```
+
+### Production Build
+
+In production builds:
+
+1. **Build-time Collection**: CSS files are collected during the build process
+2. **Static Processing**: CSS is processed once and cached
+3. **Optimized Output**: CSS is inlined or linked based on configuration
+4. **No Runtime Overhead**: CSS processing happens before streaming

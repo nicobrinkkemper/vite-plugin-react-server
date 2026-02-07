@@ -1,8 +1,9 @@
 import { describe, it, expect} from 'vitest'
 import { testUserOptions } from '../test-config.js'
-import { resolveUserConfig } from '../../plugin/config/resolveUserConfig.js'
-import { resolveOptions } from '../../plugin/config/resolveOptions.js'
+import { resolveUserConfig } from 'vite-plugin-react-server/config'
+import { resolveOptions } from 'vite-plugin-react-server/config'
 
+const options = resolveOptions(testUserOptions).userOptions!
 
 describe('Build configuration', () => {
   it('sets build configuration correctly', () => {
@@ -10,10 +11,23 @@ describe('Build configuration', () => {
       condition: 'react-server',
       config: {},
       configEnv: { command: 'build', mode: 'development', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [], 
       }
     })
 
@@ -31,10 +45,23 @@ describe('Build configuration', () => {
       config: {},
       condition: 'react-server',
       configEnv: { command: 'serve', mode: 'development', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {}, 
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
       }
     })
 
@@ -49,10 +76,23 @@ describe('Build configuration', () => {
       condition: 'react-client',
       config: {},
       configEnv: { command: 'build', mode: 'development', isSsrBuild: true },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
       }
     })
 
@@ -71,10 +111,23 @@ describe('Build configuration', () => {
         }
       },
       configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        staticInputs: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
       }
     })
 
@@ -94,10 +147,23 @@ describe('Build configuration', () => {
         }
       },
       configEnv: { command: 'build', mode: 'development', isSsrBuild: false },
-      userOptions: resolveOptions(testUserOptions)?.['userOptions'],
+      userOptions: options,
       autoDiscoveredFiles: {
-        inputs: {},
+        clientInputs: {},
+        serverInputs: {},
         staticManifest: {},
+        workerPaths: {},
+        serverEntry: null,
+        clientEntry: {},
+        serverActions: {},
+        propsMap: new Map(),
+        pageMap: new Map(),
+        rootMap: new Map(),
+        htmlMap: new Map(),
+        routeMap: new Map(),
+        urlMap: new Map(),
+        errors: [],
+        staticInputs: {},
       }
     })
 

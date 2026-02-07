@@ -1,9 +1,15 @@
 "use strict";
 
-// we don't have to check for the "react-client" condition here, since we don't rely on it and it's a not a thing anyway
-// it's made-up by this plugin to offer a clear distinction between the client and server conditions
 
-export { vitePluginReactServer as vitePluginReactClient } from './plugin/plugin.client.js'
+// In client entry, we only import the client plugin
+// Server plugin requires react-server condition which isn't available here
+export { vitePluginReactServer } from "./plugin/plugin.client.js"
 
+
+export * from './plugin/react-client/index.js'
+// Export specific dev-server functions for client usage
+export { handleServerAction } from './plugin/dev-server/index.js'
+export { handleRscStream } from './plugin/stream/index.js'
 // types
 export type * from './plugin/types.js'
+export type * from './plugin/react-client/types.js'

@@ -1,6 +1,6 @@
 import type {
   OutputBundle,
-  OutputChunk,
+  // OutputChunk - removed unused import
 } from "rollup";
 import type {  ManifestChunk } from "vite";
 import type { InputNormalizer } from "../types.js";
@@ -54,10 +54,9 @@ export function getBundleManifest<SSR extends boolean>({
             }
           ]
         }
-        const chunkWithFacade = chunk as OutputChunk;
         
         // Get the module ID, preferring facadeModuleId
-        const moduleId = chunkWithFacade.facadeModuleId || chunkWithFacade.moduleIds[0] || originalFileName;
+        const moduleId = chunk.facadeModuleId || chunk.moduleIds[0] || originalFileName;
         
         // Handle commonjs helpers specially - must be done before normalization
         if (moduleId.includes('commonjsHelpers')) {
@@ -88,7 +87,16 @@ export function getBundleManifest<SSR extends boolean>({
           
           if (!virtualModules.has(virtualKey)) {
             // First time seeing this virtual module
-            const virtualFileName = query === 'inline' ? virtualPath : `${virtualPath}.${query}.js`;
+            let virtualFileName;
+            if (query === 'inline') {
+              virtualFileName = virtualPath;
+            } else if (virtualPath.endsWith('.css')) {
+              // Preserve CSS extension for CSS files
+              virtualFileName = virtualPath;
+            } else {
+              // Add .js extension for other files
+              virtualFileName = `${virtualPath}.${query}.js`;
+            }
             virtualModules.set(virtualKey, virtualFileName);
           }
           

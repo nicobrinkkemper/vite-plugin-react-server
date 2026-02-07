@@ -1,9 +1,10 @@
-import React from "react";
-import type { HtmlProps } from "../types.js";
-import { CssCollectorElements } from "./css-collector-elements.js";
+import type { HtmlComponentType, HtmlProps } from "../types.js";
+import { Css } from "./css.js";
+import React from 'react'
 
-export const Html = ({
-  CssCollector,
+
+export const Html: HtmlComponentType<any, any, any, any> = ({
+  Root,
   cssFiles,
   globalCss,
   pageProps,
@@ -12,10 +13,10 @@ export const Html = ({
 }: HtmlProps) => (
   <html>
     <head>
-      <CssCollectorElements cssFiles={globalCss} />
+      <Css cssFiles={globalCss} />
     </head>
     <body>
-      <CssCollector
+      <Root
         as={as}
         id="root"
         cssFiles={cssFiles}

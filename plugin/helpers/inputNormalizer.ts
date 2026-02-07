@@ -4,7 +4,7 @@ import type {
   InputNormalizer,
   NormalizerInput,
 } from "../types.js";
-import path, { join, sep } from "path";
+import path, { join, relative, resolve, sep } from "path";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 let stashedNormalizer: InputNormalizer | null = null;
@@ -72,15 +72,17 @@ const resolveRootOption = (
 
 const createKeyNormalizer =
   ({
-    root: normalizedRoot,
+    root,
     preserveModulesRoot,
     handleExtension,
     moduleBasePath,
+    moduleBaseURL,
   }: {
     root: string;
     preserveModulesRoot: string | undefined;
     handleExtension: (path: string) => string;
     moduleBasePath: string | undefined;
+    moduleBaseURL: string | undefined;
   }) =>
   (key: string) => {
     if (key.includes("?")) {
@@ -93,10 +95,18 @@ const createKeyNormalizer =
 
     let moduleId = normalizePath(actualKey);
 
-    // Normalize root path to handle both absolute and relative paths
-    const normalizedRootPath = normalizePath(normalizedRoot);
-    if (moduleId.startsWith(normalizedRootPath)) {
-      moduleId = moduleId.slice(normalizedRootPath.length);
+    // Only treat as file system path if it actually contains the root path
+    // URL paths like "/" should not be resolved relative to file system root
+    if(moduleId.startsWith("/") && moduleId.startsWith(root)) {
+      moduleId = relative(root, moduleId);
+    } else if (moduleId.startsWith(".")) {
+      moduleId = relative(root, resolve(root, moduleId));
+    } else if (moduleId.startsWith("/")) {
+      // This is a URL path like "/" or "/about", remove leading slash for consistency
+      moduleId = moduleId.slice(1);
+    } 
+    if(moduleBaseURL && moduleBaseURL !== "/" && moduleBaseURL !== "" && moduleId.startsWith(moduleBaseURL)) {
+      moduleId = moduleId.slice(moduleBaseURL.length);
     }
     if (
       typeof moduleBasePath === "string" &&
@@ -114,10 +124,7 @@ const createKeyNormalizer =
     }
 
     moduleId = handleExtension(moduleId);
-    while (moduleId.startsWith("/") || moduleId.startsWith(".")) {
-      moduleId = moduleId.slice(1);
-    }
-    while (moduleId.endsWith("/")) {
+    while (moduleId.endsWith("/") || moduleId.startsWith(".")) {
       moduleId = moduleId.slice(0, -1);
     }
     if (typeof preserveModulesRoot === "string" && preserveModulesRoot !== "") {
@@ -135,10 +142,12 @@ const createPathNormalizer =
     root,
     preserveModulesRoot,
     moduleBasePath,
+    moduleBaseURL,
   }: {
     root: string;
     preserveModulesRoot: string | undefined;
     moduleBasePath: string | undefined;
+    moduleBaseURL: string | undefined;
   }) =>
   (path: string) => {
     if (typeof path !== "string") {
@@ -148,8 +157,20 @@ const createPathNormalizer =
       path = path.split("?")[0];
     }
     let normalPath = normalizePath(path);
-    if (normalPath.startsWith(root)) {
-      normalPath = normalPath.slice(root.length);
+    
+    // Only treat as file system path if it actually contains the root path
+    // URL paths like "/" should not be resolved relative to file system root
+    if(normalPath.startsWith("/") && normalPath.startsWith(root)) {
+      normalPath = relative(root, normalPath);
+    } else if (normalPath.startsWith(".")) {
+      normalPath = relative(root, normalPath);
+    } else if (normalPath.startsWith("/")) {
+      // This is a URL path like "/" or "/about", remove leading slash for consistency
+      normalPath = normalPath.slice(1);
+    }
+    
+    if(moduleBaseURL && moduleBaseURL !== "/" && moduleBaseURL !== "" && normalPath.startsWith(moduleBaseURL)) {
+      normalPath = normalPath.slice(moduleBaseURL.length);
     }
     if (
       typeof moduleBasePath === "string" &&
@@ -185,8 +206,9 @@ const createPathNormalizer =
 export function createInputNormalizer({
   root,
   moduleBasePath = DEFAULT_CONFIG.MODULE_BASE_PATH,
+  moduleBaseURL = DEFAULT_CONFIG.MODULE_BASE_URL,
   preserveModulesRoot = undefined,
-  removeExtension = DEFAULT_CONFIG.AUTO_DISCOVER.moduleExtension,
+  removeExtension = DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern,
 }: CreateInputNormalizerProps): InputNormalizer {
   if (stashedNormalizer) {
     return stashedNormalizer;
@@ -198,11 +220,13 @@ export function createInputNormalizer({
     preserveModulesRoot: preserveModulesRoot,
     handleExtension,
     moduleBasePath,
+    moduleBaseURL,
   });
   const normalizeEntryPath = createPathNormalizer({
     root: root,
     preserveModulesRoot: relativeRoot,
     moduleBasePath,
+    moduleBaseURL,
   });
   function normalizeInput(id: NormalizerInput): [string, string] {
     // Normalize both paths to use POSIX separators
@@ -241,21 +265,17 @@ export function createInputNormalizer({
 
   stashedNormalizer = (input: NormalizerInput): [string, string] => {
     const [key, path] = normalizeInput(input);
-    let normalizedPath = path.startsWith(moduleBasePath)
-      ? path.slice(moduleBasePath.length)
-      : path;
-    normalizedPath = normalizedPath.startsWith("/")
-      ? normalizedPath.slice(1)
-      : normalizedPath;
+    
+    
     const virtualPrefix = key.match(/^\0+/) ?? "";
     // If key has virtual prefix, ensure path has it too
     const finalPath = virtualPrefix
-      ? virtualPrefix.length && normalizedPath.startsWith(virtualPrefix[0])
-        ? normalizedPath
+      ? virtualPrefix.length && path.startsWith(virtualPrefix[0])
+        ? path
         : virtualPrefix.length
-        ? virtualPrefix[0] + normalizedPath
-        : normalizedPath
-      : normalizedPath;
+        ? virtualPrefix[0] + path
+        : path
+      : path;
     return [key, finalPath];
   };
   return stashedNormalizer;

@@ -1,118 +1,208 @@
-import { createMappingsSerializer } from "../source-map/createMappingsSerializer.js";
-import type { SourceMap } from "../types/sourceMap.js";
-import { basename } from "path";
+import type { RawSourceMap } from "source-map";
 
 /**
- * Creates a basic source map for a module
+ * Source map handling utilities
  */
-export function createBasicSourceMap(url: string, source: string): SourceMap {
+
+interface RangeToRemove {
+  start: number;
+  end: number;
+  lineShift: number;
+}
+
+/**
+ * Creates a source map for the given source code
+ */
+export function createSourceMap(
+  code: string,
+  originalSource: string,
+  moduleId: string,
+  rangesToRemove: RangeToRemove[] = []
+): RawSourceMap {
+  // Split code into lines for line-by-line mapping
+  const codeLines = code.split("\n");
+  const originalLines = originalSource.split("\n");
+
+  // Track current positions in both original and transformed code
+  let currentColumn = 0;
+  let sourceLine = 0;
+  let sourceColumn = 0;
+  const lastSourceIndex = 0;
+  const lastNameIndex = -1;
+
+  // Generate mappings line by line
+  const mappings: string[] = [];
   const createMapping = createMappingsSerializer();
-  let mappings = '';
-  let lineCount = 1;
-  let idx = -1;
 
-  // Map each line with VLQ encoding
-  while ((idx = source.indexOf('\n', idx + 1)) !== -1) {
-    createMapping(lineCount, 0, 0, lineCount, 0, -1);
-    lineCount++;
-  }
-  // Add final line
-  createMapping(lineCount, 0, 0, lineCount, 0, -1);
-
-  return {
-    version: 3,
-    file: basename(url),
-    sources: [url],
-    sourcesContent: [source],
-    mappings,
-    sourceRoot: '',
-    names: []
-  };
-}
-
-/**
- * Extends an existing source map with new lines
- */
-export function extendSourceMap(sourceMap: SourceMap, newLines: number, originalSource: string): SourceMap {
-  const createMapping = createMappingsSerializer();
-  let mappings = sourceMap.mappings || '';
-  let lineCount = originalSource.split('\n').length;
-  
-  // Add padding for new lines
-  for (let i = 0; i < newLines; i++) {
-    createMapping(lineCount + i, 0, 0, lineCount + i, 0, -1);
+  // First, create a mapping for each line in the original source
+  for (let i = 0; i < originalLines.length; i++) {
+    const mapping = createMapping(
+      i + 1, // generated line
+      0, // generated column
+      0, // source index
+      i + 1, // original line
+      0, // original column
+      -1 // name index
+    );
+    mappings.push(mapping);
   }
 
-  return {
-    ...sourceMap,
-    version: 3,
-    sourcesContent: [originalSource],
-    mappings
-  };
-}
+  // Then, create mappings for the transformed code
+  for (let i = 0; i < codeLines.length; i++) {
+    // Check if this line contains any ranges to remove
+    const lineRanges = rangesToRemove.filter((range) => {
+      const rangeStartLine = originalSource.slice(0, range.start).split("\n").length - 1;
+      const rangeEndLine = originalSource.slice(0, range.end).split("\n").length - 1;
+      return rangeStartLine <= sourceLine && rangeEndLine >= sourceLine;
+    });
 
-/**
- * Adds a source map as a base64 data URL to the source code
- */
-export function addSourceMapToSource(source: string, sourceMap: SourceMap): string {
-  // Convert version to number for serialization
-  const serializedMap = {
-    ...sourceMap,
-    version: Number(sourceMap.version)
-  };
-  return source + '\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,' + 
-    Buffer.from(JSON.stringify(serializedMap)).toString('base64');
-}
+    if (lineRanges.length > 0) {
+      // For lines with directives, map to the original line including the directive
+      // but skip the directive range in the generated code
+      const mapping = createMapping(
+        i + 1, // generated line
+        currentColumn, // generated column
+        lastSourceIndex, // source index
+        sourceLine + 1 + (lineRanges[0].lineShift || 0), // original line with shift
+        sourceColumn, // original column
+        lastNameIndex // name index
+      );
+      mappings.push(mapping);
 
-/**
- * Detects and extracts source map URL from source code
- */
-export function detectSourceMapURL(source: string): { url: string | null; start: number; end: number; lines: number } {
-  let sourceMappingURL: string | null = null;
-  let sourceMappingStart = 0;
-  let sourceMappingEnd = 0;
-  let sourceMappingLines = 0;
-
-  const lines = source.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.includes('# sourceMappingURL=') || line.includes('@ sourceMappingURL=')) {
-      const match = line.match(/(?:#|@) sourceMappingURL=(.+)/);
-      if (match) {
-        sourceMappingURL = match[1];
-        sourceMappingStart = source.indexOf(line);
-        sourceMappingEnd = sourceMappingStart + line.length;
-        sourceMappingLines = 1;
-      }
+      // Skip the directive range in the generated code
+      const directiveRange = lineRanges[0];
+      const directiveLength = directiveRange.end - directiveRange.start;
+      currentColumn += directiveLength;
+    } else {
+      // For regular lines, map to the original line
+      const mapping = createMapping(
+        i + 1, // generated line
+        currentColumn, // generated column
+        lastSourceIndex, // source index
+        sourceLine + 1, // original line
+        sourceColumn, // original column
+        lastNameIndex // name index
+      );
+      mappings.push(mapping);
     }
+
+    // Update positions
+    currentColumn = 0;
+    sourceLine++;
+    sourceColumn = 0;
   }
 
-  return { url: sourceMappingURL, start: sourceMappingStart, end: sourceMappingEnd, lines: sourceMappingLines };
-}
+  // Join mappings with semicolons, ensuring empty lines are preserved
+  const mappingsString = mappings.join(";");
 
-/**
- * Strips source map URL comment from source code
- */
-export function stripSourceMapURL(source: string, sourceMapInfo: { start: number; end: number; lines: number }): string {
-  if (sourceMapInfo.start === 0 && sourceMapInfo.end === 0) {
-    return source;
-  }
-  return source.slice(0, sourceMapInfo.start) + 
-    '\n'.repeat(sourceMapInfo.lines) + 
-    source.slice(sourceMapInfo.end);
-}
-
-/**
- * Creates a source map with the given parameters
- */
-export function createSourceMap(id: string, code: string, mappings: string): SourceMap {
   return {
     version: 3,
-    file: basename(id),
-    sources: [id],
-    sourcesContent: [code],
+    file: moduleId,
+    sources: [moduleId],
     names: [],
-    mappings,
+    mappings: mappingsString,
     sourceRoot: "",
+    sourcesContent: [originalSource], // Keep the original source with directives
   };
-} 
+}
+
+/**
+ * Creates a function that generates VLQ mappings for source maps
+ */
+function createMappingsSerializer() {
+  return function createMapping(
+    _generatedLine: number,
+    generatedColumn: number,
+    sourceIndex: number,
+    originalLine: number,
+    originalColumn: number,
+    nameIndex: number
+  ): string {
+    const values = [
+      generatedColumn,
+      sourceIndex,
+      originalLine,
+      originalColumn,
+      nameIndex,
+    ];
+    return encodeVLQ(values);
+  };
+}
+
+/**
+ * Encodes a series of integers into a VLQ string
+ */
+function encodeVLQ(values: number[]): string {
+  const VLQ_BASE_SHIFT = 5;
+  const VLQ_BASE = 1 << VLQ_BASE_SHIFT;
+  const VLQ_BASE_MASK = VLQ_BASE - 1;
+  const VLQ_CONTINUATION_BIT = VLQ_BASE;
+
+  let result = "";
+
+  for (let i = 0; i < values.length; i++) {
+    let value = values[i];
+
+    // Handle negative values
+    if (value < 0) {
+      value = (-value << 1) | 1;
+    } else {
+      value = value << 1;
+    }
+
+    // Encode the value
+    do {
+      let digit = value & VLQ_BASE_MASK;
+      value >>>= VLQ_BASE_SHIFT;
+
+      if (value !== 0) {
+        digit |= VLQ_CONTINUATION_BIT;
+      }
+
+      result += encodeBase64Digit(digit);
+    } while (value !== 0);
+  }
+
+  return result;
+}
+
+/**
+ * Encodes a single digit into base64
+ */
+function encodeBase64Digit(digit: number): string {
+  const BASE64_CHARS =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  return BASE64_CHARS[digit];
+}
+
+/**
+ * Strips the source map URL from the source string
+ */
+export function stripSourceMap(source: string): string {
+  return source.replace(
+    /\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,[A-Za-z0-9+/=]+$/m,
+    ""
+  );
+}
+
+/**
+ * Adds a source map URL to the source string
+ */
+export function addSourceMap(source: string, map: RawSourceMap): string {
+  const sourceMapString = JSON.stringify(map);
+  const sourceMapBase64 = Buffer.from(sourceMapString).toString("base64");
+  return `${source}\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,${sourceMapBase64}`;
+}
+
+/**
+ * Parses a source map URL from a source string
+ */
+export function parseSourceMapUrl(source: string): string | null {
+  const match = source.match(
+    /\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,([A-Za-z0-9+/=]+)$/m
+  );
+  if (!match) {
+    return null;
+  }
+  return match[1];
+}

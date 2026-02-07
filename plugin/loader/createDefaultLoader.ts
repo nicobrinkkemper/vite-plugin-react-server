@@ -1,138 +1,117 @@
-import { readFileSync } from "fs";
-import * as esbuild from "esbuild";
 import type { LoaderContext } from "../types.js";
-import { transformModuleIfNeeded } from "./transformModuleIfNeeded.js";
-import { createMappingsSerializer } from "../source-map/createMappingsSerializer.js";
+import type { RawSourceMap } from "source-map";
+import type { LoadFnOutput, LoadHookContext } from "node:module";
+import type { LoadHook } from "node:module";
+import { transformWithEsbuild } from "vite";
+import { readFile } from "node:fs/promises";
 
-export interface LoaderResult {
+export type LoaderResult = {
   source: string;
-  map: any | null;
-}
+  map: RawSourceMap | null;
+};
 
-export interface Loader {
-  (id: string, context?: LoaderContext, nextLoad?: any): LoaderResult;
-}
-
-/**
- * Creates a default loader function that either uses provided source or reads from file
- */
-export function createDefaultLoader(source?: string): Loader {
-  if (typeof source === "string") {
-    return function load(id: string): LoaderResult {
-      // Use esbuild to transform the code
-      const result = esbuild.transformSync(source, {
-        loader: "tsx",
-        format: "esm",
-        target: "esnext",
-        sourcemap: true,
-        sourcefile: id,
-      });
-
-      // Transform the code for RSC boundaries
-      const transformed = transformModuleIfNeeded(
-        result.code,
-        id,
-        null, // isServerFunction
-        null, // isClientComponent
-        true // isServerEnvironment
-      );
-
-      // Create a new source map with proper mappings
-      const map = result.map ? {
-        version: 3,
-        sources: [id],
-        sourcesContent: [transformed],
-        mappings: (() => {
-          const serializer = createMappingsSerializer();
-          let mappings = '';
-          
-          // Map each line of the transformed code to its corresponding line in the original source
-          const transformedLines = transformed.split('\n');
-          for (let i = 0; i < transformedLines.length; i++) {
-            if (i > 0) mappings += ';';
-            // For the import and registration lines, map to the first line of the original source
-            if (transformedLines[i].includes('import {') || transformedLines[i].includes('registerServerReference')) {
-              mappings += serializer(i + 1, 0, 0, 1, 0, 0);
-            } else {
-              // For the actual code, map to the corresponding line in the original source
-              const originalLine = Math.max(1, i - 1); // Adjust for the import line
-              mappings += serializer(i + 1, 0, 0, originalLine, 0, 0);
-            }
-          }
-
-          return mappings;
-        })()
-      } : null;
-
-      return {
-        source: transformed,
-        map
-      };
-    };
-  }
-  return function load(
+export type Loader = {
+  (
     id: string,
     context?: LoaderContext,
-    nextLoad?: any
-  ): LoaderResult {
-    if (!nextLoad) {
-      nextLoad = (id: string) => {
-        const source = readFileSync(id, "utf-8");
-        // Use esbuild to transform the code
-        const result = esbuild.transformSync(source, {
-          loader: "tsx",
-          format: "esm",
-          target: "esnext",
-          sourcemap: true,
-          sourcefile: id,
-        });
+    nextLoad?: (id: string) => Promise<LoaderResult>
+  ): LoaderResult;
+};
 
-        // Transform the code for RSC boundaries
-        const transformed = transformModuleIfNeeded(
-          result.code,
-          id,
-          null, // isServerFunction
-          null, // isClientComponent
-          true // isServerEnvironment
-        );
 
-        // Create a new source map with proper mappings
-        const map = result.map ? {
-          version: 3,
-          sources: [id],
-          sourcesContent: [transformed],
-          mappings: (() => {
-            const serializer = createMappingsSerializer();
-            let mappings = '';
-            
-            // Map each line of the transformed code to its corresponding line in the original source
-            const transformedLines = transformed.split('\n');
-            for (let i = 0; i < transformedLines.length; i++) {
-              if (i > 0) mappings += ';';
-              // For the import and registration lines, map to the first line of the original source
-              if (transformedLines[i].includes('import {') || transformedLines[i].includes('registerServerReference')) {
-                mappings += serializer(i + 1, 0, 0, 1, 0, 0);
-              } else {
-                // For the actual code, map to the corresponding line in the original source
-                const originalLine = Math.max(1, i - 1); // Adjust for the import line
-                mappings += serializer(i + 1, 0, 0, originalLine, 0, 0);
-              }
-            }
+const defaultNextLoad: Parameters<LoadHook>[2] = async (url) => {
+  const result = await transformWithEsbuild(await readFile(url, "utf-8"), url, {
+    loader: "tsx",
+    format: "esm",
+    sourcemap: "external",
+  });
+  return {
+    source: result.code,
+    format: "module",
+    map: result.map,
+  };
+};
 
-            return mappings;
-          })()
-        } : null;
+/**
+ * Creates a loader function that transforms modules and handles source maps.
+ * This function can be used in two ways:
+ *
+ * 1. As a direct transformer:
+ *    - Takes source code and returns transformed code with source map attached
+ *    - Used by transformModuleIfNeeded
+ *
+ * 2. As a loader factory:
+ *    - Returns a loader function that takes a module ID and returns a LoaderResult
+ *    - Used by the plugin to create loaders for different environments
+ */
+export function createDefaultLoader(
+  defaultSource: string,
+  defaultId = "index",
+): (
+  url: string,
+  context?: Partial<LoadHookContext>,
+  nextLoad?: (
+    url: string,
+    context?: Partial<LoadHookContext>
+  ) => LoadFnOutput | Promise<LoadFnOutput>
+) => Promise<LoadFnOutput> {
 
-        return {
-          source: transformed,
-          map
-        };
+  const defaultSourceNextLoad: Parameters<LoadHook>[2] =
+    typeof defaultSource === "string"
+      ? async (url = defaultId) => {
+          const result = await transformWithEsbuild(defaultSource, url, {
+            loader: "tsx",
+            format: "esm",
+            sourcemap: "external",
+          });
+          return {
+            source: result.code,
+            format: "module",
+            map: result.map,
+          };
+        }
+      : defaultNextLoad;
+
+  return async (
+    url = defaultId,
+    context = {
+      format: "module",
+      conditions: ["react-server"],
+      importAttributes: {},
+    },
+    nextLoad = defaultSourceNextLoad
+  ) => {
+
+    const { format } = context;
+    if (format === "module" || format === "module-typescript") {
+
+      const result = await nextLoad(url, context);
+
+      const source =
+        typeof result.source === "string"
+          ? result.source
+          : result.source instanceof Uint8Array ||
+            result.source instanceof ArrayBuffer ||
+            result.source instanceof Uint8ClampedArray ||
+            result.source instanceof Uint16Array ||
+            result.source instanceof Uint32Array ||
+            result.source instanceof Int8Array ||
+            result.source instanceof Int16Array ||
+            result.source instanceof Int32Array ||
+            result.source instanceof Float32Array ||
+            result.source instanceof Float64Array ||
+            result.source instanceof BigUint64Array ||
+            result.source instanceof BigInt64Array
+          ? new TextDecoder().decode(result.source)
+          : defaultSource;
+
+
+      return {
+        ...result,
+        source: source,
       };
     }
-    const result = nextLoad(id, context);
-    return {
-      ...result,
-      map: "map" in result ? result.map : null,
-    };
+
+    return nextLoad(url, context);
   };
 }

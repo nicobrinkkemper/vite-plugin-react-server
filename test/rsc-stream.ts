@@ -9,6 +9,7 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
     });
 
     if (!response.ok) {
+      console.log(response)
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -19,7 +20,7 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
 
     const decoder = new TextDecoder();
     let result = "";
-    let responseHeaders = response.headers;
+    const responseHeaders = response.headers;
 
     try {
       while (true) {
@@ -44,7 +45,7 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
       statusCode: response.status,
     };
   } catch (error) {
-    console.error("Error handling RSC stream:", error);
+    console.error("[test/rsc-stream] Error handling RSC stream:", error);
     return {
       result: "",
       responseHeaders: new Headers(),

@@ -1,19 +1,24 @@
 import { createAbsoluteURL, createBaseURL, createPageURL } from "./urls.js";
+import { getEnvValue } from "../env/getEnvKey.js";
 
 export const absoluteURL = (path: string) =>
   createAbsoluteURL(
-    process.env.VITE_BASE_URL ?? "/",
-    process.env.VITE_PUBLIC_ORIGIN ?? ""
+    getEnvValue("BASE_URL") ?? "/",
+    getEnvValue("PUBLIC_ORIGIN") ?? ""
   )(path);
 
 export const baseURL = (path: string) =>
-  createBaseURL(process.env.VITE_BASE_URL ?? "/")(path);
+  createBaseURL(getEnvValue("BASE_URL") ?? "/")(path);
 
-export const pageURL = (path: string) =>
-  createPageURL(
-    process.env.VITE_BASE_URL ?? "/",
-    process.env.VITE_PUBLIC_ORIGIN ?? "",
-    typeof process.env.VITE_DEV === "string"
-      ? process.env.VITE_DEV === "true" || process.env.VITE_DEV === "1"
-      : process.env["NODE_ENV"] === "development"
+export const pageURL = (path: string) => {
+  const devValue = getEnvValue("DEV");
+  const isDev = typeof devValue === "string"
+    ? devValue === "true" || devValue === "1"
+    : process.env["NODE_ENV"] === "development";
+  
+  return createPageURL(
+    getEnvValue("BASE_URL") ?? "/",
+    getEnvValue("PUBLIC_ORIGIN") ?? "",
+    isDev
   )(path);
+};

@@ -1,9 +1,9 @@
-import type { RenderMetrics } from "../types.js";
+import type { RenderMetrics } from "./types.js";
 
 export function formatMetrics(metrics: RenderMetrics): string {
   const {
     route,
-    rscSize,
+    fileSize,
     chunks,
     chunkRate,
     processingTime,
@@ -17,7 +17,7 @@ export function formatMetrics(metrics: RenderMetrics): string {
 
   return `
 Route: ${route}
-Size: ${(rscSize / 1024).toFixed(2)}KB
+Size: ${((fileSize ?? 0) / 1024).toFixed(2)}KB
 Chunks: ${chunks} (${chunkRate.toFixed(2)} chunks/s)
 Processing Time: ${processingTime.toFixed(2)}ms
 Memory:
@@ -26,37 +26,13 @@ Memory:
   Heap Used: ${formatMemory(memoryUsage.heapUsed)}
   External: ${formatMemory(memoryUsage.external)}
 Stream:
-  Duration: ${streamMetrics.duration.toFixed(2)}ms
-  Backpressure: ${streamMetrics.backpressureCount}
-  Drain: ${streamMetrics.drainCount}
-  Errors: ${streamMetrics.errorCount}
+      Duration: ${streamMetrics.duration.toFixed(2)}ms
+    Backpressure: ${streamMetrics.backpressureCount}
+    Errors: ${streamMetrics.errorCount}
 `.trim();
 }
 
-export function metricWatcher({
-  maxTime = 200,
-  warnOnly = false,
-  warn = console.warn,
-  info = console.info,
-}: {
-  maxTime?: number;
-  warnOnly?: boolean;
-  warn?: (...args: any[]) => void;
-  info?: (...args: any[]) => void;
-}) {
-  return (metrics: RenderMetrics) => {
-    if (metrics.processingTime > maxTime) {
-      warn(`It took over ${maxTime}ms to render ${metrics.route}`);
-      warn(formatMetrics(metrics));
-    } else if (!warnOnly) {
-      const rounded = Math.round(metrics.processingTime);
-      if (rounded === 0) {
-        // smaller unit of time
-        const rounded = Math.round(metrics.processingTime * 1000);
-        info(`${metrics.route} (${rounded}μs)`);
-      } else {
-        info(`${metrics.route} (${rounded}ms)`);
-      }
-    }
-  };
+
+export function logMetrics(metrics: RenderMetrics, logger: {info: (message: string) => void} = console) {
+  logger.info(formatMetrics(metrics));
 }

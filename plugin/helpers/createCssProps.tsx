@@ -1,7 +1,7 @@
 import type { ResolvedUserOptions, CssContent } from "../types.js";
-import type { InlineCssOpt, PagePropOpt } from "../../server.js";
 import { join } from "node:path";
 import { deserializeRegExp } from "./serializeUserOptions.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 /**
  * Creates a CssContent object for a given path and css options
@@ -22,10 +22,7 @@ import { deserializeRegExp } from "./serializeUserOptions.js";
  * @param css - The css options
  * @returns A CssContent object
  */
-export const createCssProps = <
-  T extends PagePropOpt = PagePropOpt,
-  InlineCSS extends InlineCssOpt = InlineCssOpt
->({
+export const createCssProps = ({
   id,
   code,
   userOptions,
@@ -33,7 +30,7 @@ export const createCssProps = <
   id: string;
   code: string;
   userOptions: Pick<
-    ResolvedUserOptions<T, InlineCSS>,
+    ResolvedUserOptions,
     | "css"
     | "moduleBaseURL"
     | "moduleBasePath"
@@ -43,13 +40,16 @@ export const createCssProps = <
     | "moduleID"
     | "publicOrigin"
   >;
-}): CssContent<InlineCSS> => {
+}): CssContent<boolean> => {
   const { css, moduleRootPath } = userOptions;
   // If we don't have a bundle entry, create a linked CSS file
-  let inline = typeof code === "string" && code.length > css.inlineThreshold;
+  let inline =
+    css?.inlineCss !== false &&
+    typeof code === "string" &&
+    (css?.inlineThreshold === 0 || code.length <= (css?.inlineThreshold ?? DEFAULT_CONFIG.CSS.inlineThreshold));
   // Normalize the ID to be relative to src/
   const [, value] = userOptions.normalizer(id);
-  const moduleID = userOptions.moduleID(value);
+  const moduleID = userOptions?.moduleID?.(value) ?? value;
   if (css.inlinePatterns?.length) {
     // Deserialize RegExp patterns if they exist
     const inlinePatterns = css.inlinePatterns;
@@ -76,34 +76,36 @@ export const createCssProps = <
             "data-vite-dev-id": join(moduleRootPath, moduleID),
           }
         : {}),
-    } as CssContent<InlineCSS>;
+    } as CssContent<boolean>;
   }
-  const processEnv = process.env || {};
-  const hasEnv= typeof processEnv.VITE_PUBLIC_ORIGIN === "string" &&
-      processEnv.VITE_PUBLIC_ORIGIN !== "";
-  const importMeta = import.meta || {};
-  const hasMetaEnv = 'env' in importMeta && typeof importMeta.env.PUBLIC_ORIGIN === "string" &&
-      importMeta.env.PUBLIC_ORIGIN !== "";
-  // final public origin check
-  if((hasEnv || hasMetaEnv) && userOptions.publicOrigin) {
-    // change the public origin to the one from the env
-    if(hasEnv && userOptions.publicOrigin !== processEnv.VITE_PUBLIC_ORIGIN) {
-      // prefer potentially dynamic process.env
-      userOptions.publicOrigin = processEnv.VITE_PUBLIC_ORIGIN;
-    } else if(hasMetaEnv && userOptions.publicOrigin !== import.meta.env.PUBLIC_ORIGIN) {
-      // static import.meta.env
-      userOptions.publicOrigin = import.meta.env.PUBLIC_ORIGIN;
-    }
-  }
+  const normalModuleBaseURL = !moduleID.startsWith(userOptions.moduleBaseURL)
+    ? userOptions.moduleBaseURL +
+      moduleID.slice(
+        Number(
+          moduleID.startsWith("/") && userOptions.moduleBaseURL.endsWith("/")
+        )
+      )
+    : moduleID;
+  const normalOrigin = !userOptions.moduleBaseURL.startsWith(
+    userOptions.publicOrigin
+  )
+    ? userOptions.publicOrigin +
+      userOptions.moduleBaseURL.slice(
+        Number(
+          userOptions.publicOrigin.endsWith("/") &&
+            userOptions.moduleBaseURL.startsWith("/")
+        )
+      )
+    : userOptions.moduleBaseURL;
   // Default case
   return {
     id: moduleID,
     as: "link",
     rel: "stylesheet",
     href:
-    userOptions.publicOrigin !== ""
-        ? new URL(moduleID, userOptions.publicOrigin).href
-        : moduleID,
+      userOptions.publicOrigin !== ""
+        ? new URL(normalModuleBaseURL, normalOrigin).href
+        : normalModuleBaseURL,
     precedence: "high",
-  } as CssContent<InlineCSS>;
+  } as CssContent<boolean>;
 };

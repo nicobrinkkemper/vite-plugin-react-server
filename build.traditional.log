@@ -1,0 +1,2936 @@
+
+> vite-plugin-react-server@1.2.0-alpha.2 pretest
+> npm run build:vite
+
+
+> vite-plugin-react-server@1.2.0-alpha.2 build:vite
+> vite build && chmod +x bin/patch.mjs
+
+vite v6.3.5 building SSR bundle for production...
+transforming...
+✓ 230 modules transformed.
+rendering chunks...
+dist/plugin/utils/env.js                                           0.32 kB │ map:  0.10 kB
+dist/plugin/worker/index.js                                        0.33 kB │ map:  0.09 kB
+dist/plugin/vendor/index.js                                        0.33 kB │ map:  0.09 kB
+dist/plugin/components/index.js                                    0.38 kB │ map:  0.10 kB
+dist/client.js                                                     0.57 kB │ map:  0.10 kB
+dist/server.js                                                     0.59 kB │ map:  0.10 kB
+dist/plugin/error/index.js                                         0.60 kB │ map:  0.10 kB
+dist/plugin/dev-server/index.server.js                             0.65 kB │ map:  0.11 kB
+dist/plugin/dev-server/index.client.js                             0.65 kB │ map:  0.11 kB
+dist/plugin/env/plugin.client.js                                   0.66 kB │ map:  0.30 kB
+dist/plugin/env/plugin.server.js                                   0.67 kB │ map:  0.30 kB
+dist/plugin/metrics/index.js                                       0.67 kB │ map:  0.10 kB
+dist/plugin/loader/index.js                                        0.70 kB │ map:  0.10 kB
+dist/plugin/stream/client.js                                       0.72 kB │ map:  0.10 kB
+dist/static.js                                                     0.72 kB │ map:  0.10 kB
+dist/plugin/utils/index.js                                         0.73 kB │ map:  0.10 kB
+dist/plugin/stream/server.js                                       0.75 kB │ map:  0.10 kB
+dist/plugin/utils/callServer.js                                    0.82 kB │ map:  0.37 kB
+dist/plugin/worker/rsc/index.js                                    0.82 kB │ map:  0.41 kB
+dist/plugin/error/assertPanic.js                                   0.87 kB │ map:  0.43 kB
+dist/_virtual/dynamic-import-helper.js                             0.91 kB │ map:  0.13 kB
+dist/plugin/react-static/temporaryReferences.server.js             0.94 kB │ map:  0.43 kB
+dist/plugin/react-static/createBuildLoader.client.js               1.03 kB │ map:  0.56 kB
+dist/plugin/transformer/plugin.js                                  1.06 kB │ map:  0.43 kB
+dist/plugin/worker/html/index.js                                   1.21 kB │ map:  0.54 kB
+dist/plugin/helpers/validateRscRenderMessage.js                    1.29 kB │ map:  0.73 kB
+dist/plugin/helpers/workerManager.js                               1.29 kB │ map:  0.70 kB
+dist/plugin/react-server/plugin.js                                 1.33 kB │ map:  0.70 kB
+dist/plugin/stream/createRscStream.js                              1.36 kB │ map:  0.70 kB
+dist/plugin/helpers/moduleRefs.js                                  1.37 kB │ map:  0.72 kB
+dist/plugin/config/envPrefixFromConfig.js                          1.38 kB │ map:  0.71 kB
+dist/plugin/worker/rsc/userOptions.js                              1.38 kB │ map:  0.66 kB
+dist/plugin/dev-server/handleServerAction.js                       1.40 kB │ map:  0.72 kB
+dist/plugin/dev-server/configureReactServer.js                     1.42 kB │ map:  0.73 kB
+dist/plugin/react-client/index.js                                  1.47 kB │ map:  0.78 kB
+dist/plugin/stream/handleRscStream.js                              1.52 kB │ map:  0.82 kB
+dist/plugin/loader/directives/index.js                             1.52 kB │ map:  0.11 kB
+dist/plugin/config/interpolatePattern.js                           1.53 kB │ map:  0.90 kB
+dist/plugin/error/serializeErrorInfo.js                            1.56 kB │ map:  0.85 kB
+dist/plugin/vendor/vendor.js                                       1.58 kB │ map:  0.85 kB
+dist/plugin/root.js                                                1.59 kB │ map:  0.82 kB
+dist/plugin/dev-server/handleServerAction.server.js                1.59 kB │ map:  0.79 kB
+dist/plugin/bundle/manifests.js                                    1.62 kB │ map:  0.91 kB
+dist/plugin/config/getPaths.js                                     1.65 kB │ map:  0.86 kB
+dist/plugin/loader/removeDirectives.js                             1.68 kB │ map:  0.91 kB
+dist/plugin/vendor/vendor.server.js                                1.69 kB │ map:  0.88 kB
+dist/plugin/utils/envUrls.node.js                                  1.71 kB │ map:  1.02 kB
+dist/plugin/dev-server/cleanupServerAction.server.js               1.77 kB │ map:  1.02 kB
+dist/plugin/helpers/resolveStreamElements.js                       1.78 kB │ map:  0.99 kB
+dist/index.js                                                      1.80 kB │ map:  0.98 kB
+dist/plugin/react-static/index.js                                  1.80 kB │ map:  0.94 kB
+dist/plugin/vendor/vendor.static.js                                1.83 kB │ map:  0.98 kB
+dist/plugin/react-server/index.js                                  1.85 kB │ map:  1.01 kB
+dist/plugin/stream/createRenderToPipeableStreamHandler.js          1.85 kB │ map:  1.03 kB
+dist/plugin/helpers/logRenderStart.js                              1.87 kB │ map:  1.14 kB
+dist/plugin/error/shouldPanic.js                                   1.88 kB │ map:  1.00 kB
+dist/plugin/config/getNodeEnv.js                                   1.89 kB │ map:  1.07 kB
+dist/plugin/components/root.js                                     1.98 kB │ map:  1.07 kB
+dist/plugin/loader/removeRanges.js                                 2.04 kB │ map:  1.16 kB
+dist/plugin/loader/transformWithAcornLoose.js                      2.11 kB │ map:  1.25 kB
+dist/plugin/components/html.js                                     2.19 kB │ map:  1.15 kB
+dist/plugin/vendor/vendor.client.js                                2.19 kB │ map:  1.14 kB
+dist/plugin/dev-server/index.js                                    2.30 kB │ map:  1.26 kB
+dist/plugin/helpers/resolveRenderUrl.js                            2.32 kB │ map:  1.32 kB
+dist/plugin/helpers/resolveWithDefaultRootAndHtml.js               2.36 kB │ map:  1.42 kB
+dist/plugin/helpers/handleServerAction.js                          2.38 kB │ map:  1.19 kB
+dist/plugin/helpers/hydrateUserOptions.js                          2.38 kB │ map:  1.37 kB
+dist/plugin/metrics/createWorkerStartupMetrics.js                  2.47 kB │ map:  1.37 kB
+dist/plugin/metrics/createModuleResolutionMetrics.js               2.52 kB │ map:  1.40 kB
+dist/plugin/loader/directives/getExports.js                        2.54 kB │ map:  1.39 kB
+dist/plugin/config/index.js                                        2.68 kB │ map:  0.12 kB
+dist/plugin/metrics/createStreamMetrics.js                         2.70 kB │ map:  1.46 kB
+dist/plugin/config/autoDiscover/customWorkerFiles.js               2.76 kB │ map:  1.55 kB
+dist/plugin/loader/directives/collectExportsFromModule.js          2.80 kB │ map:  1.53 kB
+dist/plugin/config/resolveDirectiveMatcher.js                      2.82 kB │ map:  1.75 kB
+dist/plugin/helpers/stashReturnValue.js                            2.87 kB │ map:  1.57 kB
+dist/plugin/utils/createCallServer.js                              2.87 kB │ map:  1.51 kB
+dist/plugin/metrics/convertStreamMetrics.js                        2.92 kB │ map:  1.57 kB
+dist/plugin/stream/createFromNodeStream.server.js                  2.95 kB │ map:  1.63 kB
+dist/plugin/config/resolvePatternWithValues.js                     2.98 kB │ map:  1.88 kB
+dist/plugin/utils/createReactFetcher.js                            3.05 kB │ map:  1.60 kB
+dist/plugin/config/autoDiscover/pageAndPropFiles.js                3.13 kB │ map:  1.86 kB
+dist/plugin/utils/routeToURL.js                                    3.16 kB │ map:  1.83 kB
+dist/plugin/stream/createRscStream.client.js                       3.48 kB │ map:  2.26 kB
+dist/plugin/config/autoDiscover/createGlobAutoDiscover.js          3.60 kB │ map:  2.02 kB
+dist/plugin/metrics/collectStreamMetrics.js                        3.62 kB │ map:  2.02 kB
+dist/plugin/loader/directives/utils.js                             3.64 kB │ map:  2.01 kB
+dist/plugin/config/createHandlerOptions.js                         3.69 kB │ map:  2.43 kB
+dist/plugin/loader/directives/getFunctionBody.js                   3.72 kB │ map:  2.01 kB
+dist/plugin/components/css.js                                      3.73 kB │ map:  2.10 kB
+dist/plugin/dev-server/cleanupServerAction.client.js               3.73 kB │ map:  2.17 kB
+dist/plugin/error/enhanceError.js                                  3.89 kB │ map:  2.19 kB
+dist/plugin/metrics/createRenderMetrics.js                         3.98 kB │ map:  2.17 kB
+dist/plugin/metrics/formatMetrics.js                               4.03 kB │ map:  2.22 kB
+dist/plugin/dev-server/configureRequestHandler.server.js           4.11 kB │ map:  2.25 kB
+dist/plugin/config/resolvePages.js                                 4.15 kB │ map:  2.32 kB
+dist/plugin/helpers/tryManifest.js                                 4.41 kB │ map:  2.59 kB
+dist/plugin/dev-server/configureReactServer.client.js              4.50 kB │ map:  2.51 kB
+dist/plugin/loader/transformModuleIfNeeded.js                      4.57 kB │ map:  2.99 kB
+dist/plugin/helpers/collectManifestCss.js                          4.71 kB │ map:  2.67 kB
+dist/plugin/error/serializeError.js                                4.72 kB │ map:  2.63 kB
+dist/plugin/helpers/requestToRoute.js                              4.80 kB │ map:  2.68 kB
+dist/plugin/react-static/rscToHtmlStream.server.js                 4.82 kB │ map:  2.60 kB
+dist/plugin/config/resolveAllowedDirectives.js                     4.90 kB │ map:  2.94 kB
+dist/plugin/loader/parse.js                                        5.20 kB │ map:  2.87 kB
+dist/plugin/worker/sendMessage.js                                  5.32 kB │ map:  2.89 kB
+dist/plugin/loader/directives/findDirectiveMatches.js              5.34 kB │ map:  3.07 kB
+dist/plugin/react-server/plugin.server.js                          5.50 kB │ map:  2.98 kB
+dist/plugin/dev-server/plugin.server.js                            5.52 kB │ map:  2.93 kB
+dist/plugin/stream/createHtmlStream.client.js                      5.60 kB │ map:  3.01 kB
+dist/plugin/env/getEnvKey.js                                       5.82 kB │ map:  3.67 kB
+dist/plugin/error/handleError.js                                   6.05 kB │ map:  3.39 kB
+dist/plugin/config/stashedOptionsState.js                          6.06 kB │ map:  3.96 kB
+dist/plugin/error/setupGlobalErrorHandler.js                       6.11 kB │ map:  3.41 kB
+dist/plugin/helpers/index.js                                       6.11 kB │ map:  2.48 kB
+dist/plugin/loader/directives/getFunctionName.js                   6.27 kB │ map:  3.63 kB
+dist/plugin/config/extMap.js                                       6.35 kB │ map:  3.62 kB
+dist/plugin/loader/directives/addLocalExportedNames.js             6.38 kB │ map:  3.60 kB
+dist/plugin/env/plugin.js                                          6.42 kB │ map:  3.48 kB
+dist/plugin/loader/directives/analyzeModule.js                     6.45 kB │ map:  3.59 kB
+dist/plugin/config/parsePattern.js                                 6.62 kB │ map:  4.34 kB
+dist/plugin/helpers/pipeToResponse.js                              6.80 kB │ map:  3.90 kB
+dist/plugin/helpers/moduleResolver.js                              6.91 kB │ map:  3.92 kB
+dist/plugin/config/resolveRegExp.js                                7.01 kB │ map:  4.42 kB
+dist/plugin/dev-server/plugin.client.js                            7.19 kB │ map:  3.84 kB
+dist/plugin/error/logError.js                                      7.63 kB │ map:  4.33 kB
+dist/plugin/stream/index.js                                        7.67 kB │ map:  5.09 kB
+dist/plugin/helpers/createPatternMatcher.js                        7.81 kB │ map:  4.65 kB
+dist/plugin/helpers/resolvePage.js                                 7.93 kB │ map:  4.68 kB
+dist/plugin/stream/handleRscStream.server.js                       8.30 kB │ map:  4.59 kB
+dist/plugin/stream/createFromNodeStream.client.js                  8.41 kB │ map:  4.59 kB
+dist/plugin/env/createEnvPlugin.js                                 8.56 kB │ map:  4.77 kB
+dist/plugin/config/mimeTypes.js                                    8.85 kB │ map:  4.72 kB
+dist/plugin/dev-server/handleServerAction.client.js                8.89 kB │ map:  5.01 kB
+dist/plugin/plugin.client.js                                       9.01 kB │ map:  5.09 kB
+dist/plugin/loader/directives/getQualifiedName.js                  9.13 kB │ map:  5.02 kB
+dist/plugin/loader/directives/getExportedName.js                   9.22 kB │ map:  5.29 kB
+dist/plugin/worker/rsc/state.js                                    9.45 kB │ map:  5.40 kB
+dist/plugin/helpers/createElementWithReact.js                      9.56 kB │ map:  5.41 kB
+dist/plugin/helpers/createCssProps.js                              9.60 kB │ map:  5.57 kB
+dist/plugin/loader/transformNonServerEnvironment.js                9.61 kB │ map:  5.49 kB
+dist/plugin/loader/transformModule.js                              9.69 kB │ map:  5.50 kB
+dist/plugin/helpers/cleanObject.js                                 9.80 kB │ map:  5.65 kB
+dist/plugin/helpers/mergeMessageWithDefaults.js                    9.89 kB │ map:  5.34 kB
+dist/plugin/react-client/plugin.server.js                         10.35 kB │ map:  5.66 kB
+dist/plugin/react-static/processCssFilesForPages.js               10.53 kB │ map:  5.89 kB
+dist/plugin/stream/createHtmlStream.server.js                     10.69 kB │ map:  6.04 kB
+dist/plugin/config/resolveUrlOption.js                            10.78 kB │ map:  6.49 kB
+dist/plugin/loader/directives/processFunctionNode.js              10.97 kB │ map:  6.05 kB
+dist/plugin/environments/createBuildEventPlugin.js                11.01 kB │ map:  5.99 kB
+dist/plugin/helpers/resolveComponent.js                           11.26 kB │ map:  6.99 kB
+dist/plugin/react-client/plugin.client.js                         11.27 kB │ map:  6.17 kB
+dist/plugin/react-static/configurePreviewServer.js                11.29 kB │ map:  6.24 kB
+dist/plugin/loader/createDefaultLoader.js                         11.35 kB │ map:  6.51 kB
+dist/plugin/stream/createRscWorkerStream.js                       12.29 kB │ map:  7.02 kB
+dist/plugin/helpers/getBundleManifest.js                          12.59 kB │ map:  7.23 kB
+dist/plugin/react-static/collectRscContent.js                     12.62 kB │ map:  7.21 kB
+dist/plugin/file-preserver/plugin.js                              12.68 kB │ map:  7.26 kB
+dist/plugin/loader/env-loader.js                                  12.69 kB │ map:  7.18 kB
+dist/plugin/stream/createRscStream.utils.js                       12.83 kB │ map:  7.54 kB
+dist/plugin/helpers/createUnifiedCssProcessor.js                  12.93 kB │ map:  7.61 kB
+dist/plugin/loader/transformClientModule.js                       13.00 kB │ map:  7.27 kB
+dist/plugin/dev-server/restartWorker.client.js                    13.51 kB │ map:  7.33 kB
+dist/plugin/helpers/createSerializableHandlerOptions.js           13.96 kB │ map:  8.20 kB
+dist/plugin/helpers/createBufferedRscStream.js                    14.52 kB │ map:  8.55 kB
+dist/plugin/loader/directives/typeGuards.js                       14.82 kB │ map:  8.36 kB
+dist/plugin/helpers/resolveComponents.client.js                   14.91 kB │ map:  8.37 kB
+dist/plugin/loader/directives/collectExports.js                   15.39 kB │ map:  8.73 kB
+dist/plugin/error/toError.js                                      15.58 kB │ map:  8.85 kB
+dist/plugin/loader/sourceMap.js                                   15.91 kB │ map:  9.19 kB
+dist/plugin/config/autoDiscover/resolveAutoDiscover.js            16.08 kB │ map:  9.16 kB
+dist/plugin/loader/css-loader.js                                  16.22 kB │ map:  9.49 kB
+dist/plugin/helpers/getRouteFiles.js                              16.81 kB │ map:  9.86 kB
+dist/plugin/plugin.server.js                                      16.95 kB │ map:  9.33 kB
+dist/plugin/helpers/resolveProps.js                               17.40 kB │ map: 10.43 kB
+dist/plugin/worker/rsc/createRscWorkerLoader.js                   17.66 kB │ map:  9.94 kB
+dist/plugin/worker/rsc/handlers.js                                17.91 kB │ map: 10.09 kB
+dist/plugin/helpers/resolvePageAndProps.js                        17.99 kB │ map: 10.03 kB
+dist/plugin/helpers/collectViteModuleGraphCss.js                  18.68 kB │ map: 10.81 kB
+dist/plugin/utils/urls.js                                         19.83 kB │ map: 11.96 kB
+dist/plugin/stream/createRscStreamTwoPort.client.js               20.57 kB │ map: 11.26 kB
+dist/plugin/react-server/plugin.client.js                         20.72 kB │ map: 11.42 kB
+dist/plugin/react-static/fileWriter.js                            21.26 kB │ map: 12.12 kB
+dist/plugin/metrics/metricWatcher.js                              21.39 kB │ map: 12.27 kB
+dist/plugin/stream/handleRscStream.client.js                      21.39 kB │ map: 12.09 kB
+dist/plugin/loader/transformServerModule.js                       21.71 kB │ map: 12.41 kB
+dist/plugin/config/resolveEnv.js                                  23.18 kB │ map: 13.10 kB
+dist/plugin/react-static/rscToHtmlStream.client.js                23.51 kB │ map: 13.19 kB
+dist/plugin/stream/createRenderToPipeableStreamHandler.client.js  23.83 kB │ map: 13.65 kB
+dist/plugin/config/flightBindings.js                              23.96 kB │ map: 12.75 kB
+dist/plugin/helpers/requestInfo.js                                23.99 kB │ map: 13.33 kB
+dist/plugin/worker/rsc/rsc-worker.development.js                  24.25 kB │ map: 13.43 kB
+dist/plugin/config/getCondition.js                                24.51 kB │ map: 14.10 kB
+dist/plugin/config/createModuleID.js                              25.27 kB │ map: 14.98 kB
+dist/plugin/environments/createEnvironmentPlugin.js               25.64 kB │ map: 14.16 kB
+dist/plugin/loader/react-loader.js                                26.75 kB │ map: 15.08 kB
+dist/plugin/dev-server/configureRequestHandler.client.js          26.78 kB │ map: 14.74 kB
+dist/plugin/stream/createRscStream.server.js                      28.01 kB │ map: 15.88 kB
+dist/plugin/worker/rsc/rsc-worker.production.js                   28.18 kB │ map: 15.62 kB
+dist/plugin/stream/createRenderToPipeableStreamHandler.server.js  29.77 kB │ map: 16.84 kB
+dist/plugin/helpers/inputNormalizer.js                            29.90 kB │ map: 17.08 kB
+dist/plugin/loader/createTransformer.js                           30.82 kB │ map: 17.24 kB
+dist/plugin/config/autoDiscover/resolveBuildPages.js              31.93 kB │ map: 17.87 kB
+dist/plugin/helpers/serializeUserOptions.js                       33.68 kB │ map: 18.77 kB
+dist/plugin/config/defaults.js                                    34.38 kB │ map: 18.56 kB
+dist/plugin/dev-server/configureReactServer.server.js             35.77 kB │ map: 19.77 kB
+dist/plugin/worker/createWorker.js                                36.77 kB │ map: 20.92 kB
+dist/plugin/config/createHandlerOptions.client.js                 37.58 kB │ map: 20.47 kB
+dist/plugin/loader/directives/analyzeDirectives.js                39.63 kB │ map: 22.08 kB
+dist/plugin/transformer/createTransformerPlugin.js                42.96 kB │ map: 24.06 kB
+dist/plugin/react-static/createBuildLoader.server.js              45.84 kB │ map: 25.22 kB
+dist/plugin/config/createHandlerOptions.server.js                 51.40 kB │ map: 28.25 kB
+dist/plugin/react-static/plugin.server.js                         57.76 kB │ map: 31.51 kB
+dist/plugin/react-static/renderPages.js                           63.89 kB │ map: 35.09 kB
+dist/plugin/react-static/renderPage.client.js                     66.57 kB │ map: 37.22 kB
+dist/plugin/config/resolveUserConfig.js                           68.45 kB │ map: 38.61 kB
+dist/plugin/react-static/renderPage.server.js                     71.49 kB │ map: 39.22 kB
+dist/plugin/react-static/plugin.client.js                         78.82 kB │ map: 43.10 kB
+dist/plugin/worker/rsc/messageHandler.js                          80.46 kB │ map: 44.54 kB
+dist/plugin/config/resolveOptions.js                              84.81 kB │ map: 47.57 kB
+✓ built in 617ms
+
+> vite-plugin-react-server@1.2.0-alpha.2 test
+> NODE_OPTIONS='--conditions react-server' vitest run ./test/examples/build-traditional
+
+[?25l
+ RUN  v3.0.4 /home/nico/code/vite-plugin-react-server
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+Looking for index.html at: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/index.html
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+✅ index.html found
+✅ Changed to project directory
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+🔨 Step 1: Static build (client modules for browser)
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[resolveBuildPages] resolveBuildPages called with pages:2 and Root: undefined Html: undefined
+[resolveBuildPages] resolveBuildPages - first time resolving pages
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+client environment rollup inputs: {
+  "index": "index.html",
+  "components/Link.client": "src/components/Link.client.tsx",
+  "page2/test.module": "src/page2/test.module.css",
+  "page/test.module": "src/page/test.module.css"
+}
+client environment output preserveModulesRoot: {
+  "preserveModulesRoot": "src",
+  "format": "esm",
+  "exports": "named"
+}
+client userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+client userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+ssr environment rollup inputs: {
+  "components/Link.client": "src/components/Link.client.tsx",
+  "page2/test.module": "src/page2/test.module.css",
+  "page/test.module": "src/page/test.module.css"
+}
+ssr environment output preserveModulesRoot: {
+  "preserveModulesRoot": "src",
+  "format": "esm",
+  "exports": "named"
+}
+ssr userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+ssr userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+server environment rollup inputs: {
+  "components/Link.client": "src/components/Link.client.tsx",
+  "page2/test.module": "src/page2/test.module.css",
+  "page/test.module": "src/page/test.module.css",
+  "page/page": "src/page/page.tsx",
+  "page/props": "src/page/props.ts"
+}
+server environment output preserveModulesRoot: {
+  "preserveModulesRoot": "src",
+  "format": "esm",
+  "exports": "named"
+}
+server userConfig.resolve: {
+  "externalConditions": [
+    "react-server"
+  ]
+}
+server userConfig.build.rollupOptions.external: [
+  "react",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-dom",
+  "react-server-dom-esm/server",
+  "react-server-dom-esm/server.node"
+]
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[resolveBuildPages] resolveBuildPages called with pages:2 and Root: undefined Html: undefined
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+options changed, forcing re-resolve
+[vite-plugin-react-server:transform-client-as-client] configResolved: isBuild=true isSSR=false mode=test allowed=["client"] defaultEnv=client importServerPath=react-server-dom-esm/server.node
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+vite v6.3.5 building for test...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+transforming...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: src/client.tsx -> src/client.tsx
+[createTransformer] moduleID function called: src/client.tsx -> src/client.tsx
+[createTransformer:client] Loading: src/client.tsx
+[createTransformer:client] Transforming client component without directives: src/client.tsx
+[react-client-transform] ModuleID transformation: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer] moduleID function called: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer:client] Loading: src/components/Link.client.tsx
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[analyzeDirectives] Processing node: ImportDeclaration start: 0 end: 26
+directive: none
+beforeNode: none
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 27 end: 73
+directive: none
+beforeNode: "import React from \"react\";\n"
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import React from \"react\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 74 end: 131
+directive: none
+beforeNode: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";\n"
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ExpressionStatement start: 132 end: 208
+directive: none
+beforeNode: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";\nconst root = create
+[analyzeDirectives] Found non-directive expression before first directive, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import React from \"react\";\nimport { createRoot } from \"react-dom/client\";\nconst root = createRoot(do", setting foundNonDirective=true
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[analyzeModule] exports:
+Name: Link Type: function Range: Link
+
+[analyzeDirectives] Processing node: ExpressionStatement start: 0 end: 13
+directive: use client
+beforeNode: none
+[analyzeDirectives] Found first directive: use client at range: 0,13
+[analyzeDirectives] Processing node: ImportDeclaration start: 14 end: 40
+directive: none
+beforeNode: "\"use client\";\n"
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 41 end: 158
+directive: none
+beforeNode: "\"use client\";\nimport React from \"react\";\n"
+[createTransformer:client] Transformed result for src/client.tsx: import React from "react";
+import { createRoot } from "react-dom/client";
+const root = createRoot(do
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] Link.client.tsx (client) (directives processed)
+[react-client-transform] 
+import React from "react";
+export function Link({ to, children }) {
+  return /* @__PURE__ */ React....
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react/index.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react/index.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs/scheduler.development.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom.development.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js -> home/nico/code/vite-plugin-react-server/node_modules/scheduler/index.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/index.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js
+[createTransformer:client] Loading: home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs/react-dom-client.development.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[analyzeModule] exports:
+Name: __require Type: function Range: requireReactDomClient_development
+
+[analyzeDirectives] Processing node: ImportDeclaration start: 0 end: 55
+directive: none
+beforeNode: none
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 56 end: 237
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\n"
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 238 end: 376
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 377 end: 511
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 512 end: 650
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 652 end: 694
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: FunctionDeclaration start: 696 end: 1025413
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: FunctionDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 1025415 end: 1025473
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClien
+[analyzeDirectives] Found non-directive node before first directive: ExportNamedDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __exports as reactDomClient_develop", setting foundNonDirective=true
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] react-dom-client.development.js (directives already processed)
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js -> home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+[createTransformer:client] Loading: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+[createTransformer:client] Transforming client component without directives: home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[analyzeModule] exports:
+Name: __require Type: function Range: requireClient
+
+[analyzeDirectives] Processing node: ImportDeclaration start: 0 end: 55
+directive: none
+beforeNode: none
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 56 end: 195
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\n"
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 196 end: 230
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ImportDeclaration start: 231 end: 396
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: ImportDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: VariableDeclaration start: 398 end: 420
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: VariableDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: FunctionDeclaration start: 422 end: 1060
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: FunctionDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 1062 end: 1100
+directive: none
+beforeNode: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule }
+[analyzeDirectives] Found non-directive node before first directive: ExportNamedDeclaration, setting foundNonDirective=true
+[analyzeDirectives] Found content before first directive: "import * as commonjsHelpers from \"\u0000commonjsHelpers.js\";\nimport { __module as clientModule } from \"\\u", setting foundNonDirective=true
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[createTransformer:client] Transformed result for home/nico/code/vite-plugin-react-server/node_modules/react-dom/client.js: import * as commonjsHelpers from " commonjsHelpers.js";
+import { __module as clientModule } from "\u
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+✓ 24 modules transformed.
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+rendering chunks...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+environment config BuildEnvironment {
+  name: [32m'client'[39m,
+  config: {
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [36m[Array][39m,
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: []
+    },
+    keepProcessEnv: [33mfalse[39m,
+    consumer: [32m'client'[39m,
+    optimizeDeps: {
+      include: [],
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mfalse[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mtrue[39m,
+      createEnvironment: [36m[Function: defaultCreateClientDevEnvironment][39m,
+      recoverable: [33mtrue[39m,
+      moduleRunnerTransform: [33mfalse[39m
+    },
+    build: {
+      target: [36m[Array][39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/static'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mtrue[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [32m'esbuild'[39m,
+      ssr: [33mfalse[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [36m[Array][39m,
+      cssMinify: [33mtrue[39m
+    }
+  },
+  logger: {
+    hasWarned: [36m[Getter][39m,
+    info: [36m[Function: info][39m,
+    warn: [36m[Function: warn][39m,
+    warnOnce: [36m[Function: warnOnce][39m,
+    error: [36m[Function: error][39m,
+    clearScreen: [36m[Function: clearScreen][39m,
+    hasErrorLogged: [36m[Function: hasErrorLogged][39m
+  },
+  _options: {
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [36m[Array][39m,
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: []
+    },
+    keepProcessEnv: [33mfalse[39m,
+    consumer: [32m'client'[39m,
+    optimizeDeps: {
+      include: [],
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mfalse[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mtrue[39m,
+      createEnvironment: [36m[Function: defaultCreateClientDevEnvironment][39m,
+      recoverable: [33mtrue[39m,
+      moduleRunnerTransform: [33mfalse[39m
+    },
+    build: {
+      target: [36m[Array][39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/static'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mtrue[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [32m'esbuild'[39m,
+      ssr: [33mfalse[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [36m[Array][39m,
+      cssMinify: [33mtrue[39m
+    }
+  },
+  _topLevelConfig: {
+    plugins: [
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m
+    ],
+    mode: [32m'test'[39m,
+    root: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+    build: {
+      target: [36m[Array][39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/static'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mtrue[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [32m'esbuild'[39m,
+      ssr: [33mfalse[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [36m[Array][39m,
+      cssMinify: [33mtrue[39m
+    },
+    environments: { client: [36m[Object][39m, ssr: [36m[Object][39m, server: [36m[Object][39m },
+    base: [32m'./'[39m,
+    envPrefix: [32m'VITE_'[39m,
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [36m[Array][39m,
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: []
+    },
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    ssr: {
+      target: [32m'node'[39m,
+      optimizeDeps: [36m[Object][39m,
+      resolve: [36m[Object][39m,
+      external: [36m[Array][39m,
+      noExternal: []
+    },
+    server: {
+      port: [33m5173[39m,
+      strictPort: [33mtrue[39m,
+      host: [32m'localhost'[39m,
+      allowedHosts: [],
+      https: [90mundefined[39m,
+      open: [33mfalse[39m,
+      proxy: [90mundefined[39m,
+      cors: [36m[Object][39m,
+      headers: {},
+      warmup: [36m[Object][39m,
+      middlewareMode: [33mfalse[39m,
+      fs: [36m[Object][39m,
+      preTransformRequests: [33mtrue[39m,
+      perEnvironmentStartEndDuringDev: [33mfalse[39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m
+    },
+    configFile: [90mundefined[39m,
+    configFileDependencies: [],
+    inlineConfig: {
+      plugins: [36m[Array][39m,
+      mode: [32m'test'[39m,
+      root: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+      build: [36m[Object][39m
+    },
+    decodedBase: [32m'./'[39m,
+    rawBase: [32m'./'[39m,
+    publicDir: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/public'[39m,
+    cacheDir: [32m'/home/nico/code/vite-plugin-react-server/node_modules/.vite'[39m,
+    command: [32m'build'[39m,
+    isWorker: [33mfalse[39m,
+    mainConfig: [1mnull[22m,
+    bundleChain: [],
+    isProduction: [33mfalse[39m,
+    css: {
+      transformer: [32m'postcss'[39m,
+      preprocessorMaxWorkers: [33m0[39m,
+      devSourcemap: [33mfalse[39m
+    },
+    json: { namedExports: [33mtrue[39m, stringify: [32m'auto'[39m },
+    esbuild: { jsxDev: [33mtrue[39m },
+    builder: [90mundefined[39m,
+    preview: {
+      port: [33m4173[39m,
+      strictPort: [33mtrue[39m,
+      host: [32m'localhost'[39m,
+      allowedHosts: [],
+      https: [90mundefined[39m,
+      open: [33mfalse[39m,
+      proxy: [90mundefined[39m,
+      cors: [36m[Object][39m,
+      headers: {}
+    },
+    envDir: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+    env: {
+      VITE_BASE_URL: [32m''[39m,
+      VITE_PUBLIC_ORIGIN: [32m''[39m,
+      VITE_MODE: [32m'development'[39m,
+      VITE_SSR: [32m'true'[39m,
+      VITE_DEV: [32m'true'[39m,
+      VITE_PROD: [32m'false'[39m,
+      BASE_URL: [32m'./'[39m,
+      MODE: [32m'test'[39m,
+      DEV: [33mtrue[39m,
+      PROD: [33mfalse[39m
+    },
+    assetsInclude: [36m[Function: assetsInclude][39m,
+    logger: {
+      hasWarned: [33mfalse[39m,
+      info: [36m[Function: info][39m,
+      warn: [36m[Function: warn][39m,
+      warnOnce: [36m[Function: warnOnce][39m,
+      error: [36m[Function: error][39m,
+      clearScreen: [36m[Function: clearScreen][39m,
+      hasErrorLogged: [36m[Function: hasErrorLogged][39m
+    },
+    packageCache: Map(36) {
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test_false'[39m => [36m[Object][39m,
+      [32m'rpd_react-dom_/home/nico/code/vite-plugin-react-server_false'[39m => [36m[Object][39m,
+      [32m'rpd_react-dom_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src_false'[39m => [36m[Object][39m,
+      [32m'rpd_react-dom_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test_false'[39m => [36m[Object][39m,
+      [32m'rpd_react-dom_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server_false'[39m => [36m[Object][39m,
+      [32m'rpd_react-dom_/home/nico/code/vite-plugin-react-server/test/fixtures/examples_false'[39m => [36m[Object][39m,
+      [32m'rpd_react-dom_/home/nico/code/vite-plugin-react-server/test/fixtures_false'[39m => [36m[Object][39m,
+      [32m'rpd_react-dom_/home/nico/code/vite-plugin-react-server/test_false'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src/components'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src/components_false'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/react-dom'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/react'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/react/cjs'[39m => [36m[Object][39m,
+      [32m'rpd_scheduler_/home/nico/code/vite-plugin-react-server_false'[39m => [36m[Object][39m,
+      [32m'rpd_scheduler_/home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs_false'[39m => [36m[Object][39m,
+      [32m'rpd_scheduler_/home/nico/code/vite-plugin-react-server/node_modules/react-dom_false'[39m => [36m[Object][39m,
+      [32m'rpd_scheduler_/home/nico/code/vite-plugin-react-server/node_modules_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/node_modules/react-dom/cjs_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/node_modules/react-dom_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/node_modules_false'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/scheduler'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/scheduler/cjs'[39m => [36m[Object][39m,
+      set: [36m[Function (anonymous)][39m
+    },
+    worker: {
+      format: [32m'iife'[39m,
+      plugins: [36m[AsyncFunction: createWorkerPlugins][39m,
+      rollupOptions: {}
+    },
+    appType: [32m'spa'[39m,
+    experimental: { importGlobRestoreExtension: [33mfalse[39m, hmrPartialAccept: [33mfalse[39m },
+    future: [90mundefined[39m,
+    optimizeDeps: {
+      include: [],
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mfalse[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mfalse[39m,
+      createEnvironment: [36m[Function: defaultCreateDevEnvironment][39m,
+      recoverable: [33mfalse[39m,
+      moduleRunnerTransform: [33mfalse[39m
+    },
+    webSocketToken: [32m'aJkNmEkfZiFA'[39m,
+    getSortedPlugins: [36m[Function: getSortedPlugins][39m,
+    getSortedPluginHooks: [36m[Function: getSortedPluginHooks][39m,
+    createResolver: [36m[Function: createResolver][39m,
+    fsDenyGlob: [36m[Function: arrayMatcher][39m,
+    safeModulePaths: Set(0) {},
+    additionalAllowedHosts: [ [32m'localhost'[39m, [32m'localhost'[39m ]
+  },
+  _plugins: [
+    {
+      name: [32m'vite:build-metadata'[39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m
+    },
+    {
+      name: [32m'vite:watch-package-data'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      watchChange: [36m[Function: watchChange][39m
+    },
+    {
+      name: [32m'alias'[39m,
+      buildStart: [36m[AsyncFunction: buildStart][39m,
+      resolveId: [36m[Function: resolveId][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/environments'[39m,
+      enforce: [32m'pre'[39m,
+      config: [36m[AsyncFunction: config][39m
+    },
+    {
+      name: [32m'vite:resolve'[39m,
+      resolveId: [36m[AsyncFunction: resolveId][39m,
+      load: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:html-inline-proxy'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:css'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      load: [36m[Object][39m,
+      transform: [36m[AsyncFunction][39m
+    },
+    {
+      name: [32m'vite:esbuild'[39m,
+      configureServer: [36m[Function: configureServer][39m,
+      transform: [36m[AsyncFunction: transform][39m
+    },
+    { name: [32m'vite:json'[39m, transform: [36m[Function][39m },
+    { name: [32m'vite:wasm-helper'[39m, resolveId: [36m[Object][39m, load: [36m[Object][39m },
+    {
+      name: [32m'vite:worker'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      load: [36m[Object][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:asset'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/client'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      config: [36m[AsyncFunction: config][39m
+    },
+    { name: [32m'vite:wasm-fallback'[39m, load: [36m[Object][39m },
+    { name: [32m'vite:define'[39m, transform: [36m[Object][39m },
+    {
+      name: [32m'vite:css-post'[39m,
+      renderStart: [36m[Function: renderStart][39m,
+      transform: [36m[AsyncFunction][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m,
+      augmentChunkHash: [36m[Function: augmentChunkHash][39m,
+      generateBundle: [36m[AsyncFunction: generateBundle][39m
+    },
+    {
+      name: [32m'vite:build-html'[39m,
+      transform: [36m[Object][39m,
+      generateBundle: [36m[AsyncFunction: generateBundle][39m
+    },
+    {
+      name: [32m'vite:worker-import-meta-url'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:asset-import-meta-url'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:force-systemjs-wrap-complete'[39m,
+      renderChunk: [36m[Function: renderChunk][39m
+    },
+    {
+      name: [32m'commonjs'[39m,
+      version: [32m'28.0.3'[39m,
+      options: [36m[Function: options][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      load: [36m[AsyncFunction: load][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Function: transform][39m
+    },
+    {
+      name: [32m'vite:data-uri'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      resolveId: [36m[Function: resolveId][39m,
+      load: [36m[Function: load][39m
+    },
+    {
+      name: [32m'vite:dynamic-import-vars'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:import-glob'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      transform: [36m[Object][39m,
+      hotUpdate: [36m[Function: hotUpdate][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/env'[39m,
+      enforce: [32m'post'[39m,
+      config: [36m[AsyncFunction: config][39m,
+      closeBundle: [36m[Function: closeBundle][39m,
+      configureServer: [36m[Function: configureServer][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/build-events'[39m,
+      enforce: [32m'post'[39m,
+      writeBundle: [36m[Function: writeBundle][39m
+    },
+    {
+      name: [32m'vite-plugin-react-server:transform-client'[39m,
+      enforce: [32m'post'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      configResolved: [36m[Function: configResolved][39m,
+      buildStart: [36m[AsyncFunction: buildStart][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:build-import-analysis'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      transform: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:esbuild-transpile'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m
+    },
+    {
+      name: [32m'vite:terser'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m,
+      closeBundle: [36m[Function: closeBundle][39m
+    },
+    {
+      name: [32m'vite:manifest'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:ssr-manifest'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:reporter'[39m,
+      sharedDuringBuild: [33mtrue[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      transform: [36m[Function: transform][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      renderStart: [36m[Function: renderStart][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m,
+      writeBundle: [36m[AsyncFunction: writeBundle][39m
+    },
+    { name: [32m'vite:load-fallback'[39m, load: [36m[Object][39m }
+  ],
+  _initiated: [33mtrue[39m,
+  mode: [32m'build'[39m
+}
+Test Event: [32m'build.writeBundle.static'[39m
+computing gzip size...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+dist/static/index.html                          0.24 kB │ gzip:   0.17 kB
+dist/static/.vite/manifest.json                 0.88 kB │ gzip:   0.24 kB
+dist/static/.vite/ssr-manifest.json             1.96 kB │ gzip:   0.31 kB
+dist/static/assets/page/test.css                0.09 kB │ gzip:   0.10 kB
+dist/static/assets/page2/test.css               0.09 kB │ gzip:   0.10 kB
+dist/static/components/Link.client-wj6rwp.js    0.12 kB │ gzip:   0.13 kB
+dist/static/page2/test.js                       0.15 kB │ gzip:   0.12 kB
+dist/static/page/test.js                        0.15 kB │ gzip:   0.12 kB
+dist/static/index2.js                          21.51 kB │ gzip:   7.75 kB
+dist/static/index.js                          396.32 kB │ gzip: 118.68 kB
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+✓ built in 1.02s
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+🔨 Step 2: Client build (client boundary modules for SSR)
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[resolveBuildPages] resolveBuildPages called with pages:2 and Root: undefined Html: undefined
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+client environment rollup inputs: {
+  "index": "index.html",
+  "components/Link.client": "src/components/Link.client.tsx",
+  "page2/test.module": "src/page2/test.module.css",
+  "page/test.module": "src/page/test.module.css"
+}
+client environment output preserveModulesRoot: {
+  "preserveModulesRoot": "src",
+  "format": "esm",
+  "exports": "named"
+}
+client userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+client userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+ssr environment rollup inputs: {
+  "components/Link.client": "src/components/Link.client.tsx",
+  "page2/test.module": "src/page2/test.module.css",
+  "page/test.module": "src/page/test.module.css"
+}
+ssr environment output preserveModulesRoot: {
+  "preserveModulesRoot": "src",
+  "format": "esm",
+  "exports": "named"
+}
+ssr userConfig.resolve: {
+  "external": [
+    "react",
+    "react-dom",
+    "react-server-dom-esm/client"
+  ]
+}
+ssr userConfig.build.rollupOptions.external: [
+  "fsevents"
+]
+server environment rollup inputs: {
+  "components/Link.client": "src/components/Link.client.tsx",
+  "page2/test.module": "src/page2/test.module.css",
+  "page/test.module": "src/page/test.module.css",
+  "page/page": "src/page/page.tsx",
+  "page/props": "src/page/props.ts"
+}
+server environment output preserveModulesRoot: {
+  "preserveModulesRoot": "src",
+  "format": "esm",
+  "exports": "named"
+}
+server userConfig.resolve: {
+  "externalConditions": [
+    "react-server"
+  ]
+}
+server userConfig.build.rollupOptions.external: [
+  "react",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-dom",
+  "react-server-dom-esm/server",
+  "react-server-dom-esm/server.node"
+]
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[resolveBuildPages] resolveBuildPages called with pages:2 and Root: undefined Html: undefined
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+options changed, forcing re-resolve
+[vite-plugin-react-server:transform-ssr-as-client] configResolved: isBuild=true isSSR=true mode=test allowed=["client","ssr"] defaultEnv=ssr importServerPath=react-server-dom-esm/server.node
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+vite v6.3.5 building for test...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+transforming...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer] moduleID function called: src/components/Link.client.tsx -> components/Link.client-wj6rwp.js
+[createTransformer:client] Loading: src/components/Link.client.tsx
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[analyzeModule] exports:
+Name: Link Type: function Range: Link
+
+[analyzeDirectives] Processing node: ExpressionStatement start: 0 end: 13
+directive: use client
+beforeNode: none
+[analyzeDirectives] Found first directive: use client at range: 0,13
+[analyzeDirectives] Processing node: ImportDeclaration start: 14 end: 40
+directive: none
+beforeNode: "\"use client\";\n"
+[analyzeDirectives] Processing node: ExportNamedDeclaration start: 41 end: 158
+directive: none
+beforeNode: "\"use client\";\nimport React from \"react\";\n"
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] Link.client.tsx (client) (directives processed)
+[react-client-transform] 
+import React from "react";
+export function Link({ to, children }) {
+  return /* @__PURE__ */ React....
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js -> home/nico/code/vite-plugin-react-server/node_modules/react/cjs/react.development.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[react-client-transform] ModuleID transformation: home/nico/code/vite-plugin-react-server/node_modules/react/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react/index.js
+[createTransformer] moduleID function called: home/nico/code/vite-plugin-react-server/node_modules/react/index.js -> home/nico/code/vite-plugin-react-server/node_modules/react/index.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+✓ 9 modules transformed.
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+rendering chunks...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+environment config BuildEnvironment {
+  name: [32m'ssr'[39m,
+  config: {
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [36m[Array][39m,
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: []
+    },
+    keepProcessEnv: [33mfalse[39m,
+    consumer: [32m'client'[39m,
+    optimizeDeps: {
+      include: [36m[Array][39m,
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mfalse[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mtrue[39m,
+      createEnvironment: [36m[Function: defaultCreateDevEnvironment][39m,
+      recoverable: [33mtrue[39m,
+      moduleRunnerTransform: [33mfalse[39m
+    },
+    build: {
+      target: [36m[Array][39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/client'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mfalse[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [32m'esbuild'[39m,
+      ssr: [33mtrue[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [36m[Array][39m,
+      cssMinify: [33mtrue[39m
+    }
+  },
+  logger: {
+    hasWarned: [36m[Getter][39m,
+    info: [36m[Function: info][39m,
+    warn: [36m[Function: warn][39m,
+    warnOnce: [36m[Function: warnOnce][39m,
+    error: [36m[Function: error][39m,
+    clearScreen: [36m[Function: clearScreen][39m,
+    hasErrorLogged: [36m[Function: hasErrorLogged][39m
+  },
+  _options: {
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [36m[Array][39m,
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: []
+    },
+    keepProcessEnv: [33mfalse[39m,
+    consumer: [32m'client'[39m,
+    optimizeDeps: {
+      include: [36m[Array][39m,
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mfalse[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mtrue[39m,
+      createEnvironment: [36m[Function: defaultCreateDevEnvironment][39m,
+      recoverable: [33mtrue[39m,
+      moduleRunnerTransform: [33mfalse[39m
+    },
+    build: {
+      target: [36m[Array][39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/client'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mfalse[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [32m'esbuild'[39m,
+      ssr: [33mtrue[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [36m[Array][39m,
+      cssMinify: [33mtrue[39m
+    }
+  },
+  _topLevelConfig: {
+    plugins: [
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m
+    ],
+    mode: [32m'test'[39m,
+    root: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+    build: {
+      target: [36m[Array][39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/client'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mfalse[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [32m'esbuild'[39m,
+      ssr: [33mtrue[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [36m[Array][39m,
+      cssMinify: [33mtrue[39m
+    },
+    environments: { client: [36m[Object][39m, ssr: [36m[Object][39m, server: [36m[Object][39m },
+    base: [32m'/'[39m,
+    envPrefix: [32m'VITE_'[39m,
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [36m[Array][39m,
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: []
+    },
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    ssr: {
+      target: [32m'node'[39m,
+      optimizeDeps: [36m[Object][39m,
+      resolve: [36m[Object][39m,
+      external: [36m[Array][39m,
+      noExternal: []
+    },
+    server: {
+      port: [33m5173[39m,
+      strictPort: [33mtrue[39m,
+      host: [32m'localhost'[39m,
+      allowedHosts: [],
+      https: [90mundefined[39m,
+      open: [33mfalse[39m,
+      proxy: [90mundefined[39m,
+      cors: [36m[Object][39m,
+      headers: {},
+      warmup: [36m[Object][39m,
+      middlewareMode: [33mfalse[39m,
+      fs: [36m[Object][39m,
+      preTransformRequests: [33mtrue[39m,
+      perEnvironmentStartEndDuringDev: [33mfalse[39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m
+    },
+    configFile: [90mundefined[39m,
+    configFileDependencies: [],
+    inlineConfig: {
+      plugins: [36m[Array][39m,
+      mode: [32m'test'[39m,
+      root: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+      build: [36m[Object][39m
+    },
+    decodedBase: [32m'/'[39m,
+    rawBase: [32m'/'[39m,
+    publicDir: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/public'[39m,
+    cacheDir: [32m'/home/nico/code/vite-plugin-react-server/node_modules/.vite'[39m,
+    command: [32m'build'[39m,
+    isWorker: [33mfalse[39m,
+    mainConfig: [1mnull[22m,
+    bundleChain: [],
+    isProduction: [33mfalse[39m,
+    css: {
+      transformer: [32m'postcss'[39m,
+      preprocessorMaxWorkers: [33m0[39m,
+      devSourcemap: [33mfalse[39m
+    },
+    json: { namedExports: [33mtrue[39m, stringify: [32m'auto'[39m },
+    esbuild: { jsxDev: [33mtrue[39m },
+    builder: [90mundefined[39m,
+    preview: {
+      port: [33m4173[39m,
+      strictPort: [33mtrue[39m,
+      host: [32m'localhost'[39m,
+      allowedHosts: [],
+      https: [90mundefined[39m,
+      open: [33mfalse[39m,
+      proxy: [90mundefined[39m,
+      cors: [36m[Object][39m,
+      headers: {}
+    },
+    envDir: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+    env: {
+      VITE_BASE_URL: [32m''[39m,
+      VITE_PUBLIC_ORIGIN: [32m''[39m,
+      VITE_MODE: [32m'development'[39m,
+      VITE_SSR: [32m'true'[39m,
+      VITE_DEV: [32m'true'[39m,
+      VITE_PROD: [32m'false'[39m,
+      BASE_URL: [32m'/'[39m,
+      MODE: [32m'test'[39m,
+      DEV: [33mtrue[39m,
+      PROD: [33mfalse[39m
+    },
+    assetsInclude: [36m[Function: assetsInclude][39m,
+    logger: {
+      hasWarned: [33mfalse[39m,
+      info: [36m[Function: info][39m,
+      warn: [36m[Function: warn][39m,
+      warnOnce: [36m[Function: warnOnce][39m,
+      error: [36m[Function: error][39m,
+      clearScreen: [36m[Function: clearScreen][39m,
+      hasErrorLogged: [36m[Function: hasErrorLogged][39m
+    },
+    packageCache: Map(18) {
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src/components'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src/components_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures/examples_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test/fixtures_false'[39m => [36m[Object][39m,
+      [32m'rpd_react_/home/nico/code/vite-plugin-react-server/test_false'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/react'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/node_modules/react/cjs'[39m => [36m[Object][39m,
+      set: [36m[Function (anonymous)][39m
+    },
+    worker: {
+      format: [32m'iife'[39m,
+      plugins: [36m[AsyncFunction: createWorkerPlugins][39m,
+      rollupOptions: {}
+    },
+    appType: [32m'spa'[39m,
+    experimental: { importGlobRestoreExtension: [33mfalse[39m, hmrPartialAccept: [33mfalse[39m },
+    future: [90mundefined[39m,
+    optimizeDeps: {
+      include: [],
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mfalse[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mfalse[39m,
+      createEnvironment: [36m[Function: defaultCreateDevEnvironment][39m,
+      recoverable: [33mfalse[39m,
+      moduleRunnerTransform: [33mfalse[39m
+    },
+    webSocketToken: [32m'wP40YjEofAiG'[39m,
+    getSortedPlugins: [36m[Function: getSortedPlugins][39m,
+    getSortedPluginHooks: [36m[Function: getSortedPluginHooks][39m,
+    createResolver: [36m[Function: createResolver][39m,
+    fsDenyGlob: [36m[Function: arrayMatcher][39m,
+    safeModulePaths: Set(0) {},
+    additionalAllowedHosts: [ [32m'localhost'[39m, [32m'localhost'[39m ]
+  },
+  _plugins: [
+    {
+      name: [32m'vite:build-metadata'[39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m
+    },
+    {
+      name: [32m'vite:watch-package-data'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      watchChange: [36m[Function: watchChange][39m
+    },
+    {
+      name: [32m'alias'[39m,
+      buildStart: [36m[AsyncFunction: buildStart][39m,
+      resolveId: [36m[Function: resolveId][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/environments'[39m,
+      enforce: [32m'pre'[39m,
+      config: [36m[AsyncFunction: config][39m
+    },
+    {
+      name: [32m'vite:resolve'[39m,
+      resolveId: [36m[AsyncFunction: resolveId][39m,
+      load: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:html-inline-proxy'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:css'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      load: [36m[Object][39m,
+      transform: [36m[AsyncFunction][39m
+    },
+    {
+      name: [32m'vite:esbuild'[39m,
+      configureServer: [36m[Function: configureServer][39m,
+      transform: [36m[AsyncFunction: transform][39m
+    },
+    { name: [32m'vite:json'[39m, transform: [36m[Function][39m },
+    { name: [32m'vite:wasm-helper'[39m, resolveId: [36m[Object][39m, load: [36m[Object][39m },
+    {
+      name: [32m'vite:worker'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      load: [36m[Object][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:asset'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/client'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      config: [36m[AsyncFunction: config][39m
+    },
+    { name: [32m'vite:wasm-fallback'[39m, load: [36m[Object][39m },
+    { name: [32m'vite:define'[39m, transform: [36m[Object][39m },
+    {
+      name: [32m'vite:css-post'[39m,
+      renderStart: [36m[Function: renderStart][39m,
+      transform: [36m[AsyncFunction][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m,
+      augmentChunkHash: [36m[Function: augmentChunkHash][39m,
+      generateBundle: [36m[AsyncFunction: generateBundle][39m
+    },
+    {
+      name: [32m'vite:build-html'[39m,
+      transform: [36m[Object][39m,
+      generateBundle: [36m[AsyncFunction: generateBundle][39m
+    },
+    {
+      name: [32m'vite:worker-import-meta-url'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:asset-import-meta-url'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:force-systemjs-wrap-complete'[39m,
+      renderChunk: [36m[Function: renderChunk][39m
+    },
+    {
+      name: [32m'commonjs'[39m,
+      version: [32m'28.0.3'[39m,
+      options: [36m[Function: options][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      load: [36m[AsyncFunction: load][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Function: transform][39m
+    },
+    {
+      name: [32m'vite:data-uri'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      resolveId: [36m[Function: resolveId][39m,
+      load: [36m[Function: load][39m
+    },
+    {
+      name: [32m'vite:dynamic-import-vars'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:import-glob'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      transform: [36m[Object][39m,
+      hotUpdate: [36m[Function: hotUpdate][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/env'[39m,
+      enforce: [32m'post'[39m,
+      config: [36m[AsyncFunction: config][39m,
+      closeBundle: [36m[Function: closeBundle][39m,
+      configureServer: [36m[Function: configureServer][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/build-events'[39m,
+      enforce: [32m'post'[39m,
+      writeBundle: [36m[Function: writeBundle][39m
+    },
+    {
+      name: [32m'vite-plugin-react-server:transform-client'[39m,
+      enforce: [32m'post'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      configResolved: [36m[Function: configResolved][39m,
+      buildStart: [36m[AsyncFunction: buildStart][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:build-import-analysis'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      transform: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:esbuild-transpile'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m
+    },
+    {
+      name: [32m'vite:terser'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m,
+      closeBundle: [36m[Function: closeBundle][39m
+    },
+    {
+      name: [32m'vite:manifest'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:ssr-manifest'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:reporter'[39m,
+      sharedDuringBuild: [33mtrue[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      transform: [36m[Function: transform][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      renderStart: [36m[Function: renderStart][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m,
+      writeBundle: [36m[AsyncFunction: writeBundle][39m
+    },
+    { name: [32m'vite:load-fallback'[39m, load: [36m[Object][39m }
+  ],
+  _initiated: [33mtrue[39m,
+  mode: [32m'build'[39m
+}
+Test Event: [32m'build.writeBundle.client'[39m
+computing gzip size...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+dist/client/.vite/ssr-manifest.json            0.58 kB │ gzip: 0.21 kB
+dist/client/.vite/manifest.json                0.61 kB │ gzip: 0.20 kB
+dist/client/assets/page/test.css               0.09 kB │ gzip: 0.10 kB
+dist/client/assets/page2/test.css              0.09 kB │ gzip: 0.10 kB
+dist/client/page2/test.js                      0.15 kB │ gzip: 0.12 kB
+dist/client/page/test.js                       0.15 kB │ gzip: 0.12 kB
+dist/client/components/Link.client-wj6rwp.js  21.57 kB │ gzip: 7.78 kB
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+✓ built in 61ms
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+🔨 Step 3: Static generation (generate HTML and RSC files for each page)
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[resolveBuildPages] resolveBuildPages called with pages:2 and Root: undefined Html: undefined
+[resolveBuildPages] resolveBuildPages - first time resolving pages
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+options changed, forcing re-resolve
+[vite-plugin-react-server:transform-server-as-server] configResolved: isBuild=true isSSR=true mode=test allowed=["server"] defaultEnv=server importServerPath=react-server-dom-esm/server.node
+[resolveBuildPages] resolveBuildPages called with pages:2 and Root: undefined Html: undefined
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+vite v6.3.5 building SSR bundle for test...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+Test Event: [32m'build.start'[39m
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+transforming...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+✓ 5 modules transformed.
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+rendering chunks...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+environment config BuildEnvironment {
+  name: [32m'ssr'[39m,
+  config: {
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [],
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: [36m[Array][39m
+    },
+    keepProcessEnv: [33mtrue[39m,
+    consumer: [32m'server'[39m,
+    optimizeDeps: {
+      include: [36m[Array][39m,
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mtrue[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mfalse[39m,
+      createEnvironment: [36m[Function: defaultCreateDevEnvironment][39m,
+      recoverable: [33mfalse[39m,
+      moduleRunnerTransform: [33mtrue[39m
+    },
+    build: {
+      target: [32m'node18'[39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/server'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mfalse[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [33mfalse[39m,
+      ssr: [33mtrue[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [32m'node18'[39m,
+      cssMinify: [32m'esbuild'[39m
+    }
+  },
+  logger: {
+    hasWarned: [36m[Getter][39m,
+    info: [36m[Function: info][39m,
+    warn: [36m[Function: warn][39m,
+    warnOnce: [36m[Function: warnOnce][39m,
+    error: [36m[Function: error][39m,
+    clearScreen: [36m[Function: clearScreen][39m,
+    hasErrorLogged: [36m[Function: hasErrorLogged][39m
+  },
+  _options: {
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [],
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: [36m[Array][39m
+    },
+    keepProcessEnv: [33mtrue[39m,
+    consumer: [32m'server'[39m,
+    optimizeDeps: {
+      include: [36m[Array][39m,
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mtrue[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mfalse[39m,
+      createEnvironment: [36m[Function: defaultCreateDevEnvironment][39m,
+      recoverable: [33mfalse[39m,
+      moduleRunnerTransform: [33mtrue[39m
+    },
+    build: {
+      target: [32m'node18'[39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/server'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mfalse[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [33mfalse[39m,
+      ssr: [33mtrue[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [32m'node18'[39m,
+      cssMinify: [32m'esbuild'[39m
+    }
+  },
+  _topLevelConfig: {
+    plugins: [
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m, [36m[Object][39m,
+      [36m[Object][39m, [36m[Object][39m, [36m[Object][39m
+    ],
+    mode: [32m'test'[39m,
+    root: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+    build: {
+      target: [32m'node18'[39m,
+      polyfillModulePreload: [33mtrue[39m,
+      modulePreload: [33mfalse[39m,
+      outDir: [32m'dist/server'[39m,
+      assetsDir: [32m'assets'[39m,
+      assetsInlineLimit: [33m4096[39m,
+      sourcemap: [33mfalse[39m,
+      terserOptions: {},
+      rollupOptions: [36m[Object][39m,
+      commonjsOptions: [36m[Object][39m,
+      dynamicImportVarsOptions: [36m[Object][39m,
+      write: [33mtrue[39m,
+      emptyOutDir: [33mtrue[39m,
+      copyPublicDir: [33mfalse[39m,
+      manifest: [32m'.vite/manifest.json'[39m,
+      lib: [33mfalse[39m,
+      ssrManifest: [32m'.vite/ssr-manifest.json'[39m,
+      ssrEmitAssets: [33mtrue[39m,
+      reportCompressedSize: [33mtrue[39m,
+      chunkSizeWarningLimit: [33m500[39m,
+      watch: [1mnull[22m,
+      cssCodeSplit: [33mtrue[39m,
+      minify: [33mfalse[39m,
+      ssr: [33mtrue[39m,
+      emitAssets: [33mtrue[39m,
+      createEnvironment: [36m[Function: createEnvironment][39m,
+      cssTarget: [32m'node18'[39m,
+      cssMinify: [32m'esbuild'[39m
+    },
+    base: [32m'/'[39m,
+    envPrefix: [32m'VITE_'[39m,
+    resolve: {
+      externalConditions: [36m[Array][39m,
+      extensions: [36m[Array][39m,
+      dedupe: [],
+      noExternal: [],
+      external: [],
+      preserveSymlinks: [33mfalse[39m,
+      alias: [36m[Array][39m,
+      mainFields: [36m[Array][39m,
+      conditions: [36m[Array][39m,
+      builtins: []
+    },
+    define: {
+      [32m'import.meta.env.BASE_URL'[39m: [32m'""'[39m,
+      [32m'import.meta.env.PUBLIC_ORIGIN'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_BASE_URL'[39m: [32m'""'[39m,
+      [32m'process.env.VITE_PUBLIC_ORIGIN'[39m: [32m'""'[39m
+    },
+    ssr: {
+      target: [32m'node'[39m,
+      optimizeDeps: [36m[Object][39m,
+      resolve: [36m[Object][39m,
+      external: [],
+      noExternal: []
+    },
+    environments: { client: [36m[Object][39m, ssr: [36m[Object][39m, server: [36m[Object][39m },
+    configFile: [90mundefined[39m,
+    configFileDependencies: [],
+    inlineConfig: {
+      plugins: [36m[Array][39m,
+      mode: [32m'test'[39m,
+      root: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+      build: [36m[Object][39m
+    },
+    decodedBase: [32m'/'[39m,
+    rawBase: [32m'/'[39m,
+    publicDir: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/public'[39m,
+    cacheDir: [32m'/home/nico/code/vite-plugin-react-server/node_modules/.vite'[39m,
+    command: [32m'build'[39m,
+    isWorker: [33mfalse[39m,
+    mainConfig: [1mnull[22m,
+    bundleChain: [],
+    isProduction: [33mfalse[39m,
+    css: {
+      transformer: [32m'postcss'[39m,
+      preprocessorMaxWorkers: [33m0[39m,
+      devSourcemap: [33mfalse[39m
+    },
+    json: { namedExports: [33mtrue[39m, stringify: [32m'auto'[39m },
+    esbuild: { jsxDev: [33mtrue[39m },
+    server: {
+      port: [33m5173[39m,
+      strictPort: [33mfalse[39m,
+      host: [90mundefined[39m,
+      allowedHosts: [],
+      https: [90mundefined[39m,
+      open: [33mfalse[39m,
+      proxy: [90mundefined[39m,
+      cors: [36m[Object][39m,
+      headers: {},
+      warmup: [36m[Object][39m,
+      middlewareMode: [33mfalse[39m,
+      fs: [36m[Object][39m,
+      preTransformRequests: [33mtrue[39m,
+      perEnvironmentStartEndDuringDev: [33mfalse[39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m
+    },
+    builder: [90mundefined[39m,
+    preview: {
+      port: [33m4173[39m,
+      strictPort: [33mfalse[39m,
+      host: [90mundefined[39m,
+      allowedHosts: [],
+      https: [90mundefined[39m,
+      open: [33mfalse[39m,
+      proxy: [90mundefined[39m,
+      cors: [36m[Object][39m,
+      headers: {}
+    },
+    envDir: [32m'/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m,
+    env: {
+      VITE_BASE_URL: [32m''[39m,
+      VITE_PUBLIC_ORIGIN: [32m''[39m,
+      VITE_MODE: [32m'development'[39m,
+      VITE_SSR: [32m'true'[39m,
+      VITE_DEV: [32m'true'[39m,
+      VITE_PROD: [32m'false'[39m,
+      BASE_URL: [32m'/'[39m,
+      MODE: [32m'test'[39m,
+      DEV: [33mtrue[39m,
+      PROD: [33mfalse[39m
+    },
+    assetsInclude: [36m[Function: assetsInclude][39m,
+    logger: {
+      hasWarned: [33mtrue[39m,
+      info: [36m[Function: info][39m,
+      warn: [36m[Function: warn][39m,
+      warnOnce: [36m[Function: warnOnce][39m,
+      error: [36m[Function: error][39m,
+      clearScreen: [36m[Function: clearScreen][39m,
+      hasErrorLogged: [36m[Function: hasErrorLogged][39m
+    },
+    packageCache: Map(9) {
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src/page'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src'[39m => [36m[Object][39m,
+      [32m'fnpd_/home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/src/components'[39m => [36m[Object][39m,
+      set: [36m[Function (anonymous)][39m
+    },
+    worker: {
+      format: [32m'iife'[39m,
+      plugins: [36m[AsyncFunction: createWorkerPlugins][39m,
+      rollupOptions: {}
+    },
+    appType: [32m'spa'[39m,
+    experimental: { importGlobRestoreExtension: [33mfalse[39m, hmrPartialAccept: [33mfalse[39m },
+    future: [90mundefined[39m,
+    optimizeDeps: {
+      include: [],
+      exclude: [],
+      needsInterop: [],
+      extensions: [],
+      disabled: [90mundefined[39m,
+      holdUntilCrawlEnd: [33mtrue[39m,
+      force: [33mfalse[39m,
+      noDiscovery: [33mfalse[39m,
+      esbuildOptions: [36m[Object][39m
+    },
+    dev: {
+      warmup: [],
+      sourcemap: [36m[Object][39m,
+      sourcemapIgnoreList: [36m[Function: isInNodeModules$1][39m,
+      preTransformRequests: [33mfalse[39m,
+      createEnvironment: [36m[Function: defaultCreateDevEnvironment][39m,
+      recoverable: [33mfalse[39m,
+      moduleRunnerTransform: [33mfalse[39m
+    },
+    webSocketToken: [32m'f4bQxQyjNpGc'[39m,
+    getSortedPlugins: [36m[Function: getSortedPlugins][39m,
+    getSortedPluginHooks: [36m[Function: getSortedPluginHooks][39m,
+    createResolver: [36m[Function: createResolver][39m,
+    fsDenyGlob: [36m[Function: arrayMatcher][39m,
+    safeModulePaths: Set(0) {},
+    additionalAllowedHosts: []
+  },
+  _plugins: [
+    {
+      name: [32m'vite:build-metadata'[39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m
+    },
+    {
+      name: [32m'vite:watch-package-data'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      watchChange: [36m[Function: watchChange][39m
+    },
+    {
+      name: [32m'alias'[39m,
+      buildStart: [36m[AsyncFunction: buildStart][39m,
+      resolveId: [36m[Function: resolveId][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/static-generation-environment'[39m,
+      enforce: [32m'pre'[39m,
+      config: [36m[AsyncFunction: config][39m
+    },
+    {
+      name: [32m'vite:resolve'[39m,
+      resolveId: [36m[AsyncFunction: resolveId][39m,
+      load: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:html-inline-proxy'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:css'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      load: [36m[Object][39m,
+      transform: [36m[AsyncFunction][39m
+    },
+    {
+      name: [32m'vite:esbuild'[39m,
+      configureServer: [36m[Function: configureServer][39m,
+      transform: [36m[AsyncFunction: transform][39m
+    },
+    { name: [32m'vite:json'[39m, transform: [36m[Function][39m },
+    { name: [32m'vite:wasm-helper'[39m, resolveId: [36m[Object][39m, load: [36m[Object][39m },
+    {
+      name: [32m'vite:worker'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      load: [36m[Object][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:asset'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    { name: [32m'vite:wasm-fallback'[39m, load: [36m[Object][39m },
+    { name: [32m'vite:define'[39m, transform: [36m[Object][39m },
+    {
+      name: [32m'vite:css-post'[39m,
+      renderStart: [36m[Function: renderStart][39m,
+      transform: [36m[AsyncFunction][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m,
+      augmentChunkHash: [36m[Function: augmentChunkHash][39m,
+      generateBundle: [36m[AsyncFunction: generateBundle][39m
+    },
+    {
+      name: [32m'vite:build-html'[39m,
+      transform: [36m[Object][39m,
+      generateBundle: [36m[AsyncFunction: generateBundle][39m
+    },
+    {
+      name: [32m'vite:force-systemjs-wrap-complete'[39m,
+      renderChunk: [36m[Function: renderChunk][39m
+    },
+    {
+      name: [32m'commonjs'[39m,
+      version: [32m'28.0.3'[39m,
+      options: [36m[Function: options][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      load: [36m[AsyncFunction: load][39m,
+      shouldTransformCachedModule: [36m[Function: shouldTransformCachedModule][39m,
+      transform: [36m[Function: transform][39m
+    },
+    {
+      name: [32m'vite:data-uri'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      resolveId: [36m[Function: resolveId][39m,
+      load: [36m[Function: load][39m
+    },
+    {
+      name: [32m'react-server-conditions'[39m,
+      buildStart: [36m[Function: buildStart][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/content-hash'[39m,
+      augmentChunkHash: [36m[Function: augmentChunkHash][39m
+    },
+    {
+      name: [32m'vite:dynamic-import-vars'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      transform: [36m[Object][39m
+    },
+    {
+      name: [32m'vite:import-glob'[39m,
+      buildStart: [36m[Function: buildStart][39m,
+      transform: [36m[Object][39m,
+      hotUpdate: [36m[Function: hotUpdate][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/env'[39m,
+      enforce: [32m'post'[39m,
+      config: [36m[AsyncFunction: config][39m,
+      closeBundle: [36m[Function: closeBundle][39m,
+      configureServer: [36m[Function: configureServer][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/server-static'[39m,
+      enforce: [32m'post'[39m,
+      api: [36m[Object][39m,
+      config: [36m[AsyncFunction: config][39m,
+      configResolved: [36m[AsyncFunction: configResolved][39m,
+      buildStart: [36m[AsyncFunction: buildStart][39m,
+      configurePreviewServer: [36m[AsyncFunction: configurePreviewServer][39m,
+      renderStart: [36m[AsyncFunction: renderStart][39m,
+      writeBundle: [36m[AsyncFunction: writeBundle][39m,
+      closeBundle: [36m[AsyncFunction: closeBundle][39m
+    },
+    {
+      name: [32m'vite:plugin-react-server/build-events'[39m,
+      enforce: [32m'post'[39m,
+      writeBundle: [36m[Function: writeBundle][39m
+    },
+    {
+      name: [32m'vite:build-import-analysis'[39m,
+      resolveId: [36m[Object][39m,
+      load: [36m[Object][39m,
+      transform: [36m[Object][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:esbuild-transpile'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      renderChunk: [36m[AsyncFunction: renderChunk][39m
+    },
+    {
+      name: [32m'vite:manifest'[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:ssr-manifest'[39m,
+      applyToEnvironment: [36m[Function: applyToEnvironment][39m,
+      generateBundle: [36m[Function: generateBundle][39m
+    },
+    {
+      name: [32m'vite:reporter'[39m,
+      sharedDuringBuild: [33mtrue[39m,
+      perEnvironmentStartEndDuringDev: [33mtrue[39m,
+      transform: [36m[Function: transform][39m,
+      buildStart: [36m[Function: buildStart][39m,
+      buildEnd: [36m[Function: buildEnd][39m,
+      renderStart: [36m[Function: renderStart][39m,
+      renderChunk: [36m[Function: renderChunk][39m,
+      generateBundle: [36m[Function: generateBundle][39m,
+      writeBundle: [36m[AsyncFunction: writeBundle][39m
+    },
+    { name: [32m'vite:load-fallback'[39m, load: [36m[Object][39m }
+  ],
+  _initiated: [33mtrue[39m,
+  mode: [32m'build'[39m
+}
+Test Event: [32m'build.writeBundle.server'[39m
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+dist/server/.vite/ssr-manifest.json           0.17 kB
+dist/server/.vite/manifest.json               0.98 kB
+dist/server/assets/page/test.css              0.09 kB
+dist/server/assets/page2/test.css             0.09 kB
+dist/server/page/props.js                     0.07 kB
+dist/server/components/Link.client-wj6rwp.js  0.16 kB
+dist/server/page/test.js                      0.21 kB
+dist/server/page2/test.js                     0.22 kB
+dist/server/page/page.js                      0.48 kB
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[plugin.server] Processing route: /, page: src/page/page.tsx, props: src/page/props.ts
+[plugin.server] CSS inputs for /: 1 files
+[plugin.server] CSS input: assets/page/test.css -> assets/page/test.css
+[unified-css] Loading CSS content for assets/page/test.css
+[unified-css] Got CSS from static build file: dist/static/assets/page/test.css
+[unified-css] CSS content for assets/page/test.css: string, length: 89, preview: ._test_x2k9h_1{color:red}._shared_x2k9h_2{background:#fff}._unused_x2k9h_3{display:none}
+
+[unified-css] Added CSS file assets/page/test.css to map
+[plugin.server] Processing route: /page2, page: src/page/page.tsx, props: src/page/props.ts
+[plugin.server] CSS inputs for /page2: 1 files
+[plugin.server] CSS input: assets/page/test.css -> assets/page/test.css
+[unified-css] Loading CSS content for assets/page/test.css
+[unified-css] Got CSS from static build file: dist/static/assets/page/test.css
+[unified-css] CSS content for assets/page/test.css: string, length: 89, preview: ._test_x2k9h_1{color:red}._shared_x2k9h_2{background:#fff}._unused_x2k9h_3{display:none}
+
+[unified-css] Added CSS file assets/page/test.css to map
+[plugin.server] cssFilesByPage size: 2
+[plugin.server] Route /: 1 CSS files
+[plugin.server]   CSS file: assets/page/test.css -> link (link)
+[plugin.server] Route /page2: 1 CSS files
+[plugin.server]   CSS file: assets/page/test.css -> link (link)
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/'[39m,
+  type: [32m'worker-startup'[39m,
+  workerType: [32m'html'[39m,
+  startupTime: [33m122.54745299999968[39m,
+  fromMainThread: [33mtrue[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mfalse[39m,
+  memoryUsage: {
+    rss: [33m408403968[39m,
+    heapTotal: [33m158212096[39m,
+    heapUsed: [33m103200216[39m,
+    external: [33m6404298[39m,
+    arrayBuffers: [33m2100283[39m
+  },
+  description: [32m'HTML worker startup for server-side static generation'[39m
+}
+Test Event: [32m'build.ssg.start'[39m
+[renderPages] Resolved paths for route /:
+  page: src/page/page.tsx -> page/page.js
+  props: src/page/props.ts -> page/props.js
+  root: undefined -> undefined
+  html: undefined -> undefined
+[renderPages] Global CSS: 0 files
+[renderPages] CSS files: 1 files
+[renderPages] CSS file: assets/page/test.css -> link (link)
+[renderPages] Starting to process route: /
+[renderPage.server] onEvent callback exists: true
+[renderPage.server] onMetrics callback exists: true
+[renderPage] renderPage - route: /, rootPath: undefined, htmlPath: undefined
+[renderPage] CSS files received: 1 files
+[renderPage] renderPage - route: /, rootPath: undefined, htmlPath: undefined
+[resolveComponent] Loading Page component: page/page.js#Page
+[buildLoader] id: page/page.js#Page
+[buildLoader] Starting lookup for: page/page.js#Page
+[buildLoader] moduleId: page/page.js, normalizedKey: page/page, normalizedValue: page/page.js, manifestKey: page/page.js
+[buildLoader] Bundle keys: page2/test.js, page/page.js, components/Link.client-wj6rwp.js, page/test.js, page/props.js, assets/page2/test.css, assets/page/test.css, .vite/manifest.json, .vite/ssr-manifest.json...
+[buildLoader] Looking for: withoutQuery=page/page.js#Page, normalizedValue=page/page.js
+[buildLoader] Loading built file: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/dist/server/page/page.js
+[buildLoader] NODE_OPTIONS: --conditions react-server
+[buildLoader] execArgv: --conditions node --conditions development
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[buildLoader] getCurrentCondition(): react-server
+[buildLoader] hasReactServerCondition(): true
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[buildLoader] id: page/props.js#props
+[buildLoader] Starting lookup for: page/props.js#props
+[buildLoader] moduleId: page/props.js, normalizedKey: page/props, normalizedValue: page/props.js, manifestKey: page/props.js
+[buildLoader] Bundle keys: page2/test.js, page/page.js, components/Link.client-wj6rwp.js, page/test.js, page/props.js, assets/page2/test.css, assets/page/test.css, .vite/manifest.json, .vite/ssr-manifest.json...
+[buildLoader] Looking for: withoutQuery=page/props.js#props, normalizedValue=page/props.js
+[buildLoader] Loading built file: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/dist/server/page/props.js
+[buildLoader] NODE_OPTIONS: --conditions react-server
+[buildLoader] execArgv: --conditions node --conditions development
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[buildLoader] getCurrentCondition(): react-server
+[buildLoader] hasReactServerCondition(): true
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPage] Using Page component from pagePath resolution for route: /
+[createRscStream:/] Starting RSC stream creation
+[createElementWithReact] Creating element for route: /
+[createElementWithReact] CSS files: 1 files
+[createElementWithReact] Global CSS: 0 files
+[createElementWithReact] Returning Root only
+[createRscStream:/] Created React element, starting RSC rendering
+[createRscStream:/] RSC rendering started successfully
+[createRscStream:/] Result type: object, has pipe: function, has abort: function
+[createRscStream:/] Using PipeableStream, relying on natural completion
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/'[39m,
+  type: [32m'module-resolution'[39m,
+  workerType: [32m'rsc'[39m,
+  resolutionTime: [33m0.9214799999999741[39m,
+  fromMainThread: [33mtrue[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mfalse[39m,
+  memoryUsage: {
+    rss: [33m408674304[39m,
+    heapTotal: [33m158212096[39m,
+    heapUsed: [33m103853624[39m,
+    external: [33m6421904[39m,
+    arrayBuffers: [33m2113167[39m
+  },
+  description: [32m'Module resolution for RSC stream creation on main thread for route /'[39m
+}
+[createRscStream:/] Starting RSC stream creation
+[createElementWithReact] Creating element for route: /
+[createElementWithReact] CSS files: 1 files
+[createElementWithReact] Global CSS: 0 files
+[createElementWithReact] Returning Full HTML structure
+[createRscStream:/] Created React element, starting RSC rendering
+[createRscStream:/] RSC rendering started successfully
+[createRscStream:/] Result type: object, has pipe: function, has abort: function
+[createRscStream:/] Using PipeableStream, relying on natural completion
+[createRscToHtmlStream:/] Creating RSC to HTML transform stream
+[createHtmlStream.server:/] Creating HTML stream with MessagePort
+[createHtmlStream.server:/] Piping RSC stream to HTML worker
+Test Page rendering { url: [32m'/'[39m, title: [32m'Test'[39m } _test_x2k9h_1 _shared_x2k9h_2
+Test Page rendering { url: [32m'/'[39m, title: [32m'Test'[39m } _test_x2k9h_1 _shared_x2k9h_2
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPages] Received result for route /: success
+[renderPages] Success for route /, starting file writes
+[fileWriter] Starting file write for rsc on route /
+Test Event: [32m'file.write'[39m
+[fileWriter] Starting file write for html on route /
+Test Event: [32m'file.write'[39m
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter:rsc] Captured chunk: 21 bytes, total chunks: 1
+[fileWriter:rsc] Content preview: :N1756561306937.1562
+...
+[fileWriter:rsc] Captured chunk: 182 bytes, total chunks: 2
+[fileWriter:rsc] Content preview: 1:"$Sreact.fragment"
+4:"$Sreact.fragment"
+2:[["assets/page/test.css",{"id":"assets/page/test.css","as":"link","rel":"stylesheet","href":"assets/page/test.css","precedence":"high"}]]
+...
+[fileWriter:rsc] Captured chunk: 1316 bytes, total chunks: 3
+[fileWriter:rsc] Content preview: 3:{"name":"Root","env":"Server","key":"/","owner":null,"stack":[["_createElementWithReact","/home/nico/code/vite-plugin-react-server/dist/plugin/helpers/createElementWithReact.js",68,34],["_createRscS...
+[fileWriter:rsc] Captured chunk: 2048 bytes, total chunks: 4
+[fileWriter:rsc] Content preview: 0:D{"time":3.697262000000137}
+0:D"$3"
+0:D{"time":3.9918720000000576}
+6:{"name":"Page","env":"Server","key":null,"owner":null,"stack":[["Root","/home/nico/code/vite-plugin-react-server/dist/plugin/comp...
+[fileWriter:rsc] Captured chunk: 263 bytes, total chunks: 5
+[fileWriter:rsc] Content preview: .css","precedence":"high"},null,[["","/home/nico/code/vite-plugin-react-server/dist/plugin/components/css.js",25,58],["Css","/home/nico/code/vite-plugin-react-server/dist/plugin/components/css.js",13,...
+[renderPage.server] Ending RSC destination stream for route: /
+
+[html-worker] Starting HTML render process for route: / { clientPipeableStreamOptions: { bootstrapScripts: [ 'index.js' ] } }
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter] Completed file write for rsc on route /
+[fileWriter:rsc] Emitting file.write.done with content length: 3830 bytes, chunks: 5
+[fileWriter:rsc] Content preview: :N1756561306937.1562
+1:"$Sreact.fragment"
+4:"$Sreact.fragment"
+2:[["assets/page/test.css",{"id":"assets/page/test.css","as":"link","rel":"stylesheet","href":"assets/page/test.css","precedence":"high"}...
+Test Event: [32m'file.write.done'[39m
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/'[39m,
+  fromMainThread: [33mtrue[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mfalse[39m,
+  processingTime: [33m1.7403329999997368[39m,
+  chunks: [33m5[39m,
+  chunkRate: [33m2873.0133830713758[39m,
+  memoryUsage: {
+    rss: [33m408928256[39m,
+    heapTotal: [33m158404608[39m,
+    heapUsed: [33m105145576[39m,
+    external: [33m6458744[39m,
+    arrayBuffers: [33m2145935[39m
+  },
+  streamMetrics: {
+    chunks: [33m5[39m,
+    bytes: [33m3830[39m,
+    backpressureCount: [33m0[39m,
+    errorCount: [33m0[39m,
+    duration: [33m1.7403329999997368[39m,
+    startTime: [33m2227.435037[39m
+  },
+  type: [32m'rsc-headless'[39m,
+  fileSize: [33m3830[39m,
+  fileName: [32m'index.rsc'[39m,
+  outputPath: [32m'dist/static/index.rsc'[39m,
+  baseDir: [32m'dist/static'[39m,
+  routePath: [32m''[39m
+}
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter:html] Captured chunk: 416 bytes, total chunks: 1
+[fileWriter:html] Content preview: <!DOCTYPE html><html><head><link rel="stylesheet" href="assets/page/test.css" data-precedence="high"/><link rel="preload" as="script" fetchPriority="low" href="index.js"/><link rel="expect" href="#«R»...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter:html] Captured chunk: 14 bytes, total chunks: 2
+[fileWriter:html] Content preview: </body></html>...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter] Completed file write for html on route /
+[fileWriter:html] Emitting file.write.done with content length: 426 bytes, chunks: 2
+[fileWriter:html] Content preview: <!DOCTYPE html><html><head><link rel="stylesheet" href="assets/page/test.css" data-precedence="high"/><link rel="preload" as="script" fetchPriority="low" href="index.js"/><link rel="expect" href="#«R»...
+Test Event: [32m'file.write.done'[39m
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/'[39m,
+  fromMainThread: [33mfalse[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mtrue[39m,
+  processingTime: [33m25.618514000000232[39m,
+  chunks: [33m2[39m,
+  chunkRate: [33m78.06854058748223[39m,
+  memoryUsage: {
+    rss: [33m409518080[39m,
+    heapTotal: [33m158404608[39m,
+    heapUsed: [33m105283912[39m,
+    external: [33m6473130[39m,
+    arrayBuffers: [33m2158223[39m
+  },
+  streamMetrics: {
+    chunks: [33m2[39m,
+    bytes: [33m426[39m,
+    backpressureCount: [33m0[39m,
+    errorCount: [33m0[39m,
+    duration: [33m25.618514000000232[39m,
+    startTime: [33m2210.628565[39m
+  },
+  type: [32m'html'[39m,
+  fileSize: [33m426[39m,
+  fileName: [32m'index.html'[39m,
+  outputPath: [32m'dist/static/index.html'[39m,
+  baseDir: [32m'dist/static'[39m,
+  routePath: [32m''[39m
+}
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/'[39m,
+  fromMainThread: [33mtrue[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mfalse[39m,
+  processingTime: [33m8.750990999999885[39m,
+  chunks: [33m0[39m,
+  chunkRate: [33m0[39m,
+  memoryUsage: {
+    rss: [33m409518080[39m,
+    heapTotal: [33m158404608[39m,
+    heapUsed: [33m105312200[39m,
+    external: [33m6473130[39m,
+    arrayBuffers: [33m2158223[39m
+  },
+  streamMetrics: {
+    chunks: [33m0[39m,
+    bytes: [33m0[39m,
+    backpressureCount: [33m0[39m,
+    errorCount: [33m0[39m,
+    duration: [33m8.750990999999885[39m,
+    startTime: [33m2227.580551[39m
+  },
+  type: [32m'rsc-full'[39m
+}
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPages] Successfully wrote files for route: /
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPages] Resolved paths for route /page2:
+  page: src/page/page.tsx -> page/page.js
+  props: src/page/props.ts -> page/props.js
+  root: undefined -> undefined
+  html: undefined -> undefined
+[renderPages] Global CSS: 0 files
+[renderPages] CSS files: 1 files
+[renderPages] CSS file: assets/page/test.css -> link (link)
+[renderPages] Starting to process route: /page2
+[renderPage.server] onEvent callback exists: true
+[renderPage.server] onMetrics callback exists: true
+[renderPage] renderPage - route: /page2, rootPath: undefined, htmlPath: undefined
+[renderPage] CSS files received: 1 files
+[renderPage] renderPage - route: /page2, rootPath: undefined, htmlPath: undefined
+[resolveComponent] Loading Page component: page/page.js#Page
+[buildLoader] id: page/page.js#Page
+[buildLoader] Starting lookup for: page/page.js#Page
+[buildLoader] moduleId: page/page.js, normalizedKey: page/page, normalizedValue: page/page.js, manifestKey: page/page.js
+[buildLoader] Bundle keys: page2/test.js, page/page.js, components/Link.client-wj6rwp.js, page/test.js, page/props.js, assets/page2/test.css, assets/page/test.css, .vite/manifest.json, .vite/ssr-manifest.json...
+[buildLoader] Looking for: withoutQuery=page/page.js#Page, normalizedValue=page/page.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[buildLoader] id: page/props.js#props
+[buildLoader] Starting lookup for: page/props.js#props
+[buildLoader] moduleId: page/props.js, normalizedKey: page/props, normalizedValue: page/props.js, manifestKey: page/props.js
+[buildLoader] Bundle keys: page2/test.js, page/page.js, components/Link.client-wj6rwp.js, page/test.js, page/props.js, assets/page2/test.css, assets/page/test.css, .vite/manifest.json, .vite/ssr-manifest.json...
+[buildLoader] Looking for: withoutQuery=page/props.js#props, normalizedValue=page/props.js
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPage] Using Page component from pagePath resolution for route: /page2
+[createRscStream:/page2] Starting RSC stream creation
+[createElementWithReact] Creating element for route: /page2
+[createElementWithReact] CSS files: 1 files
+[createElementWithReact] Global CSS: 0 files
+[createElementWithReact] Returning Root only
+[createRscStream:/page2] Created React element, starting RSC rendering
+[createRscStream:/page2] RSC rendering started successfully
+[createRscStream:/page2] Result type: object, has pipe: function, has abort: function
+[createRscStream:/page2] Using PipeableStream, relying on natural completion
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/page2'[39m,
+  type: [32m'module-resolution'[39m,
+  workerType: [32m'rsc'[39m,
+  resolutionTime: [33m0.30210699999997814[39m,
+  fromMainThread: [33mtrue[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mfalse[39m,
+  memoryUsage: {
+    rss: [33m409518080[39m,
+    heapTotal: [33m158404608[39m,
+    heapUsed: [33m105543112[39m,
+    external: [33m6479502[39m,
+    arrayBuffers: [33m2160271[39m
+  },
+  description: [32m'Module resolution for RSC stream creation on main thread for route /page2'[39m
+}
+[createRscStream:/page2] Starting RSC stream creation
+[createElementWithReact] Creating element for route: /page2
+[createElementWithReact] CSS files: 1 files
+[createElementWithReact] Global CSS: 0 files
+[createElementWithReact] Returning Full HTML structure
+[createRscStream:/page2] Created React element, starting RSC rendering
+[createRscStream:/page2] RSC rendering started successfully
+[createRscStream:/page2] Result type: object, has pipe: function, has abort: function
+[createRscStream:/page2] Using PipeableStream, relying on natural completion
+[createRscToHtmlStream:/page2] Creating RSC to HTML transform stream
+[createHtmlStream.server:/page2] Creating HTML stream with MessagePort
+[createHtmlStream.server:/page2] Piping RSC stream to HTML worker
+Test Page rendering { url: [32m'/page2/'[39m, title: [32m'Test'[39m } _test_x2k9h_1 _shared_x2k9h_2
+Test Page rendering { url: [32m'/page2/'[39m, title: [32m'Test'[39m } _test_x2k9h_1 _shared_x2k9h_2
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPages] Received result for route /page2: success
+[renderPages] Success for route /page2, starting file writes
+[fileWriter] Starting file write for rsc on route /page2
+Test Event: [32m'file.write'[39m
+[fileWriter] Starting file write for html on route /page2
+Test Event: [32m'file.write'[39m
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter:rsc] Captured chunk: 21 bytes, total chunks: 1
+[fileWriter:rsc] Content preview: :N1756561306954.8872
+...
+[fileWriter:rsc] Captured chunk: 182 bytes, total chunks: 2
+[fileWriter:rsc] Content preview: 1:"$Sreact.fragment"
+4:"$Sreact.fragment"
+2:[["assets/page/test.css",{"id":"assets/page/test.css","as":"link","rel":"stylesheet","href":"assets/page/test.css","precedence":"high"}]]
+...
+[fileWriter:rsc] Captured chunk: 1327 bytes, total chunks: 3
+[fileWriter:rsc] Content preview: 3:{"name":"Root","env":"Server","key":"/page2","owner":null,"stack":[["_createElementWithReact","/home/nico/code/vite-plugin-react-server/dist/plugin/helpers/createElementWithReact.js",68,34],["_creat...
+[fileWriter:rsc] Captured chunk: 2048 bytes, total chunks: 4
+[fileWriter:rsc] Content preview: 0:D{"time":0.845049999999901}
+0:D"$3"
+0:D{"time":0.8963629999998375}
+6:{"name":"Page","env":"Server","key":null,"owner":null,"stack":[["Root","/home/nico/code/vite-plugin-react-server/dist/plugin/comp...
+[fileWriter:rsc] Captured chunk: 284 bytes, total chunks: 5
+[fileWriter:rsc] Content preview: assets/page/test.css","precedence":"high"},null,[["","/home/nico/code/vite-plugin-react-server/dist/plugin/components/css.js",25,58],["Css","/home/nico/code/vite-plugin-react-server/dist/plugin/compon...
+[renderPage.server] Ending RSC destination stream for route: /page2
+
+[html-worker:/] Creating HTML stream (/)
+[html-worker:/] Module resolution config:
+[html-worker:/]   projectRoot: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test
+[html-worker:/]   moduleRootPath: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/dist/client
+[html-worker:/]   moduleBasePath: 
+[html-worker:/]   moduleBaseURL: 
+[html-worker:/] Final resolvedModuleRootPath: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/dist/client/
+[html-worker:/] Starting HTML render for route: /
+[html-worker:/] Starting React rendering of RSC elements
+[html-worker:/] clientPipeableStreamOptions: {"bootstrapScripts":["index.js"]}
+[html-worker:/] Shell ready, starting to pipe HTML
+[html-worker:/] All ready, HTML rendering complete
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter] Completed file write for rsc on route /page2
+[fileWriter:rsc] Emitting file.write.done with content length: 3862 bytes, chunks: 5
+[fileWriter:rsc] Content preview: :N1756561306954.8872
+1:"$Sreact.fragment"
+4:"$Sreact.fragment"
+2:[["assets/page/test.css",{"id":"assets/page/test.css","as":"link","rel":"stylesheet","href":"assets/page/test.css","precedence":"high"}...
+Test Event: [32m'file.write.done'[39m
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/page2'[39m,
+  fromMainThread: [33mtrue[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mfalse[39m,
+  processingTime: [33m1.0256509999999253[39m,
+  chunks: [33m5[39m,
+  chunkRate: [33m4874.952591086407[39m,
+  memoryUsage: {
+    rss: [33m409518080[39m,
+    heapTotal: [33m158404608[39m,
+    heapUsed: [33m106286096[39m,
+    external: [33m6524662[39m,
+    arrayBuffers: [33m2201231[39m
+  },
+  streamMetrics: {
+    chunks: [33m5[39m,
+    bytes: [33m3862[39m,
+    backpressureCount: [33m0[39m,
+    errorCount: [33m0[39m,
+    duration: [33m1.0256509999999253[39m,
+    startTime: [33m2239.57879[39m
+  },
+  type: [32m'rsc-headless'[39m,
+  fileSize: [33m3862[39m,
+  fileName: [32m'index.rsc'[39m,
+  outputPath: [32m'dist/static/page2/index.rsc'[39m,
+  baseDir: [32m'dist/static'[39m,
+  routePath: [32m'page2'[39m
+}
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter:html] Captured chunk: 416 bytes, total chunks: 1
+[fileWriter:html] Content preview: <!DOCTYPE html><html><head><link rel="stylesheet" href="assets/page/test.css" data-precedence="high"/><link rel="preload" as="script" fetchPriority="low" href="index.js"/><link rel="expect" href="#«R»...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter:html] Captured chunk: 14 bytes, total chunks: 2
+[fileWriter:html] Content preview: </body></html>...
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[fileWriter] Completed file write for html on route /page2
+[fileWriter:html] Emitting file.write.done with content length: 426 bytes, chunks: 2
+[fileWriter:html] Content preview: <!DOCTYPE html><html><head><link rel="stylesheet" href="assets/page/test.css" data-precedence="high"/><link rel="preload" as="script" fetchPriority="low" href="index.js"/><link rel="expect" href="#«R»...
+Test Event: [32m'file.write.done'[39m
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/page2'[39m,
+  fromMainThread: [33mfalse[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mtrue[39m,
+  processingTime: [33m4.871524000000136[39m,
+  chunks: [33m2[39m,
+  chunkRate: [33m410.5491423217753[39m,
+  memoryUsage: {
+    rss: [33m409788416[39m,
+    heapTotal: [33m158404608[39m,
+    heapUsed: [33m106401728[39m,
+    external: [33m6530875[39m,
+    arrayBuffers: [33m2205327[39m
+  },
+  streamMetrics: {
+    chunks: [33m2[39m,
+    bytes: [33m426[39m,
+    backpressureCount: [33m0[39m,
+    errorCount: [33m0[39m,
+    duration: [33m4.871524000000136[39m,
+    startTime: [33m2236.702925[39m
+  },
+  type: [32m'html'[39m,
+  fileSize: [33m426[39m,
+  fileName: [32m'index.html'[39m,
+  outputPath: [32m'dist/static/page2/index.html'[39m,
+  baseDir: [32m'dist/static'[39m,
+  routePath: [32m'page2'[39m
+}
+TRADITIONAL BUILD METRICS COLLECTED: {
+  route: [32m'/page2'[39m,
+  fromMainThread: [33mtrue[39m,
+  fromRscWorker: [33mfalse[39m,
+  fromHtmlWorker: [33mfalse[39m,
+  processingTime: [33m1.9799459999999272[39m,
+  chunks: [33m0[39m,
+  chunkRate: [33m0[39m,
+  memoryUsage: {
+    rss: [33m409788416[39m,
+    heapTotal: [33m158404608[39m,
+    heapUsed: [33m106425744[39m,
+    external: [33m6539067[39m,
+    arrayBuffers: [33m2213519[39m
+  },
+  streamMetrics: {
+    chunks: [33m0[39m,
+    bytes: [33m0[39m,
+    backpressureCount: [33m0[39m,
+    errorCount: [33m0[39m,
+    duration: [33m1.9799459999999272[39m,
+    startTime: [33m2239.675181[39m
+  },
+  type: [32m'rsc-full'[39m
+}
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPages] Successfully wrote files for route: /page2
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[renderPages] Final state - completedRoutes: 2, failedRoutes: 0
+[renderPages] Returning success result
+[renderPages] About to return success result
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+[plugin vite:plugin-react-server/server-static] Rendered 2 pages in 170ms
+Test Event: [32m'build.ssg.end'[39m
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+✓ built in 185ms
+
+[html-worker] Starting HTML render process for route: /page2 { clientPipeableStreamOptions: { bootstrapScripts: [ 'index.js' ] } }
+[html-worker:/page2] Creating HTML stream (/page2)
+[html-worker:/page2] Module resolution config:
+[html-worker:/page2]   projectRoot: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test
+[html-worker:/page2]   moduleRootPath: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/dist/client
+[html-worker:/page2]   moduleBasePath: 
+[html-worker:/page2]   moduleBaseURL: 
+[html-worker:/page2] Final resolvedModuleRootPath: /home/nico/code/vite-plugin-react-server/test/fixtures/examples/react-server/build-traditional.test/dist/client/
+[html-worker:/page2] Starting HTML render for route: /page2
+[html-worker:/page2] Starting React rendering of RSC elements
+[html-worker:/page2] clientPipeableStreamOptions: {"bootstrapScripts":["index.js"]}
+[html-worker:/page2] Shell ready, starting to pipe HTML
+[html-worker:/page2] All ready, HTML rendering complete
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test
+TRADITIONAL BUILD COMPLETED. Total events: [33m14[39m
+Event types: [
+  [32m'build.writeBundle.static'[39m,
+  [32m'build.writeBundle.client'[39m,
+  [32m'build.start'[39m,
+  [32m'build.writeBundle.server'[39m,
+  [32m'build.ssg.start'[39m,
+  [32m'file.write'[39m,
+  [32m'file.write'[39m,
+  [32m'file.write.done'[39m,
+  [32m'file.write.done'[39m,
+  [32m'file.write'[39m,
+  [32m'file.write'[39m,
+  [32m'file.write.done'[39m,
+  [32m'file.write.done'[39m,
+  [32m'build.ssg.end'[39m
+]
+HTML done events: [33m2[39m
+RSC done events: [33m2[39m
+Traditional build metrics collected: [33m9[39m
+
+stdout | test/examples/build-traditional.test.ts > plugin examples traditional build test > should demonstrate client-side static generation capabilities
+Traditional build events: [ [32m'build.writeBundle.static'[39m, [32m'build.writeBundle.client'[39m ]
+
+ ✓ test/examples/build-traditional.test.ts (6 tests) 1910ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  15:41:44
+   Duration  2.28s (transform 420ms, setup 26ms, collect 101ms, tests 1.91s, environment 0ms, prepare 46ms)
+
+[?25h

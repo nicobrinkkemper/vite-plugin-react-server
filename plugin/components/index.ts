@@ -1,4 +1,4 @@
 export { Html } from "./html.js";
-export { CssCollector } from "./css-collector.js";
-export { CssCollectorElements } from "./css-collector-elements.js";
-export type { HtmlProps, CssCollectorProps, CssCollectorElementsProps } from "../types.js";
+export { Root } from "./root.js";
+export { Css } from "./css.js";
+export type { HtmlProps, RootProps, CssProps, HtmlComponentType, RootComponentType, PageComponentType, CssComponentType } from "../types.js";

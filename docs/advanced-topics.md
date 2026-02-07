@@ -1,10 +1,10 @@
-# Advanced Topics
+# Advanced Development
 
-This document covers advanced topics for the Vite React Server Plugin, including custom workers, the message system, and extending the plugin.
+This document covers advanced topics for the Vite React Server Plugin, including custom workers, the message system, stream helpers, and extending the plugin.
 
 ## Custom Workers
 
-The plugin uses a worker-based architecture for processing React Server Components and generating HTML. You can customize these workers to add your own functionality.
+The plugin uses a worker-based system for processing React Server Components and generating HTML. You can customize these workers to add your own functionality.
 
 ### Worker Types
 
@@ -327,19 +327,351 @@ interface BaseMessage {
    - Monitor worker memory usage
    - Implement proper cleanup to prevent memory leaks
 
+## Stream Helpers
+
+The plugin provides stream helper utilities for working with React Server Components streams.
+
+### Overview
+
+Stream helpers provide a simple interface for creating and managing RSC streams:
+
+```typescript
+import { createRscStream, createHtmlStream } from "vite-plugin-react-server/stream-helpers";
+
+// Create RSC stream
+const rscStream = createRscStream({
+  element: <MyComponent />,
+  moduleBaseURL: "/",
+  cssFiles: new Map(),
+});
+
+// Create HTML stream
+const htmlStream = createHtmlStream({
+  rscStream,
+  htmlTemplate: "<!DOCTYPE html><html><body><div id='root'></div></body></html>",
+});
+```
+
+### Implementation
+
+Stream helpers are built on top of React's streaming APIs:
+
+```typescript
+// Core stream creation
+export function createRscStream(options: RscStreamOptions): ReadableStream {
+  const { element, moduleBaseURL, cssFiles } = options;
+  
+  return renderToReadableStream(element, {
+    moduleBaseURL,
+    // Additional options...
+  });
+}
+
+// HTML transformation
+export function createHtmlStream(options: HtmlStreamOptions): ReadableStream {
+  const { rscStream, htmlTemplate } = options;
+  
+  return new ReadableStream({
+    start(controller) {
+      // Transform RSC to HTML
+    }
+  });
+}
+```
+
+### API Reference
+
+#### createRscStream
+
+Creates a React Server Components stream:
+
+```typescript
+interface RscStreamOptions {
+  element: React.ReactElement;
+  moduleBaseURL: string;
+  cssFiles?: Map<string, CssContent>;
+  pipeableStreamOptions?: RenderToPipeableStreamOptions;
+}
+
+function createRscStream(options: RscStreamOptions): ReadableStream;
+```
+
+#### createHtmlStream
+
+Transforms RSC stream to HTML:
+
+```typescript
+interface HtmlStreamOptions {
+  rscStream: ReadableStream;
+  htmlTemplate?: string;
+  cssFiles?: Map<string, CssContent>;
+}
+
+function createHtmlStream(options: HtmlStreamOptions): ReadableStream;
+```
+
+#### createRscToHtmlStream
+
+Combines RSC and HTML creation:
+
+```typescript
+interface RscToHtmlStreamOptions {
+  element: React.ReactElement;
+  htmlTemplate?: string;
+  moduleBaseURL: string;
+  cssFiles?: Map<string, CssContent>;
+}
+
+function createRscToHtmlStream(options: RscToHtmlStreamOptions): ReadableStream;
+```
+
+### Usage Examples
+
+#### Basic RSC Stream
+
+```typescript
+import { createRscStream } from "vite-plugin-react-server/stream-helpers";
+
+const stream = createRscStream({
+  element: <MyPage />,
+  moduleBaseURL: "/",
+});
+
+// Use the stream
+const reader = stream.getReader();
+const chunks = [];
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  chunks.push(value);
+}
+```
+
+#### HTML Transformation
+
+```typescript
+import { createHtmlStream } from "vite-plugin-react-server/stream-helpers";
+
+const htmlStream = createHtmlStream({
+  rscStream: myRscStream,
+  htmlTemplate: `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>My App</title>
+      </head>
+      <body>
+        <div id="root"></div>
+      </body>
+    </html>
+  `,
+});
+```
+
+#### Combined Stream
+
+```typescript
+import { createRscToHtmlStream } from "vite-plugin-react-server/stream-helpers";
+
+const stream = createRscToHtmlStream({
+  element: <MyPage />,
+  moduleBaseURL: "/",
+  htmlTemplate: "<!DOCTYPE html><html><body><div id='root'></div></body></html>",
+});
+```
+
+#### Custom CSS Handling
+
+```typescript
+import { createRscStream } from "vite-plugin-react-server/stream-helpers";
+
+const cssFiles = new Map([
+  ["styles.css", { href: "/styles.css", rel: "stylesheet" }],
+  ["inline.css", { content: "body { margin: 0; }", as: "style" }],
+]);
+
+const stream = createRscStream({
+  element: <MyPage />,
+  moduleBaseURL: "/",
+  cssFiles,
+});
+```
+
+### Error Handling
+
+Stream helpers include comprehensive error handling:
+
+```typescript
+import { createRscStream } from "vite-plugin-react-server/stream-helpers";
+
+try {
+  const stream = createRscStream({
+    element: <MyPage />,
+    moduleBaseURL: "/",
+  });
+  
+  // Handle stream errors
+  stream.catch(error => {
+    console.error("Stream error:", error);
+  });
+} catch (error) {
+  console.error("Creation error:", error);
+}
+```
+
+### Performance Optimization
+
+Stream helpers are optimized for performance:
+
+- **Lazy Evaluation**: Streams are created on-demand
+- **Memory Efficiency**: Minimal memory footprint during streaming
+- **Backpressure Handling**: Proper backpressure management
+- **Resource Cleanup**: Automatic cleanup of resources
+
 ## Worker Best Practices
 
 1. **Environment-Specific Code**: Use separate implementations for development and production to optimize performance and debugging capabilities as well as loaders configuration. Since we build our files to plain javascript for production, you likely don't need loaders for production.
 
 2. **Resource Management**: Always clean up resources properly:
+
 ```typescript
+// Clean up streams and render states
 function cleanup(id: string) {
-  const renderState = activeRenders.get(id);
-  if (renderState) {
-    renderState.rscStream.destroy();
-    renderState.htmlStream?.destroy();
-    renderState.htmlTransform?.destroy();
-    activeRenders.delete(id);
+  if (renderStates.has(id)) {
+    const state = renderStates.get(id);
+    state.stream?.cancel();
+    renderStates.delete(id);
   }
 }
 ```
+
+3. **Error Boundaries**: Implement proper error boundaries in workers:
+
+```typescript
+process.on('uncaughtException', (error) => {
+  sendMessage({
+    type: "ERROR",
+    id: "worker",
+    error: error.message,
+  });
+  process.exit(1);
+});
+```
+
+4. **Performance Monitoring**: Track metrics and performance:
+
+```typescript
+const metrics = {
+  startTime: Date.now(),
+  chunks: 0,
+  bytes: 0,
+};
+
+// Update metrics during processing
+metrics.chunks++;
+metrics.bytes += chunk.byteLength;
+```
+
+## Extending the Plugin
+
+### Custom Transformers
+
+You can extend the plugin with custom transformers:
+
+```typescript
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server";
+
+export default defineConfig({
+  plugins: [
+    vitePluginReactServer(config),
+    {
+      name: "custom-transformer",
+      transform(code, id) {
+        // Custom transformation logic
+        return code;
+      },
+    },
+  ],
+});
+```
+
+### Custom Loaders
+
+Create custom loaders for specific file types:
+
+```typescript
+// custom-loader.js
+export function customLoader(url, context, nextLoad) {
+  if (url.endsWith('.custom')) {
+    return {
+      format: 'module',
+      source: 'export default "custom content";',
+    };
+  }
+  return nextLoad(url, context);
+}
+```
+
+### Custom Workers
+
+Implement custom workers for specialized processing:
+
+```typescript
+// custom-worker.js
+import { parentPort } from "worker_threads";
+
+parentPort?.on("message", (message) => {
+  switch (message.type) {
+    case "CUSTOM_PROCESS":
+      // Custom processing logic
+      parentPort?.postMessage({
+        type: "CUSTOM_RESULT",
+        id: message.id,
+        result: "processed",
+      });
+      break;
+  }
+});
+```
+
+### Plugin Composition
+
+Compose multiple plugins for complex workflows:
+
+<!-- TOC START -->
+
+## 📚 Documentation Navigation
+
+<!-- Auto-generated TOC - Do not edit manually -->
+
+## Table of Contents
+
+<!-- Auto-generated TOC - Do not edit manually -->
+
+
+
+1.	[Getting Started](./getting-started.md)
+2.	[Core Concepts](./core-concepts.md)
+3.	[Configuration Guide](./configuration.md)
+4.	[CSS & Styling](./css-handling.md)
+5.	[Server Actions](./server-actions.md)
+6.	[Build & Deployment](./build-orchestration.md)
+7.	**[Advanced Development](./advanced-topics.md) ← you are here**
+8.	[Plugin Internals](./transformer-plugin.md)
+9.	[Worker System](./rsc-worker.md)
+10.	[API Reference](./api-reference.md)
+11.	[React Compatibility](./react-type-compatibility.md)
+12.	[Troubleshooting](./troubleshooting-guide.md)
+13.	[Package Exports](./package-exports.md)
+14.	[Transformations](./transformations.md)
+
+### Quick Links
+- [🏠 Main Documentation](./README.md)
+- [🚀 Getting Started](./getting-started.md)
+- [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
+- [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
+
+---
+
+<!-- TOC END -->

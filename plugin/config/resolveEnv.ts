@@ -1,15 +1,17 @@
 import { loadEnv, type ResolvedConfig } from "vite";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getCondition } from "./getCondition.js";
+import { getNodeEnv } from "./getNodeEnv.js";
+import { getEnvKey } from "../env/getEnvKey.js";
 
 type NestedEnv = {
   [key: string]: unknown | NestedEnv;
 };
 
-function setNestedEnv(obj: NestedEnv, path: string[], value: string) {
+function setNestedEnv(obj: NestedEnv, path: string[], value: string, verbose = false) {
   if (!path.length) return;
   const key = path[0];
-  console.log("setNestedEnv:", { key, path, value, currentObj: obj[key] });
+
   if (path.length === 1) {
     obj[key] = value;
     return;
@@ -17,7 +19,7 @@ function setNestedEnv(obj: NestedEnv, path: string[], value: string) {
   if (!obj[key] || typeof obj[key] === "string") {
     obj[key] = {};
   }
-  setNestedEnv(obj[key] as NestedEnv, path.slice(1), value);
+  setNestedEnv(obj[key] as NestedEnv, path.slice(1), value, verbose);
 }
 
 /**
@@ -33,6 +35,9 @@ export function resolveEnv(
     prefixes.push(DEFAULT_CONFIG.ENV_PREFIX);
   }
   const env: Record<string, string | boolean> = loadEnv(mode, envDir, prefixes);
+
+  // Get the primary prefix for environment variable names
+  const primaryPrefix = isPrefixesArray ? prefixes[0] : prefixes;
 
   // First, copy any existing environment variables that match our prefixes
   const existingEnv = Object.entries(process.env).reduce(
@@ -53,7 +58,8 @@ export function resolveEnv(
   // Merge existing env with loaded env, preferring existing values
   const mergedEnv = { ...env, ...existingEnv };
 
-  if (!mergedEnv["VITE_MODE"] && process.env["VITE_MODE"] == null) {
+  const modeKey = getEnvKey("MODE", primaryPrefix);
+  if (!mergedEnv[modeKey] && process.env[modeKey] == null) {
     const modeIndex = process.argv.findIndex((arg) => arg === "--mode");
     const isBuild = process.argv.includes("build");
     const isPreview = process.argv.includes("preview");
@@ -64,12 +70,9 @@ export function resolveEnv(
         process.env["NODE_ENV"] !== "production"
       ) {
         console.warn(
-          `NODE_ENV is not ${inferredMode} but VITE_MODE is ${inferredMode}, NODE_ENV takes precedence`
+          `NODE_ENV is not ${inferredMode} (${process.env["NODE_ENV"]}) but ${modeKey} is ${inferredMode}, NODE_ENV takes precedence`
         );
-        mergedEnv["VITE_MODE"] =
-          process.env["NODE_ENV"] === "production"
-            ? "production"
-            : "development";
+        mergedEnv[modeKey] = getNodeEnv();
       } else if (
         inferredMode === "development" &&
         process.env["NODE_ENV"] !== "development"
@@ -77,52 +80,45 @@ export function resolveEnv(
         if (process.env["NODE_ENV"] === "test") {
           if (process.env["NODE_ENV"] !== "test") {
             console.warn(
-              `NODE_ENV is not ${inferredMode} but VITE_MODE is ${mode}, NODE_ENV takes precedence`
+              `NODE_ENV is not ${inferredMode} (${process.env["NODE_ENV"]}) but ${modeKey} is ${mode}, NODE_ENV takes precedence`
             );
           }
-          mergedEnv["VITE_MODE"] = "development";
+          mergedEnv[modeKey] = "development";
         } else {
           console.warn(
-            `NODE_ENV is not ${inferredMode} but VITE_MODE is ${mode}, NODE_ENV takes precedence`
+            `NODE_ENV is not ${inferredMode} (${process.env["NODE_ENV"]}) but ${modeKey} is ${mode}, NODE_ENV takes precedence`
           );
-          mergedEnv["VITE_MODE"] =
-            process.env["NODE_ENV"] === "development"
-              ? "development"
-              : "production";
+          mergedEnv[modeKey] = getNodeEnv();
         }
       } else {
-        mergedEnv["VITE_MODE"] = inferredMode;
+        mergedEnv[modeKey] = inferredMode;
       }
     } else {
       // Check if the mode value is in the next argument
       const modeValue = process.argv[modeIndex + 1];
       if (modeValue && !modeValue.startsWith("--")) {
-        mergedEnv["VITE_MODE"] = modeValue;
+        mergedEnv[modeKey] = modeValue;
       } else {
         // Fallback to default mode
-        mergedEnv["VITE_MODE"] =
-          process.env["NODE_ENV"] === "production"
-            ? "production"
-            : "development";
+        mergedEnv[modeKey] = getNodeEnv();
       }
     }
   }
 
-  if (!mergedEnv["VITE_BASE_URL"] && process.env["VITE_BASE_URL"] != null)
-    mergedEnv["VITE_BASE_URL"] = "/";
-  if (!mergedEnv["VITE_SSR"] && process.env["VITE_SSR"] == null)
-    mergedEnv["VITE_SSR"] = String(
+    const baseUrlKey = getEnvKey("BASE_URL", primaryPrefix);
+  const ssrKey = getEnvKey("SSR", primaryPrefix);
+  const devKey = getEnvKey("DEV", primaryPrefix);
+  const prodKey = getEnvKey("PROD", primaryPrefix);
+  const publicOriginKey = getEnvKey("PUBLIC_ORIGIN", primaryPrefix);
+
+  if (!mergedEnv[baseUrlKey]) mergedEnv[baseUrlKey] = "/";
+  if (!mergedEnv[ssrKey])
+    mergedEnv[ssrKey] = String(
       process.argv.includes("--ssr") || getCondition("") === "server"
     );
-  if (!mergedEnv["VITE_DEV"] && process.env["VITE_DEV"] == null)
-    mergedEnv["VITE_DEV"] = mergedEnv["VITE_MODE"] === "development";
-  if (!mergedEnv["VITE_PROD"] && process.env["VITE_PROD"] == null)
-    mergedEnv["VITE_PROD"] = mergedEnv["VITE_MODE"] === "production";
-  if (
-    !mergedEnv["VITE_PUBLIC_ORIGIN"] &&
-    process.env["VITE_PUBLIC_ORIGIN"] == null
-  )
-    mergedEnv["VITE_PUBLIC_ORIGIN"] = "";
+  if (!mergedEnv[devKey]) mergedEnv[devKey] = mergedEnv[modeKey] === "development";
+  if (!mergedEnv[prodKey]) mergedEnv[prodKey] = mergedEnv[modeKey] === "production";
+  if (!mergedEnv[publicOriginKey]) mergedEnv[publicOriginKey] = "";
 
   if (!Object.keys(mergedEnv).length) return () => {};
   const addedEnv: NestedEnv = {};
@@ -133,6 +129,7 @@ export function resolveEnv(
   for (const key in mergedEnv) {
     if (exclude(key)) continue;
     if (process.env[key] != null) {
+      // Environment variable was already set - don't override it or include it in cleanup
       continue;
     }
     process.env[key] = mergedEnv[key] as string;
@@ -142,7 +139,8 @@ export function resolveEnv(
 }
 
 export function resolveConfigDefine(
-  resolvedConfig: Pick<ResolvedConfig, "define" | "envPrefix">
+  resolvedConfig: Pick<ResolvedConfig, "define" | "envPrefix">,
+  verbose = false
 ) {
   const { define } = resolvedConfig;
   const addedEnv: NestedEnv = {};
@@ -154,12 +152,13 @@ export function resolveConfigDefine(
     const withoutPrefix = key.split("process.env.")[1];
     if (typeof define[key] === "string") {
       const path = withoutPrefix.split(".");
-      setNestedEnv(addedEnv, path, define[key] as string);
-      if (!process.env[path[0]]) process.env[path[0]] = {} as any;
+      setNestedEnv(addedEnv, path, define[key] as string, verbose);
+      if (!process.env[path[0]]) process.env[path[0]] = {} as never;
       setNestedEnv(
-        process.env[path[0]] as any,
+        process.env[path[0]] as never,
         path.slice(1),
-        define[key] as string
+        define[key] as string,
+        verbose
       );
     }
   }

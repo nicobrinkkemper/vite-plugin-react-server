@@ -1,32 +1,22 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from "vitest/config";
+import { getCondition } from "./plugin/config/getCondition.js";
 
 export default defineConfig({
-  mode: 'development',
+  mode: "development",
   test: {
     globals: true,
-    environment: 'node',
-    setupFiles: ['./test/setup.ts'],
-    testTimeout: 10000,
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        '',
-      ],
-      include: [
-        'dist'
-      ]
-    },
-    include: [
-      'test/**/*.test.ts',
-      'test/**/*.spec.ts'
-    ],
+    hookTimeout: 10000,
+    environment: "node",
+    setupFiles: ["./test/setup.ts"],
+    include: ["test/**/*.test.*"],
     exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/cypress/**',
-      '**/.{idea,git,cache,output,temp}/**',
-      process.env['NODE_OPTIONS']?.includes('react-server') ? 'test/client/**/*.test.ts' : 'test/server/**/*.test.ts'
-    ]
-  }
-}) 
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/cypress/**",
+      "**/.{idea,git,cache,output,temp}/**",
+      // Exclude unit tests and server tests when NOT in react-server condition (i.e., in client mode)
+      ...(getCondition() !== "react-server" ? ["test/unit/**/*.test.*", "test/server/**/*.test.*"] : []),
+    ],
+  },
+});
+

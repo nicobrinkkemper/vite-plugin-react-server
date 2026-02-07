@@ -1,67 +1,56 @@
 import { cleanObject } from "../helpers/cleanObject.js";
-import type {
-  HtmlWorkerOutputMessage,
-  RscWorkerOutputMessage,
-} from "./types.js";
 import { parentPort } from "node:worker_threads";
+import type { SendMessageFn } from "./types.js";
+import { serializeError } from "../error/serializeError.js";
+import { serializeErrorInfo } from "../error/serializeErrorInfo.js";
 
-export function sendMessage(
-  msg: HtmlWorkerOutputMessage | RscWorkerOutputMessage,
+export const sendMessage: SendMessageFn = function _sendMessage(
+  msg,
   port = parentPort
 ) {
   if (!port) {
-    console.error("[Worker] No port available to send message");
-    return;
+    throw new Error("No port available to send message");
   }
 
   try {
     // Handle error messages
     if ("error" in msg) {
       const error = msg.error;
-      const serializedError =
-        error instanceof Error
-          ? {
-              message: error.message,
-              stack: error.stack,
-              name: error.name,
-              cause: error.cause,
-            }
-          : {
-              message: String(error),
-              name: "Error",
-            };
+      const hasErrorInfo =
+        "errorInfo" in msg &&
+        msg.errorInfo != null &&
+        typeof msg.errorInfo === "object";
+      const serializedError = serializeError(error);
 
+      const errorInfo = hasErrorInfo
+        ? serializeErrorInfo(msg.errorInfo)
+        : undefined;
       port.postMessage({
         ...cleanObject(msg),
         error: serializedError,
+        errorInfo,
       });
     } else {
       // Handle non-error messages
       port.postMessage(cleanObject(msg));
     }
   } catch (err) {
-    console.error("[Worker] Failed to send message:", err);
-    // Try to send a basic error message
-    try {
-      port.postMessage({
-        type: "ERROR",
-        error: {
-          message: err instanceof Error ? err.message : String(err),
-          name: err instanceof Error ? err.name : "Error",
-        },
-      });
-    } catch {
-      // If we can't even send an error message, just log it
-      console.error("[Worker] Critical error - could not send error message");
-    }
-  }
-}
+    // Create a proper error with captured stack trace for better debugging
+    const sendError = new Error(
+      err instanceof Error ? err.message : String(err)
+    );
+    sendError.name = err instanceof Error ? err.name : "MessageSendError";
 
-export const sendRscWorkerMessage = sendMessage as (
-  msg: RscWorkerOutputMessage,
-  port?: MessagePort
-) => void;
-export const sendHtmlWorkerMessage = sendMessage as (
-  msg: HtmlWorkerOutputMessage,
-  port?: MessagePort
-) => void;
+    // Capture stack trace excluding this function
+    Error.captureStackTrace(sendError, sendMessage);
+
+    port.postMessage({
+      type: "ERROR",
+      error: {
+        message: sendError.message,
+        name: sendError.name,
+        stack: sendError.stack,
+      },
+    });
+  }
+};

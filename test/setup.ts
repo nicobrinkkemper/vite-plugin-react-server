@@ -1,7 +1,41 @@
 import { mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
+import { beforeAll, afterEach, afterAll } from "vitest";
+
+// Store the original working directory
+const originalCwd = process.cwd();
+
+// Ensure working directory is restored before all tests
+beforeAll(() => {
+  // Reset to original working directory before any tests run
+  if (process.cwd() !== originalCwd) {
+    process.chdir(originalCwd);
+  }
+});
+
+// Ensure working directory is restored after each test
+afterEach(() => {
+  // Reset to original working directory after each test
+  if (process.cwd() !== originalCwd) {
+    process.chdir(originalCwd);
+  }
+});
+
+// Ensure working directory is restored after all tests
+afterAll(() => {
+  // Final cleanup - ensure we're back to the original directory
+  if (process.cwd() !== originalCwd) {
+    process.chdir(originalCwd);
+  }
+});
+
+// Export the original CWD for tests that need it
+export { originalCwd };
 
 export async function setupIndexHTML(testDir: string) {
+  await mkdir(testDir, { recursive: true });
+  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await setupClientTSX(testDir);
   await writeFile(
     resolve(testDir, "index.html"),
     `<!DOCTYPE html>
@@ -22,6 +56,7 @@ export async function setupIndexHTML(testDir: string) {
 export async function setupClientTSX(testDir: string) {
   await writeFile(
     resolve(testDir, "src/client.tsx"),
+    // NO use-client directive to test needed since no exports and name client should hide it for server
     `import React from 'react'
   import { createRoot } from 'react-dom/client'
   const root = createRoot(document.getElementById('root')!)
@@ -35,7 +70,7 @@ export async function setupServerTSX(testDir: string) {
     resolve(testDir, "src/server.tsx"),
     `"use server"
   import React from 'react'
-  export function TestServerAction() {
+  export async function TestServerAction() {
     return <div>Server</div>
   }
   `
@@ -129,39 +164,34 @@ export const props = (url: string)=>({
 }
 
 export async function setupTestServerActionJS(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
-  await mkdir(resolve(testDir, "src/page"), { recursive: true });
-
   // Use existing setup functions for basic structure
   await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
 
-  // Create server actions
+
+  // Create server actions 
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await writeFile(
     resolve(testDir, "src/page/actions.server.ts"),
     `"use server";
 
-export function add(a, b) {
+export async function add(a, b) {
   return a + b;
 }
 
-export function subtract(a, b) {
+export async function subtract(a, b) {
   return a - b;
 }`
   );
-
   await writeFile(
     resolve(testDir, "src/page/add.server.ts"),
     `
 // only add is a server function, test must verify that only one is registered in client and BOTH are defined in server, but only one is registered.    
-export function add(a, b) {
+export async function add(a, b) {
  "use server";
   return a + b;
 }
 
-export function subtract(a, b) {
+export async function subtract(a, b) {
   return a - b;
 }`
   );
@@ -170,22 +200,22 @@ export function subtract(a, b) {
   await writeFile(
     resolve(testDir, "src/page/subtract.server.ts"),
     `
-function add(a, b) {
+export async function add(a, b) {
   return a + b;
-}
+} 
 
-function subtract(a, b) {
+async function subtract(a, b) {
  "use server";
   return a - b;
 }
 
 
-function multiply(a, b) {
+async function multiply(a, b) {
   "use server";
    return a * b;
  }
 // export all, but only subtract and multiply are server functions
-export { subtract, add, multiply};
+export { subtract, multiply};
 `
 
   );
@@ -267,15 +297,10 @@ export const props = async () => {
 }
 
 export async function setupTodoTestProject(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
-  await mkdir(resolve(testDir, "src/page"), { recursive: true });
-  await mkdir(resolve(testDir, "src/components"), { recursive: true });
-
   // Use existing setup functions for basic structure
   await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
 
   // Create server actions
   await writeFile(
@@ -324,7 +349,8 @@ export async function deleteTodo(id: number): Promise<{ success: boolean }> {
     resolve(testDir, "src/components/TodoList.client.tsx"),
     `"use client";
 
-import React, { useState } from 'react';
+import React from 'react';
+const { useState } = React;
 
 type Todo = {
   id: number;
@@ -444,29 +470,21 @@ export type Props = Awaited<ReturnType<typeof props>>;`
 }
 
 export async function setupTestProject(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await setupIndexHTML(testDir);
   await mkdir(resolve(testDir, "src/components"), { recursive: true });
 
   // Create test files
-  await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
   await setupServerTSX(testDir);
   await setupPageTSX(testDir);
   await setupPageTSX2(testDir);
 }
 
 export async function setupTestProjectEnv(testDir: string) {
-  // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
-  await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
   await setupPageTSX2(testDir);
 
   // Create a test page component
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await writeFile(
     resolve(testDir, "src", "page", "page.tsx"),
     `import React from "react";
@@ -495,12 +513,9 @@ return (
 
 export async function setupTestProjectPropsVariations(testDir: string) {
   // Create base directories
-  await mkdir(testDir, { recursive: true });
-  await mkdir(resolve(testDir, "src"), { recursive: true });
+  await setupIndexHTML(testDir);
   await mkdir(resolve(testDir, "src/page"), { recursive: true });
   await mkdir(resolve(testDir, "src/page2"), { recursive: true });
-  await setupIndexHTML(testDir);
-  await setupClientTSX(testDir);
   await setupServerTSX(testDir);
 
   // Create a test page component
@@ -533,7 +548,7 @@ return (
 export function Page({url, propsEnv = import.meta.env}) {
 return (
   <div>
-    <h1>Home Page for {url}</h1>
+    <h1>Home Page for {new URL(import.meta.env.BASE_URL + url, import.meta.env.PUBLIC_ORIGIN + import.meta.env.BASE_URL).pathname}</h1>
     <p>Base URL: {propsEnv.BASE_URL}</p>
     <p>Public: {propsEnv.PUBLIC_ORIGIN}</p>
     <p>Mode: {import.meta.env.MODE}</p>
@@ -544,6 +559,202 @@ return (
     <p>Public Origin: {import.meta.env.PUBLIC_ORIGIN}</p>
   </div>
 );
+}`
+  );
+}
+
+export async function setupErrorBoundaryTestProject(testDir: string) {
+  // Setup basic structure
+  await setupIndexHTML(testDir);
+  
+  // Create fallback page for root route
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/page/page.tsx"),
+    `import React from "react";
+export function Page(props: any) {
+  return (
+    <div>
+      <h1>Error Boundary Test Home</h1>
+      <p>This is the fallback page</p>
+    </div>
+  );
+}`
+  );
+  
+  await writeFile(
+    resolve(testDir, "src/page/props.ts"),
+    `export const props = (url: string) => ({
+  title: "Error Boundary Test",
+  url
+});`
+  );
+  
+  // Create ErrorMessage component
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/components/ErrorMessage.tsx"),
+    `"use client";
+import React from "react";
+
+export function ErrorMessage({ error }: { error: { message: string; stack?: string } }) {
+  return (
+    <div data-testid="error-boundary">
+      <h2>Error</h2>
+      <p data-testid="error-message">{error.message}</p>
+      {error.stack && (
+        <details>
+          <summary>Stack trace</summary>
+          <pre>{error.stack}</pre>
+        </details>
+      )}
+    </div>
+  );
+}`
+  );
+
+  // Create ErrorBoundary component using the provided code
+  await writeFile(
+    resolve(testDir, "src/components/ErrorBoundary.client.tsx"),
+    `"use client";
+import React from "react";
+import { ErrorMessage } from "./ErrorMessage.js";
+
+export class ErrorBoundary extends React.Component {
+  public state: {
+    hasError: boolean;
+    error: Error | null;
+  } = {
+    hasError: false,
+    error: null,
+  };
+  public props: {
+    children: React.ReactNode;
+  } = {
+    children: null,
+  };
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+    this.props = props;
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    console.log("[ErrorBoundary] Caught error:", error.message);
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.state.error) {
+        return (
+          <ErrorMessage
+            error={{
+              message: this.state.error.message,
+              stack: this.state.error.stack,
+            }}
+          />
+        );
+      }
+      return <div>Error</div>;
+    }
+    return this.props.children;
+  }
+}`
+  );
+
+  // Create TestError component that throws an error
+  await writeFile(
+    resolve(testDir, "src/components/TestError.tsx"),
+    `import React from "react";
+export function TestError({ throwError }: { throwError: boolean }) {
+  if (throwError) {
+    throw new Error("test error example");
+  }
+  return <div>No error</div>;
+}`
+  );
+
+  // Create server error page
+  await mkdir(resolve(testDir, "src/page/server-error-example"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/page/server-error-example/props.ts"),
+    `export const props = (url: string) => {
+  const result = {
+    throwError: true,
+    title: "Server Error Example",
+    url
+  };
+  return result;
+};`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/server-error-example/page.tsx"),
+    `import React from "react";
+import { TestError } from "../../components/TestError.js";
+
+export function Page(props: any) {
+  return (
+    <>
+      <title>{props.title}</title>
+      <div>
+        <p>This page should show an error.</p>
+        <TestError throwError={props.throwError} />
+      </div>
+    </>
+  );
+}`
+  );
+
+  // Create client error page  
+  await mkdir(resolve(testDir, "src/page/client-error-example"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/page/client-error-example/props.ts"),
+    `export const props = (url: string) => ({
+  throwError: true,
+  title: "Client Error Example",
+  url
+});`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/client-error-example/page.tsx"),
+    `import React from "react";
+import { ClientErrorComponent } from "./ClientErrorComponent.client.js";
+
+export function Page(props: any) {
+  return (
+    <>
+      <title>{props.title}</title>
+      <div>
+        <ClientErrorComponent throwError={props.throwError} />
+      </div>
+    </>
+  );
+}`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/client-error-example/ClientErrorComponent.client.tsx"),
+    `"use client";
+import React from "react";
+import { ErrorBoundary } from "../../components/ErrorBoundary.client.js";
+
+function ThrowingComponent({ throwError }: { throwError: boolean }) {
+  if (throwError) {
+    throw new Error("Client component error");
+  }
+  return <div>No error</div>;
+}
+
+export function ClientErrorComponent({ throwError }: { throwError: boolean }) {
+  return (
+    <ErrorBoundary>
+      <p>This should show a client error.</p>
+      <ThrowingComponent throwError={throwError} />
+    </ErrorBoundary>
+  );
 }`
   );
 }

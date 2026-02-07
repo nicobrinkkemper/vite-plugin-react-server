@@ -1,5 +1,4 @@
 # Server Actions
-
 Server Actions are a powerful feature that allows you to define server-side functions that can be called directly from your React components. This guide will show you how to implement and use server actions in your application.
 
 ## Important Disclaimers
@@ -10,6 +9,7 @@ Server Actions are a powerful feature that allows you to define server-side func
 4. **Database Considerations**: Server actions that interact with databases need proper connection handling and error management.
 
 ## Table of Contents
+
 - [Basic Concepts](#basic-concepts)
 - [Creating Server Actions](#creating-server-actions)
 - [Using Server Actions in Components](#using-server-actions-in-components)
@@ -31,14 +31,14 @@ Server actions are defined in files with the `.server.ts` extension. Here's a pr
 
 ```typescript
 // src/server/actions/todoActions.server.ts
-'use server'
+"use server";
 
-import sqlite from "node:sqlite"
+import sqlite from "node:sqlite";
 
 // Initialize database
 const db = new sqlite.DatabaseSync("todos.db", {
-  open: true
-})
+  open: true,
+});
 
 // Create table if it doesn't exist
 db.exec(`
@@ -48,75 +48,79 @@ db.exec(`
     completed INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   ) STRICT
-`)
+`);
 
 // Server action to fetch todos
 export async function getTodos() {
-  const stmt = db.prepare("SELECT * FROM todos ORDER BY created_at DESC")
-  const results = stmt.all()
-  return results.map(todo => ({
+  const stmt = db.prepare("SELECT * FROM todos ORDER BY created_at DESC");
+  const results = stmt.all();
+  return results.map((todo) => ({
     ...todo,
-    completed: Boolean(todo.completed)
-  }))
+    completed: Boolean(todo.completed),
+  }));
 }
 
 // Server action to add a todo
 export async function addTodo(title: string) {
   try {
-    const stmt = db.prepare("INSERT INTO todos (title) VALUES (?) RETURNING id")
-    const result = stmt.get(title) as { id: number } | undefined
-    return { success: true, id: result?.id }
+    const stmt = db.prepare(
+      "INSERT INTO todos (title) VALUES (?) RETURNING id"
+    );
+    const result = stmt.get(title) as { id: number } | undefined;
+    return { success: true, id: result?.id };
   } catch (error) {
-    console.error("Error adding todo:", error)
-    return { success: false }
+    console.error("Error adding todo:", error);
+    return { success: false };
   }
 }
 
 // Server action to toggle todo completion status
 export async function toggleTodo(id: number) {
   try {
-    const stmt = db.prepare("UPDATE todos SET completed = NOT completed WHERE id = ?")
-    stmt.run(id)
-    return { success: true }
+    const stmt = db.prepare(
+      "UPDATE todos SET completed = NOT completed WHERE id = ?"
+    );
+    stmt.run(id);
+    return { success: true };
   } catch (error) {
-    console.error("Error toggling todo:", error)
-    return { success: false }
+    console.error("Error toggling todo:", error);
+    return { success: false };
   }
 }
 
 // Server action to delete a todo
 export async function deleteTodo(id: number) {
   try {
-    const stmt = db.prepare("DELETE FROM todos WHERE id = ?")
-    stmt.run(id)
-    return { success: true }
+    const stmt = db.prepare("DELETE FROM todos WHERE id = ?");
+    stmt.run(id);
+    return { success: true };
   } catch (error) {
-    console.error("Error deleting todo:", error)
-    return { success: false }
+    console.error("Error deleting todo:", error);
+    return { success: false };
   }
 }
 
 // Server action to edit a todo
 export async function editTodo(id: number, title: string) {
   try {
-    const stmt = db.prepare("UPDATE todos SET title = ? WHERE id = ?")
-    stmt.run(title, id)
-    return { success: true }
+    const stmt = db.prepare("UPDATE todos SET title = ? WHERE id = ?");
+    stmt.run(title, id);
+    return { success: true };
   } catch (error) {
-    console.error("Error editing todo:", error)
-    return { success: false }
+    console.error("Error editing todo:", error);
+    return { success: false };
   }
 }
 
 // Server action to clear completed todos
 export async function clearCompletedTodos() {
   try {
-    const stmt = db.prepare("DELETE FROM todos WHERE completed = 1")
-    stmt.run()
-    return { success: true }
+    const stmt = db.prepare("DELETE FROM todos WHERE completed = 1");
+    stmt.run();
+    return { success: true };
   } catch (error) {
-    console.error("Error clearing completed todos:", error)
-    return { success: false }
+    console.error("Error clearing completed todos:", error);
+    return { success: false };
   }
 }
 ```
@@ -127,19 +131,19 @@ Server actions can be passed to client components and used there. Here's how it 
 
 ```typescript
 // src/page/todos/props.ts
-import { 
-  addTodo, 
-  toggleTodo, 
-  deleteTodo, 
-  editTodo, 
-  clearCompletedTodos, 
-  getTodos 
-} from '../../server/actions/todoActions.server.js'
+import {
+  addTodo,
+  toggleTodo,
+  deleteTodo,
+  editTodo,
+  clearCompletedTodos,
+  getTodos,
+} from "../../server/actions/todoActions.server.js";
 
 // Define the props function that returns the server actions and initial data
 export const props = async () => {
-  const initialTodos = await getTodos()
-  
+  const initialTodos = await getTodos();
+
   return {
     addTodo,
     toggleTodo,
@@ -147,34 +151,34 @@ export const props = async () => {
     editTodo,
     clearCompletedTodos,
     getTodos,
-    initialTodos
-  }
-}
+    initialTodos,
+  };
+};
 
 // Use Awaited<ReturnType<typeof props>> to infer the final Props type send to Page / TodoList
-export type Props = Awaited<ReturnType<typeof props>>
+export type Props = Awaited<ReturnType<typeof props>>;
 ```
 
 ```tsx
 // src/page/todos/page.tsx
-import { TodoList } from "../../components/TodoList.client.js"
-import type { Props } from "./props.js"
+import { TodoList } from "../../components/TodoList.client.js";
+import type { Props } from "./props.js";
 
-export async function Page(props: Props) {
+export const Page = async (props: Props) => {
   return (
     <div>
       <TodoList {...props} />
     </div>
-  )
-}
+  );
+};
 ```
 
 ```tsx
 // src/components/TodoList.client.tsx
-'use client'
+"use client";
 
-import { useState } from 'react'
-import type { Props } from '../page/todos/props.js'
+import { useState } from "react";
+import type { Props } from "../page/todos/props.js";
 
 export function TodoList({
   initialTodos,
@@ -183,54 +187,54 @@ export function TodoList({
   deleteTodo,
   editTodo,
   clearCompletedTodos,
-  getTodos
+  getTodos,
 }: Props) {
-  const [todos, setTodos] = useState(initialTodos)
-  const [newTodo, setNewTodo] = useState('')
+  const [todos, setTodos] = useState(initialTodos);
+  const [newTodo, setNewTodo] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newTodo.trim()) return
+    e.preventDefault();
+    if (!newTodo.trim()) return;
 
-    const result = await addTodo(newTodo)
+    const result = await addTodo(newTodo);
     if (result.success) {
-      const updatedTodos = await getTodos()
-      setTodos(updatedTodos)
-      setNewTodo('')
+      const updatedTodos = await getTodos();
+      setTodos(updatedTodos);
+      setNewTodo("");
     }
-  }
+  };
 
   const handleToggle = async (id: number) => {
-    const result = await toggleTodo(id)
+    const result = await toggleTodo(id);
     if (result.success) {
-      const updatedTodos = await getTodos()
-      setTodos(updatedTodos)
+      const updatedTodos = await getTodos();
+      setTodos(updatedTodos);
     }
-  }
+  };
 
   const handleDelete = async (id: number) => {
-    const result = await deleteTodo(id)
+    const result = await deleteTodo(id);
     if (result.success) {
-      const updatedTodos = await getTodos()
-      setTodos(updatedTodos)
+      const updatedTodos = await getTodos();
+      setTodos(updatedTodos);
     }
-  }
+  };
 
   const handleEdit = async (id: number, title: string) => {
-    const result = await editTodo(id, title)
+    const result = await editTodo(id, title);
     if (result.success) {
-      const updatedTodos = await getTodos()
-      setTodos(updatedTodos)
+      const updatedTodos = await getTodos();
+      setTodos(updatedTodos);
     }
-  }
+  };
 
   const handleClearCompleted = async () => {
-    const result = await clearCompletedTodos()
+    const result = await clearCompletedTodos();
     if (result.success) {
-      const updatedTodos = await getTodos()
-      setTodos(updatedTodos)
+      const updatedTodos = await getTodos();
+      setTodos(updatedTodos);
     }
-  }
+  };
 
   return (
     <div>
@@ -264,11 +268,12 @@ export function TodoList({
 
       <button onClick={handleClearCompleted}>Clear Completed</button>
     </div>
-  )
+  );
 }
 ```
 
 This pattern shows how to:
+
 1. Define server actions in a `.server.ts` file
 2. Use `Awaited<ReturnType<typeof props>>` to infer the Props type from the props function
 3. Pass them through props or import them
@@ -277,6 +282,7 @@ This pattern shows how to:
 6. Maintain type safety across the server-client boundary
 
 The key benefits of this approach are:
+
 - Server actions are available anywhere and it's clear which are needed
 - Client components can use them as regular functions
 - Type safety is maintained throughout
@@ -288,21 +294,84 @@ The key benefits of this approach are:
 Server actions work seamlessly with HTML forms. The form's action prop can directly reference a server action:
 
 ```tsx
-// src/page/todos/page.tsx
-import { addTodo } from '../actions.server'
+// src/components/TodoList.client.tsx
+"use client";
 
-export default function TodoForm() {
+import React from 'react';
+const { useState } = React;
+
+type Todo = {
+  id: number;
+  title: string;
+  completed: boolean;
+  created_at: string;
+};
+
+type Props = {
+  initialTodos: Todo[];
+  addTodo: (title: string) => Promise<{ success: boolean }>;
+  toggleTodo: (id: number) => Promise<{ success: boolean }>;
+  deleteTodo: (id: number) => Promise<{ success: boolean }>;
+  getTodos: () => Promise<Todo[]>;
+};
+
+export function TodoList({ initialTodos, addTodo, toggleTodo, deleteTodo, getTodos }: Props) {
+  const [todos, setTodos] = useState<Todo[]>(initialTodos);
+  const [newTodo, setNewTodo] = useState('');
+
+  async function handleAddTodo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTodo.trim()) return;
+
+    await addTodo(newTodo);
+    setNewTodo('');
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
+  async function handleToggleTodo(id: number) {
+    await toggleTodo(id);
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
+  async function handleDeleteTodo(id: number) {
+    await deleteTodo(id);
+    const updatedTodos = await getTodos();
+    setTodos(updatedTodos as Todo[]);
+  }
+
   return (
-    <form action={addTodo}>
-      <input 
-        type="text" 
-        name="title" 
-        placeholder="What needs to be done?"
-        required 
-      />
-      <button type="submit">Add Todo</button>
-    </form>
-  )
+    <div>
+      <h1>Todo List</h1>
+      
+      <form onSubmit={handleAddTodo}>
+        <input
+          type="text"
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
+          placeholder="Add a new todo..."
+        />
+        <button type="submit">Add</button>
+      </form>
+
+      <ul>
+        {todos.map((todo) => (
+          <li key={todo.id}>
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              onChange={() => handleToggleTodo(todo.id)}
+            />
+            <span style={{ textDecoration: todo.completed ? 'line-through' : 'none' }}>
+              {todo.title}
+            </span>
+            <button onClick={() => handleDeleteTodo(todo.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 ```
 
@@ -312,63 +381,89 @@ Server actions can handle errors and return them to the client:
 
 ```typescript
 // src/page/actions.server.ts
-'use server'
+"use server";
 
-export async function addTodo(title: string) {
-  try {
-    if (!title.trim()) {
-      throw new Error('Title cannot be empty')
-    }
-    
-    const todo = await db.todos.create({
-      data: {
-        title,
-        completed: false
-      }
-    })
-    
-    revalidatePath('/todos')
-    return { success: true, data: todo }
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An error occurred' 
-    }
-  }
+type Todo = {
+  id: number;
+  title: string;
+  completed: boolean;
+  created_at: string;
+};
+
+let todos: Todo[] = [];
+
+export async function getTodos(): Promise<Todo[]> {
+  return todos;
+}
+
+export async function addTodo(title: string): Promise<{ success: boolean }> {
+  const newTodo: Todo = {
+    id: Date.now(),
+    title,
+    completed: false,
+    created_at: new Date().toISOString()
+  };
+  todos = [...todos, newTodo];
+  return { success: true };
+}
+
+export async function toggleTodo(id: number): Promise<{ success: boolean }> {
+  todos = todos.map(todo => 
+    todo.id === id ? { ...todo, completed: !todo.completed } : todo
+  );
+  return { success: true };
+}
+
+export async function deleteTodo(id: number): Promise<{ success: boolean }> {
+  todos = todos.filter(todo => todo.id !== id);
+  return { success: true };
 }
 ```
 
-## Optimistic Updates
+## Props Integration
 
-You can implement optimistic updates with server actions:
+Connect server actions to your page through props:
+
+```typescript
+// src/page/props.ts
+import { addTodo, deleteTodo, getTodos, toggleTodo } from './actions.server.ts';
+
+export const props = async () => {
+  const todos = await getTodos();
+  return {
+    todos,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
+    getTodos,
+  };
+};
+
+export type Props = Awaited<ReturnType<typeof props>>;
+```
+
+## Page Component
+
+Use the props in your page component:
 
 ```tsx
-// src/page/todos/page.tsx
-import { useTransition } from 'react'
-import { toggleTodo } from '../actions.server'
+// src/page/page.tsx
+import React from 'react';
+import { TodoList } from '../components/TodoList.client';
+import type { Props } from './props.js';
 
-export default function TodoItem({ todo }) {
-  const [isPending, startTransition] = useTransition()
-  
-  const handleToggle = () => {
-    // Optimistically update the UI
-    const optimisticTodo = { ...todo, completed: !todo.completed }
-    
-    startTransition(() => {
-      toggleTodo(todo.id)
-    })
-  }
-  
+export function Page({ todos, addTodo, toggleTodo, deleteTodo, getTodos }: Props) {
   return (
-    <li className={isPending ? 'opacity-50' : ''}>
-      <input
-        type="checkbox"
-        checked={todo.completed}
-        onChange={handleToggle}
+    <div>
+      <TodoList 
+        initialTodos={todos} 
+        addTodo={addTodo}
+        toggleTodo={toggleTodo}
+        deleteTodo={deleteTodo}
+        getTodos={getTodos}
       />
-      {todo.title}
-    </li>
-  )
+    </div>
+  );
 }
 ```
 
@@ -377,16 +472,17 @@ export default function TodoItem({ todo }) {
 1. **Missing 'use server' directive**: Always include the 'use server' directive at the top of server action files.
 2. **Security issues**: Never expose sensitive operations to the client.
 
-
 ## Static Rendering
 
 When building your application, server actions are transformed into different outputs:
 
 1. **Client Build** (`dist/client/`):
+
    - Contains the client-side code that calls server actions during ssr
    - Example: `dist/client/page/todos.js`
 
 2. **Server Build** (`dist/server/`):
+
    - Contains the server-side implementation of actions, pages, props and others
    - Example: `dist/server/actions/todoActions.js`
 
@@ -397,45 +493,20 @@ When building your application, server actions are transformed into different ou
 While it is totally possible to include the output of the database in the static render, the static render will not handle the fact that a common static-host can't actually respond to the server action in any meaningful way.
 
 If you want dynamic server actions you have to make sure that you also HOST your server modules, much like this plugin hosts your modules during development. If the server actions work both in the client environment's "rsc-worker" and the server environment's main thread, then
-you choose between deciding your own server setup. 
-    
-
-Example of how a server action is transformed:
-
-```typescript
-// Original server action
-'use server'
-export async function addTodo(title: string) {
-  await db.todos.create({ title })
-  revalidatePath('/todos')
-}
-
-// Transformed client code (simplified)
-export const addTodo = async (title) => {
-  const response = await fetch('/_rsc', {
-    method: 'POST',
-    body: JSON.stringify({ action: 'addTodo', args: [title] })
-  })
-  return response.json()
-}
-
-// Transformed server code (simplified)
-export const addTodo = async (title) => {
-  await db.todos.create({ title })
-  await revalidatePath('/todos')
-}
-```
+you choose between deciding your own server setup.When running in non-production mode, `react-server-dom-esm/server` will be transformed to `react-server-dom-esm/server.node` instead. This is to support vitest module resolution.
 
 ## Server Hosting
 
 To host an application with server actions:
 
 1. **Build the Application**:
+
    ```bash
    npm run build
    ```
 
 2. **Start the Server**:
+
    ```bash
    node dist/server/index.js
    ```
@@ -444,40 +515,114 @@ To host an application with server actions:
    - Set up your database connection
    - Configure environment variables
    - Set up proper error handling
+   - Always use VITE_ prefix for variables
 
-Example server setup:
+### .env
+
+```env
+VITE_BASE_URL=$BASE_URL
+VITE_PUBLIC_ORIGIN=$PUBLIC_ORIGIN
+VITE_GITHUB_ACTIONS=$GITHUB_ACTIONS
+```
+
+Mapping your environment variables like this ensures they're able to reach all the different boundaries.
+
+Server actions can be used and passed around via Page streams
+
+### Transformations
+
+Example of how a server action is transformed from original:
 
 ```typescript
-// server.ts
-import express from 'express'
-import { createServer } from 'vite'
-import { vitePluginReactServer } from 'vite-plugin-react-server'
+"use server";
 
-const app = express()
+export async function add(a, b) {
+  return a + b;
+}
 
-// Initialize the server
-const server = await createServer({
-  plugins: [
-    vitePluginReactServer({
-      // Your plugin configuration
-    })
-  ]
-})
+export async function subtract(a, b) {
+  return a - b;
+}
+```
 
-// Handle server actions
-app.post('/_rsc', async (req, res) => {
-  const { action, args } = req.body
-  try {
-    const result = await serverActions[action](...args)
-    res.json(result)
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
+To
 
-app.listen(3000)
+```typescript
+import { registerServerReference } from "react-server-dom-esm/server.node";
+function add(a, b) {
+  return a + b;
+}
+function subtract(a, b) {
+  return a - b;
+}
+registerServerReference(add, "/src/page/actions.server.ts", "add");
+registerServerReference(subtract, "/src/page/actions.server.ts", "subtract");
+export {
+  add,
+  subtract
+};
+```
+
+```typescript
+await handleRscStream(`http://localhost:${port}/index.rsc`);
+```
+
+Or call your server action directly by sending a post message to the module.
+
+```typescript
+await handleRscPost(`http://localhost:${port}/src/action.server.tsx#add', 1, 1)
 ```
 
 ## Conclusion
 
-Server Actions provide a powerful way to handle server-side operations in your React application. They simplify the development process by allowing you to write server-side code directly in your React components while maintaining type safety and security. 
+Server Actions provide a powerful way to handle server-side operations in your React application. They simplify the development process by allowing you to write server-side code directly in your React components while maintaining type safety and security.
+
+## Limitations
+
+Server action are not as powerful as pages, because they do not support the css collection and custom prop function out of the box. While
+they could be used to stream React components, generally it is used for sending mutations to the server like the todo app in demo shows.
+Try to keep the return value simple and update the state on the client side on success indicator. 
+
+<!-- TOC START -->
+
+## 📚 Documentation Navigation
+
+<!-- Auto-generated TOC - Do not edit manually -->
+
+## Table of Contents
+
+<!-- Auto-generated TOC - Do not edit manually -->
+
+
+
+1.	[Getting Started](./getting-started.md)
+2.	[Core Concepts](./core-concepts.md)
+3.	[Configuration Guide](./configuration.md)
+4.	[CSS & Styling](./css-handling.md)
+5.	**[Server Actions](./server-actions.md) ← you are here**
+6.	[Build & Deployment](./build-orchestration.md)
+7.	[Advanced Development](./advanced-topics.md)
+8.	[Plugin Internals](./transformer-plugin.md)
+9.	[Worker System](./rsc-worker.md)
+10.	[API Reference](./api-reference.md)
+11.	[React Compatibility](./react-type-compatibility.md)
+12.	[Troubleshooting](./troubleshooting-guide.md)
+13.	[Package Exports](./package-exports.md)
+14.	[Transformations](./transformations.md)
+
+### Quick Links
+- [🏠 Main Documentation](./README.md)
+- [🚀 Getting Started](./getting-started.md)
+- [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
+- [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
+
+---
+
+<!-- TOC END -->
+
+
+
+
+
+
+

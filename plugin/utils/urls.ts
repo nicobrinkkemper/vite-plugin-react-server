@@ -1,4 +1,3 @@
-
 /**
  * # createAbsoluteUrl
  *
@@ -30,8 +29,15 @@ export const createAbsoluteURL = (
     const pathWithBaseURL = baseURL(path);
     try {
       return new URL(pathWithBaseURL, withPublicOrigin).toString();
-    } catch (error) {
-      return withPublicOrigin + pathWithBaseURL;
+    } catch {
+      // Fallback: ensure proper URL construction
+      const publicOrigin = withPublicOrigin.endsWith("/") 
+        ? withPublicOrigin.slice(0, -1) 
+        : withPublicOrigin;
+      const pathPart = pathWithBaseURL.startsWith("/") 
+        ? pathWithBaseURL 
+        : `/${pathWithBaseURL}`;
+      return publicOrigin + pathPart;
     }
   };
 };
@@ -69,6 +75,9 @@ export const createAbsoluteURL = (
  * baseURL "/" + path "https://bidoof.com" -> should not concatenate to /https://bidoof.com"
  */
 export const createBaseURL = (withBaseURL: string) => {
+  if(withBaseURL === ''){
+    return (path: string) => path;
+  }
   if (withBaseURL.endsWith("/")) {
     return (path: string) => {
       if (path === "") return withBaseURL;
@@ -104,11 +113,10 @@ export const isBlankRegex = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?\/\//;
 export const isAbsoluteURL = (url: string) =>
   isBlankRegex.test(url) || url.startsWith("//");
 
-
 export const folderName = (path: string, withBaseURL: string) => {
   const baseURL = createBaseURL(withBaseURL);
   return baseURL(path.replace(/\[index.(html?|rsc|HTML?)]$/, ""));
-}
+};
 
 /**
  * # createPageURL
@@ -138,7 +146,7 @@ export const folderName = (path: string, withBaseURL: string) => {
  * );
  * ```
  *
- * The moduleBasePath being set at the config level as "/",
+ * The moduleBasePath being set at the config level as "",
  * then we pass it to create a stream `renderToPipeableStream(elements, moduleBasePath)`, and we see
  * ```text
  * 2:I["src/components/Clickable.client-Dx9diOqr.js","ClientClickable"]
@@ -151,19 +159,23 @@ export const createPageURL = (
   isDev = false,
   normalizer = !withBaseURL.endsWith("/")
     ? removeTrailingSlash
-    : addTrailingSlash,
+    : addTrailingSlash
 ) => {
   return (to: string, fileName: string = "index.rsc") => {
     try {
+      // Ensure withBaseURL is a string
+      const baseURLString = typeof withBaseURL === 'string' ? withBaseURL : String(withBaseURL || '/');
+      
       // Create the base URL first
       const folderName = addTrailingSlash(
         to.replace(/\[index.(html?|rsc|HTML?)]$/, "")
       );
-      const baseURL = createBaseURL(withBaseURL);
+      const baseURL = createBaseURL(baseURLString);
       const rscPath = baseURL(folderName) + fileName;
       // Create moduleBaseURL and normalize it to match input format
-      const moduleBaseURL = parseURL(withBaseURL, withPublicOrigin);
+      const moduleBaseURL = parseURL(baseURLString, withPublicOrigin);
       if (moduleBaseURL.type === "error") {
+        if(isDev) console.error("Error parsing moduleBaseURL", moduleBaseURL.error);
         throw moduleBaseURL.error;
       }
       const indexRSC = parseURL(rscPath, withPublicOrigin);
@@ -176,9 +188,14 @@ export const createPageURL = (
       };
     } catch (error) {
       if (isDev) console.error("Error parsing pageURL", error);
+      const shouldJoin = !to.endsWith("/") && !fileName.startsWith("/");
+      const shouldSlice = to.endsWith("/") && fileName.startsWith("/");
       return {
-        indexRSC: withBaseURL + "index.rsc",
-        moduleBaseURL: withBaseURL,
+        indexRSC:
+          to +  
+          (shouldJoin ? "/" : "") +
+          (shouldSlice ? fileName.slice(1) : fileName),
+        moduleBaseURL: typeof withBaseURL === 'string' ? withBaseURL : String(withBaseURL || '/'),
       };
     }
   };
@@ -207,9 +224,27 @@ export const parseURL = (
   | { type: "success"; url: URL; error?: never; base?: never }
   | { type: "error"; url: string; base: string; error: Error } => {
   try {
+    // If base is empty or not a valid absolute URL, use window.location.origin as fallback (browser only)
+    let effectiveBase = base;
+    if (!effectiveBase || effectiveBase === "/" || !isAbsoluteURL(effectiveBase)) {
+      if (typeof window !== "undefined" && window.location) {
+        effectiveBase = window.location.origin;
+      } else if (!effectiveBase) {
+        effectiveBase = "http://localhost"; // Fallback for non-browser environments
+      }
+    }
+    
+    // If url is already absolute, use it directly
+    if (isAbsoluteURL(url)) {
+      return {
+        type: "success",
+        url: new URL(url),
+      };
+    }
+    
     return {
       type: "success",
-      url: new URL(url, base),
+      url: new URL(url, effectiveBase),
     };
   } catch (error) {
     return { type: "error", url: url, base: base, error: error as Error };

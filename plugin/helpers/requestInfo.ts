@@ -1,7 +1,9 @@
-import { join, resolve } from "node:path";
-import type { ResolvedUserOptions } from "../types.js";
-import { createLogger, type Connect, type Logger } from "vite";
+import { resolve } from "node:path";
+import type { CreateHandlerOptions } from "../types.js";
+import { type Connect } from "vite";
 import { MIME_TYPES } from "../config/mimeTypes.js";
+import { requestToRoute } from "./requestToRoute.js";
+import { routeToURL } from "../utils/routeToURL.js";
 
 /**
  * # Request info
@@ -9,30 +11,64 @@ import { MIME_TYPES } from "../config/mimeTypes.js";
  * Does the initial work to check if the request is for html, rsc, json, js, css, server-action, or something else not handled by this plugin.
  *
  * @param req
- * @param userOptions
+ * @param handlerOptions
  * @param hostDir
  * @returns
  */
 export function requestInfo(
   req: Connect.IncomingMessage,
-  userOptions: Pick<
-    ResolvedUserOptions,
-    "normalizer" | "build" | "autoDiscover" | "verbose"
+  handlerOptions: Pick<
+    CreateHandlerOptions,
+    | "normalizer"
+    | "build"
+    | "autoDiscover"
+    | "verbose"
+    | "moduleBasePath"
+    | "moduleBaseURL"
+    | "verbose"
+    | "logger"
   >,
   hostDir: string,
-  logger: Logger = createLogger()
 ) {
-  const [, value] = userOptions.normalizer(req.url);
+  const route = requestToRoute(req, {
+    moduleBasePath: handlerOptions.moduleBasePath,
+    moduleBaseURL: handlerOptions.moduleBaseURL,
+    build: handlerOptions.build,
+  });
+
+  if (!route) {
+    return {
+      route: "/",
+      url: routeToURL("/", handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath),
+      ext: "",
+    };
+  }
+
+  // Use the cleaned route for normalization, not the raw req.url
+  // This ensures base URL is properly stripped before normalization
+  const [, value] = handlerOptions.normalizer(route);
+  if (handlerOptions.verbose) {
+    if (value && value !== "") {
+      handlerOptions.logger.info(`[requestInfo] Value: \"${value}\"`);
+    }
+    if (hostDir && hostDir !== "") {
+      handlerOptions.logger.info(`[requestInfo] Host Dir: \"${hostDir}\"`);
+    }
+    if (req.url && req.url !== "") {
+      handlerOptions.logger.info(`[requestInfo] Request URL: \"${req.url}\"`);
+    }
+  }
+
   const dotIndex = value.lastIndexOf(".");
   const ext = dotIndex === -1 ? "" : value.slice(dotIndex);
   // handle index.html
-  const isVendor = userOptions.autoDiscover.vendorPattern(value);
-  const isVirtual = userOptions.autoDiscover.virtualPattern(value);
-  const isJS = userOptions.autoDiscover.modulePattern(value);
-  const isHtml = userOptions.autoDiscover.htmlPattern(value);
-  const isCss = userOptions.autoDiscover.cssPattern(value);
-  const isJson = userOptions.autoDiscover.jsonPattern(value);
-  const isRsc = userOptions.autoDiscover.rscPattern(value);
+  const isVendor = handlerOptions.autoDiscover.vendorPattern.test(value);
+  const isVirtual = handlerOptions.autoDiscover.virtualPattern.test(value);
+  const isJS = handlerOptions.autoDiscover.modulePattern.test(value);
+  const isHtml = handlerOptions.autoDiscover.htmlPattern.test(value);
+  const isCss = handlerOptions.autoDiscover.cssPattern.test(value);
+  const isJson = handlerOptions.autoDiscover.jsonPattern.test(value);
+  const isRsc = handlerOptions.autoDiscover.rscPattern.test(value);
   const hasJsHeader =
     req.headers["sec-fetch-dest"] === "script" ||
     req.headers["accept"]?.includes("*/*") ||
@@ -46,27 +82,35 @@ export function requestInfo(
     req.headers["content-type"]?.includes(
       "application/x-www-form-urlencoded"
     ) || !!req.headers["content-type"]?.includes("multipart/form-data");
-  
+
   // Server action detection
+  const hasRscActionHeader = !!req.headers["x-rsc-action"];
   const hasServerActionHeaders =
     req.method === "POST" &&
-    (req.headers["sec-fetch-dest"] === "empty" ||
-      req.headers["sec-fetch-dest"] === "") &&
-    req.headers["sec-fetch-mode"] === "cors";
+    (hasRscActionHeader || (
+      (req.headers["sec-fetch-dest"] === "empty" ||
+        req.headers["sec-fetch-dest"] === "") &&
+      req.headers["sec-fetch-mode"] === "cors"
+    ));
   const isServerActionRequest = hasServerActionHeaders;
 
-  const isFormActionRequest = !isServerActionRequest && (
-    req.method === "POST" ||
-    (isFormContentType &&
-      req.headers["sec-fetch-dest"] === "document" &&
-      req.headers["sec-fetch-mode"] === "navigate")
-  );
+  const isFormActionRequest =
+    !isServerActionRequest &&
+    (req.method === "POST" ||
+      (isFormContentType &&
+        req.headers["sec-fetch-dest"] === "document" &&
+        req.headers["sec-fetch-mode"] === "navigate"));
 
   const isJsRequest =
-    !isFormActionRequest && !isJson && !isHtml && !isCss && !isRsc && (isJS || hasJsHeader);
+    !isFormActionRequest &&
+    !isJson &&
+    !isHtml &&
+    !isCss &&
+    !isRsc &&
+    (isJS || hasJsHeader);
   const isJsonRequest = isJson || (hasJsonHeader && !isJsRequest);
   // Form action detection
-  
+
   const isHtmlRequest =
     isHtml ||
     hasHtmlHeader ||
@@ -84,36 +128,49 @@ export function requestInfo(
     !isJsonRequest &&
     (isCss || hasCssHeader);
 
-  let filePath = join(hostDir, value);
+  // Use the normalized value for file path construction
+  // The normalizer should have already stripped base URLs properly
+  const routeForFilePath = value;
+
+  let filePath = resolve(hostDir, routeForFilePath);
   let contentType;
   if (isServerActionRequest) {
     // For server actions, we'll get the actual file path from the request body
     // The route is just a placeholder
-    filePath = value;
+    filePath = resolve(hostDir, routeForFilePath);
     contentType = "application/json; charset=utf-8";
   } else if (isHtmlRequest) {
     if (!isHtml) {
-      filePath = join(hostDir, value, userOptions.build.htmlOutputPath);
+      filePath = resolve(
+        hostDir,
+        routeForFilePath,
+        handlerOptions.build.htmlOutputPath
+      );
     }
     contentType = "text/html; charset=utf-8";
   } else if (isRscRequest) {
     if (!isRsc) {
-      filePath = join(hostDir, value, userOptions.build.rscOutputPath);
+      // Value doesn't end with .rsc, append the rsc output path
+      filePath = resolve(
+        hostDir,
+        routeForFilePath,
+        handlerOptions.build.rscOutputPath
+      );
     }
     contentType = "text/x-component; charset=utf-8";
   } else if (isCssRequest) {
     if (!isCss) {
-      filePath = join(hostDir, value + ".css");
+      filePath = resolve(hostDir, routeForFilePath + ".css");
     }
     contentType = "text/css; charset=utf-8";
   } else if (isJsRequest) {
     if (!isJS) {
-      filePath = resolve(hostDir, value + ".js");
+      filePath = resolve(hostDir, routeForFilePath + ".js");
     }
     contentType = "application/javascript; charset=utf-8";
   } else if (isJsonRequest) {
     if (!isJson) {
-      filePath = join(hostDir, value + ".json");
+      filePath = resolve(hostDir, routeForFilePath + ".json");
     }
     contentType = "application/json; charset=utf-8";
   } else {
@@ -121,49 +178,32 @@ export function requestInfo(
     if (mimeType) {
       contentType = mimeType + "; charset=utf-8";
     } else {
-      contentType = "application/octet-stream";
+      contentType = "application/octet-stream; charset=utf-8";
     }
   }
-  const route = value
-    .replace(userOptions.build.rscOutputPath, "")
-    .replace(userOptions.build.htmlOutputPath, "");
 
-  const routeWithoutTrailingSlash =
-    route === "" || route === "/"
-      ? "/"
-      : route.endsWith("/")
-      ? route.slice(0, -1)
-      : route;
-
-  const routeWithLeadingSlash = !routeWithoutTrailingSlash
-    ? "/"
-    : routeWithoutTrailingSlash.startsWith("/")
-    ? routeWithoutTrailingSlash
-    : `/${routeWithoutTrailingSlash}`;
-
-  if (userOptions.verbose) {
+  if (handlerOptions.verbose) {
     if (isFormActionRequest) {
-      logger.info(`[react-dev-server] (form-action) ${routeWithLeadingSlash}`);
+      handlerOptions.logger.info(`[react-dev-server] (form-action) ${route}`);
     } else if (isServerActionRequest) {
-      logger.info(
-        `[react-dev-server] (server-action) ${routeWithLeadingSlash}`
-      );
+      handlerOptions.logger.info(`[react-dev-server] (server-action) ${route}`);
     } else if (isHtmlRequest) {
-      logger.info(`[react-dev-server] (html) ${routeWithLeadingSlash}`);
+      handlerOptions.logger.info(`[react-dev-server] (html) ${route}`);
     } else if (isRscRequest) {
-      logger.info(`[react-dev-server] (rsc) ${routeWithLeadingSlash}`);
+      handlerOptions.logger.info(`[react-dev-server] (rsc) ${route}`);
     } else if (isCssRequest) {
-      logger.info(`[react-dev-server] (css) ${routeWithLeadingSlash}`);
+      handlerOptions.logger.info(`[react-dev-server] (css) ${route}`);
     } else if (isJsRequest) {
-      logger.info(`[react-dev-server] (js) ${routeWithLeadingSlash}`);
+      handlerOptions.logger.info(`[react-dev-server] (js) ${route}`);
     } else if (isJsonRequest) {
-      logger.info(`[react-dev-server] (json) ${routeWithLeadingSlash}`);
+      handlerOptions.logger.info(`[react-dev-server] (json) ${route}`);
     } else {
-      logger.info(`[react-dev-server] (other) ${routeWithLeadingSlash}`);
+      handlerOptions.logger.info(`[react-dev-server] (other) ${route}`);
     }
   }
   return {
-    route: routeWithLeadingSlash,
+    route,
+    url: routeToURL(route, handlerOptions.moduleBaseURL, handlerOptions.build.rscOutputPath),
     ext,
     isHtmlRequest,
     isRscRequest,

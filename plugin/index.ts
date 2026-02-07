@@ -1,5 +1,9 @@
 import { getCondition } from './config/getCondition.js';
+import { pluginRoot } from './root.js';
+import type { VitePluginMainFn } from './types.js';
 
-const condition = getCondition('');
+export const condition = getCondition('');
+export const { vitePluginReactServer, vitePluginReactClient } = (await import(`${pluginRoot}/plugin.${condition}.js`)) as { vitePluginReactServer: VitePluginMainFn, vitePluginReactClient: VitePluginMainFn };
 
-export const { vitePluginReactServer } = await import(`./plugin.${condition}.js`);
+// Export the orchestrator for direct use
+export { createPluginOrchestrator } from './orchestrator/createPluginOrchestrator.js';
