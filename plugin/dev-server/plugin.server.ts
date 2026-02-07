@@ -21,10 +21,11 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
   }
   const userOptions = resolvedOptions.userOptions;
 
-  // Separate plugin for HMR handling (must apply to all environments to receive handleHotUpdate)
+  // Separate plugin for HMR handling (must apply to all environments)
   const hmrPlugin = {
     name: "vite-plugin-react-server:server-hmr",
     apply: "serve" as const,
+    // Server-level handleHotUpdate — sends custom WS event to client
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
       const moduleBase = userOptions.moduleBase || "src";
       const projectRoot = userOptions.projectRoot || server.config.root;

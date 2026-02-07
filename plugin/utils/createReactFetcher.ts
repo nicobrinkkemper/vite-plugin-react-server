@@ -34,24 +34,32 @@ export function createReactFetcher({
   );
 }
 
+/** HMR event name used by the plugin */
+export const RSC_HMR_EVENT = 'vite-plugin-react-server:server-component-update';
+
+/** Data sent with RSC HMR events */
+export interface RscHmrData {
+  file: string;
+  path: string;
+}
+
 /**
- * Set up HMR for React Server Components.
- * Call this in your client entry point to enable automatic refresh when server components change.
+ * Set up HMR for React Server Components (non-React API).
+ * 
+ * For React components, use `useRscHmr()` hook instead.
  * 
  * @example
  * ```tsx
- * // client.tsx
  * import { setupRscHmr } from 'vite-plugin-react-server/utils';
  * 
- * // Option 1: Simple - full page refresh on server component change
+ * // Default: refetch current page's RSC stream (smart refresh)
  * setupRscHmr();
  * 
- * // Option 2: Custom - refetch RSC and update React tree
+ * // Custom handler
  * setupRscHmr({
- *   onUpdate: async () => {
- *     // Your custom refetch logic
- *     const newRoot = await createReactFetcher();
- *     // Update your React state
+ *   onUpdate: async (data) => {
+ *     console.log('Changed:', data.file);
+ *     myCustomRefetch();
  *   }
  * });
  * ```
@@ -59,9 +67,10 @@ export function createReactFetcher({
 export function setupRscHmr(options: {
   /**
    * Custom handler for server component updates.
-   * If not provided, defaults to full page reload.
+   * If not provided, defaults to refetching the RSC stream for the current page.
+   * Set to `'reload'` for full page reload behavior.
    */
-  onUpdate?: (data: { file: string; path: string }) => void | Promise<void>;
+  onUpdate?: ((data: RscHmrData) => void | Promise<void>) | 'reload';
   /**
    * Whether to log HMR events to console.
    * @default true in development
@@ -70,32 +79,35 @@ export function setupRscHmr(options: {
 } = {}) {
   const { onUpdate, verbose = env.DEV } = options;
   
-  // Only set up HMR in development with Vite's hot module API
   if (typeof import.meta.hot === 'undefined') {
     return;
   }
   
-  import.meta.hot.on('vite-plugin-react-server:server-component-update', async (data: { file: string; path: string }) => {
+  import.meta.hot.on(RSC_HMR_EVENT, async (data: RscHmrData) => {
     if (verbose) {
-      console.log('[vite-plugin-react-server] Server component updated:', data.file);
+      console.log('[RSC HMR] Server component updated:', data.file);
+    }
+    
+    if (onUpdate === 'reload') {
+      window.location.reload();
+      return;
     }
     
     if (onUpdate) {
       try {
         await onUpdate(data);
       } catch (error) {
-        console.error('[vite-plugin-react-server] Error in onUpdate handler:', error);
-        // Fallback to reload on error
+        console.error('[RSC HMR] Error in onUpdate handler:', error);
         window.location.reload();
       }
     } else {
-      // Default: full page reload to ensure fresh RSC stream
-      // Users can provide custom onUpdate for more sophisticated updates
+      // Default: full page reload
+      // For smart RSC refetch, use useRscHmr() hook in your React tree
       window.location.reload();
     }
   });
   
   if (verbose) {
-    console.log('[vite-plugin-react-server] RSC HMR enabled');
+    console.log('[RSC HMR] Listening for server component updates');
   }
 }
