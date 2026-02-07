@@ -38,7 +38,7 @@ export async function createSharedLoader({
   buildServerDir,
   // Direct import options
   isBuildMode = false,
-  isServeMode = false,
+  isServeMode: _isServeMode = false,
   effectiveProjectRoot,
   build,
 }: {
@@ -99,66 +99,32 @@ export async function createSharedLoader({
     });
 
     if (manifestResolution.manifestEntry && manifestResolution.resolvedPath) {
-      // Found in manifest - use the resolved path (it's already a full absolute path)
       resolvedModuleID = manifestResolution.resolvedPath;
-      if (verbose) {
-        logger?.info(
-          `[createSharedLoader] Build mode: resolved via manifest to: ${resolvedModuleID}`
-        );
-      }
     } else {
-      // Not in manifest - use the builtModuleId from resolution
       resolvedModuleID = manifestResolution.builtModuleId;
-      if (verbose) {
-        logger?.info(
-          `[createSharedLoader] Build mode: not in manifest, using builtModuleId: ${resolvedModuleID}`
-        );
-      }
       
-      // Check if we need to prefix with build directory
-      // A source path starts with moduleBase (e.g., "src/"), a built path doesn't
-      // Also check if it's already an absolute path or starts with file://
+      // Prefix non-source, non-absolute paths with server build directory
       const isSourcePath = moduleId.startsWith(moduleBase + "/") || 
                           moduleId.startsWith("./" + moduleBase + "/") ||
                           (isAbsolute(moduleId) && moduleId.includes(moduleBase));
       
-      // If it's not a source path and not already absolute, prefix with server build directory
       if (!isSourcePath && !isAbsolute(resolvedModuleID) && effectiveProjectRoot && build) {
-        const serverBuildPath = join(
+        resolvedModuleID = join(
           effectiveProjectRoot,
           build.outDir || "dist",
-          build.server || "server"
-        );
-        resolvedModuleID = join(serverBuildPath, resolvedModuleID);
-        if (verbose) {
-          logger?.info(
-            `[createSharedLoader] Build mode: prefixing with ${serverBuildPath}: ${resolvedModuleID}`
-          );
-        }
-      }
-    }
-  } else if (isServeMode) {
-    // Dev mode: load directly from source files, no build path prefixing
-    if (verbose) {
-      logger?.info(
-        `[createSharedLoader] Dev mode: loading directly from source`
-      );
-    }
-  } else if (isBuildMode && effectiveProjectRoot && build) {
-    // Build mode fallback: prefix with server build directory even without manifest/normalizer
-    if (!isAbsolute(resolvedModuleID)) {
-      const serverBuildPath = join(
-        effectiveProjectRoot,
-        build.outDir || "dist",
-        build.server || "server"
-      );
-      resolvedModuleID = join(serverBuildPath, resolvedModuleID);
-      if (verbose) {
-        logger?.info(
-          `[createSharedLoader] Build mode fallback: prefixing with ${serverBuildPath}: ${resolvedModuleID}`
+          build.server || "server",
+          resolvedModuleID
         );
       }
     }
+  } else if (isBuildMode && effectiveProjectRoot && build && !isAbsolute(resolvedModuleID)) {
+    // Build mode fallback without manifest
+    resolvedModuleID = join(
+      effectiveProjectRoot,
+      build.outDir || "dist",
+      build.server || "server",
+      resolvedModuleID
+    );
   }
 
   // Step 3: Construct the full path and import
@@ -168,40 +134,21 @@ export async function createSharedLoader({
       ? join(effectiveProjectRoot, resolvedModuleID)
       : resolvedModuleID;
 
-  if (verbose) {
-    logger?.info(`[createSharedLoader] Importing from: ${fullPath}`);
-  }
-
-  // Step 4: Import the module
+  // Import the module
   const fileUrl = isAbsolute(fullPath) ? pathToFileURL(fullPath).href : fullPath;
   const result = await import(fileUrl);
 
-  // Step 5: Validate exports
+  // Validate exports
   if (result == null) {
     throw new Error(`Module "${moduleId}" does not have any exports`);
   }
-
   if (!Object.keys(result).length && exportName?.length) {
-    throw new Error(
-      `Module "${moduleId}" is a module, but does not have any exports so it can't find ${exportName}`
-    );
+    throw new Error(`Module "${moduleId}" has no exports, can't find ${exportName}`);
   }
-
   if (exportName && !(exportName in result)) {
-    throw new Error(
-      `Module "${moduleId}" exists, but does not export "${exportName}"`
-    );
+    throw new Error(`Module "${moduleId}" does not export "${exportName}"`);
   }
 
-  if (verbose) {
-    logger?.info(
-      `[createSharedLoader] Module loaded successfully, exports: ${Object.keys(
-        result
-      ).join(", ")}`
-    );
-  }
-
-  // Import always returns a module object (not a Promise), so return it directly
   return result;
 }
 
