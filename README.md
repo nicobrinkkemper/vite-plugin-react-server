@@ -113,7 +113,7 @@ vite build --app
 ```
 - **Static generation** on RSC worker thread  
 - **HTML rendering** on main thread
-- **Benefits**: Server thread isolation, custom RSC worker supportLsrve
+- **Benefits**: Server thread isolation, custom RSC worker support
 
 ### Automatic Environment Detection
 
