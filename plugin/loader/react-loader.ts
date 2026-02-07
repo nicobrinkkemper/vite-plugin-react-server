@@ -144,12 +144,30 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       })}`);
     }
 
-    const source =
+    let source =
       typeof result.source === "string"
         ? result.source
         : result.source instanceof Uint8Array
         ? new TextDecoder().decode(result.source)
         : String(result.source);
+
+    // Fix CJS React named imports: React's react-server condition exports CJS,
+    // but esbuild/tsx transforms produce ESM named imports that fail at runtime.
+    // Rewrite `import { X } from "react"` → `import __react from "react"; const { X } = __react;`
+    if (!url.includes('node_modules')) {
+      const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
+      if (namedImportRe.test(source)) {
+        namedImportRe.lastIndex = 0;
+        let counter = 0;
+        source = source.replace(namedImportRe, (_match: string, imports: string) => {
+          const alias = `__react_cjs_${counter++}`;
+          return `import ${alias} from "react"; const {${imports}} = ${alias};`;
+        });
+        if (verbose) {
+          logger.info(`Rewrote CJS React named imports in: ${url}`);
+        }
+      }
+    }
 
     // Check for file-level server directive first
     const hasFileLevelServerDirective =
@@ -198,7 +216,8 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       if (verbose) {
         logger.info(`Skipping non-server/non-client module: ${url}`);
       }
-      return result;
+      // Return modified source if CJS React imports were rewritten
+      return { ...result, source };
     }
 
     // Handle file URLs
