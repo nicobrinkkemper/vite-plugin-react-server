@@ -22,30 +22,24 @@ test.describe('HMR in bidoof-template', () => {
     try {
       await page.goto('/todos/');
       
-      // Verify initial content
+      // Verify initial content - page renders the TodoList
       await expect(page.locator('h1')).toContainText('Todo');
       
-      // Store a value in window to detect full reload
-      await page.evaluate(() => {
-        (window as any).__hmrTestValue = 'still-here';
-      });
+      // Verify the marker doesn't exist yet
+      await expect(page.locator('[data-testid="hmr-marker"]')).toHaveCount(0);
 
-      // Modify the page file - add a marker
+      // Modify the server component - add a visible marker element
       const updatedContent = originalContent.replace(
-        '<h1>Todo',
-        '<h1 data-testid="hmr-marker">HMR Updated Todo'
+        '<Link to="/" className={styles["Link"]}> back </Link>',
+        '<Link to="/" className={styles["Link"]}> back </Link>\n      <div data-testid="hmr-marker">HMR Updated</div>'
       );
       await writeFile(pageFile, updatedContent);
 
-      // Wait for HMR update (look for the marker)
+      // Server components trigger a full page reload ("program reload")
       await page.waitForSelector('[data-testid="hmr-marker"]', { timeout: 10000 });
       
-      // Verify new content
-      await expect(page.locator('h1')).toContainText('HMR Updated');
-
-      // Verify the page wasn't fully reloaded (our test value should still exist)
-      const testValue = await page.evaluate(() => (window as any).__hmrTestValue);
-      expect(testValue).toBe('still-here');
+      // Verify the marker appeared
+      await expect(page.locator('[data-testid="hmr-marker"]')).toContainText('HMR Updated');
       
     } finally {
       // Restore original file

@@ -18,13 +18,17 @@ async function main() {
   console.log('Starting bidoof-template dev server for e2e tests...');
   console.log('Directory:', bidoofDir);
   
-  // Start the dev:rsc server
-  const proc = spawn('npm', ['run', 'dev:rsc', '--', '--port', '3200', '--strictPort'], {
+  // Start vite directly with proper env vars (npm script chain mangles port args)
+  const proc = spawn('npx', ['vite', '--port', '3200', '--strictPort'], {
     cwd: bidoofDir,
     stdio: 'inherit',
     shell: true,
     env: {
       ...process.env,
+      NODE_OPTIONS: '--conditions react-server',
+      NODE_ENV: 'development',
+      BASE_URL: '/',
+      PUBLIC_ORIGIN: 'http://localhost:3200',
       FORCE_COLOR: '1',
     },
   });

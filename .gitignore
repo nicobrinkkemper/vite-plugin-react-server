@@ -47,4 +47,5 @@ test/fixtures/*
 test/client/fixtures/*
 test/server/fixtures/*
 test/client/fixtures/*
-test/unit/fixtures/*
+test/unit/fixtures/*test-results/
+playwright-report/
