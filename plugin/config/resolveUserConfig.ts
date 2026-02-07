@@ -400,13 +400,9 @@ export const resolveUserConfig: ResolveUserConfigFn =
     const base =
       effectiveModuleBaseURL ?? config.base ?? DEFAULT_CONFIG.MODULE_BASE_URL;
     if (configEnv.command === "serve" && !configEnv.isPreview) {
-      if (strictPort) {
-        publicOrigin = `http${
-          config.server?.https ? "s" : ""
-        }://${host}:${port}`;
-      } else {
-        publicOrigin = "";
-      }
+      // In dev mode, use empty publicOrigin so the client uses window.location.origin.
+      // This avoids hardcoding a port that may change if the configured port is taken.
+      publicOrigin = "";
     }
     const isDev = configEnv.mode === 'development' || configEnv.command === 'serve';
     const ssrDefine = {
