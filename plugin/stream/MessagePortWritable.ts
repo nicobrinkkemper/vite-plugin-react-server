@@ -11,6 +11,8 @@ export class MessagePortWritable extends Writable {
   private fromWorker: MessagePort;
   private toWorker?: MessagePort;
   private isBackpressured: boolean = false;
+  private closeHandler: (() => void) | null = null;
+  private messageHandler: ((message: any) => void) | null = null;
 
   constructor(fromWorker: MessagePort, toWorker?: MessagePort) {
     super({
@@ -24,22 +26,34 @@ export class MessagePortWritable extends Writable {
   }
 
   private setupMessageListener() {
-    this.fromWorker.on('close', () => {
+    this.closeHandler = () => {
       this.destroy();
-    });
+    };
+    this.fromWorker.on('close', this.closeHandler);
 
     // Listen for backpressure signals on the control port
     if (this.toWorker) {
-      this.toWorker.on('message', (message: any) => {
+      this.messageHandler = (message: any) => {
         if (message.type === 'DRAIN') {
           this.isBackpressured = true;
         } else if (message.type === 'RESUME') {
           this.isBackpressured = false;
         }
-      });
+      };
+      this.toWorker.on('message', this.messageHandler);
     }
   }
 
+  private removeListeners() {
+    if (this.closeHandler) {
+      this.fromWorker.removeListener('close', this.closeHandler);
+      this.closeHandler = null;
+    }
+    if (this.messageHandler && this.toWorker) {
+      this.toWorker.removeListener('message', this.messageHandler);
+      this.messageHandler = null;
+    }
+  }
 
   _write(chunk: any, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
     try {
@@ -53,8 +67,6 @@ export class MessagePortWritable extends Writable {
       // Check if the chunk contains an error - if so, don't send it through the data stream
       // Errors should be handled through the control port, not the data stream
       if (chunk && typeof chunk === 'object' && chunk.type === 'error') {
-        // This is an error object being sent through the data stream
-        // We should not send this through the data port - it should go through control port
         callback(new Error('Error sent through data stream - this should be handled by control port'));
         return;
       }
@@ -63,7 +75,6 @@ export class MessagePortWritable extends Writable {
       this.fromWorker.postMessage(chunk);
       
       // Signal that the write completed successfully
-      // This is the idiomatic Node.js stream pattern - React expects this callback
       callback();
       
     } catch (error) {
@@ -72,15 +83,12 @@ export class MessagePortWritable extends Writable {
   }
 
   _final(callback: (error?: Error | null) => void) {
-    // React Server DOM calls this when the stream is complete
-    // Send the completion signal through MessagePort and emit 'finish' event
     try {
       this.fromWorker.postMessage(null); // End-of-stream signal
       callback();
       
-      // Emit finish event to trigger passThrough.on("end") handler in worker
-      // This is what allows the worker to call handlers.onEnd(id)
       process.nextTick(() => {
+        this.removeListeners();
         this.emit('finish');
       });
     } catch (error) {
@@ -89,8 +97,7 @@ export class MessagePortWritable extends Writable {
   }
 
   _destroy(error: Error | null, callback: (error?: Error | null) => void) {
-    // Don't close the port here - let the consuming side manage port lifecycle
-    // This follows the idiomatic Node.js streams pattern per the Worker Threads docs
+    this.removeListeners();
     callback(error);
   }
 
