@@ -99,5 +99,35 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
     },
   };
 
-  return [hmrPlugin, serverPlugin];
+  // Fix CJS named imports in server environment.
+  // Vite's esbuild JSX transform (and @vitejs/plugin-react if present) generates
+  // named imports like `import { useEffect } from "react"`. In the server environment,
+  // react's react-server export is CJS-only, and Node's ESM interop doesn't support
+  // named exports from CJS. This post-transform rewrites them.
+  const cjsFixPlugin: Plugin = {
+    name: "vite-plugin-react-server:server-cjs-fix",
+    apply: "serve" as const,
+    enforce: "post" as const,
+    applyToEnvironment(env: any) {
+      return env?.name === 'server';
+    },
+    transform(code: string, id: string) {
+      if (id.includes('node_modules')) return;
+      if (!id.match(/\.[jt]sx?$/)) return;
+      
+      const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
+      if (!namedImportRe.test(code)) return;
+      
+      namedImportRe.lastIndex = 0;
+      let counter = 0;
+      const result = code.replace(namedImportRe, (_match, imports) => {
+        const alias = `__react_cjs_${counter++}`;
+        return `import ${alias} from "react"; const {${imports}} = ${alias};`;
+      });
+      
+      return { code: result, map: null };
+    },
+  };
+
+  return [hmrPlugin, cjsFixPlugin, serverPlugin];
 };

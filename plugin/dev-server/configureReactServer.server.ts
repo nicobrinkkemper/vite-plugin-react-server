@@ -276,7 +276,6 @@ export const configureReactServer: ConfigureReactServerFn =
           try {
             const pageExportName = userHandlerOptions.pageExportName || "Page";
             const pageModule = await loader(pagePath);
-            
             if (pageModule && pageModule[pageExportName] && typeof pageModule[pageExportName] === 'function') {
               PageComponent = pageModule[pageExportName] as React.ComponentType<any>;
               if (verbose) {
