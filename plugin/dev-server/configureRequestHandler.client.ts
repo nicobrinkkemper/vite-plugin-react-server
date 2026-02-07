@@ -192,6 +192,8 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       
       // Pre-load props on main thread to apply Vite transforms (server actions need this)
       // Use the server environment runner if available (Vite 6+), otherwise fall back to ssrLoadModule
+      // NOTE: In dev:ssr mode, this will fail because main thread lacks react-server condition.
+      // That's expected - the worker will load props instead.
       let resolvedPageProps: Record<string, unknown> | undefined;
       if (propsPath) {
         try {
@@ -199,23 +201,24 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           const serverEnv = server.environments?.['server'];
           let propsModule: any;
           
-          logger.info(`[configureRequestHandler] Pre-loading props from: ${fullPropsPath}`);
-          logger.info(`[configureRequestHandler] Server env exists: ${!!serverEnv}, has runner: ${serverEnv && 'runner' in serverEnv}`);
+          if (handlerOptions.verbose) {
+            logger.info(`[configureRequestHandler] Pre-loading props from: ${fullPropsPath}`);
+          }
           
           if (serverEnv && 'runner' in serverEnv && serverEnv.runner) {
             // Vite 6+ server environment with react-server conditions
-            logger.info(`[configureRequestHandler] Using server environment runner`);
             try {
               propsModule = await (serverEnv.runner as any).import(fullPropsPath);
             } catch (runnerError: any) {
-              // Server runner failed - this happens in dev:ssr mode where main thread 
-              // doesn't have react-server conditions. Let the worker handle it.
-              logger.info(`[configureRequestHandler] Server runner failed: ${runnerError.message}, worker will load props`);
+              // Expected in dev:ssr mode - main thread lacks react-server condition
+              // Worker will load props instead (this is the normal path for dev:ssr)
+              if (handlerOptions.verbose) {
+                logger.info(`[configureRequestHandler] Props will be loaded by worker (expected in dev:ssr mode)`);
+              }
               propsModule = null;
             }
           } else {
             // No server environment - let the worker handle it
-            logger.info(`[configureRequestHandler] No server environment, worker will load props`);
             propsModule = null;
           }
           const propsExportName = handlerOptions.propsExportName || "props";

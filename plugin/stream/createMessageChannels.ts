@@ -15,10 +15,11 @@ export function createMessageChannels() {
   const controlChannel = new MessageChannel();
   
   // Increase max listeners to prevent warnings during development
-  setMaxListenersOnPort(dataChannel.port1, 20);
-  setMaxListenersOnPort(dataChannel.port2, 20);
-  setMaxListenersOnPort(controlChannel.port1, 20);
-  setMaxListenersOnPort(controlChannel.port2, 20);
+  // MMC has 300+ routes, so we need a high limit
+  setMaxListenersOnPort(dataChannel.port1, 500);
+  setMaxListenersOnPort(dataChannel.port2, 500);
+  setMaxListenersOnPort(controlChannel.port1, 500);
+  setMaxListenersOnPort(controlChannel.port2, 500);
 
   // Unref all ports so they don't keep the event loop alive
   unrefPort(dataChannel.port1);

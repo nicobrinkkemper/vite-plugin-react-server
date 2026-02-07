@@ -208,6 +208,15 @@ async function loadComponentsWithCache(options: {
     logger,
     resolvedPageProps,
   } = options;
+  
+  // Normalize URL for cache key - ensure trailing slash for folder routes
+  // This ensures /8mmc/levels and /8mmc/levels/ use the same cache key
+  const normalizeUrlForCache = (urlStr: string): string => {
+    // Don't add trailing slash to paths with file extensions
+    if (urlStr.includes('.')) return urlStr;
+    return urlStr.endsWith('/') ? urlStr : urlStr + '/';
+  };
+  const normalizedUrl = normalizeUrlForCache(url);
 
   let PageComponent: any;
   let pageProps: any = resolvedPageProps;  // Use pre-resolved props if available
@@ -231,6 +240,9 @@ async function loadComponentsWithCache(options: {
     const pageId = `${pagePath}#${pageExportName}`;
     const isPageInvalidated = isModuleInvalidated(pagePath);
     
+    // Track if we need to load props separately (when Page is cached but props for this URL aren't)
+    let needToLoadProps = false;
+    
     // Check cache first, but only if not invalidated
     if (hasCachedComponent(pageId) && !isPageInvalidated) {
       PageComponent = getCachedComponent(pageId);
@@ -241,23 +253,24 @@ async function loadComponentsWithCache(options: {
       }
       
       // Also check props cache if propsPath exists (skip if resolvedPageProps provided)
+      // CRITICAL: Include URL in cache key for props - dynamic routes return different props per URL
       if (propsPath && !resolvedPageProps) {
-        const propsId = `${propsPath}#${propsExportName}`;
+        const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
         const isPropsInvalidated = isModuleInvalidated(propsPath);
         if (hasCachedComponent(propsId) && !isPropsInvalidated) {
           pageProps = getCachedComponent(propsId);
           if (verbose) {
             logger?.info(
-              `[rsc-worker] Using cached pageProps from: ${propsPath}`
+              `[rsc-worker] Using cached pageProps from: ${propsPath} for URL: ${url}`
             );
           }
         } else {
-          // Props invalidated or not cached - need to reload
+          // Props invalidated or not cached for this URL - need to reload
           if (isPropsInvalidated && hasCachedComponent(propsId)) {
             clearCachedComponent(propsId);
           }
-          // Will reload props below
-          pageProps = undefined;
+          // Mark that we need to load props separately
+          needToLoadProps = true;
         }
       } else if (resolvedPageProps) {
         if (verbose) {
@@ -279,7 +292,7 @@ async function loadComponentsWithCache(options: {
       
       // Also clear props cache if page is invalidated
       if (propsPath && isPageInvalidated) {
-        const propsId = `${propsPath}#${propsExportName}`;
+        const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
         if (hasCachedComponent(propsId)) {
           clearCachedComponent(propsId);
         }
@@ -292,7 +305,7 @@ async function loadComponentsWithCache(options: {
           propsPath,
           pageExportName,
           propsExportName,
-          url,
+          url: normalizedUrl,
           loader,
           verbose: verbose || false,
           logger,
@@ -316,7 +329,8 @@ async function loadComponentsWithCache(options: {
           cacheComponent(pageId, PageComponent);
 
           if (propsPath) {
-            const propsId = `${propsPath}#${propsExportName}`;
+            // CRITICAL: Include URL in cache key for props - dynamic routes return different props per URL
+            const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
             cacheComponent(propsId, pageProps);
           }
 
@@ -353,6 +367,56 @@ async function loadComponentsWithCache(options: {
         }
         // Handle error gracefully - use fallback components
         PageComponent = React.Fragment;
+        pageProps = {};
+      }
+    }
+    
+    // If Page was cached but props for this URL weren't, load props separately
+    if (needToLoadProps && propsPath) {
+      if (verbose) {
+        logger?.info(
+          `[rsc-worker] Loading props separately for URL: ${url} (Page was cached)`
+        );
+      }
+      try {
+        const pageAndPropsResult = await resolvePageAndProps({
+          pagePath,
+          propsPath,
+          pageExportName,
+          propsExportName,
+          url: normalizedUrl,
+          loader,
+          verbose: verbose || false,
+          logger,
+        });
+        
+        if (pageAndPropsResult.type === "success") {
+          pageProps = pageAndPropsResult.pageProps;
+          
+          // Cache the props for this URL
+          const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
+          cacheComponent(propsId, pageProps);
+          
+          if (verbose) {
+            logger?.info(
+              `[rsc-worker] Loaded and cached pageProps for URL: ${url}`
+            );
+          }
+        } else {
+          if (verbose) {
+            logger?.warn(
+              `[rsc-worker] Failed to load props for URL ${url}: ${pageAndPropsResult.error?.message}`
+            );
+          }
+          pageProps = {};
+        }
+      } catch (error) {
+        if (verbose) {
+          logger?.error(
+            `[rsc-worker] Error loading props for URL ${url}`,
+            { error }
+          );
+        }
         pageProps = {};
       }
     }
