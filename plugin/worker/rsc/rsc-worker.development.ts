@@ -30,7 +30,7 @@ const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info", {
 // Increase max listeners on parentPort to prevent warnings
 // parentPort handles all messages, so needs a higher limit
 if (parentPort) {
-  setMaxListenersOnPort(parentPort, 20);
+  setMaxListenersOnPort(parentPort, 500);
 }
 
 // Handle all messages through the unified messageHandler
@@ -74,12 +74,12 @@ try {
   const envLoaderChannel = new MessageChannel();
   
   // Increase max listeners to prevent warnings during development
-  setMaxListenersOnPort(reactLoaderChannel.port1, 20);
-  setMaxListenersOnPort(reactLoaderChannel.port2, 20);
-  setMaxListenersOnPort(cssLoaderChannel.port1, 20);
-  setMaxListenersOnPort(cssLoaderChannel.port2, 20);
-  setMaxListenersOnPort(envLoaderChannel.port1, 20);
-  setMaxListenersOnPort(envLoaderChannel.port2, 20);
+  setMaxListenersOnPort(reactLoaderChannel.port1, 500);
+  setMaxListenersOnPort(reactLoaderChannel.port2, 500);
+  setMaxListenersOnPort(cssLoaderChannel.port1, 500);
+  setMaxListenersOnPort(cssLoaderChannel.port2, 500);
+  setMaxListenersOnPort(envLoaderChannel.port1, 500);
+  setMaxListenersOnPort(envLoaderChannel.port2, 500);
 
   // Unref all ports so they don't keep the event loop alive
   unrefPort(reactLoaderChannel.port1);

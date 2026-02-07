@@ -58,12 +58,12 @@ try {
   const envLoaderChannel = new MessageChannel();
   
   // Increase max listeners to prevent warnings during development
-  setMaxListenersOnPort(reactLoaderChannel.port1, 20);
-  setMaxListenersOnPort(reactLoaderChannel.port2, 20);
-  setMaxListenersOnPort(cssLoaderChannel.port1, 20);
-  setMaxListenersOnPort(cssLoaderChannel.port2, 20);
-  setMaxListenersOnPort(envLoaderChannel.port1, 20);
-  setMaxListenersOnPort(envLoaderChannel.port2, 20);
+  setMaxListenersOnPort(reactLoaderChannel.port1, 500);
+  setMaxListenersOnPort(reactLoaderChannel.port2, 500);
+  setMaxListenersOnPort(cssLoaderChannel.port1, 500);
+  setMaxListenersOnPort(cssLoaderChannel.port2, 500);
+  setMaxListenersOnPort(envLoaderChannel.port1, 500);
+  setMaxListenersOnPort(envLoaderChannel.port2, 500);
 
   // Unref all ports so they don't keep the event loop alive
   unrefPort(reactLoaderChannel.port1);
@@ -236,7 +236,7 @@ try {
   }
 
   // Increase max listeners on parentPort to prevent warnings
-  setMaxListenersOnPort(parentPort, 20);
+  setMaxListenersOnPort(parentPort, 500);
 
   // Handle all messages through the unified messageHandler
   parentPort!.on("message", messageHandler);
