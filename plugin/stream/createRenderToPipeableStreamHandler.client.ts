@@ -80,8 +80,8 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
 
     // Create the React HTML stream using ReactDOMServer.renderToPipeableStream
     const { pipe, abort } = ReactDOMServer.renderToPipeableStream(reactElements, {
-      bootstrapScripts:
-        clientPipeableStreamOptions?.bootstrapScripts || [],
+      bootstrapModules:
+        clientPipeableStreamOptions?.bootstrapModules || [],
       onShellReady() {
         if (verbose) {
           logger?.info(
