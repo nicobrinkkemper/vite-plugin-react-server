@@ -616,11 +616,12 @@ export async function messageHandler(
     storedToWorker = msg.controlPort;   // controlPort: main → worker (for control messages in)
     
     // Increase max listeners on transferred ports to prevent warnings
+    // Each request creates a new MessagePortWritable that adds listeners to these ports
     if (storedFromWorker) {
-      setMaxListenersOnPort(storedFromWorker, 20);
+      setMaxListenersOnPort(storedFromWorker, 500);
     }
     if (storedToWorker) {
-      setMaxListenersOnPort(storedToWorker, 20);
+      setMaxListenersOnPort(storedToWorker, 500);
     }
   }
 
