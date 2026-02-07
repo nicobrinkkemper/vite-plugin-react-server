@@ -1,4 +1,4 @@
-import type { Plugin, UserConfig } from "vite";
+import type { Plugin, UserConfig, ViteBuilder } from "vite";
 import type { VitePluginFn } from "../types.js";
 
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
@@ -9,6 +9,7 @@ import { createDefaultModuleID } from "../config/createModuleID.js";
 import { createLogger } from "vite";
 import { join } from "node:path";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
+import { runDeferredStaticGeneration } from "../bundle/deferredStaticGeneration.js";
 
 /**
  * Creates a plugin that ensures consistent hash generation across environments
@@ -306,12 +307,23 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       }
 
       // Return the configuration with all environments
-      // Default Vite build order: environments in definition order (client, ssr, server)
+      // Build order: client → ssr → server → static generation (step 4)
       // Server build runs LAST so dist/client exists when HTML rendering references client components
+      // Static generation is deferred to run after ALL environments complete (needs server manifest)
       return {
         root: userOptions.projectRoot,
         ...config,
         environments,
+        builder: {
+          async buildApp(builder: ViteBuilder) {
+            // Build all environments in definition order
+            for (const environment of Object.values(builder.environments)) {
+              await builder.build(environment);
+            }
+            // Step 4: Run deferred static generation now that all manifests are available
+            await runDeferredStaticGeneration();
+          },
+        },
       };
     },
   };

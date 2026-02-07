@@ -5,6 +5,7 @@ import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import {
   addServerManifest,
   updateSharedManifest,
+  signalServerManifestReady,
 } from "../bundle/manifests.js";
 import { handleError } from "../error/handleError.js";
 
@@ -50,6 +51,9 @@ export function createBuildEventPlugin(options: StreamPluginOptions): Plugin {
 
           // Also update the shared state between environments
           updateSharedManifest(this, "server", bundleManifest as any);
+          
+          // Signal that server manifest is ready for waiting consumers
+          signalServerManifestReady(bundleManifest as any);
 
         } catch (error) {
           const eventPanicError = handleError({

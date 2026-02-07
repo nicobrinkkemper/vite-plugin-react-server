@@ -53,6 +53,7 @@ import {
   manifests,
   getSharedManifestStore,
 } from "../bundle/manifests.js";
+import { deferStaticGeneration } from "../bundle/deferredStaticGeneration.js";
 import type { Worker } from "node:worker_threads";
 import { resolveAutoDiscover } from "../config/index.js";
 import { join } from "node:path";
@@ -326,6 +327,13 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         return;
       }
 
+      // Defer static generation to run after ALL environments complete their builds.
+      // This is necessary because we need the server manifest (from server env's writeBundle)
+      // to resolve function-based component paths like Root: (url) => 'src/CustomRoot.tsx'.
+      // The buildApp hook in createEnvironmentPlugin will call runDeferredStaticGeneration().
+      const closeBundleContext = this;
+      deferStaticGeneration(async () => {
+
       try {
         // Re-check autoDiscoveredFiles - it might not be set if configResolved didn't run
         // or if it was cleared. Try to get it from stashed options if needed
@@ -383,7 +391,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           if (userOptions.verbose) {
             logger?.info(`[react-static-client] Attempting to get server manifest from shared state`);
           }
-          const sharedState = getSharedManifestStore(this);
+          const sharedState = getSharedManifestStore(closeBundleContext);
           if (sharedState.server) {
             serverManifest = sharedState.server;
             if (userOptions.verbose) {
@@ -715,7 +723,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             // For other panic thresholds, log warnings but continue
             for (const [route, error] of result.failedRoutes) {
               const err = error instanceof Error ? error : toError(error);
-              this.warn(
+              closeBundleContext.warn(
                 new Error(
                   "Failed to render route: " +
                     route +
@@ -757,12 +765,12 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           performance.now() - (timing.renderStart || timing.start)
         );
 
-        this.info(
+        closeBundleContext.info(
           `Rendered ${finalResult.completedRoutes.size} pages in ${duration}ms`
         );
 
         if (process.env["NODE_ENV"] !== "production") {
-          this.warn(
+          closeBundleContext.warn(
             `THIS BUILD IS NOT INTENDED FOR PRODUCTION (${process.env["NODE_ENV"]})`
           );
         }
@@ -917,6 +925,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         autoDiscoveredFiles = null;
         serverManifest = undefined;
       }
+
+      }); // end deferStaticGeneration
     },
   };
 };

@@ -1,6 +1,32 @@
 import type { Manifest } from "vite";
 import { perEnvironmentState } from "vite";
 
+// Promise-based wait mechanism for server manifest
+let serverManifestResolve: ((manifest: Manifest) => void) | null = null;
+let serverManifestPromise: Promise<Manifest> | null = null;
+
+export const waitForServerManifest = (): Promise<Manifest> => {
+  if (!serverManifestPromise) {
+    serverManifestPromise = new Promise((resolve) => {
+      serverManifestResolve = resolve;
+    });
+  }
+  return serverManifestPromise;
+};
+
+export const signalServerManifestReady = (manifest: Manifest): void => {
+  if (serverManifestResolve) {
+    serverManifestResolve(manifest);
+    serverManifestResolve = null;
+  }
+};
+
+// Reset the wait mechanism (for test isolation)
+export const resetServerManifestWait = (): void => {
+  serverManifestResolve = null;
+  serverManifestPromise = null;
+};
+
 // Shared state between environments using Vite's perEnvironmentState API
 const createSharedManifestStore = perEnvironmentState<{
   server: Manifest | null;

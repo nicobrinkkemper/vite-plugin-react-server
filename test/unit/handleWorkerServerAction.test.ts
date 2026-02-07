@@ -8,7 +8,7 @@ import { createServerActionStream } from '../../dist/plugin/helpers/handleServer
 
 // Mock the handleServerAction module
 vi.mock('../../dist/plugin/helpers/handleServerAction.js', () => ({
-  parseServerActionRequest: vi.fn((body, url) => {
+  parseServerActionRequestBody: vi.fn((body, url) => {
     const data = JSON.parse(body);
     if (Array.isArray(data)) {
       return {
@@ -54,6 +54,18 @@ vi.mock('../../dist/plugin/error/handleError.js', () => ({
   handleError: vi.fn(({ error, logger }) => {
     logger.error(error);
     return null;
+  })
+}));
+
+// Mock cleanupServerAction
+vi.mock('../../dist/plugin/dev-server/cleanupServerAction.client.js', () => ({
+  cleanupServerAction: vi.fn((passThrough, worker, messageHandler, res, error, logger) => {
+    if (error && logger) {
+      logger.error(error);
+    }
+    try { passThrough.end(); } catch {}
+    worker.removeListener('message', messageHandler);
+    res.end();
   })
 }));
 
@@ -114,6 +126,7 @@ describe('handleWorkerServerAction', () => {
 
     mockReq = {
       url: '/api/action#test-action',
+      headers: {},
       [Symbol.asyncIterator]: async function* () {
         yield Buffer.from(JSON.stringify({ id: 'test-action', args: [1, 2] }));
       }

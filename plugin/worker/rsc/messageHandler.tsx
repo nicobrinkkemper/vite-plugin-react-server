@@ -458,6 +458,9 @@ async function loadComponentsWithCache(options: {
           logger?.info(
             `[rsc-worker] Loaded and cached Root component from: ${rootPath}`
           );
+          logger?.info(
+            `[rsc-worker] Root component type: ${typeof RootComponent}, isSymbol: ${typeof RootComponent === 'symbol'}, keys: ${RootComponent ? Object.keys(RootComponent) : 'null'}`
+          );
         }
       } else {
         // Handle component resolution failure gracefully (same as server environment)

@@ -127,7 +127,9 @@ export async function test2() {
     );
     expect(result.source).toBeDefined();
     expect(result.source).not.toContain("use server");
+    // In a .server.js file, ALL exported functions are registered as server references
+    // (the function-level "use server" directive is redundant in server modules)
     expect(result.source).toContain("registerServerReference(test");
-    expect(result.source).not.toContain("registerServerReference(test2");
+    expect(result.source).toContain("registerServerReference(test2");
   });
 });
