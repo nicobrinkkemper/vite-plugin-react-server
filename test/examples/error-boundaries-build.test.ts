@@ -62,7 +62,6 @@ describe("Error Boundaries Build (Cross-Environment)", () => {
   }, 30000);
 
   test('should fail to build with panicThreshold: "all_errors" when page has server errors', async () => {
-    
       await expect(getSharedBuild(
         "error-boundaries-test-project",
         "error-boundaries-panic-all-errors",
@@ -84,7 +83,6 @@ describe("Error Boundaries Build (Cross-Environment)", () => {
             return "src/page/props.ts";
           },
         }
-        // this avoids logging the bundle when it fails to fail fast
       )).rejects.toThrow();
   }, 30000);
 });

@@ -59,10 +59,16 @@ async function renderSingleRoute(
 
     const pageRenderer = renderPage(routeHandlerOptions);
     const results: RenderPageResult[] = [];
+    let routeError: Error | undefined;
 
     // Consume all yields from the page renderer and write files
     for await (const result of pageRenderer) {
       results.push(result);
+      
+      // Track error results
+      if (result.type === "error" && result.error) {
+        routeError = result.error instanceof Error ? result.error : new Error(String(result.error));
+      }
       
       // Write files for success and skip results
       if ((result.type === "success" || result.type === "skip") && result.html && result.rsc) {
@@ -82,6 +88,11 @@ async function renderSingleRoute(
 
         await Promise.all([rscWritePromise, htmlWritePromise]);
       }
+    }
+
+    // Return error if any result was an error
+    if (routeError) {
+      return { route, results, error: routeError };
     }
 
     return { route, results };
@@ -209,7 +220,37 @@ export const renderPagesBatched: RenderPagesFn = (
       }
     }
 
-    // Final result
+    // Check if we should panic based on failed routes
+    if (failedRoutes.size > 0) {
+      const firstError = Array.from(failedRoutes.values())[0];
+      const panicError = handleError({
+        error: firstError,
+        logger: options.logger,
+        panicThreshold: options.panicThreshold,
+        context: `renderPagesBatched final check`,
+      });
+
+      if (panicError != null) {
+        if (options.verbose) {
+          options.logger?.error(
+            `[renderPagesBatched] Build failed due to panic threshold: ${failedRoutes.size} routes failed`
+          );
+        }
+        // Yield error before returning
+        const errorResult: RenderPagesResult = {
+          type: "error",
+          error: panicError,
+          route: "",
+          failedRoutes,
+          completedRoutes,
+          results,
+        };
+        yield errorResult;
+        return errorResult;
+      }
+    }
+
+    // Final success result
     const finalResult: RenderPagesResult = {
       type: "success",
       route: "",
