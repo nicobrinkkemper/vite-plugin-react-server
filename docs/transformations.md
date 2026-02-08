@@ -1,4 +1,4 @@
-## Transformations
+# Transformations
 
 Example of how a server action is transformed from original:
 
@@ -161,7 +161,7 @@ The component implementation is stripped, and the imports are removed.
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)
 13.	[Package Exports](./package-exports.md)
-14.	[Transformations](./transformations.md)
+14.	**[Transformations](./transformations.md) ← you are here**
 
 ### Quick Links
 - [🏠 Main Documentation](./README.md)

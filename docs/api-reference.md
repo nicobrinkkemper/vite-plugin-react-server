@@ -446,16 +446,32 @@ const testConfig: StreamPluginOptions = {
 import { vitePluginReactServer } from "vite-plugin-react-server";
 ```
 
-### Client-Only Plugin
+### Client Plugin
 
 ```typescript
-import { vitePluginReactServer } from "vite-plugin-react-server/client";
+import { vitePluginReactClient } from "vite-plugin-react-server/client";
 ```
 
-### Server-Only Plugin
+### Server Plugin
 
 ```typescript
 import { vitePluginReactServer } from "vite-plugin-react-server/server";
+```
+
+### Stream Helpers
+
+```typescript
+import { createRscStream, createHtmlStream, handleRscStream } from "vite-plugin-react-server/stream";
+```
+
+### Utils (Conditional Export)
+
+```typescript
+// Default condition (client) — includes createReactFetcher, setupRscHmr, useRscHmr
+import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils";
+
+// react-server condition — excludes browser-only modules
+import { callServer, env, routeToURL } from "vite-plugin-react-server/utils";
 ```
 
 ### Type Imports
@@ -481,6 +497,7 @@ import { Css } from "vite-plugin-react-server/components";
 
 ```typescript
 import { getCondition } from "vite-plugin-react-server/config";
+```
 
 ## Metric Watcher
 

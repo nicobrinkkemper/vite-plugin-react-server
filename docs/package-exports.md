@@ -135,40 +135,57 @@ import 'vite-plugin-react-server/rsc-worker';
 import 'vite-plugin-react-server/html-worker';
 ```
 
-## Helpers
+## Stream Helpers
 
-### Stream Creation (Condition-Based)
-
-#### createHandler
+### Stream Creation
 ```typescript
-// Automatically loads client or server implementation
-import { createHandler } from 'vite-plugin-react-server/helpers';
+// RSC and HTML stream creation (from stream export)
+import { createRscStream, createHtmlStream, handleRscStream } from 'vite-plugin-react-server/stream';
+
+// Client-specific stream
+import { ... } from 'vite-plugin-react-server/stream/client';
+
+// Server-specific stream
+import { ... } from 'vite-plugin-react-server/stream/server';
 ```
 
-#### createRscStream
+### Helpers
 ```typescript
-// Condition-based RSC stream creation
-import { createRscStream } from 'vite-plugin-react-server/dev-server';
+// Route resolution, serialization, CSS collection, etc.
+import { getRouteFiles, resolvePage, resolveProps, collectManifestCss } from 'vite-plugin-react-server/helpers';
 ```
 
-#### createHtmlStream
+## Utilities
+
+### Utils (Conditional Export)
+
+The `./utils` export uses **conditional exports** — the available APIs differ based on the execution environment:
+
 ```typescript
-// Condition-based HTML stream creation
-import { createHtmlStream } from 'vite-plugin-react-server/helpers';
+// Default (client) condition — full API including React hooks and browser fetcher
+import { 
+  createReactFetcher, setupRscHmr, useRscHmr, // browser-only
+  callServer, createCallServer, env, routeToURL,
+  addLeadingSlash, addTrailingSlash, createAbsoluteURL, // URL helpers
+} from 'vite-plugin-react-server/utils';
 ```
 
-### Client-Specific Helpers
 ```typescript
-// Explicitly import client implementations
-import { createHandler } from 'vite-plugin-react-server/helpers/client';
-import { createHtmlStream } from 'vite-plugin-react-server/helpers/client';
+// react-server condition — excludes browser-only modules
+// (createReactFetcher, setupRscHmr, useRscHmr are NOT available)
+import { 
+  callServer, createCallServer, env, routeToURL,
+  addLeadingSlash, addTrailingSlash, createAbsoluteURL,
+} from 'vite-plugin-react-server/utils';
 ```
 
-### Server-Specific Helpers
+> The react-server version excludes `createReactFetcher` and `useRscHmr` because they import from `react-server-dom-esm/client.browser` and use React hooks that are incompatible with the react-server condition.
+
+### Patch System
 ```typescript
-// Explicitly import server implementations
-import { createHandler } from 'vite-plugin-react-server/helpers/server';
-import { createHtmlStream } from 'vite-plugin-react-server/helpers/server';
+// Build react-server-dom-esm from React source (not published on npm)
+// Available as: npx vite-plugin-react-server-patch
+import 'vite-plugin-react-server/patch'; // → bin/patch.mjs
 ```
 
 ## Configuration
@@ -348,7 +365,7 @@ import { someFunction } from 'vite-plugin-react-server/some-module/server';
 10.	[API Reference](./api-reference.md)
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)
-13.	[Package Exports](./package-exports.md)
+13.	**[Package Exports](./package-exports.md) ← you are here**
 14.	[Transformations](./transformations.md)
 
 ### Quick Links

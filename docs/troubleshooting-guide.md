@@ -193,6 +193,14 @@ Uncaught TypeError: NetworkError when attempting to fetch resource.
 
 **Steps to Fix**:
 1. **Option 1**: Access your preview server using `localhost:4173` instead of `127.0.0.1:4173`
+2. **Option 2**: Configure your `publicOrigin` to match the actual origin being used:
+   ```typescript
+   export default {
+     // ... other config
+     publicOrigin: "http://localhost:4173", // this ensures the publicOrigin is always the same 
+   } satisfies StreamPluginOptions;
+   ```
+3. Ensure the preview server is running with the correct condition: `vite build --app` then `vite preview`
 
 ### 🛡️ **Error Boundaries**
 
@@ -283,14 +291,8 @@ export function Page(props: any) {
   );
 }
 ```
-2. **Option 2**: Configure your `publicOrigin` to match the actual origin being used:
-   ```typescript
-   export default {
-     // ... other config
-     publicOrigin: "http://localhost:4173", // this ensures the publicOrigin is always the same 
-   } satisfies StreamPluginOptions;
-   ```
-3. Ensure the preview server is running with the correct condition: `vite build --app` then `vite preview`
+
+### 🚫 **"use client" Directive Issues** (continued)
 
 **Solution**: 
 1. Ensure client components have `"use client"` as the first line

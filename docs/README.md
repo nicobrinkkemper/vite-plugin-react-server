@@ -20,7 +20,6 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
 12.	[Troubleshooting](./troubleshooting-guide.md)
 13.	[Package Exports](./package-exports.md)
 14.	[Transformations](./transformations.md)
-
 ## Quick Links
 - [GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
 - [Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
@@ -36,7 +35,6 @@ import { Css } from "vite-plugin-react-server/components";
 type MyPageProps = {
   title: string;
 };
-
 type MyHtmlProps = HtmlProps<MyPageProps>;
 export const Html = ({
   Root,
@@ -99,10 +97,12 @@ The documentation has been consolidated into 14 focused chapters to reduce redun
 - **Advanced Development**: Custom workers and extensions
 - **Plugin Internals**: Transformation and loader system
 - **Worker System**: Worker implementation and communication
-### Reference (3 chapters)
+### Reference (5 chapters)
 - **API Reference**: Complete API documentation
 - **React Compatibility**: Version compatibility and patches
 - **Troubleshooting**: Common issues and solutions
+- **Package Exports**: Package export paths and usage
+- **Transformations**: Code transformation examples
 ## Plugin Implementation Documentation
 
 The plugin is composed of several specialized modules, each with their own documentation:

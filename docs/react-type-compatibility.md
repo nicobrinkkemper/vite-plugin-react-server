@@ -162,210 +162,67 @@ export const Page = ({ title, content, metadata }: PageProps) => (
 
 ## Patch System
 
-The plugin includes a patch system to maintain compatibility with different React versions and experimental features.
+The plugin includes a patch system because `react-server-dom-esm` is **not published on npm**. It must be built from React's source code. The plugin ships pre-built templates in `oss-experimental/` and a patch script (`bin/patch.mjs`) that adapts them to your installed React experimental version.
 
-### React Version Compatibility
+### How It Works
 
-The patch system ensures compatibility across React versions:
+1. `bin/patch.mjs` reads the installed `react` version (must be an experimental build)
+2. Compares it against the bundled template version
+3. If they differ, it patches the version strings in the `oss-experimental/react-server-dom-esm` files
+4. Copies the patched files into `node_modules/react-server-dom-esm`
 
-```typescript
-// patch-system.ts
-interface PatchConfig {
-  reactVersion: string;
-  patches: Patch[];
-  conditions: string[];
+### Running the Patch
+
+```bash
+# Run directly
+npx vite-plugin-react-server-patch
+
+# Or via the exported path
+node node_modules/vite-plugin-react-server/bin/patch.mjs
+```
+
+### Recommended Setup
+
+Add the patch to your `postinstall` script so it runs automatically after `npm install`:
+
+```json
+{
+  "scripts": {
+    "postinstall": "patch-package && npx vite-plugin-react-server-patch"
+  }
 }
+```
 
-interface Patch {
-  name: string;
-  description: string;
-  apply: (code: string) => string;
-  test: (code: string) => boolean;
+The `patch-package` step applies patches to `react` and `react-dom` (for CJS named imports fix), while `vite-plugin-react-server-patch` builds `react-server-dom-esm`.
+
+### React Version Requirements
+
+- **Peer dependency**: `react >= 0.0.0-experimental-0` (any experimental build)
+- **Recommended**: `react@experimental` and `react-dom@experimental`
+- The plugin fixes CJS React named imports in both the server environment and RSC worker
+
+### Package Exports for Patch
+
+The patch script is available via the `./patch` export:
+
+```json
+{
+  "./patch": "./bin/patch.mjs"
 }
 ```
 
-### Creating Patches
-
-Create custom patches for specific React versions or experimental features:
-
-```typescript
-// custom-patch.ts
-import { createPatch } from "vite-plugin-react-server/patch-system";
-
-export const reactExperimentalPatch = createPatch({
-  name: "react-experimental",
-  description: "Support for React experimental features",
-  
-  apply(code: string): string {
-    // Apply experimental React features
-    return code
-      .replace(/react@experimental/g, "react")
-      .replace(/react-dom@experimental/g, "react-dom");
-  },
-  
-  test(code: string): boolean {
-    return code.includes("react@experimental") || 
-           code.includes("react-dom@experimental");
-  }
-});
-```
-
-### Patch Configuration
-
-Configure patches in your plugin options:
-
-```typescript
-export const config = {
-  // ... other options
-  patches: {
-    enabled: true,
-    patches: [
-      "react-experimental",
-      "react-server-dom-esm",
-      "custom-patch"
-    ],
-    autoApply: true,
-    validateAfterApply: true
-  }
-};
-```
-
-### Built-in Patches
-
-The plugin includes several built-in patches:
-
-#### React Experimental Patch
-
-```typescript
-// Handles React experimental imports
-export const reactExperimentalPatch = {
-  name: "react-experimental",
-  apply(code: string): string {
-    return code
-      .replace(/from ['"]react@experimental['"]/g, 'from "react"')
-      .replace(/from ['"]react-dom@experimental['"]/g, 'from "react-dom"');
-  }
-};
-```
-
-#### React Server DOM ESM Patch
-
-```typescript
-// Handles react-server-dom-esm imports
-export const rscEsmPatch = {
-  name: "react-server-dom-esm",
-  apply(code: string): string {
-    return code
-      .replace(/react-server-dom-esm\/server\.node/g, "react-server-dom-esm/server")
-      .replace(/react-server-dom-esm\/client\.node/g, "react-server-dom-esm/client");
-  }
-};
-```
-
-#### TypeScript Patch
-
-```typescript
-// Handles TypeScript-specific issues
-export const typescriptPatch = {
-  name: "typescript",
-  apply(code: string): string {
-    return code
-      .replace(/import type \{([^}]+)\} from ['"]react['"]/g, 
-               'import { $1 } from "react"')
-      .replace(/import type \{([^}]+)\} from ['"]react-dom['"]/g, 
-               'import { $1 } from "react-dom"');
-  }
-};
-```
+And as a bin command: `vite-plugin-react-server-patch` (or `npx vite-plugin-react-server-patch`).
 
 ## Maintenance Guide
 
 ### Updating React Versions
 
-When updating React versions:
+When updating to a new React experimental version:
 
-1. **Check Compatibility**: Verify the new React version is supported
-2. **Update Dependencies**: Update React and related packages
-3. **Test Patches**: Ensure existing patches still work
-4. **Update Types**: Update TypeScript types if needed
-5. **Test Builds**: Verify all build modes work correctly
-
-### Creating New Patches
-
-To create a new patch:
-
-```typescript
-// new-patch.ts
-import { createPatch } from "vite-plugin-react-server/patch-system";
-
-export const myCustomPatch = createPatch({
-  name: "my-custom-patch",
-  description: "Custom patch for specific functionality",
-  
-  apply(code: string): string {
-    // Your patch logic here
-    return modifiedCode;
-  },
-  
-  test(code: string): boolean {
-    // Test if patch should be applied
-    return shouldApplyPatch(code);
-  },
-  
-  validate(code: string): boolean {
-    // Validate the patched code
-    return isValidCode(code);
-  }
-});
-```
-
-### Patch Testing
-
-Test patches thoroughly:
-
-```typescript
-// patch.test.ts
-import { describe, it, expect } from 'vitest';
-import { myCustomPatch } from './my-custom-patch';
-
-describe('My Custom Patch', () => {
-  it('should apply patch correctly', () => {
-    const input = 'original code';
-    const expected = 'patched code';
-    
-    const result = myCustomPatch.apply(input);
-    expect(result).toBe(expected);
-  });
-  
-  it('should detect when patch is needed', () => {
-    const code = 'code that needs patching';
-    expect(myCustomPatch.test(code)).toBe(true);
-  });
-  
-  it('should validate patched code', () => {
-    const patchedCode = 'valid patched code';
-    expect(myCustomPatch.validate(patchedCode)).toBe(true);
-  });
-});
-```
-
-### Patch Debugging
-
-Debug patch issues:
-
-```typescript
-// Enable patch debugging
-export const config = {
-  // ... other options
-  patches: {
-    enabled: true,
-    debug: true, // Enable debug logging
-    logLevel: 'verbose', // Detailed logging
-    validateAfterApply: true,
-    failOnError: false // Don't fail build on patch errors
-  }
-};
-```
+1. **Install the new version**: `npm install react@experimental react-dom@experimental`
+2. **Run the patch**: `npx vite-plugin-react-server-patch` — this will detect the version mismatch and patch `react-server-dom-esm` accordingly
+3. **Test builds**: Verify all build modes work correctly
+4. **Run tests**: `npm test` to ensure compatibility
 
 ## Version-Specific Features
 
@@ -434,74 +291,20 @@ function TodoList() {
 }
 ```
 
-## Compatibility Matrix
+## Compatibility
 
-| React Version | Server Components | Client Components | Server Actions | TypeScript |
-|---------------|-------------------|-------------------|----------------|------------|
-| 18.0+         | ✅ Full Support   | ✅ Full Support   | ✅ Full Support | ✅ Full Support |
-| 19.0+         | ✅ Full Support   | ✅ Full Support   | ✅ Full Support | ✅ Full Support |
-| Experimental  | ⚠️ Partial       | ⚠️ Partial       | ⚠️ Partial     | ⚠️ Partial |
+This plugin **requires React experimental builds**. Stable React 18/19 releases do not include `react-server-dom-esm` support.
 
-### Migration Guide
+| React Version | Support | Notes |
+|---------------|---------|-------|
+| `react@experimental` | ✅ Full Support | Recommended |
+| React 19 stable | ❌ Not supported | Missing RSC ESM APIs |
+| React 18 stable | ❌ Not supported | Missing RSC ESM APIs |
 
-#### From React 17 to 18
-
-1. **Update Dependencies**:
-   ```bash
-   npm install react@^18.0.0 react-dom@^18.0.0
-   ```
-
-2. **Update Root Rendering**:
-   ```typescript
-   // Before (React 17)
-   import { render } from 'react-dom';
-   render(<App />, document.getElementById('root'));
-   
-   // After (React 18)
-   import { createRoot } from 'react-dom/client';
-   const root = createRoot(document.getElementById('root'));
-   root.render(<App />);
-   ```
-
-3. **Enable Concurrent Features**:
-   ```typescript
-   // Use startTransition for non-urgent updates
-   import { startTransition } from 'react';
-   
-   function handleClick() {
-     startTransition(() => {
-       setCount(c => c + 1);
-     });
-   }
-   ```
-
-#### From React 18 to 19
-
-1. **Update Dependencies**:
-   ```bash
-   npm install react@^19.0.0 react-dom@^19.0.0
-   ```
-
-2. **Update Server Actions**:
-   ```typescript
-   // New useActionState hook
-   import { useActionState } from 'react';
-   
-   function MyForm() {
-     const [state, formAction] = useActionState(async (prevState, formData) => {
-       // Handle form submission
-       return { message: 'Success!' };
-     }, { message: '' });
-     
-     return (
-       <form action={formAction}>
-         <input name="name" />
-         <button type="submit">Submit</button>
-         {state.message && <p>{state.message}</p>}
-       </form>
-     );
-   }
-   ```
+Install the correct version:
+```bash
+npm install react@experimental react-dom@experimental
+```
 
 ## Troubleshooting
 
@@ -512,24 +315,11 @@ function TodoList() {
 3. **Build Errors**: Verify all dependencies are compatible
 4. **Runtime Errors**: Check for experimental feature usage
 
-### Debug Configuration
-
-```typescript
-export const config = {
-  // ... other options
-  debug: {
-    reactVersion: true,
-    patchSystem: true,
-    typeChecking: true
-  }
-};
-```
-
 ### Getting Help
 
 - Check the [React documentation](https://react.dev/)
-- Review [React Server Components RFC](https://github.com/reactjs/rfcs/pull/189)
-- Consult the [plugin troubleshooting guide](./troubleshooting-guide.md) 
+- Consult the [plugin troubleshooting guide](./troubleshooting-guide.md)
+- Enable `verbose: true` in plugin options for detailed logging
 
 <!-- TOC START -->
 
