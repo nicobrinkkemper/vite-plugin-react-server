@@ -5,9 +5,26 @@ This guide will help you get up and running with the Vite React Server Plugin qu
 ## Installation
 
 ```bash
-npm install -D vite-plugin-react-server patch-package react@experimental react-dom@experimental react-server-dom-esm
-npm run patch
+npm install -D vite-plugin-react-server react-server-dom-esm patch-package react@experimental react-dom@experimental
 ```
+
+> **Note**: `react-server-dom-esm` exists on npm but is currently an empty placeholder — React hasn't published a real build yet. The plugin includes a patch system that builds it from React's source code. After installing, run the patch script:
+
+```bash
+npx vite-plugin-react-server-patch
+```
+
+This runs `bin/patch.mjs`, which takes the installed experimental React version and patches `react-server-dom-esm` in `node_modules` from bundled templates in `oss-experimental/`. Add it as a `postinstall` script so it runs automatically:
+
+```json
+{
+  "scripts": {
+    "postinstall": "patch-package && npx vite-plugin-react-server-patch"
+  }
+}
+```
+
+> **React version**: The plugin requires React experimental builds. Peer dependency is `react >= 0.0.0-experimental-0`.
 
 ## Basic Setup
 
@@ -233,8 +250,32 @@ The plugin automatically provides detailed error information in development mode
 
 ### Hot Module Replacement
 - Client components: Full HMR support
-- Server components: File-based reloading
+- Server components: Automatic RSC refetching via `setupRscHmr`
 - CSS: Real-time updates
+
+For automatic RSC refetching when server components change, use the `setupRscHmr` helper in your client entry:
+
+```tsx
+import { createReactFetcher, setupRscHmr } from "vite-plugin-react-server/utils";
+
+const { initialContent, refetch } = createReactFetcher({ callServer });
+
+// Enable HMR for server components
+if (import.meta.hot) {
+  setupRscHmr(import.meta.hot, refetch);
+}
+```
+
+Or use the `useRscHmr` React hook in a client component:
+
+```tsx
+import { useRscHmr } from "vite-plugin-react-server/utils";
+
+function App({ refetch }) {
+  useRscHmr(refetch);
+  // ...
+}
+```
 
 ## Next Steps
 

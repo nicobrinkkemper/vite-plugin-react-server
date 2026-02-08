@@ -298,7 +298,7 @@ export default defineConfig({
           </body>
         </html>
       ),
-    }
+    },
     build: { pages: ["/", "/about"] }
   })
 });
@@ -338,7 +338,7 @@ export default defineConfig({
     moduleBase: "src",
     Page: (url) => `src/pages${url}/page.tsx`,
     props: (url) => `src/pages${url}/props.ts`,
-    Html: `src/Html.tsx`
+    Html: `src/Html.tsx`,
     build: { pages: ["/", "/about"] }
   })
 });

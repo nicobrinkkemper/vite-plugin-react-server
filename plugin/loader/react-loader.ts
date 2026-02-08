@@ -119,30 +119,11 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     });
   }
   const verbose = userOptions?.verbose ?? false;
-  if (verbose) {
-    logger.info(`Attempting to load: ${url}`);
-    logger.info(`Context: ${JSON.stringify({
-      format: context.format,
-      conditions: context.conditions,
-    })}`);
-  }
 
   const { format } = context;
   if (format === "module" || format === "module-typescript") {
-    if (verbose) {
-      logger.info(`Loading module: ${url}`);
-    }
-    
     // Load the URL normally
     const result = await nextLoad(url, context);
-    
-    if (verbose) {
-      logger.info(`Next load result: ${JSON.stringify({
-        format: result.format,
-        shortCircuit: result.shortCircuit,
-        source: typeof result.source,
-      })}`);
-    }
 
     let source =
       typeof result.source === "string"
@@ -187,44 +168,17 @@ export const load: LoadHook = async (url, context, nextLoad) => {
         ? isClientComponent(source, url)
         : false);
 
-    if (verbose) {
-      let startPreviewIndex = 0;
-      let startLine = 0;
-      const lines = source.split("\n");
-      while (
-        lines[startLine].trim() === "" || lines[startLine].trim() === "\r" ||
-        // comment lines
-        lines[startLine].trim().startsWith("//")
-        || lines[startLine].trim().startsWith("/**")
-        || lines[startLine].trim().startsWith("*")
-      ) {
-        startPreviewIndex += lines[startLine].length;
-        startLine++;
-      }
-      logger.info(`Module analysis: ${JSON.stringify({
-        url,
-        isServer,
-        isClient,
-        hasFileLevelServerDirective,
-        hasFileLevelClientDirective,
-        sourceLength: source.length,
-        sourcePreview: source.slice(startPreviewIndex, startPreviewIndex + 100) + "...",
-      })}`);
-    }
-
     if (!isServer && !isClient) {
-      if (verbose) {
-        logger.info(`Skipping non-server/non-client module: ${url}`);
-      }
       // Return modified source if CJS React imports were rewritten
       return { ...result, source };
     }
 
+    if (verbose) {
+      logger.info(`[react-loader] ${isServer ? 'server' : 'client'} module: ${url}`);
+    }
+
     // Handle file URLs
     const filePath = url.startsWith("file://") ? fileURLToPath(url) : url;
-    if (verbose) {
-      logger.info(`File path: ${filePath}`);
-    }
 
     if(typeof userOptions.moduleID !== "function") {
       // Ensure we have proper build context for RSC worker
@@ -249,27 +203,11 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       const [, value] = userOptions.normalizer(filePath);
       moduleID = join(userOptions.moduleBasePath, value);
       finalID = userOptions.moduleID?.(moduleID) || moduleID;
-      if (verbose) {
-        logger.info(`Normalized IDs: ${moduleID} -> ${finalID}`);
-        logger.info(`userOptions: ${JSON.stringify(userOptions)}`);
-      }
     }
 
     const { code: transformed, map } = await transformer(source, moduleID, finalID);
 
-    if (verbose) {
-      logger.info(`Transformation result: ${JSON.stringify({
-        originalLength: source.length,
-        transformedLength: transformed.length,
-        wasTransformed: source !== transformed,
-        hasSourceMap: !!map,
-      })}`);
-    }
-
     if (loaderPort) {
-      if (verbose) {
-        logger.info("Sending SERVER_MODULE message");
-      }
       loaderPort.postMessage({
         type: "SERVER_MODULE",
         id: finalID,
@@ -285,21 +223,9 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     };
   }
 
-  if (verbose) {
-    logger.info(`Skipping non-module format: ${format}`);
-  }
   return nextLoad(url, context);
 };
 
 export const resolve: ResolveHook = async (specifier, context, nextResolve) => {
-  verbose = userOptions?.verbose ?? false;
-  if (verbose) {
-    logger.info(`Resolving: ${specifier}`);
-    logger.info(`Resolve context: ${JSON.stringify(context)}`);
-  }
-  const result = await nextResolve(specifier, context);
-  if (verbose) {
-    logger.info(`Resolve result: ${JSON.stringify(result)}`);
-  }
-  return result;
+  return nextResolve(specifier, context);
 };

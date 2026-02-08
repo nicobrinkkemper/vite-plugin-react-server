@@ -305,7 +305,7 @@ if (import.meta.hot) {
 
 ```ts
   moduleBase: 'src',
-  Page: 
+  Page: (url) => `src/pages${url}/page.tsx`,
   build: {
      pages: ["/","/about"]
      dir:    "dist",    // dist/**
@@ -445,7 +445,6 @@ Example `package.json` setup:
 
 ```json
 "scripts": {
-  "build": "build:client && build:server",
   "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
   "dev:ssr": "vite",
   "build": "NODE_OPTIONS='--conditions react-server' vite build --app",

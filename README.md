@@ -306,7 +306,7 @@ export function Counter() {
 
 ## Contributing
 
-This project uses experimental React features and includes a patch system for compatibility. See [Patch System](./docs/patch-system.md) for maintenance details.
+This project uses experimental React features and includes a patch system for compatibility. See [React Type Compatibility](./docs/react-type-compatibility.md) for maintenance details.
 
 ## Documentation
 
@@ -325,6 +325,7 @@ This project uses experimental React features and includes a patch system for co
 | [React Compatibility](./docs/react-type-compatibility.md) |
 | [Troubleshooting](./docs/troubleshooting-guide.md) |
 | [Package Exports](./docs/package-exports.md) |
+| [Transformations](./docs/transformations.md) |
 
 
 ## License

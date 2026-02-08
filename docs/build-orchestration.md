@@ -4,7 +4,7 @@ This guide covers the build process, static site generation, and deployment stra
 
 ## Build Process
 
-The plugin provides build system support for React Server Components (RSC) and static HTML page generation through three specialized plugins:
+The plugin provides build system support for React Server Components (RSC) and static HTML page generation through five specialized plugins:
 
 ### 1. Client Plugin (`vite-plugin-react-server/client`)
 - Bundles static & client boundary ESM modules
@@ -37,25 +37,29 @@ The plugin supports two build approaches:
 
 ### Traditional Build (Multi-Step)
 
-The build process executes in the following sequence:
+The build process executes in four sequential steps:
 
 #### 1. Static Build (`vite build`)
 - Generates client-side ESM files in `dist/static`
-- Creates static manifest
+- Creates static manifest with content hashes
 - Processes CSS modules
 - Outputs browser-optimized code
 
 #### 2. Client Boundary Build (`vite build --ssr`)
-- Generates client-boundary ssr files in `dist/client`
-- Same as the static, but with bare specifier imports intended for ssr
+- Generates client-boundary SSR files in `dist/client`
+- Same as the static, but with bare specifier imports intended for SSR
 - Outputs Node.js-optimized code
 - Uses the same hashes as static build for consistency
 
 #### 3. Server Boundary Build (`NODE_OPTIONS="--conditions=react-server" vite build`)
-- Generates RSC content
+- Generates server component modules in `dist/server`
 - Outputs Node.js-optimized code
 - Uses the same hashes as static build for consistency
-- Upgrades `dist/static` directory with fixed index.html/.rsc files
+
+#### 4. Static Generation
+- Renders all pages in `build.pages` to static HTML and RSC files
+- Outputs `index.html` and `index.rsc` per route into `dist/static`
+- Uses the server build output to generate final HTML
 
 ### Environment API Build (Single-Step)
 
@@ -431,22 +435,25 @@ export default defineConfig({
 
 ## Build Requirements
 
-The complete build process requires three sequential builds:
+The complete build process requires four sequential steps:
 
 ```bash
-# 1. Static build
+# 1. Static build (browser ESM)
 vite build
 
-# 2. Client build  
+# 2. Client build (SSR client boundary)
 vite build --ssr
 
-# 3. Server build
+# 3. Server build (RSC server boundary)
 NODE_OPTIONS="--conditions=react-server" vite build
+
+# 4. Static generation (HTML/RSC output)
+# Automatically runs as part of step 3 or via --app mode
 ```
 
-Or use the combined script:
+Or use the combined `--app` mode:
 ```bash
-npm run build
+NODE_OPTIONS='--conditions react-server' vite build --app
 ```
 
 ## Performance Optimization

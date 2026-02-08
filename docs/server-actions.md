@@ -493,7 +493,7 @@ When building your application, server actions are transformed into different ou
 While it is totally possible to include the output of the database in the static render, the static render will not handle the fact that a common static-host can't actually respond to the server action in any meaningful way.
 
 If you want dynamic server actions you have to make sure that you also HOST your server modules, much like this plugin hosts your modules during development. If the server actions work both in the client environment's "rsc-worker" and the server environment's main thread, then
-you choose between deciding your own server setup.When running in non-production mode, `react-server-dom-esm/server` will be transformed to `react-server-dom-esm/server.node` instead. This is to support vitest module resolution.
+you choose between deciding your own server setup. When running in non-production mode, `react-server-dom-esm/server` will be transformed to `react-server-dom-esm/server.node` instead. This is to support vitest module resolution.
 
 ## Server Hosting
 
@@ -579,7 +579,7 @@ Server Actions provide a powerful way to handle server-side operations in your R
 
 ## Limitations
 
-Server action are not as powerful as pages, because they do not support the css collection and custom prop function out of the box. While
+Server actions are not as powerful as pages, because they do not support the css collection and custom prop function out of the box. While
 they could be used to stream React components, generally it is used for sending mutations to the server like the todo app in demo shows.
 Try to keep the return value simple and update the state on the client side on success indicator. 
 
