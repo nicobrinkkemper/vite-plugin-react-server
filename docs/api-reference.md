@@ -57,7 +57,6 @@ export const config = {
 | `assetsDir` | `string` | Assets directory | `"assets"` |
 | `api` | `string` | API output directory | `"api"` |
 | `outDir` | `string` | Output directory | `"dist"` |
-
 | `rscOutputPath` | `string` | RSC output filename | `"index.rsc"` |
 | `htmlOutputPath` | `string` | HTML output filename | `"index.html"` |
 | `entryFile` | `(chunk: PreRenderedChunk, ssr: boolean) => string` | Custom entry file naming | - |
