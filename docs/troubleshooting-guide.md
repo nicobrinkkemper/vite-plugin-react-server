@@ -29,7 +29,6 @@ Its type 'ComponentType<RootProps>' is not a valid JSX element type.
 {
     "react": "^0.0.0-experimental-0ff1d13b-20250507",
     "react-dom": "^0.0.0-experimental-0ff1d13b-20250507",
-    "react-server-dom-esm": "^0.0.1",
     "@types/react": "^19.0.9",
     "@types/react-dom": "^19.0.3",
 }
@@ -67,25 +66,14 @@ export const Html = ({
 );
 ```
 
-### 🔧 **Postinstall Script Didn't Run**
+### 📦 **react-server-dom-esm Resolution Issues**
 
-**Problem**: Patches not applied after `npm install some-package`.
+**Problem**: `react-server-dom-esm` related errors or missing functionality.
 
-**Error**: `react-server-dom-esm` related errors or missing functionality.
+**Solution**: Since v1.3.0, `react-server-dom-esm` is vendored with the plugin — you don't need to install it separately. The plugin resolves all `react-server-dom-esm/*` imports automatically via Vite aliases. If you're running scripts outside of Vite, use the register hook:
 
-**Solution**: 
-The postinstall only runs after `npm install` without arguments. Assuming your `package.json` already has:
-```json
-{
-  "scripts": {
-    "postinstall": "patch-package"
-  }
-}
-```
-You could run
-```sh
-npm install some-thing;
-npm run postinstall
+```bash
+node --import vite-plugin-react-server/register ./your-script.mjs
 ```
 
 ### 🚫 **"use client" Directive Issues**
@@ -550,8 +538,7 @@ If you're still experiencing issues:
 ### 📋 **Checklist for New Projects**
 
 - [ ] All React packages have matching versions
-- [ ] Postinstall script is configured
-- [ ] Patches are applied (`npm run patch`)
+- [ ] Plugin is installed (vendored ESM transport included automatically)
 - [ ] Environment variables are set correctly
 - [ ] Client components have `"use client"` directive
 - [ ] Server actions have `"use server"` directive

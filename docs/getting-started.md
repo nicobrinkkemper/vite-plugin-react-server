@@ -5,26 +5,10 @@ This guide will help you get up and running with the Vite React Server Plugin qu
 ## Installation
 
 ```bash
-npm install -D vite-plugin-react-server react-server-dom-esm patch-package react@experimental react-dom@experimental
+npm install -D vite-plugin-react-server react@experimental react-dom@experimental
 ```
 
-> **Note**: `react-server-dom-esm` exists on npm but is currently an empty placeholder — React hasn't published a real build yet. The plugin includes a patch system that builds it from React's source code. After installing, run the patch script:
-
-```bash
-npx vite-plugin-react-server-patch
-```
-
-This runs `bin/patch.mjs`, which takes the installed experimental React version and patches `react-server-dom-esm` in `node_modules` from bundled templates in `oss-experimental/`. Add it as a `postinstall` script so it runs automatically:
-
-```json
-{
-  "scripts": {
-    "postinstall": "patch-package && npx vite-plugin-react-server-patch"
-  }
-}
-```
-
-> **React version**: The plugin requires React experimental builds. Peer dependency is `react >= 0.0.0-experimental-0`.
+> **React version**: The plugin requires React experimental builds. Peer dependency is `react >= 0.0.0-experimental-0`. The ESM transport (`react-server-dom-esm`) is vendored with the plugin — no separate install needed.
 
 ## Basic Setup
 

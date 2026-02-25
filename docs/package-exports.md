@@ -179,7 +179,15 @@ import {
 } from 'vite-plugin-react-server/utils';
 ```
 
-> The react-server version excludes `createReactFetcher` and `useRscHmr` because they import from `react-server-dom-esm/client.browser` and use React hooks that are incompatible with the react-server condition.
+> The react-server version excludes `createReactFetcher`, `setupRscHmr`, `useRscHmr`, `callServer`, and `createCallServer` because they import from `react-server-dom-esm/client.browser` and/or use React hooks that are incompatible with the react-server condition.
+
+### Register Hook
+
+The `./register` export provides a Node.js register hook for resolving `react-server-dom-esm` imports outside of Vite (e.g. startup scripts, SSR servers):
+
+```bash
+node --import vite-plugin-react-server/register ./your-script.mjs
+```
 
 ### Patch System
 ```typescript

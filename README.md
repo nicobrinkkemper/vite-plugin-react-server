@@ -300,7 +300,7 @@ export function Counter() {
 ## Requirements
 
 - **Node.js**: 23.7.0 or higher
-- **React**: Experimental version (handled by patch system)
+- **React**: Experimental version (handled by vendored ESM transport)
 - **Vite**: Compatible with latest Vite versions
 
 ## TypeScript
@@ -323,26 +323,26 @@ This enables type support for:
 
 ## Contributing
 
-This project uses experimental React features and includes a patch system for compatibility. See [React Type Compatibility](./docs/react-type-compatibility.md) for maintenance details.
+This project uses experimental React features with a vendored ESM transport (`react-server-dom-esm`). Plugin maintainers can refresh the vendored copy with `npm run experimental:build-oss`. See [React Type Compatibility](./docs/react-type-compatibility.md) for maintenance details.
 
 ## Documentation
 
-| Topic |
-|-------|
-| [Getting Started](./docs/getting-started.md) |
-| [Core Concepts](./docs/core-concepts.md) |
-| [Configuration Guide](./docs/configuration.md) |
-| [CSS & Styling](./docs/css-handling.md) |
-| [Server Actions](./docs/server-actions.md) |
-| [Build & Deployment](./docs/build-orchestration.md) |
-| [Advanced Development](./docs/advanced-topics.md) |
-| [Plugin Internals](./docs/transformer-plugin.md) |
-| [Worker System](./docs/rsc-worker.md) |
-| [API Reference](./docs/api-reference.md) |
-| [React Compatibility](./docs/react-type-compatibility.md) |
-| [Troubleshooting](./docs/troubleshooting-guide.md) |
-| [Package Exports](./docs/package-exports.md) |
-| [Transformations](./docs/transformations.md) |
+| Topic | Description |
+|-------|-------------|
+| [Getting Started](./docs/getting-started.md) | Installation, basic setup, and first page |
+| [Core Concepts](./docs/core-concepts.md) | React conditions, environments, and architecture |
+| [Configuration Guide](./docs/configuration.md) | Plugin options and Vite config |
+| [CSS & Styling](./docs/css-handling.md) | CSS collection, inline styles, and global CSS |
+| [Server Actions](./docs/server-actions.md) | `"use server"` directives and form actions |
+| [Build & Deployment](./docs/build-orchestration.md) | Multi-step and Environment API builds |
+| [Advanced Development](./docs/advanced-topics.md) | Custom workers, streaming, and advanced patterns |
+| [Plugin Internals](./docs/transformer-plugin.md) | How the transformer processes directives |
+| [Worker System](./docs/rsc-worker.md) | RSC and HTML worker architecture |
+| [API Reference](./docs/api-reference.md) | Exported functions and types |
+| [React Compatibility](./docs/react-type-compatibility.md) | Version support, vendored ESM transport |
+| [Troubleshooting](./docs/troubleshooting-guide.md) | Common errors and solutions |
+| [Package Exports](./docs/package-exports.md) | All package exports and conditional loading |
+| [Transformations](./docs/transformations.md) | Code transformations and directive handling |
 
 
 ## License

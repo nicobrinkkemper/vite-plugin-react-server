@@ -197,7 +197,7 @@ This clones `facebook/react`, builds the ESM transport, and copies it to `oss-ex
 
 ### Package Exports for Patch
 
-The patch script is available via the `./patch` export:
+The patch script is still available via the `./patch` export for plugin maintainers:
 
 ```json
 {
@@ -205,7 +205,7 @@ The patch script is available via the `./patch` export:
 }
 ```
 
-And as a bin command: `vite-plugin-react-server-patch` (or `npx vite-plugin-react-server-patch`).
+For most users, no patching is needed — the vendored copy works out of the box.
 
 ## Maintenance Guide
 
@@ -214,9 +214,8 @@ And as a bin command: `vite-plugin-react-server-patch` (or `npx vite-plugin-reac
 When updating to a new React experimental version:
 
 1. **Install the new version**: `npm install react@experimental react-dom@experimental`
-2. **Run the patch**: `npx vite-plugin-react-server-patch` — this will detect the version mismatch and patch `react-server-dom-esm` accordingly
-3. **Test builds**: Verify all build modes work correctly
-4. **Run tests**: `npm test` to ensure compatibility
+2. **Test builds**: Verify all build modes work correctly
+3. **Run tests**: `npm test` to ensure compatibility
 
 ## Version-Specific Features
 
