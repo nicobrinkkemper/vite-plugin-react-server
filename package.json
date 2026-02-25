@@ -223,7 +223,6 @@
     "experimental:build-oss-full": "bash scripts/build-oss-experimental.sh --full",
     "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches",
     "experimental:patch-react": "npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs",
-    "postinstall": "patch-package",
     "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\"",
     "precoverage": "npm run build",
     "coverage": "npm run test:coverage"
