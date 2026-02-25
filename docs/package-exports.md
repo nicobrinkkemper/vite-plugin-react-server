@@ -183,7 +183,7 @@ import {
 
 ### Patch System
 ```typescript
-// Build react-server-dom-esm from React source (not published on npm)
+// react-server-dom-esm is vendored with the plugin since v1.3.0
 // Available as: npx vite-plugin-react-server-patch
 import 'vite-plugin-react-server/patch'; // → bin/patch.mjs
 ```

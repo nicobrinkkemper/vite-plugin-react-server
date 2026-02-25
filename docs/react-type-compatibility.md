@@ -160,40 +160,34 @@ export const Page = ({ title, content, metadata }: PageProps) => (
 );
 ```
 
-## Patch System
+## Vendored ESM Transport
 
-The plugin includes a patch system because `react-server-dom-esm` is **not published on npm**. It must be built from React's source code. The plugin ships pre-built templates in `oss-experimental/` and a patch script (`bin/patch.mjs`) that adapts them to your installed React experimental version.
+Since v1.3.0, the plugin **ships `react-server-dom-esm` built from React's experimental channel**. You no longer need to install it separately or use `patch-package`.
 
 ### How It Works
 
-1. `bin/patch.mjs` reads the installed `react` version (must be an experimental build)
-2. Compares it against the bundled template version
-3. If they differ, it patches the version strings in the `oss-experimental/react-server-dom-esm` files
-4. Copies the patched files into `node_modules/react-server-dom-esm`
+1. The plugin includes a pre-built copy of `react-server-dom-esm` in `oss-experimental/`
+2. A Vite alias plugin resolves all `react-server-dom-esm/*` imports to the vendored copy
+3. Server-side entries are marked external during builds and resolved at runtime via `createRequire`
+4. A Node.js register hook (`vite-plugin-react-server/register`) handles resolution outside of Vite
 
-### Running the Patch
+### Runtime Usage Outside Vite
+
+If you run plugin utilities outside of Vite (e.g. startup scripts, SSR servers), add the register hook:
 
 ```bash
-# Run directly
-npx vite-plugin-react-server-patch
-
-# Or via the exported path
-node node_modules/vite-plugin-react-server/bin/patch.mjs
+node --import vite-plugin-react-server/register ./your-script.mjs
 ```
 
-### Recommended Setup
+### Updating the Vendored Copy
 
-Add the patch to your `postinstall` script so it runs automatically after `npm install`:
+Plugin maintainers can refresh the vendored `react-server-dom-esm` from React source:
 
-```json
-{
-  "scripts": {
-    "postinstall": "patch-package && npx vite-plugin-react-server-patch"
-  }
-}
+```bash
+npm run experimental:build-oss
 ```
 
-The `patch-package` step applies patches to `react` and `react-dom` (for CJS named imports fix), while `vite-plugin-react-server-patch` builds `react-server-dom-esm`.
+This clones `facebook/react`, builds the ESM transport, and copies it to `oss-experimental/`.
 
 ### React Version Requirements
 
