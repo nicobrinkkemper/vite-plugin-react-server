@@ -304,6 +304,24 @@ export function Counter() {
 - **React**: Experimental version (handled by patch system)
 - **Vite**: Compatible with latest Vite versions
 
+## TypeScript
+
+The plugin provides virtual modules (like `virtual:react-server/hmr`) that need type declarations. Add `"vite-plugin-react-server/virtual"` to your `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "types": [
+      "vite/client",
+      "vite-plugin-react-server/virtual"
+    ]
+  }
+}
+```
+
+This enables type support for:
+- `virtual:react-server/hmr` — RSC hot module replacement utilities (`useRscHmr`, `setupRscHmr`)
+
 ## Contributing
 
 This project uses experimental React features and includes a patch system for compatibility. See [React Type Compatibility](./docs/react-type-compatibility.md) for maintenance details.

@@ -18,7 +18,10 @@
 
 // Client-side modules (browser environment)
 declare module 'react-server-dom-esm/client' {
-  import type { ReactNode, Usable } from 'react';
+  import type { ReactNode } from 'react';
+  // Usable was added in React 19 experimental — define locally to avoid
+  // type errors for consumers without react/experimental types
+  type Usable<T> = PromiseLike<T>;
 
   export type CreateFromFetchOptions = {
     moduleBaseURL?: string;
@@ -69,6 +72,7 @@ declare module 'react-server-dom-esm/client' {
 
 declare module 'react-server-dom-esm/client.browser' {
   import type { ReactNode } from 'react';
+  type Usable<T> = PromiseLike<T>;
 
   // ReactDOM renderToPipeableStream options (for HTML rendering)
   export type RenderToPipeableStreamOptions = {
@@ -352,6 +356,7 @@ declare module 'react-server-dom-esm/server.node' {
  */
 declare module 'react-server-dom-esm/static.node' {
   import type { ReactElement, ReactNode } from 'react';
+  type Usable<T> = PromiseLike<T>;
 
   export type PrerenderToNodeStreamOptions = {
     onError?: (error: unknown) => void;
@@ -367,5 +372,5 @@ declare module 'react-server-dom-esm/static.node' {
     model: ReactNode,
     moduleBasePath: string,
     options?: PrerenderToNodeStreamOptions
-  ): React.Usable<ReactNode>;
+  ): Usable<ReactNode>;
 }

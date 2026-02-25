@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -11,6 +11,7 @@
     "plugin",
     "bin",
     "scripts",
+    "virtual.d.ts",
     "README.md",
     "LICENSE",
     "tsconfig.json"
@@ -25,6 +26,9 @@
     "./worker": "./dist/plugin/worker/index.js",
     "./package.json": "./package.json",
     "./patch": "./bin/patch.mjs",
+    "./virtual": {
+      "types": "./virtual.d.ts"
+    },
     "./check-react-version": "./scripts/check-react-version.mjs",
     "./components": "./dist/plugin/components/index.js",
     "./types": "./dist/plugin/types.js",
@@ -149,6 +153,9 @@
       ],
       "helpers/resolveStreamElements": [
         "./dist/plugin/helpers/resolveStreamElements.d.ts"
+      ],
+      "virtual": [
+        "./virtual.d.ts"
       ]
     }
   },

@@ -1,3 +1,4 @@
+import type React from "react";
 import { createFromFetch } from "react-server-dom-esm/client.browser";
 import { createCallServer } from "./createCallServer.js";
 import { env } from "./env.js";
@@ -17,7 +18,7 @@ export function createReactFetcher({
   publicOrigin?: string;
   indexRSC?: string;
   headers?: HeadersInit;
-} = {}) {
+} = {}): PromiseLike<React.ReactNode> {
   const parsedURL = createPageURL(
     moduleBaseURL,
     publicOrigin,
