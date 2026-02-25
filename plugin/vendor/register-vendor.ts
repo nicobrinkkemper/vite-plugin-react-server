@@ -35,7 +35,7 @@ register("data:text/javascript," + encodeURIComponent(`
     "react-server-dom-esm/client.node":    join(ossDir, "client.node.js"),
     "react-server-dom-esm/server":         join(ossDir, "esm", "react-server-dom-esm-server.node.js"),
     "react-server-dom-esm/server.node":    join(ossDir, "esm", "react-server-dom-esm-server.node.js"),
-    "react-server-dom-esm/static":         join(ossDir, "static.js"),
+    "react-server-dom-esm/static":         join(ossDir, "static.node.js"),
     "react-server-dom-esm/static.node":    join(ossDir, "static.node.js"),
   };
 

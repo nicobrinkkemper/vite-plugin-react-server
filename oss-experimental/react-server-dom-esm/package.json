@@ -32,12 +32,12 @@
     "./client.node": "./client.node.js",
     "./server": {
       "react-server": "./server.node.js",
-      "default": "./server.js"
+      "default": "./server.node.js"
     },
     "./server.node": "./server.node.js",
     "./static": {
       "react-server": "./static.node.js",
-      "default": "./static.js"
+      "default": "./static.node.js"
     },
     "./static.node": "./static.node.js",
     "./node-loader": "./esm/react-server-dom-esm-node-loader.production.js",

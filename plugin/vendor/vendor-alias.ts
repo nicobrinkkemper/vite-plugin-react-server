@@ -88,8 +88,10 @@ function isServerEntry(source: string): boolean {
   );
 }
 
-// Explicit subpath → file mapping. Server entries always resolve to .node
-// variants to bypass the react-server condition guard in server.js.
+// Explicit subpath → file mapping for Vite's module graph.
+// Vite doesn't use package.json exports, so we mirror the vendored
+// package's export map here. Server/static resolve to .node variants
+// (the vendored package.json exports do the same via default condition).
 const subpathMap: Record<string, string> = {
   "react-server-dom-esm":                "index.js",
   "react-server-dom-esm/client":         "client.js",
