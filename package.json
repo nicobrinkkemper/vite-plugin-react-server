@@ -34,8 +34,10 @@
     "./components": "./dist/plugin/components/index.js",
     "./types": "./dist/plugin/types.js",
     "./utils": {
+      "types": "./dist/plugin/utils/index.d.ts",
       "react-server": "./dist/plugin/utils/index.server.js",
-      "default": "./dist/plugin/utils/index.js"
+      "browser": "./dist/plugin/utils/index.js",
+      "default": "./dist/plugin/utils/index.server.js"
     },
     "./metrics": "./dist/plugin/metrics/index.js",
     "./stream": "./dist/plugin/stream/index.js",
