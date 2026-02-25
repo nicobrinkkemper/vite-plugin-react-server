@@ -5,6 +5,7 @@ import { vitePluginReactDevServer } from "../dev-server/plugin.server.js";
 import { reactStaticPlugin } from "../react-static/plugin.server.js";
 import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
+import { vitePluginVendorAlias } from "../vendor/vendor-alias.js";
 
 // Server-first orchestrator - only imports server plugins
 export const createPluginOrchestrator = (
@@ -20,6 +21,9 @@ export const createPluginOrchestrator = (
   };
 
   const plugins: Plugin[] = [];
+
+  // Alias react-server-dom-esm to our vendored copy
+  plugins.push(vitePluginVendorAlias());
 
   // Virtual module for RSC HMR utilities (works in both dev and build)
   plugins.push(virtualRscHmrPlugin());

@@ -5,6 +5,7 @@ import { vitePluginReactDevServer } from "../dev-server/plugin.client.js";
 import { reactStaticPlugin } from "../react-static/plugin.client.js";
 import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
+import { vitePluginVendorAlias } from "../vendor/vendor-alias.js";
 
 // Client-first orchestrator - includes client SSG plugin for reverse paradigm
 export const createPluginOrchestrator = (
@@ -14,6 +15,9 @@ export const createPluginOrchestrator = (
   const availableEnvironments = ["client", "ssr", "server"];
 
   const plugins: Plugin[] = [];
+
+  // Alias react-server-dom-esm to our vendored copy
+  plugins.push(vitePluginVendorAlias());
 
   // Virtual module for RSC HMR utilities (works in both dev and build)
   plugins.push(virtualRscHmrPlugin());

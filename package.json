@@ -14,7 +14,8 @@
     "virtual.d.ts",
     "README.md",
     "LICENSE",
-    "tsconfig.json"
+    "tsconfig.json",
+    "oss-experimental/react-server-dom-esm"
   ],
   "exports": {
     ".": "./dist/plugin/index.js",
@@ -250,7 +251,6 @@
   "peerDependencies": {
     "react": ">=0.0.0-experimental-0",
     "react-dom": ">=0.0.0-experimental-0",
-    "react-server-dom-esm": "^0.0.1",
     "vite": "*"
   },
   "peerDependenciesMeta": {
@@ -262,6 +262,9 @@
     },
     "vite": {
       "optional": false
+    },
+    "react-server-dom-esm": {
+      "optional": true
     }
   },
   "devDependencies": {

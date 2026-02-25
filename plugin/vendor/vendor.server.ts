@@ -1,12 +1,27 @@
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+function findPkgRoot(): string {
+  let dir = __dirname;
+  for (let i = 0; i < 5; i++) {
+    if (existsSync(join(dir, "oss-experimental", "react-server-dom-esm"))) return dir;
+    dir = dirname(dir);
+  }
+  return dirname(dirname(__dirname));
+}
+const ossDir = join(findPkgRoot(), "oss-experimental");
+
+// Resolve react-server-dom-esm from our vendored copy
+const vendorRequire = createRequire(join(ossDir, "react-server-dom-esm", "package.json"));
+const ReactDOMServer = vendorRequire("react-server-dom-esm/server.node") as typeof import("react-server-dom-esm/server.node");
+
+// React still comes from the consumer's project
 const projectRoot = process.env["npm_config_local_prefix"] || process.cwd();
-const nodeRequire = createRequire(join(projectRoot, "package.json"));
-
-// Import ReactDOM from the project's node_modules
-const ReactDOMServer = nodeRequire("react-server-dom-esm/server.node") as typeof import("react-server-dom-esm/server.node");
-const React = nodeRequire("react") as typeof import("react");
+const projectRequire = createRequire(join(projectRoot, "package.json"));
+const React = projectRequire("react") as typeof import("react");
 
 export { ReactDOMServer, React };
 export type * from "react-server-dom-esm/server.node";

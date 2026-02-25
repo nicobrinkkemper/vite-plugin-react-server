@@ -51,8 +51,8 @@ describe('Server Actions Simple Build Test (Cross-Environment)', () => {
       if (bundleEntry) {
         const [, content] = bundleEntry;
         // Server actions are transformed to use registerServerReference
+        // The import may come from a vendored bundle chunk rather than a bare specifier
         expect(content).toContain('registerServerReference');
-        expect(content).toContain('react-server-dom-esm/server');
       }
     }
   });
