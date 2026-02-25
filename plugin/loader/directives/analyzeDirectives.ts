@@ -67,11 +67,15 @@ export function analyzeDirectives(
       ? optionsOrMatches.logger ?? _logger ?? createLogger()
       : _logger ?? createLogger();
   // Check if this looks like Vite-injected code
+  // During build, Vite may prepend imports (e.g., __vitePreload for dynamic imports)
+  // before "use client"/"use server" directives
   const isViteInjectedCode =
     source.includes("__vite__createHotContext") ||
     source.includes("import.meta.hot") ||
     source.includes("import.meta.env") ||
-    source.includes("/@vite/client");
+    source.includes("/@vite/client") ||
+    source.includes("__vitePreload") ||
+    source.includes("\0vite/");
 
   for (const node of ast.body) {
     // Debug logging
