@@ -1,4 +1,4 @@
-export interface RscHmrData {
+interface RscHmrData {
   file: string;
   path: string;
 }
@@ -14,7 +14,10 @@ declare module 'vite/types/customEvent' {
 declare module 'virtual:react-server/hmr' {
   export const RSC_HMR_EVENT: 'vite-plugin-react-server:server-component-update';
 
-  export { RscHmrData };
+  export interface RscHmrData {
+    file: string;
+    path: string;
+  }
 
   export function useRscHmr(
     refetch: (url: string) => void,
