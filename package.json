@@ -218,6 +218,8 @@
     "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
     "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
     "experimental:move-patches": "mv patches/* ./scripts/",
+    "experimental:build-oss": "bash scripts/build-oss-experimental.sh",
+    "experimental:build-oss-full": "bash scripts/build-oss-experimental.sh --full",
     "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches",
     "experimental:patch-react": "npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs",
     "postinstall": "patch-package",
