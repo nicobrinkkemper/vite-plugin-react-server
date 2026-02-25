@@ -14,9 +14,9 @@ function findPkgRoot(): string {
 }
 const ossDir = join(findPkgRoot(), "oss-experimental");
 
-// Resolve react-server-dom-esm from our vendored copy
+// Load react-server-dom-esm/static.node directly from vendored copy
 const vendorRequire = createRequire(join(ossDir, "react-server-dom-esm", "package.json"));
-const ReactDOMServer = vendorRequire("react-server-dom-esm/static.node") as typeof import("react-server-dom-esm/static.node");
+const ReactDOMServer = vendorRequire(join(ossDir, "react-server-dom-esm", "static.node.js")) as typeof import("react-server-dom-esm/static.node");
 
 // React still comes from the consumer's project
 const projectRoot = process.env["npm_config_local_prefix"] || process.cwd();

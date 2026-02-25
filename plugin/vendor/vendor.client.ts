@@ -17,9 +17,9 @@ function findPkgRoot(): string {
 }
 const ossDir = join(findPkgRoot(), "oss-experimental");
 
-// Resolve react-server-dom-esm from our vendored copy
+// Load react-server-dom-esm/client.node directly from vendored copy
 const vendorRequire = createRequire(join(ossDir, "react-server-dom-esm", "package.json"));
-const ReactDOMClient = vendorRequire("react-server-dom-esm/client.node") as typeof import("react-server-dom-esm/client.node");
+const ReactDOMClient = vendorRequire(join(ossDir, "react-server-dom-esm", "client.node.js")) as typeof import("react-server-dom-esm/client.node");
 
 // React and react-dom still come from the consumer's project
 const projectRoot = process.env["npm_config_local_prefix"] || process.cwd();

@@ -35,8 +35,9 @@ scripts/data/*
 # WSL
 *.Zone.Identifier
 
-# react oss
-/oss-experimental
+# react oss (keep react-server-dom-esm for vendoring, ignore the rest)
+/oss-experimental/*
+!/oss-experimental/react-server-dom-esm
 tsconfig.tsbuildinfo
 
 # rollup cache

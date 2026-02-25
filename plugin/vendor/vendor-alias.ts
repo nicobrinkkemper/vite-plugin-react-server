@@ -1,5 +1,4 @@
 import type { Plugin } from "vite";
-import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
@@ -89,14 +88,25 @@ function isServerEntry(source: string): boolean {
   );
 }
 
+// Explicit subpath → file mapping. Server entries always resolve to .node
+// variants to bypass the react-server condition guard in server.js.
+const subpathMap: Record<string, string> = {
+  "react-server-dom-esm":                "index.js",
+  "react-server-dom-esm/client":         "client.js",
+  "react-server-dom-esm/client.browser": "client.browser.js",
+  "react-server-dom-esm/client.node":    "client.node.js",
+  "react-server-dom-esm/server":         "server.node.js",
+  "react-server-dom-esm/server.node":    "server.node.js",
+  "react-server-dom-esm/static":         "static.node.js",
+  "react-server-dom-esm/static.node":    "static.node.js",
+};
+
 function resolveVendored(source: string): string {
-  const vendorRequire = createRequire(
-    join(ossDir, "react-server-dom-esm", "package.json")
-  );
-  try {
-    return vendorRequire.resolve(source);
-  } catch {
-    const subpath = source.replace("react-server-dom-esm", "");
-    return join(ossDir, "react-server-dom-esm", subpath || "index.js");
+  const file = subpathMap[source];
+  if (file) {
+    return join(ossDir, "react-server-dom-esm", file);
   }
+  // Fallback for unknown subpaths
+  const subpath = source.replace("react-server-dom-esm", "");
+  return join(ossDir, "react-server-dom-esm", subpath || "index.js");
 }

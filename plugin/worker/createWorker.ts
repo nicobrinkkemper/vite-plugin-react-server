@@ -255,10 +255,14 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
       }
       return out;
     };
+    // Register vendor resolution hook so the worker can find react-server-dom-esm
+    const vendorRegisterPath = new URL("../vendor/register-vendor.js", import.meta.url).href;
     const computedExecArgv = [
       ...stripConditionsFromArgv(process.execArgv || []),
       "--conditions",
       reverseCondition,
+      "--import",
+      vendorRegisterPath,
     ];
 
     // Always log the condition setup for debugging
