@@ -191,6 +191,17 @@ export const renderPagesBatched: RenderPagesFn = (
           if (panicError != null) {
             failedRoutes.set(route, error);
             options.logger?.error(`[renderPagesBatched] Panic error for route ${route}: ${error.message}`);
+            // Immediately yield error and stop — matches sequential renderPages behavior
+            const errorResult: RenderPagesResult = {
+              type: "error",
+              error,
+              route,
+              failedRoutes,
+              completedRoutes,
+              results,
+            };
+            yield errorResult;
+            return errorResult;
           } else {
             options.logger?.warn(`[renderPagesBatched] Non-panic error for route ${route}: ${error.message}`);
           }

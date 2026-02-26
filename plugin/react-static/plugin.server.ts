@@ -31,7 +31,7 @@ import type {
   AutoDiscoveredFiles,
   VitePluginFn,
 } from "../types.js";
-import { renderPages } from "./renderPages.js";
+import { renderPagesBatched as renderPages } from "./renderPagesBatched.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
 import {
