@@ -187,6 +187,11 @@ export default defineConfig({
     // Preserve module structure for proper tree-shaking
     modulePreload: false,
   },
+  // Prevent Vite from replacing import.meta.hot with undefined during library build.
+  // Consumers use useRscHmr in dev where import.meta.hot IS defined.
+  define: {
+    "import.meta.hot": "import.meta.hot",
+  },
   esbuild: {
     // Preserve import.meta expressions in utils files
     supported: {

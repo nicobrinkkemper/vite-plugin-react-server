@@ -54,6 +54,15 @@ export function vitePluginVendorAlias(): Plugin {
     },
 
     configResolved(config) {
+      // Allow serving vendored files when the plugin is linked or in a monorepo.
+      // Must be done in configResolved to append to the resolved allow list
+      // (setting in config hook can override Vite's defaults).
+      if (config.command === "serve" && config.server?.fs?.allow) {
+        if (!config.server.fs.allow.includes(pkgRoot)) {
+          config.server.fs.allow.push(pkgRoot);
+        }
+      }
+
       // Ensure vendored package is reachable via Node resolution in ALL Vite
       // contexts (dev server, vitest, SSR workers, custom scripts).
       // Vite's module runner resolves bare imports via Node — not plugin hooks —
