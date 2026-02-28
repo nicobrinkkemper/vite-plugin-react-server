@@ -10,6 +10,8 @@ import type { RenderPagesFn, RenderPageFn, RenderPagesHandlerOptions } from "./t
 import { handleError } from "../error/handleError.js";
 import { fileWriter } from "./fileWriter.js";
 import type { Manifest } from "vite";
+import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
+import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 
 const DEFAULT_BATCH_SIZE = 8;
 
@@ -23,13 +25,15 @@ function resolvePathWithManifest(path: string, manifest: Manifest): string {
 
 /**
  * Renders a single route completely, consuming all yields from renderPage
- * and writing the RSC and HTML files
+ * and writing the RSC and HTML files. Collects metrics and handles events
+ * identically to the sequential renderPages.
  */
 async function renderSingleRoute(
   route: string,
   handlerOptions: RenderPagesHandlerOptions,
   renderPage: RenderPageFn,
   manifest: Manifest,
+  failedRoutes: Map<string, unknown>,
 ): Promise<{ route: string; results: RenderPageResult[]; error?: Error }> {
   const { autoDiscoveredFiles, cssFilesByPage, ...options } = handlerOptions;
   const { page, props, root, html } = autoDiscoveredFiles.urlMap?.get(route) || {};
@@ -44,6 +48,131 @@ async function renderSingleRoute(
     const resolvedRootPath = root ? resolvePathWithManifest(root, manifest) : undefined;
     const resolvedHtmlPath = html ? resolvePathWithManifest(html, manifest) : undefined;
 
+    // Store results for metrics tracking
+    const routeResults = new Map<string, RenderPageResult>();
+
+    // Create onEvent wrapper that handles route.error and metrics collection
+    // This mirrors the sequential renderPages behavior exactly
+    const wrapperOnEvent = (event: any) => {
+      // Call the original onEvent first
+      if (options.onEvent) {
+        options.onEvent(event);
+      }
+
+      // Handle route.error events
+      if (event.type === "route.error") {
+        const detectedPanicError = handleError({
+          error: event.data.error,
+          logger: options.logger,
+          panicThreshold: event.data.panicThreshold,
+          context: `route.error (${event.data.route})`,
+        });
+        
+        if (detectedPanicError != null) {
+          options.logger?.error(
+            `[renderPagesBatched] Panic error for route ${event.data.route}: ${event.data.error.message}`
+          );
+          failedRoutes.set(event.data.route, event.data.error);
+        } else {
+          options.logger?.warn(
+            `[renderPagesBatched] Non-panic error for route ${event.data.route}: ${event.data.error.message}`
+          );
+        }
+      }
+
+      // Handle metrics collection on file.write.done
+      if (event.type === "file.write.done" && event.data.route === route) {
+        const routeResult = routeResults.get(route);
+        if (routeResult && routeResult.type === "success") {
+          if (event.data.fileType === "html") {
+            const endTime = performance.now();
+            const htmlMetrics = createRenderMetrics({
+              route: route,
+              type: routeResult.metrics.html.type,
+              fromMainThread: routeResult.metrics.html.fromMainThread,
+              fromRscWorker: routeResult.metrics.html.fromRscWorker,
+              fromHtmlWorker: routeResult.metrics.html.fromHtmlWorker,
+              fileSize: event.data.content.length,
+              chunks: event.data.chunks || 0,
+              processingTime: endTime - routeResult.metrics.html.streamMetrics.startTime,
+              chunkRate: (event.data.chunks || 0) / ((endTime - routeResult.metrics.html.streamMetrics.startTime) / 1000),
+              fileName: event.data.fileName,
+              outputPath: event.data.path,
+              baseDir: event.data.baseDir,
+              routePath: event.data.routePath,
+              streamMetrics: createStreamMetrics({
+                ...routeResult.metrics.html.streamMetrics,
+                chunks: event.data.chunks || 0,
+                bytes: event.data.content.length,
+                duration: endTime - routeResult.metrics.html.streamMetrics.startTime,
+                endTime: endTime,
+              }),
+            });
+
+            if (options.onMetrics) {
+              options.onMetrics(htmlMetrics);
+            }
+
+            // Also emit RSC Full metrics if available
+            if (routeResult.metrics?.rscFull) {
+              const rscFullEndTime = performance.now();
+              const rscFullMetrics = createRenderMetrics({
+                route: route,
+                type: routeResult.metrics.rscFull.type,
+                fromMainThread: routeResult.metrics.rscFull.fromMainThread,
+                fromRscWorker: routeResult.metrics.rscFull.fromRscWorker,
+                fromHtmlWorker: routeResult.metrics.rscFull.fromHtmlWorker,
+                processingTime: rscFullEndTime - routeResult.metrics.rscFull.streamMetrics.startTime,
+                chunks: routeResult.metrics.rscFull.streamMetrics.chunks,
+                chunkRate: routeResult.metrics.rscFull.streamMetrics.chunks / ((rscFullEndTime - routeResult.metrics.rscFull.streamMetrics.startTime) / 1000),
+                fileName: event.data.fileName,
+                outputPath: event.data.path,
+                baseDir: event.data.baseDir,
+                routePath: event.data.routePath,
+                streamMetrics: createStreamMetrics({
+                  ...routeResult.metrics.rscFull.streamMetrics,
+                  duration: rscFullEndTime - routeResult.metrics.rscFull.streamMetrics.startTime,
+                  endTime: rscFullEndTime,
+                }),
+              });
+
+              if (options.onMetrics) {
+                options.onMetrics(rscFullMetrics);
+              }
+            }
+          } else if (event.data.fileType === "rsc") {
+            const rscEndTime = performance.now();
+            const rscMetrics = createRenderMetrics({
+              route: route,
+              type: routeResult.metrics.rscHeadless.type,
+              fromMainThread: routeResult.metrics.rscHeadless.fromMainThread,
+              fromRscWorker: routeResult.metrics.rscHeadless.fromRscWorker,
+              fromHtmlWorker: routeResult.metrics.rscHeadless.fromHtmlWorker,
+              fileSize: event.data.content.length,
+              chunks: event.data.chunks || 0,
+              processingTime: rscEndTime - routeResult.metrics.rscHeadless.streamMetrics.startTime,
+              chunkRate: (event.data.chunks || 0) / ((rscEndTime - routeResult.metrics.rscHeadless.streamMetrics.startTime) / 1000),
+              fileName: event.data.fileName,
+              outputPath: event.data.path,
+              baseDir: event.data.baseDir,
+              routePath: event.data.routePath,
+              streamMetrics: createStreamMetrics({
+                ...routeResult.metrics.rscHeadless.streamMetrics,
+                chunks: event.data.chunks || 0,
+                bytes: event.data.content.length,
+                duration: rscEndTime - routeResult.metrics.rscHeadless.streamMetrics.startTime,
+                endTime: rscEndTime,
+              }),
+            });
+
+            if (options.onMetrics) {
+              options.onMetrics(rscMetrics);
+            }
+          }
+        }
+      }
+    };
+
     const routeHandlerOptions = {
       ...options,
       manifest,
@@ -55,6 +184,7 @@ async function renderSingleRoute(
       cssFiles: cssFilesByPage?.get(route) ?? new Map(),
       globalCss: options.globalCss ?? new Map(),
       id: `${route}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      onEvent: wrapperOnEvent,
     };
 
     const pageRenderer = renderPage(routeHandlerOptions);
@@ -65,24 +195,25 @@ async function renderSingleRoute(
     for await (const result of pageRenderer) {
       results.push(result);
       
-      // Track error results
       if (result.type === "error" && result.error) {
         routeError = result.error instanceof Error ? result.error : new Error(String(result.error));
       }
       
-      // Write files for success and skip results
-      if ((result.type === "success" || result.type === "skip") && result.html && result.rsc) {
+      if (result.type === "success" || result.type === "skip") {
+        // Store result for metrics tracking (wrapperOnEvent needs this)
+        routeResults.set(route, result);
+
         const rscWritePromise = fileWriter(
           result.rsc as any,
           "rsc",
-          { ...options, route, logger: options.logger },
+          { ...options, route, onEvent: wrapperOnEvent, logger: options.logger },
           options.signal
         );
 
         const htmlWritePromise = fileWriter(
           result.html as any,
           "html",
-          { ...options, route, logger: options.logger },
+          { ...options, route, onEvent: wrapperOnEvent, logger: options.logger },
           options.signal
         );
 
@@ -90,7 +221,6 @@ async function renderSingleRoute(
       }
     }
 
-    // Return error if any result was an error
     if (routeError) {
       return { route, results, error: routeError };
     }
@@ -173,7 +303,7 @@ export const renderPagesBatched: RenderPagesFn = (
 
       // Render all pages in this batch concurrently
       const batchPromises = batch.map(route => 
-        renderSingleRoute(route, handlerOptions, renderPage, manifest)
+        renderSingleRoute(route, handlerOptions, renderPage, manifest, failedRoutes)
       );
 
       const batchResults = await Promise.all(batchPromises);
@@ -191,7 +321,6 @@ export const renderPagesBatched: RenderPagesFn = (
           if (panicError != null) {
             failedRoutes.set(route, error);
             options.logger?.error(`[renderPagesBatched] Panic error for route ${route}: ${error.message}`);
-            // Immediately yield error and stop — matches sequential renderPages behavior
             const errorResult: RenderPagesResult = {
               type: "error",
               error,
@@ -208,7 +337,6 @@ export const renderPagesBatched: RenderPagesFn = (
         } else {
           completedRoutes.add(route);
           
-          // Yield each result from this page
           for (const result of pageResults) {
             if (result.type === "success" || result.type === "skip") {
               results.set(route, result);
@@ -228,36 +356,6 @@ export const renderPagesBatched: RenderPagesFn = (
         options.logger?.info(
           `[renderPagesBatched] Completed batch: ${completedRoutes.size}/${routeArray.length} pages`
         );
-      }
-    }
-
-    // Check if we should panic based on failed routes
-    if (failedRoutes.size > 0) {
-      const firstError = Array.from(failedRoutes.values())[0];
-      const panicError = handleError({
-        error: firstError,
-        logger: options.logger,
-        panicThreshold: options.panicThreshold,
-        context: `renderPagesBatched final check`,
-      });
-
-      if (panicError != null) {
-        if (options.verbose) {
-          options.logger?.error(
-            `[renderPagesBatched] Build failed due to panic threshold: ${failedRoutes.size} routes failed`
-          );
-        }
-        // Yield error before returning
-        const errorResult: RenderPagesResult = {
-          type: "error",
-          error: panicError,
-          route: "",
-          failedRoutes,
-          completedRoutes,
-          results,
-        };
-        yield errorResult;
-        return errorResult;
       }
     }
 
