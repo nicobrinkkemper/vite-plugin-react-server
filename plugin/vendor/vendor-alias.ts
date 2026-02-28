@@ -1,7 +1,7 @@
 import type { Plugin } from "vite";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
 
 // Find package root by walking up from current file until we find oss-experimental/
 // Works from both plugin/vendor/ (source) and dist/plugin/vendor/ (built)
@@ -23,12 +23,13 @@ const ossDir = join(pkgRoot, "oss-experimental");
  * install `react-server-dom-esm` separately or use patch-package.
  *
  * Browser client entries use true ESM files for Rollup tree-shaking.
- * Server/static entries are marked external during builds — they're CJS
- * modules loaded at runtime via createRequire in vendor.*.ts files.
+ * Server/static entries are CJS and must be loadable via native Node import()
+ * (not eval'd as ESM by Vite's module runner, which lacks require()).
+ *
+ * In dev mode, we ensure the vendored package is reachable from node_modules
+ * so Vite's module runner can externalize and natively import() CJS entries.
  */
 export function vitePluginVendorAlias(): Plugin {
-  let isBuild = false;
-
   return {
     name: "vite-plugin-react-server:vendor-alias",
     enforce: "pre",
@@ -36,17 +37,16 @@ export function vitePluginVendorAlias(): Plugin {
     config(_config, env) {
       const pkg = join(ossDir, "react-server-dom-esm");
       const isProd = env.mode === "production";
-      
-      // Only alias browser client to ESM for Rollup tree-shaking.
-      // Server/static are handled by resolveId with external:true.
+
       return {
         resolve: {
           alias: [
-            { 
-              find: "react-server-dom-esm/client.browser", 
-              replacement: join(pkg, "esm", isProd 
-                ? "react-server-dom-esm-client.browser.production.js" 
-                : "react-server-dom-esm-client.browser.development.js") 
+            // Browser client → ESM for Rollup tree-shaking
+            {
+              find: "react-server-dom-esm/client.browser",
+              replacement: join(pkg, "esm", isProd
+                ? "react-server-dom-esm-client.browser.production.js"
+                : "react-server-dom-esm-client.browser.development.js")
             },
           ],
         },
@@ -54,44 +54,58 @@ export function vitePluginVendorAlias(): Plugin {
     },
 
     configResolved(config) {
-      isBuild = config.command === "build";
+      // Ensure vendored package is reachable via Node resolution in ALL Vite
+      // contexts (dev server, vitest, SSR workers, custom scripts).
+      // Vite's module runner resolves bare imports via Node — not plugin hooks —
+      // so the package must be in node_modules for CJS entries to work.
+      ensureVendoredPackageLinked(config.root);
     },
 
     resolveId(source) {
-      // Only handle react-server-dom-esm specifiers (not already aliased paths)
-      if (!source.startsWith("react-server-dom-esm")) {
-        return;
+      if (!source.startsWith("react-server-dom-esm")) return;
+      if (source === "react-server-dom-esm/client.browser") return;
+
+      // Server/static entries: mark external so the runner/bundler uses native
+      // import() rather than eval(). The resolved path points into the vendored
+      // copy (reachable via symlink in dev, directly in build).
+      if (isServerEntry(source)) {
+        return { id: resolveVendored(source), external: true };
       }
 
-      // Skip client.browser — handled by config alias above
-      if (source === "react-server-dom-esm/client.browser") {
-        return;
-      }
-
-      // For server/static entries during build: mark external with resolved path.
-      // At runtime, vendor.*.ts uses createRequire to load from this path.
-      if (isBuild && isServerEntry(source)) {
-        const resolved = resolveVendored(source);
-        return { id: resolved, external: true };
-      }
-
-      // For all other entries (client.node, client, index), resolve to vendored path
       return resolveVendored(source);
     },
   };
 }
 
-function isServerEntry(source: string): boolean {
-  return (
-    source.includes("/server") ||
-    source.includes("/static")
-  );
+/**
+ * Ensure `node_modules/react-server-dom-esm` links to the vendored copy.
+ * Only creates a symlink if no real install exists. Safe to call multiple times.
+ */
+function ensureVendoredPackageLinked(root?: string): void {
+  const pkg = join(ossDir, "react-server-dom-esm");
+  const target = join(root ?? process.cwd(), "node_modules", "react-server-dom-esm");
+  try {
+    const stat = (() => { try { return lstatSync(target); } catch { return null; } })();
+    if (stat?.isSymbolicLink()) {
+      // Update symlink if it points elsewhere
+      if (readlinkSync(target) !== pkg) {
+        unlinkSync(target);
+        symlinkSync(pkg, target, "junction");
+      }
+    } else if (!stat) {
+      // No existing file — create symlink
+      symlinkSync(pkg, target, "junction");
+    }
+    // If a real directory/file exists (user installed it), leave it alone
+  } catch {
+    // Non-fatal: symlink creation can fail on some systems
+  }
 }
 
-// Explicit subpath → file mapping for Vite's module graph.
-// Vite doesn't use package.json exports, so we mirror the vendored
-// package's export map here. Server/static resolve to .node variants
-// (the vendored package.json exports do the same via default condition).
+function isServerEntry(source: string): boolean {
+  return source.includes("/server") || source.includes("/static");
+}
+
 const subpathMap: Record<string, string> = {
   "react-server-dom-esm":                "index.js",
   "react-server-dom-esm/client":         "client.js",
@@ -105,10 +119,7 @@ const subpathMap: Record<string, string> = {
 
 function resolveVendored(source: string): string {
   const file = subpathMap[source];
-  if (file) {
-    return join(ossDir, "react-server-dom-esm", file);
-  }
-  // Fallback for unknown subpaths
+  if (file) return join(ossDir, "react-server-dom-esm", file);
   const subpath = source.replace("react-server-dom-esm", "");
   return join(ossDir, "react-server-dom-esm", subpath || "index.js");
 }
