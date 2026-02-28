@@ -609,18 +609,20 @@ export const config = {
 
 ### Type Safety
 
-Add the plugin's environment types to your `tsconfig.json`:
+Add the plugin's type declarations to your `tsconfig.json`:
 
 ```json
 {
   "compilerOptions": {
-    "types": ["vite-plugin-react-server/env"]
+    "types": ["vite-plugin-react-server/virtual"]
   }
 }
 ```
 
-This provides type definitions for `import.meta.env.PUBLIC_ORIGIN` and other
-environment variables used by the plugin.
+This provides:
+- `import.meta.env.PUBLIC_ORIGIN` type
+- `virtual:react-server/hmr` module types (`useRscHmr`, `setupRscHmr`)
+- Typed custom HMR events for `import.meta.hot`
 
 Always use TypeScript for better type safety:
 
