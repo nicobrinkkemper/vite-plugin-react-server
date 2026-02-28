@@ -2854,7 +2854,7 @@
       var existingPromise = asyncModuleCache.get(metadata.specifier);
       if (existingPromise)
         return "fulfilled" === existingPromise.status ? null : existingPromise;
-      var modulePromise = import(metadata.specifier);
+      var modulePromise = import(/* @vite-ignore */ metadata.specifier);
       modulePromise.then(
         function (value) {
           modulePromise.status = "fulfilled";

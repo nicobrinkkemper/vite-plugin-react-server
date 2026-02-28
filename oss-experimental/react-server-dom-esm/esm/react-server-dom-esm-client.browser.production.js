@@ -55,7 +55,7 @@ function preloadModule(metadata) {
     return existingPromise;
   } else {
     // $FlowFixMe[unsupported-syntax]
-    const modulePromise = import(metadata.specifier);
+    const modulePromise = import(/* @vite-ignore */ metadata.specifier);
     modulePromise.then(value => {
       const fulfilledThenable = modulePromise;
       fulfilledThenable.status = 'fulfilled';
