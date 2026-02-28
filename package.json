@@ -43,7 +43,9 @@
     "./stream": "./dist/plugin/stream/index.js",
     "./stream/client": "./dist/plugin/stream/index.client.js",
     "./stream/server": "./dist/plugin/stream/index.server.js",
-    "./env": "./dist/plugin/env/plugin.js",
+    "./env": {
+      "types": "./env.d.ts"
+    },
     "./config": "./dist/plugin/config/index.js",
     "./error": "./dist/plugin/error/index.js",
     "./vendor": "./dist/plugin/vendor/index.js",

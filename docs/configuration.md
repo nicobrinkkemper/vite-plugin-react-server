@@ -609,6 +609,19 @@ export const config = {
 
 ### Type Safety
 
+Add the plugin's environment types to your `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "types": ["vite-plugin-react-server/env"]
+  }
+}
+```
+
+This provides type definitions for `import.meta.env.PUBLIC_ORIGIN` and other
+environment variables used by the plugin.
+
 Always use TypeScript for better type safety:
 
 ```tsx
