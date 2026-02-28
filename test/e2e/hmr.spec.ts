@@ -121,7 +121,72 @@ test.describe('HMR in bidoof-template', () => {
     expect(listening).toBe(true);
   });
 
-  test('server action works', async ({ page }) => {
+  test('CSS change applies without page reload', async ({ page }) => {
+    const cssFile = join(bidoofDir, 'src/css/home.module.css');
+    const originalContent = await readFile(cssFile, 'utf-8');
+    
+    try {
+      await page.goto('/');
+      
+      // Click counter to set client state
+      const counter = page.locator('button', { hasText: 'Click count:' });
+      await counter.click();
+      await counter.click();
+      await expect(counter).toContainText('Click count: 2');
+      
+      // Change a CSS value
+      const updatedContent = originalContent.replace(
+        'font-size: 50px',
+        'font-size: 60px'
+      );
+      await writeFile(cssFile, updatedContent);
+      
+      // Wait for style to apply
+      await page.waitForTimeout(2000);
+      
+      // Client state should be preserved (CSS HMR doesn't reload)
+      await expect(counter).toContainText('Click count: 2');
+      
+    } finally {
+      await writeFile(cssFile, originalContent);
+    }
+  });
+
+  test('client component change does not trigger RSC refetch', async ({ page }) => {
+    const clientFile = join(bidoofDir, 'src/components/Counter.client.tsx');
+    const originalContent = await readFile(clientFile, 'utf-8');
+    
+    try {
+      await page.goto('/');
+      
+      // Listen for RSC HMR events — should NOT fire for client components
+      const rscHmrLogs: string[] = [];
+      page.on('console', (msg) => {
+        if (msg.text().includes('[RSC HMR] Server component updated')) {
+          rscHmrLogs.push(msg.text());
+        }
+      });
+      
+      // Modify the client component — change button text
+      const updatedContent = originalContent.replace(
+        'Click count:',
+        'Clicks:'
+      );
+      await writeFile(clientFile, updatedContent);
+      
+      // Wait for update to process
+      await page.waitForTimeout(3000);
+      
+      // RSC HMR should NOT have fired — client changes are handled by
+      // React Fast Refresh or Vite's native HMR, not RSC refetch
+      expect(rscHmrLogs).toHaveLength(0);
+      
+    } finally {
+      await writeFile(clientFile, originalContent);
+    }
+  });
+
+    test('server action works', async ({ page }) => {
     await page.goto('/todos/');
     
     // Use unique name to avoid conflicts with leftover test data

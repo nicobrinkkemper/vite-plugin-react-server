@@ -2,6 +2,7 @@ import type { StreamPluginOptions } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import type { Plugin, ViteDevServer } from "vite";
+import { readFileSync } from "node:fs";
 
 /**
  * Dev server plugin for server environment.
@@ -30,10 +31,19 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       const moduleBase = userOptions.moduleBase || "src";
       const projectRoot = userOptions.projectRoot || server.config.root;
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
-      const isServerFile = normalizedFile.startsWith(moduleBase + '/') && 
+      const isSourceFile = normalizedFile.startsWith(moduleBase + '/') && 
         (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
       
-      if (isServerFile) {
+      // Skip client components — let @vitejs/plugin-react handle them
+      // with Fast Refresh (preserves component-level state).
+      const isClientFile = isSourceFile && (() => {
+        try {
+          const head = readFileSync(file, 'utf-8').slice(0, 200);
+          return /^\s*["']use client["']/.test(head.split('\n')[0]);
+        } catch { return false; }
+      })();
+      
+      if (isSourceFile && !isClientFile) {
         server.config.logger.info(`[vite-plugin-react-server] Server component changed: ${normalizedFile}`);
         
         // Send custom HMR event so client can refetch RSC stream
