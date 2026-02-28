@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
@@ -84,11 +85,21 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       // Normalize paths for comparison (handle both absolute and relative)
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
-      const isServerFile = normalizedFile.startsWith(moduleBase + '/') && 
+      const isSourceFile = normalizedFile.startsWith(moduleBase + '/') && 
         (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
       
+      // Skip client components — let @vitejs/plugin-react handle them with Fast Refresh
+      const isClientFile = isSourceFile && (() => {
+        try {
+          const head = readFileSync(file, 'utf-8').slice(0, 200);
+          return /^\s*["']use client["']/.test(head.split('\n')[0]);
+        } catch { return false; }
+      })();
+      
+      const isServerFile = isSourceFile && !isClientFile;
+      
       // Always log for debugging
-      server.config.logger.info(`[vite-plugin-react-server] handleHotUpdate: file=${file}, normalized=${normalizedFile}, isServerFile=${isServerFile}, hasHandler=${!!hmrHandler}`);
+      server.config.logger.info(`[vite-plugin-react-server] handleHotUpdate: file=${file}, normalized=${normalizedFile}, isServerFile=${isServerFile}, isClientFile=${isClientFile}, hasHandler=${!!hmrHandler}`);
       
       if (isServerFile && hmrHandler) {
         isProcessingHmr = true;

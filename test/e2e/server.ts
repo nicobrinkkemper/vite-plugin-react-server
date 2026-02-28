@@ -30,6 +30,8 @@ async function main() {
       BASE_URL: '/',
       PUBLIC_ORIGIN: 'http://localhost:3200',
       FORCE_COLOR: '1',
+      CHOKIDAR_USEPOLLING: 'true',
+      CHOKIDAR_INTERVAL: '500',
     },
   });
   

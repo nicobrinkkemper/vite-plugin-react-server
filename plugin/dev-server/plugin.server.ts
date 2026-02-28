@@ -27,6 +27,56 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
     name: "vite-plugin-react-server:server-hmr",
     apply: "serve" as const,
     // Server-level handleHotUpdate — sends custom WS event to client
+    // Vite 6 Environment API: hotUpdate runs per-environment.
+    // Prevent server/ssr environments from triggering page reload for client components.
+    hotUpdate(ctx: any) {
+      const { file, server } = ctx;
+      const envName = ctx.environment?.name ?? 'unknown';
+      
+      const moduleBase = userOptions.moduleBase || "src";
+      const projectRoot = userOptions.projectRoot || server?.config?.root || '';
+      const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
+      const isSourceFile = normalizedFile.startsWith(moduleBase + '/');
+      
+      if (!isSourceFile) return;
+      
+      // Client environment: let Vite/@vitejs/plugin-react handle it
+      if (envName === 'client') {
+        // Check if it's a client component — let Fast Refresh handle it
+        const isClient = (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js')) && (() => {
+          try {
+            const head = readFileSync(file, 'utf-8').slice(0, 200);
+            return /^\s*["']use client["']/.test(head.split('\n')[0]);
+          } catch { return false; }
+        })();
+        
+        if (isClient) return; // Let Fast Refresh handle client components
+        
+        // Server component changed — send RSC refetch event to client
+        // Only do this once (from client env) to avoid duplicate events
+        server.config.logger.info(`[vite-plugin-react-server] Server component changed: ${normalizedFile}`);
+        server.ws.send({
+          type: 'custom',
+          event: 'vite-plugin-react-server:server-component-update',
+          data: { file: normalizedFile, path: file },
+        });
+        
+        return []; // Don't trigger client-side page reload
+      }
+      
+      // Server/SSR environments: suppress page reload for all source files
+      // Server components are handled by the RSC refetch event sent above
+      // Invalidate the server module so next RSC request gets fresh content
+      if (envName === 'server') {
+        const mod = ctx.environment?.moduleGraph?.getModulesByFile(file);
+        if (mod) {
+          for (const m of mod) {
+            ctx.environment.moduleGraph.invalidateModule(m);
+          }
+        }
+      }
+      return [];
+    },
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
       const moduleBase = userOptions.moduleBase || "src";
       const projectRoot = userOptions.projectRoot || server.config.root;
@@ -68,13 +118,20 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
         // The client will refetch the RSC stream via the custom event
         return [];
       }
+      
+      if (isClientFile) {
+        // Client components are handled by @vitejs/plugin-react (Fast Refresh)
+        // or Vite's client-side HMR. Return empty to prevent the server
+        // environment from triggering a full page reload.
+        return [];
+      }
     },
   };
 
   const serverPlugin = {
     name: "vite-plugin-react-server:dev-server-server",
     apply: "serve" as const,
-    applyToEnvironment(partialEnvironment: any) {
+applyToEnvironment(partialEnvironment: any) {
       return partialEnvironment?.consumer === 'server';
     },
     configureServer(server: ViteDevServer) {
