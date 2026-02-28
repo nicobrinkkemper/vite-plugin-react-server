@@ -54,7 +54,7 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
         
         // Server component changed — send RSC refetch event to client
         // Only do this once (from client env) to avoid duplicate events
-        server.config.logger.info(`[vite-plugin-react-server] Server component changed: ${normalizedFile}`);
+        server.config.logger.info(`[vite-plugin-react-server] File changed (RSC refetch): ${normalizedFile}`);
         server.ws.send({
           type: 'custom',
           event: 'vite-plugin-react-server:server-component-update',
@@ -94,7 +94,7 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       })();
       
       if (isSourceFile && !isClientFile) {
-        server.config.logger.info(`[vite-plugin-react-server] Server component changed: ${normalizedFile}`);
+        server.config.logger.info(`[vite-plugin-react-server] File changed (RSC refetch): ${normalizedFile}`);
         
         // Send custom HMR event so client can refetch RSC stream
         server.ws.send({
