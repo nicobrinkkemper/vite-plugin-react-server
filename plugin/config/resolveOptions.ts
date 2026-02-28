@@ -668,6 +668,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     useHtmlWorker: options.build?.useHtmlWorker ?? 
       // Force useHtmlWorker to true when build.pages is explicitly configured, regardless of default logic
       (options.build?.pages && (Array.isArray(options.build.pages) || typeof options.build.pages === 'function')) ? true : DEFAULT_CONFIG.BUILD.useHtmlWorker,
+    renderMode: options.build?.renderMode ?? "parallel",
+    batchSize: options.build?.batchSize ?? 8,
   } satisfies ResolvedUserOptions["build"];
 
   // Development configuration

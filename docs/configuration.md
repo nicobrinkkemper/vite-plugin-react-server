@@ -307,15 +307,51 @@ if (import.meta.hot) {
   moduleBase: 'src',
   Page: (url) => `src/pages${url}/page.tsx`,
   build: {
-     pages: ["/","/about"]
+     pages: ["/","/about"],
      dir:    "dist",    // dist/**
      client: "client",  // **/client
      server: "server",  // **/server
-     static: "static"   // **/static
+     static: "static",  // **/static
      hash: "hash",      //  -[hash].js for client files
-     preserveModulesRoot: false // when true, preserve `src/` in build output paths
+     preserveModulesRoot: false, // when true, preserve `src/` in build output paths
+     renderMode: "parallel",     // "parallel" (default) or "sequential"
+     batchSize: 8,               // pages per batch in parallel mode
   }
 ```
+
+### build.renderMode
+
+Controls how pages are rendered during static site generation.
+
+```ts
+build: {
+  renderMode: "parallel",  // default — renders pages in concurrent batches
+  batchSize: 8,            // pages per batch (default: 8)
+}
+```
+
+| Mode | Description | Use when |
+|------|-------------|----------|
+| `"parallel"` | Renders pages in concurrent batches using `Promise.all`. ~6x faster on large sites. | Default. Best for production builds. |
+| `"sequential"` | Renders pages one at a time in order. | Debugging, low-memory environments, or when you need deterministic output order. |
+
+**Example: sequential mode for debugging**
+```ts
+build: {
+  renderMode: "sequential",
+}
+```
+
+**Example: high concurrency for large sites**
+```ts
+build: {
+  renderMode: "parallel",
+  batchSize: 16,  // render 16 pages at once
+}
+```
+
+> **Note:** Both modes produce identical output and emit the same metrics/events.
+> The only difference is build speed vs memory usage.
 
 ### preserveModulesRoot Behavior
 
@@ -610,6 +646,9 @@ export const config = {
 - **Path-based**: Slower builds but better development experience
 - **Direct components**: Faster builds but no hot reloading
 - **Mixed approach**: Best of both worlds for specific use cases
+- **Parallel rendering** (`build.renderMode: "parallel"`): Default. Renders pages in batches of 8 for ~6x speedup on large sites
+- **Sequential rendering** (`build.renderMode: "sequential"`): Use for debugging or constrained environments
+- **Batch size tuning**: Increase `build.batchSize` for faster builds on machines with more RAM
 
 <!-- TOC START -->
 

@@ -1102,6 +1102,21 @@ export type BuildConfig = {
   rscExtension?: string;
   cssModuleExtension?: string;
   nodeExtension?: string;
+  /**
+   * Controls how pages are rendered during static generation.
+   *
+   * - `"parallel"` (default): Renders pages in concurrent batches for faster builds.
+   *   Use `batchSize` to control concurrency (default: 8).
+   * - `"sequential"`: Renders pages one at a time. Slower but uses less memory
+   *   and produces deterministic output order.
+   */
+  renderMode?: "parallel" | "sequential";
+  /**
+   * Number of pages to render concurrently when `renderMode` is `"parallel"`.
+   * Higher values use more memory but build faster.
+   * @default 8
+   */
+  batchSize?: number;
 };
 
 export type DevConfig = {

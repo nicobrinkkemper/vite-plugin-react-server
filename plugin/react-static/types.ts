@@ -133,6 +133,7 @@ export type RenderPagesHandlerOptions = Omit<
   cssFilesByPage: Map<string, Map<string, CssContent>>;
   serverPipeableStreamOptions: any;
   staticManifest?: Manifest; // Static manifest for consistent module IDs
+  batchSize?: number; // Concurrency for parallel rendering
 };
 
 export type RenderPagesFn = (

@@ -31,7 +31,8 @@ import type {
   AutoDiscoveredFiles,
   VitePluginFn,
 } from "../types.js";
-import { renderPagesBatched as renderPages } from "./renderPagesBatched.js";
+import { renderPagesBatched } from "./renderPagesBatched.js";
+import { renderPages as renderPagesSequential } from "./renderPages.js";
 import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { createWorker } from "../worker/createWorker.js";
 import {
@@ -445,6 +446,14 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           }
         }
 
+        // Select render mode based on build config
+        const renderMode = userOptions.build?.renderMode ?? "parallel";
+        const renderPages = renderMode === "sequential" ? renderPagesSequential : renderPagesBatched;
+
+        if (userOptions.verbose) {
+          logger.info(`[static] Using ${renderMode} rendering${renderMode === "parallel" ? ` (batch size: ${userOptions.build?.batchSize ?? 8})` : ""}`);
+        }
+
         // this will render the routes
         const renderPagesGenerator = renderPages(
           routes,
@@ -465,6 +474,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             staticManifest: staticManifest, // Pass static manifest for path resolution
             autoDiscoveredFiles: autoDiscoveredFiles!,
             cssFilesByPage: cssFilesByPage,
+            batchSize: userOptions.build?.batchSize,
           },
           renderPage
         );

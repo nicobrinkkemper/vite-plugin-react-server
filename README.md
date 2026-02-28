@@ -266,6 +266,20 @@ export function TodoForm() {
 }
 ```
 
+### Parallel Rendering
+
+Pages are rendered in parallel batches by default for faster builds:
+
+```ts
+build: {
+  pages: ["/", "/about", "/contact", ...hundredsOfPages],
+  renderMode: "parallel",  // default
+  batchSize: 8,            // pages per batch
+}
+```
+
+Use `renderMode: "sequential"` for debugging or low-memory environments.
+
 ### Client Components
 
 ```tsx
