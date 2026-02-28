@@ -15,39 +15,110 @@ test.describe('HMR in bidoof-template', () => {
     await expect(page.locator('h1')).toContainText('Todo');
   });
 
-  test('page updates without full reload when server component changes', async ({ page }) => {
+  test('server component change triggers RSC refetch (not full reload)', async ({ page }) => {
+    const pageFile = join(bidoofDir, 'src/page/page.tsx');
+    const originalContent = await readFile(pageFile, 'utf-8');
+    
+    try {
+      await page.goto('/');
+      
+      // Verify initial content
+      await expect(page.locator('h1')).toContainText('vite-plugin-react-server demo');
+      
+      // Click the counter a few times to set client state
+      const counter = page.locator('button', { hasText: 'Click count:' });
+      await counter.click();
+      await counter.click();
+      await counter.click();
+      await expect(counter).toContainText('Click count: 3');
+      
+      // Listen for the RSC HMR console log
+      const hmrLogs: string[] = [];
+      page.on('console', (msg) => {
+        if (msg.text().includes('[RSC HMR]')) {
+          hmrLogs.push(msg.text());
+        }
+      });
+      
+      // Modify the server component — add a visible marker
+      const updatedContent = originalContent.replace(
+        'vite-plugin-react-server demo',
+        'vite-plugin-react-server demo (HMR TEST)'
+      );
+      await writeFile(pageFile, updatedContent);
+      
+      // Wait for the RSC HMR update to apply
+      await expect(page.locator('h1')).toContainText('HMR TEST', { timeout: 15000 });
+      
+      // CRITICAL: Client state must be preserved — this proves RSC refetch,
+      // not a full page reload (which would reset the counter to 0)
+      await expect(counter).toContainText('Click count: 3');
+      
+      // Verify the RSC HMR hook fired (not a full page reload)
+      expect(hmrLogs.some(log => log.includes('Server component updated'))).toBe(true);
+      
+    } finally {
+      await writeFile(pageFile, originalContent);
+    }
+  });
+
+  test('server component change updates todos page', async ({ page }) => {
     const pageFile = join(bidoofDir, 'src/page/todos/page.tsx');
     const originalContent = await readFile(pageFile, 'utf-8');
     
     try {
       await page.goto('/todos/');
       
-      // Verify initial content - page renders the TodoList
+      // Verify initial content
       await expect(page.locator('h1')).toContainText('Todo');
       
       // Verify the marker doesn't exist yet
       await expect(page.locator('[data-testid="hmr-marker"]')).toHaveCount(0);
 
-      // Modify the server component - add a visible marker element
+      // Modify the server component — add a visible marker element
       const updatedContent = originalContent.replace(
         '<Link to="/" className={styles["Link"]}> back </Link>',
         '<Link to="/" className={styles["Link"]}> back </Link>\n      <div data-testid="hmr-marker">HMR Updated</div>'
       );
       await writeFile(pageFile, updatedContent);
       
-      // Give the file watcher time to detect the change
-      await page.waitForTimeout(1000);
-
-      // Server components trigger a full page reload ("program reload")
+      // Wait for the update
       await page.waitForSelector('[data-testid="hmr-marker"]', { timeout: 15000 });
-      
-      // Verify the marker appeared
       await expect(page.locator('[data-testid="hmr-marker"]')).toContainText('HMR Updated');
       
     } finally {
-      // Restore original file
       await writeFile(pageFile, originalContent);
     }
+  });
+
+  test('useRscHmr hook registers listener', async ({ page }) => {
+    // Register console listener BEFORE navigation so we catch early logs
+    const consoleLogs: string[] = [];
+    page.on('console', (msg) => consoleLogs.push(msg.text()));
+    
+    await page.goto('/');
+    // Give React time to mount and run effects
+    await page.waitForTimeout(2000);
+    
+    // The useRscHmr hook logs when it starts listening
+    expect(consoleLogs.some(log => log.includes('[RSC HMR] Listening'))).toBe(true);
+  });
+
+  test('import.meta.hot is preserved in compiled useRscHmr', async ({ page }) => {
+    // This test catches the bug where import.meta.hot was stripped during
+    // the plugin's library build, making useRscHmr a dead no-op function.
+    // If import.meta.hot was stripped, the useEffect body becomes just "return;"
+    // and no "[RSC HMR] Listening" log is emitted.
+    const consoleLogs: string[] = [];
+    page.on('console', (msg) => consoleLogs.push(msg.text()));
+    
+    await page.goto('/');
+    await page.waitForTimeout(2000);
+    
+    // The hook should log "Listening" — this proves import.meta.hot exists
+    // and the useEffect body wasn't dead-code-eliminated
+    const listening = consoleLogs.some(log => log.includes('[RSC HMR] Listening'));
+    expect(listening).toBe(true);
   });
 
   test('server action works', async ({ page }) => {
