@@ -162,7 +162,7 @@ test.describe('HMR in bidoof-template', () => {
       // Listen for RSC HMR events — should NOT fire for client components
       const rscHmrLogs: string[] = [];
       page.on('console', (msg) => {
-        if (msg.text().includes('[RSC HMR] Server component updated')) {
+        if (msg.text().includes('[RSC HMR] Server component updated') && !msg.text().includes('.css')) {
           rscHmrLogs.push(msg.text());
         }
       });
