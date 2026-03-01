@@ -191,8 +191,8 @@ This clones `facebook/react`, builds the ESM transport, and copies it to `oss-ex
 
 ### React Version Requirements
 
-- **Peer dependency**: `react >= 0.0.0-experimental-0` (any experimental build)
-- **Recommended**: `react@experimental` and `react-dom@experimental`
+- **Peer dependency**: `react >= 0.0.0-experimental-0` (React 19+ or experimental)
+- **Recommended**: `react@19` and `react-dom@19` (or `react@experimental` for latest features)
 - The plugin fixes CJS React named imports in both the server environment and RSC worker
 
 ### Package Exports for Patch
@@ -286,7 +286,7 @@ function TodoList() {
 
 ## Compatibility
 
-This plugin **requires React experimental builds**. Stable React 18/19 releases do not include `react-server-dom-esm` support.
+This plugin works with React 19+ stable or experimental builds. The ESM transport (`react-server-dom-esm`) is vendored — consumers do not need to install it.
 
 | React Version | Support | Notes |
 |---------------|---------|-------|

@@ -8,7 +8,7 @@ This guide will help you get up and running with the Vite React Server Plugin qu
 npm install -D vite-plugin-react-server react@experimental react-dom@experimental
 ```
 
-> **React version**: The plugin requires React experimental builds. Peer dependency is `react >= 0.0.0-experimental-0`. The ESM transport (`react-server-dom-esm`) is vendored with the plugin — no separate install needed.
+> **React version**: Requires React 19+ or React experimental builds. The ESM transport (`react-server-dom-esm`) is vendored with the plugin — no separate install needed.
 
 ## Basic Setup
 
