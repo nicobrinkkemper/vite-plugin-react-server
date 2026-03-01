@@ -162,7 +162,7 @@ export const Page = ({ title, content, metadata }: PageProps) => (
 
 ## Vendored ESM Transport
 
-Since v1.3.0, the plugin **ships `react-server-dom-esm` built from React's experimental channel**. You no longer need to install it separately or use `patch-package`.
+Since v1.3.0, the plugin **vendors `react-server-dom-esm`** (built from React source). No separate install needed.
 
 ### How It Works
 
@@ -197,7 +197,7 @@ This clones `facebook/react`, builds the ESM transport, and copies it to `oss-ex
 
 ### Package Exports for Patch
 
-The patch script is still available via the `./patch` export for plugin maintainers:
+A patch script is available via the `./patch` export for plugin maintainers:
 
 ```json
 {
@@ -211,9 +211,9 @@ For most users, no patching is needed — the vendored copy works out of the box
 
 ### Updating React Versions
 
-When updating to a new React experimental version:
+When updating React:
 
-1. **Install the new version**: `npm install react@experimental react-dom@experimental`
+1. **Install the new version**: `npm install react@19 react-dom@19` (or `react@experimental` for bleeding edge)
 2. **Test builds**: Verify all build modes work correctly
 3. **Run tests**: `npm test` to ensure compatibility
 
@@ -290,13 +290,13 @@ This plugin works with React 19+ stable or experimental builds. The ESM transpor
 
 | React Version | Support | Notes |
 |---------------|---------|-------|
-| `react@experimental` | ✅ Full Support | Recommended |
-| React 19 stable | ❌ Not supported | Missing RSC ESM APIs |
-| React 18 stable | ❌ Not supported | Missing RSC ESM APIs |
+| React 19+ stable | ✅ Full Support | Recommended |
+| `react@experimental` | ✅ Full Support | Bleeding edge features |
+| React 18 stable | ❌ Not supported | Missing RSC APIs |
 
-Install the correct version:
+Install:
 ```bash
-npm install react@experimental react-dom@experimental
+npm install react@19 react-dom@19
 ```
 
 ## Troubleshooting

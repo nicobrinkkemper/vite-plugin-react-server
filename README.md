@@ -16,7 +16,7 @@ A Vite plugin that enables React Server Components (RSC) streaming and static HT
 ## Quick Start
 
 ```sh
-npm install -D vite-plugin-react-server react@experimental react-dom@experimental
+npm install -D vite-plugin-react-server react@19 react-dom@19
 ```
 
 **Minimal Config:**
