@@ -61,4 +61,4 @@ These could be lazy-initialized but the overhead is minimal since they're create
 2. **Port pooling**: Reuse data/control port pairs across requests instead of creating new ones.
 3. **Lazy loader channels**: Only create `cssLoaderChannel`/`envLoaderChannel` when first needed.
 
-None of these are urgent since the default dev mode doesn't use workers at all, and production builds process pages sequentially during static generation.
+None of these are urgent since the default dev mode doesn't use workers at all. Production builds use parallel rendering (batch size 8 by default), but each page gets its own worker which is terminated after use.
