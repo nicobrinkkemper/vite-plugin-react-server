@@ -73,7 +73,13 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         resolvedConfig: server.config,
       });
     },
-    handleHotUpdate({ file, server }) {
+    hotUpdate(ctx: any) {
+      const { file, server } = ctx;
+      const envName = ctx.environment?.name ?? 'unknown';
+      
+      // Only run worker invalidation from the client environment (once per change)
+      if (envName !== 'client') return;
+      
       // Prevent recursive HMR updates
       if (isProcessingHmr) {
         return undefined;
@@ -152,8 +158,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         server.config.logger.warn(`[vite-plugin-react-server] Server file changed but HMR handler not available yet: ${file}`);
       }
       
-      // Return undefined to allow other plugins to handle the update
-      return undefined;
+      // Don't suppress — plugin.server.ts hotUpdate handles page reload prevention
     },
   };
 };
