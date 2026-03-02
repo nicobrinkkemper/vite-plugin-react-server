@@ -12,9 +12,9 @@ Welcome to the documentation for the Vite React Server Plugin. This plugin enabl
 4.	[CSS & Styling](./css-handling.md)
 5.	[Server Actions](./server-actions.md)
 6.	[Build & Deployment](./build-orchestration.md)
-7.	[Advanced Development](./advanced-topics.md)
-8.	[Plugin Internals](./transformer-plugin.md)
-9.	[Worker System](./rsc-worker.md)
+7.	[Advanced Development](./maintenance/advanced-topics.md)
+8.	[Plugin Internals](./maintenance/transformer-plugin.md)
+9.	[Worker System](./maintenance/rsc-worker.md)
 10.	[API Reference](./api-reference.md)
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)
@@ -108,13 +108,13 @@ The documentation has been consolidated into 14 focused chapters to reduce redun
 The plugin is composed of several specialized modules, each with their own documentation:
 
 ### Core Transformation
-- **[Plugin Internals](./transformer-plugin.md)** - Core React Server Components transformation logic
+- **[Plugin Internals](./maintenance/transformer-plugin.md)** - Core React Server Components transformation logic
   - AST-based module transformation
   - Environment-specific directive handling
   - Client/server boundary management
 
 ### Worker System
-- **[Worker System](./rsc-worker.md)** - React Server Components and HTML processing workers
+- **[Worker System](./maintenance/rsc-worker.md)** - React Server Components and HTML processing workers
   - Server condition access in client environments
   - Message-based RSC streaming
   - Custom worker extensibility

@@ -553,9 +553,9 @@ Backpressure warnings help identify performance bottlenecks and potential memory
 4.	[CSS & Styling](./css-handling.md)
 5.	[Server Actions](./server-actions.md)
 6.	[Build & Deployment](./build-orchestration.md)
-7.	[Advanced Development](./advanced-topics.md)
-8.	[Plugin Internals](./transformer-plugin.md)
-9.	[Worker System](./rsc-worker.md)
+7.	[Advanced Development](./maintenance/advanced-topics.md)
+8.	[Plugin Internals](./maintenance/transformer-plugin.md)
+9.	[Worker System](./maintenance/rsc-worker.md)
 10.	**[API Reference](./api-reference.md) ← you are here**
 11.	[React Compatibility](./react-type-compatibility.md)
 12.	[Troubleshooting](./troubleshooting-guide.md)

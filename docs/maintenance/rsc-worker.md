@@ -2,7 +2,7 @@
 
 This guide covers the worker system implementation, including RSC workers, HTML workers, and worker communication patterns.
 
-> **Note**: In development mode (`dev:rsc`), the RSC worker is **skipped by default**. RSC rendering happens directly on the main thread using Vite's environment runner, which provides proper HMR support. Set `dev.useRscWorker: true` to use the worker in dev mode. See [Configuration Guide](./configuration.md#devuserscworker) for details.
+> **Note**: In development mode (`dev:rsc`), the RSC worker is **skipped by default**. RSC rendering happens directly on the main thread using Vite's environment runner, which provides proper HMR support. Set `dev.useRscWorker: true` to use the worker in dev mode. See [Configuration Guide](../configuration.md#devuserscworker) for details.
 
 ## Worker System
 
@@ -787,24 +787,24 @@ describe('RSC Worker', () => {
 
 
 
-1.	[Getting Started](./getting-started.md)
-2.	[Core Concepts](./core-concepts.md)
-3.	[Configuration Guide](./configuration.md)
-4.	[CSS & Styling](./css-handling.md)
-5.	[Server Actions](./server-actions.md)
-6.	[Build & Deployment](./build-orchestration.md)
+1.	[Getting Started](../getting-started.md)
+2.	[Core Concepts](../core-concepts.md)
+3.	[Configuration Guide](../configuration.md)
+4.	[CSS & Styling](../css-handling.md)
+5.	[Server Actions](../server-actions.md)
+6.	[Build & Deployment](../build-orchestration.md)
 7.	[Advanced Development](./advanced-topics.md)
 8.	[Plugin Internals](./transformer-plugin.md)
 9.	**[Worker System](./rsc-worker.md) ← you are here**
-10.	[API Reference](./api-reference.md)
-11.	[React Compatibility](./react-type-compatibility.md)
-12.	[Troubleshooting](./troubleshooting-guide.md)
-13.	[Package Exports](./package-exports.md)
-14.	[Transformations](./transformations.md)
+10.	[API Reference](../api-reference.md)
+11.	[React Compatibility](../react-type-compatibility.md)
+12.	[Troubleshooting](../troubleshooting-guide.md)
+13.	[Package Exports](../package-exports.md)
+14.	[Transformations](../transformations.md)
 
 ### Quick Links
-- [🏠 Main Documentation](./README.md)
-- [🚀 Getting Started](./getting-started.md)
+- [🏠 Main Documentation](../README.md)
+- [🚀 Getting Started](../getting-started.md)
 - [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
 - [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
 
