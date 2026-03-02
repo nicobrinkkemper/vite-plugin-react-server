@@ -46,32 +46,3 @@ export function createReactElement(
 /**
  * Pure function for storing headless stream data
  */
-export function storeHeadlessStreamData(
-  context: RscRenderContext,
-  finalOptions: CreateHandlerOptions
-): void {
-  // Determine if this is a headless stream by checking if htmlPath is empty
-  const isHeadless = finalOptions.htmlPath === "";
-
-  if (
-    context.headlessStreamElements &&
-    isHeadless &&
-    !context.headlessStreamErrors?.has(context.route)
-  ) {
-    // Store the rendered elements for reuse
-    const element = createElementWithReact(React, {
-      ...finalOptions,
-      Html: React.Fragment,
-      as: React.Fragment,
-    });
-    context.headlessStreamElements.set(context.id, {
-      elements: element,
-      errored: false,
-    });
-  }
-}
-
-export const createRscRenderHelpers = {
-  createReactElement,
-  storeHeadlessStreamData,
-};

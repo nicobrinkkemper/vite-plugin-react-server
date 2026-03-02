@@ -1,6 +1,5 @@
 export * from "./addLocalExportedNames.js";
 export * from "./getExports.js";
-export * from "./collectExportsFromModule.js";
 export * from "./analyzeDirectives.js";
 export * from "./analyzeModule.js";
 export * from "./collectExports.js";
