@@ -1,45 +1,75 @@
 # Error Handling
 
-## Current State
+The plugin has a structured error system in `plugin/error/`. Here's how it works.
 
-The plugin uses standard `throw new Error()` and `try/catch` — there are no custom error classes, error codes, or centralized error handlers.
+## Panic Threshold
 
-## Error Patterns in Use
+The central concept is `panicThreshold` — a config option that controls whether errors stop the build or get swallowed:
 
-### Loader Errors (compile time)
+| Value | Behavior |
+|-------|----------|
+| `"none"` | Log errors, continue processing (default in dev) |
+| `"critical_errors"` | Only throw errors marked as `critical` |
+| `"all_errors"` | Throw on any error |
 
-The transformer generates runtime throw stubs for cross-boundary misuse:
+Errors marked for panic carry `Symbol.for('vite-plugin-react-server.panic')`. Use `isPanic(error)` or `assertPanic(error)` to check/throw.
 
-```typescript
-// Server component imported on client → throws at call site
-export const Foo = registerClientReference(
-  function() { throw new Error("Attempted to call Foo() on the client"); },
-  "src/Foo.tsx", "Foo"
-);
+## Error Flow
 
-// Client entry called from server
-throw new Error('Client entry point was called from the server...');
+### Stream errors (RSC + HTML rendering)
+
+`createRenderToPipeableStreamHandler.server.ts` is the main consumer. React's `onError` and `onShellError` callbacks feed into `handleError()`:
+
+```
+React onError/onShellError
+  → handleError({ error, errorInfo, panicThreshold, critical })
+    → toError(error)         — normalize unknown → Error
+    → logError(err, logger)  — format and log via Vite logger
+    → if should panic: mark with PANIC_SYMBOL, return error to throw
+    → else: return null (continue)
 ```
 
-### Configuration Errors (startup)
+### Worker errors (production builds)
 
-Loaders (`react-loader.ts`, `css-loader.ts`, `env-loader.ts`) validate resolved options and throw early:
+Workers serialize errors across the thread boundary:
 
-```typescript
-if (resolvedUserOptions.error) {
-  throw resolvedUserOptions.error;
-}
+```
+Worker thread: serializeError(error) + serializeErrorInfo(errorInfo)
+  → post message to main thread
+Main thread: toError(serialized) → handleError(...)
 ```
 
-### Stream Errors (build time)
+`serializeError` extracts `message`, `stack`, `name`, `cause`, `breadcrumbs` and the panic symbol into a plain object. `serializeErrorInfo` extracts React's `componentStack` and `digest`.
 
-`createRenderToPipeableStreamHandler` logs render errors via `logger?.error()` and lets them propagate through the stream pipeline. No recovery is attempted — a failed page fails the build.
+### Directive errors (compile time)
 
-### Directive Warnings
+`createTransformer.ts` checks `panicThreshold`:
+- `"none"` in dev: directive warnings logged, not thrown
+- Otherwise: `throw new Error(warning.message)`
 
-`analyzeDirectives.ts` collects warnings for misplaced directives (e.g. `"use client"` inside a function body). In strict mode, warnings become thrown errors:
+Error constants live in `directiveError.ts` (`DIRECTIVE_ERRORS.FILE_LEVEL`, `DIRECTIVE_ERRORS.FUNCTION_LEVEL`).
 
-```typescript
-throw new Error(warning.message);
-```
+### Global handler
 
+`setupGlobalErrorHandler` (used in `configureRequestHandler.client.ts`) attaches `uncaughtException` and `unhandledRejection` handlers during dev server lifetime. `cleanupGlobalErrorHandler` removes them on server close.
+
+**Issue**: `cleanupGlobalErrorHandler` calls `process.removeAllListeners("uncaughtException")` — this removes ALL listeners, not just the ones it added. Could strip other handlers (Vite's own, test frameworks, etc.).
+
+## Core Utilities
+
+| Module | Purpose |
+|--------|---------|
+| `toError.ts` | Normalize any thrown value into an `Error` — handles strings, nulls, empty objects, serialized worker errors, nested `.error`/`.reason` shapes |
+| `handleError.ts` | Log + panic decision. Deduplicates repeated identical errors. |
+| `logError.ts` | Format error for Vite logger (dev: full stack, prod: message only) |
+| `enhanceError.ts` | Wrap errors with `[context:error]` prefix and `cause` chain. **Currently unused.** |
+| `assertPanic.ts` | `asserts error` — rethrows if error has panic symbol. **Currently unused.** |
+| `shouldPanic.ts` | Pure logic: should this error panic given threshold + critical flag? |
+| `panicThresholdHandler.ts` | Wrapper around shouldPanic. **Currently unused** (handleError does this inline). |
+| `serializeError.ts` | Error → plain object for worker `postMessage` |
+| `serializeErrorInfo.ts` | React ErrorInfo → plain object for worker `postMessage` |
+| `directiveError.ts` | Directive error message constants |
+
+## Unused Code
+
+`enhanceError`, `assertPanic`, `createContextualError`, and `panicThresholdHandler` are exported from `plugin/error/index.ts` but have zero consumers outside the error directory. Candidates for removal.
