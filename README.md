@@ -349,9 +349,9 @@ This project uses experimental React features with a vendored ESM transport (`re
 | [CSS & Styling](./docs/css-handling.md) | CSS collection, inline styles, and global CSS |
 | [Server Actions](./docs/server-actions.md) | `"use server"` directives and form actions |
 | [Build & Deployment](./docs/build-orchestration.md) | Multi-step and Environment API builds |
-| [Advanced Development](./docs/advanced-topics.md) | Custom workers, streaming, and advanced patterns |
-| [Plugin Internals](./docs/transformer-plugin.md) | How the transformer processes directives |
-| [Worker System](./docs/rsc-worker.md) | RSC and HTML worker architecture |
+| [Advanced Development](./docs/maintenance/advanced-topics.md) | Custom workers, streaming, and advanced patterns |
+| [Plugin Internals](./docs/maintenance/transformer-plugin.md) | How the transformer processes directives |
+| [Worker System](./docs/maintenance/rsc-worker.md) | RSC and HTML worker architecture |
 | [API Reference](./docs/api-reference.md) | Exported functions and types |
 | [React Compatibility](./docs/react-type-compatibility.md) | Version support, vendored ESM transport |
 | [Troubleshooting](./docs/troubleshooting-guide.md) | Common errors and solutions |
