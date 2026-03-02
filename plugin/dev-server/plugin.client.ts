@@ -35,8 +35,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
   return {
     name: "vite-plugin-react-server:dev-server-client",
     apply: "serve", // Only apply in dev server mode
-    // Note: Removed applyToEnvironment - handleHotUpdate needs to run regardless
-    // The plugin should apply to client environment, but handleHotUpdate is a dev server hook
+    // No applyToEnvironment — hotUpdate needs to run for all environments
     // that should work regardless of environment filtering
     config(_config, viteConfigEnv) {
       configEnv = viteConfigEnv;
@@ -144,7 +143,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
             }, 500); // 500ms debounce
           } else {
             // No restart function available yet - worker hasn't been created
-            // This is expected if handleHotUpdate fires before the first request
+            // This is expected if hotUpdate fires before the first request
             server.config.logger.warn(`[vite-plugin-react-server] Restart function not available yet - worker will be created on next request`);
             setTimeout(() => {
               isProcessingHmr = false;

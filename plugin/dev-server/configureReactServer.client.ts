@@ -74,7 +74,7 @@ export const configureReactServer: CreateReactWorkerServerFn =
       },
     });
     
-    // Return object with restart function and HMR update sender for handleHotUpdate
+    // Return object with restart function and HMR update sender for hotUpdate
     return {
       restart: restartFn,
       sendHmrUpdate: (file: string, routes?: string[]) => {
