@@ -143,7 +143,7 @@ export { add };
 3. **Server Actions**: Must be marked with `'use server'` at file or function level
 4. **Environment-specific**: Transformations only occur in server environment (`react-server` condition)
 5. **Directive-based**: Transformations are triggered by React RSC directives (`'use client'`, `'use server'`)
-6. **Fallback handling**: Client components without directives are identified by filename in server environment
+6. **Fallback handling**: Client components without directives are identified by filename pattern (`.client.tsx`) in the server environment. Note: no warning is emitted — consider adding `"use client"` explicitly for clarity
 
 ## 🏭 Worker System Architecture
 
