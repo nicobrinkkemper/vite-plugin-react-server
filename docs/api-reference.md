@@ -121,56 +121,48 @@ export const config = {
 
 ### HtmlProps
 
-Props passed to the Html component:
+Props passed to the Html wrapper component during static generation:
 
 ```typescript
-interface HtmlProps<
-  PageProps = any,
-  InlineCSS extends boolean = boolean,
-  As extends keyof JSX.IntrinsicElements = "div",
-  ReactType = any
-> {
-  children: ReactType;
-  Root: RootComponentType<As, InlineCSS, PageProps, ReactType>;
-  cssFiles: CssFile[];
-  globalCss: CssFile[];
-  pageProps: PageProps;
-  Page: PageComponentType<PageProps, ReactType>;
+type HtmlProps = {
+  pageProps?: any;
+  Page: PageComponentType;
+  route: string;
+  url: string;
+  projectRoot: string;
+  moduleBase: string;
   moduleBaseURL: string;
-}
+  moduleBasePath: string;
+  moduleRootPath: string;
+  cssFiles: Map<string, CssContent>;
+  manifest: Manifest;
+  Root: RootComponentType | typeof React.Fragment;
+  globalCss: Map<string, CssContent>;
+  as?: keyof JSX.IntrinsicElements;
+};
 ```
 
 ### RootProps
 
-Props for CSS collector components:
+Props for the Root component that wraps page content:
 
 ```typescript
-interface RootProps<
-  As extends keyof JSX.IntrinsicElements = "div",
-  InlineCSS extends boolean = boolean,
-  PageProps = any,
-  ReactType = any
-> {
-  as?: As;
-  cssFiles: CssFile[];
-  Page?: PageComponentType<PageProps, ReactType>;
-  pageProps?: PageProps;
-  children?: ReactType;
-}
+type RootProps = {
+  as: keyof JSX.IntrinsicElements;
+  cssFiles?: Map<string, CssContent>;
+  pageProps?: any;
+  Page: PageComponentType;
+  id?: string;
+};
 ```
 
-### CssFile
+### CssContent
 
-Structure for CSS file references:
+CSS content can be either inline (string) or linked (object with href):
 
 ```typescript
-interface CssFile {
-  href: string;
-  content?: string;
-  inline?: boolean;
-  media?: string;
-  rel?: string;
-}
+type CssContent<InlineCSS extends boolean = boolean> = 
+  InlineCSS extends true ? string : { href: string };
 ```
 
 ## Build Configuration
@@ -300,23 +292,23 @@ interface RenderResult {
 
 ## Type Definitions
 
-### Generic Types
-
-The plugin uses generic types to maintain compatibility across React versions:
+### Component Types
 
 ```typescript
-// Generic function type that adapts to any React version
-type RootComponentType<
-  As extends keyof JSX.IntrinsicElements = "div",
-  InlineCSS extends boolean = boolean,
-  PageProps = any,
-  ReactType = any
-> = (props: RootProps<As, InlineCSS, PageProps, ReactType>) => ReactType;
+// Page component — receives page props, returns React element
+type PageComponentType = (props: any) => React.ReactNode;
 
-// Generic page component type
-type PageComponentType<PageProps = any, ReactType = any> = 
-  (props: PageProps) => ReactType;
+// Root component — wraps page with CSS and layout
+type RootComponentType = (props: RootProps) => React.ReactNode;
+
+// Html component — outer HTML shell for static generation
+type HtmlComponentType = (props: HtmlProps) => React.ReactNode;
+
+// CSS component — renders inline <style> or <link> tags
+type CssComponentType = (props: CssProps) => React.ReactNode;
 ```
+
+> **Note:** The full type signatures use generics constrained by a `ViteReactServerComponentsPlugin` interface for advanced type customization. The simplified versions above cover most use cases. See `plugin/types.ts` for the full generic signatures.
 
 ### Environment Detection
 
