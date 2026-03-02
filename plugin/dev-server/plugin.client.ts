@@ -98,9 +98,6 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       const isServerFile = isSourceFile && !isClientFile;
       
-      // Always log for debugging
-      server.config.logger.info(`[vite-plugin-react-server] handleHotUpdate: file=${file}, normalized=${normalizedFile}, isServerFile=${isServerFile}, isClientFile=${isClientFile}, hasHandler=${!!hmrHandler}`);
-      
       if (isServerFile && hmrHandler) {
         isProcessingHmr = true;
         
@@ -111,17 +108,8 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           // This clears component caches, but Node.js's ES module cache persists
           hmrHandler.sendHmrUpdate(file);
           
-          // CRITICAL: Send custom HMR message to client via WebSocket
-          // Server components aren't in the client bundle, so vite:beforeUpdate doesn't fire
-          // We need to manually notify the client to refetch the RSC stream
-          server.ws.send({
-            type: 'custom',
-            event: 'vite-plugin-react-server:server-component-update',
-            data: {
-              file: normalizedFile,
-              path: file,
-            },
-          });
+          // NOTE: The WS event to notify the client is sent by the hotUpdate hook
+          // in plugin.server.ts — don't duplicate it here.
           
           // CRITICAL: Node.js caches ES modules, so we need to restart the worker
           // to clear the module cache. Debounce restarts to prevent recursion.
