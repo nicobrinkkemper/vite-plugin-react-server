@@ -304,3 +304,25 @@ const { reactStaticPlugin } = await import("vite-plugin-react-server/static");
 **Why**: When testing plugin functionality, always import from built files (like end users do) rather than source files. Importing from source files causes `pluginRoot` to resolve to the source directory instead of the built location, leading to worker path resolution errors.
 
 **Symptom**: If `pluginRoot` resolves to `src/` or `plugin/` directory instead of the expected built location, you're likely importing from source files.
+
+## E2E Tests (Playwright)
+
+The project includes 9 Playwright e2e tests covering HMR behavior:
+
+```bash
+npx playwright test test/e2e/hmr.spec.ts
+```
+
+Tests cover:
+- Page content renders
+- Server component RSC refetch preserves client state
+- Server component updates propagate (todos page)
+- `useRscHmr` listener is active
+- `import.meta.hot` preserved in library build
+- CSS HMR preserves client state
+- Client component changes don't trigger RSC refetch
+- Server actions work
+- Todo toggle persists
+
+The test server uses `CHOKIDAR_USEPOLLING=true` for WSL2 compatibility.
+Run against the `bidoof-template` demo project.

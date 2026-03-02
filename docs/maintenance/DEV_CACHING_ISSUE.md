@@ -25,7 +25,7 @@ server.ws.send({
 });
 ```
 
-**But no client-side code listens for this event!** The RSC stream is never refetched.
+**Resolved**: Client-side listeners are now provided via `useRscHmr` hook and `virtualRscHmrPlugin`. The RSC stream is refetched automatically on server component changes.
 
 ## How Vite HMR Works
 
