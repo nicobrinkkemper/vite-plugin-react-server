@@ -7,8 +7,9 @@ export function requestToRoute(
     "moduleBasePath" | "moduleBaseURL" | "build"
   >
 ) {
-  let route = req.url
-    ?.replace(
+  // Strip query string before route matching
+  let route = req.url?.split("?")[0]
+    .replace(
       handlerOptions.moduleBaseURL + handlerOptions.build.rscOutputPath,
       ""
     )

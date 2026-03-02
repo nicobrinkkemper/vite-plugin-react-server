@@ -76,6 +76,8 @@ export function requestInfo(
   const hasJsonHeader = req.headers["accept"]?.includes("application/json");
   const hasHtmlHeader = req.headers.accept?.includes("text/html");
   const hasRscHeader = req.headers.accept?.includes("text/x-component");
+  // Support ?_rsc query param (e.g. /?_rsc for browser debugging) as alternative to Accept header (useful for browser debugging)
+  const hasRscQueryParam = /[?&]_rsc\b/.test(req.url || "");
   const hasCssHeader = req.headers.accept?.includes("text/css");
   const isFolder = !ext;
   const isFormContentType =
@@ -112,15 +114,16 @@ export function requestInfo(
   // Form action detection
 
   const isHtmlRequest =
-    isHtml ||
+    !hasRscQueryParam && (isHtml ||
     hasHtmlHeader ||
     (isFolder &&
       !hasRscHeader &&
+      !hasRscQueryParam &&
       !isRsc &&
       !isJsRequest &&
-      !isFormActionRequest);
+      !isFormActionRequest));
   const isRscRequest =
-    !isJsRequest && !isHtmlRequest && (isRsc || hasRscHeader);
+    hasRscQueryParam || (!isJsRequest && !isHtmlRequest && (isRsc || hasRscHeader));
   const isCssRequest =
     !isHtmlRequest &&
     !isRscRequest &&
