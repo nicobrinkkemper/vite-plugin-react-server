@@ -87,12 +87,12 @@ const RSC_LOADER = {
 
 ## Version Compatibility
 
-### React 18+ Support
+### React 19+ Support
 
-The plugin is designed to work with React 18 and later versions:
+The plugin is designed to work with React 19 and later versions:
 
 ```typescript
-// React 18+ features supported
+// React 19+ features supported
 import { renderToReadableStream } from "react-server-dom-esm/server.node";
 import { renderToPipeableStream } from "react-dom/server";
 
@@ -218,25 +218,6 @@ When updating React:
 3. **Run tests**: `npm test` to ensure compatibility
 
 ## Version-Specific Features
-
-### React 18 Features
-
-```typescript
-// Automatic batching
-setTimeout(() => {
-  setCount(c => c + 1); // This will be batched
-  setFlag(f => !f);     // This will be batched
-}, 1000);
-
-// Concurrent features
-import { startTransition } from 'react';
-
-function handleClick() {
-  startTransition(() => {
-    setCount(c => c + 1);
-  });
-}
-```
 
 ### React 19 Features
 
