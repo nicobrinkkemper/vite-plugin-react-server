@@ -65,11 +65,11 @@ Error constants live in `directiveError.ts` (`DIRECTIVE_ERRORS.FILE_LEVEL`, `DIR
 | `enhanceError.ts` | Wrap errors with `[context:error]` prefix and `cause` chain. **Currently unused.** |
 | `assertPanic.ts` | `asserts error` — rethrows if error has panic symbol. **Currently unused.** |
 | `shouldPanic.ts` | Pure logic: should this error panic given threshold + critical flag? |
-| `panicThresholdHandler.ts` | Wrapper around shouldPanic. **Currently unused** (handleError does this inline). |
+| `panicThresholdHandler.ts` | `shouldCausePanic()` — used by static generation (`renderPages`, `plugin.server`, `plugin.client`) to decide whether to throw after batch rendering. |
 | `serializeError.ts` | Error → plain object for worker `postMessage` |
 | `serializeErrorInfo.ts` | React ErrorInfo → plain object for worker `postMessage` |
 | `directiveError.ts` | Directive error message constants |
 
 ## Unused Code
 
-`enhanceError`, `assertPanic`, `createContextualError`, and `panicThresholdHandler` are exported from `plugin/error/index.ts` but have zero consumers outside the error directory. Candidates for removal.
+`enhanceError`, `assertPanic`, and `createContextualError` have been removed (zero consumers).

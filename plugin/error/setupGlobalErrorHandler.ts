@@ -4,12 +4,13 @@ import type {
 } from "./types.js";
 
 let isGlobalHandlerSetup = false;
+let uncaughtExceptionHandler: ((error: Error) => void) | null = null;
+let unhandledRejectionHandler: ((reason: unknown, promise: Promise<unknown>) => void) | null = null;
 
 export const setupGlobalErrorHandler: SetupGlobalErrorHandlerFn =
   function _setupGlobalErrorHandler(options) {
     const { panicThreshold, logger, verbose = false } = options;
 
-    // Set up global error handling for all panic threshold levels
     if (isGlobalHandlerSetup) {
       return;
     }
@@ -20,39 +21,32 @@ export const setupGlobalErrorHandler: SetupGlobalErrorHandlerFn =
       );
     }
 
-    // Set up our error handlers
-    process.on("uncaughtException", (error: Error) => {
+    uncaughtExceptionHandler = (error: Error) => {
       if (verbose) {
         logger.info(
           `Global error handler caught uncaught exception: ${error.message}`
         );
       }
 
-      // Handle the error gracefully based on panic threshold
       logger.warn(
         `Uncaught exception handled by panic threshold (${panicThreshold}): ${error.message}`
       );
+    };
 
-      // Don't call process.exit - let the error be handled gracefully
-    });
-
-    process.on(
-      "unhandledRejection",
-      (reason: unknown, _promise: Promise<unknown>) => {
-        if (verbose) {
-          logger.info(
-            `Global error handler caught unhandled rejection: ${reason}`
-          );
-        }
-
-        // Handle the rejection gracefully based on panic threshold
-        logger.warn(
-          `Unhandled rejection handled by panic threshold (${panicThreshold}): ${reason}`
+    unhandledRejectionHandler = (reason: unknown, _promise: Promise<unknown>) => {
+      if (verbose) {
+        logger.info(
+          `Global error handler caught unhandled rejection: ${reason}`
         );
-
-        // Don't call process.exit - let the rejection be handled gracefully
       }
-    );
+
+      logger.warn(
+        `Unhandled rejection handled by panic threshold (${panicThreshold}): ${reason}`
+      );
+    };
+
+    process.on("uncaughtException", uncaughtExceptionHandler);
+    process.on("unhandledRejection", unhandledRejectionHandler);
 
     isGlobalHandlerSetup = true;
   };
@@ -63,9 +57,14 @@ export const cleanupGlobalErrorHandler: CleanupGlobalErrorHandlerFn =
       return;
     }
 
-    // Remove our handlers
-    process.removeAllListeners("uncaughtException");
-    process.removeAllListeners("unhandledRejection");
+    if (uncaughtExceptionHandler) {
+      process.removeListener("uncaughtException", uncaughtExceptionHandler);
+      uncaughtExceptionHandler = null;
+    }
+    if (unhandledRejectionHandler) {
+      process.removeListener("unhandledRejection", unhandledRejectionHandler);
+      unhandledRejectionHandler = null;
+    }
 
     isGlobalHandlerSetup = false;
   };
