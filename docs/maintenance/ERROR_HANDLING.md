@@ -43,13 +43,3 @@ if (resolvedUserOptions.error) {
 throw new Error(warning.message);
 ```
 
-## What Doesn't Exist
-
-These patterns are sometimes described in older docs but are **not implemented**:
-
-- ❌ `PluginError` custom error class
-- ❌ `ERROR_CODES` enum
-- ❌ `ErrorHandler` centralized class
-- ❌ `panicThreshold` configuration
-- ❌ Error recovery/retry logic
-- ❌ Structured error logging with error types
