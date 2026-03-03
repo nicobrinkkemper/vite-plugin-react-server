@@ -118,7 +118,6 @@ export function requestInfo(
     hasHtmlHeader ||
     (isFolder &&
       !hasRscHeader &&
-      !hasRscQueryParam &&
       !isRsc &&
       !isJsRequest &&
       !isFormActionRequest));
@@ -181,7 +180,7 @@ export function requestInfo(
     if (mimeType) {
       contentType = mimeType + "; charset=utf-8";
     } else {
-      contentType = "application/octet-stream; charset=utf-8";
+      contentType = "application/octet-stream";
     }
   }
 

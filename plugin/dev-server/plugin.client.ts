@@ -95,6 +95,8 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       // Skip client components — let @vitejs/plugin-react handle them with Fast Refresh
       const isClientFile = isSourceFile && (() => {
+        // Check filename pattern (.client.tsx, etc.) — matches isClientComponentByName
+        if (/\.client\.(js|ts|jsx|tsx)$/.test(file)) return true;
         try {
           const head = readFileSync(file, 'utf-8').slice(0, 200);
           return /^\s*["']use client["']/.test(head.split('\n')[0]);
