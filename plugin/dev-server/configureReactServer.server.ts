@@ -78,16 +78,8 @@ export const configureReactServer: ConfigureReactServerFn =
       }
       activeStreams.clear();
       activeControllers.clear();
-    });
 
-    // Handle restart completion
-    server.ws.on("full-reload", () => {
-      isRestarting = false;
-      logger.info("[vite-plugin-react-server] ✅ Server restart completed");
-    });
-
-    // Fallback: reset restart flag after a timeout
-    server.ws.on("restart", () => {
+      // Fallback: reset restart flag after a timeout
       setTimeout(() => {
         if (isRestarting) {
           isRestarting = false;
@@ -96,6 +88,12 @@ export const configureReactServer: ConfigureReactServerFn =
           );
         }
       }, 5000); // 5 second timeout
+    });
+
+    // Handle restart completion
+    server.ws.on("full-reload", () => {
+      isRestarting = false;
+      logger.info("[vite-plugin-react-server] ✅ Server restart completed");
     });
 
     const loader = async (id: string) => {
@@ -550,7 +548,6 @@ export const configureReactServer: ConfigureReactServerFn =
 
         res.statusCode = 500;
         res.setHeader("Content-Type", "text/x-component; charset=utf-8");
-        res.setHeader("Content-Length", "0"); // Will be updated after streaming
         
         // Note: Worker cleanup is handled by the response close handler
       }

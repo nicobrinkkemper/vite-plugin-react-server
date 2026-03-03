@@ -44,6 +44,8 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       if (envName === 'client') {
         // Check if it's a client component — let Fast Refresh handle it
         const isClient = (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js')) && (() => {
+          // Check filename pattern (.client.tsx, .client.ts, etc.) — matches isClientComponentByName
+          if (/\.client\.(js|ts|jsx|tsx)$/.test(file)) return true;
           try {
             const head = readFileSync(file, 'utf-8').slice(0, 200);
             return /^\s*["']use client["']/.test(head.split('\n')[0]);
@@ -76,55 +78,6 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
         }
       }
       return [];
-    },
-    handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
-      const moduleBase = userOptions.moduleBase || "src";
-      const projectRoot = userOptions.projectRoot || server.config.root;
-      const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
-      const isSourceFile = normalizedFile.startsWith(moduleBase + '/') && 
-        (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
-      
-      // Skip client components — let @vitejs/plugin-react handle them
-      // with Fast Refresh (preserves component-level state).
-      const isClientFile = isSourceFile && (() => {
-        try {
-          const head = readFileSync(file, 'utf-8').slice(0, 200);
-          return /^\s*["']use client["']/.test(head.split('\n')[0]);
-        } catch { return false; }
-      })();
-      
-      if (isSourceFile && !isClientFile) {
-        server.config.logger.info(`[vite-plugin-react-server] File changed (RSC refetch): ${normalizedFile}`);
-        
-        // Send custom HMR event so client can refetch RSC stream
-        server.ws.send({
-          type: 'custom',
-          event: 'vite-plugin-react-server:server-component-update',
-          data: {
-            file: normalizedFile,
-            path: file,
-          },
-        });
-        
-        // Invalidate the server module so next request gets fresh content
-        const mod = server.environments['server']?.moduleGraph?.getModulesByFile(file);
-        if (mod) {
-          for (const m of mod) {
-            server.environments['server']?.moduleGraph?.invalidateModule(m);
-          }
-        }
-        
-        // Return empty array to prevent Vite's default full-page reload
-        // The client will refetch the RSC stream via the custom event
-        return [];
-      }
-      
-      if (isClientFile) {
-        // Client components are handled by @vitejs/plugin-react (Fast Refresh)
-        // or Vite's client-side HMR. Return empty to prevent the server
-        // environment from triggering a full page reload.
-        return [];
-      }
     },
   };
 
