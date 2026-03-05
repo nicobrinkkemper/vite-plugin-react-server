@@ -9,6 +9,7 @@ import {
   type RenderToPipeableStreamOptions,
 } from "../../vendor/vendor.server.js";
 import { createElementWithReact } from "../../helpers/createElementWithReact.js";
+import { checkReactExperimental } from "../../utils/checkReactVersion.js";
 /**
  * Handles the rendering of React Server Component streams in the RSC worker thread.
  *
@@ -261,6 +262,7 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       );
     }
 
+    checkReactExperimental();
     const { pipe } = ReactDOMServer.renderToPipeableStream(
       element,
       finalHandlerOptions.moduleBasePath,
