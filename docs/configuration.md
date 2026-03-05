@@ -1,710 +1,164 @@
-# Configuration Guide
-
-This guide covers all configuration options and component resolution strategies for the Vite React Server Plugin.
-
-## Core Configuration Options
-
-### moduleBase
+# Configuration
 
 ```ts
-import type { StreamPluginOptions } from "vite-plugin-react-server/types";
+import { defineConfig } from "vite";
+import { vitePluginReactServer } from "vite-plugin-react-server";
 
-const config = {
-  moduleBase: "src", // source prefix
-```
-
-`src` is a convention, you can name it however you want.
-
-### moduleBasePath
-
-```ts
-  moduleBasePath: "", // import prefix
-```
-
-`moduleBasePath` is used as the second argument to React's `renderToPipeableStream` for server-side rendering. Defaults to "".
-
-### moduleBaseURL
-
-```ts
-  moduleBaseURL: "/", // url prefix
-```
-
-`moduleBaseURL`. Defaults to VITE_BASE_URL or "/"
-
-> Note: When deploying to a subdirectory (e.g., GitHub Pages), make sure moduleBaseURL matches your base path.
-
-```ts
-publicOrigin: "", // URL parseable origin
-```
-
-`publicOrigin` should be used as a static replacement for location.origin. Defaults to VITE_PUBLIC_ORIGIN or ""
-
-## Component Resolution
-
-The plugin supports two main approaches for providing components:
-
-1. **Path-based Resolution** (`Page`, `Html`, `Root`) - Components are resolved from file paths
-2. **Direct Component References** (`components.Page`, `components.Html`, `components.Root`) - Components are provided directly
-
-### Path-based Resolution
-
-#### When to Use
-
-- **Development mode** with hot reloading
-- **RSC worker mode** for dynamic component loading
-- When you want the plugin to handle file resolution
-- When you need to support different components per route
-
-#### Configuration
-
-```ts
-export const config = {
-  moduleBase: "src",
-  
-  // Page components - resolved from file paths
-  Page: (url) => `src/pages${url}/page.tsx`,
-  props: (url) => `src/pages${url}/props.ts`,
-  
-  // Layout components - can be static paths or functions
-  Html: "src/CustomHtml.tsx",
-  Root: "src/CustomRoot.tsx",
-  
-  // Custom export names (optional)
-  pageExportName: "Page",
-  propsExportName: "props",
-  htmlExportName: "Html",
-  rootExportName: "Root",
-  
-  build: { pages: ["/", "/about"] }
-} satisfies StreamPluginOptions;
-```
-
-#### How It Works
-
-1. The plugin resolves the file path using the provided function or string
-2. Loads the module and extracts the named export
-3. Uses the component in the rendering pipeline
-4. Supports hot reloading in development
-
-#### Example File Structure
-
-```
-src/
-├── pages/
-│   ├── page.tsx          # Home page component
-│   └── props.ts          # Home page props
-├── pages/about/
-│   ├── page.tsx          # About page component
-│   └── props.ts          # About page props
-├── CustomHtml.tsx        # HTML wrapper component
-└── CustomRoot.tsx        # Root wrapper component
-```
-
-#### Page Component Example
-
-```tsx
-// src/page/page.tsx
-import type { PageProps } from "./props";
-
-export const Page = ({ title, content }: PageProps) => {
-  return (
-    <div>
-      <h1>{title}</h1>
-      <p>{content}</p>
-    </div>
-  );
-};
-```
-
-### Direct Component References
-
-#### When to Use
-
-- **Static builds** where you want to avoid file resolution overhead
-- When you need to provide components directly without file loading
-- When you want to use the same component for all routes
-- Performance-critical scenarios
-
-#### Configuration
-
-```ts
-import { CustomPage } from "./src/CustomPage";
-import { CustomHtml } from "./src/CustomHtml";
-import { CustomRoot } from "./src/CustomRoot";
-
-export const config = {
-  moduleBase: "src",
-  
-  // Direct component references
-  components: {
-    Page: CustomPage,
-    Html: CustomHtml,
-    Root: CustomRoot,
-  },
-  
-  build: { pages: ["/", "/about"] }
-} satisfies StreamPluginOptions;
-```
-
-#### How It Works
-
-1. Components are provided directly to the plugin
-2. No file resolution is performed
-3. The same component is used for all routes
-4. Faster build times but no hot reloading
-
-#### Example Direct Components
-
-```tsx
-// src/CustomPage.tsx
-export const CustomPage = ({ title }: { title: string }) => {
-  return (
-    <div>
-      <h1>{title}</h1>
-      <p>This is a static page component</p>
-    </div>
-  );
-};
-
-// src/CustomHtml.tsx
-import React from "react";
-import { Css, type HtmlProps } from "vite-plugin-react-server/components";
-
-export const CustomHtml = ({
-  Root,
-  cssFiles,
-  globalCss,
-  pageProps = {},
-  Page,
-}: HtmlProps) => {
-  return (
-    <html>
-      <head>
-        <Css cssFiles={globalCss} />
-        <title>{pageProps.title || "My App"}</title>
-      </head>
-      <body>
-        <Root
-          as="div"
-          id="root"
-          cssFiles={cssFiles}
-          Page={Page}
-          pageProps={pageProps}
-        />
-      </body>
-    </html>
-  );
-};
-```
-
-### Component Resolution Priority
-
-The plugin resolves components in this specific order:
-
-1. **Direct components** (`components.Page`, `components.Html`, `components.Root`) - Highest priority
-2. **Path resolution** (`Page`, `Html`, `Root` strings/functions) - Medium priority
-3. **Default components** - Plugin fallbacks (lowest priority)
-
-### Example with Mixed Configuration
-
-```ts
-export const config = {
-  moduleBase: "src",
-  
-  // Path-based resolution for pages
-  Page: (url) => `src/pages${url}/page.tsx`,
-  props: (url) => `src/pages${url}/props.ts`,
-  
-  // Direct component for HTML wrapper
-  components: {
-    Html: CustomHtml,
-  },
-  
-  // Path-based resolution for Root (fallback)
-  Root: "src/CustomRoot.tsx",
-  
-  build: { pages: ["/", "/about"] }
-} satisfies StreamPluginOptions;
-```
-
-In this example:
-- `Page` components are resolved from file paths (enabling per-route components)
-- `Html` component is provided directly (static, no file resolution)
-- `Root` component falls back to path resolution
-
-## Routing Configuration
-
-### Page & Props (Path-based Resolution)
-
-```ts
-// Simple string-based routing
-Page: "src/page/page.tsx",
-props: "src/page/props.ts",
-pageExportName: "Page",
-propsExportName: "props",
-```
-
-Basically a router for mapping urls to source code. It can be any implementation you want. The props is optional to use, but it's very powerful since anything it returns will be the props for the page component as well as be accessible in the Html component. If you didn't define a props router, you can still define the `props` in the Page file.
-
-## Dev Configuration
-
-### dev.useRscWorker
-
-```ts
-{
-  dev: {
-    useRscWorker: false, // default
-  }
-}
-```
-
-Controls whether to use the RSC worker in development mode.
-
-**Default behavior (`false`)**: In dev mode, RSC rendering happens directly on the main thread using Vite's environment runner. This provides:
-- Proper HMR support (file changes are picked up immediately)
-- No module caching issues
-- Simpler debugging (all code runs in main thread)
-
-**With `useRscWorker: true`**: Uses the same RSC worker as production builds. Useful for:
-- Testing production behavior in development
-- Debugging worker-specific issues
-
-```ts
-// To test production-like behavior in dev:
-export default {
-  dev: {
-    useRscWorker: true,
-  },
-  // ... other options
-} satisfies StreamPluginOptions;
-```
-
-### HMR in Development
-
-When a server component file changes, the plugin:
-1. Invalidates the module in Vite's cache
-2. Sends a `vite-plugin-react-server:server-component-update` WebSocket event
-3. The client can listen for this event to refetch the RSC stream
-
-For automatic RSC refetching on HMR, use the `setupRscHmr` helper in your client entry:
-
-```tsx
-import { createReactFetcher, setupRscHmr } from "vite-plugin-react-server/utils";
-
-const { initialContent, refetch } = createReactFetcher({ callServer });
-
-// Enable HMR for server components
-if (import.meta.hot) {
-  setupRscHmr(import.meta.hot, refetch);
-}
-```
-
-## Build Configuration
-
-### build
-
-```ts
-  moduleBase: 'src',
-  Page: (url) => `src/pages${url}/page.tsx`,
-  build: {
-     pages: ["/","/about"],
-     dir:    "dist",    // dist/**
-     client: "client",  // **/client
-     server: "server",  // **/server
-     static: "static",  // **/static
-     hash: "hash",      //  -[hash].js for client files
-     preserveModulesRoot: false, // when true, preserve `src/` in build output paths
-     renderMode: "parallel",     // "parallel" (default) or "sequential"
-     batchSize: 8,               // pages per batch in parallel mode
-  }
-```
-
-### build.renderMode
-
-Controls how pages are rendered during static site generation.
-
-```ts
-build: {
-  renderMode: "parallel",  // default — renders pages in concurrent batches
-  batchSize: 8,            // pages per batch (default: 8)
-}
-```
-
-| Mode | Description | Use when |
-|------|-------------|----------|
-| `"parallel"` | Renders pages in concurrent batches using `Promise.all`. ~6x faster on large sites. | Default. Best for production builds. |
-| `"sequential"` | Renders pages one at a time in order. | Debugging, low-memory environments, or when you need deterministic output order. |
-
-**Example: sequential mode for debugging**
-```ts
-build: {
-  renderMode: "sequential",
-}
-```
-
-**Example: high concurrency for large sites**
-```ts
-build: {
-  renderMode: "parallel",
-  batchSize: 16,  // render 16 pages at once
-}
-```
-
-> **Note:** Both modes produce identical output and emit the same metrics/events.
-> The only difference is build speed vs memory usage.
-
-### preserveModulesRoot Behavior
-
-The `build.preserveModulesRoot` option controls how the `moduleBase` directory appears in build output paths:
-
-#### When `preserveModulesRoot: true` (preserve paths)
-- **Input:** `src/page/home.tsx`
-- **Output:** `dist/client/src/page/home.js`
-- **Behavior:** The `src/` directory is **preserved** in the output path
-
-#### When `preserveModulesRoot: false` (strip paths - default)
-- **Input:** `src/page/home.tsx`  
-- **Output:** `dist/client/page/home.js`
-- **Behavior:** The `src/` directory is **removed** from the output path
-
-This option is useful when you want to maintain your source directory structure in the build output, especially for debugging or when integrating with tools that expect specific path structures.
-
-## CSS Configuration
-
-```ts
-export const config = {
-  // ... other config
-  css: {
-    inlineCss: true,           // Global flag to enable/disable inlining
-    inlineThreshold: 4096,     // Size threshold in bytes (4KB)
-    inlinePatterns: [          // RegExp patterns to force inlining
-      /\.inline\.css$/,
-    ],
-    linkPatterns: [            // RegExp patterns to force linking
-      /^node_modules/,
-      /^@/           
-    ]
-  }
-};
-```
-
-## Advanced Options
-
-### Custom Root Component
-
-You can customize the root component that wraps your pages:
-
-```tsx
-// src/CustomRoot.tsx
-import React from "react";
-import type { RootComponentType } from "vite-plugin-react-server/types";
-
-export const Root: RootComponentType = ({ Page, pageProps = {}, as: As = React.Fragment, cssFiles, ...props }) => {
-  const cssCount = cssFiles ? cssFiles.size : 0;
-  
-  // For headless stream, use React.Fragment
-  if (As === React.Fragment) {
-    return React.createElement(React.Fragment, {}, 
-      React.createElement(Page, pageProps)
-    );
-  }
-  
-  // For normal HTML stream, always render as 'main' regardless of what was passed
-  return React.createElement('main', { 
-    ...props, 
-    "data-function-root": "true",
-    "data-css-files": cssCount.toString(),
-    role: "main"
-  }, 
-    React.createElement(Page, pageProps)
-  );
-};
-```
-
-**Configuration:**
-```ts
 export default defineConfig({
   plugins: vitePluginReactServer({
-    Root: (url: string) => `src/CustomRoot.tsx`, // Function that returns string path
-    // ... other options
+    // Required
+    moduleBase: "src",
+    Page: "src/page.tsx",              // string or (url: string) => string
+    build: { pages: ["/"] },
+
+    // Optional — component resolution
+    props: "src/props.ts",             // string or (url: string) => string
+    Html: "src/Html.tsx",              // string — HTML shell component
+    Root: "src/Root.tsx",              // string — root wrapper component
+    pageExportName: "Page",            // named export to use from Page file
+    propsExportName: "props",          // named export to use from props file
+
+    // Optional — direct component references (react-server condition only)
+    components: {
+      Page: MyPage,
+      Html: MyHtml,
+      Root: MyRoot,
+    },
+
+    // Optional — URL handling
+    moduleBasePath: "",                // second arg to renderToPipeableStream
+    moduleBaseURL: "/",                // URL prefix for modules (default: VITE_BASE_URL || "/")
+    publicOrigin: "",                  // static replacement for location.origin
+
+    // Optional — CSS
+    css: {
+      inlineCss: true,                 // inline small CSS files (default: true)
+      inlineThreshold: 4096,           // size threshold in bytes
+      inlinePatterns: [],              // RegExp[] — always inline these
+      linkPatterns: [],                // RegExp[] — always link these
+    },
+
+    // Optional — build
+    build: {
+      pages: ["/"],
+      dir: "dist",
+      client: "client",
+      server: "server",
+      static: "static",
+      hash: "hash",
+      preserveModulesRoot: false,      // keep src/ in output paths
+      renderMode: "parallel",          // "parallel" | "sequential"
+      batchSize: 8,                    // pages per batch in parallel mode
+      rscOutputPath: "index.rsc",
+      htmlOutputPath: "index.html",
+    },
+
+    // Optional — workers
+    htmlWorkerPath: "./custom-html-worker.js",
+    rscWorkerPath: "./custom-rsc-worker.js",
+    rscTimeout: 5000,
+    htmlTimeout: 15000,
+    htmlWorkerStartupTimeout: 5000,
+    rscWorkerStartupTimeout: 5000,
+
+    // Optional — dev
+    dev: {
+      useRscWorker: false,             // use worker in dev mode (default: false)
+    },
+
+    // Optional — observability
+    verbose: true,
+    onMetrics: (metrics) => console.log(metrics),
+    onEvent: (event) => console.log(event),
   }),
 });
 ```
 
-### Worker Configuration
+## Component Resolution
+
+The plugin resolves components in this order:
+
+1. **`components.*`** — direct references (highest priority, react-server only)
+2. **Path strings/functions** — `Page`, `Html`, `Root`, `props`
+3. **Plugin defaults** — fallback
+
+### Path-based (recommended)
+
+Works in both dev modes. Supports HMR and per-route components.
 
 ```ts
-export const config = {
-  // ... other config
-  htmlWorkerPath: "./path/to/custom/html-worker.js",
-  rscWorkerPath: "./path/to/custom/rsc-worker.js",
-  rscTimeout: 5000,
-  htmlTimeout: 15000,
-  htmlWorkerStartupTimeout: 5000,
-  rscWorkerStartupTimeout: 5000,
-};
+Page: (url) => `src/pages${url}page.tsx`,
+props: (url) => `src/pages${url}props.ts`,
+Html: "src/Html.tsx",
 ```
 
-### Event Handling
+### Direct references
+
+Faster builds, no file resolution. Only works when the main thread has the `react-server` condition.
 
 ```ts
-export const config = {
-  // ... other config
-  verbose: true,
-  onMetrics: (metrics: RenderMetrics) => {
-    console.log('Build metrics:', metrics);
-  },
-  onEvent: (event: PluginEvent) => {
-    console.log('Plugin event:', event);
-  },
-};
+import { MyHtml } from "./src/Html.js";
+
+components: { Html: MyHtml },
 ```
 
-### Custom Normalizers
+## Dev Modes
 
-```ts
-export const config = {
-  // ... other config
-  normalizer: {
-    // Custom input normalization
-  },
-  moduleID: (id: string) => {
-    // Custom module ID transformation
-    return id.replace(/\.tsx?$/, '.js');
-  },
-};
-```
+| Mode | Command | RSC runs on | Benefits |
+|------|---------|-------------|----------|
+| SSR | `vite` | Worker thread | Default, better isolation |
+| RSC | `NODE_OPTIONS='--conditions react-server' vite` | Main thread | Easier debugging, React in config |
 
-## EXAMPLE SETUP
+Both produce identical output. The RSC worker is skipped in `dev:rsc` mode by default — Vite's environment runner handles HMR directly.
 
-Example `package.json` setup:
-
-```json
-"scripts": {
-  "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
-  "dev:ssr": "vite",
-  "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
-  "build:client": "vite build --ssr",
-  "build:static": "vite build"
-}
-```
-
-### ./src/my-page.tsx
-
-```tsx
-import React from "react";
-
-export const Page = ({ name }) => {
-  return <div>Hello {name}</div>;
-};
-```
-
-### ./src/my-props.ts
-
-```tsx
-export const props = {
-  name: "John Doe",
-};
-```
-
-### ./my-react-config.tsx
-
-```tsx
-import React from "react";
-
-export const config = {
-  moduleBase: "src",
-  Page: "src/my-page.tsx",
-  props: "src/my-props.ts",
-  Html: ({ Root, cssFiles, pageProps, Page }) => (
-    <html>
-      <title>{pageProps?.title || "My App"}</title>
-      <body>
-        <Root
-          as="div"
-          id="root"
-          cssFiles={cssFiles}
-          Page={Page}
-          pageProps={pageProps}
-        />
-      </body>
-    </html>
-  ),
-  build: {
-    pages: ["/", "/about"],
-  },
-};
-```
-
-### ./vite.config.ts
-
-```ts
-import { vitePluginReactServer } from "vite-plugin-react-server";
-import { config } from "./my-react-config.js";
-import { defineConfig } from "vite";
-export default defineConfig(() => {
-  return {
-    plugins: vitePluginReactServer(config),
-  };
-});
-```
-
-## Migration Guide
-
-### From Path-based to Direct Components
-
-If you want to optimize for static builds:
-
-```ts
-// Before: Path-based resolution
-export const config = {
-  Page: (url) => `src/page${url}/page.tsx`,
-  Html: "src/CustomHtml.tsx",
-  Root: "src/CustomRoot.tsx",
-};
-
-// After: Direct component references
-import { CustomPage } from "./src/CustomPage";
-import { CustomHtml } from "./src/CustomHtml";
-import { CustomRoot } from "./src/CustomRoot";
-
-export const config = {
-  components: {
-    Page: CustomPage,
-    Html: CustomHtml,
-    Root: CustomRoot,
-  },
-};
-```
-
-### From Direct Components to Path-based
-
-If you want to enable hot reloading and per-route components:
-
-```ts
-// Before: Direct components
-export const config = {
-  components: {
-    Page: CustomPage,
-    Html: CustomHtml,
-    Root: CustomRoot,
-  },
-};
-
-// After: Path-based resolution
-export const config = {
-  Page: (url) => `src/pages${url}/page.tsx`,
-  props: (url) => `src/pages${url}/props.ts`,
-  Html: "src/CustomHtml.tsx",
-  Root: "src/CustomRoot.tsx",
-};
-```
-
-## Best Practices
-
-### Development vs Production
-
-- **Development**: Use path-based resolution for hot reloading and debugging
-- **Production**: Consider direct components for static builds to improve performance
-
-### Type Safety
-
-Add the plugin's type declarations to your `tsconfig.json`:
+## Build Scripts
 
 ```json
 {
-  "compilerOptions": {
-    "types": ["vite-plugin-react-server/virtual"]
+  "scripts": {
+    "dev": "vite",
+    "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
+    "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
+    "preview": "vite preview"
   }
 }
 ```
 
-This provides:
-- `import.meta.env.PUBLIC_ORIGIN` type
-- `virtual:react-server/hmr` module types (`useRscHmr`, `setupRscHmr`)
-- Typed custom HMR events for `import.meta.hot`
+## `preserveModulesRoot`
 
-Always use TypeScript for better type safety:
+Controls whether `moduleBase` (e.g. `src/`) appears in output paths:
 
-```tsx
-// Define proper types for your components
-import type { PageProps } from "./props";
+| Value | Input | Output |
+|-------|-------|--------|
+| `false` (default) | `src/page/home.tsx` | `dist/client/page/home.js` |
+| `true` | `src/page/home.tsx` | `dist/client/src/page/home.js` |
 
-export const Page = ({ title, content }: PageProps) => {
-  return (
-    <div>
-      <h1>{title}</h1>
-      <p>{content}</p>
-    </div>
-  );
-};
-```
+## App Mode (`--app`)
 
-### Error Handling
-
-Provide fallbacks for component resolution:
+When using `vite build --app`, the plugin builds all environments in sequence. Add the `buildApp` hook to ensure correct ordering:
 
 ```ts
-export const config = {
-  Page: (url) => {
-    try {
-      return `src/pages${url}/page.tsx`;
-    } catch {
-      return "src/pages/404/page.tsx"; // Fallback page
-    }
+export default defineConfig({
+  plugins: [vitePluginReactServer(options)],
+  builder: {
+    buildApp: async (builder) => {
+      for (const env of Object.values(builder.environments)) {
+        if (!env.isBuilt) await builder.build(env);
+      }
+    },
   },
-};
+});
 ```
 
-### Performance Considerations
+## Metric Watcher
 
-- **Path-based**: Slower builds but better development experience
-- **Direct components**: Faster builds but no hot reloading
-- **Mixed approach**: Best of both worlds for specific use cases
-- **Parallel rendering** (`build.renderMode: "parallel"`): Default. Renders pages in batches of 8 for ~6x speedup on large sites
-- **Sequential rendering** (`build.renderMode: "sequential"`): Use for debugging or constrained environments
-- **Batch size tuning**: Increase `build.batchSize` for faster builds on machines with more RAM
+```ts
+import { metricWatcher } from "vite-plugin-react-server/metrics";
 
-<!-- TOC START -->
-
-## 📚 Documentation Navigation
-
-<!-- Auto-generated TOC - Do not edit manually -->
-
-## Table of Contents
-
-<!-- Auto-generated TOC - Do not edit manually -->
-
-
-
-1.	[Getting Started](./getting-started.md)
-2.	[Core Concepts](./core-concepts.md)
-3.	**[Configuration Guide](./configuration.md) ← you are here**
-4.	[CSS & Styling](./css-handling.md)
-5.	[Server Actions](./server-actions.md)
-6.	[Build & Deployment](./build-orchestration.md)
-7.	[Advanced Development](./maintenance/advanced-topics.md)
-8.	[Plugin Internals](./maintenance/transformer-plugin.md)
-9.	[Worker System](./maintenance/rsc-worker.md)
-10.	[API Reference](./api-reference.md)
-11.	[React Compatibility](./react-type-compatibility.md)
-12.	[Troubleshooting](./troubleshooting-guide.md)
-13.	[Package Exports](./package-exports.md)
-14.	[Transformations](./transformations.md)
-
-### Quick Links
-- [🏠 Main Documentation](./README.md)
-- [🚀 Getting Started](./getting-started.md)
-- [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
-- [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
-
----
-
-<!-- TOC END -->
-
-
-
-
-
-
-
+vitePluginReactServer({
+  onMetrics: metricWatcher({
+    maxTime: 200,          // warn if > 200ms
+    maxBackpressure: 0,    // warn on any backpressure
+  }),
+});
+```
