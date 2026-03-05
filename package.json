@@ -18,7 +18,10 @@
     "oss-experimental/react-server-dom-esm"
   ],
   "exports": {
-    ".": "./dist/plugin/index.js",
+    ".": {
+      "react-server": "./dist/plugin/index.server.js",
+      "default": "./dist/plugin/index.client.js"
+    },
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",
     "./static": "./dist/static.js",

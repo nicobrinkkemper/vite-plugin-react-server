@@ -2,7 +2,7 @@ import type { VitePluginMainFn } from "./types.js";
 import type { UserOptions, Strategy } from "./orchestrator/types.js";
 
 import { assertReactServer } from "./config/getCondition.js";
-import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.js";
+import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.server.js";
 
 assertReactServer();
 

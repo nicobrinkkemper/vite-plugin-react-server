@@ -1,5 +1,5 @@
 import type { VitePluginMainFn } from "./types.js";
-import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.js";
+import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.client.js";
 import type { UserOptions, Strategy } from "./orchestrator/types.js";
 import { assertNonReactServer } from "./config/getCondition.js";
 
