@@ -203,9 +203,10 @@ export function assertReactServer(): asserts this is {
   const currentCondition = getCurrentCondition();
   if (currentCondition !== "react-server") {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
-    throw new Error(
-      `Condition mismatch, should be react-server. Set NODE_OPTIONS="--conditions=react-server" or --conditions=react-server`
+    console.warn(
+      `[vite-plugin-react-server] Condition mismatch: expected react-server. Set NODE_OPTIONS="--conditions=react-server"`
     );
+    return; // Don't throw — Vite 7 may load both condition variants during config bundling
   }
 }
 
@@ -215,9 +216,10 @@ export function assertNonReactServer(): asserts this is {
   const currentCondition = getCurrentCondition();
   if (currentCondition === "react-server") {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
-    throw new Error(
-      `Condition mismatch, should not be react-server. Remove NODE_OPTIONS="--conditions=react-server" or --conditions=react-server`
+    console.warn(
+      `[vite-plugin-react-server] Condition mismatch: unexpected react-server condition on this module.`
     );
+    return; // Don't throw — Vite 7 may load both condition variants during config bundling
   }
 }
 

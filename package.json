@@ -18,10 +18,7 @@
     "oss-experimental/react-server-dom-esm"
   ],
   "exports": {
-    ".": {
-      "react-server": "./dist/plugin/index.server.js",
-      "default": "./dist/plugin/index.client.js"
-    },
+    ".": "./dist/plugin/index.js",
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",
     "./static": "./dist/static.js",
@@ -43,7 +40,10 @@
       "default": "./dist/plugin/utils/index.server.js"
     },
     "./metrics": "./dist/plugin/metrics/index.js",
-    "./stream": "./dist/plugin/stream/index.js",
+    "./stream": {
+      "react-server": "./dist/plugin/stream/index.server.js",
+      "default": "./dist/plugin/stream/index.client.js"
+    },
     "./stream/client": "./dist/plugin/stream/index.client.js",
     "./stream/server": "./dist/plugin/stream/index.server.js",
     "./env": {
@@ -51,25 +51,128 @@
     },
     "./config": "./dist/plugin/config/index.js",
     "./error": "./dist/plugin/error/index.js",
-    "./vendor": "./dist/plugin/vendor/index.js",
+    "./vendor": {
+      "react-server": "./dist/plugin/vendor/vendor.server.js",
+      "default": "./dist/plugin/vendor/vendor.client.js"
+    },
     "./vendor.server": "./dist/plugin/vendor/vendor.server.js",
     "./vendor.client": "./dist/plugin/vendor/vendor.client.js",
     "./vendor.static": "./dist/plugin/vendor/vendor.static.js",
     "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
     "./loader": "./dist/plugin/loader/index.js",
     "./helpers": "./dist/plugin/helpers/index.js",
-    "./helpers/resolveStreamElements": "./dist/plugin/helpers/resolveStreamElements.js",
-    "./dev-server": "./dist/plugin/dev-server/index.js",
-    "./dev-server/configureReactServer": "./dist/plugin/dev-server/configureReactServer.js",
-    "./dev-server/handleServerAction": "./dist/plugin/dev-server/handleServerAction.js",
-    "./stream/handleRscStream": "./dist/plugin/stream/handleRscStream.js",
-    "./stream/createRscStream": "./dist/plugin/stream/createRscStream.js",
-    "./dev-server/restartWorker": "./dist/plugin/dev-server/restartWorker.js",
-    "./dev-server/cleanupServerAction": "./dist/plugin/dev-server/cleanupServerAction.js",
+    "./helpers/resolveStreamElements": {
+      "react-server": "./dist/plugin/helpers/resolveStreamElements.server.js",
+      "default": "./dist/plugin/helpers/resolveStreamElements.client.js"
+    },
+    "./dev-server": {
+      "react-server": "./dist/plugin/dev-server/index.server.js",
+      "default": "./dist/plugin/dev-server/index.client.js"
+    },
+    "./dev-server/configureReactServer": {
+      "react-server": "./dist/plugin/dev-server/configureReactServer.server.js",
+      "default": "./dist/plugin/dev-server/configureReactServer.client.js"
+    },
+    "./dev-server/handleServerAction": {
+      "react-server": "./dist/plugin/dev-server/handleServerAction.server.js",
+      "default": "./dist/plugin/dev-server/handleServerAction.client.js"
+    },
+    "./stream/handleRscStream": {
+      "react-server": "./dist/plugin/stream/handleRscStream.server.js",
+      "default": "./dist/plugin/stream/handleRscStream.client.js"
+    },
+    "./stream/createRscStream": {
+      "react-server": "./dist/plugin/stream/createRscStream.server.js",
+      "default": "./dist/plugin/stream/createRscStream.client.js"
+    },
+    "./dev-server/restartWorker": {
+      "react-server": "./dist/plugin/dev-server/restartWorker.server.js",
+      "default": "./dist/plugin/dev-server/restartWorker.client.js"
+    },
+    "./dev-server/cleanupServerAction": {
+      "react-server": "./dist/plugin/dev-server/cleanupServerAction.server.js",
+      "default": "./dist/plugin/dev-server/cleanupServerAction.client.js"
+    },
     "./env-loader": "./dist/plugin/loader/env-loader.js",
     "./css-loader": "./dist/plugin/loader/css-loader.js",
     "./directives": "./dist/plugin/loader/directives/index.js",
-    "./register": "./dist/plugin/vendor/register-vendor.js"
+    "./register": "./dist/plugin/vendor/register-vendor.js",
+    "./config/createHandlerOptions": {
+      "react-server": "./dist/plugin/config/createHandlerOptions.server.js",
+      "default": "./dist/plugin/config/createHandlerOptions.client.js"
+    },
+    "./dev-server/configureRequestHandler": {
+      "react-server": "./dist/plugin/dev-server/configureRequestHandler.server.js",
+      "default": "./dist/plugin/dev-server/configureRequestHandler.client.js"
+    },
+    "./env/plugin": {
+      "react-server": "./dist/plugin/env/plugin.server.js",
+      "default": "./dist/plugin/env/plugin.client.js"
+    },
+    "./helpers/handleServerAction": {
+      "react-server": "./dist/plugin/helpers/handleServerAction.server.js",
+      "default": "./dist/plugin/helpers/handleServerAction.client.js"
+    },
+    "./orchestrator/createPluginOrchestrator": {
+      "react-server": "./dist/plugin/orchestrator/createPluginOrchestrator.server.js",
+      "default": "./dist/plugin/orchestrator/createPluginOrchestrator.client.js"
+    },
+    "./plugin": {
+      "react-server": "./dist/plugin/plugin.server.js",
+      "default": "./dist/plugin/plugin.client.js"
+    },
+    "./react-client": {
+      "react-server": "./dist/plugin/react-client/index.server.js",
+      "default": "./dist/plugin/react-client/index.client.js"
+    },
+    "./react-client/plugin": {
+      "react-server": "./dist/plugin/react-client/plugin.server.js",
+      "default": "./dist/plugin/react-client/plugin.client.js"
+    },
+    "./react-server/plugin": {
+      "react-server": "./dist/plugin/react-server/plugin.server.js",
+      "default": "./dist/plugin/react-server/plugin.client.js"
+    },
+    "./react-static/createBuildLoader": {
+      "react-server": "./dist/plugin/react-static/createBuildLoader.server.js",
+      "default": "./dist/plugin/react-static/createBuildLoader.client.js"
+    },
+    "./react-static": {
+      "react-server": "./dist/plugin/react-static/index.server.js",
+      "default": "./dist/plugin/react-static/index.client.js"
+    },
+    "./react-static/plugin": {
+      "react-server": "./dist/plugin/react-static/plugin.server.js",
+      "default": "./dist/plugin/react-static/plugin.client.js"
+    },
+    "./react-static/renderPage": {
+      "react-server": "./dist/plugin/react-static/renderPage.server.js",
+      "default": "./dist/plugin/react-static/renderPage.client.js"
+    },
+    "./react-static/rscToHtmlStream": {
+      "react-server": "./dist/plugin/react-static/rscToHtmlStream.server.js",
+      "default": "./dist/plugin/react-static/rscToHtmlStream.client.js"
+    },
+    "./react-static/temporaryReferences": {
+      "react-server": "./dist/plugin/react-static/temporaryReferences.server.js",
+      "default": "./dist/plugin/react-static/temporaryReferences.client.js"
+    },
+    "./stream/createFromNodeStream": {
+      "react-server": "./dist/plugin/stream/createFromNodeStream.server.js",
+      "default": "./dist/plugin/stream/createFromNodeStream.client.js"
+    },
+    "./stream/createHtmlStream": {
+      "react-server": "./dist/plugin/stream/createHtmlStream.server.js",
+      "default": "./dist/plugin/stream/createHtmlStream.client.js"
+    },
+    "./stream/createRenderToPipeableStreamHandler": {
+      "react-server": "./dist/plugin/stream/createRenderToPipeableStreamHandler.server.js",
+      "default": "./dist/plugin/stream/createRenderToPipeableStreamHandler.client.js"
+    },
+    "./transformer/plugin": {
+      "react-server": "./dist/plugin/transformer/plugin.server.js",
+      "default": "./dist/plugin/transformer/plugin.client.js"
+    }
   },
   "typesVersions": {
     "*": {

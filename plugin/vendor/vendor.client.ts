@@ -2,9 +2,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
-import { assertNonReactServer } from "../config/getCondition.js";
 
-assertNonReactServer();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 function findPkgRoot(): string {
