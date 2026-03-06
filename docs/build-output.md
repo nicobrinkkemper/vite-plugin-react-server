@@ -4,41 +4,81 @@ Running `NODE_OPTIONS='--conditions react-server' vite build --app` produces thr
 
 ```
 dist/
-├── static/                    # Complete static site
+├── static/                    # Browser-ready output — deploy this
 │   ├── index.html             # Pre-rendered HTML
-│   ├── index.rsc              # RSC payload (for client-side navigation)
+│   ├── index.rsc              # RSC payload (for client navigation)
 │   ├── about/
 │   │   ├── index.html
 │   │   └── index.rsc
 │   ├── assets/                # Hashed JS/CSS bundles
 │   └── .vite/manifest.json
-├── client/                    # Client boundary ESM modules
+├── client/                    # Client components built for Node
 │   ├── page/
 │   │   └── page.js
 │   └── components/
 │       └── Counter.client-CnBCzH8H.js
-└── server/                    # Server boundary ESM modules
+└── server/                    # Server components (react-server condition)
     ├── page/
     │   ├── page.js
     │   ├── props.js
-    │   └── actions.server.js  # Transformed with registerServerReference
+    │   └── actions.server.js
     └── components/
-        └── Counter.client-CnBCzH8H.js  # Replaced with registerClientReference
+        └── Counter.client-CnBCzH8H.js
 ```
 
-## What Each Directory Is For
+## Understanding the Three Builds
+
+### A note on naming
+
+React and Vite use the words "client" and "server" differently, and this matters for understanding the build output:
+
+- **React** splits code by boundary: "client components" run on *both* client and server (they handle interactivity + SSR/SSG), "server components" run on the server only.
+- **Vite** splits code by target: "client" means browser-ready bundles, "ssr" means Node.js-importable modules.
+
+A React **client component** gets built **twice** — once as a browser bundle (Vite's "client" environment → `dist/static/`), and once as a Node-importable module (Vite's "ssr" environment → `dist/client/`). The Node version exists because during static HTML generation (or runtime SSR), the renderer must `import()` client components to produce HTML on the server.
+
+Here's how Vite's build environments map to output directories:
+
+| Vite environment | Output | What it contains | Why it exists |
+|---|---|---|---|
+| `client` | `dist/static/` | Hashed browser bundles, pre-rendered HTML, RSC payloads | Deploy to any static host. This is the final product. |
+| `ssr` | `dist/client/` | Client components as ESM with bare specifier imports (`react`, `react-dom`) | The static renderer (and runtime SSR) needs to `import()` client components using Node module resolution. Browser bundles use hashed URLs — Node can't import those. |
+| `server` | `dist/server/` | Server components, props, server actions (react-server condition) | Server-only code. Props functions, server actions with `registerServerReference`, and server components with client references replaced by `registerClientReference`. |
 
 ### `dist/static/` — deploy this
 
-A self-contained static site. Every route in `build.pages` gets an `index.html` and `index.rsc`. Deploy to GitHub Pages, Netlify, S3, or any static host.
+A self-contained static site. Every route in `build.pages` gets an `index.html` (full page) and `index.rsc` (RSC payload for client-side navigation). Deploy to GitHub Pages, Netlify, S3, or any static host.
 
-### `dist/client/` — SSR client boundary
+This directory is generated *after* the other two builds complete, using `dist/server/` for server components and `dist/client/` for client components.
 
-ESM modules with bare specifier imports, meant for Node.js SSR. These are the client components your server needs to render HTML.
+### `dist/client/` — client components for Node
 
-### `dist/server/` — server boundary
+ESM modules with bare specifier imports, built for Node.js. During static generation, the renderer imports these to resolve client component references into actual React elements for HTML rendering.
 
-ESM modules with server actions transformed to use `registerServerReference`. Import these in your Express/Hono server to handle server action requests.
+Without this build, the renderer would only have the server component tree with opaque client references — it couldn't produce complete HTML.
+
+### `dist/server/` — server components
+
+ESM modules built under the `react-server` condition. Server actions are transformed with `registerServerReference`. Client component imports are replaced with `registerClientReference` stubs that tell the RSC serializer "this is a client boundary, here's its module ID."
+
+## How Static Generation Works
+
+Understanding the build pipeline helps explain why all three directories are needed:
+
+```
+1. client build    → dist/static/  (browser bundles, index.html shell)
+2. ssr build       → dist/client/  (client components for Node)
+3. server build    → dist/server/  (server components, props)
+   └─ writeBundle hook triggers static generation:
+      a. import props from dist/server/props.js
+      b. import Page from dist/server/page.js
+      c. render RSC stream (server components → serialized React tree)
+      d. import client components from dist/client/ to resolve references
+      e. render HTML stream (RSC stream → full HTML document)
+      f. write index.html + index.rsc to dist/static/
+```
+
+The dual-stream architecture (step c + e) is why the plugin produces both `.html` and `.rsc` files. The RSC payload is reused for client-side navigation — when a user clicks a link, the browser fetches the `.rsc` file instead of a full page reload.
 
 ## Consistent Hashing
 
@@ -50,7 +90,7 @@ dist/server/components/Link.client-CnBCzH8H.js
 dist/static/components/Link.client-CnBCzH8H.js
 ```
 
-This ensures module references are consistent between client and server.
+This ensures module references are consistent between client and server. When the server component tree references a client component by module ID, that ID resolves correctly in both the browser (`dist/static/`) and Node (`dist/client/`).
 
 ## Using the ESM Modules in a Server
 
