@@ -177,6 +177,10 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       ...clientEntry,
       ...cssInputs,
     };
+    // If no client entries found, fall back to index.html so SSR environment has inputs
+    if (Object.keys(clientInputsCollection).length === 0) {
+      Object.assign(clientInputsCollection, indexHtmlInputs);
+    }
     
     const serverInputsCollection = {
       ...clientInputsCollection,
