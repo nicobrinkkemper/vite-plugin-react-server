@@ -77,7 +77,12 @@ export async function resolveComponent<T = RootComponentType | HtmlComponentType
       }
       return {
         type: "error",
-        error: new Error(`Export "${moduleExportName}" not found in module ${modulePath}.`),
+        error: new Error(
+          `Export "${moduleExportName}" not found in module ${modulePath}. ` +
+          (moduleExportName !== "default"
+            ? `Did you use \`export default\`? Use \`export function ${moduleExportName}(...)\` or set pageExportName: "default" in your plugin config.`
+            : `The module does not have a default export.`)
+        ),
       };
     }
 

@@ -146,7 +146,12 @@ export async function createSharedLoader({
     throw new Error(`Module "${moduleId}" has no exports, can't find ${exportName}`);
   }
   if (exportName && !(exportName in result)) {
-    throw new Error(`Module "${moduleId}" does not export "${exportName}"`);
+    throw new Error(
+      `Module "${moduleId}" does not export "${exportName}". ` +
+      (exportName !== 'default'
+        ? `Did you use \`export default\`? Use \`export function ${exportName}(...)\` or set pageExportName: "default" in your plugin config.`
+        : `The module does not have a default export.`)
+    );
   }
 
   return result;
