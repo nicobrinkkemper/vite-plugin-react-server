@@ -101,6 +101,12 @@ describe("RSC Stream Format", () => {
     await mkdir(testDir, { recursive: true });
     await setupTestFiles();
 
+    // Symlink node_modules so react-server-dom-esm resolves from fixture dir
+    const { symlink } = await import("node:fs/promises");
+    const parentNodeModules = resolve(__dirname, "../../node_modules");
+    const fixtureNodeModules = join(testDir, "node_modules");
+    try { await symlink(parentNodeModules, fixtureNodeModules, "dir"); } catch {}
+
     server = await createServer({
       mode: "test",
       root: testDir,
