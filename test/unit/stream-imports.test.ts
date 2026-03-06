@@ -34,15 +34,17 @@ describe("Stream Utilities Import Test", () => {
 
 
 
-      it("should NOT import client modules (conditional exports working!)", async () => {
-        // These should fail in server environment - conditional exports are working!
-        await expect(
-          import("../../plugin/stream/createRscStream.client.js")
-        ).rejects.toThrow("Condition mismatch, should not be react-server");
-        
+      it("should handle client module imports in server environment", async () => {
+        // Since Vite 7 compat (v1.4.3), our condition assertions warn instead of throw.
+        // createRscStream.client imports successfully (no react-dom/server dependency).
+        const clientRsc = await import("../../plugin/stream/createRscStream.client.js");
+        expect(clientRsc.createRscStream).toBeDefined();
+
+        // createHtmlStream.client fails because vendor.client imports react-dom/server
+        // which is banned under react-server condition.
         await expect(
           import("../../plugin/stream/createHtmlStream.client.js")
-        ).rejects.toThrow("Condition mismatch, should not be react-server");
+        ).rejects.toThrow();
       });
     });
   }

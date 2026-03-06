@@ -38,7 +38,7 @@ export function createReactElement(
 
   return createElementWithReact(React, {
     ...finalOptions,
-    HtmlComponent: isHeadless ? React.Fragment : finalOptions.HtmlComponent,
+    Html: isHeadless ? React.Fragment : finalOptions.HtmlComponent,
     as: isHeadless ? React.Fragment : "div",
   });
 }
