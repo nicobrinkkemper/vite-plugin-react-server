@@ -1,1 +1,1 @@
-export { createPluginOrchestrator } from './createPluginOrchestrator.js';
+export { createPluginOrchestrator } from './createPluginOrchestrator.server.js';

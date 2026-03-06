@@ -18,7 +18,10 @@
     "oss-experimental/react-server-dom-esm"
   ],
   "exports": {
-    ".": "./dist/plugin/index.js",
+    ".": {
+      "react-server": "./dist/plugin/index.server.js",
+      "default": "./dist/plugin/index.client.js"
+    },
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",
     "./static": "./dist/static.js",
@@ -47,7 +50,8 @@
     "./stream/client": "./dist/plugin/stream/index.client.js",
     "./stream/server": "./dist/plugin/stream/index.server.js",
     "./env": {
-      "types": "./env.d.ts"
+      "react-server": "./dist/plugin/env/index.server.js",
+      "default": "./dist/plugin/env/index.client.js"
     },
     "./config": "./dist/plugin/config/index.js",
     "./error": "./dist/plugin/error/index.js",
@@ -60,7 +64,10 @@
     "./vendor.static": "./dist/plugin/vendor/vendor.static.js",
     "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
     "./loader": "./dist/plugin/loader/index.js",
-    "./helpers": "./dist/plugin/helpers/index.js",
+    "./helpers": {
+      "react-server": "./dist/plugin/helpers/index.server.js",
+      "default": "./dist/plugin/helpers/index.client.js"
+    },
     "./helpers/resolveStreamElements": {
       "react-server": "./dist/plugin/helpers/resolveStreamElements.server.js",
       "default": "./dist/plugin/helpers/resolveStreamElements.client.js"
@@ -170,6 +177,18 @@
       "default": "./dist/plugin/stream/createRenderToPipeableStreamHandler.client.js"
     },
     "./transformer/plugin": {
+      "react-server": "./dist/plugin/transformer/plugin.server.js",
+      "default": "./dist/plugin/transformer/plugin.client.js"
+    },
+    "./react-server": {
+      "react-server": "./dist/plugin/react-server/index.server.js",
+      "default": "./dist/plugin/react-server/index.client.js"
+    },
+    "./orchestrator": {
+      "react-server": "./dist/plugin/orchestrator/createPluginOrchestrator.server.js",
+      "default": "./dist/plugin/orchestrator/createPluginOrchestrator.client.js"
+    },
+    "./transformer": {
       "react-server": "./dist/plugin/transformer/plugin.server.js",
       "default": "./dist/plugin/transformer/plugin.client.js"
     }

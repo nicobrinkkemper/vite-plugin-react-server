@@ -8,7 +8,7 @@ import {
   setupServerActionHeaders,
   createServerActionStream,
   handleServerActionError,
-} from "../helpers/handleServerAction.js";
+} from "../helpers/handleServerAction.client.js";
 import type { MessageHandler } from "../types.js";
 import { cleanupServerAction } from "./cleanupServerAction.client.js";
 import type { HandleWorkerServerActionFn } from "../react-client/types.js";

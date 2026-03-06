@@ -7,8 +7,8 @@ export {
     renderPages,
     configurePreviewServer,
     collectRscContent,
-    rscToHtmlStream,
-} from './plugin/react-static/index.js';
-export { reactStaticPlugin as vitePluginReactStaticGeneration } from './plugin/react-static/index.js';
+    createRscToHtmlStream as rscToHtmlStream,
+} from './plugin/react-static/index.server.js';
+export { reactStaticPlugin as vitePluginReactStaticGeneration } from './plugin/react-static/index.server.js';
 // Export types
 export type * from './plugin/react-static/types.js';

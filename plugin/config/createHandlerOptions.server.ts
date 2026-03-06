@@ -475,3 +475,10 @@ export async function createHandlerOptions(
   stashHandlerOptions(id, handlerOptions);
   return handlerOptions;
 }
+
+
+export type {
+  CreateHandlerOptionsParams,
+  CreateHandlerOptionsServerFn,
+  CreateHandlerOptionsClientFn,
+} from "./createHandlerOptions.types.js";

@@ -15,7 +15,7 @@ import {
   mergeMessageWithDefaults,
   resolveWithDefaultRootAndHtml,
   logRenderStart,
-} from "../../helpers/index.js";
+} from "../../helpers/index.server.js";
 
 /**
  * Creates the RSC worker loader with necessary configuration

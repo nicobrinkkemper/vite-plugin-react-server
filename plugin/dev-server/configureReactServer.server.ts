@@ -8,7 +8,7 @@ import type { Worker } from "node:worker_threads";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { handleServerAction } from "./handleServerAction.js";
+import { handleServerAction } from "./handleServerAction.server.js";
 import type { ConfigureReactServerFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";

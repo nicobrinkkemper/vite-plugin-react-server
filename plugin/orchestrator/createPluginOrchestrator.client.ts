@@ -49,3 +49,20 @@ export const createPluginOrchestrator = (
 
   return plugins;
 };
+
+
+export interface Strategy {
+  mode?: "auto" | "server" | "client";
+  bundleTarget?: "server" | "client" | "ssr";
+  importContext?: "react-server" | "react-client";
+  mainThreadCondition?: "react-server" | "react-client";
+  legacyBuilder?: boolean;
+  staticBuild?: boolean;
+  ssg?: boolean;
+  forceCapabilities?: {
+    staticGeneration?: boolean;
+    serverComponents?: boolean;
+    clientBuilds?: boolean;
+    ssrBuilds?: boolean;
+  };
+}

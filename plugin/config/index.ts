@@ -34,7 +34,7 @@ export { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
  * const handlerOptions = await createHandlerOptions("/about", options);
  * ```
  */
-export { createHandlerOptions } from "./createHandlerOptions.js";
+export { createHandlerOptions } from "./createHandlerOptions.server.js";
 
 /**
  * Handler options creation (environment-specific, when you need explicit control)

@@ -1,1 +1,1 @@
-export * from './vendor.js';
+export * from './vendor.server.js';

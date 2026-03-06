@@ -38,7 +38,7 @@ import type {
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
 import type { WorkerMessage } from "./worker/types.js";
-import type { Strategy } from "./orchestrator/createPluginOrchestrator.js";
+import type { Strategy } from "./orchestrator/createPluginOrchestrator.server.js";
 import type { RenderToPipeableStreamOptions as ClientRenderToPipeableStreamOptions } from "react-dom/server";
 import type { RenderToPipeableStreamOptions as ServerRenderToPipeableStreamOptions } from "react-server-dom-esm/server.node";
 
