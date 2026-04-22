@@ -6,10 +6,10 @@
 export { vitePluginReactServer } from "./plugin/plugin.client.js"
 
 
-export * from './plugin/react-client/index.js'
+export * from './plugin/react-client/index.client.js'
 // Export specific dev-server functions for client usage
-export { handleServerAction } from './plugin/dev-server/index.js'
-export { handleRscStream } from './plugin/stream/index.js'
+export { handleServerAction } from './plugin/dev-server/index.client.js'
+export { handleRscStream } from './plugin/stream/index.client.js'
 // types
 export type * from './plugin/types.js'
 export type * from './plugin/react-client/types.js'

@@ -1,6 +1,6 @@
 import type { HandleServerActionFn } from "./types.js";
 import { assertReactServer } from "../config/getCondition.js";
-import { handleServerActionWithViteServer } from "../helpers/handleServerAction.js";
+import { handleServerActionWithViteServer } from "../helpers/handleServerAction.server.js";
 
 assertReactServer()
 

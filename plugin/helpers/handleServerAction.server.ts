@@ -149,3 +149,5 @@ export {
   createServerActionResponse, 
   setupServerActionHeaders 
 } from "./handleServerActionHelper.js";
+
+export type { ServerActionRequest, ServerActionHandlerOptions } from "./handleServerActionHelper.js";

@@ -1,5 +1,3 @@
-import { getCondition } from "../config/getCondition.js";
-
 // Route and file handling
 export * from "./getRouteFiles.js";
 export * from "./resolvePage.js";
@@ -53,14 +51,4 @@ export * from "./createPatternMatcher.js";
 export * from "./createUnifiedCssProcessor.js";
 
 // Server action handling
-
-const condition = getCondition("");
-const dirname = new URL("./", import.meta.url).pathname.replace(/\/$/, "");
-
-const { handleServerAction } = (await import(
-  `${dirname}/handleServerAction.${condition}.js`
-)) as {
-  handleServerAction: any
-};
-
-export {  handleServerAction };
+export { handleServerAction } from "./handleServerAction.server.js";

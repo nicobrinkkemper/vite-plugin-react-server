@@ -1,3 +1,47 @@
 import { createEnvPlugin } from "./createEnvPlugin.js";
 export const envPlugin = createEnvPlugin("react-client");
 
+
+
+// Shared utility functions
+export function getEnvironmentName(plugin: any): string | undefined {
+  if (plugin?.environment?.name) return plugin.environment.name;
+  if (plugin?.config && (plugin.config as any).environment?.name) {
+    return (plugin.config as any).environment.name;
+  }
+  const traditionalModeConfig = (globalThis as any)
+    .__vitePluginReactServerTraditionalModeConfig;
+  if (traditionalModeConfig?.isTraditionalMode) {
+    return traditionalModeConfig.environmentName as string;
+  }
+  return undefined;
+}
+
+export function validateEnvironmentName(
+  environmentName: string,
+  allowedEnvironments: string[]
+): boolean {
+  return allowedEnvironments.includes(environmentName);
+}
+
+export function ensureConditionalConfigResolution(environmentName: string) {
+  const appModeConfig = (globalThis as any)
+    .__vitePluginReactServerAppModeConfig;
+
+  if (appModeConfig && appModeConfig.isAppMode) {
+    // In --app mode, ensure we're resolving in the correct condition
+    const condition =
+      environmentName === "server" ? "react-server" : "react-client";
+
+    if (!appModeConfig.resolvedInConditions.has(condition)) {
+      appModeConfig.resolvedInConditions.add(condition);
+
+      // This could trigger additional config resolution if needed
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  return false;
+}

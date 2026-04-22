@@ -19,15 +19,9 @@ export default defineConfig({
         client: resolve(__dirname, "client.ts"),
         server: resolve(__dirname, "server.ts"),
         static: resolve(__dirname, "static.ts"),
-        index: resolve(__dirname, "index.ts"),
-        "plugin/react-client/index": resolve(
-          __dirname,
-          "plugin/react-client/index.ts"
-        ),
-        "plugin/react-server/plugin": resolve(
-          __dirname,
-          "plugin/react-server/plugin.ts"
-        ),
+        
+        
+        
         "plugin/worker/index": resolve(
           __dirname,
           "plugin/worker/index.ts"
@@ -40,10 +34,7 @@ export default defineConfig({
           __dirname,
           "plugin/worker/rsc/index.ts"
         ),
-        "plugin/transformer/plugin": resolve(
-          __dirname,
-          "plugin/transformer/plugin.ts"
-        ),
+        
         "plugin/loader/react-loader": resolve(
           __dirname,
           "plugin/loader/react-loader.ts"
@@ -64,29 +55,29 @@ export default defineConfig({
         "plugin/components/index": resolve(__dirname, "plugin/components/index.ts"),
         "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
-        "plugin/stream/index": resolve(__dirname, "plugin/stream/index.ts"),
+        
         "plugin/stream/server": resolve(__dirname, "plugin/stream/index.server.ts"),
         "plugin/stream/client": resolve(__dirname, "plugin/stream/index.client.ts"),
-        "plugin/env/plugin": resolve(__dirname, "plugin/env/plugin.ts"),
+        
         "plugin/vendor/index": resolve(__dirname, "plugin/vendor/index.ts"),
         "plugin/vendor/vendor.server": resolve(__dirname, "plugin/vendor/vendor.server.ts"),
         "plugin/vendor/vendor.client": resolve(__dirname, "plugin/vendor/vendor.client.ts"),
         "plugin/vendor/vendor.static": resolve(__dirname, "plugin/vendor/vendor.static.ts"),
         "plugin/config/index": resolve(__dirname, "plugin/config/index.ts"),
         "plugin/error/index": resolve(__dirname, "plugin/error/index.ts"),
-        "plugin/helpers/index": resolve(__dirname, "plugin/helpers/index.ts"),
-        "plugin/dev-server/index": resolve(__dirname, "plugin/dev-server/index.ts"),
+        
+        
         "plugin/dev-server/index.server": resolve(__dirname, "plugin/dev-server/index.server.ts"),
         "plugin/dev-server/index.client": resolve(__dirname, "plugin/dev-server/index.client.ts"),
-        "plugin/dev-server/configureReactServer": resolve(__dirname, "plugin/dev-server/configureReactServer.ts"),
+        
         "plugin/dev-server/configureReactServer.server": resolve(__dirname, "plugin/dev-server/configureReactServer.server.ts"),
-        "plugin/dev-server/handleServerAction": resolve(__dirname, "plugin/dev-server/handleServerAction.ts"),
+        
         "plugin/dev-server/handleServerAction.server": resolve(__dirname, "plugin/dev-server/handleServerAction.server.ts"),
         "plugin/dev-server/handleServerAction.client": resolve(__dirname, "plugin/dev-server/handleServerAction.client.ts"),
-        "plugin/stream/handleRscStream": resolve(__dirname, "plugin/stream/handleRscStream.ts"),
+        
         "plugin/stream/handleRscStream.server": resolve(__dirname, "plugin/stream/handleRscStream.server.ts"),
         "plugin/stream/handleRscStream.client": resolve(__dirname, "plugin/stream/handleRscStream.client.ts"),
-        "plugin/stream/createRscStream": resolve(__dirname, "plugin/stream/createRscStream.ts"),
+        
         "plugin/stream/createRscStream.server": resolve(__dirname, "plugin/stream/createRscStream.server.ts"),
         "plugin/stream/createRscStream.client": resolve(__dirname, "plugin/stream/createRscStream.client.ts"),
         
@@ -98,6 +89,28 @@ export default defineConfig({
           __dirname,
           "plugin/loader/directives/index.ts"
         ),
+        "plugin/helpers/index.server": resolve(__dirname, "plugin/helpers/index.server.ts"),
+        "plugin/helpers/index.client": resolve(__dirname, "plugin/helpers/index.client.ts"),
+        "plugin/env/index.server": resolve(__dirname, "plugin/env/index.server.ts"),
+        "plugin/env/index.client": resolve(__dirname, "plugin/env/index.client.ts"),
+        "plugin/env/plugin.server": resolve(__dirname, "plugin/env/plugin.server.ts"),
+        "plugin/env/plugin.client": resolve(__dirname, "plugin/env/plugin.client.ts"),
+        "plugin/index.server": resolve(__dirname, "plugin/index.server.ts"),
+        "plugin/index.client": resolve(__dirname, "plugin/index.client.ts"),
+        "plugin/plugin.server": resolve(__dirname, "plugin/plugin.server.ts"),
+        "plugin/plugin.client": resolve(__dirname, "plugin/plugin.client.ts"),
+        "plugin/react-server/index.server": resolve(__dirname, "plugin/react-server/index.server.ts"),
+        "plugin/react-server/index.client": resolve(__dirname, "plugin/react-server/index.client.ts"),
+        "plugin/react-client/index.server": resolve(__dirname, "plugin/react-client/index.server.ts"),
+        "plugin/react-client/index.client": resolve(__dirname, "plugin/react-client/index.client.ts"),
+        "plugin/react-static/index.server": resolve(__dirname, "plugin/react-static/index.server.ts"),
+        "plugin/react-static/index.client": resolve(__dirname, "plugin/react-static/index.client.ts"),
+        "plugin/transformer/plugin.server": resolve(__dirname, "plugin/transformer/plugin.server.ts"),
+        "plugin/transformer/plugin.client": resolve(__dirname, "plugin/transformer/plugin.client.ts"),
+        "plugin/orchestrator/createPluginOrchestrator.server": resolve(__dirname, "plugin/orchestrator/createPluginOrchestrator.server.ts"),
+        "plugin/orchestrator/createPluginOrchestrator.client": resolve(__dirname, "plugin/orchestrator/createPluginOrchestrator.client.ts"),
+        "plugin/config/createHandlerOptions.server": resolve(__dirname, "plugin/config/createHandlerOptions.server.ts"),
+        "plugin/config/createHandlerOptions.client": resolve(__dirname, "plugin/config/createHandlerOptions.client.ts"),
       },
       formats: ["es"],
     },
