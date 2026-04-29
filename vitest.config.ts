@@ -17,6 +17,12 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // Many tests (test/examples and test/dev) run real Vite builds end-to-end,
+    // which routinely take longer than vitest's 5s default — especially on CI
+    // where parallel workers all contend for the same fs/cpu. Bumping the
+    // default keeps the suite green without per-test timeout overrides on
+    // every real-build case.
+    testTimeout: 30000,
     hookTimeout: 10000,
     environment: "node",
     setupFiles: ["./test/setup.ts"],
