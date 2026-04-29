@@ -55,6 +55,12 @@ export function analyzeDirectives(
   // Find file-level directives by checking AST
   let foundNonDirective = false;
   let firstDirective: DirectiveMatch | null = null;
+  // Track the end-of-source position of the last consecutive directive
+  // prologue we've walked past. The block below uses this as the start of the
+  // "is there real code before this node?" range, so a benign "use strict"
+  // (or any other prologue directive) sitting above a "use client" doesn't
+  // get classified as code-before-directive.
+  let lastProloguePos = 0;
   const verbose =
     hasOptions &&
     typeof optionsOrMatches === "object" &&
@@ -90,7 +96,38 @@ beforeNode: ${node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)).sli
     // Only check for directives in expression statements
     if (node.type === "ExpressionStatement") {
       let directive: string | null = null;
-      if ("directive" in node && typeof node.directive === "string") {
+      // Whether this statement is *some* prologue directive (the AST parser
+      // sets `node.directive` for any string-literal at the start of a
+      // function/program — "use strict", "use asm", "use client", etc.).
+      // We use this to skip non-react prologues without flagging them as
+      // "real code before the first directive".
+      const isDirectivePrologue =
+        ("directive" in node && typeof node.directive === "string") ||
+        (node.expression.type === "Literal" &&
+          typeof node.expression.value === "string" &&
+          (node.expression.value === "use server" ||
+            node.expression.value === "use client"));
+      if (
+        "directive" in node &&
+        typeof node.directive === "string" &&
+        (node.directive === "use server" || node.directive === "use client")
+      ) {
+        // Only treat React's directives as the file-level intent. Real-world
+        // libraries (compiled output of @chakra-ui/react and @ark-ui/react)
+        // ship files like:
+        //
+        //     "use strict";
+        //     "use client";
+        //     ...
+        //
+        // The previous logic accepted any prologue directive into `directive`
+        // and the fallback below classified everything that wasn't "use server"
+        // as "client". The real "use client" then arrived as a *second*
+        // directive and tripped the "Cannot have both 'use client' and 'use
+        // server'" warning, even though the file's intent is unambiguously
+        // client-only. Filtering on the literal text here mirrors the AST
+        // literal branch below and lets `"use strict"` (or any non-react
+        // prologue) coexist with `"use client"` / `"use server"` cleanly.
         directive = node.directive;
       } else if (
         node.expression.type === "Literal" &&
@@ -127,9 +164,12 @@ beforeNode: ${node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)).sli
             type: "server",
           });
         }
-      } else {
-        // This expression statement is not a directive, so mark as non-directive
-        // if we haven't found the first directive yet
+      } else if (!isDirectivePrologue) {
+        // This expression statement is not a directive prologue, so mark as
+        // non-directive code if we haven't found the first react directive
+        // yet. Skipping prologue directives (like "use strict") here ensures
+        // they don't push subsequent "use client" / "use server" out of the
+        // "before any other code" position they're required to occupy.
         if (!firstDirective) {
           foundNonDirective = true;
           if (verbose) {
@@ -153,9 +193,10 @@ beforeNode: ${node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)).sli
     }
 
     // Check if this node is after any comments or non-whitespace content
-    // Only matters if we haven't found the first directive yet
-    if (!firstDirective && node.start! > 0) {
-      const beforeNode = source.slice(0, node.start!).trim();
+    // (excluding earlier directive prologues we've already walked through).
+    // Only matters if we haven't found the first directive yet.
+    if (!firstDirective && node.start! > lastProloguePos) {
+      const beforeNode = source.slice(lastProloguePos, node.start!).trim();
       if (beforeNode.length > 0) {
         foundNonDirective = true;
         if (verbose) {
@@ -167,15 +208,31 @@ beforeNode: ${node.start! > 0 ? JSON.stringify(source.slice(0, node.start!)).sli
         }
       }
     }
+
+    // Track the trailing edge of a continuous run of directive prologues.
+    // Once we see real code or our first react directive, this stops moving.
+    if (
+      node.type === "ExpressionStatement" &&
+      "directive" in node &&
+      typeof node.directive === "string" &&
+      !firstDirective &&
+      !foundNonDirective
+    ) {
+      lastProloguePos = node.end!;
+    }
   }
 
   // Set the first directive as file-level if found
   if (firstDirective) {
     directiveInfo.fileLevel = firstDirective;
 
-    // Check if there was content (including comments) before the directive
-    if (!foundNonDirective && firstDirective.range[0] > 0) {
-      const beforeDirective = source.slice(0, firstDirective.range[0]).trim();
+    // Check if there was content (including comments) before the directive,
+    // skipping past any benign prologue directives (e.g. "use strict") that
+    // legitimately precede a "use client" / "use server".
+    if (!foundNonDirective && firstDirective.range[0] > lastProloguePos) {
+      const beforeDirective = source
+        .slice(lastProloguePos, firstDirective.range[0])
+        .trim();
       if (beforeDirective.length > 0) {
         foundNonDirective = true;
         if (verbose) {

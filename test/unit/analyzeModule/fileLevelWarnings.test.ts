@@ -55,4 +55,55 @@ export function test() {
     );
     expect(result.directiveInfo?.warnings).toHaveLength(1);
   });
+
+  // Real-world libraries (e.g. compiled output of @chakra-ui/react,
+  // @ark-ui/react) ship files that begin with `"use strict"; "use client";`
+  // simultaneously. The analyzer must accept this without warnings: the JS
+  // prologue directive ("use strict") and the React directive ("use client")
+  // are orthogonal and frequently coexist.
+  test("should accept 'use strict' followed by 'use client' without warnings", async () => {
+    const result = await analyzeModule(
+      `"use strict";
+"use client";
+export function test() {
+  return 42;
+}`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.fileLevel?.type).toBe("client");
+    expect(result.directiveInfo?.warnings).toEqual([]);
+  });
+
+  test("should accept 'use strict' followed by 'use server' without warnings", async () => {
+    const result = await analyzeModule(
+      `"use strict";
+"use server";
+export async function action() {
+  return 42;
+}`,
+      testLoaderConfig
+    );
+    expect(result.directiveInfo?.fileLevel?.type).toBe("server");
+    expect(result.directiveInfo?.warnings).toEqual([]);
+  });
+
+  test("should still warn when both 'use client' and 'use server' coexist after 'use strict'", async () => {
+    const result = await analyzeModule(
+      `"use strict";
+"use client";
+"use server";
+export function test() {
+  return 42;
+}`,
+      testLoaderConfig
+    );
+    // 'use strict' is benign; the conflict is between 'use client' (file-level)
+    // and the trailing 'use server'.
+    expect(result.directiveInfo?.fileLevel?.type).toBe("client");
+    expect(
+      result.directiveInfo?.warnings.some((w) =>
+        w.message.includes("Cannot have both")
+      )
+    ).toBe(true);
+  });
 }); 
