@@ -6,7 +6,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
   it("should not fail with 'No chunks were written' error under normal conditions", { timeout: 30_000 }, async () => {
     // This test ensures that normal file writing works without race conditions
     await expect(
-      getSharedBuild('test-project', 'race-condition-normal', {
+      getSharedBuild('race-condition-filewriter', 'race-condition-normal', {
         build: {
           pages: ["/"],
         },
@@ -21,7 +21,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     const errString = "Test error during file.write.done";
     
     await expect(
-      getSharedBuild('test-project', 'race-condition-file-write-done', {
+      getSharedBuild('race-condition-filewriter', 'race-condition-file-write-done', {
         build: {
           pages: ["/"],
         },
@@ -41,7 +41,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     const errString = "Test error during file.write";
     
     await expect(
-      getSharedBuild('test-project', 'race-condition-file-write', {
+      getSharedBuild('race-condition-filewriter', 'race-condition-file-write', {
         build: {
           pages: ["/"],
         },
@@ -59,7 +59,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     // This test runs multiple builds sequentially to stress test the race condition fix
     for (let i = 0; i < 3; i++) {
       await expect(
-        getSharedBuild('test-project', `race-condition-multiple-${i}`, {
+        getSharedBuild('race-condition-filewriter', `race-condition-multiple-${i}`, {
           build: {
             pages: ["/"],
           },
@@ -74,7 +74,7 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     // This test runs builds in rapid succession to test timing issues
     for (let i = 0; i < 3; i++) {
       await expect(
-        getSharedBuild('test-project', `race-condition-rapid-${i}`, {
+        getSharedBuild('race-condition-filewriter', `race-condition-rapid-${i}`, {
           build: {
             pages: ["/", "/page2"],
           },
