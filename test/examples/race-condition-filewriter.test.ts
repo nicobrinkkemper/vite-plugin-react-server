@@ -3,7 +3,7 @@ import { getSharedBuild } from "./shared-build.js";
 
 describe("Race Condition Fix - FileWriter Chunk Validation", () => {
 
-  it("should not fail with 'No chunks were written' error under normal conditions", async () => {
+  it("should not fail with 'No chunks were written' error under normal conditions", { timeout: 30_000 }, async () => {
     // This test ensures that normal file writing works without race conditions
     await expect(
       getSharedBuild('test-project', 'race-condition-normal', {

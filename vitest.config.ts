@@ -26,8 +26,19 @@ export default defineConfig({
       "**/dist/**",
       "**/cypress/**",
       "**/.{idea,git,cache,output,temp}/**",
-      // Exclude unit tests and server tests when NOT in react-server condition (i.e., in client mode)
-      ...(getCondition() !== "react-server" ? ["test/unit/**/*.test.*", "test/server/**/*.test.*"] : []),
+      // The unit, server, and streams suites all reach for the
+      // `react-server.test` Vitest environment and call into modules that
+      // require the react-server resolve condition. Running them under
+      // `test:client` (which doesn't set NODE_OPTIONS='--conditions
+      // react-server') yields "No stashed userOptions found for environment:
+      // react-server.test" — they belong to `test:server` / `test:both`.
+      ...(getCondition() !== "react-server"
+        ? [
+            "test/unit/**/*.test.*",
+            "test/server/**/*.test.*",
+            "test/streams/**/*.test.*",
+          ]
+        : []),
     ],
   },
 });
