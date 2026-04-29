@@ -136,10 +136,14 @@ export async function test() {
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("File-level directives must be at the top")
     );
+    // The error-line marker is a `>` prefix followed by the line number and
+    // pipe (`>   2 | …`). The directive text itself gets wrapped in ANSI red
+    // + underline by picocolors when colors are enabled (e.g. on CI, where
+    // FORCE_COLOR=1 is set), so we match against the un-styled prefix only.
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('>   2 | "use server";')
+      expect.stringMatching(/^>\s+2\s\|\s/)
     );
-    
+
     consoleSpy.mockRestore();
   });
-}); 
+});
