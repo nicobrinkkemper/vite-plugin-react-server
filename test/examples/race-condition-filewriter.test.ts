@@ -3,19 +3,18 @@ import { getSharedBuild } from "./shared-build.js";
 
 describe("Race Condition Fix - FileWriter Chunk Validation", () => {
 
-  // Each test gets its own `dir`, which combined with the unique
-  // `sharedTestName` puts every test on a fresh fixture directory.
-  // Earlier we hit "Could not resolve entry module 'src/components/
-  // Link.client.tsx'" in CI because tests 2 and 3 deliberately throw
-  // mid-build via `onEvent` — Rollup's interrupted run was leaving the
-  // shared fixture in a state that broke the later, normal-path tests
-  // (4 and 5) that ran against the same directory. Per-test `dir`
-  // isolates the failure modes from each other.
+  // The whole file uses a unique `sharedTestName`
+  // (`race-condition-filewriter`) so its fixture directory is isolated from
+  // the rest of test/examples — without this, parallel test files using the
+  // bare `'test-project'` name would tear down the fixture mid-test and
+  // surface as "Could not resolve entry module 'src/components/
+  // Link.client.tsx'". Per-test timeouts are generous on purpose: each "it"
+  // runs full Vite builds (sometimes three in a row), and under the default
+  // 5s the suite is reliably flaky on CI.
 
   it("should not fail with 'No chunks were written' error under normal conditions", { timeout: 30_000 }, async () => {
     await expect(
       getSharedBuild('race-condition-filewriter', 'race-condition-normal', {
-        dir: "race-condition-normal",
         build: {
           pages: ["/"],
         },
@@ -24,13 +23,12 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     ).resolves.not.toThrow();
   });
 
-  it("should handle file.write.done errors without race condition", async () => {
+  it("should handle file.write.done errors without race condition", { timeout: 30_000 }, async () => {
     const testEvent = "file.write.done";
     const errString = "Test error during file.write.done";
 
     await expect(
       getSharedBuild('race-condition-filewriter', 'race-condition-file-write-done', {
-        dir: "race-condition-file-write-done",
         build: {
           pages: ["/"],
         },
@@ -44,13 +42,12 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     ).rejects.toThrow(errString);
   });
 
-  it("should handle file.write errors without race condition", async () => {
+  it("should handle file.write errors without race condition", { timeout: 30_000 }, async () => {
     const testEvent = "file.write";
     const errString = "Test error during file.write";
 
     await expect(
       getSharedBuild('race-condition-filewriter', 'race-condition-file-write', {
-        dir: "race-condition-file-write",
         build: {
           pages: ["/"],
         },
@@ -64,11 +61,10 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     ).rejects.toThrow(errString);
   });
 
-  it("should handle multiple builds without race conditions", async () => {
+  it("should handle multiple builds without race conditions", { timeout: 60_000 }, async () => {
     for (let i = 0; i < 3; i++) {
       await expect(
         getSharedBuild('race-condition-filewriter', `race-condition-multiple-${i}`, {
-          dir: "race-condition-multiple",
           build: {
             pages: ["/"],
           },
@@ -78,11 +74,10 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
     }
   });
 
-  it("should handle rapid successive builds without race conditions", async () => {
+  it("should handle rapid successive builds without race conditions", { timeout: 60_000 }, async () => {
     for (let i = 0; i < 3; i++) {
       await expect(
         getSharedBuild('race-condition-filewriter', `race-condition-rapid-${i}`, {
-          dir: "race-condition-rapid",
           build: {
             pages: ["/", "/page2"],
           },
@@ -90,5 +85,5 @@ describe("Race Condition Fix - FileWriter Chunk Validation", () => {
         })
       ).resolves.not.toThrow();
     }
-  }, 15000);
+  });
 });
