@@ -24,17 +24,37 @@ export { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
 
 /**
  * Main handler options creation (auto-selects environment)
- * 
- * RECOMMENDED: Use this for most cases - it automatically chooses the right implementation
- * based on your current environment (react-server vs react-client).
- * 
+ *
+ * RECOMMENDED: Use this for most cases - it automatically chooses the right
+ * implementation based on the current resolve condition (react-server vs
+ * react-client). Under the react-server condition, RSC rendering happens
+ * inline; under react-client, the client implementation spawns an RSC worker
+ * (with the react-server condition) when needed and proxies the stream back.
+ *
  * Example:
  * ```typescript
  * import { createHandlerOptions } from "../config/index.js";
  * const handlerOptions = await createHandlerOptions("/about", options);
  * ```
  */
-export { createHandlerOptions } from "./createHandlerOptions.server.js";
+import { createHandlerOptions as _createHandlerOptionsServer } from "./createHandlerOptions.server.js";
+import { createHandlerOptions as _createHandlerOptionsClient } from "./createHandlerOptions.client.js";
+import { getCondition } from "./getCondition.js";
+import type {
+  CreateHandlerOptionsParams,
+} from "./createHandlerOptions.types.js";
+import type { CreateHandlerOptions } from "../types.js";
+
+export const createHandlerOptions = async (
+  route: string,
+  options: CreateHandlerOptionsParams = {}
+): Promise<CreateHandlerOptions> => {
+  const impl =
+    getCondition() === "react-server"
+      ? _createHandlerOptionsServer
+      : _createHandlerOptionsClient;
+  return impl(route, options);
+};
 
 /**
  * Handler options creation (environment-specific, when you need explicit control)

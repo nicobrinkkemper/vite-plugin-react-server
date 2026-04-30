@@ -32,18 +32,12 @@ export default defineConfig({
       "**/dist/**",
       "**/cypress/**",
       "**/.{idea,git,cache,output,temp}/**",
-      // The unit, server, and streams suites all reach for the
-      // `react-server.test` Vitest environment and call into modules that
-      // require the react-server resolve condition. Running them under
-      // `test:client` (which doesn't set NODE_OPTIONS='--conditions
-      // react-server') yields "No stashed userOptions found for environment:
-      // react-server.test" — they belong to `test:server` / `test:both`.
+      // The unit and server suites are gated on the react-server resolve
+      // condition (they import from react-server-only paths). Streams stay
+      // included in both modes — the worker mechanism handles RSC rendering
+      // from a react-client process via spawning a react-server worker.
       ...(getCondition() !== "react-server"
-        ? [
-            "test/unit/**/*.test.*",
-            "test/server/**/*.test.*",
-            "test/streams/**/*.test.*",
-          ]
+        ? ["test/unit/**/*.test.*", "test/server/**/*.test.*"]
         : []),
     ],
   },
