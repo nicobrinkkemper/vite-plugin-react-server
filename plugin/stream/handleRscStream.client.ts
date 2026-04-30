@@ -40,6 +40,24 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
       throw new Error("No worker provided");
     }
 
+    // Track whether the worker has signaled the end of its control-message
+    // stream so cleanup can be deferred until then. This prevents the data
+    // stream's `null` end-signal from racing the worker's control-port
+    // messages (e.g. an ERROR posted just before RSC_END) — closing
+    // controlPort1 too early would silently drop those messages, which is
+    // exactly the cross-condition leak bd-6pi was hunting.
+    let controlEndedReceived = false;
+    const cleanupPorts = () => {
+      try {
+        dataPort1.removeListener("message", dataMessageHandler);
+        controlPort1.removeListener("message", controlMessageHandler);
+        dataPort1.close();
+        controlPort1.close();
+      } catch {
+        // Ignore cleanup errors
+      }
+    };
+
     // Set up control message handlers
     const controlMessageHandler = (message: any) => {
       if (options.verbose) {
@@ -61,6 +79,7 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
             options.logger?.info(`[client] RSC render ended for ${message.id}`);
           }
           // Now it's safe to end the stream
+          controlEndedReceived = true;
           rscStream.end();
           break;
         case "ERROR":
@@ -181,15 +200,26 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
 
         rscStream.on("end", () => {
           controller.close();
-          // Clean up MessagePort listeners when stream ends successfully
-          try {
-            dataPort1.removeListener('message', dataMessageHandler);
-            controlPort1.removeListener('message', controlMessageHandler);
-            // Close MessagePorts
-            dataPort1.close();
-            controlPort1.close();
-          } catch (error) {
-            // Ignore cleanup errors
+          // The data stream is done, but worker control messages
+          // (ERROR / RSC_END) may still be in flight on a separate channel.
+          // If RSC_END has already been received we can clean up immediately;
+          // otherwise we defer port closure to a later tick so any pending
+          // control messages get a chance to deliver. Without this guard the
+          // dataPort `null` signal races control messages and ERROR posts
+          // are silently dropped — see bd-6pi.
+          if (controlEndedReceived) {
+            cleanupPorts();
+          } else {
+            setImmediate(() => {
+              if (controlEndedReceived) {
+                cleanupPorts();
+              } else {
+                // Worker never sent RSC_END (e.g. abnormal exit). Give the
+                // event loop one more turn for any in-flight control
+                // messages, then clean up.
+                setImmediate(cleanupPorts);
+              }
+            });
           }
         });
 
@@ -198,16 +228,10 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
         });
       },
       cancel() {
-        // Clean up MessagePort listeners to prevent memory leaks
-        try {
-          dataPort1.removeListener('message', dataMessageHandler);
-          controlPort1.removeListener('message', controlMessageHandler);
-          // Close MessagePorts
-          dataPort1.close();
-          controlPort1.close();
-        } catch (error) {
-          // Ignore cleanup errors
-        }
+        // Stream was cancelled by the consumer (e.g. browser disconnected).
+        // Cleanup is OK here because the consumer no longer cares about
+        // pending error messages.
+        cleanupPorts();
         // Destroy the stream
         rscStream.destroy();
       },
