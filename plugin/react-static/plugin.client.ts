@@ -55,7 +55,7 @@ import {
 } from "../bundle/manifests.js";
 import { deferStaticGeneration } from "../bundle/deferredStaticGeneration.js";
 import type { Worker } from "node:worker_threads";
-import { resolveAutoDiscover } from "../config/index.js";
+import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { join } from "node:path";
 
 import { baseURL } from "../utils/envUrls.node.js";

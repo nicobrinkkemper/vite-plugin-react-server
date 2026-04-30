@@ -2,7 +2,7 @@ import { PassThrough } from "node:stream";
 import type { CreateHandlerOptions } from "../types.js";
 import type { RscRenderResult } from "./renderRscStream.types.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
-import { createReactElement } from "../helpers/createRscRenderHelpers.js";
+import { createReactElement } from "../helpers/createRscRenderHelpers.server.js";
 import { checkReactExperimental } from "../utils/checkReactVersion.js";
 import { ReactDOMServer } from "../vendor/vendor.server.js";
 import type { StreamHandlers } from "../worker/types.js";

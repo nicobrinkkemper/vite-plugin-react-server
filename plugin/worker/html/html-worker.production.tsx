@@ -1,4 +1,4 @@
-import { messageHandler } from "./messageHandler.js";
+import { messageHandler } from "./messageHandler.client.js";
 import { parentPort } from "node:worker_threads";
 import type { ReadyMessage } from "../types.js";
 

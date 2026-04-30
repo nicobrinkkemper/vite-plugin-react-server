@@ -51,19 +51,18 @@ export default defineConfig({
           __dirname,
           "plugin/loader/index.ts"
         ),
-        "plugin/orchestrator/plugin": resolve(__dirname, "plugin/orchestrator/index.ts"),
         "plugin/components/index": resolve(__dirname, "plugin/components/index.ts"),
         "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
         
-        "plugin/stream/server": resolve(__dirname, "plugin/stream/index.server.ts"),
-        "plugin/stream/client": resolve(__dirname, "plugin/stream/index.client.ts"),
+        "plugin/stream/index.server": resolve(__dirname, "plugin/stream/index.server.ts"),
+        "plugin/stream/index.client": resolve(__dirname, "plugin/stream/index.client.ts"),
         
-        "plugin/vendor/index": resolve(__dirname, "plugin/vendor/index.ts"),
         "plugin/vendor/vendor.server": resolve(__dirname, "plugin/vendor/vendor.server.ts"),
         "plugin/vendor/vendor.client": resolve(__dirname, "plugin/vendor/vendor.client.ts"),
         "plugin/vendor/vendor.static": resolve(__dirname, "plugin/vendor/vendor.static.ts"),
-        "plugin/config/index": resolve(__dirname, "plugin/config/index.ts"),
+        "plugin/config/index.server": resolve(__dirname, "plugin/config/index.server.ts"),
+        "plugin/config/index.client": resolve(__dirname, "plugin/config/index.client.ts"),
         "plugin/error/index": resolve(__dirname, "plugin/error/index.ts"),
         
         

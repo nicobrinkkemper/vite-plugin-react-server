@@ -122,11 +122,11 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
         ...serverPipeableStreamOptions,
 
         onError(error: unknown) {
-          if (verbose) {
-            logger?.error(
-              `[createRscStream:${route}] onError called with error: ${error instanceof Error ? error.message : String(error)}`
-            );
-          }
+          // Always log: stream errors otherwise vanish silently and the only
+          // user-visible symptom is an empty/half RSC response.
+          logger?.error(
+            `[createRscStream:${route}] onError: ${error instanceof Error ? error.message : String(error)}`
+          );
 
           // Handle error according to panic threshold
           const panicError = handleError({
@@ -134,6 +134,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
             logger: logger,
             panicThreshold: panicThreshold,
             context: `RSC stream onError for route ${route}`,
+            log: true,
           });
 
           if (panicError != null) {
@@ -162,11 +163,11 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           serverPipeableStreamOptions.onError?.(error);
         },
         onShellError(error: unknown) {
-          if (verbose) {
-            logger?.error(
-              `[createRscStream:${route}] onShellError called with error: ${error instanceof Error ? error.message : String(error)}`
-            );
-          }
+          // Always log: shell errors mean nothing has been flushed to the
+          // client yet, so without a log there's no signal at all.
+          logger?.error(
+            `[createRscStream:${route}] onShellError: ${error instanceof Error ? error.message : String(error)}`
+          );
 
           // Handle shell error according to panic threshold
           const panicError = handleError({
@@ -174,6 +175,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
             logger: logger,
             panicThreshold: panicThreshold,
             context: `RSC stream onShellError for route ${route}`,
+            log: true,
           });
 
           if (panicError != null) {

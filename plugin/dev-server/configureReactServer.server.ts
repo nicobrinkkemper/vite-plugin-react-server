@@ -535,20 +535,36 @@ export const configureReactServer: ConfigureReactServerFn =
           cleanupWorker(rscWorker);
         });
       } catch (error) {
+        // Always log RSC stream errors (regardless of verbose) so a misconfigured
+        // app surfaces the underlying error in the dev server log without
+        // forcing the user to flip `verbose: true`.
         const panicError = handleError({
           error,
           logger,
           panicThreshold: handlerOptions.panicThreshold,
           critical: false,
           context: "configureReactServer",
+          log: true,
         });
         if (panicError != null) {
           return next(panicError);
         }
 
-        res.statusCode = 500;
-        res.setHeader("Content-Type", "text/x-component; charset=utf-8");
-        
+        // Surface the failure to the HTTP client. Previously we set status 500
+        // but never ended the response, so the request would hang and any
+        // already-flushed bytes (none yet, since we set headers right before
+        // pipe()) would be all the caller saw. Emit a text/plain 500 with the
+        // error message so dev clients (curl, the React fetcher) get a clear
+        // failure instead of an empty 200 / hanging socket.
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        }
+        if (!res.writableEnded) {
+          const message = error instanceof Error ? error.message : String(error);
+          res.end(`RSC render failed: ${message}\n`);
+        }
+
         // Note: Worker cleanup is handled by the response close handler
       }
     });

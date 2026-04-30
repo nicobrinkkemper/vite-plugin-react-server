@@ -1,5 +1,5 @@
 import { parentPort } from "node:worker_threads";
-import { messageHandler } from "./messageHandler.js";
+import { messageHandler } from "./messageHandler.client.js";
 import type { ReadyMessage } from "../types.js";
 
 

@@ -49,29 +49,32 @@ export function pipeToResponse(options: PipeToResponseOptions): void {
   });
 
   readable.on('error', (error) => {
+    // Always log: a stream error here means an RSC render blew up. Without
+    // this log the user just sees a hung tab and an empty 5xx, which is
+    // exactly the verbose-only behavior bd-qvz #2 calls out.
     const panicError = handleError({
       error,
       logger,
       mode: getNodeEnv(),
       panicThreshold,
       context,
+      log: true,
     });
-    
+
     if (panicError != null) {
       throw panicError;
     }
-    
-    if (verbose) {
-      logger.info(`[${context}] Stream error caught, headersSent: ${headersSent}, setting status to 500`);
-    }
-    
+
     if (!headersSent) {
       response.statusCode = 500;
-      response.setHeader("Content-Type", "text/x-component; charset=utf-8");
-      response.end();
+      response.setHeader("Content-Type", "text/plain; charset=utf-8");
+      const message = error instanceof Error ? error.message : String(error);
+      response.end(`RSC render failed: ${message}\n`);
     } else {
-      // If error after headers, just end the response
+      // Headers already flushed (and likely some RSC bytes too). The RSC
+      // protocol carries an error frame in-band; just end the response and
+      // rely on the prior log line for diagnosability.
       response.end();
     }
   });
-} 
+}

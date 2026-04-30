@@ -10,13 +10,42 @@ Step-by-step guide for publishing a new version of `vite-plugin-react-server` an
 
 ## 1. Verify everything passes
 
+The unit/integration suite alone is not sufficient — the plugin can pass its own tests while breaking downstream consumers via cross-condition module leaks (see `bd-6pi` for a 2026-04 example). **You must also verify against the linked demo repos.**
+
 ```bash
 cd ~/code/vite-plugin-react-server
 
-# Build
+# 1a. Full plugin suite — both halves must be green.
+npm test                 # runs test:client and test:server in sequence
+
+# 1b. Build the package.
 npm run build
 
-# Run e2e tests (requires Playwright browsers installed)
+# 1c. Link the local build into each demo and exercise it end-to-end.
+#     A passing 'npm test' does not exclude regressions that only surface
+#     when the package is consumed via file:.. from a real downstream app.
+for demo in ~/code/bidoof-template ~/code/mmc; do
+  pushd "$demo"
+  cp package.json /tmp/$(basename "$demo").pkg.bak
+  cp -f package-lock.json /tmp/$(basename "$demo").lock.bak 2>/dev/null || true
+  node -e 'const p=require("./package.json");p.dependencies["vite-plugin-react-server"]="file:../vite-plugin-react-server";require("fs").writeFileSync("./package.json",JSON.stringify(p,null,2)+"\n");'
+  npm install
+  npm run build           # bidoof-template: build:preview; mmc: build
+  # Smoke-test the dev server too:
+  npx vite --port 4173 --strictPort &
+  VITE_PID=$!
+  sleep 5
+  curl -fS http://localhost:4173/ > /dev/null
+  curl -fS -H "Accept: text/x-component" http://localhost:4173/index.rsc > /dev/null
+  kill $VITE_PID
+  # Restore the demo so you don't accidentally commit the file:.. link.
+  cp /tmp/$(basename "$demo").pkg.bak ./package.json
+  cp /tmp/$(basename "$demo").lock.bak ./package-lock.json 2>/dev/null || true
+  npm install
+  popd
+done
+
+# 1d. Playwright e2e (runs against bidoof-template per playwright.config.ts).
 npx playwright test test/e2e/hmr.spec.ts
 
 # All 9 tests should pass:
@@ -30,6 +59,8 @@ npx playwright test test/e2e/hmr.spec.ts
 # - server action works
 # - todo toggle persists
 ```
+
+**If any of 1a–1d fails, do not publish.** File a `bd` issue and bisect to the introducing commit. A regression that is already on `main` but not yet released is still a release-blocker — it ships to consumers the moment you `npm publish`.
 
 ## 2. Bump the version
 
@@ -142,7 +173,11 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 
 ## Checklist
 
+- [ ] `npm test` — both `test:client` AND `test:server` halves green (no skipped tests added in this release without a tracked issue)
 - [ ] `npm run build` succeeds
+- [ ] `bidoof-template` linked via `file:../vite-plugin-react-server` — `npm run build:preview` AND dev server (`vite`) both succeed; home page returns 200 with content
+- [ ] `mmc` linked via `file:../vite-plugin-react-server` — `npm run build` succeeds; dev server starts cleanly
+- [ ] Both demo repos restored to their committed `package.json`/`package-lock.json` afterwards
 - [ ] `npx playwright test test/e2e/hmr.spec.ts` — 9/9 pass
 - [ ] `npm version <type>`
 - [ ] `git push && git push --tags`
