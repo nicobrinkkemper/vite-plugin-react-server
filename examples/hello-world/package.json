@@ -1,0 +1,20 @@
+{
+  "name": "vite-plugin-react-server-hello-world",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite"
+  },
+  "dependencies": {
+    "react": "0.0.0-experimental-19baee81-20250725",
+    "react-dom": "0.0.0-experimental-19baee81-20250725",
+    "vite-plugin-react-server": "file:../.."
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.9",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.4.1"
+  }
+}
