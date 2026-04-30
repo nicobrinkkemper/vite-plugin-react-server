@@ -244,7 +244,7 @@
         "./dist/plugin/vendor/vendor.static.d.ts"
       ],
       "vendor": [
-        "./dist/plugin/vendor/index.d.ts"
+        "./dist/plugin/vendor/vendor.server.d.ts"
       ],
       "error": [
         "./dist/plugin/error/index.d.ts"
