@@ -243,7 +243,17 @@ async function loadComponentsWithCache(options: {
     // Track if we need to load props separately (when Page is cached but props for this URL aren't)
     let needToLoadProps = false;
     
-    // Check cache first, but only if not invalidated
+    // Check cache first, but only if not invalidated.
+    //
+    // bd-5xu (2026-04-30): we cache the Page component (a stable function from
+    // the source file) but NOT the props result. Props functions read mutable
+    // server state — DB rows, in-memory stores, request-scoped data — and a
+    // cross-request cache silently serves stale data after a server action
+    // mutates that state. The pre-bd-5xu code keyed pageProps by URL and only
+    // invalidated on file change, so e.g. deleting a todo via a server action
+    // was correctly persisted to the DB but the next /todos/index.rsc still
+    // returned the pre-delete cached props. dev:rsc didn't go through this
+    // worker path so it didn't repro there. Always reload props in dev.
     if (hasCachedComponent(pageId) && !isPageInvalidated) {
       PageComponent = getCachedComponent(pageId);
       if (verbose) {
@@ -251,27 +261,16 @@ async function loadComponentsWithCache(options: {
           `[rsc-worker] Using cached Page component from: ${pagePath}`
         );
       }
-      
-      // Also check props cache if propsPath exists (skip if resolvedPageProps provided)
-      // CRITICAL: Include URL in cache key for props - dynamic routes return different props per URL
+
       if (propsPath && !resolvedPageProps) {
+        // Props are intentionally NOT cached across requests — see comment
+        // above. Drop any pre-existing cache entry from older versions, then
+        // fall through to the separate-load path below.
         const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
-        const isPropsInvalidated = isModuleInvalidated(propsPath);
-        if (hasCachedComponent(propsId) && !isPropsInvalidated) {
-          pageProps = getCachedComponent(propsId);
-          if (verbose) {
-            logger?.info(
-              `[rsc-worker] Using cached pageProps from: ${propsPath} for URL: ${url}`
-            );
-          }
-        } else {
-          // Props invalidated or not cached for this URL - need to reload
-          if (isPropsInvalidated && hasCachedComponent(propsId)) {
-            clearCachedComponent(propsId);
-          }
-          // Mark that we need to load props separately
-          needToLoadProps = true;
+        if (hasCachedComponent(propsId)) {
+          clearCachedComponent(propsId);
         }
+        needToLoadProps = true;
       } else if (resolvedPageProps) {
         if (verbose) {
           logger?.info(
@@ -325,25 +324,16 @@ async function loadComponentsWithCache(options: {
             pageProps = pageAndPropsResult.pageProps;
           }
 
-          // Cache the components
+          // Cache the Page component (stable across requests). Props are
+          // not cached — see bd-5xu note above for why.
           cacheComponent(pageId, PageComponent);
-
-          if (propsPath) {
-            // CRITICAL: Include URL in cache key for props - dynamic routes return different props per URL
-            const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
-            cacheComponent(propsId, pageProps);
-          }
 
           if (verbose) {
             logger?.info(
               `[rsc-worker] Loaded and cached PageComponent from: ${pagePath}`
             );
             if (propsPath) {
-              logger?.info(
-                `[rsc-worker] Loaded and cached pageProps from: ${propsPath}`
-              );
-            }
-            if (verbose) {
+              logger?.info(`[rsc-worker] Loaded fresh pageProps from: ${propsPath}`);
               logger?.info(`[rsc-worker] Loaded pageProps:`, pageProps);
             }
           }
@@ -392,14 +382,11 @@ async function loadComponentsWithCache(options: {
         
         if (pageAndPropsResult.type === "success") {
           pageProps = pageAndPropsResult.pageProps;
-          
-          // Cache the props for this URL
-          const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
-          cacheComponent(propsId, pageProps);
-          
+
+          // Props are not cached across requests — see bd-5xu note earlier.
           if (verbose) {
             logger?.info(
-              `[rsc-worker] Loaded and cached pageProps for URL: ${url}`
+              `[rsc-worker] Loaded fresh pageProps for URL: ${url}`
             );
           }
         } else {
