@@ -41,7 +41,12 @@ export * from "./validateRscRenderMessage.js";
 export * from "./resolveRenderUrl.js";
 export * from "./mergeMessageWithDefaults.js";
 export * from "./resolveWithDefaultRootAndHtml.js";
-export { resolveComponents as resolveComponentsClient } from "./resolveComponents.client.js";
+// Server-side resolveComponents lives in resolveComponents.ts (no .client suffix)
+// or is intentionally absent here. Re-exporting resolveComponents.client.js from
+// a .server.ts aggregator violates the .server/.client split — under
+// react-server, ESM static linking would evaluate the .client module's
+// transitive deps (e.g. vendor.client.js → react-dom/server) and crash.
+// See bd-6pi.
 
 export * from "./logRenderStart.js";
 export * from "./createSerializableHandlerOptions.js";
