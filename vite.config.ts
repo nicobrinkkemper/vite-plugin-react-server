@@ -63,7 +63,8 @@ export default defineConfig({
         "plugin/vendor/vendor.server": resolve(__dirname, "plugin/vendor/vendor.server.ts"),
         "plugin/vendor/vendor.client": resolve(__dirname, "plugin/vendor/vendor.client.ts"),
         "plugin/vendor/vendor.static": resolve(__dirname, "plugin/vendor/vendor.static.ts"),
-        "plugin/config/index": resolve(__dirname, "plugin/config/index.ts"),
+        "plugin/config/index.server": resolve(__dirname, "plugin/config/index.server.ts"),
+        "plugin/config/index.client": resolve(__dirname, "plugin/config/index.client.ts"),
         "plugin/error/index": resolve(__dirname, "plugin/error/index.ts"),
         
         

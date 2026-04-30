@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG } from "../config/index.js";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 import type { ResolvedUserOptions } from "../types.js";
 import { routeToURL } from "../utils/routeToURL.js";
 import type { RscRenderMessage } from "../worker/rsc/types.js";

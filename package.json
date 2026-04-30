@@ -53,7 +53,10 @@
       "react-server": "./dist/plugin/env/index.server.js",
       "default": "./dist/plugin/env/index.client.js"
     },
-    "./config": "./dist/plugin/config/index.js",
+    "./config": {
+      "react-server": "./dist/plugin/config/index.server.js",
+      "default": "./dist/plugin/config/index.client.js"
+    },
     "./error": "./dist/plugin/error/index.js",
     "./vendor": {
       "react-server": "./dist/plugin/vendor/vendor.server.js",
@@ -226,7 +229,7 @@
         "./dist/plugin/stream/index.server.d.ts"
       ],
       "config": [
-        "./dist/plugin/config/index.d.ts"
+        "./dist/plugin/config/index.server.d.ts"
       ],
       "env": [
         "./dist/plugin/env/plugin.d.ts"
