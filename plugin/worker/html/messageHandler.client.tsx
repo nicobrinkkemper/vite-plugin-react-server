@@ -1,12 +1,12 @@
 import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
 import { parentPort, workerData } from "node:worker_threads";
-import { handleHtmlRender } from "./handleHtmlRender.js";
+import { handleHtmlRender } from "./handleHtmlRender.client.js";
 import type { HtmlWorkerInputMessage } from "./types.js";
 import { serializeError } from "../../error/serializeError.js";
 import { serializeErrorInfo } from "../../error/serializeErrorInfo.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
-import { activeStreams, moduleIds } from "./state.js";
+import { activeStreams, moduleIds } from "./state.client.js";
 
 const verbose = Boolean(workerData?.userOptions?.verbose);
 const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info");

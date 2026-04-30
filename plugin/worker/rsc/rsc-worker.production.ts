@@ -1,5 +1,5 @@
 import { parentPort, MessageChannel, workerData } from "node:worker_threads";
-import { messageHandler } from "./messageHandler.js";
+import { messageHandler } from "./messageHandler.server.js";
 import { register } from "node:module";
 import { register as registerTsx } from "tsx/esm/api";
 import { resolve } from "node:path";

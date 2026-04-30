@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import { createLogger } from "vite";
 import { join, relative } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
-import { handleRscRender } from "./handleRscRender.js";
+import { handleRscRender } from "./handleRscRender.server.js";
 import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
 import type {
   RscWorkerInputMessage,
@@ -25,7 +25,7 @@ import {
   clearCachedComponent,
   isModuleInvalidated,
   clearAllCachedComponents,
-} from "./state.js";
+} from "./state.server.js";
 import {
   combineCssFiles,
   processInlineCssForState,
