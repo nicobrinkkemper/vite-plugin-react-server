@@ -55,8 +55,8 @@ export default defineConfig({
         "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
         
-        "plugin/stream/server": resolve(__dirname, "plugin/stream/index.server.ts"),
-        "plugin/stream/client": resolve(__dirname, "plugin/stream/index.client.ts"),
+        "plugin/stream/index.server": resolve(__dirname, "plugin/stream/index.server.ts"),
+        "plugin/stream/index.client": resolve(__dirname, "plugin/stream/index.client.ts"),
         
         "plugin/vendor/vendor.server": resolve(__dirname, "plugin/vendor/vendor.server.ts"),
         "plugin/vendor/vendor.client": resolve(__dirname, "plugin/vendor/vendor.client.ts"),
