@@ -340,7 +340,14 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             },
             onHmrUpdate: () => {
             },
-            onShellError: (_id, _error) => {
+            // Always log shell errors. Without this an RSC render failure in
+            // the worker would surface only via `verbose: true`, leaving the
+            // user with a half-streamed RSC response and no explanation.
+            onShellError: (id, error) => {
+              logger.error(
+                `[configureRequestHandler:${id}] RSC shell error: ${error instanceof Error ? error.message : String(error)}`,
+                { error: error instanceof Error ? error : new Error(String(error)) },
+              );
             },
           },
           ...handlerOptions,
@@ -358,6 +365,8 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         });
         // Response is now being streamed - no need to wait for timeout
       } catch (error) {
+        // Always log: misconfigured apps would otherwise return an empty 500
+        // and leave the user staring at a hung tab without any console output.
         const panicError = handleError({
           error,
           logger,
@@ -365,15 +374,19 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           panicThreshold: handlerOptions.panicThreshold,
           critical: false,
           context: "configureWorkerRequestHandler",
+          log: true,
         });
         if (panicError != null) {
           throw panicError;
         }
         if (!res.headersSent) {
           res.statusCode = 500;
-          res.setHeader("Content-Type", "text/x-component; charset=utf-8");
+          res.setHeader("Content-Type", "text/plain; charset=utf-8");
+          const message = error instanceof Error ? error.message : String(error);
+          res.end(`RSC render failed: ${message}\n`);
+        } else {
+          res.end();
         }
-        res.end();
       }
     };
     // attach handler to the server

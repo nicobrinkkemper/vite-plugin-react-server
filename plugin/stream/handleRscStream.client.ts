@@ -64,14 +64,15 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           rscStream.end();
           break;
         case "ERROR":
-          if (options.verbose) {
-            options.logger?.error(
-              `[client] RSC render error for ${message.id}: ${
-                message.error?.message || "Unknown error"
-              }`,
-              { error: message.error }
-            );
-          }
+          // Always log: this is an RSC render error from the worker. Without
+          // this log the failure surfaces only as an in-band RSC error frame
+          // on the client, with nothing on the dev console.
+          options.logger?.error(
+            `[client] RSC render error for ${message.id}: ${
+              message.error?.message || "Unknown error"
+            }`,
+            { error: message.error }
+          );
           break;
         default:
           if (options.verbose) {
