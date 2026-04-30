@@ -100,8 +100,7 @@ export function Page() {
     const looksLikeError =
       body.length > 0 &&
       (/RSC render failed/i.test(body) ||
-        /intentional-render-failure-from-test/i.test(body) ||
-        /"E"?\{/.test(body));
+        /intentional-render-failure-from-test/i.test(body));
 
     expect(
       isFiveHundred || looksLikeError,
