@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -381,8 +381,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": ">=0.0.0-experimental-0",
-    "react-dom": ">=0.0.0-experimental-0",
+    "react": ">=0.0.0-experimental-0 <1.0.0",
+    "react-dom": ">=0.0.0-experimental-0 <1.0.0",
     "vite": "*"
   },
   "peerDependenciesMeta": {

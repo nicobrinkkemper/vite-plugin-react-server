@@ -7,8 +7,8 @@
     "dev": "vite"
   },
   "dependencies": {
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react": "0.0.0-experimental-f93b9fd4-20251217",
+    "react-dom": "0.0.0-experimental-f93b9fd4-20251217",
     "vite-plugin-react-server": "file:../.."
   },
   "devDependencies": {
