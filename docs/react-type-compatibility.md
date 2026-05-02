@@ -2,17 +2,27 @@
 
 ## Supported Versions
 
+The plugin vendors a build of `react-server-dom-esm` whose internals (taint registries on `ReactSharedInternalsServer`, etc.) are tied to React's experimental release channel. Stable React 19.x doesn't expose the same internals — see bd-lr4.
+
 | React Version | Support | Notes |
 |---------------|---------|-------|
-| React 19+ stable | ✅ Full Support | Recommended |
-| `react@experimental` | ✅ Full Support | Bleeding edge features |
+| `react@experimental` (any `0.0.0-experimental-*` prerelease) | ✅ Supported | The vendored `oss-experimental/react-server-dom-esm` matches React's experimental internals |
+| React 19+ stable | ❌ Not supported (yet) | Stable React's `ReactSharedInternalsServer` is missing the taint registries the vendored rsd-esm reads at module init, causing `Cannot read properties of undefined (reading 'add')` in `RequestInstance` during the static build path. A future plugin version will ship per-React-channel loader builds — tracked separately. |
 | React 18 stable | ❌ Not supported | Missing RSC APIs |
 
 ```bash
-npm install react@19 react-dom@19
+npm install react@experimental react-dom@experimental
 ```
 
-**Peer dependency**: `react >= 0.0.0-experimental-0` (accepts React 19+ and experimental).
+For reproducibility, pin a specific experimental SHA — for example, the version the plugin is currently developed against:
+
+```bash
+npm install react@0.0.0-experimental-f93b9fd4-20251217 react-dom@0.0.0-experimental-f93b9fd4-20251217
+```
+
+**Peer dependency**: `react: ">=0.0.0-experimental-0 <1.0.0"`. The upper bound rejects stable React (19.x, 20.x) so npm warns instead of resolving silently to a broken pairing. Any 0.0.0 prerelease (experimental, canary, next) satisfies the lower bound.
+
+> Earlier 1.4.x docs claimed "React 19+ stable: Full Support." That was incorrect — local development with `file:` link masked the mismatch by hoisting the plugin's own experimental React into the consumer. npm-installed consumers crashed in the static build path. See bd-lr4.
 
 ## Vendored ESM Transport
 
