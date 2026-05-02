@@ -400,12 +400,27 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return input;
     }
     
-    // Only hash client components - server files should not be hashed
-    const isClientComponent = clientPattern.test(input);
-    if (!isClientComponent) {
+    // Skip outputs that are addressed by canonical path rather than via the
+    // build manifest, so renaming them would break their callers:
+    //   - htmlPattern / rscPattern: SSG outputs at fixed route URLs
+    //   - pagePattern / propsPattern / serverPattern: SSR entry modules the
+    //     runtime imports by literal path (see resolvePageAndProps), not
+    //     browser-served assets so caching isn't a concern either
+    // Everything else falls through to content-based hashing so prod deploys
+    // bust browser/CDN caches. Cross-environment hash consistency is provided
+    // by handleSsrEntryName / handleSsrAssetName in resolveUserConfig.ts
+    // (which feed sourceContent through to this function) and the
+    // augmentChunkHash plugin.
+    if (
+      htmlPattern.test(input) ||
+      rscPattern.test(input) ||
+      pagePattern.test(input) ||
+      propsPattern.test(input) ||
+      serverPattern.test(input)
+    ) {
       return input;
     }
-    
+
     // Determine what to hash based on available input
     let contentToHash: string;
     
@@ -553,11 +568,13 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     return hash(outputPath, ssr, sourceContent);
   }
 
-  function assetFile(n: PreRenderedAsset, ssr: boolean = false): string {
-    if (n.names.length > 1) {
-      return n.names.map((name) => hash(name, ssr)).join(",");
-    }
-    let firstName = n.names[0];
+  function assetFile(n: PreRenderedAsset, _ssr: boolean = false): string {
+    // Rollup may report the same asset under several `names`; dedupe so we
+    // don't emit invalid comma-joined filenames like `Foo.eot,Foo.eot`. When
+    // multiple distinct names survive they all reference the same emitted
+    // file, so use the first as the canonical output path.
+    const uniqueNames = Array.from(new Set(n.names));
+    let firstName = uniqueNames[0];
 
     // Clean up asset paths by removing the moduleBase from within assets directory
     // Transform: assets/src/page/file.css -> assets/page/file.css
