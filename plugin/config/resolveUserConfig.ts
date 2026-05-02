@@ -371,15 +371,37 @@ export const resolveUserConfig: ResolveUserConfigFn =
 
     const minify = config.build?.minify;
 
+    // Packages that internally use the per-file `"use client"` convention
+    // (e.g. @chakra-ui/react). Must be excluded from esbuild's optimizeDeps
+    // pre-bundle so the directives survive to be seen by the RSC transform,
+    // and noExternal'd so they end up inside the server bundle where the
+    // transform actually runs.
+    const clientPackages: readonly string[] =
+      (userOptions as { clientPackages?: readonly string[] }).clientPackages ??
+      [];
+    const existingNoExternal = config.ssr?.noExternal;
+    const mergedNoExternal: NonNullable<typeof config.ssr>["noExternal"] =
+      Array.isArray(existingNoExternal)
+        ? [...existingNoExternal, ...clientPackages]
+        : existingNoExternal == null
+        ? [...clientPackages]
+        : (clientPackages.length
+            ? [existingNoExternal as string | RegExp, ...clientPackages]
+            : existingNoExternal);
     const srrConfig = {
       ...config.ssr,
       target: config.ssr?.target ?? "node",
+      noExternal: mergedNoExternal,
       optimizeDeps: {
         ...config.ssr?.optimizeDeps,
         include: config.ssr?.optimizeDeps?.include ?? [
           "react",
           "react-dom",
           "react-server-dom-esm/client",
+        ],
+        exclude: [
+          ...(config.ssr?.optimizeDeps?.exclude ?? []),
+          ...clientPackages,
         ],
       },
       resolve: {
@@ -561,6 +583,12 @@ export const resolveUserConfig: ResolveUserConfigFn =
           externalConditions: config.resolve?.externalConditions ?? [
             "react-server",
           ],
+          // Force whitelisted client packages into the server bundle so the
+          // RSC transform can convert their `"use client"` modules to client
+          // references. Without this, Vite's default SSR externalization
+          // leaves them as bare `import` statements that Node loads at SSG
+          // time straight from `node_modules`, bypassing every transform.
+          noExternal: mergedNoExternal,
         },
         define: define,
         ssr: srrConfig,

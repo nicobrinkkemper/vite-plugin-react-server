@@ -87,6 +87,22 @@ export const createTransformerPlugin = (
       userOptions.autoDiscover?.vendorPattern ??
         DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern
     );
+    // Whitelist of node_modules packages that should still go through the
+    // RSC transform — for libraries that use the per-file `"use client"`
+    // convention internally (e.g. @chakra-ui/react). Without this opt-in,
+    // their `"use client"` boundaries get inlined into the server bundle
+    // and runtime CJS/ESM interop trips on `import { createContext } from
+    // 'react'`.
+    const clientPackages: readonly string[] =
+      (userOptions as { clientPackages?: readonly string[] }).clientPackages ??
+      [];
+    const clientPackagesPattern: RegExp | null = clientPackages.length
+      ? new RegExp(
+          `[\\\\/]node_modules[\\\\/](?:${clientPackages
+            .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .join("|")})[\\\\/]`,
+        )
+      : null;
     const noDist = (id: string) => {
       // Allow files from test fixtures and project root
       if (
@@ -171,10 +187,11 @@ export const createTransformerPlugin = (
         // dist/client / env=ssr - removes use client directive and hides server modules, hides client entry or without exports (ssg portable)
         // dist/static / env=client  -  removes use client directive and hides server modules, emits client entry (and is browser portable)
         async handler(code, id, { ssr } = {}) {
+          const isWhitelistedClientPackage = clientPackagesPattern?.test(id) ?? false;
           if (
-            nodeModulesPattern.test(id) ||
+            (nodeModulesPattern.test(id) && !isWhitelistedClientPackage) ||
             !modulePattern.test(id) ||
-            !noDist(id)
+            (!noDist(id) && !isWhitelistedClientPackage)
           ) {
             return null;
           }
@@ -260,6 +277,21 @@ export const createTransformerPlugin = (
                 originalSourceContent
               )
             : normalizedPath;
+
+          // Whitelisted node_modules client packages: the default moduleID
+          // doesn't recognize them as client components (no `.client.[jt]sx?`
+          // suffix) and returns the bare `node_modules/...` path. The RSC
+          // runtime then rejects them with "Attempted to load a Client Module
+          // outside the hosted root" because the id doesn't start with the
+          // bundler's baseURL. Prefix here so the registerClientReference id
+          // sits inside the hosted root.
+          if (
+            isWhitelistedClientPackage &&
+            typeof finalModuleID === "string" &&
+            !finalModuleID.startsWith("/")
+          ) {
+            finalModuleID = "/" + finalModuleID;
+          }
 
           if (runtimeResolvedUserOptions.verbose) {
             this.environment?.logger?.info(
