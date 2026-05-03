@@ -6,6 +6,7 @@ import { reactStaticPlugin } from "../react-static/plugin.server.js";
 import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
 import { vitePluginVendorAlias } from "../vendor/vendor-alias.js";
+import { clientPackagesDiscoveryPlugin } from "../config/clientPackagesDiscovery.js";
 
 // Server-first orchestrator - only imports server plugins
 export const createPluginOrchestrator = (
@@ -21,6 +22,11 @@ export const createPluginOrchestrator = (
   };
 
   const plugins: Plugin[] = [];
+
+  // Auto-discover packages that opt into the `"use client"` convention via
+  // `react` in peerDependencies. Mutates userOptions.clientPackages before
+  // the transformer's configResolved + resolveUserConfig run.
+  plugins.push(clientPackagesDiscoveryPlugin(userOptions));
 
   // Alias react-server-dom-esm to our vendored copy
   plugins.push(vitePluginVendorAlias());
@@ -38,10 +44,13 @@ export const createPluginOrchestrator = (
   );
   
   // Core plugins
-  plugins.push(createEnvironmentPlugin({
-    ...userOptions,
-    availableEnvironments,
-  }));
+  // Mutate availableEnvironments directly on userOptions instead of spreading
+  // into a new object — preserves the shared reference so the discovery
+  // plugin's mutation of `clientPackages` is visible here when this plugin's
+  // async `config` hook later reads `options.clientPackages`.
+  (userOptions as { availableEnvironments?: unknown }).availableEnvironments =
+    availableEnvironments;
+  plugins.push(createEnvironmentPlugin(userOptions));
   plugins.push(createBuildEventPlugin(userOptions));
   const devServerPlugins = vitePluginReactDevServer(userOptions);
   if (Array.isArray(devServerPlugins)) {

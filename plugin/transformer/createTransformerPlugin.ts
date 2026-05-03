@@ -93,16 +93,26 @@ export const createTransformerPlugin = (
     // their `"use client"` boundaries get inlined into the server bundle
     // and runtime CJS/ESM interop trips on `import { createContext } from
     // 'react'`.
-    const clientPackages: readonly string[] =
+    //
+    // Mutated in `configResolved` after `clientPackagesDiscoveryPlugin`'s
+    // async config hook merges auto-detected (peer-deps include `react`)
+    // packages into `userOptions.clientPackages`. Both vars are `let` so
+    // the transform handler reads the latest value via closure.
+    const buildClientPackagesPattern = (
+      pkgs: readonly string[]
+    ): RegExp | null =>
+      pkgs.length
+        ? new RegExp(
+            `[\\\\/]node_modules[\\\\/](?:${pkgs
+              .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+              .join("|")})[\\\\/]`,
+          )
+        : null;
+    let clientPackages: readonly string[] =
       (userOptions as { clientPackages?: readonly string[] }).clientPackages ??
       [];
-    const clientPackagesPattern: RegExp | null = clientPackages.length
-      ? new RegExp(
-          `[\\\\/]node_modules[\\\\/](?:${clientPackages
-            .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-            .join("|")})[\\\\/]`,
-        )
-      : null;
+    let clientPackagesPattern: RegExp | null =
+      buildClientPackagesPattern(clientPackages);
     const noDist = (id: string) => {
       // Allow files from test fixtures and project root
       if (
@@ -131,6 +141,14 @@ export const createTransformerPlugin = (
         if (!isValidEnv(mode)) {
           throw new Error(`Invalid mode: ${mode}`);
         }
+
+        // Re-read clientPackages so auto-detected packages (merged into
+        // userOptions during `clientPackagesDiscoveryPlugin`'s async config
+        // hook) take effect for transform filtering.
+        clientPackages =
+          (userOptions as { clientPackages?: readonly string[] })
+            .clientPackages ?? [];
+        clientPackagesPattern = buildClientPackagesPattern(clientPackages);
 
         // CRITICAL: Re-resolve options with runtime mode to get correct importServerPath
         // This ensures test mode uses react-server-dom-esm/server.node instead of server
@@ -281,10 +299,14 @@ export const createTransformerPlugin = (
           // Whitelisted node_modules client packages: the default moduleID
           // doesn't recognize them as client components (no `.client.[jt]sx?`
           // suffix) and returns the bare `node_modules/...` path. The RSC
-          // runtime then rejects them with "Attempted to load a Client Module
-          // outside the hosted root" because the id doesn't start with the
-          // bundler's baseURL. Prefix here so the registerClientReference id
-          // sits inside the hosted root.
+          // runtime rejects ids that don't start with the bundler's baseURL
+          // ("Attempted to load a Client Module outside the hosted root"), so
+          // prefix with `/` here. The path keeps `node_modules/` because the
+          // SSR-env build (with `noExternal: clientPackages`) emits each
+          // bundled "use client" module to `dist/client/node_modules/<pkg>/…`,
+          // and the html-worker materializes client refs by importing
+          // `<dist/client>/<moduleID>` — keeping the segment lets the import
+          // resolve to disk.
           if (
             isWhitelistedClientPackage &&
             typeof finalModuleID === "string" &&

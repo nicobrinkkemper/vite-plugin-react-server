@@ -473,6 +473,11 @@ export const resolveUserConfig: ResolveUserConfigFn =
                 "react-server-dom-esm/client",
               ])
             : undefined, // Bundle everything for static builds
+          // Vite 6 environments honor `resolve.noExternal` per-env, while the
+          // legacy `ssr.noExternal` doesn't propagate. Mirror clientPackages
+          // here too so the SSR env (outputs dist/client/) bundles them in
+          // alongside user-authored .client.tsx files.
+          noExternal: mergedNoExternal,
         },
         define: define,
         ssr: srrConfig,
