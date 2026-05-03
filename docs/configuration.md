@@ -124,6 +124,31 @@ Both produce identical output. The RSC worker is skipped in `dev:rsc` mode by de
 }
 ```
 
+## Third-party `"use client"` packages
+
+Libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion ship per-file `"use client"` directives in their compiled output. vprs picks them up automatically so they can be imported directly in server components — same as Next.js's App Router.
+
+Detection runs once at config-time via [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu): any package with `react` in `peerDependencies` is added to the bundle's `noExternal` list, has its directives preserved through esbuild's pre-bundle (`optimizeDeps.exclude`), and gets each `"use client"` module emitted as its own client chunk so the html-worker can resolve client references at SSG render time.
+
+| Option | Type | Default | Purpose |
+|--------|------|---------|---------|
+| `clientPackages` | `readonly string[]` | `[]` | Manual additions, merged with auto-detected. Use for packages that don't list `react` in peerDeps but should be treated as client-packages anyway. |
+| `excludeClientPackages` | `readonly string[]` | `[]` | Skip auto-detected packages. Common case: dev-only Storybook deps that aren't part of the prod import graph. |
+
+```ts
+vitePluginReactServer({
+  // ... other options ...
+  clientPackages: ["@my-org/internal-ui"],
+  excludeClientPackages: [
+    "@storybook/react",
+    "@storybook/react-vite",
+    "@storybook/react-dom-shim",
+  ],
+});
+```
+
+If detection fails (missing lockfile, monorepo edge), the build continues with whatever's in `clientPackages` — and emits a warning if `verbose: true`.
+
 ## `preserveModulesRoot`
 
 Controls whether `moduleBase` (e.g. `src/`) appears in output paths:

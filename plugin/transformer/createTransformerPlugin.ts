@@ -13,6 +13,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
+import { buildClientPackagesPattern } from "../clientPackages/index.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -88,31 +89,29 @@ export const createTransformerPlugin = (
         DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern
     );
     // Whitelist of node_modules packages that should still go through the
-    // RSC transform — for libraries that use the per-file `"use client"`
+    // RSC transform — libraries that use the per-file `"use client"`
     // convention internally (e.g. @chakra-ui/react). Without this opt-in,
     // their `"use client"` boundaries get inlined into the server bundle
     // and runtime CJS/ESM interop trips on `import { createContext } from
     // 'react'`.
     //
-    // Mutated in `configResolved` after `clientPackagesDiscoveryPlugin`'s
-    // async config hook merges auto-detected (peer-deps include `react`)
-    // packages into `userOptions.clientPackages`. Both vars are `let` so
-    // the transform handler reads the latest value via closure.
-    const buildClientPackagesPattern = (
-      pkgs: readonly string[]
-    ): RegExp | null =>
-      pkgs.length
-        ? new RegExp(
-            `[\\\\/]node_modules[\\\\/](?:${pkgs
-              .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-              .join("|")})[\\\\/]`,
-          )
-        : null;
-    let clientPackages: readonly string[] =
-      (userOptions as { clientPackages?: readonly string[] }).clientPackages ??
-      [];
-    let clientPackagesPattern: RegExp | null =
-      buildClientPackagesPattern(clientPackages);
+    // Read lazily (per-transform-call) and memoized by list identity, so
+    // the auto-detected packages that `clientPackagesDiscoveryPlugin`
+    // merges into `userOptions.clientPackages` during its async `config`
+    // hook take effect for transform filtering without a separate
+    // configResolved hook.
+    let cachedPackagesRef: readonly string[] | undefined;
+    let cachedPattern: RegExp | null = null;
+    const getClientPackagesPattern = (): RegExp | null => {
+      const pkgs =
+        (userOptions as { clientPackages?: readonly string[] })
+          .clientPackages ?? [];
+      if (pkgs !== cachedPackagesRef) {
+        cachedPackagesRef = pkgs;
+        cachedPattern = buildClientPackagesPattern(pkgs);
+      }
+      return cachedPattern;
+    };
     const noDist = (id: string) => {
       // Allow files from test fixtures and project root
       if (
@@ -141,14 +140,6 @@ export const createTransformerPlugin = (
         if (!isValidEnv(mode)) {
           throw new Error(`Invalid mode: ${mode}`);
         }
-
-        // Re-read clientPackages so auto-detected packages (merged into
-        // userOptions during `clientPackagesDiscoveryPlugin`'s async config
-        // hook) take effect for transform filtering.
-        clientPackages =
-          (userOptions as { clientPackages?: readonly string[] })
-            .clientPackages ?? [];
-        clientPackagesPattern = buildClientPackagesPattern(clientPackages);
 
         // CRITICAL: Re-resolve options with runtime mode to get correct importServerPath
         // This ensures test mode uses react-server-dom-esm/server.node instead of server
@@ -205,7 +196,8 @@ export const createTransformerPlugin = (
         // dist/client / env=ssr - removes use client directive and hides server modules, hides client entry or without exports (ssg portable)
         // dist/static / env=client  -  removes use client directive and hides server modules, emits client entry (and is browser portable)
         async handler(code, id, { ssr } = {}) {
-          const isWhitelistedClientPackage = clientPackagesPattern?.test(id) ?? false;
+          const isWhitelistedClientPackage =
+            getClientPackagesPattern()?.test(id) ?? false;
           if (
             (nodeModulesPattern.test(id) && !isWhitelistedClientPackage) ||
             !modulePattern.test(id) ||
