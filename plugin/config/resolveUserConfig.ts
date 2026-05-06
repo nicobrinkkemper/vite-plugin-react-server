@@ -10,6 +10,10 @@ import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
+import {
+  mergeClientPackagesNoExternal,
+  mergeClientPackagesOptimizeDepsExclude,
+} from "../clientPackages/index.js";
 import { createHash } from "node:crypto";
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
@@ -371,9 +375,35 @@ export const resolveUserConfig: ResolveUserConfigFn =
 
     const minify = config.build?.minify;
 
+    // Packages that internally use the per-file `"use client"` convention
+    // (e.g. @chakra-ui/react). The discovery plugin (registered first in
+    // both orchestrators) populates this list with auto-detected packages
+    // before this hook runs; users can also add to it manually via the
+    // `clientPackages` option.
+    //
+    // Three things happen here:
+    //   1. `optimizeDeps.exclude` keeps esbuild's pre-bundle from stripping
+    //      the per-file `"use client"` directives before our transform.
+    //   2. `noExternal` (legacy `ssr.noExternal` AND Vite-6 environment-
+    //      aware `resolve.noExternal`) makes Rollup inline these packages
+    //      into the server bundle, where our transform converts each
+    //      `"use client"` module to a `registerClientReference` stub.
+    //   3. Each `"use client"` module emits as a chunk under
+    //      `dist/client/node_modules/<pkg>/...` thanks to Vite's natural
+    //      preserved-modules handling — those paths match the moduleIDs
+    //      we generate in `createTransformerPlugin`, so the html-worker
+    //      can resolve client refs at SSG-render time.
+    const clientPackages: readonly string[] =
+      (userOptions as { clientPackages?: readonly string[] }).clientPackages ??
+      [];
+    const mergedNoExternal = mergeClientPackagesNoExternal(
+      clientPackages,
+      config.ssr?.noExternal
+    );
     const srrConfig = {
       ...config.ssr,
       target: config.ssr?.target ?? "node",
+      noExternal: mergedNoExternal,
       optimizeDeps: {
         ...config.ssr?.optimizeDeps,
         include: config.ssr?.optimizeDeps?.include ?? [
@@ -381,6 +411,10 @@ export const resolveUserConfig: ResolveUserConfigFn =
           "react-dom",
           "react-server-dom-esm/client",
         ],
+        exclude: mergeClientPackagesOptimizeDepsExclude(
+          clientPackages,
+          config.ssr?.optimizeDeps?.exclude
+        ),
       },
       resolve: {
         ...config.ssr?.resolve,
@@ -451,6 +485,11 @@ export const resolveUserConfig: ResolveUserConfigFn =
                 "react-server-dom-esm/client",
               ])
             : undefined, // Bundle everything for static builds
+          // Vite 6 environments honor `resolve.noExternal` per-env, while the
+          // legacy `ssr.noExternal` doesn't propagate. Mirror clientPackages
+          // here too so the SSR env (outputs dist/client/) bundles them in
+          // alongside user-authored .client.tsx files.
+          noExternal: mergedNoExternal,
         },
         define: define,
         ssr: srrConfig,
@@ -561,6 +600,12 @@ export const resolveUserConfig: ResolveUserConfigFn =
           externalConditions: config.resolve?.externalConditions ?? [
             "react-server",
           ],
+          // Force whitelisted client packages into the server bundle so the
+          // RSC transform can convert their `"use client"` modules to client
+          // references. Without this, Vite's default SSR externalization
+          // leaves them as bare `import` statements that Node loads at SSG
+          // time straight from `node_modules`, bypassing every transform.
+          noExternal: mergedNoExternal,
         },
         define: define,
         ssr: srrConfig,

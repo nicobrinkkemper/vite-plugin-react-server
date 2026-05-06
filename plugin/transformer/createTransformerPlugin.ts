@@ -13,6 +13,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
+import { buildClientPackagesPattern } from "../clientPackages/index.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -87,6 +88,30 @@ export const createTransformerPlugin = (
       userOptions.autoDiscover?.vendorPattern ??
         DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern
     );
+    // Whitelist of node_modules packages that should still go through the
+    // RSC transform — libraries that use the per-file `"use client"`
+    // convention internally (e.g. @chakra-ui/react). Without this opt-in,
+    // their `"use client"` boundaries get inlined into the server bundle
+    // and runtime CJS/ESM interop trips on `import { createContext } from
+    // 'react'`.
+    //
+    // Read lazily (per-transform-call) and memoized by list identity, so
+    // the auto-detected packages that `clientPackagesDiscoveryPlugin`
+    // merges into `userOptions.clientPackages` during its async `config`
+    // hook take effect for transform filtering without a separate
+    // configResolved hook.
+    let cachedPackagesRef: readonly string[] | undefined;
+    let cachedPattern: RegExp | null = null;
+    const getClientPackagesPattern = (): RegExp | null => {
+      const pkgs =
+        (userOptions as { clientPackages?: readonly string[] })
+          .clientPackages ?? [];
+      if (pkgs !== cachedPackagesRef) {
+        cachedPackagesRef = pkgs;
+        cachedPattern = buildClientPackagesPattern(pkgs);
+      }
+      return cachedPattern;
+    };
     const noDist = (id: string) => {
       // Allow files from test fixtures and project root
       if (
@@ -171,10 +196,12 @@ export const createTransformerPlugin = (
         // dist/client / env=ssr - removes use client directive and hides server modules, hides client entry or without exports (ssg portable)
         // dist/static / env=client  -  removes use client directive and hides server modules, emits client entry (and is browser portable)
         async handler(code, id, { ssr } = {}) {
+          const isWhitelistedClientPackage =
+            getClientPackagesPattern()?.test(id) ?? false;
           if (
-            nodeModulesPattern.test(id) ||
+            (nodeModulesPattern.test(id) && !isWhitelistedClientPackage) ||
             !modulePattern.test(id) ||
-            !noDist(id)
+            (!noDist(id) && !isWhitelistedClientPackage)
           ) {
             return null;
           }
@@ -260,6 +287,25 @@ export const createTransformerPlugin = (
                 originalSourceContent
               )
             : normalizedPath;
+
+          // Whitelisted node_modules client packages: the default moduleID
+          // doesn't recognize them as client components (no `.client.[jt]sx?`
+          // suffix) and returns the bare `node_modules/...` path. The RSC
+          // runtime rejects ids that don't start with the bundler's baseURL
+          // ("Attempted to load a Client Module outside the hosted root"), so
+          // prefix with `/` here. The path keeps `node_modules/` because the
+          // SSR-env build (with `noExternal: clientPackages`) emits each
+          // bundled "use client" module to `dist/client/node_modules/<pkg>/…`,
+          // and the html-worker materializes client refs by importing
+          // `<dist/client>/<moduleID>` — keeping the segment lets the import
+          // resolve to disk.
+          if (
+            isWhitelistedClientPackage &&
+            typeof finalModuleID === "string" &&
+            !finalModuleID.startsWith("/")
+          ) {
+            finalModuleID = "/" + finalModuleID;
+          }
 
           if (runtimeResolvedUserOptions.verbose) {
             this.environment?.logger?.info(

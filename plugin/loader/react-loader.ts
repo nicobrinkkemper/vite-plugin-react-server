@@ -135,26 +135,42 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     // Fix CJS React named imports: React's react-server condition exports CJS,
     // but esbuild/tsx transforms produce ESM named imports that fail at runtime.
     // Rewrite `import { X } from "react"` → `import __react from "react"; const { X } = __react;`
-    if (!url.includes('node_modules')) {
-      const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
-      if (namedImportRe.test(source)) {
-        namedImportRe.lastIndex = 0;
-        let counter = 0;
-        source = source.replace(namedImportRe, (_match: string, imports: string) => {
-          const alias = `__react_cjs_${counter++}`;
-          return `import ${alias} from "react"; const {${imports}} = ${alias};`;
-        });
-        if (verbose) {
-          logger.info(`Rewrote CJS React named imports in: ${url}`);
-        }
+    // Applies to user code AND node_modules — third-party packages (e.g.
+    // @chakra-ui/react's compiled ESM) hit the same CJS interop wall.
+    const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
+    if (namedImportRe.test(source)) {
+      namedImportRe.lastIndex = 0;
+      let counter = 0;
+      source = source.replace(namedImportRe, (_match: string, imports: string) => {
+        const alias = `__react_cjs_${counter++}`;
+        return `import ${alias} from "react"; const {${imports}} = ${alias};`;
+      });
+      if (verbose) {
+        logger.info(`Rewrote CJS React named imports in: ${url}`);
       }
     }
 
-    // Check for file-level server directive first
-    const hasFileLevelServerDirective =
-      source.startsWith('"use server"') || source.startsWith("'use server'");
-    const hasFileLevelClientDirective =
-      source.startsWith('"use client"') || source.startsWith("'use client'");
+    // Check for file-level directives. Walk the prologue — consecutive string-
+    // literal directive statements at file top — so a benign `"use strict"`
+    // sitting above `"use client"` (which is what every bundler-compiled
+    // node_modules package ships) doesn't shadow the real directive.
+    const hasFileLevelDirective = (target: string): boolean => {
+      let i = 0;
+      for (let k = 0; k < 10; k++) {
+        while (i < source.length && /\s/.test(source[i]!)) i++;
+        const quote = source[i];
+        if (quote !== '"' && quote !== "'") return false;
+        const close = source.indexOf(quote, i + 1);
+        if (close < 0) return false;
+        if (source.slice(i + 1, close) === target) return true;
+        i = close + 1;
+        while (i < source.length && /[\s;]/.test(source[i]!)) i++;
+        if (i >= source.length) return false;
+      }
+      return false;
+    };
+    const hasFileLevelServerDirective = hasFileLevelDirective("use server");
+    const hasFileLevelClientDirective = hasFileLevelDirective("use client");
 
     const isServer =
       hasFileLevelServerDirective ||

@@ -408,6 +408,15 @@ export type ResolvedUserOptions = {
   props?: StreamPluginOptions["props"];
   clientEntry?: string;
   serverEntry?: string;
+  /**
+   * Packages whose internal `"use client"` per-file directives should be
+   * honored by the RSC pipeline (Chakra UI, MUI, Mantine, react-aria, …).
+   * When set, the matching node_modules paths bypass the transformer's
+   * node_modules early-return, get added to `optimizeDeps.exclude` so esbuild
+   * doesn't strip directives, and get added to `resolve.noExternal` so they
+   * land in the server bundle where the transform actually runs.
+   */
+  clientPackages?: readonly string[];
 
   // Required complex properties
   Page: StreamPluginOptions["Page"];

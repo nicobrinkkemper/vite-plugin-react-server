@@ -838,6 +838,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       envLoaderPath: options.envLoaderPath ?? DEFAULT_CONFIG.ENV_LOADER_PATH,
       clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
       serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
+      clientPackages: (options as { clientPackages?: readonly string[] }).clientPackages,
       autoDiscover: autoDiscover,
       loader: loader,
       pipeableStreamOptions,

@@ -6,6 +6,7 @@ import { reactStaticPlugin } from "../react-static/plugin.client.js";
 import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
 import { vitePluginVendorAlias } from "../vendor/vendor-alias.js";
+import { clientPackagesDiscoveryPlugin } from "../clientPackages/index.js";
 
 // Client-first orchestrator - includes client SSG plugin for reverse paradigm
 export const createPluginOrchestrator = (
@@ -15,6 +16,18 @@ export const createPluginOrchestrator = (
   const availableEnvironments = ["client", "ssr", "server"];
 
   const plugins: Plugin[] = [];
+
+  // Auto-discover packages that opt into the `"use client"` convention via
+  // `react` in peerDependencies, and merge with any manual `clientPackages`
+  // the user supplied. Mutates `userOptions.clientPackages` so downstream
+  // plugins read the merged list when their own hooks fire.
+  //
+  // INVARIANT: every plugin below must receive the same `userOptions`
+  // *reference*. Spreading (`{...userOptions, foo}`) into a new object
+  // breaks the chain — the spread copy keeps the pre-discovery value of
+  // `clientPackages` and silently regresses node_modules `"use client"`
+  // handling. Mutate fields on userOptions directly instead.
+  plugins.push(clientPackagesDiscoveryPlugin(userOptions));
 
   // Alias react-server-dom-esm to our vendored copy
   plugins.push(vitePluginVendorAlias());
@@ -31,11 +44,12 @@ export const createPluginOrchestrator = (
     })(userOptions)
   );
   
-  // Core plugins
-  plugins.push(createEnvironmentPlugin({
-    ...userOptions,
-    availableEnvironments,
-  }));
+  // Core plugins. Mutating `availableEnvironments` on userOptions (rather
+  // than spreading into a new object) preserves the shared reference per
+  // the invariant above.
+  (userOptions as { availableEnvironments?: unknown }).availableEnvironments =
+    availableEnvironments;
+  plugins.push(createEnvironmentPlugin(userOptions));
   plugins.push(createBuildEventPlugin(userOptions));
   const devServerPlugins = vitePluginReactDevServer(userOptions);
   if (Array.isArray(devServerPlugins)) {
