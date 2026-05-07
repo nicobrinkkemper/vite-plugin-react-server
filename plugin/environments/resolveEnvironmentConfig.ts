@@ -225,7 +225,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
           target: config.build?.target ?? "esnext",
           minify: config.build?.minify ?? true,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
-          ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+          ssrManifest: config.build?.ssrManifest ?? false,
           ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
           cssCodeSplit:
             typeof config.build?.cssCodeSplit === "boolean"
@@ -253,7 +253,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
           target: config.build?.target ?? "esnext", // Use esnext for pure ESM - no helpers needed
           minify: config.build?.minify ?? true,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
-          ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+          ssrManifest: config.build?.ssrManifest ?? false,
           ssrEmitAssets:
             typeof config.build?.ssrEmitAssets === "boolean"
               ? config.build?.ssrEmitAssets
