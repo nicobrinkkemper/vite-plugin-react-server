@@ -541,14 +541,22 @@ return (
 );
 }`
   );
-  // Create a test page component
+  // Create a test page component.
+  // Default `url` to "/page2" so the page renders even when the test
+  // configures `props: undefined` (the "no props at all" case). The
+  // original fixture used `url` undefined in a `new URL(...)` constructor,
+  // which threw `TypeError: Invalid URL` and surfaced as a per-run
+  // `[client] RSC render error for /page2: Invalid URL` log (bd-w4t).
+  // The `new URL(...)` call has been removed entirely — the test only
+  // asserts that "Home Page for ..." appears in the rendered output, and
+  // the URL parsing was incidental.
   await writeFile(
     resolve(testDir, "src", "page2", "page.tsx"),
     `import React from "react";
-export function Page({url, propsEnv = import.meta.env}) {
+export function Page({url = "/page2", propsEnv = import.meta.env}) {
 return (
   <div>
-    <h1>Home Page for {new URL(import.meta.env.BASE_URL + url, import.meta.env.PUBLIC_ORIGIN + import.meta.env.BASE_URL).pathname}</h1>
+    <h1>Home Page for {url}</h1>
     <p>Base URL: {propsEnv.BASE_URL}</p>
     <p>Public: {propsEnv.PUBLIC_ORIGIN}</p>
     <p>Mode: {import.meta.env.MODE}</p>

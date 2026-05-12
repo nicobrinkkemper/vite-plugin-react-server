@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createServer } from "vite";
+import { createServer, createLogger } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
 import { testUserOptions } from "../test-config.js";
 import { mkdir, rm } from "node:fs/promises";
@@ -16,16 +16,35 @@ let server,
   response2: RSCStreamResponse;
 const testDir = resolve(__dirname, "../fixtures/props-variations.test");
 
+// Capture every error/warn log the plugin emits during this test's lifecycle.
+// Used by the bd-w4t regression test to assert that a sub-route RSC request
+// does not surface any error logs (the symptom of the original bug).
+const recordedErrors: string[] = [];
+const recordedWarns: string[] = [];
+
 describe("RSC Server", () => {
   beforeAll(async () => {
     // Clean up and create test directory
     await rm(testDir, { recursive: true, force: true });
     await mkdir(testDir, { recursive: true });
     await setupTestProjectPropsVariations(testDir);
+    // Custom logger that tees every error/warn into recordedErrors/recordedWarns.
+    const customLogger = createLogger("info", { allowClearScreen: false });
+    const origError = customLogger.error.bind(customLogger);
+    const origWarn = customLogger.warn.bind(customLogger);
+    customLogger.error = (msg, opts) => {
+      recordedErrors.push(typeof msg === "string" ? msg : String(msg));
+      origError(msg, opts);
+    };
+    customLogger.warn = (msg, opts) => {
+      recordedWarns.push(typeof msg === "string" ? msg : String(msg));
+      origWarn(msg, opts);
+    };
     // Start the server
     server = await createServer({
       mode: "test",
       root: testDir,
+      customLogger,
       plugins: [
         vitePluginReactServer({
           ...testUserOptions,
@@ -119,5 +138,16 @@ describe("RSC Server", () => {
     // Verify the response contains page content
     expect(response2.result).toContain("Home Page for");
     // Server environment shows undefined values as $undefined in RSC stream, which is expected
+  });
+
+  it("does not emit RSC render error logs for the sub-route request (bd-w4t regression)", () => {
+    // bd-w4t: prior to the fixture fix, every run of this file logged
+    //   [client] RSC render error for /page2: Invalid URL
+    // because the page2 fixture called new URL() on undefined props.
+    // Catch any regression of that pattern at the logger boundary.
+    const rscRenderErrors = recordedErrors.filter((m) =>
+      /RSC render error/.test(m)
+    );
+    expect(rscRenderErrors).toEqual([]);
   });
 });
