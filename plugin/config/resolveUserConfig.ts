@@ -575,7 +575,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
           },
           ssr: ssr,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
-          ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+          ssrManifest: config.build?.ssrManifest ?? false,
           ssrEmitAssets: config.build?.ssrEmitAssets ?? true,
           cssCodeSplit:
             typeof config.build?.cssCodeSplit === "boolean"
@@ -620,7 +620,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
           minify: minify,
           ssr: ssr,
           manifest: config.build?.manifest ?? `.vite/manifest.json`,
-          ssrManifest: config.build?.ssrManifest ?? `.vite/ssr-manifest.json`,
+          ssrManifest: config.build?.ssrManifest ?? false,
           ssrEmitAssets:
             typeof config.build?.ssrEmitAssets === "boolean"
               ? config.build?.ssrEmitAssets
