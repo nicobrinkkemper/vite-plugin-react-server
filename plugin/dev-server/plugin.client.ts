@@ -107,16 +107,26 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       if (isServerFile && hmrHandler) {
         isProcessingHmr = true;
-        
+
         try {
           server.config.logger.info(`[vite-plugin-react-server] File changed: ${file}, sending HMR update...`);
-          
+
           // CRITICAL: Send HMR_UPDATE message to worker to invalidate modules
           // This clears component caches, but Node.js's ES module cache persists
           hmrHandler.sendHmrUpdate(file);
-          
-          // NOTE: The WS event to notify the client is sent by the hotUpdate hook
-          // in plugin.server.ts — don't duplicate it here.
+
+          // Notify the browser to refetch the RSC stream. In dev:rsc the
+          // equivalent send lives in plugin.server.ts's hmrPlugin, which only
+          // runs under the react-server orchestrator. dev:ssr (this plugin)
+          // never loads that orchestrator, so without sending the event here
+          // the worker invalidates correctly but the browser keeps showing
+          // pre-edit content — `useRscHmr` listens for this event and only
+          // refetches on receipt.
+          server.ws.send({
+            type: "custom",
+            event: "vite-plugin-react-server:server-component-update",
+            data: { file: normalizedFile, path: file },
+          });
           
           // CRITICAL: Node.js caches ES modules, so we need to restart the worker
           // to clear the module cache. Debounce restarts to prevent recursion.
