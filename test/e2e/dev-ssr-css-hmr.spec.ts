@@ -97,16 +97,12 @@ test.afterAll(async () => {
   }
 });
 
-// Currently failing — bd-5rk reproduces consistently in dev:ssr against
-// bidoof-template: the CSS-module class hash doesn't change across the
-// edit (`_Home_1yxem_1` → `_Home_1yxem_1`) and the rendered font-size
-// stays at the pre-edit value even after page.reload(). Looks like the
-// SSR-side compiled CSS-module output is being cached past the source
-// edit. The fix is tracked separately; this test is marked .fail() so
-// the suite stays green while documenting the known regression — if
-// somebody fixes the underlying bug, this test will start "failing as
-// passing" and need its annotation removed.
-test.fail("dev:ssr applies CSS-module edits after reload (bd-5rk)", async ({ page }) => {
+// bd-5rk regression: in dev:ssr the SSR worker imports compiled CSS modules
+// through Node's loader, which caches by URL. Before the fix, CSS edits did
+// not trigger a worker restart, so reloading the page re-rendered with the
+// pre-edit class hashes. Fix lives in plugin/dev-server/plugin.client.ts
+// (CSS files now route through the same worker-invalidation path as .ts/.tsx).
+test("dev:ssr applies CSS-module edits after reload (bd-5rk)", async ({ page }) => {
   await page.goto(BASE_URL + "/");
 
   // The .Home class hash-name varies; target the outermost Home-prefixed div.
