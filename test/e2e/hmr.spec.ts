@@ -124,29 +124,69 @@ test.describe('HMR in bidoof-template', () => {
   test('CSS change applies without page reload', async ({ page }) => {
     const cssFile = join(bidoofDir, 'src/css/home.module.css');
     const originalContent = await readFile(cssFile, 'utf-8');
-    
+
     try {
       await page.goto('/');
-      
+
       // Click counter to set client state
       const counter = page.locator('button', { hasText: 'Click count:' });
       await counter.click();
       await counter.click();
       await expect(counter).toContainText('Click count: 2');
-      
+
       // Change a CSS value
       const updatedContent = originalContent.replace(
         'font-size: 50px',
         'font-size: 60px'
       );
       await writeFile(cssFile, updatedContent);
-      
+
       // Wait for style to apply
       await page.waitForTimeout(2000);
-      
+
       // Client state should be preserved (CSS HMR doesn't reload)
       await expect(counter).toContainText('Click count: 2');
-      
+
+    } finally {
+      await writeFile(cssFile, originalContent);
+    }
+  });
+
+  test('CSS edit actually updates computed style without manual refresh (bd-vvi)', async ({ page }) => {
+    // Stronger version of the test above: the existing one only verifies
+    // that no full page reload happened, but does NOT check that the new
+    // CSS rule actually applied. Reported symptom is that you have to
+    // manually refresh the page to see the new styles — the WS HMR event
+    // fires but the rendered styles don't update.
+    const cssFile = join(bidoofDir, 'src/css/home.module.css');
+    const originalContent = await readFile(cssFile, 'utf-8');
+
+    try {
+      await page.goto('/');
+
+      // The .Home class hash-name varies; target the outermost div with a
+      // Home-prefixed class. font-size: 50px in home.module.css.
+      const home = page.locator('div[class*="Home"]').first();
+      await expect(home).toHaveCSS('font-size', '50px');
+
+      // Set client state so we can also confirm no full reload happened.
+      const counter = page.locator('button', { hasText: 'Click count:' });
+      await counter.click();
+      await counter.click();
+      await expect(counter).toContainText('Click count: 2');
+
+      // Edit the CSS — bump .Home font-size to 60px.
+      const updatedContent = originalContent.replace(
+        'font-size: 50px',
+        'font-size: 60px'
+      );
+      await writeFile(cssFile, updatedContent);
+
+      // The actual bug check: computed style must update WITHOUT page reload.
+      await expect(home).toHaveCSS('font-size', '60px', { timeout: 5000 });
+
+      // And state must still be preserved (proves it was HMR, not a reload).
+      await expect(counter).toContainText('Click count: 2');
     } finally {
       await writeFile(cssFile, originalContent);
     }
