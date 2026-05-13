@@ -5,7 +5,7 @@ A Vite plugin that transforms React components into native ESM modules with Reac
 ## Install
 
 ```bash
-npm install -D vite-plugin-react-server react@19 react-dom@19
+npm install -D vite-plugin-react-server react@experimental react-dom@experimental
 ```
 
 ## Minimal Example
@@ -96,7 +96,7 @@ vitePluginReactServer({
 ## Requirements
 
 - Node.js 23.7.0+
-- React 19+ or experimental
+- React experimental channel (`react@experimental` / `react-dom@experimental`). Stable React 19.x is **not yet supported** — the vendored `react-server-dom-esm` reads `TaintRegistryPendingRequests` from React's server internals, and the taint registry is only exposed on the experimental channel today. See [React Compatibility](./docs/react-type-compatibility.md) for the full story; stable support is tracked separately and is gated on upstream React landing the taint API in the stable build.
 - Vite 6+
 
 ## TypeScript

@@ -3,10 +3,10 @@
 ## Install
 
 ```bash
-npm install -D vite-plugin-react-server react@19 react-dom@19
+npm install -D vite-plugin-react-server react@experimental react-dom@experimental
 ```
 
-React 19+ or experimental required. The ESM transport (`react-server-dom-esm`) is vendored — no separate install needed.
+React from the **experimental** channel is required. Stable React 19.x is not yet supported — the vendored `react-server-dom-esm` reads taint-registry internals that only exist on the experimental channel. See [React Compatibility](./react-type-compatibility.md) for the full story. The ESM transport (`react-server-dom-esm`) is vendored — no separate install needed.
 
 ## Create a Page
 
