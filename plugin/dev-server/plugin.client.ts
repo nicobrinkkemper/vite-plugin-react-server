@@ -90,9 +90,19 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       // Normalize paths for comparison (handle both absolute and relative)
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
-      const isSourceFile = normalizedFile.startsWith(moduleBase + '/') && 
+      const isInModuleBase = normalizedFile.startsWith(moduleBase + '/');
+      const isSourceFile = isInModuleBase &&
         (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
-      
+      // CSS edits in dev:ssr must also trigger the worker-restart path: the SSR
+      // worker imports compiled CSS modules through Node's loader, which caches
+      // by URL. Vite re-transforming the file does nothing for already-imported
+      // modules in the worker — without invalidating + restarting, the next
+      // page render reuses the pre-edit class hashes (bd-5rk). dev:rsc doesn't
+      // need this because rendering happens in the main process and goes through
+      // Vite's invalidated server module graph (plugin.server.ts hotUpdate).
+      const isCssFile = isInModuleBase &&
+        (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.sass') || file.endsWith('.less'));
+
       // Skip client components — let @vitejs/plugin-react handle them with Fast Refresh
       const isClientFile = isSourceFile && (() => {
         // Check filename pattern (.client.tsx, etc.) — matches isClientComponentByName
@@ -102,10 +112,11 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           return /^\s*["']use client["']/.test(head.split('\n')[0]);
         } catch { return false; }
       })();
-      
+
       const isServerFile = isSourceFile && !isClientFile;
-      
-      if (isServerFile && hmrHandler) {
+      const shouldInvalidateWorker = isServerFile || isCssFile;
+
+      if (shouldInvalidateWorker && hmrHandler) {
         isProcessingHmr = true;
 
         try {
@@ -165,8 +176,8 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           server.config.logger.error(`[vite-plugin-react-server] Error handling HMR update: ${error}`);
           isProcessingHmr = false;
         }
-      } else if (isServerFile && !hmrHandler) {
-        server.config.logger.warn(`[vite-plugin-react-server] Server file changed but HMR handler not available yet: ${file}`);
+      } else if (shouldInvalidateWorker && !hmrHandler) {
+        server.config.logger.warn(`[vite-plugin-react-server] Source file changed but HMR handler not available yet: ${file}`);
       }
       
       // Don't suppress — plugin.server.ts hotUpdate handles page reload prevention
