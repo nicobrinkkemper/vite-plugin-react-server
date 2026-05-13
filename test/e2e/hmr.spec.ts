@@ -65,27 +65,34 @@ test.describe('HMR in bidoof-template', () => {
   test('server component change updates todos page', async ({ page }) => {
     const pageFile = join(bidoofDir, 'src/page/todos/page.tsx');
     const originalContent = await readFile(pageFile, 'utf-8');
-    
+
     try {
       await page.goto('/todos/');
-      
+
       // Verify initial content
       await expect(page.locator('h1')).toContainText('Todo');
-      
+
       // Verify the marker doesn't exist yet
       await expect(page.locator('[data-testid="hmr-marker"]')).toHaveCount(0);
 
-      // Modify the server component — add a visible marker element
+      // Modify the server component — add a visible marker element.
+      // Target `<TodoList` (which only exists in the non-GitHub-Pages
+      // branch) rather than the back-link, which now also appears inside
+      // the `if (isGithubPages)` early-return branch added in
+      // bidoof-template PR #60 (f87c49d). String.prototype.replace only
+      // hits the first occurrence, which is the dead branch in dev mode
+      // — the rendered page never gets the marker and the test times
+      // out waiting for it.
       const updatedContent = originalContent.replace(
-        '<Link to="/" className={styles["Link"]}> back </Link>',
-        '<Link to="/" className={styles["Link"]}> back </Link>\n      <div data-testid="hmr-marker">HMR Updated</div>'
+        '<TodoList',
+        '<div data-testid="hmr-marker">HMR Updated</div>\n      <TodoList'
       );
       await writeFile(pageFile, updatedContent);
-      
+
       // Wait for the update
       await page.waitForSelector('[data-testid="hmr-marker"]', { timeout: 15000 });
       await expect(page.locator('[data-testid="hmr-marker"]')).toContainText('HMR Updated');
-      
+
     } finally {
       await writeFile(pageFile, originalContent);
     }
