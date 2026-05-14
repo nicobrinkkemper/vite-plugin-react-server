@@ -20,6 +20,11 @@ export function getRpc(): RpcInvoker | null {
   return rpc;
 }
 
+/**
+ * The Vite ModuleRunner path is enabled by default. Set `VPRS_RUNNER=0`
+ * to fall back to the legacy Node-import-based loader if the runner
+ * ever causes problems for a specific project.
+ */
 export function isRunnerEnabled(): boolean {
-  return process.env["VPRS_RUNNER"] === "1";
+  return process.env["VPRS_RUNNER"] !== "0";
 }

@@ -18,7 +18,7 @@ let currentErrorHandler: ((error: any) => void) | null = null;
 let currentRunnerChannel: MessageChannel | null = null;
 let currentRunnerDetach: (() => void) | null = null;
 
-const isRunnerEnabled = (): boolean => process.env["VPRS_RUNNER"] === "1";
+const isRunnerEnabled = (): boolean => process.env["VPRS_RUNNER"] !== "0";
 
 export const restartWorker: RestartWorkerFn = async function _restartWorker({
   server,

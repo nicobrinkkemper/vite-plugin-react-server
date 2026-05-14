@@ -18,13 +18,13 @@ import { pipeToResponse } from "../helpers/pipeToResponse.js";
 // This allows us to restart the worker on the next request to clear Node.js module cache
 let hasInvalidatedModules = false;
 
-const isRunnerEnabled = (): boolean => process.env["VPRS_RUNNER"] === "1";
+const isRunnerEnabled = (): boolean => process.env["VPRS_RUNNER"] !== "0";
 
 /**
  * Mark that modules have been invalidated - worker will be restarted on next request.
- * When the experimental ModuleRunner path is active (VPRS_RUNNER=1) the worker
- * keeps its Vite runner cache invalidated per-module via the HMR_UPDATE handler,
- * so the heavyweight worker restart can be skipped.
+ * The Vite ModuleRunner is enabled by default; the worker keeps its runner cache
+ * invalidated via the HMR_UPDATE handler, so the heavyweight worker restart can
+ * be skipped. Opt out with `VPRS_RUNNER=0` to fall back to the legacy restart path.
  */
 export function markModulesInvalidated(): void {
   if (isRunnerEnabled()) {
