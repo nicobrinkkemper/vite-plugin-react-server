@@ -2,6 +2,7 @@ import { createLogger, type Logger } from "vite";
 import { workerData } from "node:worker_threads";
 import type { GenericModuleLoader } from "../../types.js";
 import { createSharedLoader } from "../../helpers/createSharedLoader.js";
+import { getRunner } from "./runnerInstance.js";
 
 /**
  * Creates a GenericModuleLoader for the RSC worker.
@@ -52,6 +53,7 @@ export const createRscWorkerLoader = ({
       isServeMode,
       effectiveProjectRoot,
       build,
+      moduleRunner: isServeMode ? getRunner() : null,
     });
   };
 };
