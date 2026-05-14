@@ -26,6 +26,7 @@ import {
   isModuleInvalidated,
   clearAllCachedComponents,
 } from "./state.server.js";
+import { getRunner } from "./runnerInstance.js";
 import {
   combineCssFiles,
   processInlineCssForState,
@@ -1252,7 +1253,25 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             `[rsc-worker] HMR_UPDATE: Cleared all cached components from temporaryReferences`
           );
         }
-        
+
+        // Invalidate the Vite ModuleRunner cache when the experimental
+        // runner path is in use. We clear the entire runner cache: the
+        // EvaluatedModules graph doesn't track reverse deps (importers),
+        // so invalidating just the changed file would leave consumers
+        // (e.g. a page.tsx that imports the edited *.module.css) holding
+        // a stale module reference with the old class-name hashes. The
+        // clear is still much cheaper than a full worker restart because
+        // there's no Node startup, register-vendor.js, or loader re-init.
+        const runner = getRunner();
+        if (runner) {
+          runner.clearCache();
+          if (verbose) {
+            logger?.info(
+              `[rsc-worker] HMR_UPDATE: runner cache cleared (trigger: ${filePath})`
+            );
+          }
+        }
+
         // Also clear headless stream errors since we're reloading
         headlessStreamErrors.clear();
         
