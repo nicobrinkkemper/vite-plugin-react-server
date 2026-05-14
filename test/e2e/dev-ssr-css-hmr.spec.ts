@@ -80,8 +80,17 @@ test.beforeAll(async () => {
   await waitForServer(BASE_URL, 60_000);
 }, 90_000);
 
+test.afterEach(async () => {
+  // Restore the CSS between tests — both tests edit the same file, and
+  // without restoration the second test inherits the first's 60px state
+  // and its 50px precondition fails.
+  if (originalCss !== undefined) {
+    await writeFile(cssFile, originalCss);
+  }
+});
+
 test.afterAll(async () => {
-  // Always restore the CSS, even if the test bailed mid-edit.
+  // Final restore in case the last afterEach was skipped (e.g. test bailed).
   if (originalCss !== undefined) {
     await writeFile(cssFile, originalCss);
   }
@@ -128,4 +137,39 @@ test("dev:ssr applies CSS-module edits after reload (bd-5rk)", async ({ page }) 
   // Also: nothing on the page should have downgraded to "no class
   // applied" — the home div still has *some* Home-prefixed class.
   await expect(home).toHaveAttribute("class", /Home/);
+});
+
+// Live-HMR variant: edit the CSS and expect the rule to apply *without* a
+// page.reload(). Before this fix, plugin.client.ts's hotUpdate for CSS files
+// fired vprs's WS event but didn't return [], so Vite emitted its default
+// `vite:beforeFullReload` event right after — the browser did a hard reload,
+// which is functional but not HMR. plugin.client.ts now returns [] for CSS
+// edits to suppress that reload, and useRscHmr's `kind: 'css'` branch
+// cache-busts <link rel="stylesheet"> tags so the new rules apply live.
+test("dev:ssr applies CSS-module edits live without a manual reload", async ({ page }) => {
+  await page.goto(BASE_URL + "/");
+
+  const home = page.locator('div[class*="Home"]').first();
+  await expect(home).toHaveCSS("font-size", "50px");
+
+  // Stamp the window so we can detect a full page reload — a reload
+  // creates a fresh window object and the marker disappears. This is
+  // more precise than `framenavigated`, which can fire for things other
+  // than full reloads (history.replaceState, link href tweaks, etc.).
+  await page.evaluate(() => {
+    (window as unknown as { __hmrLiveMarker?: number }).__hmrLiveMarker = Date.now();
+  });
+
+  const updated = originalCss!.replace("font-size: 50px", "font-size: 60px");
+  await writeFile(cssFile, updated);
+
+  // No page.reload() — wait for the rule to apply via HMR.
+  await expect(home).toHaveCSS("font-size", "60px", { timeout: 10_000 });
+
+  // If the window was wiped, a full reload happened — that defeats live HMR.
+  const markerStillPresent = await page.evaluate(() => {
+    return typeof (window as unknown as { __hmrLiveMarker?: number })
+      .__hmrLiveMarker === "number";
+  });
+  expect(markerStillPresent).toBe(true);
 });

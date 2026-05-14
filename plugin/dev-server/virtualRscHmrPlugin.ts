@@ -15,6 +15,43 @@ const RSC_HMR_EVENT = 'vite-plugin-react-server:server-component-update';
 
 export { RSC_HMR_EVENT };
 
+// Cache-bust every <link rel="stylesheet"> whose href references the changed
+// file. Server-collected CSS (vprs's <Css cssFiles={...}/> pattern) isn't in
+// the client module graph, so Vite's native CSS HMR never fires for these —
+// the <link> URL doesn't change and the browser keeps the cached stylesheet.
+// data.file is the project-relative path (eg "src/css/9mmc.module.css") and
+// the link href is a URL whose pathname ends with the same suffix.
+// We also fall back to basename matching to handle edge cases where the
+// project-relative form doesn't appear verbatim in the href.
+function refreshCssLinks(data) {
+  if (!data) return false;
+  const rel = String(data.file || '').replace(/^[\\\\/]+/, '');
+  if (!rel) return false;
+  const basename = rel.split(/[\\\\/]/).pop();
+  const links = document.querySelectorAll('link[rel="stylesheet"]');
+  let refreshed = 0;
+  for (const link of links) {
+    const href = link.getAttribute('href');
+    if (!href) continue;
+    let pathname;
+    try {
+      pathname = new URL(href, window.location.origin).pathname;
+    } catch {
+      pathname = href.split('?')[0];
+    }
+    const matches =
+      pathname.endsWith('/' + rel) ||
+      pathname.endsWith(rel) ||
+      (basename && pathname.endsWith('/' + basename));
+    if (!matches) continue;
+    const url = new URL(href, window.location.origin);
+    url.searchParams.set('t', String(Date.now()));
+    link.setAttribute('href', url.pathname + url.search);
+    refreshed++;
+  }
+  return refreshed > 0;
+}
+
 export function useRscHmr(refetch, options = {}) {
   const { verbose = true, filter } = options;
 
@@ -22,7 +59,10 @@ export function useRscHmr(refetch, options = {}) {
     (data) => {
       if (filter && !filter(data)) return;
       if (verbose) {
-        console.log('[RSC HMR] Server component updated:', data.file);
+        console.log('[RSC HMR] Server component updated:', data.file, data.kind ? '(' + data.kind + ')' : '');
+      }
+      if (data && data.kind === 'css') {
+        refreshCssLinks(data);
       }
       refetch(window.location.pathname);
     },
@@ -46,7 +86,10 @@ export function setupRscHmr(options = {}) {
   if (typeof import.meta.hot === 'undefined') return;
   import.meta.hot.on(RSC_HMR_EVENT, async (data) => {
     if (verbose) {
-      console.log('[RSC HMR] Server component updated:', data.file);
+      console.log('[RSC HMR] Server component updated:', data.file, data.kind ? '(' + data.kind + ')' : '');
+    }
+    if (data && data.kind === 'css') {
+      refreshCssLinks(data);
     }
     if (onUpdate === 'reload') {
       window.location.reload();
@@ -55,7 +98,9 @@ export function setupRscHmr(options = {}) {
     if (onUpdate) {
       try { await onUpdate(data); }
       catch (error) { console.error('[RSC HMR] Error in onUpdate handler:', error); window.location.reload(); }
-    } else {
+    } else if (!data || data.kind !== 'css') {
+      // For non-CSS updates without a handler, fall back to reload.
+      // For CSS updates, refreshCssLinks already handled it visually.
       window.location.reload();
     }
   });

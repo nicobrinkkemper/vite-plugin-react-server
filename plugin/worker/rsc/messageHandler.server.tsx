@@ -1224,10 +1224,11 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           routes: (msg as any).routes || [],
         });
         
-        // Always log HMR updates for debugging
-        logger?.info(
-          `[rsc-worker] HMR_UPDATE: Invalidated module ${normalizedPath} (from ${filePath})`
-        );
+        if (verbose) {
+          logger?.info(
+            `[rsc-worker] HMR_UPDATE: Invalidated module ${normalizedPath} (from ${filePath})`
+          );
+        }
         
         // CRITICAL: Clear ALL caches when files change
         // This ensures fresh components are loaded instead of cached ones

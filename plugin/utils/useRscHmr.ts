@@ -3,6 +3,40 @@ import { RSC_HMR_EVENT } from "./createReactFetcher.js";
 import type { RscHmrData } from "./createReactFetcher.js";
 import { env } from "./env.js";
 
+// Mirror of refreshCssLinks in virtualRscHmrPlugin.ts (see comment there).
+// data.file is the project-relative path (eg "src/css/9mmc.module.css") and
+// the link href is a URL whose pathname ends with the same suffix.
+// Falls back to basename matching for edge cases where the project-relative
+// form doesn't appear verbatim in the href.
+function refreshCssLinks(data: RscHmrData): boolean {
+  if (!data || typeof document === "undefined") return false;
+  const rel = String(data.file || "").replace(/^[\\/]+/, "");
+  if (!rel) return false;
+  const basename = rel.split(/[\\/]/).pop();
+  const links = document.querySelectorAll('link[rel="stylesheet"]');
+  let refreshed = 0;
+  links.forEach((link) => {
+    const href = link.getAttribute("href");
+    if (!href) return;
+    let pathname: string;
+    try {
+      pathname = new URL(href, window.location.origin).pathname;
+    } catch {
+      pathname = href.split("?")[0] ?? "";
+    }
+    const matches =
+      pathname.endsWith("/" + rel) ||
+      pathname.endsWith(rel) ||
+      (!!basename && pathname.endsWith("/" + basename));
+    if (!matches) return;
+    const url = new URL(href, window.location.origin);
+    url.searchParams.set("t", String(Date.now()));
+    link.setAttribute("href", url.pathname + url.search);
+    refreshed++;
+  });
+  return refreshed > 0;
+}
+
 /**
  * React hook for RSC HMR (Hot Module Replacement).
  * 
@@ -48,8 +82,12 @@ export function useRscHmr(
   const handler = useCallback(
     (data: RscHmrData) => {
       if (filter && !filter(data)) return;
+      const kind = (data as { kind?: string }).kind;
       if (verbose) {
-        console.log('[RSC HMR] Server component updated:', data.file);
+        console.log('[RSC HMR] Server component updated:', data.file, kind ? `(${kind})` : '');
+      }
+      if (kind === 'css') {
+        refreshCssLinks(data);
       }
       refetch(window.location.pathname);
     },

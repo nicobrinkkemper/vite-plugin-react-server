@@ -277,7 +277,9 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
           hasInvalidatedModules = false; // Reset flag after creating worker
         } else if (hasInvalidatedModules) {
           // Worker exists but modules are invalidated - restart to clear Node.js cache
-          logger.info(`[configureRequestHandler] Modules invalidated, restarting worker to clear Node.js module cache...`);
+          if (handlerOptions.verbose) {
+            logger.info(`[configureRequestHandler] Modules invalidated, restarting worker to clear Node.js module cache...`);
+          }
           currentWorker = await restartWorker({
             server,
             autoDiscoveredFiles,
