@@ -14,25 +14,6 @@ import { getNodeEnv } from "../config/getNodeEnv.js";
 import { setupGlobalErrorHandler, cleanupGlobalErrorHandler } from "../error/setupGlobalErrorHandler.js";
 import { pipeToResponse } from "../helpers/pipeToResponse.js";
 
-// Shared state to track if modules have been invalidated
-// This allows us to restart the worker on the next request to clear Node.js module cache
-let hasInvalidatedModules = false;
-
-const isRunnerEnabled = (): boolean => process.env["VPRS_RUNNER"] !== "0";
-
-/**
- * Mark that modules have been invalidated - worker will be restarted on next request.
- * The Vite ModuleRunner is enabled by default; the worker keeps its runner cache
- * invalidated via the HMR_UPDATE handler, so the heavyweight worker restart can
- * be skipped. Opt out with `VPRS_RUNNER=0` to fall back to the legacy restart path.
- */
-export function markModulesInvalidated(): void {
-  if (isRunnerEnabled()) {
-    return;
-  }
-  hasInvalidatedModules = true;
-}
-
 /**
  * Configures the worker request handler.
  * @param server - The Vite dev server
@@ -270,10 +251,10 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         res.setHeader("Expires", "0");
 
         const userOnMetrics = handlerOptions.onMetrics;
-        
-        // CRITICAL: If modules have been invalidated, restart the worker to clear Node.js's ES module cache
-        // This ensures file changes are picked up even on refresh
-        // Node.js caches ES modules, and the only way to clear that cache is to restart the worker
+
+        // Spawn the worker lazily on the first request. The ModuleRunner
+        // handles per-module invalidation via the HMR_UPDATE message
+        // handler, so a long-lived worker can keep serving across edits.
         if (!currentWorker) {
           currentWorker = await restartWorker({
             server,
@@ -282,23 +263,6 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             configEnv: configEnv,
             hmrChannel,
           });
-          hasInvalidatedModules = false; // Reset flag after creating worker
-        } else if (hasInvalidatedModules) {
-          // Worker exists but modules are invalidated - restart to clear Node.js cache
-          if (handlerOptions.verbose) {
-            logger.info(`[configureRequestHandler] Modules invalidated, restarting worker to clear Node.js module cache...`);
-          }
-          currentWorker = await restartWorker({
-            server,
-            autoDiscoveredFiles,
-            userOptions: serializedUserOptions,
-            configEnv: configEnv,
-            hmrChannel,
-          });
-          hasInvalidatedModules = false; // Reset flag after restarting
-        } else {
-          // Worker already exists and no invalidations - reuse it
-          // Note: unified worker streams handle their own listeners
         }
         if (!currentWorker) {
           throw new Error("Failed to start worker");

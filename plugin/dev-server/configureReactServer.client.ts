@@ -36,7 +36,6 @@ export const configureReactServer: CreateReactWorkerServerFn =
       // Worker cleanup would be handled by the worker management
     });
 
-    let restartFn: (() => Promise<void>) | null = null;
     let currentWorker: any = null;
 
     // Configure the worker request handler (sets up middleware)
@@ -65,22 +64,18 @@ export const configureReactServer: CreateReactWorkerServerFn =
       resolvedConfig,
       onWorkerCreated: (worker: any, restart?: () => Promise<void>) => {
         currentWorker = worker;
-        if (restart) {
-          restartFn = restart;
-        }
         if (onWorkerCreated) {
           onWorkerCreated(worker, restart);
         }
       },
     });
-    
-    // Return object with restart function and HMR update sender for hotUpdate
+
     return {
-      restart: restartFn,
       sendHmrUpdate: (file: string, routes?: string[]) => {
         if (currentWorker) {
-          // CRITICAL: In development mode, HMR port is disabled, so send directly to worker
-          // Send HMR_UPDATE message to worker through parentPort (postMessage)
+          // Notify the worker that a file changed. The worker's HMR_UPDATE
+          // handler invalidates the ModuleRunner cache so the next import
+          // re-fetches transformed code through Vite's pipeline.
           const normalizedPath = file.replace(userOptions.projectRoot || server.config.root, '').replace(/^\/+/, '');
           currentWorker.postMessage({
             type: "HMR_UPDATE",
@@ -89,17 +84,9 @@ export const configureReactServer: CreateReactWorkerServerFn =
             routes: routes || [],
             timestamp: Date.now(),
           } satisfies any);
-          
-          // Mark that modules have been invalidated - worker will be restarted on next request
-          // This is necessary because Node.js caches ES modules and the only way to clear
-          // that cache is to restart the worker
-          // Use dynamic import to avoid circular dependency
-          import("./configureRequestHandler.client.js").then(({ markModulesInvalidated }) => {
-            markModulesInvalidated();
-          });
-          
+
           if (verbose) {
-            logger?.info(`[createReactWorkerServer] Sent HMR_UPDATE for ${file} to worker, marked for restart`);
+            logger?.info(`[createReactWorkerServer] Sent HMR_UPDATE for ${file} to worker`);
           }
         }
       },
