@@ -139,6 +139,7 @@ export type CreateWorkerOptions = {
     serverPipeableStreamOptions?: any;
     clientPipeableStreamOptions?: any;
     hmrPort?: MessagePort;
+    runnerPort?: MessagePort;
   };
   transferList?: TransferListItem[];
   logger?: Logger;

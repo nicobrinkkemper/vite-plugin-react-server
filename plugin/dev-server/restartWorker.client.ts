@@ -8,12 +8,17 @@ import type { RestartWorkerFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
 import { setMaxListenersOnPort, unrefPort } from "../stream/setMaxListeners.js";
+import { attachRunnerFetchHandler } from "./handleRunnerFetch.server.js";
 
 let currentWorker: Worker | null = null;
 let isRestarting = false;
 let currentHmrChannel: MessageChannel | null = null;
 let currentMessageHandler: ((event: Event) => void) | null = null;
 let currentErrorHandler: ((error: any) => void) | null = null;
+let currentRunnerChannel: MessageChannel | null = null;
+let currentRunnerDetach: (() => void) | null = null;
+
+const isRunnerEnabled = (): boolean => process.env["VPRS_RUNNER"] !== "0";
 
 export const restartWorker: RestartWorkerFn = async function _restartWorker({
   server,
@@ -41,6 +46,17 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
       currentHmrChannel.port1.close();
       currentHmrChannel.port2.close();
       currentHmrChannel = null;
+    }
+
+    // Clean up the runner channel + fetch handler from any prior worker
+    if (currentRunnerDetach) {
+      currentRunnerDetach();
+      currentRunnerDetach = null;
+    }
+    if (currentRunnerChannel) {
+      currentRunnerChannel.port1.close();
+      currentRunnerChannel.port2.close();
+      currentRunnerChannel = null;
     }
 
     // Clean up any existing event listeners on the main HMR channel
@@ -105,6 +121,26 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
       server.config.logger.info(`[restartWorker] configEnv.mode: ${configEnv?.mode}`);
     }
 
+    let runnerPortForWorker: MessageChannel["port2"] | undefined;
+    const transferList: any[] = [workerHmrChannel.port2];
+    if (isRunnerEnabled()) {
+      const runnerChannel = new MessageChannel();
+      currentRunnerChannel = runnerChannel;
+      setMaxListenersOnPort(runnerChannel.port1, maxListeners);
+      setMaxListenersOnPort(runnerChannel.port2, maxListeners);
+      unrefPort(runnerChannel.port1);
+      unrefPort(runnerChannel.port2);
+      const logger = server.config.customLogger || server.config.logger;
+      currentRunnerDetach = attachRunnerFetchHandler(
+        runnerChannel.port1,
+        server,
+        logger,
+        Boolean(userOptions.verbose)
+      );
+      runnerPortForWorker = runnerChannel.port2;
+      transferList.push(runnerChannel.port2);
+    }
+
     const workerResult = await createWorker({
       projectRoot: userOptions.projectRoot || server.config.root,
       workerPath: userOptions.rscWorkerPath,
@@ -124,8 +160,9 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
         reactVersion: React.version,
         id: "worker/rsc",
         serverManifest: {}, // staticManifest removed from AutoDiscoveredFiles
+        runnerPort: runnerPortForWorker,
       },
-      transferList: [workerHmrChannel.port2], // Transfer the port properly
+      transferList,
     });
     
     if (workerResult.type === "success") {

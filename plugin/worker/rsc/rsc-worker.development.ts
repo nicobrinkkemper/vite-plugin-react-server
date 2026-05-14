@@ -16,6 +16,9 @@ import { handleError } from "../../error/handleError.js";
 import { sendMessage } from "../sendMessage.js";
 import { serializeError } from "../../error/serializeError.js";
 import { setMaxListenersOnPort, unrefPort } from "../../stream/setMaxListeners.js";
+import { ModuleRunner, ESModulesEvaluator } from "vite/module-runner";
+import { createRunnerTransport } from "./createRunnerTransport.js";
+import { setRunner, setRpc, isRunnerEnabled } from "./runnerInstance.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -233,6 +236,33 @@ try {
 
   // HMR port handling is disabled in dev server mode to avoid DataCloneError
   // TODO: Re-enable HMR when transfer list issues are resolved
+
+  // Experimental: ModuleRunner-based fetch transport. Enabled with VPRS_RUNNER=1.
+  // Replaces Node's native import() for project source so dev:ssr no longer
+  // needs a worker restart on each save.
+  if (!isBuildMode && isRunnerEnabled() && workerData.runnerPort) {
+    try {
+      setMaxListenersOnPort(workerData.runnerPort, 500);
+      unrefPort(workerData.runnerPort);
+      workerData.runnerPort.start();
+      const { transport, rpc } = createRunnerTransport(workerData.runnerPort);
+      const runner = new ModuleRunner(
+        {
+          transport,
+          hmr: false,
+          sourcemapInterceptor: false,
+        },
+        new ESModulesEvaluator()
+      );
+      setRunner(runner);
+      setRpc(rpc);
+      if (workerData.verbose) {
+        logger.info("ModuleRunner initialized (VPRS_RUNNER=1)");
+      }
+    } catch (err) {
+      logger.error(`Failed to initialize ModuleRunner: ${String(err)}`);
+    }
+  }
 
   // Notify parent that we're ready
   parentPort!.postMessage({

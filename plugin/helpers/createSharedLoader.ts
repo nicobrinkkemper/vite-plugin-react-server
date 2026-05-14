@@ -1,6 +1,7 @@
 import { join, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Logger } from "vite";
+import type { ModuleRunner } from "vite/module-runner";
 import type { InputNormalizer } from "../types.js";
 import { resolveVirtualAndNodeModules } from "./resolveVirtualAndNodeModules.js";
 import { resolveModuleFromManifest } from "./resolveModuleFromManifest.js";
@@ -41,6 +42,7 @@ export async function createSharedLoader({
   isServeMode: _isServeMode = false,
   effectiveProjectRoot,
   build,
+  moduleRunner,
 }: {
   moduleId: string;
   exportName?: string;
@@ -66,6 +68,12 @@ export async function createSharedLoader({
     static?: string;
     outDir?: string;
   };
+  /**
+   * Optional Vite ModuleRunner. When provided in dev:ssr mode the worker
+   * pulls project source through Vite's runner instead of Node's native
+   * import(), so file edits invalidate per-module without a worker restart.
+   */
+  moduleRunner?: ModuleRunner | null;
 }): Promise<Record<string, any>> {
   // Step 1: Handle virtual modules and node_modules first (if enabled)
   if (resolveVirtual) {
@@ -128,15 +136,30 @@ export async function createSharedLoader({
   }
 
   // Step 3: Construct the full path and import
-  const fullPath = isAbsolute(resolvedModuleID) 
-    ? resolvedModuleID 
-    : effectiveProjectRoot 
+  const fullPath = isAbsolute(resolvedModuleID)
+    ? resolvedModuleID
+    : effectiveProjectRoot
       ? join(effectiveProjectRoot, resolvedModuleID)
       : resolvedModuleID;
 
-  // Import the module
-  const fileUrl = isAbsolute(fullPath) ? pathToFileURL(fullPath).href : fullPath;
-  const result = await import(fileUrl);
+  // Step 3a: If a Vite ModuleRunner is available, prefer it for project source.
+  // Vendored / node_modules paths are already handled by resolveVirtualAndNodeModules
+  // earlier, so anything reaching this point in dev:ssr is project source.
+  let result: Record<string, any>;
+  if (
+    moduleRunner != null &&
+    !isBuildMode &&
+    effectiveProjectRoot &&
+    isAbsolute(fullPath) &&
+    fullPath.startsWith(effectiveProjectRoot)
+  ) {
+    if (verbose) logger?.info(`[shared-loader] runner.import: ${fullPath}`);
+    result = (await moduleRunner.import(fullPath)) as Record<string, any>;
+  } else {
+    // Import the module via Node's native ESM loader.
+    const fileUrl = isAbsolute(fullPath) ? pathToFileURL(fullPath).href : fullPath;
+    result = await import(fileUrl);
+  }
 
   // Validate exports
   if (result == null) {
