@@ -129,3 +129,36 @@ test("dev:ssr applies CSS-module edits after reload (bd-5rk)", async ({ page }) 
   // applied" — the home div still has *some* Home-prefixed class.
   await expect(home).toHaveAttribute("class", /Home/);
 });
+
+// Live-HMR variant: edit the CSS and expect the rule to apply *without* a
+// page.reload(). Before this fix, plugin.client.ts's hotUpdate for CSS files
+// fired vprs's WS event but didn't return [], so Vite emitted its default
+// `vite:beforeFullReload` event right after — the browser did a hard reload,
+// which is functional but not HMR. plugin.client.ts now returns [] for CSS
+// edits to suppress that reload, and useRscHmr's `kind: 'css'` branch
+// cache-busts <link rel="stylesheet"> tags so the new rules apply live.
+test("dev:ssr applies CSS-module edits live without a manual reload", async ({ page }) => {
+  await page.goto(BASE_URL + "/");
+
+  const home = page.locator('div[class*="Home"]').first();
+  await expect(home).toHaveCSS("font-size", "50px");
+
+  // Track navigation events: if Vite's full-reload fallback fires, we'll
+  // see a `framenavigated` to the same URL — that would be a failure mode
+  // for this test (functional but not HMR).
+  let navigations = 0;
+  page.on("framenavigated", () => {
+    navigations++;
+  });
+
+  const updated = originalCss!.replace("font-size: 50px", "font-size: 60px");
+  await writeFile(cssFile, updated);
+
+  // No page.reload() — wait for the rule to apply via HMR.
+  await expect(home).toHaveCSS("font-size", "60px", { timeout: 10_000 });
+
+  // The HMR path should not have triggered a full page navigation. We
+  // allow zero here — any non-zero count means Vite's full-reload fallback
+  // fired or the test framework navigated, both of which defeat live HMR.
+  expect(navigations).toBe(0);
+});

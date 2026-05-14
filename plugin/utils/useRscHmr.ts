@@ -3,6 +3,29 @@ import { RSC_HMR_EVENT } from "./createReactFetcher.js";
 import type { RscHmrData } from "./createReactFetcher.js";
 import { env } from "./env.js";
 
+// Mirror of refreshCssLinks in virtualRscHmrPlugin.ts (see comment there).
+// Cache-busts any <link rel="stylesheet"> whose href matches the changed file
+// — server-collected CSS isn't in the client module graph so Vite's native
+// CSS HMR never fires for these, and the <link> URL doesn't change on edit.
+function refreshCssLinks(data: RscHmrData): boolean {
+  const file = (data && ((data as { path?: string }).path || data.file)) as string | undefined;
+  if (!file || typeof document === "undefined") return false;
+  const tail = String(file).split(/[\\/]/).filter(Boolean).join("/");
+  const links = document.querySelectorAll('link[rel="stylesheet"]');
+  let refreshed = 0;
+  links.forEach((link) => {
+    const href = link.getAttribute("href");
+    if (!href) return;
+    const hrefPath = href.split("?")[0];
+    if (!hrefPath?.endsWith(tail)) return;
+    const url = new URL(href, window.location.origin);
+    url.searchParams.set("t", String(Date.now()));
+    link.setAttribute("href", url.pathname + url.search);
+    refreshed++;
+  });
+  return refreshed > 0;
+}
+
 /**
  * React hook for RSC HMR (Hot Module Replacement).
  * 
@@ -48,8 +71,12 @@ export function useRscHmr(
   const handler = useCallback(
     (data: RscHmrData) => {
       if (filter && !filter(data)) return;
+      const kind = (data as { kind?: string }).kind;
       if (verbose) {
-        console.log('[RSC HMR] Server component updated:', data.file);
+        console.log('[RSC HMR] Server component updated:', data.file, kind ? `(${kind})` : '');
+      }
+      if (kind === 'css') {
+        refreshCssLinks(data);
       }
       refetch(window.location.pathname);
     },

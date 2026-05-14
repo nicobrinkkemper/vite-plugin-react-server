@@ -51,18 +51,31 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
             return /^\s*["']use client["']/.test(head.split('\n')[0]);
           } catch { return false; }
         })();
-        
+
         if (isClient) return; // Let Fast Refresh handle client components
-        
+
+        // CSS files that aren't imported via the client module graph (vprs's
+        // <Css cssFiles={...}/> pattern collects them server-side) aren't
+        // tracked by Vite's CSS HMR, so a content edit leaves the <link>
+        // tag's href unchanged. Tag the event so useRscHmr knows to refresh
+        // matching link tags by cache-busting their href.
+        const kind: 'css' | 'component' =
+          file.endsWith('.css') || file.endsWith('.scss') ||
+          file.endsWith('.sass') || file.endsWith('.less')
+            ? 'css'
+            : 'component';
+
         // Server component changed — send RSC refetch event to client
         // Only do this once (from client env) to avoid duplicate events
-        server.config.logger.info(`[vite-plugin-react-server] File changed (RSC refetch): ${normalizedFile}`);
+        if (userOptions.verbose) {
+          server.config.logger.info(`[vite-plugin-react-server] File changed (RSC refetch): ${normalizedFile}`);
+        }
         server.ws.send({
           type: 'custom',
           event: 'vite-plugin-react-server:server-component-update',
-          data: { file: normalizedFile, path: file },
+          data: { file: normalizedFile, path: file, kind },
         });
-        
+
         return []; // Don't trigger client-side page reload
       }
       

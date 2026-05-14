@@ -120,7 +120,9 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         isProcessingHmr = true;
 
         try {
-          server.config.logger.info(`[vite-plugin-react-server] File changed: ${file}, sending HMR update...`);
+          if (userOptions.verbose) {
+            server.config.logger.info(`[vite-plugin-react-server] File changed: ${file}, sending HMR update...`);
+          }
 
           // CRITICAL: Send HMR_UPDATE message to worker to invalidate modules
           // This clears component caches, but Node.js's ES module cache persists
@@ -132,13 +134,15 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           // never loads that orchestrator, so without sending the event here
           // the worker invalidates correctly but the browser keeps showing
           // pre-edit content — `useRscHmr` listens for this event and only
-          // refetches on receipt.
+          // refetches on receipt. For CSS files the consumer's <link> tag
+          // still points at the same URL after the edit, so we tag the event
+          // so the client also cache-busts matching stylesheets.
           server.ws.send({
             type: "custom",
             event: "vite-plugin-react-server:server-component-update",
-            data: { file: normalizedFile, path: file },
+            data: { file: normalizedFile, path: file, kind: isCssFile ? "css" : "component" },
           });
-          
+
           // CRITICAL: Node.js caches ES modules, so we need to restart the worker
           // to clear the module cache. Debounce restarts to prevent recursion.
           if (hmrHandler.restart) {
@@ -146,14 +150,18 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
             if (restartTimeout) {
               clearTimeout(restartTimeout);
             }
-            
+
             // Debounce worker restart to prevent recursion
             // Wait 500ms after the last file change before restarting
             restartTimeout = setTimeout(async () => {
               try {
-                server.config.logger.info(`[vite-plugin-react-server] Restarting worker to clear Node.js module cache...`);
+                if (userOptions.verbose) {
+                  server.config.logger.info(`[vite-plugin-react-server] Restarting worker to clear Node.js module cache...`);
+                }
                 await hmrHandler!.restart!();
-                server.config.logger.info(`[vite-plugin-react-server] Worker restarted successfully`);
+                if (userOptions.verbose) {
+                  server.config.logger.info(`[vite-plugin-react-server] Worker restarted successfully`);
+                }
               } catch (error) {
                 server.config.logger.error(`[vite-plugin-react-server] Failed to restart worker: ${error}`);
               } finally {
@@ -167,7 +175,9 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           } else {
             // No restart function available yet - worker hasn't been created
             // This is expected if hotUpdate fires before the first request
-            server.config.logger.warn(`[vite-plugin-react-server] Restart function not available yet - worker will be created on next request`);
+            if (userOptions.verbose) {
+              server.config.logger.warn(`[vite-plugin-react-server] Restart function not available yet - worker will be created on next request`);
+            }
             setTimeout(() => {
               isProcessingHmr = false;
             }, 100);
@@ -176,10 +186,21 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           server.config.logger.error(`[vite-plugin-react-server] Error handling HMR update: ${error}`);
           isProcessingHmr = false;
         }
+
+        // For CSS edits in dev:ssr, suppress Vite's default full-reload —
+        // useRscHmr handles the visual update by cache-busting matching
+        // <link> tags. Without this return [], Vite emits its `page reload`
+        // event right after our HMR send, defeating the smooth update.
+        // For .ts/.tsx server-file edits we still want to fall through to
+        // Vite's normal handling (no return) so module-level invalidation
+        // remains intact for any client consumer of the file.
+        if (isCssFile) return [];
       } else if (shouldInvalidateWorker && !hmrHandler) {
-        server.config.logger.warn(`[vite-plugin-react-server] Source file changed but HMR handler not available yet: ${file}`);
+        if (userOptions.verbose) {
+          server.config.logger.warn(`[vite-plugin-react-server] Source file changed but HMR handler not available yet: ${file}`);
+        }
       }
-      
+
       // Don't suppress — plugin.server.ts hotUpdate handles page reload prevention
     },
   };
