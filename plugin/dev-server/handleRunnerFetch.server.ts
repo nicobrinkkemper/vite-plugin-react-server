@@ -4,7 +4,10 @@ import { fetchModule, type Logger, type ViteDevServer } from "vite";
 import type {
   RunnerPortRequest,
   RunnerPortResponse,
+  RpcRequest,
+  RpcResponse,
 } from "../worker/rsc/createRunnerTransport.js";
+import { collectRunnerCss } from "./collectRunnerCss.js";
 
 type InvokePayload = {
   type: "custom";
@@ -18,8 +21,13 @@ export function attachRunnerFetchHandler(
   logger: Logger,
   verbose = false
 ): () => void {
-  const handler = async (msg: RunnerPortRequest) => {
-    if (!msg || msg.__vprs !== "runner-request") return;
+  const handler = async (msg: RunnerPortRequest | RpcRequest) => {
+    if (!msg) return;
+    if (msg.__vprs === "rpc-request") {
+      await handleRpc(msg as RpcRequest);
+      return;
+    }
+    if (msg.__vprs !== "runner-request") return;
     const { requestId, payload } = msg;
     try {
       const invoke = payload as InvokePayload;
@@ -64,6 +72,53 @@ export function attachRunnerFetchHandler(
             message: String(error?.message ?? error),
             stack: error?.stack,
           },
+        },
+      };
+      port.postMessage(response);
+    }
+  };
+
+  const handleRpc = async (msg: RpcRequest) => {
+    const { requestId, method, args } = msg;
+    if (verbose) {
+      logger.info(
+        `[runner-rpc] received: method=${method} requestId=${requestId}`
+      );
+    }
+    try {
+      let result: unknown;
+      if (method === "collectCss") {
+        const [pagePath, projectRoot] = args as [string, string];
+        result = await collectRunnerCss(
+          server,
+          pagePath,
+          projectRoot,
+          logger,
+          verbose
+        );
+      } else {
+        throw new Error(`[runner-rpc] unsupported method: ${method}`);
+      }
+      const response: RpcResponse = {
+        __vprs: "rpc-response",
+        requestId,
+        result,
+      };
+      port.postMessage(response);
+    } catch (error: any) {
+      if (verbose) {
+        logger.error(
+          `[runner-rpc] ${method} failed: ${error?.message ?? String(error)}`,
+          { error: error instanceof Error ? error : new Error(String(error)) }
+        );
+      }
+      const response: RpcResponse = {
+        __vprs: "rpc-response",
+        requestId,
+        error: {
+          name: error?.name,
+          message: String(error?.message ?? error),
+          stack: error?.stack,
         },
       };
       port.postMessage(response);

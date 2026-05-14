@@ -26,7 +26,7 @@ import {
   isModuleInvalidated,
   clearAllCachedComponents,
 } from "./state.server.js";
-import { getRunner } from "./runnerInstance.js";
+import { getRunner, getRpc } from "./runnerInstance.js";
 import {
   combineCssFiles,
   processInlineCssForState,
@@ -770,6 +770,37 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             description: `Module resolution for route ${msg.options.route}`,
           });
           effectiveHandlers.onMetrics(msg.id, moduleResolutionMetric);
+        }
+
+        // Runner-mode CSS collection: the worker's Node ESM CSS loader
+        // never fires for runner-loaded modules, so the global cssFiles
+        // Map stays empty. Ask the main thread to walk Vite's server
+        // module graph for the page (populated as a side effect of the
+        // runner.import we just finished) and push the raw CSS code back.
+        // We feed each entry through addCssFileContent so it merges into
+        // the same global state the loader used to produce.
+        const rpc = getRpc();
+        if (rpc && msg.options.pagePath) {
+          try {
+            const cssFileUserOptions = getUserOptions();
+            const collected = (await rpc<
+              Array<{ id: string; code: string }>
+            >("collectCss", [msg.options.pagePath, projectRoot])) || [];
+            for (const { id, code } of collected) {
+              addCssFileContent(id, code, cssFileUserOptions);
+            }
+            if (verbose) {
+              logger?.info(
+                `[rsc-worker] runner CSS bridge: collected ${collected.length} file(s) for ${msg.options.pagePath}`
+              );
+            }
+          } catch (err) {
+            if (verbose) {
+              logger?.warn(
+                `[rsc-worker] runner CSS bridge failed: ${String(err)}`
+              );
+            }
+          }
         }
 
         // Process CSS files using unified CSS processor

@@ -18,7 +18,7 @@ import { serializeError } from "../../error/serializeError.js";
 import { setMaxListenersOnPort, unrefPort } from "../../stream/setMaxListeners.js";
 import { ModuleRunner, ESModulesEvaluator } from "vite/module-runner";
 import { createRunnerTransport } from "./createRunnerTransport.js";
-import { setRunner, isRunnerEnabled } from "./runnerInstance.js";
+import { setRunner, setRpc, isRunnerEnabled } from "./runnerInstance.js";
 
 // Initialize worker
 if (!parentPort) {
@@ -245,7 +245,7 @@ try {
       setMaxListenersOnPort(workerData.runnerPort, 500);
       unrefPort(workerData.runnerPort);
       workerData.runnerPort.start();
-      const transport = createRunnerTransport(workerData.runnerPort);
+      const { transport, rpc } = createRunnerTransport(workerData.runnerPort);
       const runner = new ModuleRunner(
         {
           transport,
@@ -255,6 +255,7 @@ try {
         new ESModulesEvaluator()
       );
       setRunner(runner);
+      setRpc(rpc);
       if (workerData.verbose) {
         logger.info("ModuleRunner initialized (VPRS_RUNNER=1)");
       }
