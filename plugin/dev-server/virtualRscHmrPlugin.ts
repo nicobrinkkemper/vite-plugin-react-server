@@ -19,20 +19,31 @@ export { RSC_HMR_EVENT };
 // file. Server-collected CSS (vprs's <Css cssFiles={...}/> pattern) isn't in
 // the client module graph, so Vite's native CSS HMR never fires for these —
 // the <link> URL doesn't change and the browser keeps the cached stylesheet.
-// Matching is path-tail based because the href is typically absolute
-// (/src/css/foo.module.css) while data.file/data.path can be either form.
+// data.file is the project-relative path (eg "src/css/9mmc.module.css") and
+// the link href is a URL whose pathname ends with the same suffix.
+// We also fall back to basename matching to handle edge cases where the
+// project-relative form doesn't appear verbatim in the href.
 function refreshCssLinks(data) {
-  const file = data && (data.path || data.file);
-  if (!file) return false;
-  const tail = String(file).split(/[\\\\/]/).filter(Boolean).join('/');
+  if (!data) return false;
+  const rel = String(data.file || '').replace(/^[\\\\/]+/, '');
+  if (!rel) return false;
+  const basename = rel.split(/[\\\\/]/).pop();
   const links = document.querySelectorAll('link[rel="stylesheet"]');
   let refreshed = 0;
   for (const link of links) {
     const href = link.getAttribute('href');
     if (!href) continue;
-    // Strip query, normalize for tail match
-    const hrefPath = href.split('?')[0];
-    if (!hrefPath.endsWith(tail)) continue;
+    let pathname;
+    try {
+      pathname = new URL(href, window.location.origin).pathname;
+    } catch {
+      pathname = href.split('?')[0];
+    }
+    const matches =
+      pathname.endsWith('/' + rel) ||
+      pathname.endsWith(rel) ||
+      (basename && pathname.endsWith('/' + basename));
+    if (!matches) continue;
     const url = new URL(href, window.location.origin);
     url.searchParams.set('t', String(Date.now()));
     link.setAttribute('href', url.pathname + url.search);

@@ -80,8 +80,17 @@ test.beforeAll(async () => {
   await waitForServer(BASE_URL, 60_000);
 }, 90_000);
 
+test.afterEach(async () => {
+  // Restore the CSS between tests — both tests edit the same file, and
+  // without restoration the second test inherits the first's 60px state
+  // and its 50px precondition fails.
+  if (originalCss !== undefined) {
+    await writeFile(cssFile, originalCss);
+  }
+});
+
 test.afterAll(async () => {
-  // Always restore the CSS, even if the test bailed mid-edit.
+  // Final restore in case the last afterEach was skipped (e.g. test bailed).
   if (originalCss !== undefined) {
     await writeFile(cssFile, originalCss);
   }
@@ -143,12 +152,12 @@ test("dev:ssr applies CSS-module edits live without a manual reload", async ({ p
   const home = page.locator('div[class*="Home"]').first();
   await expect(home).toHaveCSS("font-size", "50px");
 
-  // Track navigation events: if Vite's full-reload fallback fires, we'll
-  // see a `framenavigated` to the same URL — that would be a failure mode
-  // for this test (functional but not HMR).
-  let navigations = 0;
-  page.on("framenavigated", () => {
-    navigations++;
+  // Stamp the window so we can detect a full page reload — a reload
+  // creates a fresh window object and the marker disappears. This is
+  // more precise than `framenavigated`, which can fire for things other
+  // than full reloads (history.replaceState, link href tweaks, etc.).
+  await page.evaluate(() => {
+    (window as unknown as { __hmrLiveMarker?: number }).__hmrLiveMarker = Date.now();
   });
 
   const updated = originalCss!.replace("font-size: 50px", "font-size: 60px");
@@ -157,8 +166,10 @@ test("dev:ssr applies CSS-module edits live without a manual reload", async ({ p
   // No page.reload() — wait for the rule to apply via HMR.
   await expect(home).toHaveCSS("font-size", "60px", { timeout: 10_000 });
 
-  // The HMR path should not have triggered a full page navigation. We
-  // allow zero here — any non-zero count means Vite's full-reload fallback
-  // fired or the test framework navigated, both of which defeat live HMR.
-  expect(navigations).toBe(0);
+  // If the window was wiped, a full reload happened — that defeats live HMR.
+  const markerStillPresent = await page.evaluate(() => {
+    return typeof (window as unknown as { __hmrLiveMarker?: number })
+      .__hmrLiveMarker === "number";
+  });
+  expect(markerStillPresent).toBe(true);
 });

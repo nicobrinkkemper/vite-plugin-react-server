@@ -125,7 +125,18 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           }
 
           // CRITICAL: Send HMR_UPDATE message to worker to invalidate modules
-          // This clears component caches, but Node.js's ES module cache persists
+          // This clears component caches, but Node.js's ES module cache persists —
+          // the request handler triggers a worker restart on the next request
+          // (see configureRequestHandler.client.ts hasInvalidatedModules check).
+          //
+          // For CSS edits the restart is the slow path: in dev:ssr that adds a
+          // ~few-hundred-ms flash on every CSS save that dev:rsc doesn't have.
+          // We accept that for now because skipping the restart leaves the
+          // worker holding stale class-name hashes for any CSS module that
+          // server components imported directly (bidoof Card.module.css
+          // pattern) — page renders broken until next "real" invalidation.
+          // Proper fix is worker-side per-module cache-busting; tracked as a
+          // follow-up.
           hmrHandler.sendHmrUpdate(file);
 
           // Notify the browser to refetch the RSC stream. In dev:rsc the
@@ -187,13 +198,14 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
           isProcessingHmr = false;
         }
 
-        // For CSS edits in dev:ssr, suppress Vite's default full-reload —
-        // useRscHmr handles the visual update by cache-busting matching
-        // <link> tags. Without this return [], Vite emits its `page reload`
-        // event right after our HMR send, defeating the smooth update.
-        // For .ts/.tsx server-file edits we still want to fall through to
-        // Vite's normal handling (no return) so module-level invalidation
-        // remains intact for any client consumer of the file.
+        // For CSS edits in dev:ssr, suppress Vite's default behavior. Vite's
+        // fallback for module-graph-untracked CSS is a full page reload, and
+        // even tracked CSS modules in dev:ssr can fall back to reload because
+        // vprs renders them server-side via the <Css cssFiles={...}/> pattern
+        // (the client never directly imports them, so @vitejs/plugin-react's
+        // CSS HMR isn't reachable). useRscHmr handles both shapes:
+        //  - inlined <style>: refetch brings new content
+        //  - <link href=…>:   refreshCssLinks cache-busts the URL
         if (isCssFile) return [];
       } else if (shouldInvalidateWorker && !hmrHandler) {
         if (userOptions.verbose) {

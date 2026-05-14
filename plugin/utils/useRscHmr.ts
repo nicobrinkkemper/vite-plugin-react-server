@@ -4,20 +4,31 @@ import type { RscHmrData } from "./createReactFetcher.js";
 import { env } from "./env.js";
 
 // Mirror of refreshCssLinks in virtualRscHmrPlugin.ts (see comment there).
-// Cache-busts any <link rel="stylesheet"> whose href matches the changed file
-// — server-collected CSS isn't in the client module graph so Vite's native
-// CSS HMR never fires for these, and the <link> URL doesn't change on edit.
+// data.file is the project-relative path (eg "src/css/9mmc.module.css") and
+// the link href is a URL whose pathname ends with the same suffix.
+// Falls back to basename matching for edge cases where the project-relative
+// form doesn't appear verbatim in the href.
 function refreshCssLinks(data: RscHmrData): boolean {
-  const file = (data && ((data as { path?: string }).path || data.file)) as string | undefined;
-  if (!file || typeof document === "undefined") return false;
-  const tail = String(file).split(/[\\/]/).filter(Boolean).join("/");
+  if (!data || typeof document === "undefined") return false;
+  const rel = String(data.file || "").replace(/^[\\/]+/, "");
+  if (!rel) return false;
+  const basename = rel.split(/[\\/]/).pop();
   const links = document.querySelectorAll('link[rel="stylesheet"]');
   let refreshed = 0;
   links.forEach((link) => {
     const href = link.getAttribute("href");
     if (!href) return;
-    const hrefPath = href.split("?")[0];
-    if (!hrefPath?.endsWith(tail)) return;
+    let pathname: string;
+    try {
+      pathname = new URL(href, window.location.origin).pathname;
+    } catch {
+      pathname = href.split("?")[0] ?? "";
+    }
+    const matches =
+      pathname.endsWith("/" + rel) ||
+      pathname.endsWith(rel) ||
+      (!!basename && pathname.endsWith("/" + basename));
+    if (!matches) return;
     const url = new URL(href, window.location.origin);
     url.searchParams.set("t", String(Date.now()));
     link.setAttribute("href", url.pathname + url.search);
