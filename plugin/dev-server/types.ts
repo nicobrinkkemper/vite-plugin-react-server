@@ -32,7 +32,6 @@ export type CreateReactWorkerServerFn = (props: {
   resolvedConfig: ResolvedConfig;
   onWorkerCreated?: (worker: any, restart?: () => Promise<void>) => void;
 }) => {
-  restart: (() => Promise<void>) | null;
   sendHmrUpdate: (file: string, routes?: string[]) => void;
 } | null;
 

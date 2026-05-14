@@ -18,8 +18,6 @@ let currentErrorHandler: ((error: any) => void) | null = null;
 let currentRunnerChannel: MessageChannel | null = null;
 let currentRunnerDetach: (() => void) | null = null;
 
-const isRunnerEnabled = (): boolean => process.env["VPRS_RUNNER"] !== "0";
-
 export const restartWorker: RestartWorkerFn = async function _restartWorker({
   server,
   autoDiscoveredFiles,
@@ -121,25 +119,22 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
       server.config.logger.info(`[restartWorker] configEnv.mode: ${configEnv?.mode}`);
     }
 
-    let runnerPortForWorker: MessageChannel["port2"] | undefined;
-    const transferList: any[] = [workerHmrChannel.port2];
-    if (isRunnerEnabled()) {
-      const runnerChannel = new MessageChannel();
-      currentRunnerChannel = runnerChannel;
-      setMaxListenersOnPort(runnerChannel.port1, maxListeners);
-      setMaxListenersOnPort(runnerChannel.port2, maxListeners);
-      unrefPort(runnerChannel.port1);
-      unrefPort(runnerChannel.port2);
-      const logger = server.config.customLogger || server.config.logger;
-      currentRunnerDetach = attachRunnerFetchHandler(
-        runnerChannel.port1,
-        server,
-        logger,
-        Boolean(userOptions.verbose)
-      );
-      runnerPortForWorker = runnerChannel.port2;
-      transferList.push(runnerChannel.port2);
-    }
+    const runnerChannel = new MessageChannel();
+    currentRunnerChannel = runnerChannel;
+    setMaxListenersOnPort(runnerChannel.port1, maxListeners);
+    setMaxListenersOnPort(runnerChannel.port2, maxListeners);
+    unrefPort(runnerChannel.port1);
+    unrefPort(runnerChannel.port2);
+    const fetchHandlerLogger =
+      server.config.customLogger || server.config.logger;
+    currentRunnerDetach = attachRunnerFetchHandler(
+      runnerChannel.port1,
+      server,
+      fetchHandlerLogger,
+      Boolean(userOptions.verbose)
+    );
+    const runnerPortForWorker = runnerChannel.port2;
+    const transferList: any[] = [workerHmrChannel.port2, runnerChannel.port2];
 
     const workerResult = await createWorker({
       projectRoot: userOptions.projectRoot || server.config.root,

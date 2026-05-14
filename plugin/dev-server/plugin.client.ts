@@ -28,9 +28,8 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
   
 
   let configEnv: ConfigEnv | undefined;
-  let hmrHandler: { restart: (() => Promise<void>) | null; sendHmrUpdate: (file: string, routes?: string[]) => void } | null = null;
+  let hmrHandler: { sendHmrUpdate: (file: string, routes?: string[]) => void } | null = null;
   let isProcessingHmr = false; // Prevent recursive HMR updates
-  let restartTimeout: NodeJS.Timeout | null = null; // Debounce worker restarts
 
   return {
     name: "vite-plugin-react-server:dev-server-client",
@@ -93,13 +92,9 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       const isInModuleBase = normalizedFile.startsWith(moduleBase + '/');
       const isSourceFile = isInModuleBase &&
         (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
-      // CSS edits in dev:ssr must also trigger the worker-restart path: the SSR
-      // worker imports compiled CSS modules through Node's loader, which caches
-      // by URL. Vite re-transforming the file does nothing for already-imported
-      // modules in the worker — without invalidating + restarting, the next
-      // page render reuses the pre-edit class hashes (bd-5rk). dev:rsc doesn't
-      // need this because rendering happens in the main process and goes through
-      // Vite's invalidated server module graph (plugin.server.ts hotUpdate).
+      // CSS edits route through the same worker-invalidation path so the
+      // ModuleRunner cache drops every reachable CSS module before the
+      // next render asks for class-name hashes.
       const isCssFile = isInModuleBase &&
         (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.sass') || file.endsWith('.less'));
 
@@ -124,19 +119,9 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
             server.config.logger.info(`[vite-plugin-react-server] File changed: ${file}, sending HMR update...`);
           }
 
-          // CRITICAL: Send HMR_UPDATE message to worker to invalidate modules
-          // This clears component caches, but Node.js's ES module cache persists —
-          // the request handler triggers a worker restart on the next request
-          // (see configureRequestHandler.client.ts hasInvalidatedModules check).
-          //
-          // For CSS edits the restart is the slow path: in dev:ssr that adds a
-          // ~few-hundred-ms flash on every CSS save that dev:rsc doesn't have.
-          // We accept that for now because skipping the restart leaves the
-          // worker holding stale class-name hashes for any CSS module that
-          // server components imported directly (bidoof Card.module.css
-          // pattern) — page renders broken until next "real" invalidation.
-          // Proper fix is worker-side per-module cache-busting; tracked as a
-          // follow-up.
+          // Tell the worker to invalidate. Its HMR_UPDATE handler clears the
+          // ModuleRunner cache so the next import re-fetches transformed code
+          // through Vite — no worker restart needed.
           hmrHandler.sendHmrUpdate(file);
 
           // Notify the browser to refetch the RSC stream. In dev:rsc the
@@ -154,45 +139,11 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
             data: { file: normalizedFile, path: file, kind: isCssFile ? "css" : "component" },
           });
 
-          // CRITICAL: Node.js caches ES modules, so we need to restart the worker
-          // to clear the module cache. Debounce restarts to prevent recursion.
-          if (hmrHandler.restart) {
-            // Clear any pending restart
-            if (restartTimeout) {
-              clearTimeout(restartTimeout);
-            }
-
-            // Debounce worker restart to prevent recursion
-            // Wait 500ms after the last file change before restarting
-            restartTimeout = setTimeout(async () => {
-              try {
-                if (userOptions.verbose) {
-                  server.config.logger.info(`[vite-plugin-react-server] Restarting worker to clear Node.js module cache...`);
-                }
-                await hmrHandler!.restart!();
-                if (userOptions.verbose) {
-                  server.config.logger.info(`[vite-plugin-react-server] Worker restarted successfully`);
-                }
-              } catch (error) {
-                server.config.logger.error(`[vite-plugin-react-server] Failed to restart worker: ${error}`);
-              } finally {
-                restartTimeout = null;
-                // Reset flag after restart completes
-                setTimeout(() => {
-                  isProcessingHmr = false;
-                }, 100);
-              }
-            }, 500); // 500ms debounce
-          } else {
-            // No restart function available yet - worker hasn't been created
-            // This is expected if hotUpdate fires before the first request
-            if (userOptions.verbose) {
-              server.config.logger.warn(`[vite-plugin-react-server] Restart function not available yet - worker will be created on next request`);
-            }
-            setTimeout(() => {
-              isProcessingHmr = false;
-            }, 100);
-          }
+          // The runner takes care of per-module invalidation, so the only
+          // thing left to clear here is the local processing flag.
+          setTimeout(() => {
+            isProcessingHmr = false;
+          }, 100);
         } catch (error) {
           server.config.logger.error(`[vite-plugin-react-server] Error handling HMR update: ${error}`);
           isProcessingHmr = false;
