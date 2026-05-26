@@ -8,19 +8,16 @@ import { resolve, join } from "node:path";
 import { setupIndexHTML } from "../setup.js";
 
 /**
- * Regression for bd-gkd:
+ * Regression: configureReactServer.server.ts loaded the page and root modules
+ * in try/catch blocks that only logged via logger.warn under verbose=true and
+ * never routed through handleError or panicThreshold. When the page module
+ * failed to load, PageComponent silently stayed at its React.Fragment default
+ * and the route rendered blank with no error surfaced anywhere.
  *
- *   "plugin/dev-server/configureReactServer.server.ts loads the page and root
- *    modules in try/catch. The catch blocks only log via logger.warn when
- *    verbose is true, never re-throw, and never route through handleError or
- *    panicThreshold. When the page module fails to load, PageComponent
- *    silently stays at its React.Fragment default and the route renders blank
- *    with no error surfaced anywhere."
- *
- * Distinct from the render-time error surface (qvz / rsc-stream-error-surface):
- * here the *module load itself* fails (top-level throw, bad import). The fix
- * must route the inner page/root catches through handleError({ log: true })
- * so the failure lands in the dev log even with verbose=false.
+ * Distinct from the render-time error surface in rsc-stream-error-surface:
+ * here the *module load itself* fails (bad import). The fix routes the inner
+ * page/root catches through handleError({ log: true }) so the failure lands
+ * in the dev log even with verbose=false.
  */
 
 const port = 3211;

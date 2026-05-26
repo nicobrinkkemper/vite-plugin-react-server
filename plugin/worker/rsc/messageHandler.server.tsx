@@ -339,26 +339,30 @@ async function loadComponentsWithCache(options: {
             }
           }
         } else {
-          // Handle component resolution failure gracefully (same as server environment)
-          if (verbose) {
-            logger?.warn(
-              `[rsc-worker] Failed to load page and props: ${pageAndPropsResult.error?.message}`
-            );
-          }
-          // Use React.Fragment as fallback (same as server environment)
-          PageComponent = React.Fragment;
-          pageProps = {};
+          // Page module failed to resolve. Previously fell back to React.Fragment
+          // silently — the route would then render blank with no error surfaced
+          // anywhere. Log unconditionally and let the outer worker catch
+          // propagate via effectiveHandlers.onError so the main thread's
+          // customLogger sees the failure and the request returns 5xx.
+          const pageError = pageAndPropsResult.error ?? new Error(
+            `[rsc-worker] Failed to load page module from ${pagePath}`,
+          );
+          logger?.error(
+            `[rsc-worker] Failed to load page and props from ${pagePath}: ${pageError.message}`,
+            { error: pageError },
+          );
+          throw pageError;
         }
       } catch (error) {
-        if (verbose) {
-          logger?.error(
-            `[loadComponentsWithCache] Failed to resolve page and props for ${pagePath}`,
-            { error }
-          );
-        }
-        // Handle error gracefully - use fallback components
-        PageComponent = React.Fragment;
-        pageProps = {};
+        // Always log: previously the verbose gate hid module-load failures
+        // entirely. Re-throw so the outermost worker catch reports via
+        // effectiveHandlers.onError (handleRscStream.client.ts "ERROR" case),
+        // which routes to the dev server's customLogger.
+        logger?.error(
+          `[loadComponentsWithCache] Failed to resolve page and props for ${pagePath}`,
+          { error },
+        );
+        throw error;
       }
     }
     
@@ -451,14 +455,18 @@ async function loadComponentsWithCache(options: {
           );
         }
       } else {
-        // Handle component resolution failure gracefully (same as server environment)
-        if (verbose) {
-          logger?.warn(
-            `[rsc-worker] Failed to load Root component: ${rootResult.error?.message}`
-          );
-        }
-        // Use React.Fragment as fallback (same as server environment)
-        RootComponent = React.Fragment;
+        // Root module failed to resolve. Previously fell back to React.Fragment
+        // under !verbose — same silent-failure pattern as the Page path. Log
+        // unconditionally and re-throw so the outer worker catch propagates
+        // the error to the main thread's customLogger.
+        const rootError = rootResult.error ?? new Error(
+          `[rsc-worker] Failed to load Root component from ${rootPath}`,
+        );
+        logger?.error(
+          `[rsc-worker] Failed to load Root component from ${rootPath}: ${rootError.message}`,
+          { error: rootError },
+        );
+        throw rootError;
       }
     }
   } else {
