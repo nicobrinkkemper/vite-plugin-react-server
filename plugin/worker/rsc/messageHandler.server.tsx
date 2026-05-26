@@ -35,6 +35,8 @@ import { routeToURL } from "../../utils/routeToURL.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
 import { resolveComponent } from "../../helpers/resolveComponent.js";
+import { handleError } from "../../error/handleError.js";
+import type { PanicThreshold } from "../../types.js";
 import { Root as DefaultRoot } from "../../components/root.js";
 import { workerUserOptions } from "./workerUserOptions.js";
 import { hydrateUserOptions } from "../../helpers/hydrateUserOptions.js";
@@ -192,6 +194,7 @@ async function loadComponentsWithCache(options: {
   loader: any;
   verbose?: boolean;
   logger?: any;
+  panicThreshold?: PanicThreshold;
   resolvedPageProps?: Record<string, unknown>;  // Pre-resolved props from main thread
 }) {
   const {
@@ -207,6 +210,7 @@ async function loadComponentsWithCache(options: {
     loader,
     verbose,
     logger,
+    panicThreshold = "none",
     resolvedPageProps,
   } = options;
   
@@ -339,26 +343,38 @@ async function loadComponentsWithCache(options: {
             }
           }
         } else {
-          // Handle component resolution failure gracefully (same as server environment)
-          if (verbose) {
-            logger?.warn(
-              `[rsc-worker] Failed to load page and props: ${pageAndPropsResult.error?.message}`
-            );
-          }
-          // Use React.Fragment as fallback (same as server environment)
-          PageComponent = React.Fragment;
-          pageProps = {};
+          // Page module failed to resolve. Previously fell back to React.Fragment
+          // silently — the route would then render blank with no error surfaced
+          // anywhere. Route through handleError so log dedup ("repeated (N)")
+          // and panicThreshold handling match the rest of the plugin; then
+          // throw so the outermost worker catch propagates via
+          // effectiveHandlers.onError to the main thread's customLogger.
+          const pageError = pageAndPropsResult.error ?? new Error(
+            `[rsc-worker] Failed to load page module from ${pagePath}`,
+          );
+          const panicError = handleError({
+            error: pageError,
+            logger,
+            panicThreshold,
+            critical: true,
+            context: `rsc-worker: load page from ${pagePath}`,
+            log: true,
+          });
+          throw panicError ?? pageError;
         }
       } catch (error) {
-        if (verbose) {
-          logger?.error(
-            `[loadComponentsWithCache] Failed to resolve page and props for ${pagePath}`,
-            { error }
-          );
-        }
-        // Handle error gracefully - use fallback components
-        PageComponent = React.Fragment;
-        pageProps = {};
+        // resolvePageAndProps threw. Route through handleError for dedup +
+        // panic handling, then re-throw so the outer worker catch propagates
+        // to the main thread.
+        const panicError = handleError({
+          error,
+          logger,
+          panicThreshold,
+          critical: true,
+          context: `rsc-worker: resolvePageAndProps for ${pagePath}`,
+          log: true,
+        });
+        throw panicError ?? error;
       }
     }
     
@@ -451,14 +467,22 @@ async function loadComponentsWithCache(options: {
           );
         }
       } else {
-        // Handle component resolution failure gracefully (same as server environment)
-        if (verbose) {
-          logger?.warn(
-            `[rsc-worker] Failed to load Root component: ${rootResult.error?.message}`
-          );
-        }
-        // Use React.Fragment as fallback (same as server environment)
-        RootComponent = React.Fragment;
+        // Root module failed to resolve. Previously fell back to React.Fragment
+        // under !verbose — same silent-failure pattern as the Page path. Route
+        // through handleError for dedup + panic handling, then re-throw so
+        // the outer worker catch propagates to the main thread's customLogger.
+        const rootError = rootResult.error ?? new Error(
+          `[rsc-worker] Failed to load Root component from ${rootPath}`,
+        );
+        const panicError = handleError({
+          error: rootError,
+          logger,
+          panicThreshold,
+          critical: true,
+          context: `rsc-worker: load Root from ${rootPath}`,
+          log: true,
+        });
+        throw panicError ?? rootError;
       }
     }
   } else {
@@ -743,6 +767,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             loader,
             verbose,
             logger,
+            panicThreshold: msg.options.panicThreshold,
             resolvedPageProps: msg.options.resolvedPageProps,  // Pre-resolved from main thread
           });
 
@@ -1366,6 +1391,15 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
   } catch (error) {
     // Just communicate the error directly - let the main thread handle panic threshold logic
     effectiveHandlers.onError("worker/rsc", toError(error));
+    // Signal end-of-stream so the main thread's response completes. Without
+    // this, a fatal failure before any data flowed (e.g. a page/root
+    // module-load throw from loadComponentsWithCache) leaves the response
+    // hung — no null end-signal is sent via the data port and no RSC_END is
+    // posted via the control port. onEnd posts both, matching the normal
+    // happy path. The ERROR control message above carries the diagnostic;
+    // the in-band RSC error frame may or may not have flowed, but the
+    // response will at least complete instead of timing out.
+    effectiveHandlers.onEnd?.("worker/rsc");
     // Always send SHUTDOWN_COMPLETE to prevent hanging
     effectiveHandlers.onShutdown?.("*");
   }

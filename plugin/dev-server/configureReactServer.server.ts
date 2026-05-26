@@ -246,7 +246,7 @@ export const configureReactServer: ConfigureReactServerFn =
           try {
             const rootExportName = userHandlerOptions.rootExportName || "Root";
             const rootModule = await loader(rootPath);
-            
+
             if (rootModule && rootModule[rootExportName] && typeof rootModule[rootExportName] === 'function') {
               RootComponent = rootModule[rootExportName] as React.ComponentType<any>;
               if (verbose) {
@@ -263,8 +263,19 @@ export const configureReactServer: ConfigureReactServerFn =
               }
             }
           } catch (error) {
-            if (verbose) {
-              logger.warn(`Failed to load Root component from ${rootPath}: ${error}`);
+            // A Root-module load failure must not be silently swallowed — that
+            // hides real bugs behind the DefaultRoot fallback. Log
+            // unconditionally and honor panicThreshold like sibling error paths.
+            const panicError = handleError({
+              error,
+              logger,
+              panicThreshold: userHandlerOptions.panicThreshold,
+              critical: true,
+              context: `configureReactServer: load Root from ${rootPath}`,
+              log: true,
+            });
+            if (panicError != null) {
+              return next(panicError);
             }
           }
         }
@@ -295,8 +306,20 @@ export const configureReactServer: ConfigureReactServerFn =
               }
             }
           } catch (error) {
-            if (verbose) {
-              logger.warn(`Failed to load page component from ${pagePath}: ${error}`);
+            // A page-module load failure was previously swallowed under
+            // !verbose, leaving the route to render as a blank Fragment with no
+            // error surfaced anywhere. Log unconditionally and honor
+            // panicThreshold like sibling error paths.
+            const panicError = handleError({
+              error,
+              logger,
+              panicThreshold: userHandlerOptions.panicThreshold,
+              critical: true,
+              context: `configureReactServer: load Page from ${pagePath}`,
+              log: true,
+            });
+            if (panicError != null) {
+              return next(panicError);
             }
           }
         }
