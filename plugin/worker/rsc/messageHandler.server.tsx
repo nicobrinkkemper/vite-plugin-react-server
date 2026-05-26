@@ -1374,6 +1374,15 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
   } catch (error) {
     // Just communicate the error directly - let the main thread handle panic threshold logic
     effectiveHandlers.onError("worker/rsc", toError(error));
+    // Signal end-of-stream so the main thread's response completes. Without
+    // this, a fatal failure before any data flowed (e.g. a page/root
+    // module-load throw from loadComponentsWithCache) leaves the response
+    // hung — no null end-signal is sent via the data port and no RSC_END is
+    // posted via the control port. onEnd posts both, matching the normal
+    // happy path. The ERROR control message above carries the diagnostic;
+    // the in-band RSC error frame may or may not have flowed, but the
+    // response will at least complete instead of timing out.
+    effectiveHandlers.onEnd?.("worker/rsc");
     // Always send SHUTDOWN_COMPLETE to prevent hanging
     effectiveHandlers.onShutdown?.("*");
   }

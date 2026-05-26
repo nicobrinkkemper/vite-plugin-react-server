@@ -82,31 +82,17 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           controlEndedReceived = true;
           rscStream.end();
           break;
-        case "ERROR": {
+        case "ERROR":
           // Always log: this is an RSC render error from the worker. Without
           // this log the failure surfaces only as an in-band RSC error frame
           // on the client, with nothing on the dev console.
-          const renderError =
-            message.error instanceof Error
-              ? message.error
-              : new Error(message.error?.message || "Unknown error");
           options.logger?.error(
-            `[client] RSC render error for ${message.id}: ${renderError.message}`,
-            { error: renderError }
+            `[client] RSC render error for ${message.id}: ${
+              message.error?.message || "Unknown error"
+            }`,
+            { error: message.error }
           );
-          // Terminate the PassThrough — a control-port ERROR is the worker
-          // saying "no more data will arrive." Previously the response sat
-          // open forever when the failure happened before any chunks had
-          // been streamed (e.g. a page/root module-load error thrown from
-          // loadComponentsWithCache before render begins). End the stream
-          // cleanly so the response completes; the error is already logged
-          // above so consumers don't lose diagnosability.
-          controlEndedReceived = true;
-          if (!rscStream.writableEnded && !rscStream.destroyed) {
-            rscStream.end();
-          }
           break;
-        }
         default:
           if (options.verbose) {
             options.logger?.info(
