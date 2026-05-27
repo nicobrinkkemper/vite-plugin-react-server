@@ -204,7 +204,7 @@ For automatic RSC refetching when server components change:
 
 ```tsx
 // Client entry
-import { createReactFetcher, setupRscHmr } from "vite-plugin-react-server/utils";
+import { createReactFetcher, setupRscHmr } from "vite-plugin-react-server/utils/rsc-client";
 
 const { initialContent, refetch } = createReactFetcher({ callServer });
 

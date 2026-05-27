@@ -46,7 +46,7 @@ function refreshCssLinks(data: RscHmrData): boolean {
  * 
  * @example
  * ```tsx
- * import { useRscHmr } from 'vite-plugin-react-server/utils';
+ * import { useRscHmr } from 'vite-plugin-react-server/utils/rsc-client';
  * 
  * function Shell({ data }) {
  *   const [storeData, setStoreData] = useState(data);

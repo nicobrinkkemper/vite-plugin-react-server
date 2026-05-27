@@ -455,14 +455,16 @@ import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import { createRscStream, createHtmlStream, handleRscStream } from "vite-plugin-react-server/stream";
 ```
 
-### Utils (Conditional Export)
+### Utils
 
 ```typescript
-// Default condition (client) — includes createReactFetcher, setupRscHmr, useRscHmr
-import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils";
+// Pure helpers (any environment) — URLs, env access, routing
+import { env, routeToURL, createPageURL } from "vite-plugin-react-server/utils";
 
-// react-server condition — excludes browser-only modules
-import { callServer, env, routeToURL } from "vite-plugin-react-server/utils";
+// RSC-client helpers — requires the optional `react-server-dom-esm` peer
+// (the vprs Vite plugin sets this up automatically; standalone bundlers
+// such as Storybook that don't engage the plugin should not import this).
+import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils/rsc-client";
 ```
 
 ### Type Imports

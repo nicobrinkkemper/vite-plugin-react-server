@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.7.1",
+  "version": "2.0.0",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -41,6 +41,10 @@
       "react-server": "./dist/plugin/utils/index.server.js",
       "browser": "./dist/plugin/utils/index.js",
       "default": "./dist/plugin/utils/index.server.js"
+    },
+    "./utils/rsc-client": {
+      "types": "./dist/plugin/utils/rsc-client.d.ts",
+      "default": "./dist/plugin/utils/rsc-client.js"
     },
     "./metrics": "./dist/plugin/metrics/index.js",
     "./stream": {
