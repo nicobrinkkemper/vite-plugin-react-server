@@ -455,15 +455,22 @@ import { vitePluginReactServer } from "vite-plugin-react-server/server";
 import { createRscStream, createHtmlStream, handleRscStream } from "vite-plugin-react-server/stream";
 ```
 
-### Utils
+### Utils (Conditional Export)
 
 ```typescript
-// Pure helpers (any environment) — URLs, env access, routing
-import { env, routeToURL, createPageURL } from "vite-plugin-react-server/utils";
+// Default condition (client) — includes createReactFetcher, setupRscHmr, useRscHmr
+import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils";
 
-// RSC-client helpers — requires the optional `react-server-dom-esm` peer
-// (the vprs Vite plugin sets this up automatically; standalone bundlers
-// such as Storybook that don't engage the plugin should not import this).
+// react-server condition — excludes browser-only modules
+import { callServer, env, routeToURL } from "vite-plugin-react-server/utils";
+```
+
+For consumers who want to import only the pure helpers (urls, env, routeToURL) without dragging in the optional `react-server-dom-esm` peer that the RSC-client helpers require, the RSC-client helpers are also available behind their own subpath:
+
+```typescript
+// Opt-in subpath for RSC-client helpers — explicitly requires the
+// `react-server-dom-esm` peer to be resolvable (the vprs Vite plugin
+// sets this up automatically for RSC apps).
 import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils/rsc-client";
 ```
 

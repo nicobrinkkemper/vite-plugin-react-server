@@ -1,8 +1,8 @@
-// Kept as a build-only artifact path. The exports map points the `browser`
-// condition at ./index.js (built from ./index.ts), so this file is no longer
-// part of any public entry. Mirroring ./index.ts so an accidental deep import
-// (`vite-plugin-react-server/utils/index.client`) still resolves to the same
-// pure-helpers shape as the public ./utils barrel.
+// Client barrel: includes all utils including browser-only ones
+export * from "./createReactFetcher.js";
+export * from "./useRscHmr.js";
+export * from "./callServer.js";
 export * from "./urls.js";
 export * from "./env.js";
+export * from "./createCallServer.js";
 export * from "./routeToURL.js";

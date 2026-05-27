@@ -51,7 +51,7 @@ export interface RscHmrData {
  * 
  * @example
  * ```tsx
- * import { setupRscHmr } from 'vite-plugin-react-server/utils/rsc-client';
+ * import { setupRscHmr } from 'vite-plugin-react-server/utils';
  * 
  * // Default: refetch current page's RSC stream (smart refresh)
  * setupRscHmr();
