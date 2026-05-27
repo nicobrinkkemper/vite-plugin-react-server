@@ -46,6 +46,8 @@
       "types": "./dist/plugin/utils/rsc-client.d.ts",
       "default": "./dist/plugin/utils/rsc-client.js"
     },
+    "./react-server-dom-esm": "./oss-experimental/react-server-dom-esm/index.js",
+    "./react-server-dom-esm/*": "./oss-experimental/react-server-dom-esm/*.js",
     "./metrics": "./dist/plugin/metrics/index.js",
     "./stream": {
       "react-server": "./dist/plugin/stream/index.server.js",
