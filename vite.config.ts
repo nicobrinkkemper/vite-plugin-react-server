@@ -53,6 +53,7 @@ export default defineConfig({
         ),
         "plugin/components/index": resolve(__dirname, "plugin/components/index.ts"),
         "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
+        "plugin/storybook/preset": resolve(__dirname, "plugin/storybook/preset.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
         
         "plugin/stream/index.server": resolve(__dirname, "plugin/stream/index.server.ts"),
