@@ -12,13 +12,7 @@ import type { Plugin, UserConfig } from "vite";
 // that the RSC-client utilities emit, and silence the use-client/use-server
 // directive warnings UI libraries trigger when bundled.
 
-// Anchor resolution at this package's ROOT package.json, not import.meta.url.
-// The build emits a dist/package.json (a copy carrying the same "name"), which
-// would otherwise shadow the root for a self-reference: Node's trySelf would
-// resolve the "./oss-experimental/*" export relative to dist/ and miss the
-// files (they live at the package root). preset.js sits at
-// dist/plugin/storybook/preset.js, so the root is three levels up.
-const require = createRequire(new URL("../../../package.json", import.meta.url));
+const require = createRequire(import.meta.url);
 
 /**
  * Rewrites the bare `react-server-dom-esm/client.browser` import to the ESM
