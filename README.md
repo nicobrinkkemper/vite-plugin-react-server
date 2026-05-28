@@ -50,11 +50,11 @@ dist/
 
 `dist/static/` is a complete static site. `dist/client/` and `dist/server/` are ESM modules you can import in your own Express/Hono/Node server.
 
-## Third-party `"use client"` packages
+## Third-party client-component packages
 
-Component libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion ship per-file `"use client"` directives in their compiled output, the same convention Next.js's App Router relies on. vprs honors those directives so you can `import { Heading } from "@chakra-ui/react"` directly inside a server component — no user-authored `.client.tsx` wrapper needed.
+Component libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion are **client-only** — their components rely on React context/state and must run inside a client boundary, the same constraint they carry under Next.js's App Router. Use them within a `"use client"` component (commonly a small provider wrapper); they can't be imported directly into a server component. This isn't a vprs limitation — e.g. [Chakra's own Next.js App Router guide](https://v2.chakra-ui.com/getting-started/nextjs-app-guide) requires wrapping `ChakraProvider` in a `'use client'` component.
 
-Detection is automatic: any package with `react` in its `peerDependencies` is treated as a client-package on build start (using [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu)). Two escape hatches if needed:
+vprs auto-detects these so they're treated correctly at build start: any package with `react` in its `peerDependencies` is classified as a client package (using [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu)). Two escape hatches if needed:
 
 ```ts
 vitePluginReactServer({
