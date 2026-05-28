@@ -47,6 +47,11 @@
       "default": "./dist/plugin/utils/rsc-client.js"
     },
     "./react-server-dom-esm": "./oss-experimental/react-server-dom-esm/index.js",
+    "./react-server-dom-esm/client.browser": {
+      "development": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.development.js",
+      "production": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.production.js",
+      "default": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.development.js"
+    },
     "./react-server-dom-esm/*": "./oss-experimental/react-server-dom-esm/*.js",
     "./metrics": "./dist/plugin/metrics/index.js",
     "./stream": {
