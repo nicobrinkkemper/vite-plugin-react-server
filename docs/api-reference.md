@@ -465,6 +465,15 @@ import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plu
 import { callServer, env, routeToURL } from "vite-plugin-react-server/utils";
 ```
 
+For consumers who want to import only the pure helpers (urls, env, routeToURL) without dragging in the optional `react-server-dom-esm` peer that the RSC-client helpers require, the RSC-client helpers are also available behind their own subpath:
+
+```typescript
+// Opt-in subpath for RSC-client helpers — explicitly requires the
+// `react-server-dom-esm` peer to be resolvable (the vprs Vite plugin
+// sets this up automatically for RSC apps).
+import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils/rsc-client";
+```
+
 ### Type Imports
 
 ```typescript
