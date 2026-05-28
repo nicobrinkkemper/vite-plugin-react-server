@@ -474,6 +474,24 @@ For consumers who want to import only the pure helpers (urls, env, routeToURL) w
 import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils/rsc-client";
 ```
 
+### Storybook preset
+
+A Storybook preset that makes a vprs app build and render in Storybook. Referenced as an addon, not imported directly. See [Storybook](./storybook.md).
+
+```ts
+// .storybook/main.ts
+export default { addons: ["vite-plugin-react-server/storybook"] };
+```
+
+### react-server-dom-esm host
+
+vprs hosts its vendored `react-server-dom-esm` under public subpaths so non-plugin consumers (e.g. the Storybook preset) can resolve it. Not typically imported by app code.
+
+```typescript
+// ESM client.browser build (dev/prod conditioned)
+import "vite-plugin-react-server/react-server-dom-esm/client.browser";
+```
+
 ### Type Imports
 
 ```typescript

@@ -71,8 +71,6 @@
     "plugin/**/*.json",
     // support css
     "plugin/**/*.css",
-    // package.json
-    "package.json",
     // types
     "types/**/*.d.ts",
     // entry

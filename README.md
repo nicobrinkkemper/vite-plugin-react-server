@@ -65,11 +65,29 @@ vitePluginReactServer({
 });
 ```
 
+## Storybook
+
+vprs ships a Storybook preset — add one line and your RSC app's components build
+and render in Storybook:
+
+```ts
+// .storybook/main.ts
+export default {
+  framework: { name: "@storybook/react-vite", options: {} },
+  addons: ["vite-plugin-react-server/storybook"],
+};
+```
+
+It strips the vprs plugin from Storybook's builder, resolves the vendored
+`react-server-dom-esm`, and silences `"use client"`/`"use server"` directive
+noise. See [Storybook](./docs/storybook.md) for details. (Requires vprs ≥ 1.9.0.)
+
 ## Documentation
 
 | Doc | What it covers |
 |-----|---------------|
 | [Getting Started](./docs/getting-started.md) | Install → first page → dev server → build → deploy |
+| [Storybook](./docs/storybook.md) | One-line Storybook support for vprs apps |
 | [Build Output](./docs/build-output.md) | What the build produces, how to use the ESM modules |
 | [Configuration](./docs/configuration.md) | All plugin options |
 | [CSS Handling](./docs/css-handling.md) | Inline/linked CSS, CSS modules, the `Css` component |
