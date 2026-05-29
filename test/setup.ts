@@ -479,6 +479,61 @@ export async function setupTestProject(testDir: string) {
   await setupPageTSX2(testDir);
 }
 
+/**
+ * Project whose client component is detected purely by a top-of-file
+ * `"use client"` DIRECTIVE — its filename (`Counter.tsx`) deliberately does
+ * NOT match the `.client.` convention. This reproduces the static-build bug
+ * where directive-only client modules got a raw, unhosted moduleID and
+ * react-server-dom-esm's `serializeClientReference` rejected the reference
+ * ("Attempted to load a Client Module outside the hosted root"). After the
+ * fix, the page builds and the client reference serializes correctly.
+ */
+export async function setupDirectiveClientProject(testDir: string) {
+  await setupIndexHTML(testDir);
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+
+  // Directive-only client component. No `.client.` suffix on purpose.
+  await writeFile(
+    resolve(testDir, "src/components/Counter.tsx"),
+    `"use client";
+import React from "react";
+const { useState } = React;
+
+export function Counter({ start = 0 }: { start?: number }) {
+  const [count, setCount] = useState(start);
+  return (
+    <button data-testid="counter" onClick={() => setCount((c) => c + 1)}>
+      Count: {count}
+    </button>
+  );
+}
+`
+  );
+
+  // Server page imports the directive-only client component.
+  await writeFile(
+    resolve(testDir, "src/page/page.tsx"),
+    `import React from "react";
+import { Counter } from "../components/Counter.js";
+
+export function Page(props: any) {
+  return (
+    <div>
+      <h1>Directive Client Test</h1>
+      <Counter start={props.start ?? 0} />
+    </div>
+  );
+}
+`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/props.ts"),
+    `export const props = (url: string) => ({ start: 5, url });`
+  );
+}
+
 export async function setupTestProjectEnv(testDir: string) {
   await setupIndexHTML(testDir);
   await setupPageTSX2(testDir);

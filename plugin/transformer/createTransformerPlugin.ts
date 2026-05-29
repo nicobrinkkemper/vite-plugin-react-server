@@ -14,6 +14,7 @@ import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
+import { analyzeDirectives } from "../loader/directives/analyzeDirectives.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -279,28 +280,66 @@ export const createTransformerPlugin = (
             originalSourceContent = code;
           }
 
+          // Robustly determine whether this module is a client reference by a
+          // top-of-file `"use client"` DIRECTIVE (not by the `.client.`
+          // filename). We parse the (post-esbuild) `code` with Rollup's
+          // JSX-aware `this.parse` and reuse `analyzeDirectives` — its
+          // `fileLevel.type === "client"` is the source of truth. This is the
+          // ROBUST detector; we deliberately avoid the naive
+          // `isClientComponentByCode` substring matcher, which flags any module
+          // containing the word "client" and would mis-host server modules.
+          let isClientByDirective = false;
+          try {
+            if (code.includes("use client")) {
+              const ast = this.parse(code, {
+                allowReturnOutsideFunction: true,
+                jsx: true,
+              }) as Program;
+              const directiveInfo = analyzeDirectives(ast, code);
+              const misplaced = directiveInfo.warnings.some((w) =>
+                w.message.includes("must be at the top of the file")
+              );
+              isClientByDirective =
+                directiveInfo.fileLevel?.type === "client" && !misplaced;
+            }
+          } catch {
+            // Parse failure → fall back to filename/content detection inside
+            // the moduleID function. A genuine `.client.tsx` is unaffected.
+            isClientByDirective = false;
+          }
+
           // Use the original normalized path for moduleID function calls
-          // This ensures registerClientReference calls use the correct paths
+          // This ensures registerClientReference calls use the correct paths.
+          // Pass `isClientByDirective` so the moduleID function applies the
+          // hosted-path transform (strip moduleBase → extension map → hash →
+          // moduleBasePath prefix) to directive-only client modules that have
+          // no `.client.` suffix — the default moduleID can't parse raw TSX to
+          // detect the directive itself.
           let finalModuleID = runtimeResolvedUserOptions.loader?.moduleID
             ? runtimeResolvedUserOptions.loader.moduleID(
                 normalizedPath,
-                originalSourceContent
+                originalSourceContent,
+                isClientByDirective
               )
             : normalizedPath;
 
-          // Whitelisted node_modules client packages: the default moduleID
-          // doesn't recognize them as client components (no `.client.[jt]sx?`
-          // suffix) and returns the bare `node_modules/...` path. The RSC
-          // runtime rejects ids that don't start with the bundler's baseURL
-          // ("Attempted to load a Client Module outside the hosted root"), so
-          // prefix with `/` here. The path keeps `node_modules/` because the
-          // SSR-env build (with `noExternal: clientPackages`) emits each
-          // bundled "use client" module to `dist/client/node_modules/<pkg>/…`,
-          // and the html-worker materializes client refs by importing
-          // `<dist/client>/<moduleID>` — keeping the segment lets the import
-          // resolve to disk.
+          // Client references must be HOSTED: their moduleID has to start with
+          // the bundler's baseURL or react-server-dom-esm's
+          // `serializeClientReference` throws "Attempted to load a Client
+          // Module outside the hosted root". The html-worker then materializes
+          // each ref by importing `<dist/client>/<moduleID>`, so the leading
+          // `/` is what makes that resolve to disk.
+          //
+          // This covers two cases the default moduleID returns unprefixed:
+          //   1. whitelisted node_modules client packages (no `.client.`
+          //      suffix; bundled to `dist/client/node_modules/<pkg>/…` via
+          //      `noExternal: clientPackages`), and
+          //   2. first-party directive-only client modules (no `.client.`
+          //      suffix; emitted to `dist/client/<path>` by the SSR build —
+          //      see resolveClientReferencesPlugin's input collection).
+          const needsHosting = isWhitelistedClientPackage || isClientByDirective;
           if (
-            isWhitelistedClientPackage &&
+            needsHosting &&
             typeof finalModuleID === "string" &&
             !finalModuleID.startsWith("/")
           ) {

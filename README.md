@@ -50,6 +50,27 @@ dist/
 
 `dist/static/` is a complete static site. `dist/client/` and `dist/server/` are ESM modules you can import in your own Express/Hono/Node server.
 
+## Client components
+
+Mark a client component with a top-of-file `"use client"` directive. The
+`.client.` filename suffix is **optional** — a first-party module that starts
+with `"use client"` is detected, hosted, and emitted as a client chunk in the
+static (`--app`) build, so you can import it directly into a server component:
+
+```tsx
+// src/components/Counter.tsx  ← no `.client.` suffix needed
+"use client";
+import { useState } from "react";
+export function Counter() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+Detection is by directive position (top of file, the same rule React enforces),
+not by a substring match. The `.client.` convention still works as a visual
+marker. See [Getting Started](./docs/getting-started.md#the-client-filename-is-optional).
+
 ## Third-party client-component packages
 
 Component libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion are **client-only** — their components rely on React context/state and must run inside a client boundary, the same constraint they carry under Next.js's App Router. Use them within a `"use client"` component (commonly a small provider wrapper); they can't be imported directly into a server component. This isn't a vprs limitation — e.g. [Chakra's own Next.js App Router guide](https://v2.chakra-ui.com/getting-started/nextjs-app-guide) requires wrapping `ChakraProvider` in a `'use client'` component.

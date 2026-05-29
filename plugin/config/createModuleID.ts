@@ -2,6 +2,7 @@ import type { ResolvedUserOptions } from "../types.js";
 import { replaceExtension } from "./extMap.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { hasFileLevelClientDirective } from "../loader/directives/hasFileLevelClientDirective.js";
 import type { ConfigEnv } from "vite";
 import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
@@ -45,8 +46,36 @@ export const createDefaultModuleID = (
   // Virtual pattern for excluding virtual modules from hashing
   const virtualPattern = autoDiscover?.virtualPattern ?? DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern;
   
-  // Client component pattern for hashing
+  // Client component pattern for hashing (filename convention).
   const clientPattern = /\.client\.[cm]?[jt]sx?$/;
+
+  // A module is a client component (and therefore must get a hosted,
+  // `moduleBasePath`-prefixed moduleID) if ANY of:
+  //   1. an explicit `isClientByDirective` override is passed (the transformer
+  //      computes this with Rollup's JSX/TS-aware `this.parse`, which is the
+  //      authoritative detection — see createTransformerPlugin),
+  //   2. its filename matches the `.client.` convention, OR
+  //   3. it declares a top-of-file `"use client"` directive that this function
+  //      can detect on its own from `sourceContent`.
+  //
+  // The directive checks are robust (acorn + analyzeDirectives), never the
+  // naive substring matcher. NOTE: this function's own acorn parser (case 3)
+  // cannot parse raw TSX (JSX + TS types), so the transformer passes the
+  // override (case 1) for the build path. Case 3 still covers already-parseable
+  // sources and keeps the function correct when called standalone.
+  //
+  // This is what lets directive-only client modules (no `.client.` suffix,
+  // e.g. node_modules libs that ship `"use client"`) be hosted in the static
+  // build instead of throwing "Attempted to load a Client Module outside the
+  // hosted root".
+  const isClientComponentId = (
+    id: string,
+    sourceContent?: string,
+    isClientByDirective?: boolean
+  ) =>
+    isClientByDirective === true ||
+    clientPattern.test(id) ||
+    hasFileLevelClientDirective(sourceContent);
 
   // Clean hash API that mimics Rollup's behavior
   const createRollupLikeHash = (content: string, hashCharacters: 'base36' | 'base64' | 'hex' = 'base36') => {
@@ -73,7 +102,12 @@ export const createDefaultModuleID = (
   };
 
   // Hash function for client components - same logic as resolveOptions.ts
-  const hash = (input: string | null, _ssr: boolean, sourceContent?: string) => {
+  const hash = (
+    input: string | null,
+    _ssr: boolean,
+    sourceContent?: string,
+    isClientByDirective?: boolean
+  ) => {
     if (!input) return "";
     if (new RegExp(/\.(node|d\.ts)$/).test(input)) {
       return input;
@@ -94,8 +128,15 @@ export const createDefaultModuleID = (
       return input;
     }
     
-    // Only hash client components - server files should not be hashed
-    const isClientComponent = clientPattern.test(input);
+    // Only hash client components - server files should not be hashed.
+    // Recognize the `.client.` filename convention, a top-of-file
+    // `"use client"` directive (when source content is available), or an
+    // explicit directive override threaded from the transformer.
+    const isClientComponent = isClientComponentId(
+      input,
+      sourceContent,
+      isClientByDirective
+    );
 
     if (!isClientComponent) {
       return input;
@@ -143,7 +184,11 @@ export const createDefaultModuleID = (
   const serverDist = isBuild ? join(build?.outDir || "dist", build?.server || "server") : "";
   const buildDirs = isBuild ? [serverDist, ssrClientDist, staticClientDist] : [];
 
-  return (id: string, sourceContent?: string) => {
+  return (
+    id: string,
+    sourceContent?: string,
+    isClientByDirective?: boolean
+  ) => {
     // For transformer usage (when we're in build mode and processing server components),
     // we want to strip build directory prefixes to get relative paths
     // This ensures the RSC stream contains paths that can be resolved by the HTML transform
@@ -165,8 +210,13 @@ export const createDefaultModuleID = (
         }
       }
       
-      // For client components in build mode, transform source paths to built paths
-      const isClientComponent = clientPattern.test(id);
+      // For client components in build mode, transform source paths to built paths.
+      // Directive-detected client modules (no `.client.` suffix) are hosted too.
+      const isClientComponent = isClientComponentId(
+        id,
+        sourceContent,
+        isClientByDirective
+      );
       if (isClientComponent) {
         // Transform source path to built client path
         let transformedId = id;
@@ -183,7 +233,7 @@ export const createDefaultModuleID = (
         
         
         // Step 3: Apply hashing for client components
-        transformedId = hash(transformedId, false, sourceContent);
+        transformedId = hash(transformedId, false, sourceContent, isClientByDirective);
         
         // Step 4: Ensure paths start with moduleBasePath
         if (moduleBasePath && !transformedId.startsWith(moduleBasePath)) {
@@ -227,8 +277,13 @@ export const createDefaultModuleID = (
     
     // Step 6: Apply extension mapping
     // ALWAYS replace extensions for client components (browser can't import .tsx)
-    // For other files, only replace in build mode
-    const isClientComponent = clientPattern.test(id);
+    // For other files, only replace in build mode.
+    // Directive-detected client modules count as client components too.
+    const isClientComponent = isClientComponentId(
+      id,
+      sourceContent,
+      isClientByDirective
+    );
     if (isBuild || isClientComponent) {
       id = replaceExtension(id, {
         build: { extensionMap: build.extensionMap },
@@ -242,7 +297,7 @@ export const createDefaultModuleID = (
     
     // Step 8: Apply hashing for client components (only in production builds, not dev)
     if (shouldHash) {
-      id = hash(id, false, sourceContent);
+      id = hash(id, false, sourceContent, isClientByDirective);
     }
     
     // For client components, ensure no leading slash to allow proper relative resolution

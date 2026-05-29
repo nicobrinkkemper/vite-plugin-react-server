@@ -2,6 +2,7 @@ import { createElementWithReact } from "../helpers/createElementWithReact.js";
 import { React, ReactDOMServer } from "../vendor/vendor.server.js";
 import { assertReactServer } from "../config/getCondition.js";
 import { handleError } from "../error/handleError.js";
+import { augmentClientReferenceError } from "../error/augmentClientReferenceError.js";
 import { createStreamMetrics } from "../helpers/metrics.js";
 import type { CreateRenderToPipeableStreamHandlerFn } from "./createRenderToPipeableStreamHandler.types.js";
 
@@ -121,7 +122,11 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       const pipeableStreamOptions = {
         ...serverPipeableStreamOptions,
 
-        onError(error: unknown) {
+        onError(rawError: unknown) {
+          // Add actionable context to opaque client-reference failures
+          // ("outside the hosted root" / missing client-dir module) before
+          // anything else sees the error.
+          const error = augmentClientReferenceError(rawError);
           // Always log: stream errors otherwise vanish silently and the only
           // user-visible symptom is an empty/half RSC response.
           logger?.error(
@@ -162,7 +167,8 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           // Call the original onError handler if it exists
           serverPipeableStreamOptions.onError?.(error);
         },
-        onShellError(error: unknown) {
+        onShellError(rawError: unknown) {
+          const error = augmentClientReferenceError(rawError);
           // Always log: shell errors mean nothing has been flushed to the
           // client yet, so without a log there's no signal at all.
           logger?.error(
@@ -249,7 +255,8 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           handlerOptions.moduleBasePath || "",
           pipeableStreamOptions
         );
-      } catch (error) {
+      } catch (rawError) {
+        const error = augmentClientReferenceError(rawError);
         if (verbose) {
           logger?.error(
             `[createRscStream:${route}] Synchronous error from React rendering: ${error}`
@@ -330,7 +337,8 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
         elements: finalChildren,
         metrics: createStreamMetrics(), // Provide empty metrics object
       };
-    } catch (error) {
+    } catch (rawError) {
+      const error = augmentClientReferenceError(rawError);
       if (verbose) {
         logger?.error(
           `[createRscStream:${route}] Error in RSC stream creation: ${error}`
