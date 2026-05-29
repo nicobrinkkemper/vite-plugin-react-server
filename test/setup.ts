@@ -511,17 +511,35 @@ export function Counter({ start = 0 }: { start?: number }) {
 `
   );
 
-  // Server page imports the directive-only client component.
+  // Directive-only client component with a COMPOUND filename (no `.client.`
+  // suffix). Regression: the build's entryFile name-normalization strips the
+  // middle `.fancy` segment (→ `Widget`), while the moduleID must collapse it
+  // the same way, or the hosted client reference points at a file that was
+  // never emitted (ERR_MODULE_NOT_FOUND at SSG render).
+  await writeFile(
+    resolve(testDir, "src/components/Widget.fancy.tsx"),
+    `"use client";
+import React from "react";
+
+export function Widget({ label = "widget" }: { label?: string }) {
+  return <span data-testid="widget">{label}</span>;
+}
+`
+  );
+
+  // Server page imports the directive-only client components.
   await writeFile(
     resolve(testDir, "src/page/page.tsx"),
     `import React from "react";
 import { Counter } from "../components/Counter.js";
+import { Widget } from "../components/Widget.fancy.js";
 
 export function Page(props: any) {
   return (
     <div>
       <h1>Directive Client Test</h1>
       <Counter start={props.start ?? 0} />
+      <Widget label="fancy" />
     </div>
   );
 }

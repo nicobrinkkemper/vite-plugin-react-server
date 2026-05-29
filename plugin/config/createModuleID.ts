@@ -225,7 +225,28 @@ export const createDefaultModuleID = (
         if (removeModuleBase && transformedId.startsWith(moduleBase + sep)) {
           transformedId = transformedId.slice(moduleBase.length + sep.length);
         }
-        
+
+        // Step 1b: Match the build's entryFile name normalization for
+        // DIRECTIVE-detected client modules. The emitted chunk name comes from
+        // `entryFile` → `normalizer(n.name)`, which strips one trailing
+        // ".segment" unless it's `.client`/`.server`. For a compound filename
+        // like `view/View.generated.tsx` that collapses to `view/View`, but
+        // this moduleID otherwise keeps `.generated` — so the registered client
+        // reference (`view/View.generated-<hash>.js`) wouldn't match the emitted
+        // chunk (`view/View-<hash>.js`) → ERR_MODULE_NOT_FOUND at SSG render.
+        // `.client.`-named modules are unaffected (the normalizer preserves
+        // that suffix, and so do we). Single-segment names have nothing to strip.
+        if (isClientByDirective) {
+          const noExt = transformedId.replace(/\.[cm]?[jt]sx?$/, "");
+          if (!noExt.endsWith(".client") && !noExt.endsWith(".server")) {
+            const lastDot = noExt.lastIndexOf(".");
+            if (lastDot > noExt.lastIndexOf("/")) {
+              transformedId =
+                noExt.slice(0, lastDot) + transformedId.slice(noExt.length);
+            }
+          }
+        }
+
         // Step 2: Apply extension mapping for build
         transformedId = replaceExtension(transformedId, {
           build: { extensionMap: build.extensionMap },

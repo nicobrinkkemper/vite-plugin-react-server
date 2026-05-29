@@ -77,4 +77,19 @@ describe("Directive-detected client module in static build", () => {
     // SSG-render time.
     expect(allClientLike.some((name) => /Counter/.test(name))).toBe(true);
   });
+
+  it("hosts a compound-filename (X.Y.tsx) directive-only client module", () => {
+    // `Widget.fancy.tsx`: the build's entryFile name-normalization collapses
+    // the middle `.fancy` segment (→ `Widget`). The client-reference moduleID
+    // must collapse it identically, or the ref points at `Widget.fancy-<hash>.js`
+    // while the emitted chunk is `Widget-<hash>.js` → ERR_MODULE_NOT_FOUND at
+    // SSG render. (The "builds without failing" test above, run with
+    // panicThreshold "all_errors", also catches the mismatch: before the fix
+    // the compound module's hosted reference pointed at a never-emitted file.)
+    const allClientLike = [
+      ...buildResult.clientChunks().map(([name]) => name),
+      ...buildResult.staticChunks().map(([name]) => name),
+    ];
+    expect(allClientLike.some((name) => /Widget/.test(name))).toBe(true);
+  });
 });
