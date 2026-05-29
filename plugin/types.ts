@@ -423,7 +423,13 @@ export type ResolvedUserOptions = {
   Html: StreamPluginOptions["Html"]; // Unresolved: can be string, function
   Root: StreamPluginOptions["Root"]; // Unresolved: can be string, function
   normalizer: InputNormalizer;
-  moduleID: ((id: string, sourceContent?: string) => string) | undefined;
+  moduleID:
+    | ((
+        id: string,
+        sourceContent?: string,
+        isClientByDirective?: boolean
+      ) => string)
+    | undefined;
   onMetrics: OnMetrics | undefined;
   // different for client/server so can't be typed
   pipeableStreamOptions: any;
@@ -899,7 +905,11 @@ export interface StreamPluginOptions<
   onMetrics?: OnMetrics;
   onEvent?: OnEvent<Interface>;
   normalizer?: InputNormalizer;
-  moduleID?: (id: string, sourceContent?: string) => string;
+  moduleID?: (
+    id: string,
+    sourceContent?: string,
+    isClientByDirective?: boolean
+  ) => string;
   verbose?: boolean;
   rscTimeout?: number; // Timeout in milliseconds for RSC operations
   htmlTimeout?: number; // Timeout in milliseconds for HTML generation operations

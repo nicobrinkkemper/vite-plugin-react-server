@@ -23,7 +23,11 @@ export type LoaderConfig = {
   isClientComponentCode: (code: string, moduleId?: string, transformedModuleId?: string) => boolean;
   isClientComponentByCode: (code: string) => boolean;
   isClientComponentByName: (moduleId: string, transformedModuleId?: string) => boolean;
-  moduleID: (moduleId: string, sourceContent?: string) => string;
+  moduleID: (
+    moduleId: string,
+    sourceContent?: string,
+    isClientByDirective?: boolean
+  ) => string;
   parse: ParseFn;
   verbose?: boolean;
   logger?: Logger;

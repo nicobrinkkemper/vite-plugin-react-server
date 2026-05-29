@@ -170,6 +170,35 @@ export const Page = () => (
 );
 ```
 
+### The `.client.` filename is optional
+
+A top-of-file `"use client"` directive is enough — the `.client.` filename
+suffix is **not** required. A first-party module that starts with
+`"use client"` is detected, hosted, and emitted as a client chunk in the
+static (`--app`) build exactly like a `.client.tsx` file:
+
+```tsx
+// src/components/Counter.tsx  ← no `.client.` suffix
+"use client";
+import { useState } from "react";
+
+export function Counter() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+```tsx
+// src/page.tsx (a server component)
+import { Counter } from "./components/Counter.js";
+// ...renders <Counter /> as a client reference
+```
+
+Detection is by directive position (the directive must be at the very top of
+the file, the same rule React enforces), not by a substring match — a module
+that merely mentions the word "client" is not treated as a client component.
+The `.client.` convention still works and is handy as a visual marker.
+
 ## Add an HTML Shell
 
 ```tsx

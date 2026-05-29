@@ -4,6 +4,7 @@ import { resolveBuildPages } from "./resolveBuildPages.js";
 import { resolvePages } from "../resolvePages.js";
 import type { Logger, ResolvedConfig } from "vite";
 import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
+import { createDirectiveClientAutoDiscover } from "./createDirectiveClientAutoDiscover.js";
 import { customWorkerFiles } from "./customWorkerFiles.js";
 import { pageAndPropFiles } from "./pageAndPropFiles.js";
 
@@ -105,6 +106,9 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       };
     }
     const clientFiles = createGlobAutoDiscover(userOptions.autoDiscover.clientEntry);
+    // First-party modules detected by a top-of-file `"use client"` directive
+    // (no `.client.` suffix) must also be emitted to dist/client.
+    const directiveClientFiles = createDirectiveClientAutoDiscover();
     const serverFiles = createGlobAutoDiscover(userOptions.autoDiscover.serverEntry);
     const cssFiles = createGlobAutoDiscover(userOptions.autoDiscover.cssEntry);
     const jsonFiles = createGlobAutoDiscover(userOptions.autoDiscover.jsonEntry);
@@ -123,6 +127,10 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       userOptions,
     });
     const clientInputs = await clientFiles({
+      inputs: {},
+      userOptions,
+    });
+    const directiveClientInputs = await directiveClientFiles({
       inputs: {},
       userOptions,
     });
@@ -174,6 +182,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     const clientInputsCollection = {
       ...configInputRecord,
       ...clientInputs,
+      ...directiveClientInputs,
       ...clientEntry,
       ...cssInputs,
     };

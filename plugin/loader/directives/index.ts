@@ -2,6 +2,8 @@ export * from "./addLocalExportedNames.js";
 export * from "./getExports.js";
 export * from "./analyzeDirectives.js";
 export * from "./analyzeModule.js";
+export * from "./hasFileLevelClientDirective.js";
+export * from "./sourceHasTopLevelClientDirective.js";
 export * from "./collectExports.js";
 export * from "./getFunctionBody.js";
 export * from "./getFunctionName.js";
