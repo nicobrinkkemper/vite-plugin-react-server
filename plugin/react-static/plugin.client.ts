@@ -912,7 +912,13 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             if (rscWorker) {
               try {
                 (rscWorker as Worker).removeAllListeners();
-                (rscWorker as Worker).terminate();
+                // Await full worker exit before letting the build's promise
+                // resolve. Without this, libuv-level handles in the worker
+                // (file reads/writes pending at exit) can fire AFTER doBuild
+                // has restored cwd, producing post-teardown ENOENT errors
+                // against relative paths the worker started while cwd was
+                // the test fixture root.
+                await (rscWorker as Worker).terminate();
               } catch {
                 // Ignore termination errors
               }

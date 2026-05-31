@@ -587,7 +587,13 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         if (worker) {
           try {
             worker.removeAllListeners();
-            worker.terminate();
+            // Await full worker exit before this writeBundle hook returns.
+            // Without await, libuv-level handles in the worker (file
+            // reads/writes pending at exit) can fire AFTER the build's
+            // promise has resolved and the caller has restored cwd —
+            // producing post-teardown ENOENT errors against relative paths
+            // the worker started while cwd was the test fixture root.
+            await worker.terminate();
           } catch (terminateError) {
             // Ignore termination errors
           }
