@@ -24,8 +24,8 @@ import { createLogger, type Logger } from "vite";
 import { getCondition } from "./getCondition.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./stashedOptionsState.js";
-import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
+import { createRollupLikeHash } from "./createRollupLikeHash.js";
 
 export type ResolveOptionsReturn =
   | {
@@ -349,30 +349,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     (typeof moduleId === "string" && clientPattern.test(moduleId)) || false;
 
   const hashOption = options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
-
-  // Clean hash API that mimics Rollup's behavior but allows control over input
-  const createRollupLikeHash = (content: string, hashCharacters: 'base36' | 'base64' | 'hex' = 'base36') => {
-    const hash = createHash('sha1');
-    hash.update(content);
-    const fullHash = hash.digest('hex');
-    
-    // Apply the same character set logic as Rollup
-    switch (hashCharacters) {
-      case 'base36':
-        // Convert hex to base36 (0-9, a-z)
-        return parseInt(fullHash.substring(0, 8), 16).toString(36);
-      case 'base64':
-        // Convert to base64-like format (A-Z, a-z, 0-9, -, _)
-        return Buffer.from(fullHash.substring(0, 8), 'hex').toString('base64')
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=/g, '');
-      case 'hex':
-      default:
-        // Return hex format
-        return fullHash.substring(0, 8);
-    }
-  };
 
   // User-facing hash function that can take source content or filename
   const hash = (input: string | null, _ssr: boolean, sourceContent?: string) => {

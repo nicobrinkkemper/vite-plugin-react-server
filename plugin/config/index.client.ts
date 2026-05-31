@@ -13,6 +13,7 @@ export * from './interpolatePattern.js';
 export * from './resolvePages.js';
 export * from './resolveUserConfig.js';
 export * from './createModuleID.js';
+export * from './createRollupLikeHash.js';
 export * from './getCondition.js';
 export * from './mimeTypes.js';
 export * from './resolveDirectiveMatcher.js';
