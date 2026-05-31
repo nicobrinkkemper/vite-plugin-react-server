@@ -3,11 +3,11 @@ import { sourceHasTopLevelClientDirective } from "./sourceHasTopLevelClientDirec
 import type { Program } from "acorn";
 
 /**
- * Filename convention for client modules: `.client.[jt]sx?`, also covering
- * the `.mjs/.cjs/.mts/.cts` variants. This is the *strict* form — the legacy
- * naive matcher `/(\.|\/)?client(\.|\/)?/` flagged any path containing the
- * substring "client" (e.g. `src/lib/clientId.ts`), which mis-classified
- * server modules as client. See the PR body for the behaviour-change note.
+ * Filename convention for client modules: `.client.` followed by a JS-family
+ * extension (`.tsx/.ts/.jsx/.js/.mjs/.cjs/.mts/.cts`). Strict — a path that
+ * merely contains the substring "client" elsewhere (e.g. `src/lib/clientId.ts`,
+ * `src/client/foo.ts`) is not matched by this pattern; the directive check is
+ * the other way a module qualifies.
  */
 const CLIENT_FILENAME_PATTERN = /\.client\.[cm]?[jt]sx?$/;
 
@@ -34,7 +34,7 @@ export type DetectClientModuleOpts = {
 };
 
 /**
- * The single, robust answer to "is this a client module?" for vprs.
+ * The single answer to "is this a client module?" for vprs.
  *
  * Recognises a module as client when EITHER:
  *   1. its filename matches the `.client.[cm]?[jt]sx?$` convention, OR
@@ -42,17 +42,14 @@ export type DetectClientModuleOpts = {
  *      whitespace, line/block comments, and a `"use strict"` prologue
  *      tolerated above it (React's contract).
  *
- * Deliberately rejects the naive "code contains the word client" substring
- * shape that the legacy `IS_CLIENT_COMPONENT_*` defaults used: a server
- * module with a variable named `clientId` or a comment mentioning "client"
- * stays a server module.
+ * Substring matches against "client" in identifiers, comments, import paths,
+ * or directory names are deliberately rejected.
  *
- * This helper is the single source of truth for client-module detection.
- * Every other call site in the plugin (transformer, worker react-loader,
- * dev-server file watcher, build auto-discover, the configurable
- * `loader.*` defaults in `config/defaults.tsx`) routes through it,
- * eliminating the cross-layer divergence that produced PR #55
- * (compound-filename hosting) and the directive-only hosting gap.
+ * Every call site that needs a "is this client?" answer routes through this
+ * helper (transformer, worker react-loader, dev-server file watcher, build
+ * auto-discover, the configurable `loader.*` defaults in
+ * `config/defaults.tsx`), so the answer is the same for the same input at
+ * every layer.
  */
 export function detectClientModule({
   source,

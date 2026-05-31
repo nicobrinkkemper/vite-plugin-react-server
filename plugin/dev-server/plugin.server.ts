@@ -44,12 +44,6 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       // Client environment: Vite owns client-side HMR (Fast Refresh if
       // `@vitejs/plugin-react` is installed; plain reload otherwise).
       if (envName === 'client') {
-        // Routes through `detectClientModule` so this watcher can't disagree
-        // with the build's transformer / worker / createModuleID on the same
-        // input. Note: the previous inline detector only read 200 chars and
-        // the first line, which missed a `"use client"` placed below a long
-        // JSDoc header or `"use strict"` prologue — both handled by the
-        // helper's char-scanner.
         const isClient = (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js')) && (() => {
           try {
             const source = readFileSync(file, "utf-8");

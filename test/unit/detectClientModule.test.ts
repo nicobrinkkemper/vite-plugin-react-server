@@ -5,14 +5,17 @@ import { detectClientModule } from "vite-plugin-react-server/directives";
 import { DEFAULT_LOADER_CONFIG } from "vite-plugin-react-server/config";
 
 /**
- * Unit suite for the unified client-module detector.
+ * Unit suite for the client-module detector.
  *
- * It guards every recent class of detection bug:
- *   - c1d: directive-only modules (no `.client.` suffix) recognised
- *   - hsv: cross-layer divergence between transformer / createModuleID
- *   - the predicted next bug: `"use strict"; "use client";` under any path
- *   - the legacy substring-matcher trap: `clientId` identifier or `client`
- *     in a comment must NOT trigger client classification
+ * Pins the four classes of "is this client?" answers that have to stay
+ * stable regardless of which call site asks:
+ *   - directive-only modules without the `.client.` filename suffix are
+ *     recognised,
+ *   - a `"use strict"` or comment prologue above `"use client"` is
+ *     tolerated,
+ *   - substring matches against "client" (identifiers, comments, import
+ *     paths, directory names) do NOT classify a module as client,
+ *   - the AST path and the parser-free scanner path agree on every input.
  */
 
 const acornParse = (src: string): Program =>
@@ -219,39 +222,36 @@ describe("detectClientModule (unified client-module detector)", () => {
 });
 
 /**
- * Coverage for the public `DEFAULT_LOADER_CONFIG.isClientComponent*` surface
- * — the user-overridable hooks in `loader.*`. The three defaults previously
- * used the naive substring matcher `/(\.|\/)?client(\.|\/)?/`; they now
- * delegate to `detectClientModule` so out-of-the-box behaviour is strict.
- * These tests also guard the legacy call signatures so existing user
- * overrides continue to type-check + run.
+ * Pins the public `DEFAULT_LOADER_CONFIG.isClientComponent*` surface — the
+ * user-overridable hooks on `loader.*`. The three defaults delegate to
+ * `detectClientModule`, so out-of-the-box behaviour is the strict form.
+ * These tests also pin the call signatures so user-supplied overrides keep
+ * type-checking against the same shape.
  */
-describe("DEFAULT_LOADER_CONFIG public API (back-compat surface)", () => {
-  it("isClientComponentCode now rejects the substring traps the naive default fell into", () => {
-    // `clientId` identifier — substring "client" in source. Was true under
-    // the naive default (the regex matched the identifier text); now false.
+describe("DEFAULT_LOADER_CONFIG.isClientComponent* public surface", () => {
+  it("isClientComponentCode rejects substring traps in identifiers, paths, and source", () => {
+    // `clientId` identifier — substring "client" in source.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentCode(
         `const clientId = "x"; export { clientId };`,
         "src/lib/utils.ts",
       ),
     ).toBe(false);
-    // Filename `src/lib/clientId.ts` — substring "client" in path. Was true
-    // under the naive default; now false.
+    // Filename `src/lib/clientId.ts` — substring "client" in the path.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentCode(
         `export const x = 1;`,
         "src/lib/clientId.ts",
       ),
     ).toBe(false);
-    // Real `.client.tsx` filename — still true.
+    // Real `.client.tsx` filename — recognised.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentCode(
         `export const x = 1;`,
         "src/components/Counter.client.tsx",
       ),
     ).toBe(true);
-    // Real top-of-file `"use client"` directive — still true.
+    // Real top-of-file `"use client"` directive — recognised.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentCode(
         `"use client";\nexport const x = 1;`,
@@ -260,11 +260,11 @@ describe("DEFAULT_LOADER_CONFIG public API (back-compat surface)", () => {
     ).toBe(true);
   });
 
-  it("isClientComponentByName accepts the legacy 2-arg signature", () => {
-    // The `_transformedModuleId` second arg is ignored under the new impl,
-    // but the call shape must continue to type-check and run for back-compat
-    // with the configurable loader hook surface in `plugin/types.ts`. If the
-    // signature ever drops to a single arg, this test fails to compile.
+  it("isClientComponentByName accepts the 2-arg signature", () => {
+    // The `_transformedModuleId` second arg is accepted but ignored. The
+    // call shape is part of the configurable loader hook surface in
+    // `plugin/types.ts`; if it ever drops to a single arg, this test fails
+    // to compile.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentByName(
         "src/components/Counter.client.tsx",
@@ -293,24 +293,23 @@ describe("DEFAULT_LOADER_CONFIG public API (back-compat surface)", () => {
     ).toBe(false);
   });
 
-  it("a user override on isClientComponentCode wins over the strict default", () => {
-    // Mirrors the resolution pattern used by react-loader:
+  it("a user override on isClientComponentCode wins over the default", () => {
+    // Mirrors react-loader's resolution pattern:
     //   userOptions.loader?.isClientComponentCode ?? DEFAULT_LOADER_CONFIG.isClientComponentCode
-    // If the strict default ever ends up hardcoded in front of a user override
-    // (a shape this PR was careful NOT to introduce), this test catches it.
+    // If the default ever ends up consulted ahead of a user override, this
+    // test catches it.
     const userOverride = (_code: string, _moduleId?: string) => true;
     const resolved =
       userOverride ?? DEFAULT_LOADER_CONFIG.isClientComponentCode;
-    // A plain server module the strict default rejects.
+    // A plain server module that the default rejects, classified as client
+    // by the override.
     expect(
       resolved(
         `import React from "react"; export function Page() { return null; }`,
         "src/page/page.tsx",
       ),
     ).toBe(true);
-    // Confirm the default we *would* fall back to also still works as
-    // documented — guards against a regression where the override layer
-    // works but the default is broken.
+    // The default still behaves as documented when no override is supplied.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentCode(
         `import React from "react"; export function Page() { return null; }`,

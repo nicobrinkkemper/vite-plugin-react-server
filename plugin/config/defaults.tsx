@@ -23,18 +23,14 @@ const IS_SERVER_ACTION_CODE = (code: string, moduleId?: string) =>
   (moduleId && SERVER_ACTION_FILE.test(moduleId.toLowerCase())) ||
   false;
 
-// Client-module detection is the single, robust answer in
-// `loader/directives/detectClientModule`. The three legacy
-// `isClientComponent*` defaults below were naive substring matchers
-// (`/(\.|\/)?client(\.|\/)?/`) that misclassified any module mentioning the
-// word "client" — a variable named `clientId`, an import path containing
-// `client`, a comment — as a client module. They are kept as user-overridable
-// hooks on `loader.*`, but the defaults now delegate to `detectClientModule`
-// so out-of-the-box behaviour is the strict, AST/scanner-validated form.
-//
-// Behaviour change: filename like `src/lib/clientId.ts` no longer matches.
-// Real client modules use the `.client.[cm]?[jt]sx?$` filename convention
-// OR a top-of-file `"use client"` directive — both are recognised here.
+// Defaults for the user-overridable `loader.isClientComponent*` hooks. All
+// three delegate to the single detector at
+// `loader/directives/detectClientModule`, which recognises a module as
+// client when its filename matches `.client.[cm]?[jt]sx?$` OR its source
+// declares a top-of-file `"use client"` directive (AST-validated when a
+// parser is available, char-scanner otherwise). A path with "client" as a
+// substring of an identifier, comment, or directory name (e.g.
+// `src/lib/clientId.ts`) is NOT a client module.
 const IS_CLIENT_COMPONENT_CODE = (code: string, moduleId?: string) =>
   detectClientModule({ source: code, moduleId });
 

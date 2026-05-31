@@ -101,12 +101,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
 
       // Skip client components — Vite owns client-side HMR (Fast Refresh
       // when `@vitejs/plugin-react` is installed, plain reload otherwise).
-      // Worker invalidation is for the server tree. Routes through
-      // `detectClientModule` so the file watcher can't disagree with the
-      // build's transformer / worker / createModuleID on the same input.
-      // The previous inline detector only read 200 chars and the first line,
-      // missing a `"use client"` placed below a long JSDoc header or a
-      // `"use strict"` prologue — both handled by the helper's char-scanner.
+      // Worker invalidation is for the server tree.
       const isClientFile = isSourceFile && (() => {
         try {
           const source = readFileSync(file, "utf-8");
