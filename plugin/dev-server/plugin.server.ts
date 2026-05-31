@@ -41,7 +41,8 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       
       if (!isSourceFile) return;
       
-      // Client environment: let Vite/@vitejs/plugin-react handle it
+      // Client environment: Vite owns client-side HMR (Fast Refresh if
+      // `@vitejs/plugin-react` is installed; plain reload otherwise).
       if (envName === 'client') {
         // Routes through `detectClientModule` so this watcher can't disagree
         // with the build's transformer / worker / createModuleID on the same
@@ -56,7 +57,7 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
           } catch { return false; }
         })();
 
-        if (isClient) return; // Let Fast Refresh handle client components
+        if (isClient) return; // Vite's client-side HMR owns this update
 
         // CSS files that aren't imported via the client module graph (vprs's
         // <Css cssFiles={...}/> pattern collects them server-side) aren't

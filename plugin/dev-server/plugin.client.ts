@@ -99,13 +99,14 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       const isCssFile = isInModuleBase &&
         (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.sass') || file.endsWith('.less'));
 
-      // Skip client components — let @vitejs/plugin-react handle them with
-      // Fast Refresh. Routes through `detectClientModule` so the file watcher
-      // can't disagree with the build's transformer / worker / createModuleID
-      // on the same input. Note: the previous inline detector only read 200
-      // chars and the first line, which missed a `"use client"` placed below
-      // a long JSDoc header or a `"use strict"` prologue — both are now
-      // handled by the helper's char-scanner.
+      // Skip client components — Vite owns client-side HMR (Fast Refresh
+      // when `@vitejs/plugin-react` is installed, plain reload otherwise).
+      // Worker invalidation is for the server tree. Routes through
+      // `detectClientModule` so the file watcher can't disagree with the
+      // build's transformer / worker / createModuleID on the same input.
+      // The previous inline detector only read 200 chars and the first line,
+      // missing a `"use client"` placed below a long JSDoc header or a
+      // `"use strict"` prologue — both handled by the helper's char-scanner.
       const isClientFile = isSourceFile && (() => {
         try {
           const source = readFileSync(file, "utf-8");
@@ -158,8 +159,8 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         // fallback for module-graph-untracked CSS is a full page reload, and
         // even tracked CSS modules in dev:ssr can fall back to reload because
         // vprs renders them server-side via the <Css cssFiles={...}/> pattern
-        // (the client never directly imports them, so @vitejs/plugin-react's
-        // CSS HMR isn't reachable). useRscHmr handles both shapes:
+        // (the client never directly imports them, so Vite's CSS HMR isn't
+        // reachable). useRscHmr handles both shapes:
         //  - inlined <style>: refetch brings new content
         //  - <link href=…>:   refreshCssLinks cache-busts the URL
         if (isCssFile) return [];
