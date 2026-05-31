@@ -1,6 +1,7 @@
 import { testUserOptions } from "../test-config.js";
 import { readdir, readFile, mkdir, rm } from "fs/promises";
 import { resolve, join } from "node:path";
+import { createHash } from "node:crypto";
 import { doBuild } from "../doBuild.js";
 import { OutputAsset, OutputBundle, OutputChunk } from "rollup";
 import { access } from "node:fs/promises";
@@ -75,24 +76,70 @@ export interface SharedBuildOptions {
 // Cache for setup function results (fixtures) only
 const setupCache = new Map<string, string>();
 
+/**
+ * Derive the cache key for a `getSharedBuild` invocation.
+ *
+ * Exported for unit-test verification that the key changes when the
+ * `setupProject` function's source changes — without that, a fixture
+ * directory left over from a previous run would be reused even though
+ * the setup logic has since changed, producing the "Could not resolve
+ * entry module …" cascade failures observed on CI.
+ *
+ * The hash is taken over `setupProject.toString()` — the function's
+ * declared source. Two functions with the same body produce the same
+ * key (and so share a fixture); two functions with different bodies
+ * (or the same name across edits) produce different keys.
+ */
+export function deriveSetupKey(
+  sharedTestName: string,
+  options: Pick<SharedBuildOptions, "setupProject" | "dir">
+): string {
+  const isDefaultSetup =
+    options.setupProject === undefined ||
+    options.setupProject === setupTestProject;
+  const dirSegment = options.dir ?? "shared";
+  if (isDefaultSetup) {
+    return `test-project-${dirSegment}`;
+  }
+  // 8-char content-addressed suffix; identical source → identical suffix.
+  const source = options.setupProject!.toString();
+  const suffix = createHash("sha1")
+    .update(source)
+    .digest("hex")
+    .substring(0, 8);
+  return `${sharedTestName}-${dirSegment}-${suffix}`;
+}
+
 export async function getSharedBuild(
   sharedTestName: string,
   actualTestName: string,
   options: SharedBuildOptions = {}
 ): Promise<SharedBuildResult> {
-  // Create a cache key for setup function results only (not plugin options)
-  const isDefaultSetup = options.setupProject === setupTestProject;
-  const setupKey = isDefaultSetup
-    ? `test-project-${options.dir ?? "shared"}`
-    : `${sharedTestName}-${options.dir ?? "shared"}`;
+  const setupKey = deriveSetupKey(sharedTestName, options);
+  // Whether this invocation falls back to the default setupTestProject.
+  // The fixture path layout for the default case shares one directory across
+  // every test that uses it; the custom case partitions by sharedTestName.
+  const isDefaultSetup =
+    options.setupProject === undefined ||
+    options.setupProject === setupTestProject;
 
   let testDir: string;
 
-  // Check if setup is already cached
+  // Check if setup is already cached for this process. The in-process cache
+  // is keyed on setup-function content (see deriveSetupKey) so a setup whose
+  // body changed within the same process invalidates the cache. Cache hits
+  // skip setup entirely — appropriate for tight loops that reuse the same
+  // fixture, like rapid-successive-builds tests.
   if (setupCache.has(setupKey)) {
     testDir = setupCache.get(setupKey)!;
   } else {
-    // Create new test directory and run setup
+    // Cache miss path. We always wipe + re-run setup here rather than
+    // trusting the on-disk fixture directory. The dir-exists short-circuit
+    // we used to apply assumed the on-disk fixture would never diverge from
+    // the current setup function's expected output, which is the assumption
+    // both observed flake shapes broke: a leftover directory from a prior
+    // process run, or one mutated by an upstream test, would get silently
+    // adopted with no re-setup.
     testDir = isDefaultSetup
       ? resolve(
           __dirname,
@@ -102,25 +149,19 @@ export async function getSharedBuild(
           __dirname,
           `../fixtures/${options.dir ?? "shared"}/${sharedTestName}`
         );
-    // if directory already exists, skip setup
-    try {
-      await access(testDir);
-      setupCache.set(setupKey, testDir);
-    } catch (error) {
-      // directory does not exist, create it
-      await mkdir(testDir, { recursive: true });
-      
-      // Setup project files
-      if (options.setupProject) {
-        await options.setupProject(testDir);
-      } else {
-        await setupTestProject(testDir);
-      }
 
-      // Cache the setup result
-      setupCache.set(setupKey, testDir);
+    // Wipe any leftover state from a previous process run. `force: true`
+    // makes this a no-op when the directory doesn't exist yet.
+    await rm(testDir, { recursive: true, force: true });
+    await mkdir(testDir, { recursive: true });
+
+    if (options.setupProject) {
+      await options.setupProject(testDir);
+    } else {
+      await setupTestProject(testDir);
     }
 
+    setupCache.set(setupKey, testDir);
   }
 
   // Extract setup options (excluding them from plugin options)
