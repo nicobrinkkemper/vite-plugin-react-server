@@ -158,7 +158,8 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     // build's transformer, createModuleID, the dev-server file watcher, and
     // the configurable `loader.*` defaults — so the worker can't disagree
     // with any of them on the same input.
-    const hasFileLevelServerDirective = (target: string): boolean => {
+    const hasFileLevelServerDirective = (): boolean => {
+      const target = "use server";
       let i = 0;
       for (let k = 0; k < 10; k++) {
         while (i < source.length && /\s/.test(source[i]!)) i++;
@@ -175,7 +176,7 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     };
 
     const isServer =
-      hasFileLevelServerDirective("use server") ||
+      hasFileLevelServerDirective() ||
       (typeof isServerFunction === "function"
         ? isServerFunction(source, url)
         : false);
