@@ -16,7 +16,7 @@
 9. [Architecture](./internals/architecture.md) — condition system, module structure, plugin composition
 10. [Transformer](./internals/transformer.md) — directive handling and code transforms
 11. [Workers](./internals/workers.md) — RSC and HTML worker threads
-12. [Module-resolution escape hatches](./module-resolution-escape-hatches.md) — when to reach for `external`, `noExternal`, `optimizeDeps`, virtual stubs, vendor aliases (and how to pick the right one)
+12. [Module-resolution escape hatches](./internals/module-resolution-escape-hatches.md) — when to reach for `external`, `noExternal`, `optimizeDeps`, virtual stubs, vendor aliases (and how to pick the right one)
 
 ## Maintenance
 
