@@ -4,25 +4,22 @@ Internal documentation for plugin maintainers and contributors.
 
 ## Test Status
 
-- **Vitest**: 153 unit tests passing (run with `npm test`)
-- **Playwright**: 9 e2e HMR tests passing (run with `npx playwright test test/e2e/hmr.spec.ts`)
-
-See [TESTING.md](./TESTING.md) for details.
+Run the full suite with `npm test` (unit) and the e2e specs under `test/e2e/`. The current counts move with the codebase — see CI for the canonical numbers.
 
 ## Documentation Index
 
 | File | Description |
 |------|-------------|
-| [COMMON_ISSUES.md](./COMMON_ISSUES.md) | Frequently encountered problems and solutions |
-| [DEBUGGING.md](./DEBUGGING.md) | Debugging techniques and tools |
-| [DEV_CACHING_ISSUE.md](./DEV_CACHING_ISSUE.md) | Dev mode caching issue (resolved) |
-| [ERROR_HANDLING.md](./ERROR_HANDLING.md) | Error handling patterns and recovery |
-| [MESSAGE_PORTS_ANALYSIS.md](./MESSAGE_PORTS_ANALYSIS.md) | Worker communication architecture |
-| [PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md) | Internal architecture and design patterns |
-| [TESTING.md](./TESTING.md) | Test infrastructure and commands |
-| [advanced-topics.md](./advanced-topics.md) | Custom workers, message system, extending the plugin |
-| [rsc-worker.md](./rsc-worker.md) | Worker system implementation |
-| [transformer-plugin.md](./transformer-plugin.md) | Transformation process and loader system |
+| [../internals/COMMON_ISSUES.md](../internals/COMMON_ISSUES.md) | Frequently encountered problems and solutions |
+| [../internals/DEBUGGING.md](../internals/DEBUGGING.md) | Debugging techniques and tools |
+| [../internals/DEV_CACHING_ISSUE.md](../internals/DEV_CACHING_ISSUE.md) | Dev mode caching issue (resolved) |
+| [../internals/ERROR_HANDLING.md](../internals/ERROR_HANDLING.md) | Error handling patterns and recovery |
+| [../internals/MESSAGE_PORTS_ANALYSIS.md](../internals/MESSAGE_PORTS_ANALYSIS.md) | Worker communication architecture |
+| [../internals/PLUGIN_ARCHITECTURE.md](../internals/PLUGIN_ARCHITECTURE.md) | Internal architecture and design patterns |
+| [../internals/TESTING.md](../internals/TESTING.md) | Test infrastructure and commands |
+| [../internals/advanced-topics.md](../internals/advanced-topics.md) | Custom workers, message system, extending the plugin |
+| [rsc-worker.md](./rsc-worker.md) | Worker system implementation (long form) |
+| [transformer-plugin.md](./transformer-plugin.md) | Transformation process and loader system (long form) |
 
 ## Architecture Overview
 
