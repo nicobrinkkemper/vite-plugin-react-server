@@ -1,6 +1,7 @@
 import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
 import { parse } from "../loader/parse.js";
+import { detectClientModule } from "../loader/directives/detectClientModule.js";
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
@@ -17,22 +18,33 @@ const DIRECTIVE_PATTERNS = {
 } as const;
 
 const SERVER_ACTION_FILE = /(\.|\/)?server(\.|\/)?/;
-const CLIENT_COMPONENT_FILE = /(\.|\/)?client(\.|\/)?/;
 const IS_SERVER_ACTION_CODE = (code: string, moduleId?: string) =>
   code.match(SERVER_ACTION_FILE) != null ||
   (moduleId && SERVER_ACTION_FILE.test(moduleId.toLowerCase())) ||
   false;
+
+// Client-module detection is the single, robust answer in
+// `loader/directives/detectClientModule`. The three legacy
+// `isClientComponent*` defaults below were naive substring matchers
+// (`/(\.|\/)?client(\.|\/)?/`) that misclassified any module mentioning the
+// word "client" — a variable named `clientId`, an import path containing
+// `client`, a comment — as a client module. They are kept as user-overridable
+// hooks on `loader.*`, but the defaults now delegate to `detectClientModule`
+// so out-of-the-box behaviour is the strict, AST/scanner-validated form.
+//
+// Behaviour change: filename like `src/lib/clientId.ts` no longer matches.
+// Real client modules use the `.client.[cm]?[jt]sx?$` filename convention
+// OR a top-of-file `"use client"` directive — both are recognised here.
 const IS_CLIENT_COMPONENT_CODE = (code: string, moduleId?: string) =>
-  code.match(CLIENT_COMPONENT_FILE) != null ||
-  (moduleId && CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase())) ||
-  false;
+  detectClientModule({ source: code, moduleId });
 
-// Separate functions for checking client components by code vs by name
 const IS_CLIENT_COMPONENT_BY_CODE = (code: string) =>
-  code.match(CLIENT_COMPONENT_FILE) != null || false;
+  detectClientModule({ source: code });
 
-const IS_CLIENT_COMPONENT_BY_NAME = (moduleId: string, _transformedModuleId?: string) =>
-  CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase()) || false;
+const IS_CLIENT_COMPONENT_BY_NAME = (
+  moduleId: string,
+  _transformedModuleId?: string,
+) => detectClientModule({ moduleId });
 // Directive configurations
 export const DIRECTIVE_CONFIGS = {
   client: {

@@ -13,6 +13,7 @@ import type {
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
+import { detectClientModule } from "./directives/detectClientModule.js";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import type { LoadHook, ResolveHook } from "node:module";
 import type { RawSourceMap } from "source-map";
@@ -150,11 +151,14 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       }
     }
 
-    // Check for file-level directives. Walk the prologue — consecutive string-
-    // literal directive statements at file top — so a benign `"use strict"`
-    // sitting above `"use client"` (which is what every bundler-compiled
-    // node_modules package ships) doesn't shadow the real directive.
-    const hasFileLevelDirective = (target: string): boolean => {
+    // Check for file-level directives. Server detection uses an inline
+    // prologue-walking char-scanner (server directives aren't covered by the
+    // unified client helper). Client detection routes through
+    // `detectClientModule` — the single source of truth shared with the
+    // build's transformer, createModuleID, the dev-server file watcher, and
+    // the configurable `loader.*` defaults — so the worker can't disagree
+    // with any of them on the same input.
+    const hasFileLevelServerDirective = (target: string): boolean => {
       let i = 0;
       for (let k = 0; k < 10; k++) {
         while (i < source.length && /\s/.test(source[i]!)) i++;
@@ -169,17 +173,15 @@ export const load: LoadHook = async (url, context, nextLoad) => {
       }
       return false;
     };
-    const hasFileLevelServerDirective = hasFileLevelDirective("use server");
-    const hasFileLevelClientDirective = hasFileLevelDirective("use client");
 
     const isServer =
-      hasFileLevelServerDirective ||
+      hasFileLevelServerDirective("use server") ||
       (typeof isServerFunction === "function"
         ? isServerFunction(source, url)
         : false);
 
     const isClient =
-      hasFileLevelClientDirective ||
+      detectClientModule({ source, moduleId: url }) ||
       (typeof isClientComponent === "function"
         ? isClientComponent(source, url)
         : false);

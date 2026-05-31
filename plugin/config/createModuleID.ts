@@ -2,7 +2,7 @@ import type { ResolvedUserOptions } from "../types.js";
 import { replaceExtension } from "./extMap.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import { hasFileLevelClientDirective } from "../loader/directives/hasFileLevelClientDirective.js";
+import { detectClientModule } from "../loader/directives/detectClientModule.js";
 import type { ConfigEnv } from "vite";
 import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
@@ -46,23 +46,12 @@ export const createDefaultModuleID = (
   // Virtual pattern for excluding virtual modules from hashing
   const virtualPattern = autoDiscover?.virtualPattern ?? DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern;
   
-  // Client component pattern for hashing (filename convention).
-  const clientPattern = /\.client\.[cm]?[jt]sx?$/;
-
   // A module is a client component (and therefore must get a hosted,
-  // `moduleBasePath`-prefixed moduleID) if ANY of:
-  //   1. an explicit `isClientByDirective` override is passed (the transformer
-  //      computes this with Rollup's JSX/TS-aware `this.parse`, which is the
-  //      authoritative detection — see createTransformerPlugin),
-  //   2. its filename matches the `.client.` convention, OR
-  //   3. it declares a top-of-file `"use client"` directive that this function
-  //      can detect on its own from `sourceContent`.
-  //
-  // The directive checks are robust (acorn + analyzeDirectives), never the
-  // naive substring matcher. NOTE: this function's own acorn parser (case 3)
-  // cannot parse raw TSX (JSX + TS types), so the transformer passes the
-  // override (case 1) for the build path. Case 3 still covers already-parseable
-  // sources and keeps the function correct when called standalone.
+  // `moduleBasePath`-prefixed moduleID) when the unified `detectClientModule`
+  // helper says so — filename `.client.[cm]?[jt]sx?$` OR a top-of-file
+  // `"use client"` directive. The `isClientByDirective` override fast-paths
+  // the build's transformer answer (computed with Rollup's JSX-aware
+  // `this.parse`), so we don't re-parse here.
   //
   // This is what lets directive-only client modules (no `.client.` suffix,
   // e.g. node_modules libs that ship `"use client"`) be hosted in the static
@@ -74,8 +63,7 @@ export const createDefaultModuleID = (
     isClientByDirective?: boolean
   ) =>
     isClientByDirective === true ||
-    clientPattern.test(id) ||
-    hasFileLevelClientDirective(sourceContent);
+    detectClientModule({ source: sourceContent, moduleId: id });
 
   // Hash function for client components - same logic as resolveOptions.ts
   const hash = (

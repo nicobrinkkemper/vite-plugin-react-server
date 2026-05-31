@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
+import { detectClientModule } from "../loader/directives/detectClientModule.js";
 import type { ConfigEnv } from "vite";
 
 
@@ -98,13 +99,17 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       const isCssFile = isInModuleBase &&
         (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.sass') || file.endsWith('.less'));
 
-      // Skip client components — let @vitejs/plugin-react handle them with Fast Refresh
+      // Skip client components — let @vitejs/plugin-react handle them with
+      // Fast Refresh. Routes through `detectClientModule` so the file watcher
+      // can't disagree with the build's transformer / worker / createModuleID
+      // on the same input. Note: the previous inline detector only read 200
+      // chars and the first line, which missed a `"use client"` placed below
+      // a long JSDoc header or a `"use strict"` prologue — both are now
+      // handled by the helper's char-scanner.
       const isClientFile = isSourceFile && (() => {
-        // Check filename pattern (.client.tsx, etc.) — matches isClientComponentByName
-        if (/\.client\.(js|ts|jsx|tsx)$/.test(file)) return true;
         try {
-          const head = readFileSync(file, 'utf-8').slice(0, 200);
-          return /^\s*["']use client["']/.test(head.split('\n')[0]);
+          const source = readFileSync(file, "utf-8");
+          return detectClientModule({ source, moduleId: file });
         } catch { return false; }
       })();
 
