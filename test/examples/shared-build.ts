@@ -116,6 +116,12 @@ export async function getSharedBuild(
   options: SharedBuildOptions = {}
 ): Promise<SharedBuildResult> {
   const setupKey = deriveSetupKey(sharedTestName, options);
+  // Whether this invocation falls back to the default setupTestProject.
+  // The fixture path layout for the default case shares one directory across
+  // every test that uses it; the custom case partitions by sharedTestName.
+  const isDefaultSetup =
+    options.setupProject === undefined ||
+    options.setupProject === setupTestProject;
 
   let testDir: string;
 
