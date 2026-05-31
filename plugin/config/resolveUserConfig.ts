@@ -14,7 +14,7 @@ import {
   mergeClientPackagesNoExternal,
   mergeClientPackagesOptimizeDepsExclude,
 } from "../clientPackages/index.js";
-import { createHash } from "node:crypto";
+import { createRollupLikeHash } from "./createRollupLikeHash.js";
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
@@ -724,10 +724,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
                       if (existsSync(sourcePath)) {
                         const sourceContent = readFileSync(sourcePath, "utf-8");
                         // Use a short hash of the source content as salt
-                        return createHash("sha1")
-                          .update(sourceContent)
-                          .digest("hex")
-                          .substring(0, 8);
+                        return createRollupLikeHash(sourceContent, "hex");
                       }
                     } catch (error) {
                       // Fallback: use the module ID as salt
