@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-The plugin vendors a build of `react-server-dom-esm` whose internals (taint registries on `ReactSharedInternalsServer`, etc.) are tied to React's experimental release channel. Stable React 19.x doesn't expose the same internals — see bd-lr4.
+The plugin vendors a build of `react-server-dom-esm` whose internals (taint registries on `ReactSharedInternalsServer`, etc.) are tied to React's experimental release channel. Stable React 19.x doesn't expose the same internals — see PR #32.
 
 | React Version | Support | Notes |
 |---------------|---------|-------|
@@ -22,7 +22,7 @@ npm install react@0.0.0-experimental-f93b9fd4-20251217 react-dom@0.0.0-experimen
 
 **Peer dependency**: `react: ">=0.0.0-experimental-0 <1.0.0"`. The upper bound rejects stable React (19.x, 20.x) so npm warns instead of resolving silently to a broken pairing. Any 0.0.0 prerelease (experimental, canary, next) satisfies the lower bound.
 
-> Earlier 1.4.x docs claimed "React 19+ stable: Full Support." That was incorrect — local development with `file:` link masked the mismatch by hoisting the plugin's own experimental React into the consumer. npm-installed consumers crashed in the static build path. See bd-lr4.
+> Earlier 1.4.x docs claimed "React 19+ stable: Full Support." That was incorrect — local development with `file:` link masked the mismatch by hoisting the plugin's own experimental React into the consumer. npm-installed consumers crashed in the static build path. See PR #32.
 
 ## Vendored ESM Transport
 
