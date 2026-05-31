@@ -1,6 +1,7 @@
 import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
 import { parse } from "../loader/parse.js";
+import { detectClientModule } from "../loader/directives/detectClientModule.js";
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
@@ -17,22 +18,29 @@ const DIRECTIVE_PATTERNS = {
 } as const;
 
 const SERVER_ACTION_FILE = /(\.|\/)?server(\.|\/)?/;
-const CLIENT_COMPONENT_FILE = /(\.|\/)?client(\.|\/)?/;
 const IS_SERVER_ACTION_CODE = (code: string, moduleId?: string) =>
   code.match(SERVER_ACTION_FILE) != null ||
   (moduleId && SERVER_ACTION_FILE.test(moduleId.toLowerCase())) ||
   false;
+
+// Defaults for the user-overridable `loader.isClientComponent*` hooks. All
+// three delegate to the single detector at
+// `loader/directives/detectClientModule`, which recognises a module as
+// client when its filename matches `.client.[cm]?[jt]sx?$` OR its source
+// declares a top-of-file `"use client"` directive (AST-validated when a
+// parser is available, char-scanner otherwise). A path with "client" as a
+// substring of an identifier, comment, or directory name (e.g.
+// `src/lib/clientId.ts`) is NOT a client module.
 const IS_CLIENT_COMPONENT_CODE = (code: string, moduleId?: string) =>
-  code.match(CLIENT_COMPONENT_FILE) != null ||
-  (moduleId && CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase())) ||
-  false;
+  detectClientModule({ source: code, moduleId });
 
-// Separate functions for checking client components by code vs by name
 const IS_CLIENT_COMPONENT_BY_CODE = (code: string) =>
-  code.match(CLIENT_COMPONENT_FILE) != null || false;
+  detectClientModule({ source: code });
 
-const IS_CLIENT_COMPONENT_BY_NAME = (moduleId: string, _transformedModuleId?: string) =>
-  CLIENT_COMPONENT_FILE.test(moduleId.toLowerCase()) || false;
+const IS_CLIENT_COMPONENT_BY_NAME = (
+  moduleId: string,
+  _transformedModuleId?: string,
+) => detectClientModule({ moduleId });
 // Directive configurations
 export const DIRECTIVE_CONFIGS = {
   client: {

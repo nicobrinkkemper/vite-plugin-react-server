@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
+import { detectClientModule } from "../loader/directives/detectClientModule.js";
 import type { ConfigEnv } from "vite";
 
 
@@ -98,13 +99,13 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       const isCssFile = isInModuleBase &&
         (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.sass') || file.endsWith('.less'));
 
-      // Skip client components — let @vitejs/plugin-react handle them with Fast Refresh
+      // Skip client components — Vite owns client-side HMR (Fast Refresh
+      // when `@vitejs/plugin-react` is installed, plain reload otherwise).
+      // Worker invalidation is for the server tree.
       const isClientFile = isSourceFile && (() => {
-        // Check filename pattern (.client.tsx, etc.) — matches isClientComponentByName
-        if (/\.client\.(js|ts|jsx|tsx)$/.test(file)) return true;
         try {
-          const head = readFileSync(file, 'utf-8').slice(0, 200);
-          return /^\s*["']use client["']/.test(head.split('\n')[0]);
+          const source = readFileSync(file, "utf-8");
+          return detectClientModule({ source, moduleId: file });
         } catch { return false; }
       })();
 
@@ -153,8 +154,8 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         // fallback for module-graph-untracked CSS is a full page reload, and
         // even tracked CSS modules in dev:ssr can fall back to reload because
         // vprs renders them server-side via the <Css cssFiles={...}/> pattern
-        // (the client never directly imports them, so @vitejs/plugin-react's
-        // CSS HMR isn't reachable). useRscHmr handles both shapes:
+        // (the client never directly imports them, so Vite's CSS HMR isn't
+        // reachable). useRscHmr handles both shapes:
         //  - inlined <style>: refetch brings new content
         //  - <link href=…>:   refreshCssLinks cache-busts the URL
         if (isCssFile) return [];

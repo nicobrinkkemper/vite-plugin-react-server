@@ -14,7 +14,7 @@ import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
-import { analyzeDirectives } from "../loader/directives/analyzeDirectives.js";
+import { detectClientModule } from "../loader/directives/detectClientModule.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -282,31 +282,16 @@ export const createTransformerPlugin = (
 
           // Robustly determine whether this module is a client reference by a
           // top-of-file `"use client"` DIRECTIVE (not by the `.client.`
-          // filename). We parse the (post-esbuild) `code` with Rollup's
-          // JSX-aware `this.parse` and reuse `analyzeDirectives` — its
-          // `fileLevel.type === "client"` is the source of truth. This is the
-          // ROBUST detector; we deliberately avoid the naive
-          // `isClientComponentByCode` substring matcher, which flags any module
-          // containing the word "client" and would mis-host server modules.
-          let isClientByDirective = false;
-          try {
-            if (code.includes("use client")) {
-              const ast = this.parse(code, {
-                allowReturnOutsideFunction: true,
-                jsx: true,
-              }) as Program;
-              const directiveInfo = analyzeDirectives(ast, code);
-              const misplaced = directiveInfo.warnings.some((w) =>
-                w.message.includes("must be at the top of the file")
-              );
-              isClientByDirective =
-                directiveInfo.fileLevel?.type === "client" && !misplaced;
-            }
-          } catch {
-            // Parse failure → fall back to filename/content detection inside
-            // the moduleID function. A genuine `.client.tsx` is unaffected.
-            isClientByDirective = false;
-          }
+          // filename). `detectClientModule` parses with Rollup's JSX-aware
+          // `this.parse` and reuses `analyzeDirectives` internally; if the
+          // parse fails it falls back to the parser-free char-scanner. We
+          // pass `source` only (no `moduleId`) so the filename pattern is
+          // skipped here — that path is handled downstream in
+          // `createModuleID` via the same helper.
+          const isClientByDirective = detectClientModule({
+            source: code,
+            parseFn: (src, opts) => this.parse(src, opts) as Program,
+          });
 
           // Use the original normalized path for moduleID function calls
           // This ensures registerClientReference calls use the correct paths.

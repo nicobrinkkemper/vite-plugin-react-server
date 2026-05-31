@@ -1,6 +1,7 @@
 import type { StreamPluginOptions } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
+import { detectClientModule } from "../loader/directives/detectClientModule.js";
 import type { Plugin, ViteDevServer } from "vite";
 import { readFileSync } from "node:fs";
 
@@ -40,19 +41,17 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       
       if (!isSourceFile) return;
       
-      // Client environment: let Vite/@vitejs/plugin-react handle it
+      // Client environment: Vite owns client-side HMR (Fast Refresh if
+      // `@vitejs/plugin-react` is installed; plain reload otherwise).
       if (envName === 'client') {
-        // Check if it's a client component — let Fast Refresh handle it
         const isClient = (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js')) && (() => {
-          // Check filename pattern (.client.tsx, .client.ts, etc.) — matches isClientComponentByName
-          if (/\.client\.(js|ts|jsx|tsx)$/.test(file)) return true;
           try {
-            const head = readFileSync(file, 'utf-8').slice(0, 200);
-            return /^\s*["']use client["']/.test(head.split('\n')[0]);
+            const source = readFileSync(file, "utf-8");
+            return detectClientModule({ source, moduleId: file });
           } catch { return false; }
         })();
 
-        if (isClient) return; // Let Fast Refresh handle client components
+        if (isClient) return; // Vite's client-side HMR owns this update
 
         // CSS files that aren't imported via the client module graph (vprs's
         // <Css cssFiles={...}/> pattern collects them server-side) aren't
