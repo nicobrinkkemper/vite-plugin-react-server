@@ -10,7 +10,7 @@ Step-by-step guide for publishing a new version of `vite-plugin-react-server` an
 
 ## 1. Verify everything passes
 
-The unit/integration suite alone is not sufficient — the plugin can pass its own tests while breaking downstream consumers via cross-condition module leaks (see `bd-6pi` for a 2026-04 example). **You must also verify against the linked demo repos.**
+The unit/integration suite alone is not sufficient — the plugin can pass its own tests while breaking downstream consumers via cross-condition module leaks (PR #30 is one historical example). **You must also verify against the linked demo repos.**
 
 ```bash
 cd ~/code/vite-plugin-react-server
@@ -60,9 +60,9 @@ npx playwright test test/e2e/hmr.spec.ts
 # - todo toggle persists
 ```
 
-**If any of 1a–1d fails, do not publish.** File a `bd` issue and bisect to the introducing commit. A regression that is already on `main` but not yet released is still a release-blocker — it ships to consumers the moment you `npm publish`.
+**If any of 1a–1d fails, do not publish.** File an issue and bisect to the introducing commit. A regression that is already on `main` but not yet released is still a release-blocker — it ships to consumers the moment you `npm publish`.
 
-> ⚠️ **`file:` link masks React version mismatches.** Linked demos resolve `react`/`react-dom` against the plugin's own `node_modules`, which means whatever experimental React is installed inside `vite-plugin-react-server/` gets hoisted into the consumer for free. A demo that pins stable React 19 in its own `package.json` will *still* run against the plugin's experimental React under `file:` link, and never exercise the actual stable-React path. To verify a release works for npm consumers — not just `file:`-link consumers — also `npm pack` the tarball and install it into a clean fixture before publishing. Skipping this is what let v1.4.6 ship broken on stable React (bd-lr4).
+> ⚠️ **`file:` link masks React version mismatches.** Linked demos resolve `react`/`react-dom` against the plugin's own `node_modules`, which means whatever experimental React is installed inside `vite-plugin-react-server/` gets hoisted into the consumer for free. A demo that pins stable React 19 in its own `package.json` will *still* run against the plugin's experimental React under `file:` link, and never exercise the actual stable-React path. To verify a release works for npm consumers — not just `file:`-link consumers — also `npm pack` the tarball and install it into a clean fixture before publishing. Skipping this is what let v1.4.6 ship broken on stable React (fixed in PR #32).
 
 ## 2. Bump the version
 
