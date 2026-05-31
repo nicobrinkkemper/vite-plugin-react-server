@@ -25,10 +25,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
       
       await expect(
         getSharedBuild('build-abort-test-project', `build-abort-${testEvent}`, {
-          setupProject: async (dir: string) => {
-            // Use the already set up testDir
-            return;
-          },
+          setupProject: async (dir: string) => { await setupTestProject(dir); },
           build: {
             pages: ["/"],
           },
@@ -48,10 +45,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
     
     await expect(
       getSharedBuild('build-abort-test-project', 'build-abort-start', {
-        setupProject: async (dir: string) => {
-          // Use the already set up testDir
-          return;
-        },
+        setupProject: async (dir: string) => { await setupTestProject(dir); },
         build: {
           pages: ["/"],
         },
@@ -72,10 +66,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
       
       await expect(
         getSharedBuild('build-abort-test-project', `build-abort-file-${testEvent}`, {
-          setupProject: async (dir: string) => {
-            // Use the already set up testDir
-            return;
-          },
+          setupProject: async (dir: string) => { await setupTestProject(dir); },
           build: {
             pages: ["/"],
           },
@@ -99,10 +90,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
     // This should work for both client and server workflows
     await expect(
       getSharedBuild('build-abort-test-project', 'build-abort-consistency', {
-        setupProject: async (dir: string) => {
-          // Use the already set up testDir
-          return;
-        },
+        setupProject: async (dir: string) => { await setupTestProject(dir); },
         build: {
           pages: ["/"],
         },
@@ -122,10 +110,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
     
     await expect(
       getSharedBuild('build-abort-test-project', 'build-abort-panic', {
-        setupProject: async (dir: string) => {
-          // Use the already set up testDir
-          return;
-        },
+        setupProject: async (dir: string) => { await setupTestProject(dir); },
         build: {
           pages: ["/"],
         },
