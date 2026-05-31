@@ -1,6 +1,7 @@
 import { testUserOptions } from "../test-config.js";
 import { readdir, readFile, mkdir, rm } from "fs/promises";
 import { resolve, join } from "node:path";
+import { createHash } from "node:crypto";
 import { doBuild } from "../doBuild.js";
 import { OutputAsset, OutputBundle, OutputChunk } from "rollup";
 import { access } from "node:fs/promises";
@@ -75,16 +76,46 @@ export interface SharedBuildOptions {
 // Cache for setup function results (fixtures) only
 const setupCache = new Map<string, string>();
 
+/**
+ * Derive the cache key for a `getSharedBuild` invocation.
+ *
+ * Exported for unit-test verification that the key changes when the
+ * `setupProject` function's source changes — without that, a fixture
+ * directory left over from a previous run would be reused even though
+ * the setup logic has since changed, producing the "Could not resolve
+ * entry module …" cascade failures observed on CI.
+ *
+ * The hash is taken over `setupProject.toString()` — the function's
+ * declared source. Two functions with the same body produce the same
+ * key (and so share a fixture); two functions with different bodies
+ * (or the same name across edits) produce different keys.
+ */
+export function deriveSetupKey(
+  sharedTestName: string,
+  options: Pick<SharedBuildOptions, "setupProject" | "dir">
+): string {
+  const isDefaultSetup =
+    options.setupProject === undefined ||
+    options.setupProject === setupTestProject;
+  const dirSegment = options.dir ?? "shared";
+  if (isDefaultSetup) {
+    return `test-project-${dirSegment}`;
+  }
+  // 8-char content-addressed suffix; identical source → identical suffix.
+  const source = options.setupProject!.toString();
+  const suffix = createHash("sha1")
+    .update(source)
+    .digest("hex")
+    .substring(0, 8);
+  return `${sharedTestName}-${dirSegment}-${suffix}`;
+}
+
 export async function getSharedBuild(
   sharedTestName: string,
   actualTestName: string,
   options: SharedBuildOptions = {}
 ): Promise<SharedBuildResult> {
-  // Create a cache key for setup function results only (not plugin options)
-  const isDefaultSetup = options.setupProject === setupTestProject;
-  const setupKey = isDefaultSetup
-    ? `test-project-${options.dir ?? "shared"}`
-    : `${sharedTestName}-${options.dir ?? "shared"}`;
+  const setupKey = deriveSetupKey(sharedTestName, options);
 
   let testDir: string;
 
