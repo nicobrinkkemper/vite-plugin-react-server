@@ -125,11 +125,21 @@ export async function getSharedBuild(
 
   let testDir: string;
 
-  // Check if setup is already cached
+  // Check if setup is already cached for this process. The in-process cache
+  // is keyed on setup-function content (see deriveSetupKey) so a setup whose
+  // body changed within the same process invalidates the cache. Cache hits
+  // skip setup entirely — appropriate for tight loops that reuse the same
+  // fixture, like rapid-successive-builds tests.
   if (setupCache.has(setupKey)) {
     testDir = setupCache.get(setupKey)!;
   } else {
-    // Create new test directory and run setup
+    // Cache miss path. We always wipe + re-run setup here rather than
+    // trusting the on-disk fixture directory. The dir-exists short-circuit
+    // we used to apply assumed the on-disk fixture would never diverge from
+    // the current setup function's expected output, which is the assumption
+    // both observed flake shapes broke: a leftover directory from a prior
+    // process run, or one mutated by an upstream test, would get silently
+    // adopted with no re-setup.
     testDir = isDefaultSetup
       ? resolve(
           __dirname,
@@ -139,25 +149,19 @@ export async function getSharedBuild(
           __dirname,
           `../fixtures/${options.dir ?? "shared"}/${sharedTestName}`
         );
-    // if directory already exists, skip setup
-    try {
-      await access(testDir);
-      setupCache.set(setupKey, testDir);
-    } catch (error) {
-      // directory does not exist, create it
-      await mkdir(testDir, { recursive: true });
-      
-      // Setup project files
-      if (options.setupProject) {
-        await options.setupProject(testDir);
-      } else {
-        await setupTestProject(testDir);
-      }
 
-      // Cache the setup result
-      setupCache.set(setupKey, testDir);
+    // Wipe any leftover state from a previous process run. `force: true`
+    // makes this a no-op when the directory doesn't exist yet.
+    await rm(testDir, { recursive: true, force: true });
+    await mkdir(testDir, { recursive: true });
+
+    if (options.setupProject) {
+      await options.setupProject(testDir);
+    } else {
+      await setupTestProject(testDir);
     }
 
+    setupCache.set(setupKey, testDir);
   }
 
   // Extract setup options (excluding them from plugin options)
