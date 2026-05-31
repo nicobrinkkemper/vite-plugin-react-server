@@ -28,6 +28,7 @@ const acornParse = (src: string): Program =>
 describe("detectClientModule (unified client-module detector)", () => {
   describe("filename pattern (no source)", () => {
     it.each([
+      // Dotted suffix convention.
       "components/Counter.client.tsx",
       "components/Counter.client.ts",
       "components/Counter.client.jsx",
@@ -36,6 +37,13 @@ describe("detectClientModule (unified client-module detector)", () => {
       "components/Counter.client.cjs",
       "components/Counter.client.mts",
       "components/Counter.client.cts",
+      // Standalone-basename convention — common app-entry filename.
+      "client.tsx",
+      "src/client.tsx",
+      "src/client.ts",
+      "src/client.jsx",
+      "src/client.js",
+      "src/client.mjs",
     ])("recognises %s", (moduleId) => {
       expect(detectClientModule({ moduleId })).toBe(true);
     });
@@ -44,7 +52,9 @@ describe("detectClientModule (unified client-module detector)", () => {
       "components/Counter.tsx",
       "src/lib/clientId.ts", // substring "client" must NOT trigger
       "components/clientCode.tsx",
+      "src/lib/clientUtils.ts", // substring with letter prefix must NOT trigger
       "src/client/foo.ts", // directory named "client" must NOT trigger
+      "src/clients.tsx", // "client" followed by other letters must NOT trigger
       "src/page/page.tsx",
     ])("does not flag %s by filename alone", (moduleId) => {
       expect(detectClientModule({ moduleId })).toBe(false);

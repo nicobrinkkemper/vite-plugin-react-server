@@ -3,13 +3,24 @@ import { sourceHasTopLevelClientDirective } from "./sourceHasTopLevelClientDirec
 import type { Program } from "acorn";
 
 /**
- * Filename convention for client modules: `.client.` followed by a JS-family
- * extension (`.tsx/.ts/.jsx/.js/.mjs/.cjs/.mts/.cts`). Strict — a path that
- * merely contains the substring "client" elsewhere (e.g. `src/lib/clientId.ts`,
- * `src/client/foo.ts`) is not matched by this pattern; the directive check is
- * the other way a module qualifies.
+ * Filename convention for client modules. Matches a JS-family extension
+ * (`.tsx/.ts/.jsx/.js/.mjs/.cjs/.mts/.cts`) on either:
+ *   - the dotted suffix convention (`Foo.client.tsx`, `bar.client.mjs`), or
+ *   - the standalone basename `client.tsx`/`.ts`/etc. when it sits at the
+ *     start of a path or directly after a directory separator
+ *     (`src/client.tsx`, `client.tsx`).
+ *
+ * The leading-`(^|[\/.])` anchor is what keeps this strict — substrings like
+ * `clientId.ts`, `clientUtils.tsx`, or `src/lib/clientHelpers.ts` are NOT
+ * matched, because the character before "client" must be start-of-string,
+ * a path separator, or a dot, not a letter.
+ *
+ * The standalone-basename branch covers the common app-entry convention of
+ * naming the client bundle entry `client.tsx`; without it, a project using
+ * that name would not be classified as client by filename and any CSS or
+ * asset imports from that entry would silently not reach the client bundle.
  */
-const CLIENT_FILENAME_PATTERN = /\.client\.[cm]?[jt]sx?$/;
+const CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/;
 
 export type ParseFn = (
   source: string,
