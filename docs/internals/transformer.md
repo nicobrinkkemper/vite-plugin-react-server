@@ -102,14 +102,14 @@ The filename half of the classifier:
 const CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/;
 ```
 
-Widened in 1.11.1 to cover the standalone basename `client.tsx` in addition to the dotted-suffix convention (`Foo.client.tsx`). The leading-`(^|[\/.])` anchor keeps it strict — `clientUtils.ts` is not matched.
+Matches the dotted-suffix convention (`Foo.client.tsx`) and the standalone basename `client.tsx`. The leading-`(^|[\/.])` anchor keeps it strict — `clientUtils.ts` is not matched.
 
 ## Auto-Discovery Patterns
 
 The build pulls client modules from two discoverers chained into one input record (see `docs/internals/architecture.md` for the full pipeline):
 
 - `createGlobAutoDiscover("**/*.client.*")` — filename convention.
-- `createDirectiveClientAutoDiscover()` (added 1.10.0, `plugin/config/autoDiscover/createDirectiveClientAutoDiscover.ts`) — directive-only modules. Walks `moduleBase`, skips `node_modules`, skips files already covered by the filename convention, then admits files where `sourceHasTopLevelClientDirective(source)` returns `true`. Also skips any file referenced by `<projectRoot>/index.html` `<script type="module" src>` to avoid clobbering Vite's own `index.html` manifest entry (1.11.2).
+- `createDirectiveClientAutoDiscover()` (`plugin/config/autoDiscover/createDirectiveClientAutoDiscover.ts`) — directive-only modules. Walks `moduleBase`, skips `node_modules`, skips files already covered by the filename convention, then admits files where `sourceHasTopLevelClientDirective(source)` returns `true`. Also skips any file referenced by `<projectRoot>/index.html` `<script type="module" src>` so Vite's own `index.html` manifest entry isn't deduplicated away — `processCssFilesForPages` reads global CSS off that entry.
 
 Other pattern matchers used elsewhere in the build:
 

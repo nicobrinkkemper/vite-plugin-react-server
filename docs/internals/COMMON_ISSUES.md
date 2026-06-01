@@ -98,18 +98,6 @@ Default Vitest timeout (5s) may be too short for build tests:
 npx vitest ./test/examples/build --timeout 60000
 ```
 
-## AutoDiscover / Manifest Issues
-
-### Missing Global CSS in Built HTML (pre-1.11.2 regression)
-
-**Symptoms**: Built HTML pages render without fonts, `globalStyles.client.css`, or any `<link rel="stylesheet">` originally injected through the `index.html` entry. The static manifest's `index.html` lookup returns `{}`.
-
-**Root cause**: `createDirectiveClientAutoDiscover` (in 1.10.0 / 1.10.1) walked every `"use client"` file under `moduleBase` and added it as an explicit input — including `src/client.tsx`, which is also the conventional `<script type="module" src>` target in `index.html`. Vite drops its own `index.html` manifest entry when an explicit input overlaps with one of its script srcs, so `collectManifestCss(staticManifest, "index.html")` in `plugin/react-static/processCssFilesForPages.ts:34` returned an empty record and global CSS dropped out of every page.
-
-**Fix (1.11.2)**: `createDirectiveClientAutoDiscover` now parses `<projectRoot>/index.html` once at discovery time and skips any candidate matching a `<script type="module" src="…">` entry. See `plugin/config/autoDiscover/createDirectiveClientAutoDiscover.ts:10-24, 60-79`. Vite continues to discover those modules via its own index.html input.
-
-**If this recurs**: check whether a new code path adds `src/client.tsx` (or whatever the index.html script src resolves to) as an explicit Rollup input without going through `createDirectiveClientAutoDiscover`. Any input that overlaps an `index.html` script src will re-trigger the same manifest deduplication.
-
 ## Directive Errors
 
 ### Client Component Not Transformed
