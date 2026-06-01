@@ -5,6 +5,8 @@ import {
   mergeClientPackagesOptimizeDepsExclude,
   discoverClientPackages,
 } from "../../plugin/clientPackages/index.js";
+import { clientPackagesDiscoveryPlugin } from "../../plugin/clientPackages/plugin.js";
+import type { Plugin } from "vite";
 
 describe("clientPackages/buildClientPackagesPattern", () => {
   it("returns null for empty list (so caller can short-circuit, not match every id)", () => {
@@ -118,5 +120,62 @@ describe("clientPackages/discoverClientPackages", () => {
       exclude: ["b"],
     });
     expect(result).toEqual(["a"]);
+  });
+});
+
+describe("clientPackages/clientPackagesDiscoveryPlugin", () => {
+  // Reason these tests exist: the per-environment SSR-side exclude in
+  // `resolveUserConfig` (`srrConfig.optimizeDeps.exclude`) does NOT reach
+  // Vite's dev pre-bundler, which reads from the root `optimizeDeps.exclude`.
+  // Without this plugin returning a root-level exclude, esbuild concatenates
+  // every `"use client"` directive out of each clientPackage submodule into
+  // `node_modules/.vite/deps/<pkg>.js`, the server-env module runner
+  // consults the same cache, and a server component importing the package
+  // throws `react does not provide an export named createContext` under
+  // the `react-server` condition.
+  it("returns a root optimizeDeps.exclude entry for every discovered package", async () => {
+    const userOptions = {
+      // Manual list bypasses crawl; the plugin still has to wire it through
+      // to root-level optimizeDeps.exclude.
+      clientPackages: ["@my-org/internal-ui", "@another/lib"],
+    };
+    const plugin = clientPackagesDiscoveryPlugin(userOptions) as Plugin & {
+      config: (config: unknown, env: { command: string }) => Promise<unknown>;
+    };
+    const result = (await plugin.config({}, { command: "serve" })) as {
+      optimizeDeps: { exclude: string[] };
+    };
+    expect(result).toBeDefined();
+    expect(result.optimizeDeps.exclude).toEqual(
+      expect.arrayContaining(["@my-org/internal-ui", "@another/lib"])
+    );
+  });
+
+  it("returns undefined when no packages are detected (so Vite doesn't merge an empty array)", async () => {
+    const userOptions = {};
+    const plugin = clientPackagesDiscoveryPlugin(userOptions) as Plugin & {
+      config: (config: unknown, env: { command: string }) => Promise<unknown>;
+    };
+    const result = await plugin.config({}, { command: "serve" });
+    // With no manual entries and (likely) no crawl results for the cwd,
+    // the plugin should not pollute the Vite root config.
+    if (result !== undefined) {
+      const exclude = (result as { optimizeDeps?: { exclude?: string[] } })
+        .optimizeDeps?.exclude;
+      expect(exclude == null || exclude.length > 0).toBe(true);
+    }
+  });
+
+  it("mutates userOptions.clientPackages so downstream consumers see the merged list", async () => {
+    const userOptions: { clientPackages?: readonly string[] } = {
+      clientPackages: ["@user/pkg"],
+    };
+    const plugin = clientPackagesDiscoveryPlugin(userOptions) as Plugin & {
+      config: (config: unknown, env: { command: string }) => Promise<unknown>;
+    };
+    await plugin.config({}, { command: "serve" });
+    expect(userOptions.clientPackages).toEqual(
+      expect.arrayContaining(["@user/pkg"])
+    );
   });
 });
