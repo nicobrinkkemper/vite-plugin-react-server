@@ -4,9 +4,8 @@ vprs has accumulated about seven different ways to tell the bundler "make
 this import behave differently". They aren't really alternatives — each one
 solves a slightly different problem at a different layer of the Vite/Rollup
 pipeline. Picking the wrong one usually compiles fine and breaks at runtime,
-sometimes only in a build the dev server never exercises (which is how
-[PR #57](https://github.com/nicobrinkkemper/vite-plugin-react-server/pull/57)
-happened). This page is the map.
+sometimes only in a build the dev server never exercises. This page is the
+map.
 
 ## The quick decision
 
@@ -20,9 +19,8 @@ internally, so user config keeps writing the legacy form.
 
 If the import is a `virtual:*` URL or any specifier no runtime provides, you
 need a `resolveId` + `load` plugin to synthesise the contents. That's the
-"stub" pattern PR #57 introduced — the worked example below walks through
-why externalizing a virtual URL was the wrong instinct and why a stub was
-right.
+"stub" pattern — the worked example below walks through why externalizing a
+virtual URL was the wrong instinct and why a stub is right.
 
 If the package is a real `node_modules` dep whose per-file `"use client"`
 directives must reach vprs's transformer, you need **both**
@@ -62,7 +60,7 @@ The trap is reaching for it when the specifier doesn't actually exist at
 runtime. A `virtual:*` URL has no provider on the consumer; externalizing
 it just leaves a literal `import "virtual:..."` in the static bundle, and
 the browser tries to fetch the `virtual:` URL as if it were a path. That's
-the PR #57 bug, walked through under item 6.
+the virtual-externalization bug, walked through under item 6.
 
 **Failure mode.** Build succeeds, runtime fails. With `virtual:` URLs the
 failure is loud and unambiguous:
@@ -249,7 +247,7 @@ that makes the resolution path opaque to other plugins.
 resolved ID that no other plugin knows how to handle. Rollup errors with
 `Could not resolve "<id>"`.
 
-#### Worked example: PR #57
+#### Worked example: externalizing a virtual URL
 
 The Storybook preset's first version added `virtual:react-server/hmr` to
 `build.rollupOptions.external`:
@@ -274,7 +272,7 @@ told Rollup "leave it alone", so the static bundle shipped a literal
 to fetch the `virtual:` URL as if it were a path, hit a protocol error,
 and `<div id="root"></div>` never populated.
 
-The fix in PR #57 replaces the external entry with a stub plugin:
+The fix replaces the external entry with a stub plugin:
 
 ```ts
 function stubVirtualRscHmr(): Plugin {
@@ -400,9 +398,9 @@ Need to change how an import resolves?
 
 ## Common mistakes
 
-**Externalizing a `virtual:*` URL.** The PR #57 failure. `external` means
-"runtime provides this", and a `virtual:*` URL has no provider unless a
-Vite plugin synthesises it. Fix: virtual-stub plugin (item 6).
+**Externalizing a `virtual:*` URL.** `external` means "runtime provides
+this", and a `virtual:*` URL has no provider unless a Vite plugin
+synthesises it. Fix: virtual-stub plugin (item 6).
 
 **`optimizeDeps.include`-ing a vendor-aliased package.** esbuild runs
 include resolution outside Vite's plugin pipeline, so the alias doesn't

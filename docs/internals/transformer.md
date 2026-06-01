@@ -91,11 +91,30 @@ Directive is removed. Code is otherwise unchanged (minified in static build).
 
 Server actions are excluded entirely.
 
+## Client-Module Classification
+
+The transformer never re-implements directive detection. It calls `detectClientModule({ source, moduleId, parseFn: this.parse })` from `plugin/loader/directives/detectClientModule.ts` — the single source of truth shared with the dev-server file watcher, the worker react-loader, build auto-discover, and the configurable `loader.*` defaults. The `parseFn` argument lets the transformer use Rollup's AST; the other call sites fall through to the parser-free `sourceHasTopLevelClientDirective` scanner. Both paths agree on every well-authored case.
+
+The filename half of the classifier:
+
+```ts
+// plugin/loader/directives/detectClientModule.ts:23
+const CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/;
+```
+
+Matches the dotted-suffix convention (`Foo.client.tsx`) and the standalone basename `client.tsx`. The leading-`(^|[\/.])` anchor keeps it strict — `clientUtils.ts` is not matched.
+
 ## Auto-Discovery Patterns
+
+The build pulls client modules from two discoverers chained into one input record (see `docs/internals/architecture.md` for the full pipeline):
+
+- `createGlobAutoDiscover("**/*.client.*")` — filename convention.
+- `createDirectiveClientAutoDiscover()` (`plugin/config/autoDiscover/createDirectiveClientAutoDiscover.ts`) — directive-only modules. Walks `moduleBase`, skips `node_modules`, skips files already covered by the filename convention, then admits files where `sourceHasTopLevelClientDirective(source)` returns `true`. Also skips any file referenced by `<projectRoot>/index.html` `<script type="module" src>` so Vite's own `index.html` manifest entry isn't deduplicated away — `processCssFilesForPages` reads global CSS off that entry.
+
+Other pattern matchers used elsewhere in the build:
 
 ```ts
 const patterns = {
-  clientPattern: /\.client\.(js|ts|jsx|tsx)$/,
   serverPattern: /\.server\.(js|ts|jsx|tsx)$/,
   pagePattern: /[Pp]age\.(js|ts|jsx|tsx)$/,
   propsPattern: /[Pp]rops\.(js|ts|jsx|tsx)$/,

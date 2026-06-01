@@ -94,6 +94,10 @@ Custom workers must implement the same message protocol. They become part of you
 | `CHUNK_PROCESSED` | success | RSC chunk acknowledged |
 | `ERROR` | error, errorInfo? | Error occurred |
 
+## Worker Termination Ordering
+
+Build cleanup in `plugin/react-static/plugin.client.ts` and `plugin/react-static/plugin.server.ts` `await worker.terminate()` inside the `finally` block, after the cooperative `SHUTDOWN` protocol times out or completes. The `await` is load-bearing: without it, libuv-level handles for file reads/writes the worker had in flight at exit can fire AFTER `doBuild` restores `cwd`, producing post-teardown `ENOENT` errors against relative paths the worker resolved while `cwd` was the test fixture root. If you add a new build path that spawns a worker, mirror the same `try { SHUTDOWN } catch {} finally { await worker.terminate() }` shape.
+
 ## Timeout Configuration
 
 | Option | Default | Purpose |
