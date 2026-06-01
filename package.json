@@ -373,7 +373,8 @@
     "experimental:patch-react": "npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs",
     "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\"",
     "precoverage": "npm run build",
-    "coverage": "npm run test:coverage"
+    "coverage": "npm run test:coverage",
+    "test:dev:both": "bash scripts/test-dev-both-modes.sh"
   },
   "keywords": [
     "vite",
