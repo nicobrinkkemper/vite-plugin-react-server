@@ -134,7 +134,7 @@ noise. See [Storybook](./docs/storybook.md) for details. (Requires vprs ≥ 1.9.
 
 ## Requirements
 
-- Node.js 23.7.0+
+- Node.js 22.0.0+ (the build uses `node:fs/promises#glob`, which landed in 22)
 - React experimental channel (`react@experimental` / `react-dom@experimental`). Stable React 19.x is **not yet supported** — the vendored `react-server-dom-esm` reads `TaintRegistryPendingRequests` from React's server internals, and the taint registry is only exposed on the experimental channel today. See [React Compatibility](./docs/react-type-compatibility.md) for the full story; stable support is tracked separately and is gated on upstream React landing the taint API in the stable build.
 - Vite 6+
 
