@@ -26,8 +26,6 @@ export const { React, ReactDOMServer } = await import(
 
 This is load-bearing. Vite's dynamic-import helper analyzes the template literal, bundles **both** candidate files, and picks at runtime — so it satisfies bundling without forcing a static link. The interpolated string is required; a plain string makes Vite resolve it eagerly. Prefer splitting + conditional exports over this pattern, but don't replace this pattern with static imports of one side.
 
-A 2026-04 change ("remove all top-level await wrappers") removed exactly this fallback under the assumption that conditional exports replace it. They don't, because static aggregators bypass them. That's tracked under `bd-6pi`.
-
 ## The publishing protocol — non-negotiable
 
 Before any `npm publish`, you must verify the in-tree build against the **linked** demo repos. The published-package smoke (`npx playwright test`) by itself is not enough — it runs against whatever is in `dist/`, but does not catch regressions that only fire when the package is consumed via `file:..` from a real downstream app whose conditions, exports, and resolver state differ.
@@ -80,7 +78,7 @@ This repo is part of a personal monorepo-of-siblings. Local installs only:
 
 ## Git
 
-- Conventional commits with the bd reference: `<type>(bd-<id>): <subject>`. Examples: `fix(bd-6pi): split config/index.ts into server/client halves`, `feat(bd-qvz): add examples/hello-world runnable RSC starter`.
+- Conventional commits with the bd reference: `<type>(bd-<id>): <subject>`.
 - New commits, not amends, unless explicitly asked.
 - Don't push or open PRs without explicit user say-so. The user runs the publish step (2FA).
 
