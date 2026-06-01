@@ -32,8 +32,8 @@ export function processCssFilesForPages({
   const cssFilesByPage = new Map();
 
   // Collect the global styles reachable from the project's client entry.
-  // Try the manifest's `"index.html"` key first; if absent, read the
-  // index.html on disk and walk from its script-module src instead.
+  // Try the manifest's `"index.html"` key first; if absent, walk every
+  // `<script type="module" src>` in the on-disk index.html.
   let indexHtmlCssInputs = collectManifestCss(
     staticManifest ?? {},
     "index.html"
@@ -42,12 +42,10 @@ export function processCssFilesForPages({
     Object.keys(indexHtmlCssInputs).length === 0 &&
     userOptions.projectRoot
   ) {
-    const fallbackEntry = resolveIndexHtmlClientEntry(userOptions.projectRoot);
-    if (fallbackEntry) {
-      indexHtmlCssInputs = collectManifestCss(
-        staticManifest ?? {},
-        fallbackEntry,
-      );
+    const fallbackEntries = resolveIndexHtmlClientEntry(userOptions.projectRoot);
+    for (const entry of fallbackEntries) {
+      const fromEntry = collectManifestCss(staticManifest ?? {}, entry);
+      indexHtmlCssInputs = { ...indexHtmlCssInputs, ...fromEntry };
     }
   }
   const clientEntryCssInputs = userOptions.clientEntry
