@@ -45,11 +45,7 @@ node --import vite-plugin-react-server/register ./your-script.mjs
 
 ### Updating the Vendored Copy
 
-Plugin maintainers can refresh from React source:
-
-```bash
-npm run experimental:build-oss
-```
+The transport is built and vendored by [`react-server-loader`](https://github.com/nicobrinkkemper/react-server-loader). Refresh from React source by running its build script — see that package's docs for the per-React-version build workflow.
 
 ## Type System
 
