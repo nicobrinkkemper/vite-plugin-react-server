@@ -106,14 +106,20 @@ test.beforeAll(async () => {
 }, 90_000);
 
 test.afterAll(async () => {
-  if (server && !server.killed) {
-    server.kill("SIGTERM");
-    await new Promise<void>((r) => {
-      const t = setTimeout(() => r(), 2000);
-      server!.once("exit", () => {
-        clearTimeout(t);
-        r();
-      });
+  // See dev-ssr-css-hmr.spec.ts for the rationale. `server.killed` only
+  // tracks "did kill() get called"; rely on the `exit` event with a
+  // SIGKILL escalation so a stuck vite child can't outlive the test
+  // suite and orphan into the agent session.
+  if (server && server.exitCode === null && server.signalCode === null) {
+    await new Promise<void>((resolve) => {
+      const onExit = () => resolve();
+      server!.once("exit", onExit);
+      server!.kill("SIGTERM");
+      setTimeout(() => {
+        if (server && server.exitCode === null && server.signalCode === null) {
+          server.kill("SIGKILL");
+        }
+      }, 2000);
     });
   }
 });
