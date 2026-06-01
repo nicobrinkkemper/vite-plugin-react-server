@@ -95,6 +95,40 @@ NODE_OPTIONS='--conditions react-server' vite build --app
 
 Builds run in sequence. Each step depends on artifacts from the previous step. Hashes are consistent across all three environments.
 
+## Client-Module AutoDiscovery
+
+The build's client-module input set is the composition of two discoverers, run in order against the same `inputs` record:
+
+| Discoverer | Source file | What it picks up |
+|------------|-------------|------------------|
+| `createGlobAutoDiscover("**/*.client.*")` | `plugin/config/autoDiscover/createGlobAutoDiscover.ts` | Filename-convention modules (`Foo.client.tsx`, `Bar.client.mjs`, standalone `client.tsx`) |
+| `createDirectiveClientAutoDiscover()` (1.10.0+) | `plugin/config/autoDiscover/createDirectiveClientAutoDiscover.ts` | Directive-only modules — files under `moduleBase` whose source starts with `"use client"` |
+
+The directive discoverer walks `**/*.{tsx,jsx,mts,cts,ts,js,mjs,cjs}` under `moduleBase`, skips `node_modules`, skips files the filename convention already covers, and admits the rest only when `sourceHasTopLevelClientDirective(source)` returns `true`. Without this second pass a plain `Counter.tsx` starting with `"use client"` would never reach `dist/client`, and the server build's `registerClientReference` would point at a missing file.
+
+### index.html script-src filter (1.11.2)
+
+The directive discoverer also reads `<projectRoot>/index.html` once at discovery time and skips any candidate file whose absolute path matches a `<script type="module" src="…">` entry. This is required because:
+
+1. `processCssFilesForPages` (`plugin/react-static/processCssFilesForPages.ts:34`) calls `collectManifestCss(staticManifest, "index.html")` to derive global CSS for every page.
+2. Vite drops the `index.html` manifest entry when an explicit input overlaps with one of its `<script type="module" src>` references.
+3. Pre-1.11.2, the discoverer added `src/client.tsx` as an explicit input, Vite deduped its own `index.html` entry, and the manifest lookup returned `{}` — no global CSS, no fonts, no `globalStyles`.
+
+Vite still picks up the script-src module via its own index.html input. The filter just keeps the discoverer's `inputs` record from colliding with it. See `createDirectiveClientAutoDiscover.ts:10-24, 60-79`.
+
+## Client-Module Detection
+
+Auto-discovery decides which files become build inputs. Runtime classification (transformer, dev-server file watcher, worker react-loader, build auto-discover, `loader.*` defaults) all route through one helper:
+
+```ts
+// plugin/loader/directives/detectClientModule.ts
+detectClientModule({ source, moduleId, parseFn? }): boolean
+```
+
+The transformer passes Rollup's `this.parse` for AST-aware directive analysis. The other call sites omit it and fall back to the parser-free char-scanner in `sourceHasTopLevelClientDirective.ts`. Both paths agree on every well-authored case.
+
+The filename half — `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` — was widened in 1.11.1 (PR #68) to cover both the dotted-suffix convention and the standalone basename `client.tsx`/`.ts`/etc. The leading-`(^|[\/.])` anchor keeps it strict: `clientUtils.ts` is NOT matched.
+
 ## Worker Communication
 
 Workers use `worker_threads` with a message-based protocol:

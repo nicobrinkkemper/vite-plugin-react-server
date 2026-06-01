@@ -138,12 +138,25 @@ export { add };
 
 ### Transformation Rules
 
-1. **Client Components**: Must be explicitly marked with `'use client'` or identified by filename convention (`.client.tsx`)
-2. **Server Components**: Default behavior, no special marking needed
-3. **Server Actions**: Must be marked with `'use server'` at file or function level
-4. **Environment-specific**: Transformations only occur in server environment (`react-server` condition)
-5. **Directive-based**: Transformations are triggered by React RSC directives (`'use client'`, `'use server'`)
-6. **Fallback handling**: Client components without directives are identified by filename pattern (`.client.tsx`) in the server environment. Note: no warning is emitted — consider adding `"use client"` explicitly for clarity
+1. **Client Components**: Marked with `"use client"` at the top of the file, OR matched by `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` (covers `Foo.client.tsx` and standalone `client.tsx`, widened in 1.11.1 / PR #68).
+2. **Server Components**: Default behavior, no special marking needed.
+3. **Server Actions**: Marked with `"use server"` at file or function level.
+4. **Environment-specific**: Transformations only occur in server environment (`react-server` condition).
+5. **Directive-based**: Transformations are triggered by React RSC directives (`"use client"`, `"use server"`).
+6. **Single classifier**: Every "is this a client module?" decision routes through `detectClientModule({ source, moduleId, parseFn? })` in `plugin/loader/directives/detectClientModule.ts`. The transformer passes Rollup's `this.parse` for AST analysis; the dev-server file watcher, worker react-loader, build auto-discover, and `loader.*` defaults use the parser-free fallback. Do not introduce a parallel "looks like a client module" check — feed `detectClientModule`.
+
+### Client-Module AutoDiscovery
+
+Two discoverers compose into the build's client input set:
+
+| Discoverer | File | Picks up |
+|------------|------|----------|
+| `createGlobAutoDiscover("**/*.client.*")` | `plugin/config/autoDiscover/createGlobAutoDiscover.ts` | Filename-convention modules |
+| `createDirectiveClientAutoDiscover()` (1.10.0+) | `plugin/config/autoDiscover/createDirectiveClientAutoDiscover.ts` | Directive-only modules under `moduleBase` |
+
+The directive discoverer walks `**/*.{tsx,jsx,mts,cts,ts,js,mjs,cjs}`, skips `node_modules`, skips files already covered by the filename convention, then admits files where `sourceHasTopLevelClientDirective(source)` returns `true`.
+
+**index.html script-src filter (1.11.2)**: the directive discoverer also reads `<projectRoot>/index.html` once and skips any candidate matching a `<script type="module" src="…">` entry. Without this, Vite drops its own `index.html` manifest entry when an explicit input collides — and `collectManifestCss(staticManifest, "index.html")` in `plugin/react-static/processCssFilesForPages.ts:34` returns `{}`, killing global CSS for every page. See `createDirectiveClientAutoDiscover.ts:60-79`.
 
 ## 🏭 Worker System Architecture
 
