@@ -24,6 +24,19 @@ interface ClientPackagesUserOptions {
  * `createEnvironmentPlugin`'s, so by the time `resolveUserConfig` reads
  * `userOptions.clientPackages` for the noExternal merge, the auto-detected
  * packages are already in the list.
+ *
+ * Returns a partial Vite config that adds the merged list to the **root**
+ * `optimizeDeps.exclude`. The per-environment SSR-side exclude in
+ * `resolveUserConfig` covers `srrConfig.optimizeDeps.exclude` only — that
+ * never reaches Vite's dev pre-bundler, which reads from the root config.
+ * Without this, esbuild concatenates every `"use client"` directive out of
+ * each clientPackage submodule into `node_modules/.vite/deps/<pkg>.js`, the
+ * server-env module runner consults the same cache when resolving the
+ * package, and vprs's transformer never sees the directives to convert
+ * them into `registerClientReference` — a server component importing
+ * `@chakra-ui/react` (or any other auto-detected client package) then
+ * crashes the dev server with `react does not provide an export named
+ * createContext` under the `react-server` condition.
  */
 export const clientPackagesDiscoveryPlugin = (
   userOptions: ClientPackagesUserOptions & Record<string, unknown>
@@ -39,7 +52,12 @@ export const clientPackagesDiscoveryPlugin = (
         logger: userOptions.verbose ? createLogger("warn") : undefined,
       });
       userOptions.clientPackages = merged;
-      return undefined;
+      if (merged.length === 0) return undefined;
+      return {
+        optimizeDeps: {
+          exclude: [...merged],
+        },
+      };
     },
   };
 };
