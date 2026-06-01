@@ -6,6 +6,7 @@ import type {
 import type { Logger, Manifest } from "vite";
 import { collectManifestCss } from "../helpers/collectManifestCss.js";
 import { createUnifiedCssProcessor } from "../helpers/createUnifiedCssProcessor.js";
+import { resolveIndexHtmlClientEntry } from "../helpers/resolveIndexHtmlClientEntry.js";
 import { join } from "node:path";
 
 interface ProcessCssFilesForPagesOptions {
@@ -30,11 +31,30 @@ export function processCssFilesForPages({
 } {
   const cssFilesByPage = new Map();
 
-  // First collect global styles from index.html
-  const indexHtmlCssInputs = collectManifestCss(
+  // First collect global styles from index.html. When Vite emits a
+  // manifest entry keyed `"index.html"`, this returns its transitive css
+  // directly. Otherwise — for example after the directive-client
+  // autoDiscover causes another input to already cover the index.html
+  // script — fall back to reading the project's index.html on disk,
+  // extracting its `<script type="module" src="…">` value, and walking
+  // the manifest from there. That key (e.g. `src/client.tsx`) holds the
+  // same transitive css set the missing `"index.html"` entry would have.
+  let indexHtmlCssInputs = collectManifestCss(
     staticManifest ?? {},
     "index.html"
   );
+  if (
+    Object.keys(indexHtmlCssInputs).length === 0 &&
+    userOptions.projectRoot
+  ) {
+    const fallbackEntry = resolveIndexHtmlClientEntry(userOptions.projectRoot);
+    if (fallbackEntry) {
+      indexHtmlCssInputs = collectManifestCss(
+        staticManifest ?? {},
+        fallbackEntry,
+      );
+    }
+  }
   const clientEntryCssInputs = userOptions.clientEntry
     ? collectManifestCss(
         staticManifest ?? {},
