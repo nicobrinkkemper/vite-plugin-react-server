@@ -1,7 +1,7 @@
 import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
-import { parse } from "../loader/parse.js";
-import { detectClientModule } from "../loader/directives/detectClientModule.js";
+import { parse } from "react-server-loader/transformer";
+import { detectClientModule } from "react-server-loader/directives";
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";

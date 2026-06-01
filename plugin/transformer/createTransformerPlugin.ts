@@ -14,7 +14,7 @@ import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
-import { detectClientModule } from "../loader/directives/detectClientModule.js";
+import { detectClientModule } from "react-server-loader/directives";
 
 export interface TransformerPluginOptions {
   name: string;

@@ -1,6 +1,6 @@
 
 
-import type { AllowedDirectiveInput, AllowedDirectives, DirectiveConfig } from "../loader/directives/types.js";
+import type { AllowedDirectiveInput, AllowedDirectives, DirectiveConfig } from "react-server-loader/directives";
 
 
 /**

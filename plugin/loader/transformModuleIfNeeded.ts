@@ -1,7 +1,7 @@
 import type { RawSourceMap } from "source-map";
 import { createTransformer } from "./createTransformer.js";
 import type { TransformOptions } from "./types.js";
-import { parse } from "./parse.js";
+import { parse } from "react-server-loader/transformer";
 
 // --- React RSC Directive Handling ---
 //

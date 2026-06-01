@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hasFileLevelClientDirective,
   sourceHasTopLevelClientDirective,
-} from "vite-plugin-react-server/directives";
+} from "react-server-loader/directives";
 import { augmentClientReferenceError } from "vite-plugin-react-server/error";
 
 describe("directive-detected client modules", () => {

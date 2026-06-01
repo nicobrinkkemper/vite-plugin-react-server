@@ -1,6 +1,6 @@
 import { createTransformer } from "./createTransformer.js";
 import type { RawSourceMap } from "source-map";
-import { parse } from "./parse.js";
+import { parse } from "react-server-loader/transformer";
 import type { TransformOptions } from "./types.js";
 
 export type TransformWithAcornLooseFn = (

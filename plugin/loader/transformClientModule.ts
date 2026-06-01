@@ -1,4 +1,4 @@
-import type { ParseResult } from "./directives/types.js";
+import type { ParseResult } from "react-server-loader/directives";
 import { createSourceMap } from "./sourceMap.js";
 import type { LoaderConfig, TransformResult } from "./types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";

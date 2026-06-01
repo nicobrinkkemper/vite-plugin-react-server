@@ -1,8 +1,8 @@
 import { describe, test, expect } from "vitest";
-import { createTransformer } from "vite-plugin-react-server/loader";
+import { createTransformer } from "react-server-loader/directives";
 import { DEFAULT_LOADER_CONFIG } from "vite-plugin-react-server/config";
-import type { LoaderConfig } from "vite-plugin-react-server/loader";
-import { parse } from "vite-plugin-react-server/loader";
+import type { LoaderConfig } from "react-server-loader/directives";
+import { parse } from "react-server-loader/directives";
 
 // Helper function to create complete LoaderConfig objects
 const createLoaderConfig = (

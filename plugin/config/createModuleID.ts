@@ -2,7 +2,7 @@ import type { ResolvedUserOptions } from "../types.js";
 import { replaceExtension } from "./extMap.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import { detectClientModule } from "../loader/directives/detectClientModule.js";
+import { detectClientModule } from "react-server-loader/directives";
 import type { ConfigEnv } from "vite";
 import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";

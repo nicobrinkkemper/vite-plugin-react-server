@@ -2,7 +2,7 @@ import type { ResolvedUserOptions } from "../../types.js";
 import { glob, readFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { sourceHasTopLevelClientDirective } from "../../loader/directives/sourceHasTopLevelClientDirective.js";
+import { sourceHasTopLevelClientDirective } from "react-server-loader/directives";
 
 const MODULE_SCRIPT_SRC =
   /<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["']|<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*\btype=["']module["']/gi;

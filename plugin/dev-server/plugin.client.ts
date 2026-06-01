@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
-import { detectClientModule } from "../loader/directives/detectClientModule.js";
+import { detectClientModule } from "react-server-loader/directives";
 import type { ConfigEnv } from "vite";
 
 

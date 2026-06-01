@@ -10,7 +10,7 @@
  *
  * This ensures that implementation details are never leaked across boundaries and errors are easy to debug.
  */
-import type { ParseResult } from "./directives/types.js";
+import type { ParseResult } from "react-server-loader/directives";
 import { transformServerModule } from "./transformServerModule.js";
 import { transformClientModule } from "./transformClientModule.js";
 import type {

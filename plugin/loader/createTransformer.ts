@@ -1,9 +1,9 @@
 import { transformModule } from "./transformModule.js";
 import { transformNonServerEnvironment } from "./transformNonServerEnvironment.js";
 import { isReactServerCondition } from "../config/getCondition.js";
-import { analyzeModule } from "./directives/analyzeModule.js";
-import { findDirectiveMatches } from "./directives/findDirectiveMatches.js";
-import type { DirectiveMatch } from "./directives/types.js";
+import { analyzeModule } from "react-server-loader/directives";
+import { findDirectiveMatches } from "react-server-loader/directives";
+import type { DirectiveMatch } from "react-server-loader/directives";
 import type { TransformerFactory, TransformResult } from "./types.js";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";

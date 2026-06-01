@@ -1,5 +1,5 @@
 import type { RawSourceMap } from "source-map";
-import type { DirectiveWarning, ParseResult, Program, AllowedDirectives, ParsedExports } from "./directives/types.js";
+import type { DirectiveWarning, ParseResult, Program, AllowedDirectives, ParsedExports } from "react-server-loader/directives";
 import type { Logger } from "vite";
 import type { PanicThreshold } from "../types.js";
 

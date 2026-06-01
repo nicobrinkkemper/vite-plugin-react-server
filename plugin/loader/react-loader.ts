@@ -13,7 +13,7 @@ import type {
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
-import { detectClientModule } from "./directives/detectClientModule.js";
+import { detectClientModule } from "react-server-loader/directives";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import type { LoadHook, ResolveHook } from "node:module";
 import type { RawSourceMap } from "source-map";
