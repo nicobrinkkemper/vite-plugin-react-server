@@ -86,8 +86,6 @@ But Vite drops the `index.html` manifest entry when an explicit input overlaps w
 
 The fix (`createDirectiveClientAutoDiscover.ts:10-24, 60-79`): read `<projectRoot>/index.html` once at autoDiscover time, parse every `<script type="module" src="…">` value into a set of resolved-absolute paths, and skip any candidate file that matches. Vite continues to pick up those modules via its own index.html input; the manifest's `index.html` entry survives with its `css` array intact.
 
-Known gap: the script-src parser does NOT resolve Vite path aliases — `<script src="/@/client.tsx">` will not match the resolved `src/client.tsx` candidate. See `docs/internals/COMMON_ISSUES.md`.
-
 ## Working with workers
 
 The dev server uses two worker pools — RSC (under `react-server`) and HTML (under `react-client`). The opposite-condition worker is spawned with explicit `execArgv: ["--conditions", reverseCondition, ...]` (see `plugin/worker/createWorker.ts`). The intent: a process running under one condition can spawn a worker running under the other, and the plugin handles the condition flip transparently.

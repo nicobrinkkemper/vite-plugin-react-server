@@ -110,10 +110,6 @@ npx vitest ./test/examples/build --timeout 60000
 
 **If this recurs**: check whether a new code path adds `src/client.tsx` (or whatever the index.html script src resolves to) as an explicit Rollup input without going through `createDirectiveClientAutoDiscover`. Any input that overlaps an `index.html` script src will re-trigger the same manifest deduplication.
 
-### Known Constraint: Vite Path Aliases in `<script src>` Are Not Resolved
-
-The index.html script-src parser in `createDirectiveClientAutoDiscover` resolves paths against `projectRoot` literally — it does NOT consult Vite's `resolve.alias` config. An `index.html` that writes `<script type="module" src="/@/client.tsx">` will produce a script-src set that does not match the candidate's resolved path of `<projectRoot>/src/client.tsx`, the file will be added as an explicit input, and the manifest-CSS regression above will return. Use a literal relative path in `index.html` script srcs, or extend the parser to resolve aliases before treating this as a real codebase issue.
-
 ## Directive Errors
 
 ### Client Component Not Transformed
