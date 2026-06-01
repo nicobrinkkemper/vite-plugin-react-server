@@ -1,4 +1,10 @@
-import { createLogger, type ConfigEnv, type UserConfig } from "vite";
+import {
+  createLogger,
+  defaultClientConditions,
+  defaultServerConditions,
+  type ConfigEnv,
+  type UserConfig,
+} from "vite";
 import type {
   ResolvedUserConfig,
   ResolvedUserOptions,
@@ -476,6 +482,20 @@ export const resolveUserConfig: ResolveUserConfigFn =
         envPrefix: vitePrefix,
         resolve: {
           ...config.resolve,
+          // Per-environment conditions are the load-bearing fix for the
+          // dev-server case where the process was started with a global
+          // `--conditions react-server` (the conventional `dev:rsc` script).
+          // Without this explicit override, Node's module resolver sees
+          // `react-server` for every environment and the client graph
+          // pulls the `react-server` build of `react/jsx-runtime` — which
+          // does not export `jsx` / `jsxs` — and `@chakra-ui/react`-style
+          // packages' transitive CJS deps (`hoist-non-react-statics`,
+          // etc.) lose their interop shims because they get resolved
+          // through the SSR conditions path. Spelling the conditions out
+          // here scopes `react-server` to the server env only.
+          conditions: ssr
+            ? [...defaultServerConditions]
+            : [...defaultClientConditions],
           // For static builds (browser/ESM): don't externalize anything - bundle everything
           // For client/server builds (SSR): externalize React modules as usual
           external: ssr
@@ -597,6 +617,19 @@ export const resolveUserConfig: ResolveUserConfigFn =
         envPrefix: vitePrefix,
         resolve: {
           ...config.resolve,
+          // The server env owns the `react-server` condition. Spelling it
+          // out here (instead of relying on a process-wide
+          // `--conditions react-server` flag the caller set in
+          // `NODE_OPTIONS`) lets the client / ssr envs resolve the
+          // default React build of `react/jsx-runtime` in the same Vite
+          // process — which is what fixes the client interop regression
+          // surfaced when a client component imports a client package
+          // (Chakra, emotion, …) under a global `--conditions
+          // react-server` shell.
+          conditions: [
+            "react-server",
+            ...defaultServerConditions.filter((c) => c !== "react-server"),
+          ],
           externalConditions: config.resolve?.externalConditions ?? [
             "react-server",
           ],
