@@ -61,31 +61,6 @@ If a test fails, the default response is to make it pass by fixing the code. Dis
 
 "It only passes under `--conditions react-server`" is **not** an acceptable reason to gate a test in `test/dev/`. The whole point of the plugin is that it manages the condition for the consumer; if a test path requires the consumer to set the condition, that points at a missing piece of the plugin's worker/condition propagation, not at a test gating problem.
 
-## Client-module detection — one helper, every layer
-
-Every "is this a client module?" decision in this codebase routes through `detectClientModule({ source, moduleId, parseFn? })` in `plugin/loader/directives/detectClientModule.ts`. The transformer plugin passes Rollup's `this.parse` so it gets an AST-aware answer; the dev-server file watcher, the worker react-loader, build auto-discover, and the configurable `loader.*` defaults in `config/defaults.tsx` all hit the parser-free fallback path. Both paths agree on every well-authored case. Do not introduce a parallel "looks like a client module" check anywhere — feed `detectClientModule`.
-
-The filename half of the check is `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` (widened in 1.11.1, PR #68). It matches the dotted-suffix convention (`Foo.client.tsx`) AND the standalone basename `client.tsx` — the latter is the conventional name for the index.html script entry. Substrings like `clientUtils.ts` are deliberately not matched because the leading anchor requires start-of-string, `/`, or `.` before "client".
-
-## Client-module build inputs — two discoverers compose
-
-The build pulls client modules from two auto-discoverers chained into the input set:
-
-1. `createGlobAutoDiscover("**/*.client.*")` — filename-convention pickup, the original.
-2. `createDirectiveClientAutoDiscover()` (added 1.10.0, `plugin/config/autoDiscover/createDirectiveClientAutoDiscover.ts`) — walks `**/*.{tsx,jsx,mts,cts,ts,js,mjs,cjs}` under `moduleBase`, skips `node_modules`, skips files already covered by the `.client.` filename convention, then runs `sourceHasTopLevelClientDirective(source)` to admit directive-only client modules (a plain `Counter.tsx` starting with `"use client"`).
-
-Without (2), a directive-only module never reaches `dist/client`, the server build's `registerClientReference` points at a file that doesn't exist, and the html-worker's import 404's at SSG-render time.
-
-### Why directive-discover MUST filter by index.html `<script type="module">` srcs
-
-This is the 1.11.2 fix (PR #70) and the constraint is load-bearing.
-
-`processCssFilesForPages` (`plugin/react-static/processCssFilesForPages.ts:34`) calls `collectManifestCss(staticManifest, "index.html")` to derive the global CSS list for every page (fonts, `globalStyles.client.css`, etc). This depends on Vite's static manifest having an `index.html` entry with a populated `css` array.
-
-But Vite drops the `index.html` manifest entry when an explicit input overlaps with one of its `<script type="module" src>` references. Pre-1.11.2, `createDirectiveClientAutoDiscover` added every `"use client"` file under `moduleBase` — including `src/client.tsx`, the conventional script src — so Vite deduped its own `index.html` entry, the manifest lookup returned `{}`, no global CSS, fonts and `globalStyles` disappeared from rendered HTML.
-
-The fix (`createDirectiveClientAutoDiscover.ts:10-24, 60-79`): read `<projectRoot>/index.html` once at autoDiscover time, parse every `<script type="module" src="…">` value into a set of resolved-absolute paths, and skip any candidate file that matches. Vite continues to pick up those modules via its own index.html input; the manifest's `index.html` entry survives with its `css` array intact.
-
 ## Working with workers
 
 The dev server uses two worker pools — RSC (under `react-server`) and HTML (under `react-client`). The opposite-condition worker is spawned with explicit `execArgv: ["--conditions", reverseCondition, ...]` (see `plugin/worker/createWorker.ts`). The intent: a process running under one condition can spawn a worker running under the other, and the plugin handles the condition flip transparently.
