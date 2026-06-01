@@ -172,10 +172,12 @@ export const Page = () => (
 
 ### The `.client.` filename is optional
 
-A top-of-file `"use client"` directive is enough — the `.client.` filename
-suffix is **not** required. A first-party module that starts with
-`"use client"` is detected, hosted, and emitted as a client chunk in the
-static (`--app`) build exactly like a `.client.tsx` file:
+vprs recognises a file as a client module when **either** of these is true:
+
+- the filename matches `(^|[\/.])client\.[cm]?[jt]sx?$` — i.e. `Button.client.tsx`, `bar.client.mjs`, or the standalone basename `src/client.tsx` / `client.tsx`, or
+- the file starts with a top-of-file `"use client"` directive (leading whitespace, line/block comments, and an optional `"use strict"` prologue are tolerated above it).
+
+Either is sufficient. Substrings like `clientUtils.tsx`, `clientId.ts`, or `clients.tsx` are **not** treated as client modules, and a `"use client"` directive placed after real code does not count.
 
 ```tsx
 // src/components/Counter.tsx  ← no `.client.` suffix
@@ -194,10 +196,15 @@ import { Counter } from "./components/Counter.js";
 // ...renders <Counter /> as a client reference
 ```
 
-Detection is by directive position (the directive must be at the very top of
-the file, the same rule React enforces), not by a substring match — a module
-that merely mentions the word "client" is not treated as a client component.
-The `.client.` convention still works and is handy as a visual marker.
+### Client entry
+
+Most projects have an `index.html` with something like:
+
+```html
+<script type="module" src="/src/client.tsx"></script>
+```
+
+vprs leaves that file to Vite's normal entry-point discovery — you do **not** need to set `clientEntry`, even though the file may carry a `"use client"` directive. The `clientEntry` option still exists for advanced cases that don't go through `index.html`.
 
 ## Add an HTML Shell
 

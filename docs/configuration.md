@@ -17,6 +17,7 @@ export default defineConfig({
     Root: "src/Root.tsx",              // string — root wrapper component
     pageExportName: "Page",            // named export to use from Page file
     propsExportName: "props",          // named export to use from props file
+    clientEntry: "src/client.tsx",     // optional — see "Client entry" below
 
     // Optional — direct component references (react-server condition only)
     components: {
@@ -101,6 +102,12 @@ import { MyHtml } from "./src/Html.js";
 
 components: { Html: MyHtml },
 ```
+
+## Client entry
+
+For the conventional setup — an `index.html` with `<script type="module" src="/src/client.tsx">` (or similar) — you do **not** need to set `clientEntry`. vprs leaves that file to Vite's own entry-point discovery and won't add it as a duplicate input, even if the file carries a `"use client"` directive.
+
+Set `clientEntry` only when the client entry isn't referenced from `index.html` and needs to be picked up another way.
 
 ## Dev Modes
 
