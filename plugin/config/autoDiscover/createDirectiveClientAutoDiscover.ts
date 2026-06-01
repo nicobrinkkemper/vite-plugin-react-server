@@ -1,7 +1,27 @@
 import type { ResolvedUserOptions } from "../../types.js";
 import { glob, readFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { sourceHasTopLevelClientDirective } from "../../loader/directives/sourceHasTopLevelClientDirective.js";
+
+const MODULE_SCRIPT_SRC =
+  /<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["']|<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*\btype=["']module["']/gi;
+
+function indexHtmlScriptSources(projectRoot: string): Set<string> {
+  const path = join(projectRoot, "index.html");
+  if (!existsSync(path)) return new Set();
+  try {
+    const html = readFileSync(path, "utf-8");
+    const srcs = new Set<string>();
+    for (const m of html.matchAll(MODULE_SCRIPT_SRC)) {
+      const src = (m[1] ?? m[2]).replace(/^\/+/, "");
+      if (src) srcs.add(resolve(projectRoot, src));
+    }
+    return srcs;
+  } catch {
+    return new Set();
+  }
+}
 
 /**
  * Auto-discovers first-party client modules detected by a top-of-file
@@ -37,6 +57,10 @@ export function createDirectiveClientAutoDiscover(
   }) {
     const baseDir = resolve(userOptions.projectRoot, userOptions.moduleBase);
     const absolutePattern = resolve(baseDir, modulePattern);
+    // Files Vite already discovers via index.html's <script type="module">
+    // entries — adding them again here makes Vite drop the index.html
+    // manifest entry, which downstream CSS-injection depends on.
+    const indexHtmlEntries = indexHtmlScriptSources(userOptions.projectRoot);
 
     let allFiles: AsyncIterable<string>;
     try {
@@ -51,6 +75,8 @@ export function createDirectiveClientAutoDiscover(
       if (/\.client\.[cm]?[jt]sx?$/.test(file)) continue;
       // Never treat dependencies as first-party client inputs.
       if (file.includes("node_modules")) continue;
+      // Skip files index.html already references; Vite will discover them.
+      if (indexHtmlEntries.has(file)) continue;
 
       let source: string;
       try {
