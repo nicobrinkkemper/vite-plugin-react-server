@@ -1,3 +1,9 @@
+// vprs-side adapter for the React-RSC Node ESM loader. The actual
+// load/resolve hooks live in react-server-loader/loader — this file
+// threads vprs's worker context (parent MessagePort, serialized user
+// options, the `createDefaultModuleID` policy) into rsl's factory and
+// publishes the resulting hooks to the worker bootstrap path.
+
 import type {
   ResolvedUserOptions,
   SerializedResolvedConfig,
@@ -10,15 +16,10 @@ import type {
   InitializedReactLoaderMessage,
   ServerModuleMessage,
 } from "../worker/rsc/types.js";
-import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { hydrateUserOptions } from "../helpers/hydrateUserOptions.js";
-import { detectClientModule } from "react-server-loader/directives";
-import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import type { LoadHook, ResolveHook } from "node:module";
-import type { RawSourceMap } from "source-map";
-import { createTransformer } from "./createTransformer.js";
-
+import { createReactLoader } from "react-server-loader/loader";
 import { createLogger, type Logger } from "vite";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 
@@ -38,24 +39,11 @@ let initialized = false;
 let userOptions: ResolvedUserOptions;
 let loaderPort: MessagePort | null;
 let resolvedConfig: SerializedResolvedConfig;
-let isServerFunction:
-  | RegExpMatchArray
-  | RegExp
-  | ((source: string, url: string) => boolean)
-  | null = DEFAULT_LOADER_CONFIG.isServerFunctionCode;
-
-let isClientComponent:
-  | RegExpMatchArray
-  | RegExp
-  | ((source: string, url: string) => boolean)
-  | null = DEFAULT_LOADER_CONFIG.isClientComponentCode;
 let logger: Logger;
-let verbose: boolean;
-let transformer: (
-  source: string,
-  moduleId: string,
-  transformedModuleId: string
-) => Promise<{ code: string; map: RawSourceMap | null }>;
+let verbose = false;
+let load: LoadHook = async (url, context, nextLoad) => nextLoad(url, context);
+let resolveHook: ResolveHook = async (specifier, context, nextResolve) =>
+  nextResolve(specifier, context);
 
 export function initialize(data: {
   id: string;
@@ -69,36 +57,73 @@ export function initialize(data: {
     userOptions: serializedUserOptions,
     resolvedConfig: serializedResolvedConfig,
   } = data;
-  
+
   verbose = serializedUserOptions?.verbose ?? false;
   logger = createLogger(serializedResolvedConfig?.logLevel ?? "info", {
     prefix: id,
   });
-  
-  // Store resolvedConfig at module level for use in other functions
   resolvedConfig = serializedResolvedConfig;
-  
+
   if (verbose) {
     logger.info(`Initializing with options: ${id}`);
   }
   loaderPort = port;
-  
-  // when user options are provided, use the user options using the hydrateUserOptions function
+
   const resolvedUserOptions = hydrateUserOptions(serializedUserOptions);
   if (resolvedUserOptions.type === "error") {
     throw resolvedUserOptions.error;
   }
-
-  // Use the hydrated user options directly (includes recreated functions)
   userOptions = resolvedUserOptions.userOptions;
 
-  isServerFunction = userOptions.loader?.isServerFunctionCode ?? DEFAULT_LOADER_CONFIG.isServerFunctionCode;
-  isClientComponent = userOptions.loader?.isClientComponentCode ?? DEFAULT_LOADER_CONFIG.isClientComponentCode;
-  
-  transformer = createTransformer({
-    options: userOptions,
+  // Materialise vprs's default moduleID policy if the user didn't supply
+  // one. Done here at init time so rsl's loader can reach for a stable
+  // reference per call without recreating it.
+  if (typeof userOptions.moduleID !== "function") {
+    const buildConfigEnv =
+      resolvedConfig?.configEnv ?? { command: "build", mode: "production" };
+    userOptions.moduleID = createDefaultModuleID(
+      {
+        moduleBase: userOptions.moduleBase,
+        moduleBasePath: userOptions.moduleBasePath,
+        autoDiscover: userOptions.autoDiscover,
+        build: userOptions.build,
+        dev: userOptions.dev,
+        moduleBaseURL: userOptions.moduleBaseURL,
+        projectRoot: userOptions.projectRoot,
+      },
+      buildConfigEnv
+    );
+  }
+
+  const { load: rslLoad, resolve: rslResolve } = createReactLoader({
+    loader: userOptions.loader,
+    verbose,
+    logger,
+    moduleID: (filePath) => {
+      let moduleID = filePath;
+      let finalID = filePath;
+      if (userOptions?.normalizer) {
+        const [, value] = userOptions.normalizer(filePath);
+        moduleID = join(userOptions.moduleBasePath, value);
+        finalID = userOptions.moduleID?.(moduleID) || moduleID;
+      }
+      return finalID;
+    },
+    onTransform: ({ filePath, transformedId, source }) => {
+      if (loaderPort) {
+        loaderPort.postMessage({
+          type: "SERVER_MODULE",
+          id: transformedId,
+          url: filePath,
+          source,
+        } satisfies ServerModuleMessage);
+      }
+    },
   });
-  
+
+  load = rslLoad;
+  resolveHook = rslResolve;
+
   if (!initialized && loaderPort) {
     loaderPort.postMessage({
       type: "INITIALIZED_REACT_LOADER",
@@ -108,143 +133,24 @@ export function initialize(data: {
   initialized = true;
 }
 
-export const load: LoadHook = async (url, context, nextLoad) => {
+// Module-level load/resolve hooks for the worker bootstrap path. They
+// forward to whatever rsl's factory produced at init time; if init was
+// skipped (unexpected) they fall back to a pass-through that lets the
+// underlying loader chain handle the URL untouched.
+
+export const loadHook: LoadHook = async (url, context, nextLoad) => {
   if (!initialized) {
-    // Fallback initialization when not properly set up
-    // This should not happen in normal usage, but provides a basic fallback
     initialize({
       id: "react-loader",
       port: parentPort!,
-      userOptions: {} as any,
-      resolvedConfig: {} as any,
+      userOptions: {} as SerializedUserOptions,
+      resolvedConfig: {} as SerializedResolvedConfig,
     });
   }
-  const verbose = userOptions?.verbose ?? false;
-
-  const { format } = context;
-  if (format === "module" || format === "module-typescript") {
-    // Load the URL normally
-    const result = await nextLoad(url, context);
-
-    let source =
-      typeof result.source === "string"
-        ? result.source
-        : result.source instanceof Uint8Array
-        ? new TextDecoder().decode(result.source)
-        : String(result.source);
-
-    // Fix CJS React named imports: React's react-server condition exports CJS,
-    // but esbuild/tsx transforms produce ESM named imports that fail at runtime.
-    // Rewrite `import { X } from "react"` → `import __react from "react"; const { X } = __react;`
-    // Applies to user code AND node_modules — third-party packages (e.g.
-    // @chakra-ui/react's compiled ESM) hit the same CJS interop wall.
-    const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
-    if (namedImportRe.test(source)) {
-      namedImportRe.lastIndex = 0;
-      let counter = 0;
-      source = source.replace(namedImportRe, (_match: string, imports: string) => {
-        const alias = `__react_cjs_${counter++}`;
-        return `import ${alias} from "react"; const {${imports}} = ${alias};`;
-      });
-      if (verbose) {
-        logger.info(`Rewrote CJS React named imports in: ${url}`);
-      }
-    }
-
-    // Check for file-level directives. Server detection uses an inline
-    // prologue-walking char-scanner (server directives aren't covered by the
-    // unified client helper). Client detection routes through
-    // `detectClientModule` — the single source of truth shared with the
-    // build's transformer, createModuleID, the dev-server file watcher, and
-    // the configurable `loader.*` defaults — so the worker can't disagree
-    // with any of them on the same input.
-    const hasFileLevelServerDirective = (): boolean => {
-      const target = "use server";
-      let i = 0;
-      for (let k = 0; k < 10; k++) {
-        while (i < source.length && /\s/.test(source[i]!)) i++;
-        const quote = source[i];
-        if (quote !== '"' && quote !== "'") return false;
-        const close = source.indexOf(quote, i + 1);
-        if (close < 0) return false;
-        if (source.slice(i + 1, close) === target) return true;
-        i = close + 1;
-        while (i < source.length && /[\s;]/.test(source[i]!)) i++;
-        if (i >= source.length) return false;
-      }
-      return false;
-    };
-
-    const isServer =
-      hasFileLevelServerDirective() ||
-      (typeof isServerFunction === "function"
-        ? isServerFunction(source, url)
-        : false);
-
-    const isClient =
-      detectClientModule({ source, moduleId: url }) ||
-      (typeof isClientComponent === "function"
-        ? isClientComponent(source, url)
-        : false);
-
-    if (!isServer && !isClient) {
-      // Return modified source if CJS React imports were rewritten
-      return { ...result, source };
-    }
-
-    if (verbose) {
-      logger.info(`[react-loader] ${isServer ? 'server' : 'client'} module: ${url}`);
-    }
-
-    // Handle file URLs
-    const filePath = url.startsWith("file://") ? fileURLToPath(url) : url;
-
-    if(typeof userOptions.moduleID !== "function") {
-      // Ensure we have proper build context for RSC worker
-      // If configEnv is not available or doesn't indicate build mode, create a build-compatible configEnv
-      const buildConfigEnv = resolvedConfig?.configEnv ?? { command: "build", mode: "production" };
-      
-      userOptions.moduleID = createDefaultModuleID({
-        moduleBase: userOptions.moduleBase,
-        moduleBasePath: userOptions.moduleBasePath,
-        autoDiscover: userOptions.autoDiscover,
-        build: userOptions.build,
-        dev: userOptions.dev,
-        moduleBaseURL: userOptions.moduleBaseURL,
-        projectRoot: userOptions.projectRoot,
-      }, buildConfigEnv);
-    }
-
-    // Normalize the URL using the same logic as plugin.server.ts
-    let moduleID = filePath;
-    let finalID = filePath;
-    if (userOptions?.normalizer) {
-      const [, value] = userOptions.normalizer(filePath);
-      moduleID = join(userOptions.moduleBasePath, value);
-      finalID = userOptions.moduleID?.(moduleID) || moduleID;
-    }
-
-    const { code: transformed, map } = await transformer(source, moduleID, finalID);
-
-    if (loaderPort) {
-      loaderPort.postMessage({
-        type: "SERVER_MODULE",
-        id: finalID,
-        url: filePath,
-        source: transformed,
-      } satisfies ServerModuleMessage);
-    }
-
-    return {
-      ...result,
-      source: transformed,
-      map,
-    };
-  }
-
-  return nextLoad(url, context);
+  return load(url, context, nextLoad);
 };
 
-export const resolve: ResolveHook = async (specifier, context, nextResolve) => {
-  return nextResolve(specifier, context);
-};
+export const resolve: ResolveHook = async (specifier, context, nextResolve) =>
+  resolveHook(specifier, context, nextResolve);
+
+export { loadHook as load };
