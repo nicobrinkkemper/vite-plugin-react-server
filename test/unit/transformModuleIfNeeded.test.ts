@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { transformModuleIfNeeded } from "react-server-loader/directives";
+import { transformModuleIfNeeded } from "vite-plugin-react-server/loader";
 
 describe("transformModuleIfNeeded", () => {
   beforeEach(() => {

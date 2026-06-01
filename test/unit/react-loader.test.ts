@@ -1,6 +1,6 @@
 // test/unit/loader/loader.test.ts
 import { describe, test, expect } from "vitest";
-import { createTransformer } from "react-server-loader/directives";
+import { createTransformer } from "vite-plugin-react-server/loader";
 
 const loadReact = async (source: string, url = "test.js") => {
   const transformer = createTransformer({
