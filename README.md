@@ -52,10 +52,12 @@ dist/
 
 ## Client components
 
-Mark a client component with a top-of-file `"use client"` directive. The
-`.client.` filename suffix is **optional** — a first-party module that starts
-with `"use client"` is detected, hosted, and emitted as a client chunk in the
-static (`--app`) build, so you can import it directly into a server component:
+vprs recognises a file as a client module when **either** of these is true:
+
+- the filename matches `(^|[\/.])client\.[cm]?[jt]sx?$` — i.e. `Button.client.tsx`, `bar.client.mjs`, or the standalone basename `src/client.tsx` / `client.tsx`, or
+- the file starts with a top-of-file `"use client"` directive (leading whitespace, line/block comments, and an optional `"use strict"` prologue are tolerated above it).
+
+Either is sufficient. Substrings like `clientUtils.tsx`, `clientId.ts`, or `clients.tsx` are **not** treated as client modules, and a `"use client"` directive placed after real code does not count.
 
 ```tsx
 // src/components/Counter.tsx  ← no `.client.` suffix needed
@@ -67,9 +69,7 @@ export function Counter() {
 }
 ```
 
-Detection is by directive position (top of file, the same rule React enforces),
-not by a substring match. The `.client.` convention still works as a visual
-marker. See [Getting Started](./docs/getting-started.md#the-client-filename-is-optional).
+See [Getting Started](./docs/getting-started.md#the-client-filename-is-optional).
 
 ## Third-party client-component packages
 

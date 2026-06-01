@@ -27,6 +27,7 @@ export const config = {
 | `Html` | `React.ComponentType<HtmlProps>` | Wrapper component for production pages | - |
 | `pageExportName` | `string` | Name of the page export | `"Page"` |
 | `propsExportName` | `string` | Name of the props export | `"props"` |
+| `clientEntry` | `string` | Optional explicit client entry. Not needed when `index.html` has a `<script type="module" src>` for the entry — Vite discovers it itself. See [Configuration](./configuration.md#client-entry). | - |
 | `htmlWorkerPath` | `string` | Path to custom HTML worker | - |
 | `rscWorkerPath` | `string` | Path to custom RSC worker | - |
 | `CssCollector` | `React.ComponentType<CssCollectorProps>` | Component for collecting CSS (handles both inline and non-inline modes) | - |
@@ -104,7 +105,7 @@ export const config = {
 |--------|------|-------------|---------|
 | `cssPattern` | `RegExp \| string` | Pattern to match CSS files | `/\.css$/` |
 | `cssModulePattern` | `RegExp \| string` | Pattern to match CSS module files | `/\.css\.js$/` |
-| `clientPattern` | `RegExp \| string` | Pattern to match client component files | `/\.client\.(js\|ts\|jsx\|tsx)$/` |
+| `clientPattern` | `RegExp \| string` | Pattern to match client-module filenames. Anchored so substrings like `clientUtils.tsx` are not matched; the standalone basename `client.tsx` matches alongside the dotted-suffix form `Foo.client.tsx`. A top-of-file `"use client"` directive is recognised independently. | `/(^\|[\/.])client\.[cm]?[jt]sx?$/` |
 | `serverPattern` | `RegExp \| string` | Pattern to match server function files | `/\.server\.(js\|ts\|jsx\|tsx)$/` |
 | `htmlPattern` | `RegExp \| string` | Pattern to match HTML files | `/\.html$/` |
 | `jsonPattern` | `RegExp \| string` | Pattern to match JSON files | `/\.json$/` |
@@ -377,7 +378,7 @@ const DIRECTIVE_CONFIGS = {
 const AUTO_DISCOVER = {
   modulePattern: /\.(m|c)?(j|t)sx?$/,
   serverPattern: /(?:\.\/)?server(?:\.(m|c)?(j|t)sx?)?$/,
-  clientPattern: /(?:\.\/)?client(?:\.(m|c)?(j|t)sx?)?$/,
+  clientPattern: /(^|[\/.])client\.[cm]?[jt]sx?$/,
   pagePattern: /(?:\.\/)?page(?:\.(m|c)?(j|t)sx?)?$/,
   propsPattern: /(?:\.\/)?props(?:\.(m|c)?(j|t)sx?)?$/,
   cssPattern: /\.css$/,
@@ -386,6 +387,8 @@ const AUTO_DISCOVER = {
   rscPattern: /\.rsc$/,
 };
 ```
+
+A file is treated as a client module when **either** the filename matches `clientPattern` **or** the source starts with a top-of-file `"use client"` directive. Both mechanisms are first-class — neither is a fallback to the other.
 
 ### Extension Mapping
 

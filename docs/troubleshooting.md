@@ -29,9 +29,22 @@ node --import vite-plugin-react-server/register ./your-script.mjs
 
 ## `"use client"` Not Working
 
-- Must be the **first line** of the file
-- Use `.client.` suffix for auto-discovery: `Counter.client.tsx`
-- Import with `.js` extension: `import { Counter } from "./Counter.client.js"`
+vprs treats a file as a client module when either of these is true:
+
+- the filename matches `(^|[\/.])client\.[cm]?[jt]sx?$` (e.g. `Counter.client.tsx`, or the standalone basename `src/client.tsx`), or
+- the file starts with a top-of-file `"use client"` directive — leading whitespace, comments, and an optional `"use strict"` prologue are tolerated above it, but the directive must come before any real code.
+
+Substrings like `clientUtils.tsx` or `clientId.ts` are **not** matched. Import with `.js` extension regardless: `import { Counter } from "./Counter.js"`.
+
+## Global CSS / Fonts Not Loading
+
+If your client-entry's CSS imports (global stylesheet, font CSS) aren't reaching the page, check that `index.html` has a `<script type="module" src="...">` for the entry, e.g.:
+
+```html
+<script type="module" src="/src/client.tsx"></script>
+```
+
+You do **not** need to set `clientEntry` for the conventional case — vprs leaves index.html-referenced entries to Vite's own discovery so it can pick up their CSS through the normal Vite manifest.
 
 ## `"use server"` Not Working
 
