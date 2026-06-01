@@ -127,7 +127,7 @@ detectClientModule({ source, moduleId, parseFn? }): boolean
 
 The transformer passes Rollup's `this.parse` for AST-aware directive analysis. The other call sites omit it and fall back to the parser-free char-scanner in `sourceHasTopLevelClientDirective.ts`. Both paths agree on every well-authored case.
 
-The filename half — `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` — was widened in 1.11.1 (PR #68) to cover both the dotted-suffix convention and the standalone basename `client.tsx`/`.ts`/etc. The leading-`(^|[\/.])` anchor keeps it strict: `clientUtils.ts` is NOT matched.
+The filename half — `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` — was widened in 1.11.1 to cover both the dotted-suffix convention and the standalone basename `client.tsx`/`.ts`/etc. The leading-`(^|[\/.])` anchor keeps it strict: `clientUtils.ts` is NOT matched.
 
 ## Worker Communication
 

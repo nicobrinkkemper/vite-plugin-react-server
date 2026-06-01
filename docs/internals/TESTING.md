@@ -222,7 +222,7 @@ npm run test:coverage
 ## Writing New Tests
 - react-server condition for unit tests
 - Use `onEvent` and `onMetrics` hooks to assert observability rather than reading files
-- Use fixtures and the `doBuild` helper to standardize builds. `doBuild` `chdir`s into a fixture root, runs the build, and restores `cwd` afterward. The build code awaits `worker.terminate()` in its cleanup `finally` (PR #64, `plugin/react-static/plugin.client.ts:921`, `plugin.server.ts:596`) so libuv-level handles drain before `doBuild` restores `cwd` — without it, late worker file I/O against relative paths surfaces as post-teardown `ENOENT` flakes. New build paths that spawn workers must mirror this ordering.
+- Use fixtures and the `doBuild` helper to standardize builds. `doBuild` `chdir`s into a fixture root, runs the build, and restores `cwd` afterward. The build code awaits `worker.terminate()` in its cleanup `finally` (`plugin/react-static/plugin.client.ts:921`, `plugin.server.ts:596`) so libuv-level handles drain before `doBuild` restores `cwd` — without it, late worker file I/O against relative paths surfaces as post-teardown `ENOENT` flakes. New build paths that spawn workers must mirror this ordering.
 
 ## CI Guidance (Updated December 2024)
 

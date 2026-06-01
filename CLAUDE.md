@@ -26,7 +26,7 @@ export const { React, ReactDOMServer } = await import(
 
 This is load-bearing. Vite's dynamic-import helper analyzes the template literal, bundles **both** candidate files, and picks at runtime — so it satisfies bundling without forcing a static link. The interpolated string is required; a plain string makes Vite resolve it eagerly. Prefer splitting + conditional exports over this pattern, but don't replace this pattern with static imports of one side.
 
-The 2026-04 PR #27 ("remove all top-level await wrappers") removed exactly this fallback under the assumption that conditional exports replace it. They don't, because static aggregators bypass them. That's tracked under `bd-6pi`.
+A 2026-04 change ("remove all top-level await wrappers") removed exactly this fallback under the assumption that conditional exports replace it. They don't, because static aggregators bypass them. That's tracked under `bd-6pi`.
 
 ## The publishing protocol — non-negotiable
 

@@ -138,7 +138,7 @@ export { add };
 
 ### Transformation Rules
 
-1. **Client Components**: Marked with `"use client"` at the top of the file, OR matched by `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` (covers `Foo.client.tsx` and standalone `client.tsx`, widened in 1.11.1 / PR #68).
+1. **Client Components**: Marked with `"use client"` at the top of the file, OR matched by `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` (covers `Foo.client.tsx` and standalone `client.tsx`, widened in 1.11.1).
 2. **Server Components**: Default behavior, no special marking needed.
 3. **Server Actions**: Marked with `"use server"` at file or function level.
 4. **Environment-specific**: Transformations only occur in server environment (`react-server` condition).
