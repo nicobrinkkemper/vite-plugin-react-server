@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.11.4",
+  "version": "2.0.0",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -14,8 +14,7 @@
     "virtual.d.ts",
     "README.md",
     "LICENSE",
-    "tsconfig.json",
-    "oss-experimental/react-server-dom-esm"
+    "tsconfig.json"
   ],
   "exports": {
     ".": {
@@ -48,13 +47,6 @@
       "types": "./dist/plugin/storybook/preset.d.ts",
       "default": "./dist/plugin/storybook/preset.js"
     },
-    "./react-server-dom-esm": "./oss-experimental/react-server-dom-esm/index.js",
-    "./react-server-dom-esm/client.browser": {
-      "development": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.development.js",
-      "production": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.production.js",
-      "default": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.development.js"
-    },
-    "./react-server-dom-esm/*": "./oss-experimental/react-server-dom-esm/*.js",
     "./metrics": "./dist/plugin/metrics/index.js",
     "./stream": {
       "react-server": "./dist/plugin/stream/index.server.js",
@@ -387,8 +379,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": ">=0.0.0-experimental-0 <1.0.0",
-    "react-dom": ">=0.0.0-experimental-0 <1.0.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "vite": "*"
   },
   "peerDependenciesMeta": {
@@ -400,9 +392,6 @@
     },
     "vite": {
       "optional": false
-    },
-    "react-server-dom-esm": {
-      "optional": true
     }
   },
   "devDependencies": {
@@ -417,6 +406,8 @@
     "globals": "^16.2.0",
     "happy-dom": "^17.1.8",
     "playwright": "^1.58.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "source-map": "^0.7.4",
     "supports-color": "^10.0.0",
     "ts-node": "^10.9.2",
@@ -430,6 +421,7 @@
   "dependencies": {
     "acorn": "^8.16.0",
     "picocolors": "^1.1.1",
+    "react-server-loader": "^19.2.8",
     "tsx": "^4.21.0",
     "vitefu": "^1.1.3"
   }

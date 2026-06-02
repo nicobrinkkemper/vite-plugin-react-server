@@ -1,23 +1,11 @@
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { transportPkgDir } from "./transportDir.js";
 
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-function findPkgRoot(): string {
-  let dir = __dirname;
-  for (let i = 0; i < 5; i++) {
-    if (existsSync(join(dir, "oss-experimental", "react-server-dom-esm"))) return dir;
-    dir = dirname(dir);
-  }
-  return dirname(dirname(__dirname));
-}
-const ossDir = join(findPkgRoot(), "oss-experimental");
-
-// Load react-server-dom-esm/client.node directly from vendored copy
-const vendorRequire = createRequire(join(ossDir, "react-server-dom-esm", "package.json"));
-const ReactDOMClient = vendorRequire(join(ossDir, "react-server-dom-esm", "client.node.js")) as typeof import("react-server-dom-esm/client.node");
+// Load react-server-dom-esm/client.node directly from the vendored copy that
+// ships inside the react-server-loader dependency.
+const vendorRequire = createRequire(join(transportPkgDir, "package.json"));
+const ReactDOMClient = vendorRequire(join(transportPkgDir, "client.node.js")) as typeof import("react-server-dom-esm/client.node");
 
 // React and react-dom still come from the consumer's project
 const projectRoot = process.env["npm_config_local_prefix"] || process.cwd();

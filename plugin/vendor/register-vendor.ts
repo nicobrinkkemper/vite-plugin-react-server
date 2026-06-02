@@ -6,20 +6,7 @@
  * so Node's ESM loader can provide named exports.
  */
 import { register } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-function findPkgRoot(): string {
-  let dir = __dirname;
-  for (let i = 0; i < 5; i++) {
-    if (existsSync(join(dir, "oss-experimental", "react-server-dom-esm"))) return dir;
-    dir = dirname(dir);
-  }
-  return dirname(dirname(__dirname));
-}
-const ossDir = join(findPkgRoot(), "oss-experimental", "react-server-dom-esm");
+import { transportPkgDir as ossDir } from "./transportDir.js";
 
 register("data:text/javascript," + encodeURIComponent(`
   const ossDir = ${JSON.stringify(ossDir)};

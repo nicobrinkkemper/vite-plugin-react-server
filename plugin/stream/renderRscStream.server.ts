@@ -3,7 +3,7 @@ import type { CreateHandlerOptions } from "../types.js";
 import type { RscRenderResult } from "./renderRscStream.types.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createReactElement } from "../helpers/createRscRenderHelpers.server.js";
-import { checkReactExperimental } from "../utils/checkReactVersion.js";
+import { checkReactVersion } from "../utils/checkReactVersion.js";
 import { ReactDOMServer } from "../vendor/vendor.server.js";
 import type { StreamHandlers } from "../worker/types.js";
 
@@ -79,7 +79,7 @@ export function renderRscStream(
       logger?.info(`[renderRscStream:${route}] Creating React stream for element`);
     }
     
-    checkReactExperimental();
+    checkReactVersion();
 
     // Render React to stream - let it flow naturally like the RSC worker
     const reactStream = ReactDOMServer.renderToPipeableStream(
