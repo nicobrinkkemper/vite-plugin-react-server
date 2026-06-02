@@ -486,14 +486,20 @@ A Storybook preset that makes a vprs app build and render in Storybook. Referenc
 export default { addons: ["vite-plugin-react-server/storybook"] };
 ```
 
-### react-server-dom-esm host
+### react-server-dom-esm transport
 
-vprs hosts its vendored `react-server-dom-esm` under public subpaths so non-plugin consumers (e.g. the Storybook preset) can resolve it. Not typically imported by app code.
+The `react-server-dom-esm` transport ships in the
+[`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+dependency, which exposes it under public subpaths so non-plugin consumers (e.g.
+the Storybook preset) can resolve it. Not typically imported by app code.
 
 ```typescript
 // ESM client.browser build (dev/prod conditioned)
-import "vite-plugin-react-server/react-server-dom-esm/client.browser";
+import "react-server-loader/client.browser";
 ```
+
+> In vprs 1.x this was re-hosted under `vite-plugin-react-server/react-server-dom-esm/*`.
+> That self-export was removed in 2.0 — import from `react-server-loader` instead.
 
 ### Type Imports
 
