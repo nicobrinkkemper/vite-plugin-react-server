@@ -373,4 +373,12 @@ declare module 'react-server-dom-esm/static.node' {
     moduleBasePath: string,
     options?: PrerenderToNodeStreamOptions
   ): Usable<ReactNode>;
+
+  // Stable React (19.2+) graduated the prerender API — same shape, no
+  // `unstable_` prefix. Optional so both channels typecheck.
+  export function prerenderToNodeStream(
+    model: ReactNode,
+    moduleBasePath: string,
+    options?: PrerenderToNodeStreamOptions
+  ): Usable<ReactNode>;
 }

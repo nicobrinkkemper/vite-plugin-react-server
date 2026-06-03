@@ -1,21 +1,7 @@
 import type { Plugin } from "vite";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { existsSync, lstatSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
-
-// Find package root by walking up from current file until we find oss-experimental/
-// Works from both plugin/vendor/ (source) and dist/plugin/vendor/ (built)
-const __dirname = dirname(fileURLToPath(import.meta.url));
-function findPkgRoot(): string {
-  let dir = __dirname;
-  for (let i = 0; i < 5; i++) {
-    if (existsSync(join(dir, "oss-experimental", "react-server-dom-esm"))) return dir;
-    dir = dirname(dir);
-  }
-  return dirname(dirname(__dirname)); // fallback
-}
-const pkgRoot = findPkgRoot();
-const ossDir = join(pkgRoot, "oss-experimental");
+import { join } from "node:path";
+import { lstatSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
+import { transportPkgDir, transportRoot } from "./transportDir.js";
 
 /**
  * Vite plugin that aliases `react-server-dom-esm/*` imports to the vendored
@@ -35,7 +21,7 @@ export function vitePluginVendorAlias(): Plugin {
     enforce: "pre",
 
     config(_config, env) {
-      const pkg = join(ossDir, "react-server-dom-esm");
+      const pkg = transportPkgDir;
       const isProd = env.mode === "production";
 
       return {
@@ -58,8 +44,8 @@ export function vitePluginVendorAlias(): Plugin {
       // Must be done in configResolved to append to the resolved allow list
       // (setting in config hook can override Vite's defaults).
       if (config.command === "serve" && config.server?.fs?.allow) {
-        if (!config.server.fs.allow.includes(pkgRoot)) {
-          config.server.fs.allow.push(pkgRoot);
+        if (!config.server.fs.allow.includes(transportRoot)) {
+          config.server.fs.allow.push(transportRoot);
         }
       }
 
@@ -91,7 +77,7 @@ export function vitePluginVendorAlias(): Plugin {
  * Only creates a symlink if no real install exists. Safe to call multiple times.
  */
 function ensureVendoredPackageLinked(root?: string): void {
-  const pkg = join(ossDir, "react-server-dom-esm");
+  const pkg = transportPkgDir;
   const target = join(root ?? process.cwd(), "node_modules", "react-server-dom-esm");
   try {
     const stat = (() => { try { return lstatSync(target); } catch { return null; } })();
@@ -128,7 +114,7 @@ const subpathMap: Record<string, string> = {
 
 function resolveVendored(source: string): string {
   const file = subpathMap[source];
-  if (file) return join(ossDir, "react-server-dom-esm", file);
+  if (file) return join(transportPkgDir, file);
   const subpath = source.replace("react-server-dom-esm", "");
-  return join(ossDir, "react-server-dom-esm", subpath || "index.js");
+  return join(transportPkgDir, subpath || "index.js");
 }

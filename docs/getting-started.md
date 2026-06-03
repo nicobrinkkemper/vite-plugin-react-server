@@ -3,10 +3,33 @@
 ## Install
 
 ```bash
-npm install -D vite-plugin-react-server react@experimental react-dom@experimental
+npm install -D vite-plugin-react-server react react-dom
 ```
 
-React from the **experimental** channel is required. Stable React 19.x is not yet supported — the vendored `react-server-dom-esm` reads taint-registry internals that only exist on the experimental channel. See [React Compatibility](./react-type-compatibility.md) for the full story. The ESM transport (`react-server-dom-esm`) is vendored — no separate install needed.
+vprs 2.0 runs on **stable React 19.2+** (`react` / `react-dom` at `^19.2.7`).
+The `react-server-dom-esm` ESM transport is provided by the
+[`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+dependency (installed automatically) — you don't install a transport or an
+experimental React build yourself. If you want the newest RSC features you can
+still run on experimental React; see
+[React Compatibility](./react-type-compatibility.md).
+
+## Upgrading from 1.x
+
+vprs 1.x required `react@experimental` and bundled the transport in-repo. For
+2.0:
+
+- **Switch to stable React:** `npm install react@^19.2.7 react-dom@^19.2.7`
+  (experimental still works, but is no longer required).
+- **The transport moved.** `react-server-dom-esm` now ships inside the
+  `react-server-loader` dependency. If you imported the transport through vprs's
+  `vite-plugin-react-server/react-server-dom-esm/*` self-export, import it from
+  [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+  instead (e.g. `react-server-loader/server`, `/client`). Bare
+  `react-server-dom-esm/*` imports inside a vprs app keep working — the plugin
+  resolves them.
+- **No API changes** to the plugin itself: your `vite.config`, page files, and
+  directives are unchanged.
 
 ## Create a Page
 

@@ -1,7 +1,7 @@
 import type { StreamPluginOptions } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
-import { detectClientModule } from "../loader/directives/detectClientModule.js";
+import { detectClientModule } from "react-server-loader/directives";
 import type { Plugin, ViteDevServer } from "vite";
 import { readFileSync } from "node:fs";
 

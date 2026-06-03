@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parse } from "acorn";
 import type { Program } from "acorn";
-import { detectClientModule } from "vite-plugin-react-server/directives";
+import { detectClientModule } from "react-server-loader/directives";
 import { DEFAULT_LOADER_CONFIG } from "vite-plugin-react-server/config";
 
 /**

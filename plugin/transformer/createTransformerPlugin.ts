@@ -14,7 +14,8 @@ import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
-import { detectClientModule } from "../loader/directives/detectClientModule.js";
+import { detectClientModule } from "react-server-loader/directives";
+import { isViteInjectedCode } from "../loader/isViteInjectedCode.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -356,6 +357,9 @@ export const createTransformerPlugin = (
               panicThreshold: runtimeResolvedUserOptions.panicThreshold,
               logger: this.environment?.logger,
               moduleBase: userOptions.moduleBase ?? "",
+              // Vite injects preamble (e.g. __vitePreload for dynamic imports)
+              // above a module's own source; don't flag it as code-before-directive.
+              tolerateLeadingCode: isViteInjectedCode,
             },
 
             // Pass the actual environment context to the transformer

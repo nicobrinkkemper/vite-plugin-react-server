@@ -27,7 +27,7 @@ import type {
   serializeResolvedConfig,
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
-import type { AllowedDirectives, Program } from "./loader/directives/types.js";
+import type { AllowedDirectives, Program } from "react-server-loader/directives";
 import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 import type {
   RenderMetrics,

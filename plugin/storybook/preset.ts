@@ -16,14 +16,14 @@ const require = createRequire(import.meta.url);
 
 /**
  * Rewrites the bare `react-server-dom-esm/client.browser` import to the ESM
- * build this package hosts at
- * `vite-plugin-react-server/react-server-dom-esm/client.browser`.
+ * build shipped by the `react-server-loader` dependency at
+ * `react-server-loader/client.browser`.
  *
  * In a real app the vprs Vite plugin resolves the bare specifier; Storybook
  * strips that plugin, so without this the bare import is unresolvable —
- * react-server-dom-esm has no standalone npm package, it's vendored here. The
- * self-reference goes through this package's own exports map, so it honours the
- * dev/prod conditions and survives internal folder moves.
+ * react-server-dom-esm has no standalone npm package, it's vendored inside
+ * react-server-loader. That package's exports map honours the dev/prod
+ * conditions for the browser client build.
  */
 function resolveReactServerDomEsm(): Plugin {
   return {
@@ -31,9 +31,7 @@ function resolveReactServerDomEsm(): Plugin {
     enforce: "pre",
     resolveId(source) {
       if (source === "react-server-dom-esm/client.browser") {
-        return require.resolve(
-          "vite-plugin-react-server/react-server-dom-esm/client.browser",
-        );
+        return require.resolve("react-server-loader/client.browser");
       }
       return null;
     },

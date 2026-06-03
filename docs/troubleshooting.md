@@ -21,11 +21,17 @@ Open the browser DevTools console (F12). The plugin streams detailed errors ther
 
 ## `react-server-dom-esm` Resolution Errors
 
-Since v1.3.0 this is vendored. No separate install needed. For scripts outside Vite:
+The transport ships inside the `react-server-loader` dependency (a normal
+install), so no separate transport install is needed. The plugin resolves bare
+`react-server-dom-esm/*` imports for you. For scripts outside Vite:
 
 ```bash
 node --import vite-plugin-react-server/register ./your-script.mjs
 ```
+
+If resolution still fails, confirm `react-server-loader` is installed
+(`npm ls react-server-loader`) and that `react` / `react-dom` satisfy its peer
+(`^19.2.7`).
 
 ## `"use client"` Not Working
 

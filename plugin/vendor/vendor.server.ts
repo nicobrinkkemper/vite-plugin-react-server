@@ -1,22 +1,11 @@
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { transportPkgDir } from "./transportDir.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-function findPkgRoot(): string {
-  let dir = __dirname;
-  for (let i = 0; i < 5; i++) {
-    if (existsSync(join(dir, "oss-experimental", "react-server-dom-esm"))) return dir;
-    dir = dirname(dir);
-  }
-  return dirname(dirname(__dirname));
-}
-const ossDir = join(findPkgRoot(), "oss-experimental");
-
-// Load react-server-dom-esm/server from vendored copy
-// The vendored package.json exports map defaults to server.node.js
-const vendorRequire = createRequire(join(ossDir, "react-server-dom-esm", "package.json"));
+// Load react-server-dom-esm/server from the vendored copy that ships inside
+// the react-server-loader dependency. The vendored package.json exports map
+// defaults to server.node.js.
+const vendorRequire = createRequire(join(transportPkgDir, "package.json"));
 const ReactDOMServer = vendorRequire("react-server-dom-esm/server") as typeof import("react-server-dom-esm/server.node");
 
 // React still comes from the consumer's project

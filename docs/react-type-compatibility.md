@@ -2,38 +2,56 @@
 
 ## Supported Versions
 
-The plugin vendors a build of `react-server-dom-esm` whose internals (taint registries on `ReactSharedInternalsServer`, etc.) are tied to React's experimental release channel. Stable React 19.x doesn't expose the same internals — see PR #32.
+As of **2.0**, the plugin runs on **stable React 19.2+**. The RSC server APIs it
+depends on (`prerenderToNodeStream` and the `react-server` transport exports)
+graduated out of the experimental channel, so an experimental build is no longer
+required. The `react-server-dom-esm` transport is provided by the
+[`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+dependency, whose peer range pins the exact React build the transport was vendored
+against.
 
 | React Version | Support | Notes |
 |---------------|---------|-------|
-| `react@experimental` (any `0.0.0-experimental-*` prerelease) | ✅ Supported | The vendored `oss-experimental/react-server-dom-esm` matches React's experimental internals |
-| React 19+ stable | ❌ Not supported (yet) | Stable React's `ReactSharedInternalsServer` is missing the taint registries the vendored rsd-esm reads at module init, causing `Cannot read properties of undefined (reading 'add')` in `RequestInstance` during the static build path. A future plugin version will ship per-React-channel loader builds — tracked separately. |
+| React 19.2+ stable | ✅ Supported | The default. `react-server-loader`'s stable train vendors a transport built against this line; install plain `react` / `react-dom` and the peer ranges line up. |
+| `react@experimental` (any `0.0.0-experimental-*` prerelease) | ✅ Supported | Still works for the newest RSC features. Use `react-server-loader@experimental`, which pins the exact experimental React it was built against. |
+| React 19.0 / 19.1 stable | ⚠️ Untested | Predates the prerender/transport graduation vprs 2.0 targets; upgrade to 19.2+. |
 | React 18 stable | ❌ Not supported | Missing RSC APIs |
 
 ```bash
-npm install react@experimental react-dom@experimental
+npm install react@^19.2.7 react-dom@^19.2.7
 ```
 
-For reproducibility, pin a specific experimental SHA — for example, the version the plugin is currently developed against:
+For the experimental train, pin the exact React `react-server-loader@experimental`
+was built against (the `@experimental` dist-tag moves daily):
 
 ```bash
-npm install react@0.0.0-experimental-f93b9fd4-20251217 react-dom@0.0.0-experimental-f93b9fd4-20251217
+npm view react-server-loader@experimental peerDependencies
+npm install react@<that-exact-version> react-dom@<that-exact-version>
 ```
 
-**Peer dependency**: `react: ">=0.0.0-experimental-0 <1.0.0"`. The upper bound rejects stable React (19.x, 20.x) so npm warns instead of resolving silently to a broken pairing. Any 0.0.0 prerelease (experimental, canary, next) satisfies the lower bound.
+**Peer dependency**: `react: "^19.2.7"`. The transport binds to a single React
+build's internals and throws on a mismatch, so install a `react` / `react-dom`
+that satisfies the peer (a plain install does). See
+[`react-server-loader`'s versioning](https://www.npmjs.com/package/react-server-loader)
+for why the versions line up the way they do.
 
-> Earlier 1.4.x docs claimed "React 19+ stable: Full Support." That was incorrect — local development with `file:` link masked the mismatch by hoisting the plugin's own experimental React into the consumer. npm-installed consumers crashed in the static build path. See PR #32.
+> **History.** vprs 1.x required `react@experimental` and bundled the transport
+> in-repo under `oss-experimental/`, because the RSC server internals it read
+> only existed on the experimental channel at the time. Those APIs have since
+> shipped in stable React, and 2.0 moved the transport out to
+> `react-server-loader`.
 
-## Vendored ESM Transport
+## ESM Transport
 
-Since v1.3.0, the plugin **vendors `react-server-dom-esm`** — no separate install or patching needed.
+The plugin consumes a vendored build of `react-server-dom-esm` from the
+`react-server-loader` dependency — no separate install or patching needed.
 
 ### How It Works
 
-1. A pre-built copy lives in `oss-experimental/react-server-dom-esm/`
-2. A Vite alias plugin resolves all `react-server-dom-esm/*` imports to this copy
-3. In dev mode, a symlink is auto-created in `node_modules/` (via `configResolved`)
-4. Server-side entries are marked external during builds and resolved at runtime via `createRequire`
+1. The transport ships inside `react-server-loader` (`node_modules/react-server-loader/vendor/react-server-dom-esm/`); a single `transportDir` helper resolves it via the package.
+2. A Vite alias plugin resolves all `react-server-dom-esm/*` imports to that copy.
+3. In dev mode, a `node_modules/react-server-dom-esm` symlink is auto-created (via `configResolved`) so Vite's module runner and the RSC worker resolve the bare specifier natively.
+4. Server-side entries are marked external during builds and resolved at runtime via `createRequire`.
 
 ### Runtime Usage Outside Vite
 
@@ -43,13 +61,9 @@ If you use plugin utilities outside of Vite (startup scripts, SSR servers), regi
 node --import vite-plugin-react-server/register ./your-script.mjs
 ```
 
-### Updating the Vendored Copy
+### Updating the Transport
 
-Plugin maintainers can refresh from React source:
-
-```bash
-npm run experimental:build-oss
-```
+The transport is built and vendored by [`react-server-loader`](https://github.com/nicobrinkkemper/react-server-loader). To move to a newer React, bump the `react-server-loader` dependency (and the matching `react` / `react-dom`) — vprs no longer builds the transport itself.
 
 ## Type System
 

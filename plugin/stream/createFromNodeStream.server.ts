@@ -23,7 +23,12 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"server"> =
       type: "server" as const,
       children: React.createElement(() =>
         React.use(
-          ReactDOMServer.unstable_prerenderToNodeStream(model, moduleBasePath)
+          // Stable React exposes `prerenderToNodeStream`; the experimental
+          // channel still uses the `unstable_` name. Support both.
+          (
+            ReactDOMServer.prerenderToNodeStream ??
+            ReactDOMServer.unstable_prerenderToNodeStream
+          )(model, moduleBasePath)
         )
       ),
     };

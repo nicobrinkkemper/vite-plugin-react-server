@@ -5,8 +5,14 @@ A Vite plugin that transforms React components into native ESM modules with Reac
 ## Install
 
 ```bash
-npm install -D vite-plugin-react-server react@experimental react-dom@experimental
+npm install -D vite-plugin-react-server react react-dom
 ```
+
+vprs 2.0 runs on **stable React 19.2+**. The `react-server-dom-esm` transport
+ships inside the [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+dependency (installed automatically), so you no longer install a transport or an
+experimental React build yourself. Upgrading from 1.x? See the
+[migration notes](./docs/getting-started.md#upgrading-from-1x).
 
 ## Minimal Example
 
@@ -99,9 +105,10 @@ export default {
 };
 ```
 
-It strips the vprs plugin from Storybook's builder, resolves the vendored
-`react-server-dom-esm`, and silences `"use client"`/`"use server"` directive
-noise. See [Storybook](./docs/storybook.md) for details. (Requires vprs ≥ 1.9.0.)
+It strips the vprs plugin from Storybook's builder, resolves the
+`react-server-dom-esm` transport (from `react-server-loader`), and silences
+`"use client"`/`"use server"` directive noise. See
+[Storybook](./docs/storybook.md) for details. (Requires vprs ≥ 1.9.0.)
 
 ## Documentation
 
@@ -135,7 +142,12 @@ noise. See [Storybook](./docs/storybook.md) for details. (Requires vprs ≥ 1.9.
 ## Requirements
 
 - Node.js 22.0.0+ (the build uses `node:fs/promises#glob`, which landed in 22)
-- React experimental channel (`react@experimental` / `react-dom@experimental`). Stable React 19.x is **not yet supported** — the vendored `react-server-dom-esm` reads `TaintRegistryPendingRequests` from React's server internals, and the taint registry is only exposed on the experimental channel today. See [React Compatibility](./docs/react-type-compatibility.md) for the full story; stable support is tracked separately and is gated on upstream React landing the taint API in the stable build.
+- **Stable React 19.2+** (`react` / `react-dom` at `^19.2.7`). As of 2.0 the RSC
+  server APIs vprs relies on (`prerenderToNodeStream`, the `react-server`
+  transport exports) are part of stable React, so no experimental build is
+  required. The matching `react-server-dom-esm` transport is provided by the
+  `react-server-loader` dependency; experimental React still works if you want
+  the newest RSC features. See [React Compatibility](./docs/react-type-compatibility.md).
 - Vite 6+
 
 ## TypeScript

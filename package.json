@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "1.11.4",
+  "version": "2.0.1",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/plugin/index.js",
@@ -14,8 +14,7 @@
     "virtual.d.ts",
     "README.md",
     "LICENSE",
-    "tsconfig.json",
-    "oss-experimental/react-server-dom-esm"
+    "tsconfig.json"
   ],
   "exports": {
     ".": {
@@ -29,11 +28,9 @@
     "./rsc-worker": "./dist/plugin/worker/rsc/index.js",
     "./worker": "./dist/plugin/worker/index.js",
     "./package.json": "./package.json",
-    "./patch": "./bin/patch.mjs",
     "./virtual": {
       "types": "./virtual.d.ts"
     },
-    "./check-react-version": "./scripts/check-react-version.mjs",
     "./components": "./dist/plugin/components/index.js",
     "./types": "./dist/plugin/types.js",
     "./utils": {
@@ -50,13 +47,6 @@
       "types": "./dist/plugin/storybook/preset.d.ts",
       "default": "./dist/plugin/storybook/preset.js"
     },
-    "./react-server-dom-esm": "./oss-experimental/react-server-dom-esm/index.js",
-    "./react-server-dom-esm/client.browser": {
-      "development": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.development.js",
-      "production": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.production.js",
-      "default": "./oss-experimental/react-server-dom-esm/esm/react-server-dom-esm-client.browser.development.js"
-    },
-    "./react-server-dom-esm/*": "./oss-experimental/react-server-dom-esm/*.js",
     "./metrics": "./dist/plugin/metrics/index.js",
     "./stream": {
       "react-server": "./dist/plugin/stream/index.server.js",
@@ -317,7 +307,7 @@
     "docs:remove-toc": "node scripts/remove-toc.mjs",
     "build": "npm run clean && npm run build:types && npm run build:vite",
     "build:types": "tsc --build --force",
-    "build:vite": "vite build && chmod +x bin/patch.mjs",
+    "build:vite": "vite build",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build",
     "lint": "eslint ./plugin --fix",
@@ -363,17 +353,10 @@
     "test:bidoof-template": "cd ../bidoof-template && npm run build:preview",
     "test:mmc": "cd ../mmc && npm run build",
     "test:app-build": "cd ../bidoof-template && npx vite build --app; cd -",
-    "experimental:clean-install": "npm install react-server-dom-esm react@experimental react-dom@experimental react-server-dom-esm --save-peer",
-    "experimental:copy": "cp -r ./oss-experimental/* ./node_modules/",
-    "experimental:patch": "npx patch-package react-server-dom-esm react react-dom --exclude 'nothing'",
-    "experimental:move-patches": "mv patches/* ./scripts/",
-    "experimental:build-oss": "bash scripts/build-oss-experimental.sh",
-    "experimental:build-oss-full": "bash scripts/build-oss-experimental.sh --full",
-    "experimental:setup": "rm -rf patches/* && npm run experimental:clean-install && npm run experimental:copy && npm run experimental:patch && npm run experimental:move-patches",
-    "experimental:patch-react": "npm run experimental:clean-install && node scripts/check-react-version.mjs && node bin/patch.mjs",
     "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\"",
     "precoverage": "npm run build",
-    "coverage": "npm run test:coverage"
+    "coverage": "npm run test:coverage",
+    "test:dev:both": "bash scripts/test-dev-both-modes.sh"
   },
   "keywords": [
     "vite",
@@ -396,8 +379,8 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": ">=0.0.0-experimental-0 <1.0.0",
-    "react-dom": ">=0.0.0-experimental-0 <1.0.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "vite": "*"
   },
   "peerDependenciesMeta": {
@@ -409,9 +392,6 @@
     },
     "vite": {
       "optional": false
-    },
-    "react-server-dom-esm": {
-      "optional": true
     }
   },
   "devDependencies": {
@@ -425,8 +405,9 @@
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.2.0",
     "happy-dom": "^17.1.8",
-    "patch-package": "^8.0.0",
     "playwright": "^1.58.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "source-map": "^0.7.4",
     "supports-color": "^10.0.0",
     "ts-node": "^10.9.2",
@@ -437,13 +418,10 @@
     "vitest": "^3.0.4",
     "webpack-sources": "^3.2.3"
   },
-  "bin": {
-    "check-react-version": "./scripts/check-react-version.mjs",
-    "patch": "./bin/patch.mjs"
-  },
   "dependencies": {
     "acorn": "^8.16.0",
     "picocolors": "^1.1.1",
+    "react-server-loader": "^19.2.8",
     "tsx": "^4.21.0",
     "vitefu": "^1.1.3"
   }

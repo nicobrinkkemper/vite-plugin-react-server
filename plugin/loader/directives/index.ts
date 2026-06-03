@@ -1,15 +1,5 @@
-export * from "./addLocalExportedNames.js";
-export * from "./getExports.js";
-export * from "./analyzeDirectives.js";
-export * from "./analyzeModule.js";
-export * from "./detectClientModule.js";
-export * from "./hasFileLevelClientDirective.js";
-export * from "./sourceHasTopLevelClientDirective.js";
-export * from "./collectExports.js";
-export * from "./getFunctionBody.js";
-export * from "./getFunctionName.js";
-export * from "./getQualifiedName.js";
-export * from "./processFunctionNode.js";
-export * from "./typeGuards.js";
-export * from "./utils.js";
-export * from "./types.js";
+// Back-compat shim: vprs's `./directives` subpath used to expose the
+// directive engine implementation directly. The implementation moved to
+// react-server-loader; this file re-exports everything so existing
+// consumers (and vprs's own tests) keep working without code changes.
+export * from "react-server-loader/directives";

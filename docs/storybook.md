@@ -32,8 +32,8 @@ in `viteFinal`.
 ## What the preset does
 
 - **Strips** the `vite-plugin-react-server` plugin from Storybook's builder config.
-- **Resolves** `react-server-dom-esm/client.browser` to the ESM build vprs hosts
-  at `vite-plugin-react-server/react-server-dom-esm/client.browser`.
+- **Resolves** `react-server-dom-esm/client.browser` to the ESM build shipped by
+  the `react-server-loader` dependency at `react-server-loader/client.browser`.
 - **Externalizes** `virtual:react-server/hmr` (only the stripped plugin provides it).
 - **Silences** the `MODULE_LEVEL_DIRECTIVE` warning Rollup emits for every
   `"use client"` / `"use server"` file when bundling UI libraries (Chakra, Ark,

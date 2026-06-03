@@ -29,8 +29,9 @@ directives away) **and** `ssr.noExternal` (so Rollup inlines the source
 instead of leaving it for Node). That's the `clientPackages` shape — both
 hatches together, never just one.
 
-If the package is vendored in-tree under `oss-experimental/` and consumers
-should import it by bare name, use the vendor-alias plugin. That one is
+If the package is vendored inside a dependency (as `react-server-dom-esm` is,
+inside `react-server-loader`) and consumers should import it by bare name, use
+the vendor-alias plugin. That one is
 itself three things together (alias + `resolveId` + `node_modules/`
 symlink); see item 7.
 
@@ -132,9 +133,10 @@ Vite rather than the pre-bundled blob) and risks late-discovery full reloads
 when esbuild hits an unexpected import path. So don't exclude packages whose
 per-file source doesn't actually need to survive.
 
-**Failure mode.** Two shapes. Excluding a package vprs vendors under
-`oss-experimental/` (like `react-server-dom-esm`) bypasses the vendor-alias
-plugin — dev cold start slows down and Vite tries to resolve sub-paths it
+**Failure mode.** Two shapes. Excluding a package vprs resolves through the
+vendor-alias plugin (like `react-server-dom-esm`, vendored inside
+`react-server-loader`) bypasses that alias — dev cold start slows down and Vite
+tries to resolve sub-paths it
 can't reach. Forgetting to exclude a client-directive package means the
 transformer sees an esbuild-bundled blob with the directives already
 stripped, and `registerClientReference` never runs.
@@ -323,9 +325,9 @@ The most elaborate hatch. A plugin that does three things together:
    which resolves bare imports through Node's own resolution rather than
    plugin hooks — can still find the package.
 
-vprs uses this to host the entire `react-server-dom-esm` package in-tree
-under `oss-experimental/`, eliminating the need for consumers to install or
-patch it:
+vprs uses this to resolve the entire `react-server-dom-esm` package from the
+`react-server-loader` dependency (which vendors it under its own `vendor/`),
+eliminating the need for consumers to install or patch it:
 
 > Vite plugin that aliases `react-server-dom-esm/*` imports to the vendored
 > copy shipped with this plugin. This eliminates the need for consumers to
@@ -371,8 +373,8 @@ Need to change how an import resolves?
 │  │     → resolveId + load stub (item 6 — like stubVirtualRscHmr)
 │  └─ NO → continue
 │
-├─ Is the specifier a bare name for a package vprs hosts in-tree
-│   (oss-experimental/, patches/)?
+├─ Is the specifier a bare name for a package vprs vendors via a dependency
+│   (react-server-dom-esm, inside react-server-loader)?
 │   → vendor alias (item 7 — vitePluginVendorAlias)
 │
 ├─ Is the target environment Node + the package really lives on disk

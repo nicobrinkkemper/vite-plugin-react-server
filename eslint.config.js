@@ -11,7 +11,6 @@ export default defineConfig([
       "**/dist/**",
       "**/build/**", 
       "**/node_modules/**",
-      "**/oss-experimental/**",
       "**/*.min.js",
       "**/coverage/**",
       "**/.vite/**",
