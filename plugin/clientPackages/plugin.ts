@@ -53,9 +53,23 @@ export const clientPackagesDiscoveryPlugin = (
       });
       userOptions.clientPackages = merged;
       if (merged.length === 0) return undefined;
+      // Exclude client packages from optimizeDeps ONLY in the server
+      // (react-server) environment: there, pre-bundling would concatenate the
+      // package into one chunk and strip its per-file `"use client"` directives
+      // before vprs's transform can convert them to client references.
+      //
+      // We deliberately do NOT exclude them from the client (browser)
+      // environment — there, letting esbuild pre-bundle them normally is what we
+      // want: it resolves their transitive CJS deps (hoist-non-react-statics,
+      // the React runtime, …) and synthesizes the named/default exports the
+      // browser bundle needs. A blanket root-level exclude is what used to break
+      // the client (those deps served raw → "does not provide an export named…"
+      // errors); scoping the exclude per-environment fixes both sides without
+      // hand-collecting transitive deps.
+      const exclude = [...merged];
       return {
-        optimizeDeps: {
-          exclude: [...merged],
+        environments: {
+          server: { optimizeDeps: { exclude } },
         },
       };
     },
