@@ -144,7 +144,19 @@ export const DEFAULT_CONFIG = {
   CLIENT_ASSETS_DIR: "assets",
   RSC_DIR: "rsc",
   MODULE_BASE: "src",
-  MODULE_BASE_PATH: "",
+  // Both default to "/" so emitted client-reference moduleIDs ("/foo.client.js")
+  // concatenate cleanly with the consumer's moduleBaseURL ("/") in
+  // `react-server-dom-esm`'s client (literal string concat at
+  // `react-server-dom-esm-client.*.development.js`). When MODULE_BASE_PATH was
+  // "", `createModuleID`'s Step-5 prepend was skipped, the transformer's
+  // hosting step added the leading "/" on its own, and the resulting
+  // moduleID + moduleBaseURL combination produced "//foo.client.js" in dev —
+  // browsers ESM-import that literally, Vite's dev catch-all returns its
+  // index.html, and the module loader rejects on MIME mismatch
+  // (`NS_ERROR_CORRUPTED_CONTENT`). Consumers that explicitly set
+  // moduleBasePath (mmc historically did, bidoof always has) sidestepped it;
+  // consumers leaning on the default tripped over it.
+  MODULE_BASE_PATH: "/",
   MODULE_BASE_URL: "/",
   PUBLIC_ORIGIN: "",
   PAGE: "page.tsx",
