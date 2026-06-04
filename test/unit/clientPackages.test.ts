@@ -124,44 +124,49 @@ describe("clientPackages/discoverClientPackages", () => {
 });
 
 describe("clientPackages/clientPackagesDiscoveryPlugin", () => {
-  // Reason these tests exist: the per-environment SSR-side exclude in
-  // `resolveUserConfig` (`srrConfig.optimizeDeps.exclude`) does NOT reach
-  // Vite's dev pre-bundler, which reads from the root `optimizeDeps.exclude`.
-  // Without this plugin returning a root-level exclude, esbuild concatenates
-  // every `"use client"` directive out of each clientPackage submodule into
-  // `node_modules/.vite/deps/<pkg>.js`, the server-env module runner
-  // consults the same cache, and a server component importing the package
-  // throws `react does not provide an export named createContext` under
-  // the `react-server` condition.
-  it("returns a root optimizeDeps.exclude entry for every discovered package", async () => {
+  // Reason these tests exist: client packages must be excluded from the SERVER
+  // (react-server) environment's optimizeDeps so esbuild doesn't pre-bundle
+  // them and strip the per-file `"use client"` directives the RSC transform
+  // needs. The exclude is scoped per-environment (NOT root) so the CLIENT
+  // environment still pre-bundles them normally — that's what handles their
+  // transitive CJS interop for the browser. A root-level exclude used to break
+  // the client (those deps served raw → missing-export errors).
+  it("excludes every discovered package from the SERVER env optimizeDeps (not root, not client)", async () => {
     const userOptions = {
-      // Manual list bypasses crawl; the plugin still has to wire it through
-      // to root-level optimizeDeps.exclude.
+      // Manual list bypasses crawl; the plugin still has to wire it through.
       clientPackages: ["@my-org/internal-ui", "@another/lib"],
     };
     const plugin = clientPackagesDiscoveryPlugin(userOptions) as Plugin & {
       config: (config: unknown, env: { command: string }) => Promise<unknown>;
     };
     const result = (await plugin.config({}, { command: "serve" })) as {
-      optimizeDeps: { exclude: string[] };
+      optimizeDeps?: { exclude?: string[] };
+      environments?: { server?: { optimizeDeps?: { exclude?: string[] } } };
     };
     expect(result).toBeDefined();
-    expect(result.optimizeDeps.exclude).toEqual(
+    // Scoped to the server env...
+    expect(result.environments?.server?.optimizeDeps?.exclude).toEqual(
       expect.arrayContaining(["@my-org/internal-ui", "@another/lib"])
     );
+    // ...and NOT applied at the root (which would also strip them from the
+    // client/browser bundle and break CJS interop).
+    expect(result.optimizeDeps?.exclude).toBeUndefined();
   });
 
-  it("returns undefined when no packages are detected (so Vite doesn't merge an empty array)", async () => {
+  it("returns undefined when no packages are detected (so Vite doesn't merge empty config)", async () => {
     const userOptions = {};
     const plugin = clientPackagesDiscoveryPlugin(userOptions) as Plugin & {
       config: (config: unknown, env: { command: string }) => Promise<unknown>;
     };
     const result = await plugin.config({}, { command: "serve" });
     // With no manual entries and (likely) no crawl results for the cwd,
-    // the plugin should not pollute the Vite root config.
+    // the plugin should not pollute the Vite config.
     if (result !== undefined) {
-      const exclude = (result as { optimizeDeps?: { exclude?: string[] } })
-        .optimizeDeps?.exclude;
+      const exclude = (
+        result as {
+          environments?: { server?: { optimizeDeps?: { exclude?: string[] } } };
+        }
+      ).environments?.server?.optimizeDeps?.exclude;
       expect(exclude == null || exclude.length > 0).toBe(true);
     }
   });
