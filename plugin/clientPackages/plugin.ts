@@ -53,6 +53,12 @@ export const clientPackagesDiscoveryPlugin = (
       });
       userOptions.clientPackages = merged;
       if (merged.length === 0) return undefined;
+      // optimizeDeps (esbuild pre-bundling) is a DEV-server concern; a
+      // production build uses Rollup and ignores it. Returning a per-env
+      // `environments.server` config in build mode corrupts the build's
+      // environment resolution (client-reference paths come out with a
+      // double slash). Scope the exclude to dev only.
+      if (env.command !== "serve") return undefined;
       // Exclude client packages from optimizeDeps ONLY in the server
       // (react-server) environment: there, pre-bundling would concatenate the
       // package into one chunk and strip its per-file `"use client"` directives
