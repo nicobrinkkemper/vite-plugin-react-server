@@ -87,8 +87,79 @@ function stubVirtualRscHmr(): Plugin {
   };
 }
 
-/** Storybook `viteFinal` preset hook. */
-export const viteFinal = async (config: UserConfig): Promise<UserConfig> => {
+/** Options for the Storybook preset, passed via the addon entry:
+ * `addons: [{ name: "vite-plugin-react-server/storybook", options: { rsc: true } }]`.
+ */
+export interface StorybookPresetOptions {
+  /**
+   * Whether the vprs plugin stays active in Storybook (default `true`).
+   *
+   * When kept, the RSC dev server runs inside Storybook and Server Components
+   * stream for real — the `.rsc` / `_rsc` routes are served, so a story's
+   * `createReactFetcher` can render the live app. No launch flag is needed: the
+   * plugin sets the `react-server` condition per-environment and the RSC worker
+   * sets it for itself, so plain `storybook dev` is enough.
+   *
+   * Set `rsc: false` to opt OUT — strip the plugin and bundle client components
+   * only. That's the lighter, no-RSC-worker build for projects that only want
+   * to story client UI; the preset then re-adds the few resolver/HMR shims the
+   * stripped plugin would otherwise have provided.
+   */
+  rsc?: boolean;
+}
+
+/** Silences the MODULE_LEVEL_DIRECTIVE warning Rollup emits for every
+ * "use client"/"use server" file when bundling UI libraries (Chakra, Ark,
+ * MUI, …). Meaningless in Storybook; preserves a consumer's existing onwarn. */
+const silenceDirectiveWarnings = (
+  prev: NonNullable<
+    NonNullable<UserConfig["build"]>["rollupOptions"]
+  >["onwarn"],
+): NonNullable<
+  NonNullable<UserConfig["build"]>["rollupOptions"]
+>["onwarn"] => {
+  return (warning, defaultHandler) => {
+    if (
+      warning.code === "MODULE_LEVEL_DIRECTIVE" &&
+      typeof warning.message === "string" &&
+      /use (client|server)/.test(warning.message)
+    ) {
+      return;
+    }
+    if (typeof prev === "function") {
+      prev(warning, defaultHandler);
+      return;
+    }
+    defaultHandler(warning);
+  };
+};
+
+/** Storybook `viteFinal` preset hook. Storybook merges the addon's registered
+ * `options` into the options object, so `options.rsc` is the flag set via
+ * `addons: [{ name: "…/storybook", options: { rsc: true } }]`. */
+export const viteFinal = async (
+  config: UserConfig,
+  options?: StorybookPresetOptions,
+): Promise<UserConfig> => {
+  const onwarn = silenceDirectiveWarnings(config.build?.rollupOptions?.onwarn);
+
+  // DEFAULT: keep the vprs plugin so the RSC dev server runs inside Storybook.
+  // The plugin resolves `react-server-dom-esm/*` and provides
+  // `virtual:react-server/hmr` itself, so the strip-compensation shims are NOT
+  // added here (they would shadow the real providers). Server Components stream
+  // from the `.rsc` route for stories that fetch them.
+  if (options?.rsc !== false) {
+    return {
+      ...config,
+      build: {
+        ...config.build,
+        rollupOptions: { ...config.build?.rollupOptions, onwarn },
+      },
+    };
+  }
+
+  // Opt-out (`rsc: false`) — client-only: strip the vprs plugin and re-add only
+  // the helpers a client story needs.
   const plugins = (config.plugins ?? []).filter((p) => {
     if (!p || typeof p !== "object" || Array.isArray(p)) return true;
     const name = (p as { name?: string }).name ?? "";
@@ -104,8 +175,6 @@ export const viteFinal = async (config: UserConfig): Promise<UserConfig> => {
   // why externalizing a virtual specifier was the wrong shape.
   const external = Array.isArray(existingExternal) ? existingExternal : [];
 
-  const prevOnwarn = config.build?.rollupOptions?.onwarn;
-
   return {
     ...config,
     plugins: [resolveReactServerDomEsm(), stubVirtualRscHmr(), ...plugins],
@@ -115,24 +184,7 @@ export const viteFinal = async (config: UserConfig): Promise<UserConfig> => {
       rollupOptions: {
         ...config.build?.rollupOptions,
         external,
-        // Any library shipping "use client"/"use server" directives (Chakra,
-        // Ark, MUI, …) triggers a MODULE_LEVEL_DIRECTIVE warning per file when
-        // bundled — meaningless in Storybook, which has no RSC runtime. Silence
-        // just those; preserve a consumer's existing onwarn. UI-lib-agnostic.
-        onwarn(warning, defaultHandler) {
-          if (
-            warning.code === "MODULE_LEVEL_DIRECTIVE" &&
-            typeof warning.message === "string" &&
-            /use (client|server)/.test(warning.message)
-          ) {
-            return;
-          }
-          if (typeof prevOnwarn === "function") {
-            prevOnwarn(warning, defaultHandler);
-            return;
-          }
-          defaultHandler(warning);
-        },
+        onwarn,
       },
     },
   };
