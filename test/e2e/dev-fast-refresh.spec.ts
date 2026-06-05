@@ -70,6 +70,10 @@ function defineSuite(mode: Mode, port: number) {
     let server: ChildProcess | undefined;
     let origCounter = "";
     let origPage = "";
+    // Accumulate the dev server's stdout+stderr so a test can assert the node
+    // console stays clean — the "react-server condition must be enabled" error
+    // on dev:ssr full reloads (bd-u7v) only shows here, not in the browser.
+    let serverLog = "";
     const baseURL = `http://localhost:${port}`;
 
     test.beforeAll(async () => {
@@ -96,8 +100,14 @@ function defineSuite(mode: Mode, port: number) {
         },
         stdio: ["ignore", "pipe", "pipe"],
       });
-      server.stdout?.on("data", (d) => process.stdout.write(`[dev:${mode}] ${d}`));
-      server.stderr?.on("data", (d) => process.stderr.write(`[dev:${mode}] ${d}`));
+      server.stdout?.on("data", (d) => {
+        serverLog += d;
+        process.stdout.write(`[dev:${mode}] ${d}`);
+      });
+      server.stderr?.on("data", (d) => {
+        serverLog += d;
+        process.stderr.write(`[dev:${mode}] ${d}`);
+      });
       await waitForServer(baseURL, 60_000);
     }, 90_000);
 
@@ -218,6 +228,16 @@ function defineSuite(mode: Mode, port: number) {
         page.getByRole("heading", { name: /vite-plugin-react-server demo/i })
       ).toBeVisible();
       expect(issues, issues.join("\n")).toEqual([]);
+    });
+
+    // Runs last (serial): the prior edits would, on dev:ssr, have triggered the
+    // node-console "react-server condition must be enabled" error during Vite's
+    // full reload (bd-u7v) if the props pre-load weren't gated to dev:rsc.
+    test("node console has no react-server condition error", () => {
+      expect(
+        serverLog,
+        serverLog.slice(-800)
+      ).not.toMatch(/condition must be enabled|error happened during full reload/i);
     });
   });
 }

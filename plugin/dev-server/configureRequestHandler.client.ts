@@ -11,6 +11,7 @@ import { handleServerAction } from "./handleServerAction.client.js";
 import type { ConfigureWorkerRequestHandlerFn } from "../react-client/types.js";
 import { handleError } from "../error/handleError.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
+import { isReactServerCondition } from "../config/getCondition.js";
 import { setupGlobalErrorHandler, cleanupGlobalErrorHandler } from "../error/setupGlobalErrorHandler.js";
 import { pipeToResponse } from "../helpers/pipeToResponse.js";
 
@@ -179,35 +180,45 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       const rootPath = routeFiles.root;
       // Note: htmlPath not used for RSC requests (always "" for headless mode)
       
-      // Pre-load props on main thread to apply Vite transforms (server actions need this)
-      // Use the server environment runner if available (Vite 6+), otherwise fall back to ssrLoadModule
-      // NOTE: In dev:ssr mode, this will fail because main thread lacks react-server condition.
-      // That's expected - the worker will load props instead.
+      // Pre-load props on main thread to apply Vite transforms (server actions need this).
+      // Only when the main process actually runs the react-server condition (dev:rsc):
+      // a props module pulls the server graph (and any client component it reaches loads
+      // its registerClientReference form, which imports react-server-dom-esm-server and
+      // hard-requires react-server). In dev:ssr the main thread is NOT react-server, so we
+      // must NOT attempt this — the worker loads props instead. Attempting it there made
+      // Vite's ModuleRunner log a "react-server condition must be enabled" error during
+      // full reloads even though we caught the rejection (bd-u7v). Gate on the condition
+      // so the doomed import never runs in dev:ssr.
       let resolvedPageProps: Record<string, unknown> | undefined;
       if (propsPath) {
         try {
           const fullPropsPath = `${handlerOptions.projectRoot}/${propsPath}`;
           const serverEnv = server.environments?.['server'];
           let propsModule: any;
-          
+
           if (handlerOptions.verbose) {
             logger.info(`[configureRequestHandler] Pre-loading props from: ${fullPropsPath}`);
           }
-          
-          if (serverEnv && 'runner' in serverEnv && serverEnv.runner) {
-            // Vite 6+ server environment with react-server conditions
+
+          if (
+            isReactServerCondition() &&
+            serverEnv &&
+            'runner' in serverEnv &&
+            serverEnv.runner
+          ) {
+            // dev:rsc — main thread has the react-server condition, so the server
+            // environment runner can evaluate the props (and the server graph) directly.
             try {
               propsModule = await (serverEnv.runner as any).import(fullPropsPath);
             } catch (runnerError: any) {
-              // Expected in dev:ssr mode - main thread lacks react-server condition
-              // Worker will load props instead (this is the normal path for dev:ssr)
               if (handlerOptions.verbose) {
-                logger.info(`[configureRequestHandler] Props will be loaded by worker (expected in dev:ssr mode)`);
+                logger.info(`[configureRequestHandler] Main-thread props import failed; worker will load props`);
               }
               propsModule = null;
             }
           } else {
-            // No server environment - let the worker handle it
+            // dev:ssr (no react-server on the main thread) or no server env:
+            // the worker loads props in its react-server context.
             propsModule = null;
           }
           const propsExportName = handlerOptions.propsExportName || "props";
