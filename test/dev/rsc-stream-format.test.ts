@@ -140,12 +140,15 @@ describe("RSC Stream Format", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("should include client component references with .js extension", () => {
-    // Client references should be .js, not .tsx
-    // The transformer should convert the extension for browser compatibility
-    // Note: filenames may include hashes like Link.client-14k4vk9.js
-    expect(response.result).toMatch(/I\[.*Link\.client.*\.js.*Link/);
-    expect(response.result).not.toMatch(/I\[.*\.client\.tsx.*Link/);
+  it("should include client component references with the dev .tsx extension", () => {
+    // In DEV the browser imports client modules through Vite, which transpiles
+    // .tsx on the fly — so the client-reference id keeps its real .tsx path.
+    // Extension mapping to .js happens only in a BUILD (where the browser loads
+    // the compiled .js). Forcing .js in dev produced a phantom
+    // "<name>.client.js.tsx" import that 404'd on the second HMR fetch and broke
+    // Fast Refresh after the first edit (bd-572).
+    expect(response.result).toMatch(/I\[.*Link\.client.*\.tsx.*Link/);
+    expect(response.result).not.toMatch(/I\[.*\.client\.js[^.].*Link/);
   });
 
   it("should include Root component in the stream", () => {
