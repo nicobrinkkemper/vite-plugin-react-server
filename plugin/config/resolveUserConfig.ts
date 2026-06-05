@@ -328,19 +328,29 @@ export const resolveUserConfig: ResolveUserConfigFn =
     const effectivePublicOrigin =
       envPublicOrigin != null ? envPublicOrigin : userOptions.publicOrigin;
 
-    const nodeEnv = getNodeEnv();
-    let mode =
-      config.mode ??
-      process.env[`${vitePrefix}MODE`] ??
-      process.env["NODE_ENV"] ??
-      nodeEnv;
-
-    if (mode !== nodeEnv) {
-      if (typeof config.mode === "string" && nodeEnv !== "production") {
-        throw new Error(`Mode ${mode} must be equal to NODE_ENV ${nodeEnv}.`);
-      }
-      mode = nodeEnv;
-    }
+    // Single source of truth for the build/runtime mode.
+    //
+    // Rule (per maintainer): if the user EXPLICITLY set the mode, honor it;
+    // otherwise mirror NODE_ENV. No throwing on a "contradiction" — explicit
+    // intent always wins.
+    //
+    // What counts as "explicit" (empirically verified against Vite 6):
+    //   - `config.mode` is undefined unless the user passes `--mode <m>` (Vite
+    //     propagates the CLI arg into `config.mode`) OR authors `mode` in their
+    //     vite config. It is NOT pre-populated with the command default, so its
+    //     mere presence is a reliable "user set this" signal.
+    //   - `configEnv.mode`, by contrast, IS pre-populated with the command
+    //     default ("production" for `vite build`, "development" for serve), so
+    //     it cannot distinguish explicit intent and must not gate this choice.
+    //
+    // When no explicit mode is given we mirror NODE_ENV (normalized by
+    // getNodeEnv). This makes `NODE_ENV=development vite build` produce a dev
+    // build even though Vite's command default mode is "production".
+    const explicitMode =
+      typeof config.mode === "string" && config.mode !== ""
+        ? config.mode
+        : undefined;
+    const mode = explicitMode ?? getNodeEnv();
 
     // Calculate effective values based on command and environment
     // Prioritize userOptions.projectRoot when explicitly set, regardless of config.root
@@ -444,11 +454,16 @@ export const resolveUserConfig: ResolveUserConfigFn =
       // This avoids hardcoding a port that may change if the configured port is taken.
       publicOrigin = "";
     }
-    const isDev = configEnv.mode === 'development' || configEnv.command === 'serve';
+    // Use the single authoritative `mode` resolved above (NOT configEnv.mode)
+    // so the React build define and vprs's internal mode can never diverge —
+    // in particular so a config-file `mode` or `NODE_ENV` propagates into the
+    // `process.env.NODE_ENV` / `import.meta.env.MODE` defines that select the
+    // dev-vs-prod React build.
+    const isDev = mode === 'development' || configEnv.command === 'serve';
     const ssrDefine = {
       [`process.env.${primaryPrefix}BASE_URL`]: `"${base}"`,
       [`process.env.${primaryPrefix}PUBLIC_ORIGIN`]: `"${publicOrigin}"`,
-      [`process.env.NODE_ENV`]: `"${configEnv.mode}"`,
+      [`process.env.NODE_ENV`]: `"${mode}"`,
       [`process.env.VITE_DEV`]: isDev ? 'true' : 'false',
       [`process.env.VITE_PROD`]: isDev ? 'false' : 'true',
     };
@@ -457,7 +472,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
       // Standard Vite env vars
       [`import.meta.env.DEV`]: isDev ? 'true' : 'false',
       [`import.meta.env.PROD`]: isDev ? 'false' : 'true',
-      [`import.meta.env.MODE`]: `"${configEnv.mode}"`,
+      [`import.meta.env.MODE`]: `"${mode}"`,
       [`import.meta.env.SSR`]: 'false', // Will be overridden per-environment
       // Custom env vars
       [`import.meta.env.BASE_URL`]: `"${base}"`,
