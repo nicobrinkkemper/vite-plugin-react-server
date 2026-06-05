@@ -306,6 +306,35 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         };
       }
 
+      // Force the PRODUCTION JSX transform for every build environment.
+      //
+      // Under a dev-mode build (`NODE_ENV=development … vite build --mode
+      // development`) esbuild's automatic-runtime JSX transform emits the
+      // dev call shape `jsxDEV(type, props, key, isStaticChildren, source,
+      // self)`. esbuild renders the trailing `self` argument as a bare
+      // `module` reference when it can't prove the file is ESM at
+      // per-file transform time. The vprs server bundle is pure ESM
+      // (`dist/server/*.js`), so at SSG-prerender time that `module`
+      // identifier is undefined and the very first server component to
+      // render (e.g. the built-in `Html` component) throws
+      // `ReferenceError: module is not defined`.
+      //
+      // The server bundle never consumes jsxDEV's client-warning
+      // `source`/`self` info, so dropping to the production transform
+      // (`jsx`/`jsxs`, no `self` arg) is a pure win for builds:
+      //   - It only changes the JSX *call shape*, NOT which React build is
+      //     bundled — `NODE_ENV=development` still resolves the development
+      //     (non-minified) React, so dev builds keep surfacing the errors
+      //     production minifies away.
+      //   - Production builds already use the production JSX transform
+      //     (esbuild only emits jsxDEV in dev), so this is a no-op there.
+      //   - Scoped to `command === "build"`, so the dev SERVER / client
+      //     Fast Refresh path (`command === "serve"`) is untouched.
+      const esbuildJsxDevOverride =
+        configEnv.command === "build" && config.esbuild !== false
+          ? { esbuild: { ...config.esbuild, jsxDev: false } }
+          : {};
+
       // Return the configuration with all environments
       // Build order: client → ssr → server → static generation (step 4)
       // Server build runs LAST so dist/client exists when HTML rendering references client components
@@ -313,6 +342,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       return {
         root: userOptions.projectRoot,
         ...config,
+        ...esbuildJsxDevOverride,
         environments,
         builder: {
           async buildApp(builder: ViteBuilder) {

@@ -31,13 +31,20 @@ export const createDefaultModuleID = (
   const { moduleBase, moduleBasePath, build, moduleBaseURL, projectRoot, autoDiscover } = options;
   const assetsDir = build.assetsDir || DEFAULT_CONFIG.BUILD.assetsDir;
   const isBuild = configEnv?.command === "build";
-  // CRITICAL: In development mode, NEVER hash, even if command is "build" (optimizer)
-  const isDevelopment = mode === "development";
-  const shouldHash = isBuild && !isDevelopment;
+  // Hashing + moduleBase-stripping must track `isBuild`, NOT `mode`. The chunk
+  // EMISSION side (resolveOptions' entryFile/chunkFile hash() + Rollup's
+  // preserveModulesRoot) hashes and strips `src/` on EVERY build regardless of
+  // mode, so the client-REFERENCE side (this fn, used by the transformer) must
+  // do the same — otherwise a `vite build --mode development` (NODE_ENV=
+  // development) emits hashed/src-stripped chunks but bakes unhashed/src-kept
+  // refs into the RSC stream, and SSG fails with ERR_MODULE_NOT_FOUND.
+  // The dependency optimizer is NOT a concern here: it runs under
+  // command === "serve" (so isBuild === false) and only pre-bundles
+  // node_modules — it never names a first-party `src/*.client.*` chunk.
+  const shouldHash = isBuild;
   const isProd = mode === "production" || isBuild;
-  // CRITICAL: In development mode, NEVER remove moduleBase (src/), even if command is "build" (optimizer)
   const removeModuleBase =
-    (isProd || isBuild) && !isDevelopment && !options.build.preserveModulesRoot;
+    (isProd || isBuild) && !options.build.preserveModulesRoot;
   
 
   // Hash configuration
