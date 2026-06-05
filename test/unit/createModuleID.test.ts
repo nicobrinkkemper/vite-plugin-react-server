@@ -47,8 +47,7 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
       hash: DEFAULT_CONFIG.BUILD.hash,
       preserveModulesRoot: false,
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any;
+  } satisfies Parameters<typeof createDefaultModuleID>[0];
 
   const CLIENT_ID = "src/components/Widget.client.tsx";
 
