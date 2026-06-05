@@ -260,16 +260,19 @@ export const createDefaultModuleID = (
       id = moduleBasePath + id;
     }
     
-    // Step 6: Apply extension mapping
-    // ALWAYS replace extensions for client components (browser can't import .tsx)
-    // For other files, only replace in build mode.
-    // Directive-detected client modules count as client components too.
+    // Step 6: Apply extension mapping — BUILD ONLY.
+    // In a build the browser can't import .tsx, so client components are mapped
+    // to .js. In DEV, Vite transpiles .tsx on the fly, so mapping there gives
+    // the client-reference id a phantom .js the dev module graph never has —
+    // the import resolves to "<name>.client.js.tsx", which 404s on the second
+    // HMR fetch and kills Fast Refresh after the first edit (bd-572). Keep the
+    // real .tsx id in dev.
     const isClientComponent = isClientComponentId(
       id,
       sourceContent,
       isClientByDirective
     );
-    if (isBuild || isClientComponent) {
+    if (isBuild) {
       id = replaceExtension(id, {
         build: { extensionMap: build.extensionMap },
       });

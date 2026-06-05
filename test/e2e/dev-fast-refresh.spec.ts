@@ -13,9 +13,10 @@
  * Every case also asserts that vprs's condition guard
  * ("Condition mismatch …" / "react … under the wrong condition") never fires.
  *
- * Cases that don't yet hold under vprs's RSC conditions are marked with
- * `test.fail()` and a note — they pin the Fast-Refresh-vs-RSC bugs, and the FR
- * ticket is "delete those markers". Flip one off only when it genuinely passes.
+ * All cases pass as of the dev-only extension fix (bd-572): vprs no longer maps
+ * client-ref ids to `.js` in dev, so Fast Refresh's incremental fetch hits the
+ * real `.tsx` module instead of a phantom `.client.js.tsx` (404). This matrix
+ * now guards against Fast-Refresh / HMR regressions under RSC.
  *
  * Requires the bidoof-template fixture to have `@vitejs/plugin-react` wired
  * (`react()` before `vitePluginReactServer()`); without it the FR cases just
@@ -148,11 +149,6 @@ function defineSuite(mode: Mode, port: number) {
     test("client edit → Fast Refresh preserves state, no full reload", async ({
       page,
     }) => {
-      // KNOWN-BROKEN: Fast Refresh doesn't yet hot-update client components
-      // under vprs's RSC conditions — the edit fails to propagate (and on
-      // dev:rsc the first update can break subsequent HMR). Remove this marker
-      // when the FR-vs-RSC integration is fixed; an unexpected pass flags it.
-      test.fail();
       const issues = watchIssues(page);
       await page.goto(baseURL, { waitUntil: "networkidle" });
       const counter = page.getByRole("button", { name: /Click count/i });
@@ -180,9 +176,6 @@ function defineSuite(mode: Mode, port: number) {
     });
 
     test("repeated client edits keep hot-updating", async ({ page }) => {
-      // KNOWN-BROKEN: see the note above — once client-edit HMR is unreliable,
-      // repeated edits don't propagate either. Remove this marker when fixed.
-      test.fail();
       const issues = watchIssues(page);
       await page.goto(baseURL, { waitUntil: "networkidle" });
       await page.evaluate(() => ((window as Window & { __fr2?: string }).__fr2 = "alive"));
