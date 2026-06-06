@@ -38,7 +38,13 @@ export function createReactElement(
 
   return createElementWithReact(React, {
     ...finalOptions,
-    Html: isHeadless ? React.Fragment : finalOptions.HtmlComponent,
+    // NOTE: createElementWithReact reads `HtmlComponent`, not `Html`. For a
+    // headless (page-level) stream the Html wrapper must be replaced with a
+    // Fragment so the emitted .rsc has no <html>/<head>/<body> wrapper — this
+    // is what the browser client mounts into #root. Setting `Html` here was a
+    // no-op, leaking the full document into the headless .rsc (matches the
+    // dev server, which already sets HtmlComponent: React.Fragment).
+    HtmlComponent: isHeadless ? React.Fragment : finalOptions.HtmlComponent,
     as: isHeadless ? React.Fragment : "div",
   });
 }

@@ -132,10 +132,13 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
 
     // Use ReactDOMServer directly in the worker
     // For headless streams, use Fragment; for full streams, use the actual Html component
+    // NOTE: createElementWithReact reads `HtmlComponent`, not `Html`; setting
+    // `Html` here was a no-op that leaked the full <html> document into the
+    // headless stream. Override the key the helper actually consumes.
     const isHeadless = id.includes("headless");
     const element = createElementWithReact(React, {
       ...finalOptions,
-      Html: isHeadless ? React.Fragment : finalOptions.HtmlComponent,
+      HtmlComponent: isHeadless ? React.Fragment : finalOptions.HtmlComponent,
       as: isHeadless ? React.Fragment : "div",
     });
     if (verbose) {
