@@ -2,6 +2,7 @@ import type { Plugin } from "vite";
 import { join } from "node:path";
 import { lstatSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
 import { transportPkgDir, transportRoot } from "./transportDir.js";
+import { getNodeEnv } from "../config/getNodeEnv.js";
 
 /**
  * Vite plugin that aliases `react-server-dom-esm/*` imports to the vendored
@@ -20,9 +21,32 @@ export function vitePluginVendorAlias(): Plugin {
     name: "vite-plugin-react-server:vendor-alias",
     enforce: "pre",
 
-    config(_config, env) {
+    config(config, _env) {
       const pkg = transportPkgDir;
-      const isProd = env.mode === "production";
+      // Pick the dev/prod variant of the browser client from the SAME unified
+      // `mode` that `resolveUserConfig` uses for the React build define — never
+      // from `env.mode` alone.
+      //
+      // `env.mode` (configEnv.mode) is pre-populated with the command default
+      // ("production" for `vite build`, "development" for serve), so it cannot
+      // distinguish explicit user intent. Under `NODE_ENV=development vite
+      // build` it would be "production" and this alias would pull the
+      // PRODUCTION rsdom browser client even though React itself and the dev
+      // `.rsc` are development — yielding the runtime error "Failed to read a
+      // RSC payload created by a development version of React on the server
+      // while using a production version on the client."
+      //
+      // Mirror resolveUserConfig's rule: an explicit `config.mode` (set only
+      // when the user passes `--mode <m>` or authors `mode` in their config)
+      // wins; otherwise mirror NODE_ENV (normalized by getNodeEnv). This keeps
+      // the rsdom browser client's dev/prod choice locked to the same mode that
+      // selects the dev-vs-prod React build.
+      const explicitMode =
+        typeof config.mode === "string" && config.mode !== ""
+          ? config.mode
+          : undefined;
+      const mode = explicitMode ?? getNodeEnv();
+      const isProd = mode === "production";
 
       return {
         resolve: {
