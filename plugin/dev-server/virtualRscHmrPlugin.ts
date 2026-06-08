@@ -9,7 +9,7 @@ const RESOLVED_VIRTUAL_RSC_HMR = '\0' + VIRTUAL_RSC_HMR;
  * HMR code is dead-code eliminated in production builds (import.meta.hot is undefined).
  */
 const VIRTUAL_RSC_HMR_SOURCE = /* js */`
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 const RSC_HMR_EVENT = 'vite-plugin-react-server:server-component-update';
 
@@ -53,10 +53,20 @@ function refreshCssLinks(data) {
 }
 
 export function useRscHmr(refetch, options = {}) {
-  const { verbose = true, filter } = options;
+  // Keep the latest callback + options in a ref so the subscribe effect can run
+  // exactly once on mount. Keying the effect on the handler identity instead
+  // would tear down and re-add the import.meta.hot listener on every render —
+  // and since client-side RSC navigation re-renders the shell, an unmemoized
+  // (inline) refetch callback would churn the listener (and re-log "Listening…")
+  // on every navigation. The ref pattern makes inline callbacks safe.
+  const ref = useRef(null);
+  ref.current = { refetch, options };
 
-  const handler = useCallback(
-    (data) => {
+  useEffect(() => {
+    if (typeof import.meta.hot === 'undefined') return;
+    const handler = (data) => {
+      const { refetch, options } = ref.current;
+      const { verbose = true, filter } = options;
       if (filter && !filter(data)) return;
       if (verbose) {
         console.log('[RSC HMR] Server component updated:', data.file, data.kind ? '(' + data.kind + ')' : '');
@@ -65,20 +75,15 @@ export function useRscHmr(refetch, options = {}) {
         refreshCssLinks(data);
       }
       refetch(window.location.pathname);
-    },
-    [refetch, verbose, filter]
-  );
-
-  useEffect(() => {
-    if (typeof import.meta.hot === 'undefined') return;
+    };
     import.meta.hot.on(RSC_HMR_EVENT, handler);
-    if (verbose) {
+    if (ref.current.options.verbose !== false) {
       console.log('[RSC HMR] Listening for server component updates');
     }
     return () => {
       import.meta.hot.off(RSC_HMR_EVENT, handler);
     };
-  }, [handler, verbose]);
+  }, []);
 }
 
 export function setupRscHmr(options = {}) {

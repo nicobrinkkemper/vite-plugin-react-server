@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { RSC_HMR_EVENT } from "./createReactFetcher.js";
 import type { RscHmrData } from "./createReactFetcher.js";
 import { env } from "./env.js";
@@ -79,8 +79,24 @@ export function useRscHmr(
 ) {
   const { verbose = env.DEV, filter } = options;
 
-  const handler = useCallback(
-    (data: RscHmrData) => {
+  // Keep the latest callback + options in a ref so the subscribe effect can run
+  // exactly once on mount. Keying the effect on the handler identity instead
+  // would tear down and re-add the import.meta.hot listener on every render —
+  // and since client-side RSC navigation re-renders the shell, an unmemoized
+  // (inline) refetch callback would churn the listener (and re-log "Listening…")
+  // on every navigation. The ref pattern makes inline callbacks safe.
+  const ref = useRef<{
+    refetch: (url: string) => void;
+    verbose: boolean;
+    filter?: (data: RscHmrData) => boolean;
+  }>({ refetch, verbose, filter });
+  ref.current = { refetch, verbose, filter };
+
+  useEffect(() => {
+    if (typeof import.meta.hot === 'undefined') return;
+
+    const handler = (data: RscHmrData) => {
+      const { refetch, verbose, filter } = ref.current;
       if (filter && !filter(data)) return;
       const kind = (data as { kind?: string }).kind;
       if (verbose) {
@@ -90,21 +106,16 @@ export function useRscHmr(
         refreshCssLinks(data);
       }
       refetch(window.location.pathname);
-    },
-    [refetch, verbose, filter]
-  );
-
-  useEffect(() => {
-    if (typeof import.meta.hot === 'undefined') return;
+    };
 
     import.meta.hot.on(RSC_HMR_EVENT, handler);
-    
-    if (verbose) {
+
+    if (ref.current.verbose) {
       console.log('[RSC HMR] Listening for server component updates');
     }
 
     return () => {
       import.meta.hot!.off(RSC_HMR_EVENT, handler);
     };
-  }, [handler, verbose]);
+  }, []);
 }
