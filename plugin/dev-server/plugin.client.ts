@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
+import { CSS_EXT } from "./collectRunnerCss.js";
 import { detectClientModule } from "react-server-loader/directives";
 import type { ConfigEnv } from "vite";
 
@@ -96,8 +97,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // CSS edits route through the same worker-invalidation path so the
       // ModuleRunner cache drops every reachable CSS module before the
       // next render asks for class-name hashes.
-      const isCssFile = isInModuleBase &&
-        (file.endsWith('.css') || file.endsWith('.scss') || file.endsWith('.sass') || file.endsWith('.less'));
+      const isCssFile = isInModuleBase && CSS_EXT.test(file);
 
       // Skip client components — Vite owns client-side HMR (Fast Refresh
       // when `@vitejs/plugin-react` is installed, plain reload otherwise).

@@ -1,6 +1,7 @@
 import type { StreamPluginOptions } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
+import { CSS_EXT } from "./collectRunnerCss.js";
 import { detectClientModule } from "react-server-loader/directives";
 import type { Plugin, ViteDevServer } from "vite";
 import { readFileSync } from "node:fs";
@@ -33,7 +34,7 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
     hotUpdate(ctx: any) {
       const { file, server } = ctx;
       const envName = ctx.environment?.name ?? 'unknown';
-      
+
       const moduleBase = userOptions.moduleBase || "src";
       const projectRoot = userOptions.projectRoot || server?.config?.root || '';
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
@@ -53,16 +54,26 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
 
         if (isClient) return; // Vite's client-side HMR owns this update
 
+        const isCssFile = CSS_EXT.test(file);
+
+        // A CSS module imported transitively by a "use client" component lives
+        // in the CLIENT module graph (the browser fetches it directly and Vite
+        // injects it as a <style>), so Vite's native CSS HMR already updates it
+        // in place — no reload, no <link> cache-bust. Detect that case by the
+        // presence of client-environment modules for this file and hand the
+        // update back to Vite. Suppressing it here (the `return []` below) is
+        // what previously left client-graph CSS edits stuck until a manual
+        // refresh: the RSC <link> cache-bust never matches a Vite <style>.
+        if (isCssFile && (ctx.modules?.length ?? 0) > 0) {
+          return; // let Vite's native client CSS HMR apply the update
+        }
+
         // CSS files that aren't imported via the client module graph (vprs's
         // <Css cssFiles={...}/> pattern collects them server-side) aren't
         // tracked by Vite's CSS HMR, so a content edit leaves the <link>
         // tag's href unchanged. Tag the event so useRscHmr knows to refresh
         // matching link tags by cache-busting their href.
-        const kind: 'css' | 'component' =
-          file.endsWith('.css') || file.endsWith('.scss') ||
-          file.endsWith('.sass') || file.endsWith('.less')
-            ? 'css'
-            : 'component';
+        const kind: 'css' | 'component' = isCssFile ? 'css' : 'component';
 
         // Server component changed — send RSC refetch event to client
         // Only do this once (from client env) to avoid duplicate events
