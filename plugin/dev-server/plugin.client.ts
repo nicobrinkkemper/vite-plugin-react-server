@@ -109,6 +109,23 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         } catch { return false; }
       })();
 
+      // A CSS module imported transitively by a "use client" component lives
+      // in the CLIENT module graph (the browser fetches it directly and Vite
+      // injects it as a <style>), so Vite's native CSS HMR already updates it
+      // in place — no reload, no <link> cache-bust. Detect that case by the
+      // presence of client-environment modules for this file and hand the
+      // update back to Vite by returning undefined. This is the dev:ssr
+      // counterpart to the #96 fix in plugin.server.ts: that fix only takes
+      // effect on the dev:rsc main thread (createPluginOrchestrator.server.js
+      // -> plugin.server.ts). dev:ssr loads plugin.client.ts instead, so
+      // without this branch client-graph CSS falls into the `return []`
+      // suppression below and Vite's native CSS HMR never fires — leaving the
+      // edit stuck until a manual refresh.
+      const isClientGraphCss = isCssFile && (ctx.modules?.length ?? 0) > 0;
+      if (isClientGraphCss) {
+        return; // let Vite's native client CSS HMR apply the update
+      }
+
       const isServerFile = isSourceFile && !isClientFile;
       const shouldInvalidateWorker = isServerFile || isCssFile;
 
