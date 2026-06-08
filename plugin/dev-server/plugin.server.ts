@@ -1,6 +1,7 @@
 import type { StreamPluginOptions } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
+import { CSS_EXT } from "./collectRunnerCss.js";
 import { detectClientModule } from "react-server-loader/directives";
 import type { Plugin, ViteDevServer } from "vite";
 import { readFileSync } from "node:fs";
@@ -53,9 +54,7 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
 
         if (isClient) return; // Vite's client-side HMR owns this update
 
-        const isCssFile =
-          file.endsWith('.css') || file.endsWith('.scss') ||
-          file.endsWith('.sass') || file.endsWith('.less');
+        const isCssFile = CSS_EXT.test(file);
 
         // A CSS module imported transitively by a "use client" component lives
         // in the CLIENT module graph (the browser fetches it directly and Vite

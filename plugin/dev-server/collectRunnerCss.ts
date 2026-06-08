@@ -6,7 +6,7 @@ import type {
   Logger,
 } from "vite";
 
-const CSS_EXT = /\.(css|scss|sass|less|styl|stylus|pcss|postcss)(\?|$)/;
+export const CSS_EXT = /\.(css|scss|sass|less|styl|stylus|pcss|postcss)(\?|$)/;
 
 export type CollectedCss = { id: string; code: string };
 
