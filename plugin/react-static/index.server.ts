@@ -6,6 +6,10 @@ export { createRscToHtmlStream } from "./rscToHtmlStream.server.js";
 export { collectHtmlContent } from "./collectHtmlContent.js";
 // Shared exports
 export { fileWriter } from "./fileWriter.js";
+export {
+  fixCssPreloadHint,
+  createCssPreloadFixStream,
+} from "./fixCssPreloadHint.js";
 export { renderPages } from "./renderPages.js";
 export { configurePreviewServer } from "./configurePreviewServer.js";
 export { collectRscContent } from "./collectRscContent.js";

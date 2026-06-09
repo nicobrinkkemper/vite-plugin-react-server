@@ -15,6 +15,7 @@ import { Transform, PassThrough } from "node:stream";
 import type { FileWriterFn } from "./types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
+import { createCssPreloadFixStream } from "./fixCssPreloadHint.js";
 
 /**
  * A robust content collecting transform stream that handles race conditions
@@ -193,11 +194,18 @@ export const fileWriter: FileWriterFn = function _fileWriter(
     }
   }
 
+  // For HTML, splice in a transform that rewrites stable React's invalid
+  // `as="stylesheet"` CSS preload hint to the valid `as="style"` on the way to
+  // disk (see fixCssPreloadHint.ts). RSC output is left untouched.
+  const cssPreloadFix =
+    fileType === "html" ? createCssPreloadFixStream() : undefined;
+
   return new Promise<void>((resolve, reject) => {
     // Handle abort signal
     const abortHandler = () => {
       writeStream.destroy();
       contentCollector.destroy();
+      cssPreloadFix?.destroy();
       sourceStream.destroy?.();
       const abortReason = signal?.reason || new Error("File write aborted");
       reject(abortReason);
@@ -207,8 +215,12 @@ export const fileWriter: FileWriterFn = function _fileWriter(
       signal.addEventListener("abort", abortHandler);
     }
 
-    // Set up the stream pipeline manually for better control
-    sourceStream.pipe(contentCollector).pipe(writeStream);
+    // Set up the stream pipeline manually for better control.
+    if (cssPreloadFix) {
+      sourceStream.pipe(cssPreloadFix).pipe(contentCollector).pipe(writeStream);
+    } else {
+      sourceStream.pipe(contentCollector).pipe(writeStream);
+    }
 
     // Handle errors from any part of the pipeline
     const handleError = (error: Error) => {
@@ -224,6 +236,7 @@ export const fileWriter: FileWriterFn = function _fileWriter(
     };
 
     sourceStream.on('error', handleError);
+    cssPreloadFix?.on('error', handleError);
     contentCollector.on('error', handleError);
     writeStream.on('error', handleError);
 

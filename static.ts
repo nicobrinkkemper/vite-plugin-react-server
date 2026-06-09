@@ -4,6 +4,8 @@ export {
     temporaryReferences,
     createBuildLoader,
     fileWriter,
+    fixCssPreloadHint,
+    createCssPreloadFixStream,
     renderPages,
     configurePreviewServer,
     collectRscContent,
