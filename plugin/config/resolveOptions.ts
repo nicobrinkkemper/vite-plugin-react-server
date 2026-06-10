@@ -320,10 +320,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     options.loader?.serverDirective,
     DEFAULT_LOADER_CONFIG.serverDirective
   );
-  const clientDirective = resolveRegExp(
-    options.loader?.clientDirective,
-    DEFAULT_LOADER_CONFIG.clientDirective
-  );
   const isServerFunctionCode = resolveDirectiveMatcher(
     serverDirective,
     (code: string, moduleId?: string) =>
@@ -332,21 +328,38 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       false
   );
 
-  const isClientComponentCode = resolveDirectiveMatcher(
-    clientDirective,
-    (code: string, moduleId?: string) =>
-      code.match(clientDirective) != null ||
-      (typeof moduleId === "string" && clientPattern.test(moduleId)) ||
-      false
-  );
+  // Resolution order for the client-module detectors: an explicit user hook
+  // wins; otherwise a user-supplied `loader.clientDirective` /
+  // `autoDiscover.clientPattern` drives the matching; otherwise the single
+  // detector (`detectClientModule` behind DEFAULT_LOADER_CONFIG) decides.
+  // The pattern argument must be the RAW user option — passing the
+  // pre-resolved `clientDirective` (never undefined) made the anchored
+  // default regex shadow the detector: `.client.tsx` modules without a
+  // directive resolved to false here while the worker loader (which
+  // re-resolves defaults after serialization strips function hooks) said
+  // true, and user-supplied `loader.isClientComponent*` hooks were ignored
+  // entirely.
+  const isClientComponentCode =
+    options.loader?.isClientComponentCode ??
+    resolveDirectiveMatcher(
+      options.loader?.clientDirective,
+      DEFAULT_LOADER_CONFIG.isClientComponentCode
+    );
 
-  const isClientComponentByCode = resolveDirectiveMatcher(
-    clientDirective,
-    (code: string) => code.match(clientDirective) != null || false
-  );
+  const isClientComponentByCode =
+    options.loader?.isClientComponentByCode ??
+    resolveDirectiveMatcher(
+      options.loader?.clientDirective,
+      DEFAULT_LOADER_CONFIG.isClientComponentByCode
+    );
 
-  const isClientComponentByName = (moduleId: string, _transformedModuleId?: string) => 
-    (typeof moduleId === "string" && clientPattern.test(moduleId)) || false;
+  const isClientComponentByName =
+    options.loader?.isClientComponentByName ??
+    (options.autoDiscover?.clientPattern
+      ? (moduleId: string, _transformedModuleId?: string) =>
+          (typeof moduleId === "string" && clientPattern.test(moduleId)) ||
+          false
+      : DEFAULT_LOADER_CONFIG.isClientComponentByName);
 
   const hashOption = options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
 
