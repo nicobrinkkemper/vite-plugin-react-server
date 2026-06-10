@@ -96,7 +96,9 @@ export const config = {
 | `allowedDirectives` | `string[]` | List of allowed directive names | `["use server", "use client"]` |
 | `mode` | `"development" \| "production" \| "test"` | Loader mode | `"development"` |
 | `isServerFunctionCode` | `(code: string, moduleId?: string) => boolean` | Custom server function detection | - |
-| `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client component detection | - |
+| `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client-module detection (source + filename) | `detectClientModule` (filename `.client.*` or top-of-file `"use client"`) |
+| `isClientComponentByCode` | `(code: string) => boolean` | Custom client-module detection (source only) | `detectClientModule` |
+| `isClientComponentByName` | `(moduleId: string) => boolean` | Custom client-module detection (filename only) | `detectClientModule`; a custom `autoDiscover.clientPattern` takes precedence |
 | `getDirectiveType` | `(directive: string, moduleId?: string) => "client" \| "server" \| undefined` | Custom directive type detection | - |
 
 ### Auto-Discovery Options

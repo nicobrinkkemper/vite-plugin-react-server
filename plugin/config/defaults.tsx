@@ -1,7 +1,9 @@
 import { Root } from "../components/root.js";
 import { Html } from "../components/html.js";
-import { parse } from "react-server-loader/transformer";
-import { detectClientModule } from "react-server-loader/directives";
+import {
+  parse,
+  DEFAULT_LOADER_CONFIG as RSL_LOADER_DEFAULTS,
+} from "react-server-loader/transformer";
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
@@ -23,24 +25,6 @@ const IS_SERVER_ACTION_CODE = (code: string, moduleId?: string) =>
   (moduleId && SERVER_ACTION_FILE.test(moduleId.toLowerCase())) ||
   false;
 
-// Defaults for the user-overridable `loader.isClientComponent*` hooks. All
-// three delegate to the single detector at
-// `loader/directives/detectClientModule`, which recognises a module as
-// client when its filename matches `.client.[cm]?[jt]sx?$` OR its source
-// declares a top-of-file `"use client"` directive (AST-validated when a
-// parser is available, char-scanner otherwise). A path with "client" as a
-// substring of an identifier, comment, or directory name (e.g.
-// `src/lib/clientId.ts`) is NOT a client module.
-const IS_CLIENT_COMPONENT_CODE = (code: string, moduleId?: string) =>
-  detectClientModule({ source: code, moduleId });
-
-const IS_CLIENT_COMPONENT_BY_CODE = (code: string) =>
-  detectClientModule({ source: code });
-
-const IS_CLIENT_COMPONENT_BY_NAME = (
-  moduleId: string,
-  _transformedModuleId?: string,
-) => detectClientModule({ moduleId });
 // Directive configurations
 export const DIRECTIVE_CONFIGS = {
   client: {
@@ -102,9 +86,14 @@ export const DEFAULT_LOADER_CONFIG = {
   clientDirective: DIRECTIVE_PATTERNS.CLIENT,
   directivePattern: DIRECTIVE_PATTERNS.ANY,
   isServerFunctionCode: IS_SERVER_ACTION_CODE,
-  isClientComponentCode: IS_CLIENT_COMPONENT_CODE,
-  isClientComponentByCode: IS_CLIENT_COMPONENT_BY_CODE,
-  isClientComponentByName: IS_CLIENT_COMPONENT_BY_NAME,
+  // The user-overridable `loader.isClientComponent*` hooks default to
+  // react-server-loader's own defaults, which all delegate to the single
+  // detector `detectClientModule` (filename `.client.[cm]?[jt]sx?$` OR a
+  // top-of-file `"use client"` directive; substrings like `clientId` never
+  // match). vprs deliberately defines no detector of its own.
+  isClientComponentCode: RSL_LOADER_DEFAULTS.isClientComponentCode,
+  isClientComponentByCode: RSL_LOADER_DEFAULTS.isClientComponentByCode,
+  isClientComponentByName: RSL_LOADER_DEFAULTS.isClientComponentByName,
   allowedDirectives: DIRECTIVE_CONFIGS,
   importServerPath: "react-server-dom-esm/server",
   importClientPath: "react-server-dom-esm/server",
