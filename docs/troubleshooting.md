@@ -52,6 +52,33 @@ If your client-entry's CSS imports (global stylesheet, font CSS) aren't reaching
 
 You do **not** need to set `clientEntry` for the conventional case — vprs leaves index.html-referenced entries to Vite's own discovery so it can pick up their CSS through the normal Vite manifest.
 
+## `as="stylesheet"` Preload Warnings (Stable React)
+
+**Symptoms:** Console floods with `<link rel=preload> uses an unsupported 'as' value` / "preload ignored" warnings; the offending tag is `<link rel="preload" as="stylesheet">`.
+
+**This is a stable-React bug, not a config problem — and it's cosmetic.** React 19.2.x stable's Flight server emits CSS preload hints with `as="stylesheet"` (`ReactFlightServerConfigDOM.processLink()`); the only valid preload token is `style`, so browsers reject the hint and warn. The real `<link rel="stylesheet">` is emitted separately and works — styling is unaffected. The fix already exists upstream on React `main` and reaches you when the next stable React lands (this plugin re-vendors its transport per stable release).
+
+**If you want the warnings gone now**, move to the experimental channel — `react-server-loader` publishes an experimental train vendoring React `main`'s transport, with peers pinned to the exact matching React:
+
+```bash
+npm view react-server-loader dist-tags   # find the current experimental version
+npm install react-server-loader@experimental \
+  react@<its exact react peer> react-dom@<same>
+```
+
+Keep every transitive dependency on that same React with npm overrides:
+
+```json
+{
+  "overrides": {
+    "react": "$react",
+    "react-dom": "$react-dom"
+  }
+}
+```
+
+`$react` means "the version my own dependencies declare", so all deps dedupe onto your React. Mixing channels (experimental transport on stable React, or vice versa) crashes on internals skew — the exact peer pin exists to stop that.
+
 ## `"use server"` Not Working
 
 - File-level: must be first line
