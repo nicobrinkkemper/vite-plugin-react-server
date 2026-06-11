@@ -52,3 +52,4 @@ test/unit/fixtures/*test-results/
 playwright-report/
 test-results/
 *.tgz
+docs-site/dist

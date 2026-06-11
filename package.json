@@ -356,7 +356,8 @@
     "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\"",
     "precoverage": "npm run build",
     "coverage": "npm run test:coverage",
-    "test:dev:both": "bash scripts/test-dev-both-modes.sh"
+    "test:dev:both": "bash scripts/test-dev-both-modes.sh",
+    "build:docs-site": "cd docs-site && NODE_OPTIONS='--conditions react-server' ../node_modules/.bin/vite build"
   },
   "keywords": [
     "vite",
@@ -405,6 +406,7 @@
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.2.0",
     "happy-dom": "^17.1.8",
+    "marked": "^18.0.5",
     "playwright": "^1.58.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
