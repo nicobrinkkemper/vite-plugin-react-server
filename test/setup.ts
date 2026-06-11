@@ -2,6 +2,40 @@ import { mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
 import { beforeAll, afterEach, afterAll } from "vitest";
 
+// Vite's dep-scanner crashes its own catch handler when a scan is torn down
+// mid-flight: the failure-message builder does `entries.join(...)` with
+// `entries` still undefined, so the handler throws
+// `TypeError: Cannot read properties of undefined (reading 'join')` as an
+// unhandled rejection. The scan belongs to a dev server the test already
+// closed — the rejection flips CI red with every test green. Swallow exactly
+// that signature; everything else passes through to vitest's own handlers.
+const isViteDepScanTeardownError = (reason: unknown): boolean =>
+  reason instanceof TypeError &&
+  reason.message.includes("reading 'join'") &&
+  typeof reason.stack === "string" &&
+  /[\\/]vite[\\/]dist[\\/]node[\\/]/.test(reason.stack);
+
+const FILTER_FLAG = "__vprsDepScanRejectionFilter__";
+if (!(globalThis as Record<string, unknown>)[FILTER_FLAG]) {
+  (globalThis as Record<string, unknown>)[FILTER_FLAG] = true;
+  for (const event of ["unhandledRejection", "uncaughtException"] as const) {
+    const original = process.listeners(event);
+    process.removeAllListeners(event);
+    process.on(event, (reason: unknown, arg?: unknown) => {
+      if (isViteDepScanTeardownError(reason)) {
+        console.warn(
+          "[test-setup] swallowed Vite dep-scan teardown TypeError (upstream catch-handler bug)"
+        );
+        return;
+      }
+      for (const listener of original) {
+        (listener as (a: unknown, b?: unknown) => void)(reason, arg);
+      }
+      if (original.length === 0) throw reason;
+    });
+  }
+}
+
 // Store the original working directory
 const originalCwd = process.cwd();
 
