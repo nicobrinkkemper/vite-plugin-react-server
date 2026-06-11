@@ -52,10 +52,12 @@ function listDocs(): DocEntry[] {
         continue;
       }
       if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-      const isIndex = prefix === "" && entry.name === "README.md";
-      const slug = isIndex
-        ? ""
-        : `${prefix}${entry.name.replace(/\.md$/, "")}`;
+      // README.md is the index of its directory: "" at the top level,
+      // "<dir>" for a subdirectory (matches the link-rewriter's collapse).
+      const slug =
+        entry.name === "README.md"
+          ? prefix.replace(/\/$/, "")
+          : `${prefix}${entry.name.replace(/\.md$/, "")}`;
       const markdown = readFileSync(
         resolve(DOCS_DIR, prefix, entry.name),
         "utf-8"
@@ -70,10 +72,20 @@ function listDocs(): DocEntry[] {
     }
   };
   walk(".", "");
-  // index first, then top-level alphabetical, then sections
+  // Order follows docs/README.md's own link list (the curated reading
+  // order); anything README doesn't link to goes after, alphabetical.
+  const readme = readFileSync(resolve(DOCS_DIR, "README.md"), "utf-8");
+  const readmeOrder = new Map<string, number>();
+  for (const match of readme.matchAll(/\]\(\.\/([\w./-]+)\.md(?:#[^)]*)?\)/g)) {
+    const slug = match[1];
+    if (!readmeOrder.has(slug)) readmeOrder.set(slug, readmeOrder.size);
+  }
+  const rank = (e: DocEntry) =>
+    e.slug === "" ? -1 : readmeOrder.get(e.slug) ?? Number.MAX_SAFE_INTEGER;
   entries.sort((a, b) => {
-    if (a.slug === "") return -1;
-    if (b.slug === "") return 1;
+    const ra = rank(a);
+    const rb = rank(b);
+    if (ra !== rb) return ra - rb;
     if (a.section !== b.section) return a.section.localeCompare(b.section);
     return a.title.localeCompare(b.title);
   });
@@ -81,7 +93,15 @@ function listDocs(): DocEntry[] {
 }
 
 function renderDoc(slug: string): string {
-  const file = slug === "" ? "README.md" : `${slug}.md`;
+  // a slug may be a directory index ("" or "internals") or a doc file
+  const candidates =
+    slug === ""
+      ? ["README.md"]
+      : [`${slug}.md`, `${slug}/README.md`];
+  const file = candidates.find((c) => existsSync(resolve(DOCS_DIR, c)));
+  if (!file) {
+    throw new Error(`[docs-site] no markdown source for route "/${slug}"`);
+  }
   const markdown = readFileSync(resolve(DOCS_DIR, file), "utf-8");
   const html = marked.parse(markdown, { async: false }) as string;
   // Cross-doc links in the markdown point at relative .md files — rewrite

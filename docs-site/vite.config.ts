@@ -29,7 +29,12 @@ const pages = [
     if (entry.isDirectory()) {
       return readdirSync(resolve(DOCS_DIR, entry.name))
         .filter((f) => f.endsWith(".md"))
-        .map((f) => `/${entry.name}/${f.replace(/\.md$/, "")}`);
+        .map((f) =>
+          // a subdirectory's README.md is its index route
+          f === "README.md"
+            ? `/${entry.name}`
+            : `/${entry.name}/${f.replace(/\.md$/, "")}`
+        );
     }
     if (entry.name.endsWith(".md") && entry.name !== "README.md") {
       return [`/${entry.name.replace(/\.md$/, "")}`];
