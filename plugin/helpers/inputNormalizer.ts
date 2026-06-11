@@ -9,20 +9,36 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 
 let stashedNormalizer: InputNormalizer | null = null;
 
+/**
+ * Strip ONE trailing ".segment" from an extension-less module path —
+ * `view/View.generated` → `view/View` — the normalization Rollup chunk names
+ * get for entry naming. `.client`/`.server` suffixes are load-bearing and
+ * preserved. A dot inside a directory name doesn't count (`view.v2/Widget`
+ * stays intact).
+ *
+ * This is THE canonical trailing-segment rule: the build's entry naming
+ * (via `removeExtension: true` here) and the transformer's client-reference
+ * moduleID (`createModuleID` Step 1b) must agree on it, or the registered
+ * client ref points at a chunk name that was never emitted
+ * (ERR_MODULE_NOT_FOUND at SSG render).
+ */
+export function stripTrailingDotSegment(path: string): string {
+  if (path.endsWith(".client") || path.endsWith(".server")) {
+    return path;
+  }
+  const lastDot = path.lastIndexOf(".");
+  if (lastDot === -1 || lastDot <= path.lastIndexOf("/")) {
+    return path;
+  }
+  return path.slice(0, lastDot);
+}
+
 const resolveExtensionOptions = (
   removeExtension: CreateInputNormalizerProps["removeExtension"]
 ) => {
   if (typeof removeExtension === "boolean") {
     if (removeExtension) {
-      return (path: string) => {
-        // if extension is client or server, don't remove it
-        if (path.endsWith(".client") || path.endsWith(".server")) {
-          return path;
-        }
-        const extensionIndex = path.lastIndexOf(".");
-
-        return extensionIndex !== -1 ? path.slice(0, extensionIndex) : path;
-      };
+      return stripTrailingDotSegment;
     }
     return (path: string) => path;
   }

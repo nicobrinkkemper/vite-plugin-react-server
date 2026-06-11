@@ -3,6 +3,7 @@ import { replaceExtension } from "./extMap.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { detectClientModule } from "react-server-loader/directives";
+import { stripTrailingDotSegment } from "../helpers/inputNormalizer.js";
 import type { ConfigEnv } from "vite";
 import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
@@ -199,23 +200,18 @@ export const createDefaultModuleID = (
 
         // Step 1b: Match the build's entryFile name normalization for
         // DIRECTIVE-detected client modules. The emitted chunk name comes from
-        // `entryFile` → `normalizer(n.name)`, which strips one trailing
-        // ".segment" unless it's `.client`/`.server`. For a compound filename
-        // like `view/View.generated.tsx` that collapses to `view/View`, but
-        // this moduleID otherwise keeps `.generated` — so the registered client
-        // reference (`view/View.generated-<hash>.js`) wouldn't match the emitted
-        // chunk (`view/View-<hash>.js`) → ERR_MODULE_NOT_FOUND at SSG render.
-        // `.client.`-named modules are unaffected (the normalizer preserves
-        // that suffix, and so do we). Single-segment names have nothing to strip.
+        // `entryFile` → `normalizer(n.name)`, which collapses one trailing
+        // ".segment" (`view/View.generated` → `view/View`) — so the moduleID
+        // must collapse identically or the registered client reference points
+        // at a chunk that was never emitted (ERR_MODULE_NOT_FOUND at SSG
+        // render). Delegated to the normalizer's own rule instead of a local
+        // copy so the two paths can't drift again.
         if (isClientByDirective) {
-          const noExt = transformedId.replace(/\.[cm]?[jt]sx?$/, "");
-          if (!noExt.endsWith(".client") && !noExt.endsWith(".server")) {
-            const lastDot = noExt.lastIndexOf(".");
-            if (lastDot > noExt.lastIndexOf("/")) {
-              transformedId =
-                noExt.slice(0, lastDot) + transformedId.slice(noExt.length);
-            }
-          }
+          const ext = transformedId.match(/\.[cm]?[jt]sx?$/)?.[0] ?? "";
+          const noExt = ext
+            ? transformedId.slice(0, -ext.length)
+            : transformedId;
+          transformedId = stripTrailingDotSegment(noExt) + ext;
         }
 
         // Step 2: Apply extension mapping for build

@@ -76,4 +76,62 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
     expect(id).toContain("src/components/Widget.client");
     expect(id).not.toMatch(/-[A-Za-z0-9]+\.js$/);
   });
+
+  /**
+   * Trailing-segment normalization for DIRECTIVE-detected client modules
+   * (Step 1b) must match the build's entryFile normalizer
+   * (stripTrailingDotSegment) for every naming convention — the two used to
+   * be independent copies that agreed only by inspection (the compound-
+   * filename bug fixed in PR #55 was exactly such a drift).
+   */
+  describe("directive-detected client moduleID — trailing-segment parity", () => {
+    const buildId = (id: string) =>
+      createDefaultModuleID(options, buildProd, "production")(
+        id,
+        undefined,
+        /* isClientByDirective */ true
+      );
+
+    it("compound filename collapses one trailing segment (bd-80r regression)", () => {
+      expect(buildId("src/view/View.generated.tsx")).toMatch(
+        /^\/view\/View-[A-Za-z0-9]+\.js$/
+      );
+    });
+
+    it("multi-dot filename collapses exactly ONE trailing segment", () => {
+      expect(buildId("src/components/A.B.C.tsx")).toMatch(
+        /^\/components\/A\.B-[A-Za-z0-9]+\.js$/
+      );
+    });
+
+    it("hyphenated-with-dots filename collapses the dot segment only", () => {
+      expect(buildId("src/components/a-b.c.tsx")).toMatch(
+        /^\/components\/a-b-[A-Za-z0-9]+\.js$/
+      );
+    });
+
+    it("`.client.` suffix is preserved, not collapsed", () => {
+      expect(buildId("src/components/Widget.client.tsx")).toMatch(
+        /^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/
+      );
+    });
+
+    it("`.server.` suffix is preserved, not collapsed", () => {
+      expect(buildId("src/components/Widget.server.tsx")).toMatch(
+        /^\/components\/Widget\.server-[A-Za-z0-9]+\.js$/
+      );
+    });
+
+    it("a dot in a DIRECTORY name is not a trailing segment", () => {
+      expect(buildId("src/view.v2/Widget.tsx")).toMatch(
+        /^\/view\.v2\/Widget-[A-Za-z0-9]+\.js$/
+      );
+    });
+
+    it("single-segment filename has nothing to strip", () => {
+      expect(buildId("src/components/Widget.tsx")).toMatch(
+        /^\/components\/Widget-[A-Za-z0-9]+\.js$/
+      );
+    });
+  });
 });
