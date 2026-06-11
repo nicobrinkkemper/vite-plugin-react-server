@@ -5,6 +5,7 @@ import type { ModuleRunner } from "vite/module-runner";
 import type { InputNormalizer } from "../types.js";
 import { resolveVirtualAndNodeModules } from "./resolveVirtualAndNodeModules.js";
 import { resolveModuleFromManifest } from "./resolveModuleFromManifest.js";
+import { augmentClientOnlyImportError } from "../error/augmentClientOnlyImportError.js";
 
 /**
  * Shared loader utility that both RSC worker loader and build loader can use.
@@ -146,19 +147,25 @@ export async function createSharedLoader({
   // Vendored / node_modules paths are already handled by resolveVirtualAndNodeModules
   // earlier, so anything reaching this point in dev:ssr is project source.
   let result: Record<string, any>;
-  if (
-    moduleRunner != null &&
-    !isBuildMode &&
-    effectiveProjectRoot &&
-    isAbsolute(fullPath) &&
-    fullPath.startsWith(effectiveProjectRoot)
-  ) {
-    if (verbose) logger?.info(`[shared-loader] runner.import: ${fullPath}`);
-    result = (await moduleRunner.import(fullPath)) as Record<string, any>;
-  } else {
-    // Import the module via Node's native ESM loader.
-    const fileUrl = isAbsolute(fullPath) ? pathToFileURL(fullPath).href : fullPath;
-    result = await import(fileUrl);
+  try {
+    if (
+      moduleRunner != null &&
+      !isBuildMode &&
+      effectiveProjectRoot &&
+      isAbsolute(fullPath) &&
+      fullPath.startsWith(effectiveProjectRoot)
+    ) {
+      if (verbose) logger?.info(`[shared-loader] runner.import: ${fullPath}`);
+      result = (await moduleRunner.import(fullPath)) as Record<string, any>;
+    } else {
+      // Import the module via Node's native ESM loader.
+      const fileUrl = isAbsolute(fullPath) ? pathToFileURL(fullPath).href : fullPath;
+      result = await import(fileUrl);
+    }
+  } catch (rawError) {
+    // A server-graph module importing a client-only React API fails here as
+    // a bare linker error — rewrite it to name the API and the fix.
+    throw augmentClientOnlyImportError(rawError, moduleId);
   }
 
   // Validate exports
