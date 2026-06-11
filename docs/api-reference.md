@@ -479,6 +479,32 @@ For consumers who want to import only the pure helpers (urls, env, routeToURL) w
 import { createReactFetcher, setupRscHmr, useRscHmr, callServer } from "vite-plugin-react-server/utils/rsc-client";
 ```
 
+#### Cancelling a superseded RSC fetch
+
+`createReactFetcher` accepts an `AbortSignal`. Without one, a flight fetch
+that gets superseded — a fast double-navigation, a refetch racing an earlier
+fetch — aborts mid-body and the decoder's `TypeError: Error in input stream`
+lands in the nearest error boundary, briefly flashing an error card for a
+stream nobody is waiting on anymore.
+
+Have each navigation/refetch own an `AbortController`, and abort the previous
+one before starting the next. A stream cancelled through its signal never
+rejects — the stale thenable stays pending (React keeps the current UI) until
+the replacing fetch resolves:
+
+```tsx
+let controller: AbortController | undefined;
+
+function navigate(url: string) {
+  controller?.abort();          // cancel the in-flight stream, silently
+  controller = new AbortController();
+  setContent(createReactFetcher({ url, signal: controller.signal }));
+}
+```
+
+Genuine flight failures (network errors, decode failures on a stream that was
+NOT aborted) still reject and reach the error boundary as before.
+
 ### Storybook preset
 
 A Storybook preset that makes a vprs app build and render in Storybook. Referenced as an addon, not imported directly. See [Storybook](./storybook.md).

@@ -12,27 +12,60 @@ export function createReactFetcher({
   headers = {
     Accept: "text/x-component",
   },
+  signal,
 }: {
   url?: string;
   moduleBaseURL?: string;
   publicOrigin?: string;
   indexRSC?: string;
   headers?: HeadersInit;
+  /**
+   * Abort the underlying flight fetch. Pass an AbortController's signal and
+   * abort it when the stream is superseded (e.g. a navigation starts a new
+   * fetch before this one lands) — see the consumer pattern in the docs.
+   * A stream cancelled through this signal never surfaces as a render
+   * error: the returned thenable stays pending instead of rejecting, since
+   * the consumer is about to replace it anyway.
+   */
+  signal?: AbortSignal;
 } = {}): PromiseLike<React.ReactNode> {
   const parsedURL = createPageURL(
     moduleBaseURL,
     publicOrigin,
     env.DEV
   )(url, indexRSC);
-  return createFromFetch(
+  const content = createFromFetch(
     fetch(parsedURL.indexRSC, {
       headers: headers,
+      signal,
     }),
     {
       callServer: createCallServer(parsedURL.moduleBaseURL),
       moduleBaseURL: parsedURL.moduleBaseURL,
     }
   );
+  if (!signal) {
+    return content;
+  }
+  // A superseded stream rejects with AbortError (pre-flush) or the decoder's
+  // "Error in input stream" TypeError (aborted mid-body). Neither is a real
+  // flight failure when the caller cancelled on purpose — swallow them by
+  // staying pending, so React keeps showing the previous/suspended UI until
+  // the replacing fetch resolves. Genuine decode failures (signal not
+  // aborted) still reject.
+  return {
+    then: (onfulfilled, onrejected) =>
+      Promise.resolve(content).then(
+        onfulfilled,
+        (error: unknown) => {
+          if (signal.aborted) {
+            return new Promise<never>(() => {}) as never;
+          }
+          if (onrejected) return onrejected(error);
+          throw error;
+        }
+      ),
+  };
 }
 
 /** HMR event name used by the plugin */
