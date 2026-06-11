@@ -368,7 +368,7 @@
   "author": "Nico Brinkkemper",
   "license": "MIT",
   "engines": {
-    "node": "^23.7.0"
+    "node": ">=22"
   },
   "repository": {
     "type": "git",
