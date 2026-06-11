@@ -7,7 +7,9 @@ import {
 import { setupErrorBoundaryTestProject } from "../setup.js";
 
 describe("Error Boundaries Build (Cross-Environment)", () => {
-  test("should generate error boundary components in static output", async () => {
+  // runs several full builds (one per panic-threshold variant) — needs
+  // headroom beyond the global 30s on slow machines
+  test("should generate error boundary components in static output", { timeout: 90_000 }, async () => {
     await expect(
       getSharedBuild(
         "error-boundaries-test-project",
