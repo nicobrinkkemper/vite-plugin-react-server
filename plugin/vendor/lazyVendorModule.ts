@@ -117,13 +117,13 @@ export function lockReactFamily(): RendererMode {
   if (lockedFamilyMode !== null) return lockedFamilyMode;
   const mode = reactPairedMode();
 
-  // The locked variant can legitimately differ from the build's NODE_ENV —
-  // PROGRAMMATIC builds (createBuilder/build() from a script that imported
+  // The locked variant can legitimately differ from the build's NODE_ENV:
+  // programmatic builds (createBuilder/build() from a script that imports
   // the plugin first) and harnesses that mutate NODE_ENV mid-process cache
-  // react before NODE_ENV settles. (The vite CLI is fine: verified v6.3.5
-  // sets NODE_ENV=production before evaluating the config.) Pairing keeps
-  // such builds working instead of crashing, but the output is rendered
-  // with the development React — say so loudly, once.
+  // react before NODE_ENV settles. The vite CLI itself sets NODE_ENV before
+  // evaluating the config, so it never hits this. Pairing keeps such builds
+  // working instead of crashing, but the output is rendered with the
+  // development React — say so loudly, once.
   if (mode !== nodeEnvMode() && !warnedModeMismatch) {
     warnedModeMismatch = true;
     console.warn(
