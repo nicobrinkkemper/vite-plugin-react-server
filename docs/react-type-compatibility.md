@@ -29,6 +29,28 @@ npm view react-server-loader@experimental peerDependencies
 npm install react@<that-exact-version> react-dom@<that-exact-version>
 ```
 
+`react-server-loader` is a regular dependency of this plugin, so installing
+`react-server-loader@experimental` alongside it leaves TWO copies in the
+tree — the plugin keeps resolving its own nested stable one. Route the
+plugin's copy to the experimental build with your package manager's
+override (use the exact version the dist-tag currently points at):
+
+```jsonc
+// npm — package.json
+"overrides": { "react-server-loader": "0.0.0-experimental-<hash>-<date>" }
+
+// yarn — package.json
+"resolutions": { "react-server-loader": "0.0.0-experimental-<hash>-<date>" }
+
+// pnpm — package.json
+"pnpm": { "overrides": { "react-server-loader": "0.0.0-experimental-<hash>-<date>" } }
+```
+
+One practical reason to run experimental today: stable React 19.2.x emits
+the cosmetic `as="stylesheet"` preload warning
+(see [troubleshooting](./troubleshooting.md)); the experimental channel
+already carries the fix.
+
 **Peer dependency**: `react: "^19.2.7"`. The transport binds to a single React
 build's internals and throws on a mismatch, so install a `react` / `react-dom`
 that satisfies the peer (a plain install does). See
