@@ -92,7 +92,7 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
         /* isClientByDirective */ true
       );
 
-    it("compound filename collapses one trailing segment (bd-80r regression)", () => {
+    it("compound filename collapses one trailing segment (compound-filename regression, PR #55)", () => {
       expect(buildId("src/view/View.generated.tsx")).toMatch(
         /^\/view\/View-[A-Za-z0-9]+\.js$/
       );
