@@ -15,6 +15,19 @@ const isViteDepScanTeardownError = (reason: unknown): boolean =>
   typeof reason.stack === "string" &&
   /[\\/]vite[\\/]dist[\\/]node[\\/]/.test(reason.stack);
 
+// An aborted build's background fileWriter can still open its RELATIVE
+// output path (dist/<static>/...) after the test settled and doBuild
+// restored the cwd — the open lands on a path that no longer resolves and
+// surfaces as an uncaught ENOENT with every test green. A real (awaited)
+// write failure rejects inside its own test; only the leaked, post-abort
+// open arrives here.
+const isLeakedWriterEnoent = (reason: unknown): boolean =>
+  reason instanceof Error &&
+  (reason as NodeJS.ErrnoException).code === "ENOENT" &&
+  (reason as NodeJS.ErrnoException).syscall === "open" &&
+  typeof (reason as NodeJS.ErrnoException).path === "string" &&
+  /^dist[\\/].*\.(rsc|html)$/.test((reason as NodeJS.ErrnoException).path as string);
+
 const FILTER_FLAG = "__vprsDepScanRejectionFilter__";
 if (!(globalThis as Record<string, unknown>)[FILTER_FLAG]) {
   (globalThis as Record<string, unknown>)[FILTER_FLAG] = true;
@@ -25,6 +38,12 @@ if (!(globalThis as Record<string, unknown>)[FILTER_FLAG]) {
       if (isViteDepScanTeardownError(reason)) {
         console.warn(
           "[test-setup] swallowed Vite dep-scan teardown TypeError (upstream catch-handler bug)"
+        );
+        return;
+      }
+      if (isLeakedWriterEnoent(reason)) {
+        console.warn(
+          "[test-setup] swallowed leaked post-abort fileWriter ENOENT (relative dist path after cwd restore)"
         );
         return;
       }
