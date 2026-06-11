@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
- * createReactFetcher AbortSignal support (bd: stale in-flight RSC streams
- * can't be cancelled).
+ * createReactFetcher AbortSignal support.
  *
  * The fetcher must (a) forward the signal to fetch, and (b) keep a
  * deliberately-cancelled stream from surfacing as a render error — the
