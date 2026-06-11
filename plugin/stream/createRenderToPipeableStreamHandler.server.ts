@@ -1,5 +1,6 @@
 import { createElementWithReact } from "../helpers/createElementWithReact.js";
-import { React, ReactDOMServer } from "../vendor/vendor.server.js";
+import { React, ReactDOMServer, getVendoredRendererMode } from "../vendor/vendor.server.js";
+import { assertRendererElementParity } from "../utils/assertRendererElementParity.js";
 import { assertReactServer } from "../config/getCondition.js";
 import { handleError } from "../error/handleError.js";
 import { augmentClientReferenceError } from "../error/augmentClientReferenceError.js";
@@ -250,7 +251,17 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           );
         }
 
-        result = ReactDOMServer.renderToPipeableStream(
+        // Touch the renderer BEFORE the parity check: the vendored module
+        // loads lazily on first property access, and the check needs its
+        // resolved dev/prod mode.
+        const renderToPipeableStream = ReactDOMServer.renderToPipeableStream;
+        assertRendererElementParity(
+          element,
+          getVendoredRendererMode(),
+          `createRscStream:${route}`
+        );
+
+        result = renderToPipeableStream(
           element,
           handlerOptions.moduleBasePath || "",
           pipeableStreamOptions
