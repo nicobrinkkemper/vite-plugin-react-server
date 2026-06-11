@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, readFile, mkdir, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -92,9 +92,44 @@ describe("fixture-cache", () => {
     await ensureFixture(testDir, setup, fnHash);
     await rm(join(testDir, ".setup-hash"), { force: true });
 
-    // markerWaitMs: 0 — no parallel worker is mid-setup here
-    const result = await ensureFixture(testDir, setup, fnHash, { markerWaitMs: 0 });
+    const result = await ensureFixture(testDir, setup, fnHash);
     expect(result.reused).toBe(false);
+  });
+
+  it("serializes concurrent setup behind the lock — setup runs exactly once", async () => {
+    let setupRuns = 0;
+    const slowSetup = async (dir: string) => {
+      setupRuns++;
+      await new Promise((r) => setTimeout(r, 150)); // longer than the lock poll
+      await writeFile(join(dir, "src.txt"), "content-slow");
+    };
+    const fnHash = hashSetupFn(slowSetup);
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => ensureFixture(testDir, slowSetup, fnHash))
+    );
+
+    expect(setupRuns).toBe(1);
+    expect(results.filter((r) => !r.reused)).toHaveLength(1);
+    expect(results.filter((r) => r.reused)).toHaveLength(4);
+  });
+
+  it("steals a stale lock left by a crashed holder", async () => {
+    const setup = makeSetup("a");
+    const fnHash = hashSetupFn(setup);
+    // a lock with an old mtime and no living holder
+    await mkdir(`${testDir}.setup-lock`, { recursive: true });
+    await utimes(
+      `${testDir}.setup-lock`,
+      new Date(Date.now() - 120_000),
+      new Date(Date.now() - 120_000)
+    );
+
+    const result = await ensureFixture(testDir, setup, fnHash, {
+      staleLockMs: 1_000,
+    });
+    expect(result.reused).toBe(false);
+    expect(await readFile(join(testDir, "src.txt"), "utf-8")).toBe("content-a");
   });
 
   it("ignores build output (dist*) when hashing fixture contents", async () => {
