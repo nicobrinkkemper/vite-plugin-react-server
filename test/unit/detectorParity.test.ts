@@ -5,8 +5,7 @@ import { createReactLoader } from "react-server-loader/loader";
 import { detectClientModule } from "react-server-loader/directives";
 
 /**
- * Worker/transformer detector parity (bd: worker-side detector parity
- * regression test suite, follow-up to the detector collapse).
+ * Worker/transformer detector parity.
  *
  * Both sides classify "is this a client module?" through the unified
  * detectClientModule helper, but they reach it differently:
