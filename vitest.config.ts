@@ -23,7 +23,9 @@ export default defineConfig({
     // default keeps the suite green without per-test timeout overrides on
     // every real-build case.
     testTimeout: 30000,
-    hookTimeout: 10000,
+    // beforeAll hooks run the same real builds the tests do (getSharedBuild
+    // in beforeAll is the common pattern) — they need the same ceiling.
+    hookTimeout: 30000,
     environment: "node",
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.*"],

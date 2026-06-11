@@ -20,9 +20,9 @@ import {
   rm,
   mkdir,
   writeFile,
-  access,
+  stat,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 
 const MARKER_FILE = ".setup-hash";
 
@@ -115,11 +115,40 @@ export interface EnsureFixtureResult {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-const dirExists = (dir: string) =>
-  access(dir).then(
-    () => true,
-    () => false
-  );
+const LOCK_SUFFIX = ".setup-lock";
+
+/** Atomic cross-process lock: mkdir succeeds for exactly one claimant. */
+async function acquireLock(testDir: string): Promise<boolean> {
+  // The lock lives NEXT TO the fixture, whose parent may not exist yet on a
+  // fresh checkout (setup creates it after acquiring the lock). Create the
+  // parent first — recursive mkdir is idempotent — then take the lock with a
+  // NON-recursive mkdir, which is the atomic claim: exactly one EEXIST-free
+  // winner. Anything other than EEXIST is a real error and must be loud,
+  // not "lock held" — treating ENOENT as held spins forever with no lock to
+  // wait on.
+  await mkdir(dirname(testDir), { recursive: true });
+  try {
+    await mkdir(`${testDir}${LOCK_SUFFIX}`);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  }
+}
+
+async function releaseLock(testDir: string): Promise<void> {
+  await rm(`${testDir}${LOCK_SUFFIX}`, { recursive: true, force: true });
+}
+
+/** Lock age in ms, or null when no lock exists. */
+async function lockAgeMs(testDir: string): Promise<number | null> {
+  try {
+    const s = await stat(`${testDir}${LOCK_SUFFIX}`);
+    return Date.now() - s.mtimeMs;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Discard a stale fixture without yanking the path out from under a parallel
@@ -137,51 +166,100 @@ async function discardDir(testDir: string): Promise<void> {
   await rm(corpse, { recursive: true, force: true });
 }
 
+async function fixtureIsValid(
+  testDir: string,
+  fnHash: string
+): Promise<boolean> {
+  const marker = await readMarker(testDir);
+  if (!marker || marker.fnHash !== fnHash) return false;
+  return (await hashDirContents(testDir)) === marker.dirHash;
+}
+
 /**
  * Ensure `testDir` holds a fixture produced by `setupFn` (identified by
  * `fnHash`). Reuses the directory only when the marker's fnHash matches AND
  * the directory contents still hash to what setup produced; otherwise
  * discards and re-runs setup.
  *
- * Parallel vitest workers can race the initial setup of the same fixture
- * dir. The marker is written last, so a dir without a marker may be another
- * worker mid-setup — wait briefly for its marker before declaring the dir
- * stale. Setup is deterministic per fnHash, so concurrent re-setups
- * converge to identical content.
+ * Setup is serialized by an atomic cross-process lock (mkdir of
+ * `<dir>.setup-lock`): exactly one claimant sets up; everyone else waits on
+ * the LOCK, not on a guessed timing grace. Nothing is ever discarded while
+ * another claimant holds the lock — on heavily loaded machines a timing
+ * grace expires while setup is still legitimately running, and the discard
+ * then yanks the fixture out from under a live build (mass
+ * "Could not resolve entry module" cascades). A lock left by a crashed
+ * holder is stolen after `staleLockMs`.
  */
+const DEBUG = !!process.env["VPRS_FIXTURE_DEBUG"];
+const dbg = (msg: string) => {
+  if (DEBUG) console.error(`[fixture ${process.pid}] ${msg}`);
+};
+
 export async function ensureFixture(
   testDir: string,
   setupFn: (testDir: string) => Promise<void>,
   fnHash: string,
-  { markerWaitMs = 3_000 }: { markerWaitMs?: number } = {}
+  {
+    lockTimeoutMs = 120_000,
+    // Setup itself is sub-second; a lock this old means its holder died
+    // (e.g. vitest terminated the worker on a hook timeout, skipping the
+    // finally). Must stay well under hookTimeout: an orphaned lock that
+    // outlives the hook ceiling times out every waiter's beforeAll.
+    staleLockMs = 10_000,
+  }: { lockTimeoutMs?: number; staleLockMs?: number } = {}
 ): Promise<EnsureFixtureResult> {
-  let marker = await readMarker(testDir);
+  const deadline = Date.now() + lockTimeoutMs;
 
-  if (!marker && (await dirExists(testDir))) {
-    // dir without marker: possibly another worker mid-setup — give its
-    // marker a moment to appear before treating the dir as a stale leftover
-    const deadline = Date.now() + markerWaitMs;
-    while (!marker && Date.now() < deadline) {
+  while (true) {
+    // Wait for any in-flight setup FIRST, polling only the lock (one cheap
+    // stat). Validation hashes the whole fixture dir — doing that inside the
+    // wait loop lets starved waiters eat the CPU the setup needs.
+    let age = await lockAgeMs(testDir);
+    if (age !== null) dbg(`waiting on lock (age=${age}ms) ${testDir}`);
+    while (age !== null) {
+      if (age > staleLockMs) {
+        dbg(`stealing stale lock (age=${age}ms) ${testDir}`);
+        await releaseLock(testDir); // holder crashed — steal
+        break;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `[fixture-cache] timed out after ${lockTimeoutMs}ms waiting for the setup lock on ${testDir}`
+        );
+      }
       await sleep(100);
-      marker = await readMarker(testDir);
+      age = await lockAgeMs(testDir);
     }
-  }
 
-  if (marker && marker.fnHash === fnHash) {
-    const dirHash = await hashDirContents(testDir);
-    if (dirHash === marker.dirHash) {
+    if (await fixtureIsValid(testDir, fnHash)) {
+      dbg(`valid, reusing ${testDir}`);
       return { reused: true };
     }
+
+    if (!(await acquireLock(testDir))) {
+      dbg(`lost acquire race ${testDir}`);
+      continue; // another claimant won the lock — go back to waiting
+    }
+    dbg(`acquired lock, setting up ${testDir}`);
+    try {
+      // Re-validate under the lock: another claimant may have completed
+      // setup between our check and our acquisition.
+      if (await fixtureIsValid(testDir, fnHash)) {
+        return { reused: true };
+      }
+      await discardDir(testDir);
+      await mkdir(testDir, { recursive: true });
+      await setupFn(testDir);
+      const dirHash = await hashDirContents(testDir);
+      await writeFile(
+        join(testDir, MARKER_FILE),
+        JSON.stringify({ fnHash, dirHash } satisfies SetupMarker)
+      );
+      dbg(`setup complete ${testDir}`);
+      return { reused: false };
+    } finally {
+      await releaseLock(testDir);
+      dbg(`released lock ${testDir}`);
+    }
   }
-
-  await discardDir(testDir);
-  await mkdir(testDir, { recursive: true });
-  await setupFn(testDir);
-
-  const dirHash = await hashDirContents(testDir);
-  await writeFile(
-    join(testDir, MARKER_FILE),
-    JSON.stringify({ fnHash, dirHash } satisfies SetupMarker)
-  );
-  return { reused: false };
 }
