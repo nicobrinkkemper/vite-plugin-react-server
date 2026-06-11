@@ -74,6 +74,20 @@ describe("createLazyVendorModule", () => {
     void lazy.proxy.ok;
     expect(seenMode).toBe("production");
   });
+
+  it("prefers the ground-truth detector over the requested mode", () => {
+    // The CJS cache may already hold the OTHER variant — load() returns it
+    // regardless of what resolveMode asked for, and getLoadedMode must
+    // report what actually evaluated, not what was intended.
+    process.env["NODE_ENV"] = "production";
+    const lazy = createLazyVendorModule(
+      () => ({ ok: true }),
+      () => "production",
+      () => "development" // ground truth disagrees
+    );
+    void lazy.proxy.ok;
+    expect(lazy.getLoadedMode()).toBe("development");
+  });
 });
 
 describe("reactPairedMode", () => {
@@ -105,18 +119,31 @@ describe("assertRendererElementParity", () => {
     ).toThrow(/DEVELOPMENT build.*PRODUCTION react\/jsx-runtime/s);
   });
 
-  it("passes for dev renderer + dev element", () => {
+  it("throws a clear diagnostic for prod renderer + dev element (getOwner crash class)", () => {
+    expect(() =>
+      assertRendererElementParity(devElement, "production", "test")
+    ).toThrow(/PRODUCTION build.*DEVELOPMENT react\/jsx-runtime/s);
+  });
+
+  it("passes for matched pairs in both modes", () => {
     expect(() =>
       assertRendererElementParity(devElement, "development", "test")
     ).not.toThrow();
-  });
-
-  it("passes for prod renderer regardless of element shape", () => {
     expect(() =>
       assertRendererElementParity(prodElement, "production", "test")
     ).not.toThrow();
+  });
+
+  it("ignores wrapper node types that legitimately carry no _store", () => {
+    // React.memo / lazy / portal roots have different $$typeof values and no
+    // _store even in development — they must not trip the heuristic.
+    const memoNode = { $$typeof: Symbol.for("react.memo") };
+    const lazyNode = { $$typeof: Symbol.for("react.lazy") };
     expect(() =>
-      assertRendererElementParity(devElement, "production", "test")
+      assertRendererElementParity(memoNode, "development", "test")
+    ).not.toThrow();
+    expect(() =>
+      assertRendererElementParity(lazyNode, "development", "test")
     ).not.toThrow();
   });
 

@@ -1,7 +1,11 @@
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { transportPkgDir } from "./transportDir.js";
-import { createLazyVendorModule, reactPairedMode } from "./lazyVendorModule.js";
+import {
+  createLazyVendorModule,
+  reactPairedMode,
+  vendoredTransportModeFromCache,
+} from "./lazyVendorModule.js";
 import { hasReactServerCondition } from "../config/getCondition.js";
 
 // Load react-server-dom-esm/static from the vendored copy that ships inside
@@ -12,19 +16,23 @@ import { hasReactServerCondition } from "../config/getCondition.js";
 // settled NODE_ENV, not NODE_ENV-at-plugin-import. See lazyVendorModule.ts.
 const vendorRequire = createRequire(join(transportPkgDir, "package.json"));
 
-// Wrong-side imports must stay LOUD — see vendor.server.ts.
-if (!hasReactServerCondition()) {
-  vendorRequire("react-server-dom-esm/static");
-}
-
 const lazyStatic = createLazyVendorModule(
   () =>
     vendorRequire(
       "react-server-dom-esm/static"
     ) as typeof import("react-server-dom-esm/static.node"),
-  reactPairedMode
+  reactPairedMode,
+  // static.node.js wraps the same server.node cjs files as server.node.js
+  () => vendoredTransportModeFromCache("react-server-dom-esm-server.node")
 );
 const ReactDOMServer = lazyStatic.proxy;
+
+// Wrong-side imports must stay LOUD — see vendor.server.ts (the probe goes
+// through the lazy module so mode bookkeeping stays truthful).
+if (!hasReactServerCondition()) {
+  void (ReactDOMServer as { prerenderToNodeStream?: unknown })
+    .prerenderToNodeStream;
+}
 
 /** dev/prod variant the vendored static renderer resolved to (null until first use). */
 export const getVendoredRendererMode = lazyStatic.getLoadedMode;

@@ -12,6 +12,15 @@ import { existsSync } from "node:fs";
 import { pluginRoot } from "../root.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { lockReactFamily } from "../vendor/lazyVendorModule.js";
+
+function workerNodeEnv(): string {
+  const locked = lockReactFamily();
+  const parentEnv = process.env["NODE_ENV"];
+  const parentCompatible =
+    parentEnv != null &&
+    (parentEnv === "production") === (locked === "production");
+  return parentCompatible ? parentEnv : locked;
+}
 import { createLogger, type Logger } from "vite";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import type { RscWorkerOutputMessage } from "./rsc/types.js";
@@ -295,7 +304,11 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
       // into its CJS cache — a parent rendering with dev React feeding an
       // html worker that resolved prod React can't consume the stream
       // (NODE_ENV may have flipped between plugin import and worker spawn).
-      NODE_ENV: lockReactFamily(),
+      // The parent's NODE_ENV passes through VERBATIM when it already maps
+      // to the locked variant (preserving values like "test" that user code
+      // branches on); the locked mode only overrides on a genuine variant
+      // conflict or when NODE_ENV is unset.
+      NODE_ENV: workerNodeEnv(),
       NODE_PATH: nodePath,
 
       // Ensure NODE_OPTIONS has the correct condition

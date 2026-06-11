@@ -1,7 +1,11 @@
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { transportPkgDir } from "./transportDir.js";
-import { createLazyVendorModule, reactPairedMode } from "./lazyVendorModule.js";
+import {
+  createLazyVendorModule,
+  reactPairedMode,
+  vendoredTransportModeFromCache,
+} from "./lazyVendorModule.js";
 import { hasReactServerCondition } from "../config/getCondition.js";
 
 // Load react-server-dom-esm/server from the vendored copy that ships inside
@@ -14,22 +18,28 @@ import { hasReactServerCondition } from "../config/getCondition.js";
 // plugin-import time. See lazyVendorModule.ts.
 const vendorRequire = createRequire(join(transportPkgDir, "package.json"));
 
-// Wrong-side imports must stay LOUD: evaluating this module in a process
-// WITHOUT the react-server condition throws at module init, exactly like the
-// old eager require did (the vendored server demands a react-server react).
-// The lazy path below only applies where this module legitimately runs.
-if (!hasReactServerCondition()) {
-  vendorRequire("react-server-dom-esm/server");
-}
-
 const lazyServer = createLazyVendorModule(
   () =>
     vendorRequire(
       "react-server-dom-esm/server"
     ) as typeof import("react-server-dom-esm/server.node"),
-  reactPairedMode
+  reactPairedMode,
+  // ground truth: which variant file actually evaluated (the CJS cache may
+  // already hold the other one — getLoadedMode must report reality)
+  () => vendoredTransportModeFromCache("react-server-dom-esm-server.node")
 );
 const ReactDOMServer = lazyServer.proxy;
+
+// Wrong-side imports must stay LOUD: evaluating this module in a process
+// WITHOUT the react-server condition throws at module init, exactly like the
+// old eager require did (the vendored server demands a react-server react).
+// The eager probe goes THROUGH the lazy module so its mode bookkeeping stays
+// truthful even when the condition heuristic is wrong and the require
+// unexpectedly succeeds.
+if (!hasReactServerCondition()) {
+  void (ReactDOMServer as { renderToPipeableStream?: unknown })
+    .renderToPipeableStream;
+}
 
 /** dev/prod variant the vendored RSC renderer resolved to (null until first use). */
 export const getVendoredRendererMode = lazyServer.getLoadedMode;

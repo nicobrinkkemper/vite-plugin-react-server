@@ -3,7 +3,7 @@ import { createCssProps } from "../../helpers/createCssProps.js";
 import type { CssContent, ResolvedUserOptions, HmrState } from "../../types.js";
 import type { PassThrough } from "node:stream";
 import { relative } from "node:path";
-import { ReactDOMServer } from "../../vendor/vendor.server.js";
+import { createLazyTemporaryReferenceSet } from "../../react-static/temporaryReferences.server.js";
 import { getModuleRef } from "../../helpers/moduleRefs.js";
 
 // Track active RSC streams
@@ -15,8 +15,12 @@ export const cssFiles = new Map<string, CssContent>();
 // Track module IDs
 export const moduleIds = new Map<string, string>();
 
-// Track resolved components cache using WeakMap for better memory management
-export const temporaryReferences = ReactDOMServer.createTemporaryReferenceSet();
+// Track resolved components cache using WeakMap for better memory management.
+// Lazy: a module-scope createTemporaryReferenceSet() would force the vendored
+// renderer to load during worker bootstrap with whatever NODE_ENV is set at
+// that instant — the lazy set defers it to first render, where the paired
+// variant logic applies (see vendor/lazyVendorModule.ts).
+export const temporaryReferences = createLazyTemporaryReferenceSet();
 
 // Track all cached component IDs so we can clear them on HMR
 // This is necessary because temporaryReferences doesn't support iteration
