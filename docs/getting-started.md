@@ -9,9 +9,10 @@ npm install -D vite-plugin-react-server react react-dom
 vprs 2.0 runs on **stable React 19.2+** (`react` / `react-dom` at `^19.2.7`).
 The `react-server-dom-esm` ESM transport is provided by the
 [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-dependency (installed automatically) — you don't install a transport or an
-experimental React build yourself. If you want the newest RSC features you can
-still run on experimental React; see
+peer dependency. npm and pnpm install the stable train automatically; yarn
+users add it explicitly. Switching to the experimental React train is a
+direct install — `react-server-loader@experimental` next to
+`react@experimental` — see
 [React Compatibility](./react-type-compatibility.md).
 
 ## Upgrading from 1.x

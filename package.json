@@ -382,7 +382,8 @@
   "peerDependencies": {
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "vite": "*"
+    "vite": "*",
+    "react-server-loader": "^19.2.8 || >=0.0.0-0 <0.0.1"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -418,12 +419,12 @@
     "typescript-eslint": "^8.33.1",
     "vite": "^6.3.5",
     "vitest": "^3.0.4",
-    "webpack-sources": "^3.2.3"
+    "webpack-sources": "^3.2.3",
+    "react-server-loader": "^19.2.8"
   },
   "dependencies": {
     "acorn": "^8.16.0",
     "picocolors": "^1.1.1",
-    "react-server-loader": "^19.2.8",
     "tsx": "^4.21.0",
     "vitefu": "^1.1.3"
   }

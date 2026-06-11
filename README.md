@@ -10,8 +10,10 @@ npm install -D vite-plugin-react-server react react-dom
 
 vprs 2.0 runs on **stable React 19.2+**. The `react-server-dom-esm` transport
 ships inside the [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-dependency (installed automatically), so you no longer install a transport or an
-experimental React build yourself. Upgrading from 1.x? See the
+peer dependency — npm and pnpm install the stable train automatically (yarn
+users add it explicitly). To run the experimental React train, install
+`react-server-loader@experimental` alongside `react@experimental`; see
+[React Compatibility](./docs/react-type-compatibility.md). Upgrading from 1.x? See the
 [migration notes](./docs/getting-started.md#upgrading-from-1x).
 
 ## Minimal Example
@@ -146,7 +148,7 @@ It strips the vprs plugin from Storybook's builder, resolves the
   server APIs vprs relies on (`prerenderToNodeStream`, the `react-server`
   transport exports) are part of stable React, so no experimental build is
   required. The matching `react-server-dom-esm` transport is provided by the
-  `react-server-loader` dependency; experimental React still works if you want
+  `react-server-loader` peer; experimental React still works if you want
   the newest RSC features. See [React Compatibility](./docs/react-type-compatibility.md).
 - Vite 6+
 
