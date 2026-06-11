@@ -12,6 +12,7 @@ import { fileWriter } from "./fileWriter.js";
 import type { Manifest } from "vite";
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
+import { lockReactFamily } from "../vendor/lazyVendorModule.js";
 
 const DEFAULT_BATCH_SIZE = 8;
 
@@ -250,6 +251,12 @@ export const renderPagesBatched: RenderPagesFn = (
   handlerOptions,
   renderPage
 ) => {
+  // Pin react + jsx-runtime to ONE dev/prod variant before any page module
+  // loads in-process — a page's jsx-runtime import otherwise samples
+  // NODE_ENV at load time and can disagree with the cached react/renderer
+  // when tooling flipped NODE_ENV after plugin import.
+  lockReactFamily();
+
   const {
     autoDiscoveredFiles,
     manifest = {},

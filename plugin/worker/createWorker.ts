@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { pluginRoot } from "../root.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { lockReactFamily } from "../vendor/lazyVendorModule.js";
 import { createLogger, type Logger } from "vite";
 import type { HtmlWorkerOutputMessage } from "./html/types.js";
 import type { RscWorkerOutputMessage } from "./rsc/types.js";
@@ -290,7 +291,11 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
       [envPrefix + "SSR"]: "true",
       [envPrefix + "BASE_URL"]: workerData.userOptions?.moduleBaseURL ?? "",
       [envPrefix + "PUBLIC_ORIGIN"]: workerData.userOptions?.publicOrigin ?? "",
-      NODE_ENV: process.env["NODE_ENV"] ?? "production",
+      // Workers must run the SAME React dev/prod variant the parent locked
+      // into its CJS cache — a parent rendering with dev React feeding an
+      // html worker that resolved prod React can't consume the stream
+      // (NODE_ENV may have flipped between plugin import and worker spawn).
+      NODE_ENV: lockReactFamily(),
       NODE_PATH: nodePath,
 
       // Ensure NODE_OPTIONS has the correct condition
@@ -378,13 +383,17 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
             clearTimeout(timeout);
             worker.removeListener("message", messageHandler);
             worker.removeListener("exit", exitHandler);
-            if (msg.env !== mode) {
+            // Compare against the NODE_ENV we spawned the worker with (the
+            // locked React-family variant), not the vite mode — the two
+            // legitimately differ when NODE_ENV flipped after plugin import
+            // and the process is locked to the React it already loaded.
+            if (msg.env !== env.NODE_ENV) {
               if (verbose)
                 logger.info(`[create:${id}] Worker environment mismatch.`);
               reject({
                 type: "error",
                 error: new Error(
-                  `Worker environment mismatch: ${msg.env} !== ${mode}`
+                  `Worker environment mismatch: ${msg.env} !== ${env.NODE_ENV}`
                 ),
                 workerPath: workerPathWithDefault,
               } satisfies CreateWorkerError);
