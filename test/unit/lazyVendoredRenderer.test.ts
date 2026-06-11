@@ -27,11 +27,11 @@ describe("createLazyVendorModule", () => {
     expect(lazy.getLoadedMode()).toBe(null);
   });
 
-  it("samples NODE_ENV at FIRST USE, not at import — the bd-hhe ordering", () => {
+  it("samples NODE_ENV at FIRST USE, not at import — the flip ordering", () => {
     // The crash scenario: plugin imported while NODE_ENV is unset/development,
-    // tooling (vite build / test harness) sets NODE_ENV=production AFTERWARDS,
-    // then the first render happens. An eager require would have locked the
-    // DEVELOPMENT renderer; lazy loading must resolve PRODUCTION.
+    // tooling sets NODE_ENV=production AFTERWARDS, then the first render
+    // happens. An eager require locks the DEVELOPMENT renderer; lazy loading
+    // must resolve PRODUCTION.
     process.env["NODE_ENV"] = "development";
     const lazy = createLazyVendorModule(() => ({ render: () => "ok" }));
 

@@ -5,8 +5,8 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Regression test for the NODE_ENV-flip build panic (bd: dev RSC renderer +
- * prod elements mismatch).
+ * Regression test for the NODE_ENV-flip build panic (dev RSC renderer fed
+ * prod elements).
  *
  * The trigger: vite-plugin-react-server is imported while NODE_ENV is UNSET,
  * then tooling sets NODE_ENV=production BEFORE the build runs — exactly what
