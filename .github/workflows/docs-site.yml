@@ -14,6 +14,15 @@ on:
       - "plugin/**"
       - "package.json"
       - ".github/workflows/docs-site.yml"
+  # PRs build (but don't deploy) the site — this is the living integration
+  # test: a change that breaks SSG fails here, in the PR that caused it.
+  pull_request:
+    paths:
+      - "docs/**"
+      - "docs-site/**"
+      - "plugin/**"
+      - "package.json"
+      - ".github/workflows/docs-site.yml"
   workflow_dispatch:
 
 permissions:
@@ -42,10 +51,12 @@ jobs:
         env:
           BASE_URL: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: docs-site/dist/static
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
