@@ -1,6 +1,16 @@
 # vite-plugin-react-server
 
-A Vite plugin that transforms React components into native ESM modules with React Server Components support. Build static sites, dynamic servers, or anything in between — your components become portable ESM that works with any HTTP server.
+React Server Components for plain Vite on **stable React** — no framework, no
+experimental builds. One `vite build --app` prerenders your pages to static
+HTML + RSC payloads and emits your components as portable ESM that runs under
+any HTTP server: static hosting, Express/Hono, or anything in between.
+
+It works in BOTH Node module conditions, by design: the dev server and the
+build run with or without `--conditions react-server`, and whichever side your
+main thread is on, a worker thread mirrors the other half (server components
+need a react-server context, client hydration needs a react-client one — you
+always have both). Running the main thread under react-server is an optional
+optimization — slightly faster, better stack traces — never a requirement.
 
 ## Install
 
@@ -39,7 +49,10 @@ export const Page = ({ url }: { url: string }) => <div>Hello from {url}</div>;
 # Dev server
 npx vite
 
-# Build
+# Build (static site + server/client ESM)
+npx vite build --app
+
+# Same build, react-server main thread — optional: a bit faster, better stack traces
 NODE_OPTIONS='--conditions react-server' vite build --app
 ```
 
