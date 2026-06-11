@@ -72,13 +72,20 @@ export default defineConfig({
   "scripts": {
     "dev": "vite",
     "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
-    "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
+    "build": "vite build --app",
+    "build:rsc": "NODE_OPTIONS='--conditions react-server' vite build --app",
     "preview": "vite preview"
   }
 }
 ```
 
-Both `dev` and `dev:rsc` serve the same app. The difference is internal — see [Architecture](./internals/architecture.md) if you're curious.
+The plain and `:rsc` variants serve and build the same app — neither mode is
+required. Whichever condition the main thread runs, the plugin spawns a worker
+for the mirrored half, so server components and client hydration both always
+have their proper React context. The `:rsc` variants put the react-server side
+on the main thread: an optional optimization (slightly faster, better stack
+traces). See [Architecture](./internals/architecture.md) for how the mirroring
+works.
 
 ```bash
 npm run dev
