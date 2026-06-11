@@ -1,21 +1,11 @@
-import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { resolve } from "path";
+import { describe, it, expect } from "vitest";
 import { getSharedBuild } from "./shared-build.js";
 import { setupTestProject } from "../setup.js";
-import { mkdirSync } from "fs";
 
 describe("Build Abort Handling (Cross-Environment)", () => {
-  let testDir: string;
-  
-  beforeAll(async () => {
-    testDir = resolve(__dirname, "../fixtures/shared/build-abort-test-project");
-    mkdirSync(testDir, { recursive: true });
-    await setupTestProject(testDir);
-  });
-  
-  afterAll(async () => {
-    // Cleanup is handled by the shared build utility
-  });
+  // Fixture setup goes through getSharedBuild's content-hash-validated
+  // setupProject — setting the dir up externally in beforeAll and passing a
+  // no-op setup would read as an empty fixture to the cache and get wiped.
 
   it("should abort build when abort condition is triggered in onEvent during build.writeBundle events", async () => {
     const testEvents = ["build.writeBundle.client", "build.writeBundle.server"];
@@ -25,10 +15,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
       
       await expect(
         getSharedBuild('build-abort-test-project', `build-abort-${testEvent}`, {
-          setupProject: async (dir: string) => {
-            // Use the already set up testDir
-            return;
-          },
+          setupProject: setupTestProject,
           build: {
             pages: ["/"],
           },
@@ -48,10 +35,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
     
     await expect(
       getSharedBuild('build-abort-test-project', 'build-abort-start', {
-        setupProject: async (dir: string) => {
-          // Use the already set up testDir
-          return;
-        },
+        setupProject: setupTestProject,
         build: {
           pages: ["/"],
         },
@@ -72,10 +56,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
       
       await expect(
         getSharedBuild('build-abort-test-project', `build-abort-file-${testEvent}`, {
-          setupProject: async (dir: string) => {
-            // Use the already set up testDir
-            return;
-          },
+          setupProject: setupTestProject,
           build: {
             pages: ["/"],
           },
@@ -99,10 +80,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
     // This should work for both client and server workflows
     await expect(
       getSharedBuild('build-abort-test-project', 'build-abort-consistency', {
-        setupProject: async (dir: string) => {
-          // Use the already set up testDir
-          return;
-        },
+        setupProject: setupTestProject,
         build: {
           pages: ["/"],
         },
@@ -122,10 +100,7 @@ describe("Build Abort Handling (Cross-Environment)", () => {
     
     await expect(
       getSharedBuild('build-abort-test-project', 'build-abort-panic', {
-        setupProject: async (dir: string) => {
-          // Use the already set up testDir
-          return;
-        },
+        setupProject: setupTestProject,
         build: {
           pages: ["/"],
         },

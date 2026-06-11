@@ -1,11 +1,12 @@
+import { afterAll } from "vitest";
 import { testUserOptions } from "../test-config.js";
-import { readdir, readFile, mkdir, rm } from "fs/promises";
+import { readFile, rm } from "fs/promises";
 import { resolve, join } from "node:path";
 import { doBuild } from "../doBuild.js";
 import { OutputAsset, OutputBundle, OutputChunk } from "rollup";
-import { access } from "node:fs/promises";
 import { getCondition } from "../../dist/plugin/config/getCondition.js";
 import { FileWriteDoneEvent, PluginEvent } from "../../dist/plugin/types.js";
+import { ensureFixture, hashSetupFn } from "./fixture-cache.js";
 
 export interface SharedBuildResult {
   testDir: string;
@@ -72,8 +73,74 @@ export interface SharedBuildOptions {
   [key: string]: any; // Allow any plugin option to be passed through
 }
 
-// Cache for setup function results (fixtures) only
+// Registry of fixture dirs this worker has set up (used by cleanupSharedBuilds).
+// Staleness is validated on every call via the content-hash marker, not by
+// this map — a cached dir from an older commit or a runtime-mutated fixture
+// re-runs setup instead of feeding the build stale inputs.
 const setupCache = new Map<string, string>();
+
+// ---- async-leak guard -------------------------------------------------------
+// Builds whose harness promise rejects (e.g. tests that deliberately throw
+// from onEvent) can leave the underlying Vite/SSG build emitting events and
+// touching dist files in the background. Track in-flight builds + event
+// activity so teardown can drain them instead of letting a straggling
+// listener throw ENOENT after the fixture is gone.
+const pendingBuilds = new Set<Promise<unknown>>();
+let activeWrites = 0; // file.write seen without a matching file.write.done
+let lastEventAt = 0;
+let sawFailedBuild = false;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Bounded wait for background build activity to finish before fixture/dist
+ * teardown. Fast no-op when every build resolved cleanly; after a rejected
+ * build (or with unmatched file.write events) waits for a quiet window with
+ * no new plugin events. Surfaces a timeout as a console.warn instead of
+ * letting a post-teardown listener throw.
+ */
+export async function drainPendingBuilds(
+  { quietMs = 250, timeoutMs = 10_000 }: { quietMs?: number; timeoutMs?: number } = {}
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  if (pendingBuilds.size > 0) {
+    let timedOut = false;
+    await Promise.race([
+      Promise.allSettled([...pendingBuilds]),
+      sleep(timeoutMs).then(() => {
+        timedOut = true;
+      }),
+    ]);
+    if (timedOut && pendingBuilds.size > 0) {
+      console.warn(
+        `[shared-build] drain timeout: ${pendingBuilds.size} build(s) still running after ${timeoutMs}ms`
+      );
+    }
+  }
+
+  if (sawFailedBuild || activeWrites > 0) {
+    // A rejected build's writers may still be flushing — wait for a quiet
+    // window with no new events before declaring the teardown safe.
+    while (Date.now() < deadline) {
+      if (Date.now() - lastEventAt >= quietMs) break;
+      await sleep(50);
+    }
+    if (Date.now() >= deadline) {
+      console.warn(
+        `[shared-build] drain timeout: build events still arriving after ${timeoutMs}ms (activeWrites=${activeWrites})`
+      );
+    }
+    sawFailedBuild = false;
+    activeWrites = 0;
+  }
+}
+
+// Drain leftover background build activity at the end of every test file that
+// uses this harness — before vitest tears the worker down.
+afterAll(async () => {
+  await drainPendingBuilds();
+});
 
 export async function getSharedBuild(
   sharedTestName: string,
@@ -86,50 +153,49 @@ export async function getSharedBuild(
     ? `test-project-${options.dir ?? "shared"}`
     : `${sharedTestName}-${options.dir ?? "shared"}`;
 
-  let testDir: string;
+  const testDir: string = isDefaultSetup
+    ? resolve(
+        __dirname,
+        `../fixtures/${options.dir ?? "shared"}/shared`
+      )
+    : resolve(
+        __dirname,
+        `../fixtures/${options.dir ?? "shared"}/${sharedTestName}`
+      );
 
-  // Check if setup is already cached
-  if (setupCache.has(setupKey)) {
-    testDir = setupCache.get(setupKey)!;
-  } else {
-    // Create new test directory and run setup
-    testDir = isDefaultSetup
-      ? resolve(
-          __dirname,
-          `../fixtures/${options.dir ?? "shared"}/shared`
-        )
-      : resolve(
-          __dirname,
-          `../fixtures/${options.dir ?? "shared"}/${sharedTestName}`
-        );
-    // if directory already exists, skip setup
-    try {
-      await access(testDir);
-      setupCache.set(setupKey, testDir);
-    } catch (error) {
-      // directory does not exist, create it
-      await mkdir(testDir, { recursive: true });
-      
-      // Setup project files
-      if (options.setupProject) {
-        await options.setupProject(testDir);
-      } else {
-        await setupTestProject(testDir);
-      }
-
-      // Cache the setup result
-      setupCache.set(setupKey, testDir);
-    }
-
-  }
+  // Validate the fixture against the setup's content hash every time:
+  // test/setup.ts is included in the hash because most setupProject functions
+  // delegate to helpers that live there. The default resolves to the REAL
+  // setupTestProject (not the local dynamic-import wrapper) so callers that
+  // pass it explicitly and callers that omit it hash identically — otherwise
+  // two workers sharing a fixture dir would wipe each other's setup.
+  const setupFn =
+    options.setupProject ?? (await import("../setup.js")).setupTestProject;
+  const setupSource = await readFile(resolve(__dirname, "../setup.ts"), "utf-8");
+  const fnHash = hashSetupFn(setupFn, [setupSource]);
+  await ensureFixture(testDir, setupFn, fnHash);
+  setupCache.set(setupKey, testDir);
 
   // Extract setup options (excluding them from plugin options)
   const { setupProject, dir, ...pluginOptions } = options;
 
+  // Track plugin events for the teardown drain; chain to the caller's
+  // onEvent afterwards (count first — the caller may throw deliberately).
+  const userOnEvent = (pluginOptions as any).onEvent;
+  (pluginOptions as any).onEvent = (event: PluginEvent) => {
+    lastEventAt = Date.now();
+    if (event.type === "file.write") {
+      activeWrites++;
+    } else if (event.type === "file.write.done") {
+      activeWrites = Math.max(0, activeWrites - 1);
+    }
+    return userOnEvent ? userOnEvent(event) : undefined;
+  };
+
   // Build the project with ALL plugin options passed through directly
   // Plugin options are NOT cached - they're applied fresh each time
 
-  const buildResult = await doBuild({
+  const buildPromise = doBuild({
     ...testUserOptions,
     projectRoot: testDir,
     build: {
@@ -150,6 +216,17 @@ export async function getSharedBuild(
     // Don't collect events/metrics here since doBuild already collects them internally
     // This prevents double collection and duplicate metrics
   });
+
+  pendingBuilds.add(buildPromise);
+  let buildResult;
+  try {
+    buildResult = await buildPromise;
+  } catch (error) {
+    sawFailedBuild = true;
+    throw error;
+  } finally {
+    pendingBuilds.delete(buildPromise);
+  }
 
   // Extract events and metrics from the build result
   const events = buildResult.events || [];
@@ -232,6 +309,8 @@ async function setupTestProject(testDir: string): Promise<void> {
 }
 
 export async function cleanupSharedBuilds(): Promise<void> {
+  // Don't rip fixture dirs out from under a build that's still flushing
+  await drainPendingBuilds();
   // Clean up build directories
   for (const build of setupCache.values()) {
     try {
