@@ -5,7 +5,7 @@ import {
 } from "../../plugin/error/augmentClientOnlyImportError.js";
 
 /**
- * Diagnostic for client-only React APIs reached in the server graph (bd-qea).
+ * Diagnostic for client-only React APIs reached in the server graph.
  * The raw failure is a bare linker error; the augmented one must name the
  * API, say it's client-only, and point at the `"use client"` fix — WITHOUT
  * stubbing or rewriting the import (the load still fails).
