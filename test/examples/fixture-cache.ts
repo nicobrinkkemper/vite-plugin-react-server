@@ -3,13 +3,11 @@
  *
  * Content-hash-validated fixture setup for the shared-build harness.
  *
- * The old behavior ("if the fixture directory exists, skip setup") went stale
- * in two ways: the setup code changes between commits (new files the cached
- * dir doesn't have — "Could not resolve entry module 'src/components/
- * Link.client.tsx'"), or an upstream test mutates fixture files at runtime.
- * Both now invalidate: a `.setup-hash` marker stores a hash of the setup
- * function's source AND a hash of the fixture dir's contents at setup time;
- * any mismatch wipes the dir and re-runs setup.
+ * A fixture directory is reused only while it still matches what its setup
+ * produced: a `.setup-hash` marker stores a hash of the setup function's
+ * source AND a hash of the fixture dir's contents at setup time. Any
+ * mismatch — setup code changed between commits, or a test mutated fixture
+ * files at runtime — discards the dir and re-runs setup.
  *
  * Build outputs (dist*) are excluded from the content hash — builds write
  * into the fixture dir but don't make the fixture itself stale.
@@ -145,11 +143,11 @@ async function discardDir(testDir: string): Promise<void> {
  * the directory contents still hash to what setup produced; otherwise
  * discards and re-runs setup.
  *
- * Parallel vitest workers race the initial setup of the same fixture dir
- * (that race predates this module). The marker is written last, so a dir
- * without a marker may be another worker mid-setup — wait briefly for its
- * marker before declaring the dir stale. Setup is deterministic per fnHash,
- * so concurrent re-setups converge to identical content.
+ * Parallel vitest workers can race the initial setup of the same fixture
+ * dir. The marker is written last, so a dir without a marker may be another
+ * worker mid-setup — wait briefly for its marker before declaring the dir
+ * stale. Setup is deterministic per fnHash, so concurrent re-setups
+ * converge to identical content.
  */
 export async function ensureFixture(
   testDir: string,

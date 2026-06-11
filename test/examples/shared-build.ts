@@ -73,10 +73,8 @@ export interface SharedBuildOptions {
   [key: string]: any; // Allow any plugin option to be passed through
 }
 
-// Registry of fixture dirs this worker has set up (used by cleanupSharedBuilds).
-// Staleness is validated on every call via the content-hash marker, not by
-// this map — a cached dir from an older commit or a runtime-mutated fixture
-// re-runs setup instead of feeding the build stale inputs.
+// Registry of fixture dirs this worker has set up — consumed only by
+// cleanupSharedBuilds. Staleness is ensureFixture's job, on every call.
 const setupCache = new Map<string, string>();
 
 // ---- async-leak guard -------------------------------------------------------

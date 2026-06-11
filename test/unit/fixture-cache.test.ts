@@ -86,14 +86,13 @@ describe("fixture-cache", () => {
     expect(result.reused).toBe(false);
   });
 
-  it("re-runs setup when the directory exists without a marker (pre-upgrade leftover)", async () => {
+  it("re-runs setup when the directory exists without a marker", async () => {
     const setup = makeSetup("a");
     const fnHash = hashSetupFn(setup);
-    // simulate a stale dir from before content-hash validation existed
     await ensureFixture(testDir, setup, fnHash);
     await rm(join(testDir, ".setup-hash"), { force: true });
 
-    // markerWaitMs: 0 — no parallel worker is mid-setup in this test
+    // markerWaitMs: 0 — no parallel worker is mid-setup here
     const result = await ensureFixture(testDir, setup, fnHash, { markerWaitMs: 0 });
     expect(result.reused).toBe(false);
   });
