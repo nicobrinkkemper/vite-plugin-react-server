@@ -82,11 +82,29 @@ function listDocs(): DocEntry[] {
   }
   const rank = (e: DocEntry) =>
     e.slug === "" ? -1 : readmeOrder.get(e.slug) ?? Number.MAX_SAFE_INTEGER;
+  // Sections stay contiguous (one header each): all top-level docs first,
+  // then each section as a block, sections ordered by their first README
+  // appearance; within a block, README order then title.
+  const sectionRank = (section: string): number => {
+    let min = Number.MAX_SAFE_INTEGER;
+    for (const e of entries) {
+      if (e.section === section) min = Math.min(min, rank(e));
+    }
+    return min;
+  };
   entries.sort((a, b) => {
+    const aTop = a.section === "" ? 0 : 1;
+    const bTop = b.section === "" ? 0 : 1;
+    if (aTop !== bTop) return aTop - bTop;
+    if (a.section !== b.section) {
+      const sa = sectionRank(a.section);
+      const sb = sectionRank(b.section);
+      if (sa !== sb) return sa - sb;
+      return a.section.localeCompare(b.section);
+    }
     const ra = rank(a);
     const rb = rank(b);
     if (ra !== rb) return ra - rb;
-    if (a.section !== b.section) return a.section.localeCompare(b.section);
     return a.title.localeCompare(b.title);
   });
   return entries;
@@ -148,7 +166,15 @@ main.doc th, main.doc td { border: 1px solid var(--border); padding: 0.4rem 0.7r
 main.doc blockquote { margin: 0; padding: 0.1rem 1rem; border-left: 4px solid var(--accent); background: var(--code-bg); border-radius: 0 8px 8px 0; }
 main.doc a { color: var(--accent); }
 footer.docfoot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
-@media (max-width: 760px) { .layout { flex-direction: column; } nav.sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); } }
+.nav-toggle, .nav-toggle-label { display: none; }
+@media (max-width: 760px) {
+  .layout { flex-direction: column; }
+  nav.sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
+  nav.sidebar .brand { display: inline-block; margin: 0; }
+  .nav-toggle-label { display: inline-block; float: right; cursor: pointer; user-select: none; padding: 0.2rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
+  .navlinks { display: none; clear: both; padding-top: 0.75rem; }
+  .nav-toggle:checked ~ .navlinks { display: block; }
+}
 `;
 
 export function Page({ url = "/" }: { url?: string }) {
@@ -177,6 +203,14 @@ export function Page({ url = "/" }: { url?: string }) {
         <a className="brand" href={BASE}>
           vite-plugin-react-server
         </a>
+        {/* CSS-only mobile hamburger: the checkbox holds open/closed state,
+            no client JS. The expanded list is in-flow (pushes content down,
+            overlays nothing). Hidden entirely on desktop. */}
+        <input type="checkbox" id="nav-toggle" className="nav-toggle" />
+        <label htmlFor="nav-toggle" className="nav-toggle-label">
+          ☰ Menu
+        </label>
+        <div className="navlinks">
         {docs.map((doc, i) => (
           <React.Fragment key={doc.file}>
             {doc.section && docs[i - 1]?.section !== doc.section ? (
@@ -190,6 +224,7 @@ export function Page({ url = "/" }: { url?: string }) {
             </a>
           </React.Fragment>
         ))}
+        </div>
       </nav>
       <main className="doc">
         <article dangerouslySetInnerHTML={{ __html: html }} />
