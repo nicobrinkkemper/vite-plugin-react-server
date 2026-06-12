@@ -2,8 +2,11 @@
 // This file is consumed in both server and client plugin contexts.
 
 /**
- * Tokenizes NODE_OPTIONS string into individual arguments
- * Handles quoted strings, spaces, and special characters
+ * Tokenizes NODE_OPTIONS string into individual arguments.
+ * Tokens split on unquoted whitespace only; a quoted segment stays attached
+ * to the token it appears in (Node semantics: quotes protect spaces, so
+ * `--conditions="react-server"` is ONE token, `--require "./my path/x.js"`
+ * is two).
  */
 const tokenizeNodeOptions = (): string[] => {
   const nodeOptions = process.env["NODE_OPTIONS"] || "";
@@ -24,19 +27,11 @@ const tokenizeNodeOptions = (): string[] => {
       if (char === quoteChar) {
         inQuotes = false;
         quoteChar = "";
-        if (current.trim()) {
-          tokens.push(current.trim());
-          current = "";
-        }
       } else {
         current += char;
       }
     } else {
       if (char === '"' || char === "'") {
-        if (current.trim()) {
-          tokens.push(current.trim());
-          current = "";
-        }
         inQuotes = true;
         quoteChar = char;
       } else if (char === " " || char === "\t" || char === "\n") {
