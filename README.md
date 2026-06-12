@@ -8,11 +8,14 @@ A Vite plugin that transforms React components into native ESM modules with Reac
 npm install -D vite-plugin-react-server react react-dom
 ```
 
-vprs 2.0 runs on **stable React 19.2+**. The `react-server-dom-esm` transport
-ships inside the [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-peer dependency — npm and pnpm install the stable train automatically (yarn
-users add it explicitly). To run the experimental React train, install
-`react-server-loader@experimental` alongside `react@experimental`; see
+vprs 2.0 runs on **stable React 19.2+**. Everything React-version-locked —
+the `react-server-dom-esm` transport (server side AND the flight client your
+browser bundle ships), the directive engine, the Node loader — lives in the
+[`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+peer dependency, which version-mirrors React. npm and pnpm install the stable
+train automatically (yarn users add it explicitly); to run the experimental
+React train, install `react-server-loader@experimental` alongside
+`react@experimental`. See
 [React Compatibility](./docs/react-type-compatibility.md). Upgrading from 1.x? See the
 [migration notes](./docs/getting-started.md#upgrading-from-1x).
 
