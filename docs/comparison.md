@@ -15,7 +15,7 @@ like the official one, but ESM-first and portable-output by design.
 |---|---|---|---|---|
 | Kind | Vite plugin | Vite plugin (official) | Framework | Framework (+ RSC extension) |
 | Imposes routing / app structure | No | No | Yes (file-based pages router) | Yes (file-based) |
-| React target | Stable 19.2+ | Stable, canary, or experimental (your choice) | React 19 | React 19 |
+| React target | Stable 19.2+ (default) or experimental | Stable, canary, or experimental (your choice) | React 19 | React 19 |
 | RSC transport | `react-server-dom-esm` (ESM), vendored | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
 | Build output | `static/` + `client/` + `server/` portable ESM | app bundle via multi-environment build | framework-managed | framework-managed |
 | Host anywhere (static / Express / Hono) | Yes, you wire the server | Yes | Via the framework's server | Via vike-server |
@@ -43,6 +43,23 @@ choice for the job it is built for.
 - **Vike (+ vike-react-rsc)** — you are already on Vike (or want its flexible
   framework model) and want to adopt RSC progressively, component by component.
 
+## React: stable by default, experimental supported
+
+vprs runs on **stable React 19.2+** out of the box — that is the default and
+needs no special install. It **also supports experimental React**: install
+`react@experimental` / `react-dom@experimental` and the matching
+`react-server-loader@experimental` (which pins the exact experimental React it
+was built against). The vendored ESM transport ships both a stable and an
+experimental train for this reason.
+
+Running experimental buys you the newest RSC features ahead of the stable
+channel. A concrete example today: stable React 19.2.x emits a cosmetic
+`as="stylesheet"` preload warning that the experimental channel has already
+fixed. Our own [mmcelebration.com](https://www.mmcelebration.com) site runs vprs
+on the experimental train. See
+[React Compatibility](./react-type-compatibility.md) for the support matrix and
+how to pin the versions.
+
 ## What vprs deliberately does NOT do
 
 Being a plugin rather than a framework is the whole point, so a lot is out of
@@ -60,9 +77,11 @@ scope on purpose:
 - **No deployment/hosting layer.** The build emits ESM and a static directory;
   wiring them into a host (static CDN, Express, Hono, serverless) is up to you.
   See [Build Output](./build-output.md).
-- **No managed React version.** vprs targets stable React 19.2+ and vendors the
-  matching ESM transport via `react-server-loader`; it does not broker arbitrary
-  React channels the way `@vitejs/plugin-rsc` can.
+- **No arbitrary React-channel brokering.** vprs binds to the vendored ESM
+  transport (`react-server-loader`), which ships a stable train and an
+  experimental train; you pick a train (see "React" above), not any React build
+  via a swapped bundler transport the way `@vitejs/plugin-rsc` does with
+  `react-server-dom-webpack`.
 
 It is also younger and has a smaller community than the official plugin or the
 established frameworks. If those matter more to you than the ESM-first,
