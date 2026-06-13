@@ -8,11 +8,10 @@ import type { React } from "../vendor/vendor.server.js";
  * that RootComponent and HtmlComponent are always defined, falling back to
  * default components when needed.
  *
- * The default Root/Html components import React at module scope, so they are
- * loaded lazily here (dynamic import at point-of-use) rather than statically:
- * a static import would root React in the graph of every `…/helpers` consumer
- * and at plugin import. This makes the function async — callers must
- * `await` it.
+ * Async because it dynamic-imports the default components only when a fallback
+ * is actually needed. The defaults import React at module scope; a static
+ * import of them would pull React into the graph of every `…/helpers` consumer
+ * (and into the plugin's import graph) at load time, so keep them dynamic.
  *
  * @param RootComponent - The root component to use, or undefined to use default
  * @param HtmlComponent - The HTML component to use, or undefined to use default

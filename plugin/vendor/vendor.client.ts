@@ -5,13 +5,13 @@ import { createLazyVendorModule, reactPairedMode } from "./lazyVendorModule.js";
 import { hasReactServerCondition } from "../config/getCondition.js";
 
 // Vendored react-server-dom-esm/client.node + the consumer's react-dom/server
-// and react. All LAZY (mirrors vendor.server.ts): these CJS modules pick their
-// dev/prod variant from NODE_ENV at require time, so the require must be
-// deferred to first use — after build tooling (vite build, test harnesses) has
-// settled NODE_ENV, not at plugin-import time. A module-scope require here used
-// to load react-dom + react into the client plugin-import graph during config
-// eval, caching React's variant before NODE_ENV settled.
-// See lazyVendorModule.ts.
+// and react, exposed as LAZY proxies (mirrors vendor.server.ts). These CJS
+// modules pick their dev/prod variant from NODE_ENV at require time, so the
+// require is deferred to first property access — by then build tooling (vite
+// build, test harnesses) has settled NODE_ENV. A module-scope require would
+// instead load react-dom + react during config eval (this file is reachable
+// from the plugin's import graph), pinning React's variant before NODE_ENV is
+// final. See lazyVendorModule.ts.
 const vendorRequire = createRequire(join(transportPkgDir, "package.json"));
 const lazyClient = createLazyVendorModule(
   () =>
@@ -37,14 +37,13 @@ const lazyReact = createLazyVendorModule(
 );
 const React = lazyReact.proxy;
 
-// Wrong-side imports must stay LOUD (mirrors vendor.server.ts): this is the
-// client/SSR renderer side, so evaluating it UNDER the react-server condition
-// must throw at module init exactly like the old eager require did —
-// react-dom/server is banned under react-server, and code paths
-// (createHtmlStream.client) plus the stream-imports test rely on that import
-// rejecting. The probe goes THROUGH the lazy proxy so the require still loads
-// lazily on the correct (client) side, keeping React out of the client
-// plugin-import graph.
+// Wrong-side guard (mirrors vendor.server.ts). This is the client/SSR renderer
+// side; react-dom/server is banned under the react-server condition, so
+// evaluating this module there must throw at module init. Consumers depend on
+// that: createHtmlStream.client and the stream-imports test expect importing a
+// client renderer under react-server to reject. Forcing the proxy here makes
+// the require run (and throw) only on the wrong side; on the correct side the
+// proxy stays untouched, so React still loads lazily.
 if (hasReactServerCondition()) {
   void (ReactDOMServer as { renderToPipeableStream?: unknown })
     .renderToPipeableStream;

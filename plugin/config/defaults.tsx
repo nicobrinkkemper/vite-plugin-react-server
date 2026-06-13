@@ -178,13 +178,11 @@ export const DEFAULT_CONFIG = {
   RSC_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for RSC worker startup
   FILE_WRITE_TIMEOUT: 10000, // 10 seconds default timeout for file write operations
   WORKER_SHUTDOWN_TIMEOUT: 1000, // Reduced to 1 second for faster test cleanup
-  // NOTE: no default Html/Root components are held here. They import React at
-  // module scope, and DEFAULT_CONFIG is in the eager plugin-import graph
-  // (config eval), so referencing them here used to cache React's dev/prod
-  // variant before NODE_ENV settled (the lockReactFamily warning case).
-  // The default components are loaded lazily at point-of-use instead — see
-  // createHandlerOptions.server.ts (`await import("../components/root.js")`)
-  // and resolveWithDefaultRootAndHtml.
+  // Default Html/Root components are intentionally NOT held here: they import
+  // React at module scope, and DEFAULT_CONFIG is evaluated during config load,
+  // so a reference here would pin React's dev/prod variant before NODE_ENV is
+  // final (the lockReactFamily warning). They are loaded lazily at point-of-use
+  // instead — see createHandlerOptions.server.ts and resolveWithDefaultRootAndHtml.
   BUILD: {
     pages: [],
     client: "client",
