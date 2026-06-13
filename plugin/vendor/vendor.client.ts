@@ -10,7 +10,7 @@ import { hasReactServerCondition } from "../config/getCondition.js";
 // deferred to first use — after build tooling (vite build, test harnesses) has
 // settled NODE_ENV, not at plugin-import time. A module-scope require here used
 // to load react-dom + react into the client plugin-import graph during config
-// eval, caching React's variant before NODE_ENV settled (bd 0uy / 15t).
+// eval, caching React's variant before NODE_ENV settled.
 // See lazyVendorModule.ts.
 const vendorRequire = createRequire(join(transportPkgDir, "package.json"));
 const lazyClient = createLazyVendorModule(
@@ -44,7 +44,7 @@ const React = lazyReact.proxy;
 // (createHtmlStream.client) plus the stream-imports test rely on that import
 // rejecting. The probe goes THROUGH the lazy proxy so the require still loads
 // lazily on the correct (client) side, keeping React out of the client
-// plugin-import graph (bd 0uy / 15t).
+// plugin-import graph.
 if (hasReactServerCondition()) {
   void (ReactDOMServer as { renderToPipeableStream?: unknown })
     .renderToPipeableStream;

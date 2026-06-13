@@ -78,7 +78,7 @@ export async function hydrateRscRenderMessage(
   logRenderStart(mergedValues.route, mergedValues.verbose, logger, "rsc-worker");
 
   // Step 5: Resolve components with fallbacks (async: defaults are loaded
-  // lazily so the helper doesn't statically root React — bd 0uy)
+  // lazily so the helper doesn't statically root React)
   const { RootComponent: resolvedRootComponent, HtmlComponent: resolvedHtmlComponent } =
     await resolveWithDefaultRootAndHtml(RootComponent, HtmlComponent);
 

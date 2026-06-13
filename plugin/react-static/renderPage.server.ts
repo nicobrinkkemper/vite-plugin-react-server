@@ -218,7 +218,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
 
     // Use defaults if components are still not loaded. Imported lazily
     // (point-of-use) so the static plugin-import graph never pulls React in at
-    // config eval (bd 0uy).
+    // config eval.
     if (!RootComponent) {
       const { Root: DefaultRoot } = await import("../components/root.js");
       RootComponent = DefaultRoot as any;

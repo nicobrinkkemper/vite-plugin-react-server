@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Regression guard for bd 0uy / 15t: neither plugin entry may pull React (or
+ * Regression guard: neither plugin entry may pull React (or
  * react-dom, or the vendored react-server-dom-esm transport) into the module
  * graph at import time. React's CJS variant (dev/prod) locks to whatever loads
  * first; if a static import chain — the default Html/Root components, or the
@@ -64,7 +64,7 @@ function reactModulesLoadedByImporting(
   return JSON.parse(out);
 }
 
-describe("plugin entries do not import React at load (bd 0uy / 15t)", () => {
+describe("plugin entries do not import React at load", () => {
   it("react-server entry loads zero React/react-dom/transport modules", () => {
     expect(
       reactModulesLoadedByImporting("dist/plugin/index.server.js", [

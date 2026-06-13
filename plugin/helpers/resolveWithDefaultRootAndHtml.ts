@@ -11,7 +11,7 @@ import type { React } from "../vendor/vendor.server.js";
  * The default Root/Html components import React at module scope, so they are
  * loaded lazily here (dynamic import at point-of-use) rather than statically:
  * a static import would root React in the graph of every `…/helpers` consumer
- * and at plugin import (bd 0uy). This makes the function async — callers must
+ * and at plugin import. This makes the function async — callers must
  * `await` it.
  *
  * @param RootComponent - The root component to use, or undefined to use default

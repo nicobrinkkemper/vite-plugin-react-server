@@ -487,7 +487,7 @@ async function loadComponentsWithCache(options: {
   } else {
     // No rootPath provided - use built-in default Root component. Imported
     // lazily here (matching the Html path below) so the static import graph
-    // never roots React (bd 0uy).
+    // never roots React.
     const { Root: DefaultRoot } = await import("../../components/root.js");
     RootComponent = DefaultRoot;
     if (verbose) {

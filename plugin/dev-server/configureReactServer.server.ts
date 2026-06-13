@@ -237,7 +237,7 @@ export const configureReactServer: ConfigureReactServerFn =
         // Load actual components first - this registers them in the module graph
         // which is required for CSS collection to work.
         // The default Root is imported lazily (point-of-use) so the static
-        // plugin-import graph never pulls React in at config eval (bd 0uy).
+        // plugin-import graph never pulls React in at config eval.
         const { Root: DefaultRoot } = await import("../components/root.js");
         let PageComponent: React.ComponentType<any> = React.Fragment;
         let RootComponent: React.ComponentType<any> = DefaultRoot;
