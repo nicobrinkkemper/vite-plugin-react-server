@@ -43,7 +43,12 @@ export function test() {
     );
   });
 
-  test("should warn about file-level directive after comments", async () => {
+  // Comments are trivia, not code: a line or block comment (or a banner /
+  // JSDoc, common in compiled library output) above a file-level directive
+  // does NOT push it out of position, so no placement warning fires and the
+  // directive is still recognised. Matches react-server-loader's directive
+  // engine (≥ 19.2.9) and the documented "use client" contract.
+  test("should not warn about a file-level directive after comments", async () => {
     const result = await analyzeModule(
       `// Some comment
 /* Another comment */
@@ -53,7 +58,8 @@ export function test() {
 }`,
       testLoaderConfig
     );
-    expect(result.directiveInfo?.warnings).toHaveLength(1);
+    expect(result.directiveInfo?.warnings).toHaveLength(0);
+    expect(result.directiveInfo?.fileLevel?.type).toBe("client");
   });
 
   // Real-world libraries (e.g. compiled output of @chakra-ui/react,
