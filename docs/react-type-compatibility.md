@@ -65,13 +65,16 @@ for why the versions line up the way they do.
 `react-server-loader` vendors the `react-server-dom-esm` transport because, to
 date, that package has never been published to npm — installing it directly
 gives an empty `0.0.1` placeholder, so downstream tools have had to build and
-bundle it from React source for each release. That is changing: React is
-publishing `react-server-dom-esm` to npm, tracked in
-[react/react#36768](https://github.com/react/react/pull/36768). Once it lands
-and a vprs release adopts it, the transport will be installed straight from
-React's own published package, and `react-server-loader` will no longer be the
-required peer for it. Until then, install `react-server-loader` as described
-above; follow the React PR to track progress.
+bundle it from React source for each release.
+
+There's an open proposal to change that:
+[react/react#36768](https://github.com/react/react/pull/36768) would publish
+`react-server-dom-esm` to npm. It's still under review and not guaranteed to
+land. *If* it ships and a future vprs release adopts it, the transport could be
+installed straight from React's own published package and `react-server-loader`
+would no longer be the required peer for it. Nothing changes until then —
+install `react-server-loader` as described above. Follow the PR if you want to
+track where this goes.
 
 ## ESM Transport
 
