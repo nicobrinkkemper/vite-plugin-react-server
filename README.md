@@ -26,22 +26,28 @@ at Waku or Vike. Full breakdown, including what vprs does **not** do:
 npm install -D vite-plugin-react-server react react-dom
 ```
 
-vprs 2.0 runs on **stable React 19.2+**. Everything React-version-locked —
-the `react-server-dom-esm` transport (server side AND the flight client your
-browser bundle ships), the directive engine, the Node loader — lives in the
+vprs runs on **stable React 19.2+** out of the box. Everything
+React-version-locked — the `react-server-dom-esm` transport (server side AND
+the flight client your browser bundle ships), the directive engine, the Node
+loader — lives in the
 [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-peer dependency, which version-mirrors React. npm and pnpm install the stable
-train automatically (yarn users add it explicitly); to run the experimental
-React train, install `react-server-loader@experimental` alongside
-`react@experimental`. See
-[React Compatibility](./docs/react-type-compatibility.md). The
-`react-server-loader` peer may be transitional: there's an open proposal to
-publish `react-server-dom-esm` to npm
-([react/react#36768](https://github.com/react/react/pull/36768), still under
-review). If it lands and a vprs release adopts it, the transport could come
-straight from React and the loader peer would no longer be required — follow
-the PR if you want to track it. Upgrading from 1.x? See the
-[migration notes](./docs/getting-started.md#upgrading-from-1x).
+dependency, installed for you (every package manager). The command above is all
+you need.
+
+**Want correct CSS preloading?** Stable React 19.2.x emits its CSS preload hint
+as an invalid `as="stylesheet"`, so browsers ignore the preload (styles still
+load, just not preloaded) and log a warning. The fix is on React's experimental
+channel today (and reaches stable when React ships it). To opt in, install the
+experimental train — all three pinned together:
+
+```bash
+npm install react@experimental react-dom@experimental react-server-loader@experimental
+```
+
+That's the whole step: `react-server-loader`'s range admits both trains, so npm
+collapses to a single experimental copy — no `overrides`, no duplicate. See
+[React Compatibility](./docs/react-type-compatibility.md). Upgrading from 1.x?
+See the [migration notes](./docs/getting-started.md#upgrading-from-1x).
 
 ## Minimal Example
 

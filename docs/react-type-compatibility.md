@@ -29,28 +29,29 @@ npm view react-server-loader@experimental peerDependencies
 npm install react@<that-exact-version> react-dom@<that-exact-version>
 ```
 
-`react-server-loader` is a **peer dependency** whose range admits both
-trains (`^19.2.8 || >=0.0.0-0 <0.0.1`). npm ≥7 and pnpm ≥8 auto-install
-the stable train by default — installing the plugin needs no extra step.
-To run the experimental train, install the loader (and its matching React)
-directly; a direct dependency satisfies the peer and there is exactly one
-copy in the tree:
+`react-server-loader` is a regular **dependency** whose range admits both
+trains (`^19.2.8 || >=0.0.0-0 <0.0.1`), so every package manager installs it
+for you — the stable train by default, no extra step (yarn included).
+
+To run the experimental train, install all three React packages at the
+`@experimental` tag. The loader's range also admits experimental, so npm
+collapses to a single copy alongside your experimental React — no `overrides`,
+no duplicate in the tree:
 
 ```bash
-npm install react-server-loader@experimental react@experimental react-dom@experimental
+npm install react@experimental react-dom@experimental react-server-loader@experimental
 ```
 
-Yarn does not auto-install peers — install `react-server-loader` explicitly
-there even for the stable train.
+One practical reason to run experimental today: stable React 19.2.x emits its
+CSS preload hint as an invalid `as="stylesheet"`, so browsers ignore the
+preload — styles still load, just not preloaded (see
+[troubleshooting](./troubleshooting.md)). The experimental channel already
+carries the fix, and it reaches stable when React ships it.
 
-One practical reason to run experimental today: stable React 19.2.x emits
-the cosmetic `as="stylesheet"` preload warning
-(see [troubleshooting](./troubleshooting.md)); the experimental channel
-already carries the fix.
-
-**Peer dependency**: `react: "^19.2.7"`. The transport binds to a single React
-build's internals and throws on a mismatch, so install a `react` / `react-dom`
-that satisfies the peer (a plain install does). See
+**React peer**: `react` / `react-dom` at `^19.2.7 || >=0.0.0-0 <0.0.1` (admits
+both trains). The transport binds to a single React build's internals and
+throws on a mismatch, so keep `react`, `react-dom`, and `react-server-loader`
+on the same train. See
 [`react-server-loader`'s versioning](https://www.npmjs.com/package/react-server-loader)
 for why the versions line up the way they do.
 
@@ -72,9 +73,9 @@ There's an open proposal to change that:
 `react-server-dom-esm` to npm. It's still under review and not guaranteed to
 land. *If* it ships and a future vprs release adopts it, the transport could be
 installed straight from React's own published package and `react-server-loader`
-would no longer be the required peer for it. Nothing changes until then —
-install `react-server-loader` as described above. Follow the PR if you want to
-track where this goes.
+would no longer be the dependency that carries it. Nothing changes until then —
+`react-server-loader` is installed for you as described above. Follow the PR if
+you want to track where this goes.
 
 ## ESM Transport
 

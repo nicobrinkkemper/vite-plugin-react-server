@@ -380,10 +380,9 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "vite": "*",
-    "react-server-loader": "^19.2.8 || >=0.0.0-0 <0.0.1"
+    "react": "^19.2.7 || >=0.0.0-0 <0.0.1",
+    "react-dom": "^19.2.7 || >=0.0.0-0 <0.0.1",
+    "vite": "*"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -419,12 +418,12 @@
     "typescript-eslint": "^8.33.1",
     "vite": "^6.3.5",
     "vitest": "^3.0.4",
-    "webpack-sources": "^3.2.3",
-    "react-server-loader": "^19.2.8"
+    "webpack-sources": "^3.2.3"
   },
   "dependencies": {
     "acorn": "^8.16.0",
     "picocolors": "^1.1.1",
+    "react-server-loader": "^19.2.8 || >=0.0.0-0 <0.0.1",
     "tsx": "^4.21.0",
     "vitefu": "^1.1.3"
   }
