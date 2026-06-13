@@ -12,6 +12,14 @@ need a react-server context, client hydration needs a react-client one — you
 always have both). Running the main thread under react-server is an optional
 optimization — slightly faster, better stack traces — never a requirement.
 
+**Where this sits:** vprs is a low-level *plugin*, not a framework, so it
+imposes no router or app structure. Its closest peer is the official
+[`@vitejs/plugin-rsc`](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-rsc);
+vprs differs by using the ESM transport (`react-server-dom-esm`) and emitting
+portable ESM you host yourself. If you'd rather a framework decide for you, look
+at Waku or Vike. Full breakdown, including what vprs does **not** do:
+[How vprs compares](./docs/comparison.md).
+
 ## Install
 
 ```bash
@@ -132,6 +140,7 @@ It strips the vprs plugin from Storybook's builder, resolves the
 
 | Doc | What it covers |
 |-----|---------------|
+| [How vprs compares](./docs/comparison.md) | vprs vs `@vitejs/plugin-rsc`, Waku, Vike — and what vprs does not do |
 | [Getting Started](./docs/getting-started.md) | Install → first page → dev server → build → deploy |
 | [Storybook](./docs/storybook.md) | One-line Storybook support for vprs apps |
 | [Build Output](./docs/build-output.md) | What the build produces, how to use the ESM modules |
