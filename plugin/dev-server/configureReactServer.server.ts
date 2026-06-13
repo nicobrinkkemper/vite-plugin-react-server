@@ -14,7 +14,6 @@ import { handleError } from "../error/handleError.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
-import { Root as DefaultRoot } from "../components/root.js";
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({
@@ -236,7 +235,10 @@ export const configureReactServer: ConfigureReactServerFn =
         };
 
         // Load actual components first - this registers them in the module graph
-        // which is required for CSS collection to work
+        // which is required for CSS collection to work.
+        // The default Root is imported lazily (point-of-use) so the static
+        // plugin-import graph never pulls React in at config eval.
+        const { Root: DefaultRoot } = await import("../components/root.js");
         let PageComponent: React.ComponentType<any> = React.Fragment;
         let RootComponent: React.ComponentType<any> = DefaultRoot;
         let pageProps: any = {};

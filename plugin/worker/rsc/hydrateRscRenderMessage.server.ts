@@ -42,7 +42,7 @@ function createLoader(
  * This function orchestrates the process of preparing a render message for execution
  * by validating, resolving URLs, merging defaults, and setting up components and loaders.
  */
-export function hydrateRscRenderMessage(
+export async function hydrateRscRenderMessage(
   {
     message,
     pageProps,
@@ -77,9 +77,10 @@ export function hydrateRscRenderMessage(
   // Step 4: Log render start if verbose
   logRenderStart(mergedValues.route, mergedValues.verbose, logger, "rsc-worker");
 
-  // Step 5: Resolve components with fallbacks
-  const { RootComponent: resolvedRootComponent, HtmlComponent: resolvedHtmlComponent } = 
-    resolveWithDefaultRootAndHtml(RootComponent, HtmlComponent);
+  // Step 5: Resolve components with fallbacks (async: defaults are loaded
+  // lazily so the helper doesn't statically root React)
+  const { RootComponent: resolvedRootComponent, HtmlComponent: resolvedHtmlComponent } =
+    await resolveWithDefaultRootAndHtml(RootComponent, HtmlComponent);
 
   // Step 6: Create the loader
   const loader = createLoader(

@@ -31,8 +31,6 @@ import { createMainThreadHandlers } from "../stream/createMainThreadHandlers.js"
 import { createRscToHtmlStream } from "./rscToHtmlStream.server.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
-import { Root as DefaultRoot } from "../components/root.js";
-import { Html as DefaultHtml } from "../components/html.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { join } from "node:path";
 import { createHeadlessStreamState, trackHeadlessStreamError, hasHeadlessStreamError } from "../helpers/headlessStreamState.js";
@@ -218,11 +216,15 @@ export const renderPage: RenderPageFn = async function* renderPage(
       }
     }
 
-    // Use defaults if components are still not loaded
+    // Use defaults if components are still not loaded. Imported lazily
+    // (point-of-use) so the static plugin-import graph never pulls React in at
+    // config eval.
     if (!RootComponent) {
+      const { Root: DefaultRoot } = await import("../components/root.js");
       RootComponent = DefaultRoot as any;
     }
     if (!HtmlComponent) {
+      const { Html: DefaultHtml } = await import("../components/html.js");
       HtmlComponent = DefaultHtml as any;
     }
 
