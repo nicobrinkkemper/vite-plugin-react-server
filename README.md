@@ -34,7 +34,13 @@ peer dependency, which version-mirrors React. npm and pnpm install the stable
 train automatically (yarn users add it explicitly); to run the experimental
 React train, install `react-server-loader@experimental` alongside
 `react@experimental`. See
-[React Compatibility](./docs/react-type-compatibility.md). Upgrading from 1.x? See the
+[React Compatibility](./docs/react-type-compatibility.md). The
+`react-server-loader` peer may be transitional: there's an open proposal to
+publish `react-server-dom-esm` to npm
+([react/react#36768](https://github.com/react/react/pull/36768), still under
+review). If it lands and a vprs release adopts it, the transport could come
+straight from React and the loader peer would no longer be required — follow
+the PR if you want to track it. Upgrading from 1.x? See the
 [migration notes](./docs/getting-started.md#upgrading-from-1x).
 
 ## Minimal Example
