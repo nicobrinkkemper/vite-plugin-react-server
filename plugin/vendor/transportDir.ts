@@ -11,7 +11,29 @@ import { dirname, join } from "node:path";
  * in its exports map, so this resolves under any resolution condition.
  */
 const require = createRequire(import.meta.url);
-const rslRoot = dirname(require.resolve("react-server-loader/package.json"));
+
+function resolveRslRoot(): string {
+  try {
+    return dirname(require.resolve("react-server-loader/package.json"));
+  } catch (error) {
+    // react-server-loader is a PEER dependency: npm>=7/pnpm>=8 install it
+    // automatically, but yarn (and npm with legacy-peer-deps/omit=peer)
+    // doesn't — without this, those users get a bare ERR_MODULE_NOT_FOUND
+    // pointing nowhere useful.
+    throw new Error(
+      "[vite-plugin-react-server] react-server-loader is not installed. " +
+        "It is a peer dependency that npm and pnpm install automatically, " +
+        "but your package manager configuration does not. Install it next " +
+        "to the plugin:\n\n" +
+        "  yarn add react-server-loader        # stable React train\n" +
+        "  yarn add react-server-loader@experimental   # experimental train\n\n" +
+        "See docs/react-type-compatibility.md for the train pairing.",
+      { cause: error }
+    );
+  }
+}
+
+const rslRoot = resolveRslRoot();
 
 /** Absolute path to the `react-server-loader` package root (for Vite fs.allow). */
 export const transportRoot = rslRoot;
