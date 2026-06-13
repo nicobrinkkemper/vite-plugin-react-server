@@ -37,7 +37,6 @@ import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
 import { resolveComponent } from "../../helpers/resolveComponent.js";
 import { handleError } from "../../error/handleError.js";
 import type { PanicThreshold } from "../../types.js";
-import { Root as DefaultRoot } from "../../components/root.js";
 import { workerUserOptions } from "./workerUserOptions.js";
 import { hydrateUserOptions } from "../../helpers/hydrateUserOptions.js";
 import { React } from "../../vendor/vendor.server.js";
@@ -486,7 +485,10 @@ async function loadComponentsWithCache(options: {
       }
     }
   } else {
-    // No rootPath provided - use built-in default Root component
+    // No rootPath provided - use built-in default Root component. Imported
+    // lazily here (matching the Html path below) so the static import graph
+    // never roots React (bd 0uy).
+    const { Root: DefaultRoot } = await import("../../components/root.js");
     RootComponent = DefaultRoot;
     if (verbose) {
       logger?.info(`[rsc-worker] Using built-in default Root component`);
