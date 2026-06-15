@@ -17,6 +17,7 @@ import { createHandlers } from "./handlers.js";
 import {
   addCssFileContent,
   addModuleId,
+  referenceGate,
   cssFiles,
   hmrState,
   cacheComponent,
@@ -1204,31 +1205,15 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           // Cache user options to avoid repeated getUserOptions calls
           const serverActionUserOptions = getUserOptions();
 
-          // Parse the server action ID to get the file path and export name
-          const [filePath, exportName] = msg.id.split("#");
-          if (!filePath || !exportName) {
-            throw new Error(
-              `Invalid server action ID format: ${msg.id}. Expected format: "path/to/file.ts#exportName"`
-            );
-          }
-          // Convert the server action ID to a file path
-          const actionPath = filePath.startsWith(
-            serverActionUserOptions.moduleBasePath
-          )
-            ? filePath.slice(serverActionUserOptions.moduleBasePath.length)
-            : filePath;
-          const fullPath = join(
-            workerData.userOptions?.projectRoot,
-            actionPath
-          );
-
-          // Load the server action module
-          const module = await import(fullPath);
-          const action = module[exportName];
-
-          if (typeof action !== "function") {
-            throw new Error(`Server action not found: ${msg.id}`);
-          }
+          // Resolve the client-supplied action id through the reference gate
+          // (rsl): a closed lookup on the registered boundary set, with the
+          // importer bound to the module's real url and a post-import check that
+          // the export is an actual server reference. The id is only a key — no
+          // path is ever derived from it. Unknown ids fall back to devResolve in
+          // open mode (current behaviour); a sealed gate would reject them.
+          const action = (await referenceGate.resolveServerReference(
+            msg.id
+          )) as (...args: unknown[]) => unknown;
 
           // Decode args if they're in React's encoded format
           let decodedArgs = msg.args;
