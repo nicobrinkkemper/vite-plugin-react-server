@@ -1205,12 +1205,6 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           // Cache user options to avoid repeated getUserOptions calls
           const serverActionUserOptions = getUserOptions();
 
-          // Resolve the client-supplied action id through the reference gate
-          // (rsl): a closed lookup on the registered boundary set, with the
-          // importer bound to the module's real url and a post-import check that
-          // the export is an actual server reference. The id is only a key — no
-          // path is ever derived from it. Unknown ids fall back to devResolve in
-          // open mode (current behaviour); a sealed gate would reject them.
           const action = (await referenceGate.resolveServerReference(
             msg.id
           )) as (...args: unknown[]) => unknown;

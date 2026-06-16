@@ -16,16 +16,10 @@ export const cssFiles = new Map<string, CssContent>();
 // Track module IDs
 export const moduleIds = new Map<string, string>();
 
-// The reference gate (rsl): the closed allowlist that resolves a client-supplied
-// server-action id to its callable. Every transformed boundary registers itself
-// here (via addModuleId, fed by the loader's SERVER_MODULE messages), keyed by
-// the hosted id, with an importer bound to the module's REAL url — so SERVER_ACTION
-// resolution becomes a lookup instead of importing a path derived from the id.
-//
-// Open mode for now: an id not yet registered falls back to devResolve, which
-// reproduces the previous resolution exactly, so this is non-breaking. Sealing
-// (the prod trust boundary) needs the build to persist the manifest so every
-// reference is registered before the first request — tracked as a follow-up.
+// Open mode for now: unregistered ids fall back to devResolve (the previous
+// path-derived import), so this is non-breaking. Sealing — the prod trust
+// boundary that rejects unregistered ids — needs the build to register from
+// the manifest first; tracked as bead i0j.
 const projectRoot =
   (workerData?.userOptions?.projectRoot as string | undefined) ?? process.cwd();
 const moduleBasePath =
@@ -142,10 +136,6 @@ export function getInvalidatedModules(): string[] {
 
 export function addModuleId(id: string, url: string) {
   moduleIds.set(id, url);
-  // Register the boundary in the gate too: the importer binds to this real url,
-  // never to anything derived from a client-supplied action id. Registered as a
-  // server reference — a client module landing here is harmless because the
-  // gate's post-import check rejects any export that isn't a server reference.
   referenceGate.register({ id, kind: "server", load: () => import(url) });
 }
 
