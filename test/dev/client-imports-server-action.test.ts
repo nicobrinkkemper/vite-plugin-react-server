@@ -84,11 +84,15 @@ export const Page = () => <div>Test Page</div>;`
     expect(result?.code).not.toContain("return { ok:");
   });
 
-  it("also rewrites in the SSR environment (proxy is inert during render)", async () => {
+  it("emits a render-safe stub in the SSR environment (no browser transport, no server body)", async () => {
     const result = await server.environments.ssr.transformRequest(
       "/src/server/actions.server.ts"
     );
-    expect(result?.code).toContain("createServerReference");
+    // SSR must not pull in the browser transport (it throws during prerender) or
+    // the server body; the stub only errors if wrongly called during render.
+    expect(result?.code).not.toContain("createServerReference");
+    expect(result?.code).toContain("cannot run during SSR");
+    expect(result?.code).not.toContain("return { ok:");
   });
 
   it("the emitted proxy id round-trips through the server action endpoint", async () => {

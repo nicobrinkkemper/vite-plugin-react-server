@@ -66,6 +66,11 @@ export const createTransformerPlugin = (
     let isSSR = true;
     const nodeEnv = getNodeEnv(process.env.NODE_ENV);
     let mode = nodeEnv;
+    // Vite's base, captured at configResolved. Injected as a literal into the
+    // client server-function proxy: this plugin is enforce:"post", so code we
+    // emit here is NOT re-scanned for `import.meta.env` replacement — a literal
+    // base is the robust way to give callServer its base URL.
+    let viteBase = "/";
     let runtimeResolvedUserOptions = resolvedUserOptions;
 
     // Use global cache for transformation results to ensure consistent hashing across all plugin instances
@@ -138,6 +143,7 @@ export const createTransformerPlugin = (
       configResolved(config) {
         isBuild = config.command === "build";
         isSSR = Boolean(config.build.ssr);
+        viteBase = config.base ?? "/";
         mode = config.mode as "development" | "production" | "test";
         if (!isValidEnv(mode)) {
           throw new Error(`Invalid mode: ${mode}`);
@@ -412,13 +418,19 @@ export const createTransformerPlugin = (
 
           // Client-imported server functions ("use server" module imported by a
           // "use client" component). In a non-server environment we must NOT
-          // bundle the server code into the browser — instead rewrite each export
-          // to a `createServerReference(id, callServer)` proxy that POSTs to the
-          // server, matching what React/Next do for Server Functions. The hosted
-          // id mirrors what the server registers (the module's moduleID), so the
-          // POST resolves through the existing server-action endpoint / gate.
-          // (This restores behaviour the pre-rsl loader had; before this, the
-          // directive was stripped and server-only code leaked into the browser.)
+          // bundle the server code in — instead replace each export with a
+          // reference (Server Functions parity; restores pre-rsl loader
+          // behaviour the extraction dropped). The two non-server environments
+          // need different shapes:
+          //  - BROWSER (env=client): a real createServerReference(id, callServer)
+          //    proxy that POSTs to the server. The hosted id mirrors what the
+          //    server registers (the module's moduleID), so it resolves through
+          //    the existing action endpoint / gate.
+          //  - SSR (env=ssr): the proxy's browser transport can't initialize in
+          //    the Node SSR/SSG render (it throws while prerendering). The server
+          //    function is never CALLED during render (it's an event handler), so
+          //    emit a render-safe stub that only throws if wrongly invoked. This
+          //    also keeps server-only code out of the SSR bundle.
           if (!isServerEnvironment) {
             const serverAnalysis = await analyzeModule(code, {
               loader: { parse: (src: string) => this.parse(src) as Program },
@@ -431,18 +443,29 @@ export const createTransformerPlugin = (
                 serverAnalysis.exports.exports.values()
               ).map((e) => e.exportName);
               if (exportNames.length > 0) {
-                const proxy = [
-                  `import { createServerReference } from "react-server-dom-esm/client.browser";`,
-                  `import { createCallServer } from "vite-plugin-react-server/utils";`,
-                  `const callServer = createCallServer(import.meta.env.BASE_URL);`,
-                  ...exportNames.map(
+                if (this.environment?.name === "client") {
+                  const proxy = [
+                    `import { createServerReference } from "react-server-dom-esm/client.browser";`,
+                    `import { createCallServer } from "vite-plugin-react-server/utils";`,
+                    `const callServer = createCallServer(${JSON.stringify(viteBase)});`,
+                    ...exportNames.map(
+                      (n) =>
+                        `export const ${n} = createServerReference(${JSON.stringify(
+                          `${finalModuleID}#${n}`
+                        )}, callServer);`
+                    ),
+                  ].join("\n");
+                  return { code: proxy, map: null };
+                }
+                const stub = exportNames
+                  .map(
                     (n) =>
-                      `export const ${n} = createServerReference(${JSON.stringify(
-                        `${finalModuleID}#${n}`
-                      )}, callServer);`
-                  ),
-                ].join("\n");
-                return { code: proxy, map: null };
+                      `export const ${n} = () => { throw new Error(${JSON.stringify(
+                        `Server function "${n}" cannot run during SSR; it executes in the browser via a server reference.`
+                      )}); };`
+                  )
+                  .join("\n");
+                return { code: stub, map: null };
               }
             }
           }
