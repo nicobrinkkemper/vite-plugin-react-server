@@ -4,6 +4,7 @@ import { createBuildEventPlugin } from "../environments/createBuildEventPlugin.j
 import { vitePluginReactDevServer } from "../dev-server/plugin.server.js";
 import { reactStaticPlugin } from "../react-static/plugin.server.js";
 import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
+import { serverReferenceClientPlugin } from "../transformer/serverReferenceClientPlugin.js";
 import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
 import { vitePluginVendorAlias } from "../vendor/vendor-alias.js";
 import { clientPackagesDiscoveryPlugin } from "../clientPackages/index.js";
@@ -40,7 +41,12 @@ export const createPluginOrchestrator = (
 
   // Virtual module for RSC HMR utilities (works in both dev and build)
   plugins.push(virtualRscHmrPlugin());
-  
+
+  // Redirect client-side imports of "use server" modules to a virtual client
+  // proxy (createServerReference) so they resolve in dev (client/ssr envs are
+  // served here too in dev:rsc). Must precede the transformer.
+  plugins.push(serverReferenceClientPlugin(userOptions));
+
   // Add transformer first so it runs before other plugins
   plugins.push(
     createTransformerPlugin({

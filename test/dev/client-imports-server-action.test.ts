@@ -65,7 +65,7 @@ export const Page = () => <div>Test Page</div>;`
       server: { port },
     });
     await server.listen();
-  });
+  }, 60_000); // dev-server startup can be slow under full-suite contention
 
   afterAll(async () => {
     await server?.close();
@@ -82,6 +82,12 @@ export const Page = () => <div>Test Page</div>;`
     // (the original function source) is gone from the browser bundle.
     expect(result?.code).toContain("export const addItem");
     expect(result?.code).not.toContain("return { ok:");
+    // DEV regression (2.3.1): the transport import must be RESOLVED for the
+    // browser, not left as a bare specifier. A bare specifier reaches the
+    // browser unremapped and throws "bare specifier ... was not remapped".
+    expect(result?.code).not.toMatch(
+      /from\s+["']react-server-dom-esm\/client\.browser["']/
+    );
   });
 
   it("emits a render-safe stub in the SSR environment (no browser transport, no server body)", async () => {
