@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a capability or improvement
+title: "[feat]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open-ended ideas and "would it make sense to…" are often a better fit for
+        [Discussions](https://github.com/nicobrinkkemper/vite-plugin-react-server/discussions).
+        Use this template when you have a concrete capability in mind.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The use case, not the solution. What can't you do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would the API / behaviour look like? A code sketch helps.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried, or how other tools (Waku, @vitejs/plugin-rsc, Next) handle it.
+    validations:
+      required: false
