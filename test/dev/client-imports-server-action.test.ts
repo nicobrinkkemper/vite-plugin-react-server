@@ -65,7 +65,7 @@ export const Page = () => <div>Test Page</div>;`
       server: { port },
     });
     await server.listen();
-  });
+  }, 60_000); // dev-server startup can be slow under full-suite contention
 
   afterAll(async () => {
     await server?.close();
