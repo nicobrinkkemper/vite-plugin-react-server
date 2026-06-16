@@ -63,6 +63,7 @@
       "default": "./dist/plugin/config/index.client.js"
     },
     "./error": "./dist/plugin/error/index.js",
+    "./references": "./dist/plugin/references/createSealedServerReferenceGate.server.js",
     "./vendor": {
       "react-server": "./dist/plugin/vendor/vendor.server.js",
       "default": "./dist/plugin/vendor/vendor.client.js"
