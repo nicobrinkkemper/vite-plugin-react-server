@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/nicobrinkkemper/vite-plugin-react-server/discussions
+    about: Usage questions, ideas, and "is this a bug?" — start here.
+  - name: Documentation
+    url: https://github.com/nicobrinkkemper/vite-plugin-react-server/tree/main/docs
+    about: Getting started, API reference, and troubleshooting.

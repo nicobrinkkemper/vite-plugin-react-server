@@ -1,0 +1,67 @@
+name: Bug report
+description: Something doesn't work as documented
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A **minimal reproduction** is by far the most
+        useful thing you can provide — it usually decides how fast this gets fixed.
+        For questions or "is this a bug?", please use
+        [Discussions](https://github.com/nicobrinkkemper/vite-plugin-react-server/discussions)
+        instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: I imported X and ran `vite build --app`; expected Y; got Z.
+    validations:
+      required: true
+  - type: input
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Link to a repo, StackBlitz, or gist that reproduces it. Strip everything unrelated.
+      placeholder: https://github.com/you/vprs-bug-repro
+    validations:
+      required: false
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which mode?
+      description: Where does it happen?
+      options:
+        - Static build (vite build --app, no backend)
+        - Dev server (dev:ssr)
+        - SSR / Node server at runtime
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: react-channel
+    attributes:
+      label: React channel
+      options:
+        - Stable (react ^19.2)
+        - Experimental (react@experimental)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `npx envinfo --binaries --npmPackages vite,react,react-dom,vite-plugin-react-server,react-server-loader` (or just paste the versions you know).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      description: Relevant console output. Re-run with `verbose: true` in the plugin options if you can.
+      render: shell
+    validations:
+      required: false
