@@ -14,7 +14,7 @@ import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
-import { detectClientModule } from "react-server-loader/directives";
+import { detectClientModule, analyzeModule } from "react-server-loader/directives";
 import { isViteInjectedCode } from "../loader/isViteInjectedCode.js";
 
 export interface TransformerPluginOptions {
@@ -407,6 +407,30 @@ export const createTransformerPlugin = (
                 code: code,
                 map: null,
               };
+            }
+          }
+
+          // A "use server" module must never reach the browser bundle. It only
+          // lands in env=client when a "use client" component imports it
+          // directly — which bundles server-only code (e.g. node builtins) into
+          // the browser and surfaces as a cryptic "Module node:… externalized"
+          // crash at runtime. Fail fast with a pointer to the supported props
+          // pattern. SSR (env=ssr) and the RSC server env handle "use server"
+          // normally; this guard is scoped to the browser client environment,
+          // where the server-actions example proves action files never legitimately land.
+          if (this.environment?.name === "client") {
+            const serverAnalysis = await analyzeModule(code, {
+              loader: { parse: (src: string) => this.parse(src) as Program },
+            });
+            if (
+              serverAnalysis.type === "success" &&
+              serverAnalysis.directiveInfo?.fileLevel?.type === "server"
+            ) {
+              throw new Error(
+                `[vite-plugin-react-server] "${id}" is a "use server" module but it reached the browser bundle — a "use client" component imported it directly. ` +
+                  `Server actions can't be bundled into the browser. Pass the action as a prop from a server/props file instead (see docs/server-actions.md), ` +
+                  `or move whatever the client imports out of the "use server" module.`
+              );
             }
           }
 
