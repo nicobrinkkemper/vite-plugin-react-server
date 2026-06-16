@@ -410,15 +410,16 @@ export const createTransformerPlugin = (
             }
           }
 
-          // A "use server" module must never reach the browser bundle. It only
-          // lands in env=client when a "use client" component imports it
-          // directly — which bundles server-only code (e.g. node builtins) into
-          // the browser and surfaces as a cryptic "Module node:… externalized"
-          // crash at runtime. Fail fast with a pointer to the supported props
-          // pattern. SSR (env=ssr) and the RSC server env handle "use server"
-          // normally; this guard is scoped to the browser client environment,
-          // where the server-actions example proves action files never legitimately land.
-          if (this.environment?.name === "client") {
+          // Client-imported server functions ("use server" module imported by a
+          // "use client" component). In a non-server environment we must NOT
+          // bundle the server code into the browser — instead rewrite each export
+          // to a `createServerReference(id, callServer)` proxy that POSTs to the
+          // server, matching what React/Next do for Server Functions. The hosted
+          // id mirrors what the server registers (the module's moduleID), so the
+          // POST resolves through the existing server-action endpoint / gate.
+          // (This restores behaviour the pre-rsl loader had; before this, the
+          // directive was stripped and server-only code leaked into the browser.)
+          if (!isServerEnvironment) {
             const serverAnalysis = await analyzeModule(code, {
               loader: { parse: (src: string) => this.parse(src) as Program },
             });
@@ -426,11 +427,23 @@ export const createTransformerPlugin = (
               serverAnalysis.type === "success" &&
               serverAnalysis.directiveInfo?.fileLevel?.type === "server"
             ) {
-              throw new Error(
-                `[vite-plugin-react-server] "${id}" is a "use server" module but it reached the browser bundle — a "use client" component imported it directly. ` +
-                  `Server actions can't be bundled into the browser. Pass the action as a prop from a server/props file instead (see docs/server-actions.md), ` +
-                  `or move whatever the client imports out of the "use server" module.`
-              );
+              const exportNames = Array.from(
+                serverAnalysis.exports.exports.values()
+              ).map((e) => e.exportName);
+              if (exportNames.length > 0) {
+                const proxy = [
+                  `import { createServerReference } from "react-server-dom-esm/client.browser";`,
+                  `import { createCallServer } from "vite-plugin-react-server/utils";`,
+                  `const callServer = createCallServer(import.meta.env.BASE_URL);`,
+                  ...exportNames.map(
+                    (n) =>
+                      `export const ${n} = createServerReference(${JSON.stringify(
+                        `${finalModuleID}#${n}`
+                      )}, callServer);`
+                  ),
+                ].join("\n");
+                return { code: proxy, map: null };
+              }
             }
           }
 

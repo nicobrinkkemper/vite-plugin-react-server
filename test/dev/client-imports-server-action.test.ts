@@ -72,18 +72,50 @@ export const Page = () => <div>Test Page</div>;`
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("fails fast in the browser (client) environment with a clear message", async () => {
-    await expect(
-      server.environments.client.transformRequest(
-        "/src/server/actions.server.ts"
-      )
-    ).rejects.toThrow(/reached the browser bundle/i);
+  it("rewrites the module to createServerReference proxies in the browser env", async () => {
+    const result = await server.environments.client.transformRequest(
+      "/src/server/actions.server.ts"
+    );
+    expect(result?.code).toContain("createServerReference");
+    expect(result?.code).toContain("callServer");
+    // Each export becomes a server-reference proxy, and the server-only body
+    // (the original function source) is gone from the browser bundle.
+    expect(result?.code).toContain("export const addItem");
+    expect(result?.code).not.toContain("return { ok:");
   });
 
-  it("does NOT reject the same module in the SSR environment", async () => {
-    // SSR runs server-side (Node) — a "use server" module is fine there.
-    await expect(
-      server.environments.ssr.transformRequest("/src/server/actions.server.ts")
-    ).resolves.toBeTruthy();
+  it("also rewrites in the SSR environment (proxy is inert during render)", async () => {
+    const result = await server.environments.ssr.transformRequest(
+      "/src/server/actions.server.ts"
+    );
+    expect(result?.code).toContain("createServerReference");
+  });
+
+  it("the emitted proxy id round-trips through the server action endpoint", async () => {
+    // The whole point: the id the proxy embeds must be the same id the server
+    // resolves. Pull it out of the emitted proxy and POST it like callServer
+    // would; the server should run addItem and return its result.
+    const result = await server.environments.client.transformRequest(
+      "/src/server/actions.server.ts"
+    );
+    const match = result?.code.match(
+      /createServerReference\(\s*"([^"]+#addItem)"/
+    );
+    expect(match).toBeTruthy();
+    const actionId = match![1];
+
+    const res = await fetch(`http://localhost:${port}/`, {
+      method: "POST",
+      headers: {
+        Accept: "text/x-component",
+        "Content-Type": "application/json",
+        "x-rsc-action": actionId,
+      },
+      body: JSON.stringify(["hello"]),
+    });
+    const text = await res.text();
+    expect(text).toMatch(/^0:/); // RSC wire format, not an error
+    expect(text).toContain("ok"); // addItem returns { ok: !!title }
+    expect(text).toContain("true");
   });
 });
