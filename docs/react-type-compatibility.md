@@ -30,7 +30,7 @@ npm install react@<that-exact-version> react-dom@<that-exact-version>
 ```
 
 `react-server-loader` is a regular **dependency** whose range admits both
-trains (`^19.2.8 || >=0.0.0-0 <0.0.1`), so every package manager installs it
+trains (`^19.2.10 || >=0.0.0-0 <0.0.1`), so every package manager installs it
 for you — the stable train by default, no extra step (yarn included).
 
 To run the experimental train, install all three React packages at the

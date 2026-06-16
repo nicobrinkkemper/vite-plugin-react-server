@@ -2,7 +2,9 @@ import { workerData } from "node:worker_threads";
 import { createCssProps } from "../../helpers/createCssProps.js";
 import type { CssContent, ResolvedUserOptions, HmrState } from "../../types.js";
 import type { PassThrough } from "node:stream";
-import { relative } from "node:path";
+import { relative, join } from "node:path";
+import { createReferenceGate } from "react-server-loader/references";
+import { registerServerReference } from "react-server-dom-esm/server";
 import { createLazyTemporaryReferenceSet } from "../../react-static/temporaryReferences.server.js";
 import { getModuleRef } from "../../helpers/moduleRefs.js";
 
@@ -14,6 +16,59 @@ export const cssFiles = new Map<string, CssContent>();
 
 // Track module IDs
 export const moduleIds = new Map<string, string>();
+
+const projectRoot =
+  (workerData?.userOptions?.projectRoot as string | undefined) ?? process.cwd();
+const moduleBasePath =
+  (workerData?.userOptions?.moduleBasePath as string | undefined) ?? "";
+
+const SERVER_REFERENCE_TAG = Symbol.for("react.server.reference");
+const tagServerReference = registerServerReference as (
+  ref: unknown,
+  id: string,
+  exportName?: string
+) => unknown;
+
+// Tag a freshly imported module's function exports as server references when
+// they aren't already. The server build's transform does this via
+// registerServerReference; a raw dev import doesn't, so the gate (which verifies
+// the tag) would reject otherwise-valid actions. Dev fallback only — open mode
+// is explicitly not a trust boundary, so tagging on demand here is sound.
+function tagServerExports(
+  moduleId: string,
+  mod: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const name of Object.keys(mod)) {
+    const value = mod[name];
+    out[name] =
+      typeof value === "function" &&
+      (value as { $$typeof?: symbol }).$$typeof !== SERVER_REFERENCE_TAG
+        ? tagServerReference(value, moduleId, name)
+        : value;
+  }
+  return out;
+}
+
+// Open mode for now: an unregistered id falls back to devResolve — a raw import
+// of the real path (NOT derived from the id beyond the basePath strip), with its
+// exports tagged so the gate can verify them. Sealing — the prod trust boundary
+// that rejects unregistered ids — registers from the build manifest instead;
+// tracked as bead i0j.
+export const referenceGate = createReferenceGate({
+  mode: "open",
+  devResolve: async (key) => {
+    const actionPath =
+      moduleBasePath && key.startsWith(moduleBasePath)
+        ? key.slice(moduleBasePath.length)
+        : key;
+    const mod = (await import(join(projectRoot, actionPath))) as Record<
+      string,
+      unknown
+    >;
+    return tagServerExports(key, mod);
+  },
+});
 
 // Track resolved components cache using WeakMap for better memory management.
 // Lazy: a module-scope createTemporaryReferenceSet() would force the vendored
@@ -115,6 +170,7 @@ export function getInvalidatedModules(): string[] {
 
 export function addModuleId(id: string, url: string) {
   moduleIds.set(id, url);
+  referenceGate.register({ id, kind: "server", load: () => import(url) });
 }
 
 // Helper to cache a resolved component

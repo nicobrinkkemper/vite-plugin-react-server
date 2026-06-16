@@ -162,7 +162,10 @@ describe("Server Actions", () => {
     });
 
     const text = await response.text();
-    // Should indicate action not found in response
-    expect(text.toLowerCase()).toMatch(/not found|not a function|undefined/);
+    // Should indicate action not found in response. The reference gate rejects an
+    // unregistered/unknown export as "not a registered server reference".
+    expect(text.toLowerCase()).toMatch(
+      /not found|not a function|undefined|not a registered/
+    );
   });
 });
