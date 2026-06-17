@@ -161,6 +161,7 @@
       "react-server": "./dist/plugin/react-static/plugin.server.js",
       "default": "./dist/plugin/react-static/plugin.client.js"
     },
+    "./react-static/inlineFlightPayload": "./dist/plugin/react-static/inlineFlightPayload.js",
     "./react-static/renderPage": {
       "react-server": "./dist/plugin/react-static/renderPage.server.js",
       "default": "./dist/plugin/react-static/renderPage.client.js"

@@ -2,6 +2,24 @@ import type React from "react";
 import { createCallServer } from "./createCallServer.js";
 import { env } from "./env.js";
 import { createPageURL } from "./urls.js";
+import { INLINE_FLIGHT_ID } from "./inlineFlightId.js";
+
+// The static build can inline the initial route's flight payload into the HTML
+// (see inlineFlightPayload). Consume it exactly once — for the first fetch after
+// load, i.e. the initial route's render — then fall back to the network for
+// client navigations, whose payloads aren't inlined.
+let inlineFlightConsumed = false;
+function takeInlineFlight(): Uint8Array | null {
+  if (inlineFlightConsumed || typeof document === "undefined") return null;
+  const el = document.getElementById(INLINE_FLIGHT_ID);
+  const encoded = el?.textContent?.trim();
+  if (!encoded) return null;
+  inlineFlightConsumed = true;
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 export function createReactFetcher({
   moduleBaseURL = env.BASE_URL,
@@ -33,22 +51,42 @@ export function createReactFetcher({
     publicOrigin,
     env.DEV
   )(url, indexRSC);
-  // Start the flight fetch immediately, but pull in the browser flight client
-  // lazily so this module is import-safe under the `react-server` condition (a
-  // static import of client.browser would drag react-dom/client into the server
-  // graph). In the browser, where this runs, the dynamic import resolves from
-  // the module cache.
-  const responsePromise = fetch(parsedURL.indexRSC, {
-    headers: headers,
-    signal,
-  });
-  const content = import("react-server-dom-esm/client.browser").then(
-    ({ createFromFetch }) =>
-      createFromFetch(responsePromise, {
-        callServer: createCallServer(parsedURL.moduleBaseURL),
-        moduleBaseURL: parsedURL.moduleBaseURL,
-      })
-  );
+
+  const decodeOptions = {
+    callServer: createCallServer(parsedURL.moduleBaseURL),
+    moduleBaseURL: parsedURL.moduleBaseURL,
+  };
+
+  // Prefer the inlined initial-route payload (zero network round-trip) when
+  // present; otherwise fetch index.rsc. Either way the browser flight client is
+  // imported lazily so this module stays import-safe under the `react-server`
+  // condition (a static import of client.browser would drag react-dom/client
+  // into the server graph).
+  const inlineFlight = takeInlineFlight();
+  let content: PromiseLike<React.ReactNode>;
+  if (inlineFlight) {
+    content = import("react-server-dom-esm/client.browser").then(
+      ({ createFromReadableStream }) =>
+        createFromReadableStream(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(inlineFlight);
+              controller.close();
+            },
+          }),
+          decodeOptions
+        )
+    );
+  } else {
+    // Start the fetch immediately, before the dynamic import resolves.
+    const responsePromise = fetch(parsedURL.indexRSC, {
+      headers: headers,
+      signal,
+    });
+    content = import("react-server-dom-esm/client.browser").then(
+      ({ createFromFetch }) => createFromFetch(responsePromise, decodeOptions)
+    );
+  }
   if (!signal) {
     return content;
   }
