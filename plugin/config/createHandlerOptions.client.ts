@@ -1,8 +1,6 @@
-import type { CreateHandlerOptions, AutoDiscoveredFiles } from "../types.js";
-import type { Logger } from "vite";
+import type { CreateHandlerOptions } from "../types.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { routeToURL } from "../utils/routeToURL.js";
-import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
 import { createWorker } from "../worker/createWorker.js";
 import {
   serializedOptions,
@@ -17,11 +15,12 @@ import {
 } from "./stashedOptionsState.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { createLogger } from "vite";
-import { DEFAULT_CONFIG } from "./defaults.js";
-import type {
-  CreateHandlerOptionsParams,
-  ResolvedDefaults,
-} from "./createHandlerOptions.types.js";
+import type { CreateHandlerOptionsParams } from "./createHandlerOptions.types.js";
+import {
+  createDefaultOptions,
+  resolveAutoDiscoveredFiles,
+  buildSharedHandlerOptions,
+} from "./createHandlerOptions.shared.js";
 import { getCondition } from "./getCondition.js";
 
 /**
@@ -49,42 +48,6 @@ import { getCondition } from "./getCondition.js";
  * });
  * ```
  */
-
-function createDefaultOptions(): ResolvedDefaults {
-  return {
-    pageExportName: DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-    propsExportName: DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-    rootExportName: DEFAULT_CONFIG.ROOT_EXPORT_NAME,
-    htmlExportName: DEFAULT_CONFIG.HTML_EXPORT_NAME,
-    cssFiles: new Map(),
-    globalCss: new Map(),
-    manifest: {},
-    css: DEFAULT_CONFIG.CSS,
-  };
-}
-
-async function resolveAutoDiscoveredFiles(
-  options: CreateHandlerOptionsParams,
-  stashedOptions: any,
-  logger: Logger
-): Promise<AutoDiscoveredFiles> {
-  if (options.autoDiscoveredFiles) {
-    return options.autoDiscoveredFiles;
-  }
-
-  const result = await resolveAutoDiscover({
-    config: options.config || {},
-    configEnv: options.configEnv || { mode: "production", command: "build" },
-    userOptions: stashedOptions,
-    logger,
-  });
-
-  if (result.type === "error") {
-    throw result.error || new Error("Failed to resolve autoDiscover");
-  }
-
-  return result.autoDiscoveredFiles;
-}
 
 export async function createHandlerOptions(
   route: string,
@@ -319,80 +282,37 @@ export async function createHandlerOptions(
     }
   }
 
-  // Create client-specific handler options
+  // Create client-specific handler options. The shared fields are assembled by
+  // buildSharedHandlerOptions; only the client-specific tail lives here.
+  //
+  // File-path handling note: pagePath/rootPath/htmlPath are passed straight to
+  // the worker, which distinguishes undefined (built-in default) vs "" (headless
+  // / React.Fragment) vs a string path (resolve custom component).
   const handlerOptions: CreateHandlerOptions = {
     ...userOptions,
-    // File paths - these are passed directly to the worker for component resolution
-    // The worker handles the distinction between undefined vs "" for Root and Html:
-    // - undefined = use built-in default component
-    // - "" = explicitly disable (headless mode for Html, React.Fragment for Root)
-    // - string path = resolve custom component from specified path
-    // This approach maintains consistency between server and client paradigms
-    pagePath: routeFilesResult.page,
-    propsPath: routeFilesResult.props,
-    rootPath: routeFilesResult.root,
-    htmlPath: routeFilesResult.html,
+    ...buildSharedHandlerOptions({
+      route,
+      url,
+      id,
+      userOptions,
+      defaults,
+      routeFiles: routeFilesResult,
+      logger,
+      rscWorker,
+      htmlWorker,
+    }),
 
-    // Export names
-    pageExportName: userOptions.pageExportName,
-    propsExportName: userOptions.propsExportName,
-    rootExportName: userOptions.rootExportName,
-    htmlExportName: userOptions.htmlExportName,
-
-    // Route and loader
-    route,
-    loader: defaults.loader || (() => Promise.resolve({})),
-
-    // Configuration
-    panicThreshold: userOptions.panicThreshold,
-    verbose: userOptions.verbose,
-    moduleBaseURL: userOptions.moduleBaseURL,
-    build: userOptions.build,
-    dev: {
-      useHtmlWorker: userOptions.dev.useHtmlWorker,
-      useRscWorker: userOptions.dev.useRscWorker,
-    },
-    logger,
-
-    // Required properties
-    normalizer: userOptions.normalizer,
-    onEvent: userOptions.onEvent,
-    onMetrics: userOptions.onMetrics,
-    autoDiscover: userOptions.autoDiscover,
-    css: userOptions.css,
-    projectRoot: userOptions.projectRoot,
-    moduleBase: userOptions.moduleBase,
-    moduleBasePath: userOptions.moduleBasePath,
-    moduleRootPath: userOptions.moduleRootPath,
-    moduleID: userOptions.moduleID,
-    url,
-    manifest: defaults.manifest,
-    cssFiles: defaults.cssFiles,
-    globalCss: defaults.globalCss,
-
-    // Timeouts and paths
-    rscTimeout: userOptions.rscTimeout,
-    htmlTimeout: userOptions.htmlTimeout,
-    fileWriteTimeout: userOptions.fileWriteTimeout,
-    workerShutdownTimeout: userOptions.workerShutdownTimeout,
-    rscWorkerPath: userOptions.rscWorkerPath,
-    htmlWorkerPath: userOptions.htmlWorkerPath,
-    publicOrigin: userOptions.publicOrigin,
-
-    // Stream options
-    serverPipeableStreamOptions: userOptions.serverPipeableStreamOptions,
+    // Stream options: client passes the value through as-is (no `|| {}`)
     clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions,
 
-    // Client-specific
-    id,
-    // Client needs component placeholders since it can't load server modules directly
+    // Client needs component placeholders since it can't load server modules
     HtmlComponent: undefined,
     PageComponent: undefined,
     RootComponent: undefined,
-    // Workers for client environment - provide both for specific use cases
-    worker: condition === "react-server" ? rscWorker : htmlWorker, // Backward compatibility: prefer HTML worker if available
-    rscWorker,
-    htmlWorker,
+
+    // Backward compatibility: prefer the condition-appropriate worker
+    worker: condition === "react-server" ? rscWorker : htmlWorker,
+
     // Children provided directly via options
     children,
   };
