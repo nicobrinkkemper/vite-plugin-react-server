@@ -19,6 +19,7 @@ import { fileWriter } from "./fileWriter.js";
 import type { Manifest } from "vite";
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
+import { emitFileWriteMetrics } from "./emitFileWriteMetrics.js";
 
 function resolvePathWithManifest(path: string, manifest: Manifest): string {
   const entry = manifest[path];
@@ -442,138 +443,7 @@ export const renderPages: RenderPagesFn = (
                 }
 
                 // Handle metrics collection here since the renderPage function's event handler is not being called
-                if (
-                  event.type === "file.write.done" &&
-                  event.data.route === route
-                ) {
-                  const routeResult = results.get(route);
-                  if (routeResult && routeResult.type === "success") {
-                    if (event.data.fileType === "html") {
-                      // Update HTML metrics with actual file data
-                      const endTime = performance.now();
-                      const htmlMetrics = createRenderMetrics({
-                        route: route,
-                        type: routeResult.metrics.html.type,
-                        fromMainThread: routeResult.metrics.html.fromMainThread,
-                        fromRscWorker: routeResult.metrics.html.fromRscWorker,
-                        fromHtmlWorker: routeResult.metrics.html.fromHtmlWorker,
-                        fileSize: event.data.content.length,
-                        chunks: event.data.chunks || 0,
-                        processingTime:
-                          endTime -
-                          routeResult.metrics.html.streamMetrics.startTime,
-                        chunkRate:
-                          (event.data.chunks || 0) /
-                          ((endTime -
-                            routeResult.metrics.html.streamMetrics.startTime) /
-                            1000),
-                        fileName: event.data.fileName,
-                        outputPath: event.data.path,
-                        baseDir: event.data.baseDir,
-                        routePath: event.data.routePath,
-                        streamMetrics: createStreamMetrics({
-                          ...routeResult.metrics.html.streamMetrics,
-                          chunks: event.data.chunks || 0,
-                          bytes: event.data.content.length,
-                          duration:
-                            endTime -
-                            routeResult.metrics.html.streamMetrics.startTime,
-                          endTime: endTime,
-                        }),
-                      });
-
-                      if (options.onMetrics) {
-                        options.onMetrics(htmlMetrics);
-                      }
-
-                      // Also emit RSC Full metrics (the RSC chunks sent to HTML worker)
-                      // Only if metrics.rscFull exists (might be missing on errors)
-                      if (routeResult.metrics?.rscFull) {
-                        const rscFullEndTime = performance.now();
-                        const rscFullMetrics = createRenderMetrics({
-                          route: route,
-                          type: routeResult.metrics.rscFull.type,
-                          fromMainThread:
-                            routeResult.metrics.rscFull.fromMainThread,
-                          fromRscWorker:
-                            routeResult.metrics.rscFull.fromRscWorker,
-                          fromHtmlWorker:
-                            routeResult.metrics.rscFull.fromHtmlWorker,
-                          processingTime:
-                            rscFullEndTime -
-                            routeResult.metrics.rscFull.streamMetrics.startTime,
-                          chunks:
-                            routeResult.metrics.rscFull.streamMetrics.chunks,
-                          chunkRate:
-                            routeResult.metrics.rscFull.streamMetrics.chunks /
-                            ((rscFullEndTime -
-                              routeResult.metrics.rscFull.streamMetrics
-                                .startTime) /
-                              1000),
-                          fileName: event.data.fileName,
-                          outputPath: event.data.path,
-                          baseDir: event.data.baseDir,
-                          routePath: event.data.routePath,
-                          streamMetrics: createStreamMetrics({
-                            ...routeResult.metrics.rscFull.streamMetrics,
-                            duration:
-                              rscFullEndTime -
-                              routeResult.metrics.rscFull.streamMetrics.startTime,
-                            endTime: rscFullEndTime,
-                          }),
-                          // this stream is consumed by the html stream
-                        });
-
-                        if (options.onMetrics) {
-                          options.onMetrics(rscFullMetrics);
-                        }
-                      }
-                    } else if (event.data.fileType === "rsc") {
-                      // Update RSC metrics with actual file data
-                      const rscEndTime = performance.now();
-                      const rscMetrics = createRenderMetrics({
-                        route: route,
-                        type: routeResult.metrics.rscHeadless.type,
-                        fromMainThread:
-                          routeResult.metrics.rscHeadless.fromMainThread,
-                        fromRscWorker:
-                          routeResult.metrics.rscHeadless.fromRscWorker,
-                        fromHtmlWorker:
-                          routeResult.metrics.rscHeadless.fromHtmlWorker,
-                        fileSize: event.data.content.length,
-                        chunks: event.data.chunks || 0,
-                        processingTime:
-                          rscEndTime -
-                          routeResult.metrics.rscHeadless.streamMetrics
-                            .startTime,
-                        chunkRate:
-                          (event.data.chunks || 0) /
-                          ((rscEndTime -
-                            routeResult.metrics.rscHeadless.streamMetrics
-                              .startTime) /
-                            1000),
-                        fileName: event.data.fileName,
-                        outputPath: event.data.path,
-                        baseDir: event.data.baseDir,
-                        routePath: event.data.routePath,
-                        streamMetrics: createStreamMetrics({
-                          ...routeResult.metrics.rscHeadless.streamMetrics,
-                          chunks: event.data.chunks || 0,
-                          bytes: event.data.content.length,
-                          duration:
-                            rscEndTime -
-                            routeResult.metrics.rscHeadless.streamMetrics
-                              .startTime,
-                          endTime: rscEndTime,
-                        }),
-                      });
-
-                      if (options.onMetrics) {
-                        options.onMetrics(rscMetrics);
-                      }
-                    }
-                  }
-                }
+                emitFileWriteMetrics(event, route, results, options);
               };
 
               // Create a wrapper that calls the renderPage's event handler
