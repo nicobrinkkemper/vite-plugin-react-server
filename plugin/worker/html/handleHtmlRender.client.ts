@@ -1,4 +1,5 @@
 import { workerData } from "node:worker_threads";
+import { Writable } from "node:stream";
 import { join } from "node:path";
 import { handleError } from "../../error/handleError.js";
 import type { HandleHtmlRenderFn } from "./types.js";
@@ -187,26 +188,31 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
       },
     });
 
-    // Create a custom writable stream that pipes directly to onData
-    const customWritable = {
-      write(chunk: any, _encoding?: any, callback?: any) {
+    // Pipe React's HTML output into a REAL Writable. A plain object faking the
+    // stream interface (no-op on/once/emit) breaks React's backpressure
+    // protocol: React checks write()'s return value and, when it's falsy (a
+    // large chunk over the highWaterMark), waits for a `drain` event before the
+    // next flush. A no-op event emitter never fires `drain`, so a SUSPENDED
+    // render — whose boundary content arrives in a second flush — never gets
+    // resumed: onAllReady fires but the final flush (and end()) never run, so
+    // handlers.onEnd is never sent. The main thread then never sees the HTML
+    // stream end and the fileWriter hangs until the build's 15s abort. This
+    // surfaced only past the first prerender batch, where backpressure reliably
+    // kicks in. A real Writable drains synchronously (we call callback() inline)
+    // and emits `drain`, so React resumes and end()/_final fire every time.
+    const customWritable = new Writable({
+      write(chunk: any, _encoding, callback) {
         handlers.onData(id, chunk);
-        if (callback) callback();
+        callback();
       },
-      end(chunk?: any, _encoding?: any, callback?: any) {
-        if (chunk) {
-          handlers.onData(id, chunk);
-        }
+      final(callback) {
         handlers.onEnd(id);
-        if (callback) callback();
+        callback();
       },
-      on() {}, // No-op for event listeners
-      once() {}, // No-op for event listeners
-      emit() { return false; }, // No-op for event emitters
-    };
+    });
 
-    // Pipe the React stream directly to our custom writable
-    pipe(customWritable as any);
+    // Pipe the React stream directly to our writable
+    pipe(customWritable);
 
     // Set up RSC stream error handling
     rscStream.on("error", (error) => {
