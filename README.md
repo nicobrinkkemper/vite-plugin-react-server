@@ -15,8 +15,8 @@ conventions. Its closest peer is the official
 [`@vitejs/plugin-rsc`](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-rsc);
 vprs differs by being a small dev/build setup whose output is portable ESM you
 host yourself. (The RSC transport underneath is an implementation detail —
-supplied and version-locked by `react-server-loader`, ESM today.) For a
-batteries-included framework instead, see Waku or Vike. Full breakdown:
+supplied and version-locked by `react-server-loader`.) For a batteries-included
+framework instead, see Waku or Vike. Full breakdown:
 [How vprs compares](./docs/comparison.md).
 
 It runs in both Node module conditions by design: the dev server and the build

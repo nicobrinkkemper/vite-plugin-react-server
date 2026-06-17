@@ -18,7 +18,7 @@ of vprs — see the table below.)
 | Kind | Vite plugin | Vite plugin (official) | Framework | Framework (+ RSC extension) |
 | Imposes routing / app structure | No | No | Yes (file-based pages router) | Yes (file-based) |
 | React target | Stable 19.2+ (default) or experimental | Stable, canary, or experimental (your choice) | React 19 | React 19 |
-| RSC transport | via `react-server-loader` (ESM today) | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
+| RSC transport | `react-server-dom-esm`, via `react-server-loader` | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
 | Build output | `static/` + `client/` + `server/` portable ESM | app bundle via multi-environment build | framework-managed | framework-managed |
 | Host anywhere (static / Express / Hono) | Yes, you wire the server | Yes | Via the framework's server | Via vike-server |
 | Node `--conditions react-server` | Optional (both modes work by design) | Used internally | Managed | Managed |
@@ -85,9 +85,8 @@ scope on purpose:
 - **No framework conveniences.** No auth, i18n, head/meta management, image
   optimization, or plugin ecosystem. vprs transforms RSC boundaries, runs the
   workers, and emits ESM; the rest of the app is yours.
-- **No webpack/RSC-bundler transport (today).** The transport is
-  `react-server-loader`'s concern — it is transport-agnostic by design but
-  currently vendors only the ESM (`react-server-dom-esm`) train. If your pipeline
+- **No webpack/RSC-bundler transport.** vprs renders through the ESM transport
+  (`react-server-dom-esm`, supplied by `react-server-loader`). If your pipeline
   needs the webpack transport, use `@vitejs/plugin-rsc`.
 - **No deployment/hosting layer.** The build emits ESM and a static directory;
   wiring them into a host (static CDN, Express, Hono, serverless) is up to you.
