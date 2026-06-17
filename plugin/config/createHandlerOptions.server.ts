@@ -1,8 +1,6 @@
-import type { CreateHandlerOptions, AutoDiscoveredFiles, RootComponentType, HtmlComponentType } from "../types.js";
-import type { Logger } from "vite";
+import type { CreateHandlerOptions, RootComponentType, HtmlComponentType } from "../types.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { routeToURL } from "../utils/routeToURL.js";
-import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
 import {
   getStashedUserOptions,
   getStashedHandlerOptions,
@@ -12,8 +10,12 @@ import {
 
 import { getNodeEnv } from "./getNodeEnv.js";
 import { createLogger } from "vite";
-import { DEFAULT_CONFIG } from "./defaults.js";
-import type { CreateHandlerOptionsParams, ResolvedDefaults } from "./createHandlerOptions.types.js";
+import type { CreateHandlerOptionsParams } from "./createHandlerOptions.types.js";
+import {
+  createDefaultOptions,
+  resolveAutoDiscoveredFiles,
+  buildSharedHandlerOptions,
+} from "./createHandlerOptions.shared.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
 import { createWorker } from "../worker/createWorker.js";
@@ -42,42 +44,6 @@ import { createWorker } from "../worker/createWorker.js";
  * });
  * ```
  */
-
-function createDefaultOptions(): ResolvedDefaults {
-  return {
-    pageExportName: DEFAULT_CONFIG.PAGE_EXPORT_NAME,
-    propsExportName: DEFAULT_CONFIG.PROPS_EXPORT_NAME,
-    rootExportName: DEFAULT_CONFIG.ROOT_EXPORT_NAME,
-    htmlExportName: DEFAULT_CONFIG.HTML_EXPORT_NAME,
-    cssFiles: new Map(),
-    globalCss: new Map(),
-    manifest: {},
-    css: DEFAULT_CONFIG.CSS,
-  };
-}
-
-async function resolveAutoDiscoveredFiles(
-  options: CreateHandlerOptionsParams,
-  stashedOptions: any,
-  logger: Logger
-): Promise<AutoDiscoveredFiles> {
-  if (options.autoDiscoveredFiles) {
-    return options.autoDiscoveredFiles;
-  }
-
-  const result = await resolveAutoDiscover({
-    config: options.config || {},
-    configEnv: options.configEnv || { mode: "production", command: "build" },
-    userOptions: stashedOptions,
-    logger,
-  });
-
-  if (result.type === "error") {
-    throw result.error || new Error("Failed to resolve autoDiscover");
-  }
-
-  return result.autoDiscoveredFiles;
-}
 
 export async function createHandlerOptions(
   route: string,
@@ -399,76 +365,33 @@ export async function createHandlerOptions(
     }
   }
 
-  // Create server-specific handler options
+  // Create server-specific handler options. The shared fields are assembled by
+  // buildSharedHandlerOptions; only the server-specific tail lives here.
   const handlerOptions: CreateHandlerOptions = {
     ...userOptions,
-    // File paths
-    pagePath: routeFilesResult.page,
-    propsPath: routeFilesResult.props,
-    rootPath: routeFilesResult.root,
-    htmlPath: routeFilesResult.html,
-    
-    // Export names
-    pageExportName: userOptions.pageExportName,
-    propsExportName: userOptions.propsExportName,
-    rootExportName: userOptions.rootExportName,
-    htmlExportName: userOptions.htmlExportName,
-    
-    // Route and loader
-    route,
-    loader: defaults.loader || (() => Promise.resolve({})),
-    
-    // Configuration
-    panicThreshold: userOptions.panicThreshold,
-    verbose: userOptions.verbose,
-    moduleBaseURL: userOptions.moduleBaseURL,
-    build: userOptions.build,
-    dev: {
-      useHtmlWorker: userOptions.dev.useHtmlWorker,
-      useRscWorker: userOptions.dev.useRscWorker,
-    },
-    logger,
-    
-    // Required properties
-    normalizer: userOptions.normalizer,
-    onEvent: userOptions.onEvent,
-    onMetrics: userOptions.onMetrics,
-    autoDiscover: userOptions.autoDiscover,
-    css: userOptions.css,
-    projectRoot: userOptions.projectRoot,
-    moduleBase: userOptions.moduleBase,
-    moduleBasePath: userOptions.moduleBasePath,
-    moduleRootPath: userOptions.moduleRootPath,
-    moduleID: userOptions.moduleID,
-    url,
-    manifest: defaults.manifest,
-    cssFiles: defaults.cssFiles,
-    globalCss: defaults.globalCss,
-    
-    // Timeouts and paths
-    rscTimeout: userOptions.rscTimeout,
-    htmlTimeout: userOptions.htmlTimeout,
-    fileWriteTimeout: userOptions.fileWriteTimeout,
-    workerShutdownTimeout: userOptions.workerShutdownTimeout,
-    rscWorkerPath: userOptions.rscWorkerPath,
-    htmlWorkerPath: userOptions.htmlWorkerPath,
-    publicOrigin: userOptions.publicOrigin,
-    
-    // Stream options
-    serverPipeableStreamOptions: userOptions.serverPipeableStreamOptions,
+    ...buildSharedHandlerOptions({
+      route,
+      url,
+      id,
+      userOptions,
+      defaults,
+      routeFiles: routeFilesResult,
+      logger,
+      rscWorker,
+      htmlWorker,
+    }),
+
+    // Stream options: server coerces an undefined value to {}
     clientPipeableStreamOptions: userOptions.clientPipeableStreamOptions || {},
     components: userOptions.components,
-    
-    // Server-specific
-    id,
-    // Always use the inverse worker for the main "worker" field
+
+    // Always use the inverse (HTML) worker for the main "worker" field
     worker: htmlWorker,
-    rscWorker,
-    htmlWorker,
+
     // Loaded components (server loads them at configuration time)
     PageComponent,
-    RootComponent, 
-    HtmlComponent
+    RootComponent,
+    HtmlComponent,
   };
 
   // Cache and return
