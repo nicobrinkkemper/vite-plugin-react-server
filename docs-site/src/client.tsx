@@ -15,10 +15,7 @@
 import { use, useEffect, useState, useTransition, Suspense } from "react";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-// `/utils/rsc-client` is the condition-stable browser entry (createReactFetcher,
-// callServer). Importing from `/utils` would resolve to the server variant under
-// the docs-site's `--conditions react-server` build, which omits these.
-import { createReactFetcher } from "vite-plugin-react-server/utils/rsc-client";
+import { createReactFetcher } from "vite-plugin-react-server/utils";
 
 const BASE = import.meta.env.BASE_URL || "/";
 

@@ -1,5 +1,4 @@
 import type React from "react";
-import { createFromFetch } from "react-server-dom-esm/client.browser";
 import { createCallServer } from "./createCallServer.js";
 import { env } from "./env.js";
 import { createPageURL } from "./urls.js";
@@ -34,15 +33,21 @@ export function createReactFetcher({
     publicOrigin,
     env.DEV
   )(url, indexRSC);
-  const content = createFromFetch(
-    fetch(parsedURL.indexRSC, {
-      headers: headers,
-      signal,
-    }),
-    {
-      callServer: createCallServer(parsedURL.moduleBaseURL),
-      moduleBaseURL: parsedURL.moduleBaseURL,
-    }
+  // Start the flight fetch immediately, but pull in the browser flight client
+  // lazily so this module is import-safe under the `react-server` condition (a
+  // static import of client.browser would drag react-dom/client into the server
+  // graph). In the browser, where this runs, the dynamic import resolves from
+  // the module cache.
+  const responsePromise = fetch(parsedURL.indexRSC, {
+    headers: headers,
+    signal,
+  });
+  const content = import("react-server-dom-esm/client.browser").then(
+    ({ createFromFetch }) =>
+      createFromFetch(responsePromise, {
+        callServer: createCallServer(parsedURL.moduleBaseURL),
+        moduleBaseURL: parsedURL.moduleBaseURL,
+      })
   );
   if (!signal) {
     return content;
