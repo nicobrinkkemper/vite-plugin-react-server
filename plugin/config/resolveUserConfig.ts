@@ -224,7 +224,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
       preserveModules: shouldPreserveModules,
       // For static builds: undefined (not needed when preserveModules is false)
       // For SSR builds: set to empty string to preserve only module names, preventing _virtual files
-      preserveModulesRoot: shouldPreserveModules ? (preserveModulesRootString === "" ? "" : preserveModulesRootString) : undefined,
+      preserveModulesRoot: shouldPreserveModules ? preserveModulesRootString : undefined,
       entryFileNames:
         userDefinedEntryFileNames ??
         ((info) => {
