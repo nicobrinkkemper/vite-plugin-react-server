@@ -2,7 +2,7 @@ import { createWorker } from "../worker/createWorker.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { serializedDevServerConfig } from "../helpers/serializeUserOptions.js";
 import { MessageChannel, type Worker } from "node:worker_threads";
-import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
 import { React } from "../vendor/vendor.client.js";
 import type { RestartWorkerFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
@@ -142,12 +142,7 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
       reverseCondition: "react-server",
       currentCondition: "react-client",
       maxListeners: maxListeners,
-      envPrefix:
-        typeof server.config.envPrefix === "string"
-          ? server.config.envPrefix
-          : Array.isArray(server.config.envPrefix)
-          ? server.config.envPrefix[0]
-          : DEFAULT_CONFIG.ENV_PREFIX,
+      envPrefix: envPrefixFromConfig(server.config),
       workerData: {
         userOptions: userOptions,
         resolvedConfig: serializedDevServerConfig(server.config),

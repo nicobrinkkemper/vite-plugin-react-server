@@ -12,51 +12,36 @@ import type { MessagePort } from "node:worker_threads";
 export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort): ServerStreamHandlers {
   // Create writable stream for fromWorker if available
   const messagePortWritable = fromWorker ? new MessagePortWritable(fromWorker, toWorker) : null;
+  // In two-port mode control messages go back through toWorker; otherwise they
+  // go through the single-port sendMessage channel.
+  const post = (payload: Parameters<typeof sendMessage>[0]) => {
+    if (toWorker) {
+      toWorker.postMessage(payload);
+    } else {
+      sendMessage(payload);
+    }
+  };
   return {
     onRscRender: (id) => {
-      if (toWorker) {
-        toWorker.postMessage({
-          type: "RSC_RENDER_START",
-          id: id,
-        });
-      } else {
-        sendMessage({
-          type: "RSC_RENDER_START",
-          id: id,
-        });
-      }
+      post({
+        type: "RSC_RENDER_START",
+        id: id,
+      });
     },
     onError: (id, error, errorInfo) => {
-      if (toWorker) {
-        toWorker.postMessage({
-          type: "ERROR",
-          id: id,
-          errorInfo: serializeErrorInfo(errorInfo),
-          error: serializeError(error),
-        });
-      } else {
-        sendMessage({
-          type: "ERROR",
-          id: id,
-          errorInfo: serializeErrorInfo(errorInfo),
-          error: serializeError(error),
-        });
-      }
+      post({
+        type: "ERROR",
+        id: id,
+        errorInfo: serializeErrorInfo(errorInfo),
+        error: serializeError(error),
+      });
     },
     onShellError: (id, error) => {
-      if (toWorker) {
-        toWorker.postMessage({
-          type: "SHELL_ERROR",
-          id: id,
-          error: serializeError(error),
-        });
-      } else {
-        sendMessage({
-          type: "SHELL_ERROR",
-          id: id,
-          error: serializeError(error),
-        });
-      }
+      post({
+        type: "SHELL_ERROR",
+        id: id,
+        error: serializeError(error),
+      });
     },
     onData: (id, data) => {
       // In two-port mode, data goes through the writable stream
@@ -82,35 +67,20 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
         }
       }
       
-      if (toWorker) {
-        toWorker.postMessage({
-          type: "RSC_END",
-          id: id,
-        });
-      } else {
-        sendMessage({
-          type: "RSC_END",
-          id: id,
-        });
-      }
+      post({
+        type: "RSC_END",
+        id: id,
+      });
     },
     onMetrics: (id, metrics) => {
       if (metrics.type === "html" || metrics.type === "worker-startup" || metrics.type === "module-resolution") {
         return;
       }
-      if (toWorker) {
-        toWorker.postMessage({
-          type: "RSC_METRICS",
-          id: id,
-          metrics: metrics as any,
-        });
-      } else {
-        sendMessage({
-          type: "RSC_METRICS",
-          id: id,
-          metrics: metrics as any,
-        });
-      }
+      post({
+        type: "RSC_METRICS",
+        id: id,
+        metrics: metrics as any,
+      });
     },
     // Expose the writable stream for direct piping in two-port mode
     ...(messagePortWritable && { getWritable: () => messagePortWritable }),

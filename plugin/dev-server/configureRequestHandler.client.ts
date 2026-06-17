@@ -102,29 +102,17 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       // Define restart function for HMR (needs serializedUserOptions)
       if (!restartWorkerForHMR) {
         restartWorkerForHMR = async () => {
-          if (currentWorker) {
-            currentWorker = await restartWorker({
-              server,
-              autoDiscoveredFiles,
-              userOptions: serializedUserOptions,
-              configEnv: configEnv,
-              hmrChannel,
-            });
-            if (currentWorker && restartWorkerForHMR) {
-              onWorkerCreated?.(currentWorker, restartWorkerForHMR);
-            }
-          } else {
-            // Worker doesn't exist yet, create it
-            currentWorker = await restartWorker({
-              server,
-              autoDiscoveredFiles,
-              userOptions: serializedUserOptions,
-              configEnv: configEnv,
-              hmrChannel,
-            });
-            if (currentWorker && restartWorkerForHMR) {
-              onWorkerCreated?.(currentWorker, restartWorkerForHMR);
-            }
+          // Same path whether or not a worker already exists — restartWorker
+          // tears down any current worker before spawning the replacement.
+          currentWorker = await restartWorker({
+            server,
+            autoDiscoveredFiles,
+            userOptions: serializedUserOptions,
+            configEnv: configEnv,
+            hmrChannel,
+          });
+          if (currentWorker && restartWorkerForHMR) {
+            onWorkerCreated?.(currentWorker, restartWorkerForHMR);
           }
         };
       }
