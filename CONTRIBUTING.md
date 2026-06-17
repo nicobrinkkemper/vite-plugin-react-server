@@ -1,9 +1,9 @@
 # Contributing to vite-plugin-react-server
 
 Thanks for considering a contribution. `vite-plugin-react-server` (vprs) brings
-React Server Components to plain Vite on **stable React** — no framework, no
-experimental build required. Bug reports, repros, docs fixes, and PRs are all
-welcome.
+React Server Components to Vite as a low-level plugin — on **stable React 19.2+**
+(or experimental), with the version-locked transport supplied by
+`react-server-loader`. Bug reports, repros, docs fixes, and PRs are all welcome.
 
 ## Prerequisites
 

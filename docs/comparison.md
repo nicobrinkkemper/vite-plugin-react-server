@@ -2,12 +2,13 @@
 
 An honest look at where `vite-plugin-react-server` (vprs) sits among the
 Vite-based ways to run React Server Components. The short version: vprs is a
-**plugin, not a framework**, it targets **stable React 19.2** with an
-**ESM-native** transport, and its build emits **portable ESM** you can host
-anywhere. If you want a framework to make the decisions for you, Waku or Vike
-are likely the better fit; if you want the official low-level building block,
-that is `@vitejs/plugin-rsc`. vprs is the niche in between: a low-level plugin,
-like the official one, but ESM-first and portable-output by design.
+**low-level plugin rather than a framework**, it runs on **stable React 19.2**
+(or experimental) with an **ESM-native** transport, and its build emits
+**portable ESM** you can host anywhere. If you want a framework to make the
+decisions for you, Waku or Vike are likely the better fit; if you want the
+official low-level building block, that is `@vitejs/plugin-rsc`. vprs is the
+niche in between: a low-level plugin, like the official one, but ESM-first and
+portable-output by design.
 
 ## At a glance
 
