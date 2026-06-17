@@ -3,12 +3,13 @@
 An honest look at where `vite-plugin-react-server` (vprs) sits among the
 Vite-based ways to run React Server Components. The short version: vprs is a
 **low-level plugin rather than a framework**, it runs on **stable React 19.2**
-(or experimental) with an **ESM-native** transport, and its build emits
-**portable ESM** you can host anywhere. If you want a framework to make the
-decisions for you, Waku or Vike are likely the better fit; if you want the
-official low-level building block, that is `@vitejs/plugin-rsc`. vprs is the
-niche in between: a low-level plugin, like the official one, but ESM-first and
-portable-output by design.
+(or experimental), and its build emits **portable ESM** you can host anywhere.
+If you want a framework to make the decisions for you, Waku or Vike are likely
+the better fit; if you want the official low-level building block, that is
+`@vitejs/plugin-rsc`. vprs is the niche in between: a small RSC dev/build setup,
+like the official plugin in spirit, but with portable output you own. (The RSC
+transport underneath is supplied by `react-server-loader`, not a defining trait
+of vprs — see the table below.)
 
 ## At a glance
 
@@ -17,7 +18,7 @@ portable-output by design.
 | Kind | Vite plugin | Vite plugin (official) | Framework | Framework (+ RSC extension) |
 | Imposes routing / app structure | No | No | Yes (file-based pages router) | Yes (file-based) |
 | React target | Stable 19.2+ (default) or experimental | Stable, canary, or experimental (your choice) | React 19 | React 19 |
-| RSC transport | `react-server-dom-esm` (ESM), vendored | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
+| RSC transport | `react-server-dom-esm`, via `react-server-loader` | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
 | Build output | `static/` + `client/` + `server/` portable ESM | app bundle via multi-environment build | framework-managed | framework-managed |
 | Host anywhere (static / Express / Hono) | Yes, you wire the server | Yes | Via the framework's server | Via vike-server |
 | Node `--conditions react-server` | Optional (both modes work by design) | Used internally | Managed | Managed |
@@ -32,8 +33,8 @@ choice for the job it is built for.
 - **vprs** — you want RSC as a *plugin* on plain Vite, on stable React, with a
   build that produces portable ESM (a static site plus `client/` and `server/`
   modules) you drop into your own static host or Node server. You are happy to
-  own routing and the server wiring. You specifically want the ESM transport
-  rather than the webpack one.
+  own routing and the server wiring, and you want a small RSC dev/build setup
+  rather than a framework.
 - **`@vitejs/plugin-rsc`** — the official, framework-agnostic Vite RSC plugin
   and the foundation several tools build on. Reach for it when you want the
   canonical low-level plugin, the webpack-flavored transport, or the freedom to
@@ -43,6 +44,17 @@ choice for the job it is built for.
   conventions to go with it, batteries included, without assembling the pieces.
 - **Vike (+ vike-react-rsc)** — you are already on Vike (or want its flexible
   framework model) and want to adopt RSC progressively, component by component.
+
+### What about React Router framework mode?
+
+It can't sit on vprs. React Router's RSC framework mode is built on
+`@vitejs/plugin-rsc` (a hard peer dependency of `unstable_reactRouterRSC`) and
+consumes that plugin's runtime and webpack-family transport. vprs supplies its
+own RSC stack through `react-server-loader`, so there is no seam to swap it in,
+and running both means two RSC pipelines over one module graph. What does
+compose is React Router in **declarative / data (library) mode**: vprs owns RSC
+and prerendering while React Router drives client-side navigation inside a
+`"use client"` boundary.
 
 ## React: stable by default, experimental supported
 
@@ -73,8 +85,9 @@ scope on purpose:
 - **No framework conveniences.** No auth, i18n, head/meta management, image
   optimization, or plugin ecosystem. vprs transforms RSC boundaries, runs the
   workers, and emits ESM; the rest of the app is yours.
-- **No webpack/RSC-bundler transport.** vprs is ESM-only by design. If your
-  pipeline needs `react-server-dom-webpack`, use `@vitejs/plugin-rsc`.
+- **No webpack/RSC-bundler transport.** vprs renders through the ESM transport
+  (`react-server-dom-esm`, supplied by `react-server-loader`). If your pipeline
+  needs the webpack transport, use `@vitejs/plugin-rsc`.
 - **No deployment/hosting layer.** The build emits ESM and a static directory;
   wiring them into a host (static CDN, Express, Hono, serverless) is up to you.
   See [Build Output](./build-output.md).
@@ -85,5 +98,5 @@ scope on purpose:
   `react-server-dom-webpack`.
 
 It is also younger and has a smaller community than the official plugin or the
-established frameworks. If those matter more to you than the ESM-first,
-plugin-only model, prefer one of the alternatives above.
+established frameworks. If those matter more to you than the plugin-only,
+portable-output model, prefer one of the alternatives above.
