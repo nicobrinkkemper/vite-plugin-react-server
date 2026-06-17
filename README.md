@@ -1,24 +1,25 @@
 # vite-plugin-react-server
 
-React Server Components for plain Vite on **stable React** — no framework, no
-experimental builds. One `vite build --app` prerenders your pages to static
-HTML + RSC payloads and emits your components as portable ESM that runs under
-any HTTP server: static hosting, Express/Hono, or anything in between.
+React Server Components as a Vite plugin. One `vite build --app` prerenders your
+pages to static HTML + RSC payloads and emits your components as portable ESM
+that runs under any HTTP server: static hosting, Express/Hono, or anything in
+between.
 
-It works in BOTH Node module conditions, by design: the dev server and the
-build run with or without `--conditions react-server`, and whichever side your
-main thread is on, a worker thread mirrors the other half (server components
-need a react-server context, client hydration needs a react-client one — you
-always have both). Running the main thread under react-server is an optional
-optimization — slightly faster, better stack traces — never a requirement.
-
-**Where this sits:** vprs is a low-level *plugin*, not a framework, so it
-imposes no router or app structure. Its closest peer is the official
+vprs is the low-level layer rather than a framework: it handles the RSC
+transform, runs the worker threads, and emits portable ESM — and leaves routing
+and app structure to you. Use it directly, or as the engine under your own
+conventions. Its closest peer is the official
 [`@vitejs/plugin-rsc`](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-rsc);
 vprs differs by using the ESM transport (`react-server-dom-esm`) and emitting
-portable ESM you host yourself. If you'd rather a framework decide for you, look
-at Waku or Vike. Full breakdown, including what vprs does **not** do:
-[How vprs compares](./docs/comparison.md).
+portable ESM you host yourself. For a batteries-included framework instead, see
+Waku or Vike. Full breakdown: [How vprs compares](./docs/comparison.md).
+
+It runs in both Node module conditions by design: the dev server and the build
+work with or without `--conditions react-server`, and a worker thread mirrors
+whichever half your main thread isn't on (server components need a react-server
+context, client hydration a react-client one). Running the main thread under
+react-server is an optional optimization — a bit faster, better stack traces —
+never a requirement.
 
 ## Install
 
@@ -26,28 +27,28 @@ at Waku or Vike. Full breakdown, including what vprs does **not** do:
 npm install -D vite-plugin-react-server react react-dom
 ```
 
-vprs runs on **stable React 19.2+** out of the box. Everything
-React-version-locked — the `react-server-dom-esm` transport (server side AND
-the flight client your browser bundle ships), the directive engine, the Node
-loader — lives in the
+vprs runs on **stable React 19.2+** out of the box — and on experimental React
+too. Everything locked to a React version (the `react-server-dom-esm` transport
+that ships on both the server and your browser bundle, the directive engine, the
+Node loader) lives in the
 [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-dependency, installed for you (every package manager). The command above is all
-you need.
+dependency, whose versions track React the way `@types/react` does. You don't
+build or manage a transport — you pick a React track and install the matching
+`react-server-loader`. The command above is all you need for stable.
 
-**Want correct CSS preloading?** Stable React 19.2.x emits its CSS preload hint
-as an invalid `as="stylesheet"`, so browsers ignore the preload (styles still
-load, just not preloaded) and log a warning. The fix is on React's experimental
-channel today (and reaches stable when React ships it). To opt in, install the
-experimental train — all three pinned together:
+To run the experimental train instead, install the three together; the
+`react-server-loader` range collapses them to one copy, so no `overrides` are
+needed:
 
 ```bash
 npm install react@experimental react-dom@experimental react-server-loader@experimental
 ```
 
-That's the whole step: `react-server-loader`'s range admits both trains, so npm
-collapses to a single experimental copy — no `overrides`, no duplicate. See
-[React Compatibility](./docs/react-type-compatibility.md). Upgrading from 1.x?
-See the [migration notes](./docs/getting-started.md#upgrading-from-1x).
+Experimental buys the newest RSC features ahead of stable — for instance it
+already fixes the cosmetic `as="stylesheet"` CSS-preload warning that stable
+React 19.2.x logs. See [React Compatibility](./docs/react-type-compatibility.md);
+upgrading from 1.x, see the
+[migration notes](./docs/getting-started.md#upgrading-from-1x).
 
 ## Minimal Example
 
@@ -146,7 +147,7 @@ export default {
 It strips the vprs plugin from Storybook's builder, resolves the
 `react-server-dom-esm` transport (from `react-server-loader`), and silences
 `"use client"`/`"use server"` directive noise. See
-[Storybook](./docs/storybook.md) for details. (Requires vprs ≥ 1.9.0.)
+[Storybook](./docs/storybook.md) for details.
 
 ## Documentation
 
@@ -181,12 +182,11 @@ It strips the vprs plugin from Storybook's builder, resolves the
 ## Requirements
 
 - Node.js 22.0.0+ (the build uses `node:fs/promises#glob`, which landed in 22)
-- **Stable React 19.2+** (`react` / `react-dom` at `^19.2.7`). As of 2.0 the RSC
-  server APIs vprs relies on (`prerenderToNodeStream`, the `react-server`
-  transport exports) are part of stable React, so no experimental build is
-  required. The matching `react-server-dom-esm` transport is provided by the
-  `react-server-loader` peer; experimental React still works if you want
-  the newest RSC features. See [React Compatibility](./docs/react-type-compatibility.md).
+- **React 19.2+**, stable (`react` / `react-dom` at `^19.2.7`) or experimental.
+  The RSC server APIs vprs uses (`prerenderToNodeStream`, the `react-server`
+  transport exports) ship in stable React; the matching `react-server-dom-esm`
+  transport comes from the `react-server-loader` dependency, which tracks your
+  React track. See [React Compatibility](./docs/react-type-compatibility.md).
 - Vite 6+
 
 ## TypeScript
