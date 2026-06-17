@@ -18,12 +18,13 @@
  * 4. HTML transform processes RSC content in main thread
  * 5. Both files are written to filesystem
  * 
- * KEY INSIGHT: Node.js streams can only be consumed once, so we buffer the RSC
- * content to allow it to be used for both RSC file generation and HTML transformation.
- * This follows the pattern from collectRscContent.ts.
- * 
+ * KEY INSIGHT: Node.js streams can only be consumed once, so instead of buffering
+ * we open two RSC streams that share a single render: a headless stream feeds the
+ * HTML transform, and a full stream (via reuseHeadlessStreamId) is written to the
+ * .rsc file. Both consume the same underlying render without re-executing it.
+ *
  * HELPER FUNCTIONS:
- * - createBufferedRscStream: Creates a buffered stream for dual consumption
+ * - createRscStream: Opens an RSC stream (headless + full share one render via reuseHeadlessStreamId)
  * - createRscToHtmlStream: Transforms RSC content to HTML in main thread
  * 
  * USAGE:
