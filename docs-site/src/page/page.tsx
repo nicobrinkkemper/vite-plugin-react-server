@@ -3,14 +3,63 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
+import { createHighlighter, type Highlighter } from "shiki";
 
 /**
  * The whole docs site is this one SERVER component. It runs at build time
  * only: reads the markdown from the repo's docs/, renders it with marked,
- * and ships pure HTML — the parser never reaches the browser.
+ * and ships pure HTML — the parser never reaches the browser. Code blocks are
+ * highlighted with Shiki here, at build time, so the rendered HTML carries the
+ * colors and the browser still downloads zero highlighting JS.
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Shiki theme + the languages our docs actually use. github-light matches the
+// site's light palette.
+const SHIKI_THEME = "github-light";
+const SHIKI_LANGS = [
+  "typescript",
+  "tsx",
+  "javascript",
+  "jsx",
+  "json",
+  "bash",
+  "shellscript",
+  "css",
+  "html",
+  "markdown",
+  "diff",
+];
+
+// One highlighter for the whole build. The top-level await loads the grammars
+// and theme once, up front, which lets `Page` stay a synchronous server
+// component: `highlighter.codeToHtml()` is a sync call after this resolves.
+const highlighter: Highlighter = await createHighlighter({
+  themes: [SHIKI_THEME],
+  langs: SHIKI_LANGS,
+});
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Route fenced code blocks through Shiki; unknown/unlabeled languages fall back
+// to a plain escaped block rather than throwing the whole build.
+marked.use({
+  renderer: {
+    code({ text, lang }: { text: string; lang?: string }) {
+      const id = (lang ?? "").trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      if (id) {
+        try {
+          return highlighter.codeToHtml(text, { lang: id, theme: SHIKI_THEME });
+        } catch {
+          // unloaded / unknown language — fall through to plain rendering
+        }
+      }
+      return `<pre class="plain"><code>${escapeHtml(text)}</code></pre>`;
+    },
+  },
+});
 
 // This module renders from its BUILT location (docs-site/dist/server/page),
 // not its source location — walk up until the repo's docs/ dir appears.
@@ -159,6 +208,8 @@ main.doc { flex: 1; min-width: 0; max-width: 52rem; padding: 2rem 2.5rem 4rem; }
 main.doc h1, main.doc h2, main.doc h3 { line-height: 1.3; }
 main.doc h2 { border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-top: 2.2rem; }
 main.doc pre { background: var(--code-bg); padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.88rem; }
+/* Shiki sets an inline (white) background per theme; keep the site's subtle code background instead. */
+main.doc pre.shiki { background: var(--code-bg) !important; }
 main.doc code { background: var(--code-bg); padding: 0.15em 0.35em; border-radius: 4px; font-size: 0.9em; }
 main.doc pre code { padding: 0; background: none; }
 main.doc table { border-collapse: collapse; width: 100%; }
