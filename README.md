@@ -5,14 +5,19 @@ pages to static HTML + RSC payloads and emits your components as portable ESM
 that runs under any HTTP server: static hosting, Express/Hono, or anything in
 between.
 
+📖 **[Documentation site →](https://nicobrinkkemper.github.io/vite-plugin-react-server/)**
+— the full docs, and itself a vprs app (the site dogfoods the plugin).
+
 vprs is the low-level layer rather than a framework: it handles the RSC
 transform, runs the worker threads, and emits portable ESM — and leaves routing
 and app structure to you. Use it directly, or as the engine under your own
 conventions. Its closest peer is the official
 [`@vitejs/plugin-rsc`](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-rsc);
-vprs differs by using the ESM transport (`react-server-dom-esm`) and emitting
-portable ESM you host yourself. For a batteries-included framework instead, see
-Waku or Vike. Full breakdown: [How vprs compares](./docs/comparison.md).
+vprs differs by being a small dev/build setup whose output is portable ESM you
+host yourself. (The RSC transport underneath is an implementation detail —
+supplied and version-locked by `react-server-loader`, ESM today.) For a
+batteries-included framework instead, see Waku or Vike. Full breakdown:
+[How vprs compares](./docs/comparison.md).
 
 It runs in both Node module conditions by design: the dev server and the build
 work with or without `--conditions react-server`, and a worker thread mirrors
@@ -150,6 +155,10 @@ It strips the vprs plugin from Storybook's builder, resolves the
 [Storybook](./docs/storybook.md) for details.
 
 ## Documentation
+
+Everything below is also published as a browsable site at
+**[nicobrinkkemper.github.io/vite-plugin-react-server](https://nicobrinkkemper.github.io/vite-plugin-react-server/)**,
+which is itself built with vprs.
 
 | Doc | What it covers |
 |-----|---------------|
