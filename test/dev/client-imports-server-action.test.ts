@@ -68,9 +68,22 @@ export const Page = () => <div>Test Page</div>;`
   }, 60_000); // dev-server startup can be slow under full-suite contention
 
   afterAll(async () => {
-    await server?.close();
+    // server.close() awaits environment + ws teardown, which can stall well
+    // past the default 30s hook budget under full-suite CI contention (same
+    // reason beforeAll carries a 60s override). The assertions have already
+    // run by here, so bound the close and move on rather than let a slow
+    // teardown fail the suite.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      server?.close(),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 15_000);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
     await rm(testDir, { recursive: true, force: true });
-  });
+  }, 30_000);
 
   it("rewrites the module to createServerReference proxies in the browser env", async () => {
     const result = await server.environments.client.transformRequest(
