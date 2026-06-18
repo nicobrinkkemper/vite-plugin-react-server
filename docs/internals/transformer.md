@@ -124,12 +124,29 @@ const patterns = {
 
 ## Custom Detection
 
-Override directive detection in config:
+Override directive detection through the plugin's `loader` config:
 
 ```ts
 {
-  isServerFunctionCode: (code, moduleId) => boolean,
-  isClientComponentCode: (code, moduleId) => boolean,
-  getDirectiveType: (directive, moduleId) => "client" | "server" | undefined,
+  loader: {
+    isServerFunctionCode: (code, moduleId) => boolean,
+    isClientComponentCode: (code, moduleId) => boolean,
+    getDirectiveType: (directive, moduleId) => "client" | "server" | undefined,
+  }
 }
 ```
+
+## Reference-Registration Config
+
+The transformer's output (the `register*Reference` calls and the import they
+come from) is also configurable through `loader.*`. Defaults
+(`plugin/config/defaults.tsx`):
+
+| Option | Default | Purpose |
+|--------|---------|---------|
+| `registerClientReferenceName` | `"registerClientReference"` | Symbol used to register `"use client"` modules in the server build. |
+| `registerServerReferenceName` | `"registerServerReference"` | Symbol used to register `"use server"` exports. |
+| `importClientPath` | `"react-server-dom-esm/server"` | Module the client-reference helper is imported from. |
+| `importServerPath` | `"react-server-dom-esm/server"` | Module the server-reference helper is imported from. |
+
+Override these to target a different RSC runtime or a renamed reference helper.
