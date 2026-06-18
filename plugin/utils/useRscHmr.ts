@@ -1,4 +1,11 @@
-import { useEffect, useRef } from "react";
+// Namespace import (not `{ useEffect, useRef }`): this module is re-exported from
+// the react-server `/utils` barrel (index.server.ts), and a NAMED hook import is
+// not load-safe there. React's react-server build omits the client hooks, and on
+// the experimental train they aren't even cjs-module-lexer-detectable named
+// exports, so `import { useEffect } from "react"` throws at load under
+// `--conditions react-server`. The namespace import loads fine; the hooks are
+// only ever accessed when the hook actually runs (browser-only).
+import * as React from "react";
 import { RSC_HMR_EVENT } from "./createReactFetcher.js";
 import type { RscHmrData } from "./createReactFetcher.js";
 import { env } from "./env.js";
@@ -85,14 +92,14 @@ export function useRscHmr(
   // and since client-side RSC navigation re-renders the shell, an unmemoized
   // (inline) refetch callback would churn the listener (and re-log "Listening…")
   // on every navigation. The ref pattern makes inline callbacks safe.
-  const ref = useRef<{
+  const ref = React.useRef<{
     refetch: (url: string) => void;
     verbose: boolean;
     filter?: (data: RscHmrData) => boolean;
   }>({ refetch, verbose, filter });
   ref.current = { refetch, verbose, filter };
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (typeof import.meta.hot === 'undefined') return;
 
     const handler = (data: RscHmrData) => {
