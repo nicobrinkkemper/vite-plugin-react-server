@@ -16,9 +16,10 @@ import { BASE, listDocs, loadMarkdown } from "./docs.js";
  * head content here would be re-hoisted on the client and duplicate the <head>.
  */
 
-// Shiki theme + the languages our docs actually use. github-light matches the
-// site's light palette.
-const SHIKI_THEME = "github-light";
+// Shiki themes (dual: light + dark) + the languages our docs actually use.
+// github-light/github-dark match the site's light and dark palettes; the active
+// one follows prefers-color-scheme via CSS variables (see style.ts).
+const SHIKI_THEMES = { light: "github-light", dark: "github-dark" } as const;
 const SHIKI_LANGS = [
   "typescript",
   "tsx",
@@ -36,7 +37,7 @@ const SHIKI_LANGS = [
 // One highlighter for the whole build. The top-level await loads grammars and
 // theme once, so codeToHast() is a sync call afterwards and Page stays sync.
 const highlighter: Highlighter = await createHighlighter({
-  themes: [SHIKI_THEME],
+  themes: [SHIKI_THEMES.light, SHIKI_THEMES.dark],
   langs: SHIKI_LANGS,
 });
 
@@ -69,7 +70,13 @@ function CodeBlock({ children }: { children?: React.ReactNode }) {
   const code = textOf(codeEl?.props?.children).replace(/\n$/, "");
   if (lang) {
     try {
-      const hast = highlighter.codeToHast(code, { lang, theme: SHIKI_THEME });
+      // defaultColor:false emits both themes' colors as --shiki-light/--shiki-dark
+      // CSS vars per token; style.ts selects per prefers-color-scheme.
+      const hast = highlighter.codeToHast(code, {
+        lang,
+        themes: SHIKI_THEMES,
+        defaultColor: false,
+      });
       return toJsxRuntime(hast, { Fragment, jsx, jsxs }) as React.ReactElement;
     } catch {
       // unloaded/unknown language — fall through to a plain block
