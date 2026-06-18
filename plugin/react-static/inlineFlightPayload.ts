@@ -17,7 +17,11 @@
 import { readFile, writeFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Logger } from "vite";
-import { INLINE_FLIGHT_ID } from "../utils/inlineFlightId.js";
+import {
+  INLINE_FLIGHT_ID,
+  htmlHasInlineFlight,
+  injectInlineFlightIntoHtml,
+} from "../utils/inlineFlight.js";
 
 export { INLINE_FLIGHT_ID };
 
@@ -56,14 +60,6 @@ async function listHtmlDirs(dir: string, htmlFileName: string): Promise<string[]
   return out;
 }
 
-function injectInlineScript(html: string, scriptTag: string): string {
-  // Place it at the end of <body> so it's parsed before the deferred client
-  // module runs; fall back to appending if there's no recognizable body.
-  const idx = html.lastIndexOf("</body>");
-  if (idx !== -1) return html.slice(0, idx) + scriptTag + html.slice(idx);
-  return html + scriptTag;
-}
-
 /**
  * Inline the per-route flight payload into each prerendered HTML file.
  * Returns the number of pages inlined.
@@ -96,11 +92,9 @@ export async function inlineFlightPayload(
       readFile(rscPath),
     ]);
 
-    if (html.includes(`id="${INLINE_FLIGHT_ID}"`)) continue; // already inlined
+    if (htmlHasInlineFlight(html)) continue; // already inlined
 
-    const base64 = rsc.toString("base64");
-    const scriptTag = `<script type="text/x-component" id="${INLINE_FLIGHT_ID}" data-encoding="base64">${base64}</script>`;
-    await writeFile(htmlPath, injectInlineScript(html, scriptTag));
+    await writeFile(htmlPath, injectInlineFlightIntoHtml(html, rsc));
     inlined++;
 
     if (verbose) {
