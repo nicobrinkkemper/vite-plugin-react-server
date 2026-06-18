@@ -18,7 +18,7 @@ export const STYLE = `
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--fg); background: var(--bg); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .layout { display: flex; min-height: 100vh; }
-nav.sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.5rem 1rem; position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto; }
+nav.sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.5rem 1rem; position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto; background: var(--bg); z-index: 5; }
 nav.sidebar .brand { font-weight: 700; display: block; margin-bottom: 1rem; color: var(--accent); text-decoration: none; }
 nav.sidebar a { display: block; padding: 0.3rem 0.5rem; border-radius: 6px; color: var(--fg); text-decoration: none; font-size: 0.92rem; }
 nav.sidebar a:hover { background: var(--code-bg); }
