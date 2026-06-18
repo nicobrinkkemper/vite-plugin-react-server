@@ -8,18 +8,25 @@ Run the full suite with `npm test` (unit) and the e2e specs under `test/e2e/`. T
 
 ## Documentation Index
 
-| File | Description |
-|------|-------------|
-| [../internals/COMMON_ISSUES.md](../internals/COMMON_ISSUES.md) | Frequently encountered problems and solutions |
-| [../internals/DEBUGGING.md](../internals/DEBUGGING.md) | Debugging techniques and tools |
-| [../internals/DEV_CACHING_ISSUE.md](../internals/DEV_CACHING_ISSUE.md) | Dev mode caching issue (resolved) |
-| [../internals/ERROR_HANDLING.md](../internals/ERROR_HANDLING.md) | Error handling patterns and recovery |
-| [../internals/MESSAGE_PORTS_ANALYSIS.md](../internals/MESSAGE_PORTS_ANALYSIS.md) | Worker communication architecture |
-| [../internals/PLUGIN_ARCHITECTURE.md](../internals/PLUGIN_ARCHITECTURE.md) | Internal architecture and design patterns |
-| [../internals/TESTING.md](../internals/TESTING.md) | Test infrastructure and commands |
-| [../internals/advanced-topics.md](../internals/advanced-topics.md) | Custom workers, message system, extending the plugin |
-| [rsc-worker.md](./rsc-worker.md) | Worker system implementation (long form) |
-| [transformer-plugin.md](./transformer-plugin.md) | Transformation process and loader system (long form) |
+Filenames are in backticks so markdown doesn't italicize the `_` in names like
+`DEV_CACHING_ISSUE.md`.
+
+| Doc | Description |
+|-----|-------------|
+| [`architecture.md`](../internals/architecture.md) | Internal architecture and design (concise) |
+| [`PLUGIN_ARCHITECTURE.md`](../internals/PLUGIN_ARCHITECTURE.md) | Internal architecture and design patterns (long form) |
+| [`transformer.md`](../internals/transformer.md) | The transform/loader system (concise) |
+| [`transformer-plugin.md`](./transformer-plugin.md) | Transformation process and loader system (long form) |
+| [`workers.md`](../internals/workers.md) | Worker system (concise) |
+| [`rsc-worker.md`](./rsc-worker.md) | Worker system implementation (long form) |
+| [`MESSAGE_PORTS_ANALYSIS.md`](../internals/MESSAGE_PORTS_ANALYSIS.md) | Worker communication architecture |
+| [`module-resolution-escape-hatches.md`](../internals/module-resolution-escape-hatches.md) | Module-resolution escape hatches |
+| [`COMMON_ISSUES.md`](../internals/COMMON_ISSUES.md) | Frequently encountered problems and solutions |
+| [`DEBUGGING.md`](../internals/DEBUGGING.md) | Debugging techniques and tools |
+| [`DEV_CACHING_ISSUE.md`](../internals/DEV_CACHING_ISSUE.md) | Dev mode caching issue (resolved) |
+| [`ERROR_HANDLING.md`](../internals/ERROR_HANDLING.md) | Error handling patterns and recovery |
+| [`TESTING.md`](../internals/TESTING.md) | Test infrastructure and commands |
+| [`advanced-topics.md`](../internals/advanced-topics.md) | Custom workers, message system, extending the plugin |
 
 ## Architecture Overview
 
