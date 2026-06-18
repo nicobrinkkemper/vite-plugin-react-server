@@ -11,6 +11,9 @@ export * from "./createFromNodeStream.server.js";
 // HTML Stream creation
 export * from "./createHtmlStream.server.js";
 
+// HTML Stream creation with inlined flight payload (flash-free dynamic SSR)
+export * from "./createHtmlStreamWithInlineFlight.server.js";
+
 // Worker Stream handling - using unified API
 export * from "./createRscWorkerStream.js";
 // Shared type exports
