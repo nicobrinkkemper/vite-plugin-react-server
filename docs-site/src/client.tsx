@@ -12,14 +12,12 @@
  * Everything degrades gracefully: with JS disabled, the same `<a href>` links
  * are ordinary full-page navigations between the prerendered HTML files.
  */
-import { use, useEffect, useState, useTransition, Suspense } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { createReactFetcher } from "vite-plugin-react-server/utils";
 
 const BASE = import.meta.env.BASE_URL || "/";
-
-type RscNode = PromiseLike<ReactNode>;
 
 /** Should this anchor be handled as an in-site RSC navigation? */
 function isInSiteLink(a: HTMLAnchorElement): boolean {
@@ -29,20 +27,35 @@ function isInSiteLink(a: HTMLAnchorElement): boolean {
   return url.origin === location.origin && url.pathname.startsWith(BASE);
 }
 
-function App({ initial }: { initial: RscNode }) {
-  const [content, setContent] = useState<RscNode>(initial);
+function App({ initialNode }: { initialNode: ReactNode }) {
+  // content is always a fully-decoded node. The docs pages are synchronous
+  // server components, so we never render a Suspense boundary or use() a pending
+  // thenable here — vprs prerenders them with no Suspense markers to hydrate
+  // against, and a client-only <Suspense> wrapper mismatches the prerender
+  // (React #418). Navigation awaits the decode, then swaps the resolved node.
+  const [content, setContent] = useState<ReactNode>(initialNode);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     let controller: AbortController | null = null;
 
-    // Fetch a route's RSC payload and swap it in. startTransition keeps the
-    // current page visible until the next one is ready (no blank flash).
+    // Fetch a route's RSC payload, fully decode it, then swap it in. Awaiting
+    // the decode (rather than use()-ing a thenable) keeps the current page
+    // visible until the next is ready, with no Suspense boundary.
     const go = (pathname: string) => {
       controller?.abort();
       controller = new AbortController();
-      const next = createReactFetcher({ url: pathname, signal: controller.signal });
-      startTransition(() => setContent(next));
+      const signal = controller.signal;
+      Promise.resolve(
+        createReactFetcher({ url: pathname, signal })
+      )
+        .then((node) => {
+          if (!signal.aborted)
+            startTransition(() => setContent(node as ReactNode));
+        })
+        .catch(() => {
+          /* superseded or aborted — the replacing nav will render */
+        });
     };
 
     const onClick = (e: MouseEvent) => {
@@ -80,29 +93,28 @@ function App({ initial }: { initial: RscNode }) {
     if (h1) document.title = `${h1} — vite-plugin-react-server`;
   }, [content]);
 
-  return use(content);
+  return content;
 }
 
 const root = document.getElementById("root");
 if (root) {
-  // Canonical RSC client pattern: decode the initial payload FIRST, then mount.
-  // createReactFetcher reads the inlined flight payload (no network); resolving
-  // it before mounting means use(initial) returns synchronously on the first
-  // render, so hydrateRoot matches the prerender instead of suspending (which
-  // would fail hydration and force a full client re-render). The use()/Suspense
-  // shape stays for subsequent navigations, where suspending is correct.
+  // Fully resolve the initial payload (dynamic import + flight decode) to a
+  // ReactNode BEFORE mounting, then render that node directly — a synchronous
+  // first render with no Suspense boundary, so hydrateRoot matches the
+  // prerendered HTML exactly. (createReactFetcher returns a native promise that
+  // dynamically imports the flight client; use()-ing it, or wrapping the root in
+  // <Suspense> the server never rendered, mismatches the prerender → React #418.)
   const initial = createReactFetcher();
-  const mount = () => {
-    const app = (
-      <Suspense fallback={null}>
-        <App initial={initial} />
-      </Suspense>
-    );
+  const mount = (initialNode: ReactNode) => {
     if (root.hasChildNodes()) {
-      hydrateRoot(root, app);
+      hydrateRoot(root, <App initialNode={initialNode} />);
     } else {
-      createRoot(root).render(app);
+      createRoot(root).render(<App initialNode={initialNode} />);
     }
   };
-  Promise.resolve(initial).then(mount, mount);
+  // On failure, stay on the prerendered static HTML (links fall back to normal
+  // full-page navigation) rather than hydrating a blank or broken tree.
+  Promise.resolve(initial).then(mount, (err) => {
+    console.error("[docs] initial RSC payload failed to load; staying static", err);
+  });
 }
