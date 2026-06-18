@@ -68,6 +68,7 @@ export default defineConfig({
     ...vitePluginReactServer({
       moduleBase: "src",
       Page: "src/page/page.tsx",
+      Html: "src/page/html.tsx",
       props: "src/page/props.ts",
       moduleBasePath: "",
       moduleBaseURL: base,
