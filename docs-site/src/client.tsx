@@ -19,6 +19,56 @@ import { createReactFetcher } from "vite-plugin-react-server/utils";
 
 const BASE = import.meta.env.BASE_URL || "/";
 
+// --- Color theme toggle (system → light → dark, persisted) -----------------
+const THEME_KEY = "theme";
+const THEME_CYCLE = ["system", "light", "dark"];
+const THEME_ICON: Record<string, string> = {
+  system: "🖥️",
+  light: "☀️",
+  dark: "🌙",
+};
+
+/** The saved theme choice, or "system" when none/invalid. */
+function readTheme(): string {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    return t === "light" || t === "dark" ? t : "system";
+  } catch {
+    return "system";
+  }
+}
+
+/** Update every toggle button's icon/label to reflect the active theme. */
+function syncToggleButtons(theme: string): void {
+  const label = `Theme: ${theme} — click to change`;
+  document.querySelectorAll<HTMLElement>(".theme-toggle").forEach((btn) => {
+    btn.textContent = THEME_ICON[theme] ?? THEME_ICON.system;
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+  });
+}
+
+/** Set <html data-theme>, persist the choice (or clear it for "system"). */
+function applyTheme(theme: string): void {
+  const root = document.documentElement;
+  if (theme === "system") {
+    delete root.dataset.theme;
+    try {
+      localStorage.removeItem(THEME_KEY);
+    } catch {
+      /* storage unavailable — runtime-only */
+    }
+  } else {
+    root.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* storage unavailable — runtime-only */
+    }
+  }
+  syncToggleButtons(theme);
+}
+
 /** Should this anchor be handled as an in-site RSC navigation? */
 function isInSiteLink(a: HTMLAnchorElement): boolean {
   if (a.target && a.target !== "_self") return false;
@@ -60,6 +110,13 @@ function App({ initialNode }: { initialNode: ReactNode }) {
 
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0) return;
+      // Theme toggle: cycle system → light → dark and persist.
+      if ((e.target as Element | null)?.closest?.(".theme-toggle")) {
+        const next =
+          THEME_CYCLE[(THEME_CYCLE.indexOf(readTheme()) + 1) % THEME_CYCLE.length];
+        applyTheme(next);
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // let the browser open new tabs etc.
       const a = (e.target as Element | null)?.closest?.("a");
       if (!a || !isInSiteLink(a as HTMLAnchorElement)) return;
@@ -91,6 +148,9 @@ function App({ initialNode }: { initialNode: ReactNode }) {
   useEffect(() => {
     const h1 = document.querySelector("main.doc h1")?.textContent?.trim();
     if (h1) document.title = `${h1} — vite-plugin-react-server`;
+    // Nav re-renders the sidebar (and the toggle button) from the server's
+    // default icon — re-sync it to the active theme. Runs on first mount too.
+    syncToggleButtons(readTheme());
   }, [content]);
 
   return content;

@@ -138,6 +138,16 @@ export function Page({ url = "/" }: { url?: string }) {
       {/* Document metadata (head/title/style) is rendered by the Html wrapper
           (html.tsx), not here — see this file's header. */}
       <nav className="sidebar">
+        {/* Color-theme toggle (system → light → dark). Server-renders a default
+            icon; client.tsx syncs it to the saved choice and cycles on click. */}
+        <button
+          type="button"
+          className="theme-toggle"
+          aria-label="Toggle color theme"
+          title="Toggle color theme"
+        >
+          🖥️
+        </button>
         <a className="brand" href={BASE}>
           vite-plugin-react-server
         </a>
