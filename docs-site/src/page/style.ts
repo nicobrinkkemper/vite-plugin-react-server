@@ -10,7 +10,7 @@ export const STYLE = `
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--fg); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .layout { display: flex; min-height: 100vh; }
-nav.sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.5rem 1rem; }
+nav.sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.5rem 1rem; position: sticky; top: 0; align-self: flex-start; max-height: 100vh; overflow-y: auto; }
 nav.sidebar .brand { font-weight: 700; display: block; margin-bottom: 1rem; color: var(--accent); text-decoration: none; }
 nav.sidebar a { display: block; padding: 0.3rem 0.5rem; border-radius: 6px; color: var(--fg); text-decoration: none; font-size: 0.92rem; }
 nav.sidebar a:hover { background: var(--code-bg); }
@@ -32,7 +32,9 @@ footer.docfoot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(
 .nav-toggle, .nav-toggle-label { display: none; }
 @media (max-width: 760px) {
   .layout { flex-direction: column; }
-  nav.sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
+  /* On mobile the sidebar is an in-flow top bar (not sticky) so the expanded
+     hamburger menu pushes content down instead of overlaying it. */
+  nav.sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; position: static; align-self: auto; max-height: none; overflow-y: visible; }
   nav.sidebar .brand { display: inline-block; margin: 0; }
   .nav-toggle-label { display: inline-block; float: right; cursor: pointer; user-select: none; padding: 0.2rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
   .navlinks { display: none; clear: both; padding-top: 0.75rem; }

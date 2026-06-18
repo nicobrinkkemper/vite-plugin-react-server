@@ -5,7 +5,7 @@ pages to static HTML + RSC payloads and emits your components as portable ESM
 that runs under any HTTP server: static hosting, Express/Hono, or anything in
 between.
 
-📖 **[Documentation site →](https://nicobrinkkemper.github.io/vite-plugin-react-server/)**
+📖 **<a href="https://nicobrinkkemper.github.io/vite-plugin-react-server/" target="_blank" rel="noopener">Documentation site →</a>**
 — the full docs, and itself a vprs app (the site dogfoods the plugin).
 
 vprs is the low-level layer rather than a framework: it handles the RSC
@@ -157,7 +157,7 @@ It strips the vprs plugin from Storybook's builder, resolves the
 ## Documentation
 
 Everything below is also published as a browsable site at
-**[nicobrinkkemper.github.io/vite-plugin-react-server](https://nicobrinkkemper.github.io/vite-plugin-react-server/)**,
+**<a href="https://nicobrinkkemper.github.io/vite-plugin-react-server/" target="_blank" rel="noopener">nicobrinkkemper.github.io/vite-plugin-react-server</a>**,
 which is itself built with vprs.
 
 | Doc | What it covers |
