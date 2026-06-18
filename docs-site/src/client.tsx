@@ -14,7 +14,7 @@
  */
 import { use, useEffect, useState, useTransition, Suspense } from "react";
 import type { ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { createReactFetcher } from "vite-plugin-react-server/utils";
 
 const BASE = import.meta.env.BASE_URL || "/";
@@ -70,14 +70,39 @@ function App({ initial }: { initial: RscNode }) {
     };
   }, []);
 
+  // Keep the document <title> in sync on client navigation. The Html wrapper
+  // renders the correct per-route title at prerender (and on full loads); after
+  // an in-site nav only #root is swapped, so update it here from the rendered
+  // <h1>. Imperative (document.title), so nothing is hoisted into <head> — no
+  // duplicate <title> on hydration.
+  useEffect(() => {
+    const h1 = document.querySelector("main.doc h1")?.textContent?.trim();
+    if (h1) document.title = `${h1} — vite-plugin-react-server`;
+  }, [content]);
+
   return use(content);
 }
 
 const root = document.getElementById("root");
 if (root) {
-  createRoot(root).render(
-    <Suspense fallback={null}>
-      <App initial={createReactFetcher()} />
-    </Suspense>
-  );
+  // Canonical RSC client pattern: decode the initial payload FIRST, then mount.
+  // createReactFetcher reads the inlined flight payload (no network); resolving
+  // it before mounting means use(initial) returns synchronously on the first
+  // render, so hydrateRoot matches the prerender instead of suspending (which
+  // would fail hydration and force a full client re-render). The use()/Suspense
+  // shape stays for subsequent navigations, where suspending is correct.
+  const initial = createReactFetcher();
+  const mount = () => {
+    const app = (
+      <Suspense fallback={null}>
+        <App initial={initial} />
+      </Suspense>
+    );
+    if (root.hasChildNodes()) {
+      hydrateRoot(root, app);
+    } else {
+      createRoot(root).render(app);
+    }
+  };
+  Promise.resolve(initial).then(mount, mount);
 }
