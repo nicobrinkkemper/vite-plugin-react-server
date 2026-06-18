@@ -161,6 +161,7 @@
       "react-server": "./dist/plugin/react-static/plugin.server.js",
       "default": "./dist/plugin/react-static/plugin.client.js"
     },
+    "./react-static/inlineFlightPayload": "./dist/plugin/react-static/inlineFlightPayload.js",
     "./react-static/renderPage": {
       "react-server": "./dist/plugin/react-static/renderPage.server.js",
       "default": "./dist/plugin/react-static/renderPage.client.js"
@@ -408,6 +409,8 @@
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.2.0",
     "happy-dom": "^17.1.8",
+    "hast-util-to-jsx-runtime": "^2.3.6",
+    "markdown-to-jsx": "^7.7.17",
     "marked": "^18.0.5",
     "playwright": "^1.58.1",
     "react": "^19.2.7",

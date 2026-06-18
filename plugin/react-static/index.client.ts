@@ -8,3 +8,4 @@ export { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
 export { fileWriter } from "./fileWriter.js";
 export { renderPages } from "./renderPages.js";
 export { configurePreviewServer } from "./configurePreviewServer.js";
+export { inlineFlightPayload, INLINE_FLIGHT_ID } from "./inlineFlightPayload.js";
