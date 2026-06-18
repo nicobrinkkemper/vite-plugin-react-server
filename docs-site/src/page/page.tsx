@@ -2,15 +2,17 @@ import React from "react";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { marked } from "marked";
+import Markdown from "markdown-to-jsx";
 import { createHighlighter, type Highlighter } from "shiki";
+import { toJsxRuntime } from "hast-util-to-jsx-runtime";
+import { Fragment, jsx, jsxs } from "react/jsx-runtime";
 
 /**
- * The whole docs site is this one SERVER component. It runs at build time
- * only: reads the markdown from the repo's docs/, renders it with marked,
- * and ships pure HTML — the parser never reaches the browser. Code blocks are
- * highlighted with Shiki here, at build time, so the rendered HTML carries the
- * colors and the browser still downloads zero highlighting JS.
+ * The whole docs site is this one SERVER component, run at build time only: it
+ * reads markdown from the repo's docs/ and renders it to React ELEMENTS with
+ * markdown-to-jsx — no dangerouslySetInnerHTML, so the prerendered HTML hydrates
+ * cleanly. Code blocks are highlighted with Shiki, also as elements, so the
+ * colors are baked in at build time and the browser ships zero highlighting JS.
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,34 +34,92 @@ const SHIKI_LANGS = [
   "diff",
 ];
 
-// One highlighter for the whole build. The top-level await loads the grammars
-// and theme once, up front, which lets `Page` stay a synchronous server
-// component: `highlighter.codeToHtml()` is a sync call after this resolves.
+// One highlighter for the whole build. The top-level await loads grammars and
+// theme once, so codeToHast() is a sync call afterwards and Page stays sync.
 const highlighter: Highlighter = await createHighlighter({
   themes: [SHIKI_THEME],
   langs: SHIKI_LANGS,
 });
 
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** Flatten a React text subtree (markdown-to-jsx passes code as string children). */
+function textOf(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (typeof node === "object" && "props" in node) {
+    return textOf(
+      (node as React.ReactElement<{ children?: React.ReactNode }>).props.children
+    );
+  }
+  return "";
+}
 
-// Route fenced code blocks through Shiki; unknown/unlabeled languages fall back
-// to a plain escaped block rather than throwing the whole build.
-marked.use({
-  renderer: {
-    code({ text, lang }: { text: string; lang?: string }) {
-      const id = (lang ?? "").trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-      if (id) {
-        try {
-          return highlighter.codeToHtml(text, { lang: id, theme: SHIKI_THEME });
-        } catch {
-          // unloaded / unknown language — fall through to plain rendering
-        }
-      }
-      return `<pre class="plain"><code>${escapeHtml(text)}</code></pre>`;
+/**
+ * markdown-to-jsx renders a fenced block as <pre><code class="lang-x">…</code></pre>.
+ * Override <pre> to highlight with Shiki, returning Shiki's own element tree
+ * (its <pre class="shiki">…), so highlighting is server-side AND hydration-safe.
+ * Unknown/unlabeled languages fall back to a plain block.
+ */
+function CodeBlock({ children }: { children?: React.ReactNode }) {
+  const codeEl = children as
+    | React.ReactElement<{ className?: string; children?: React.ReactNode }>
+    | undefined;
+  const className = codeEl?.props?.className ?? "";
+  const lang = className.replace(/^(lang|language)-/, "").trim();
+  const code = textOf(codeEl?.props?.children).replace(/\n$/, "");
+  if (lang) {
+    try {
+      const hast = highlighter.codeToHast(code, { lang, theme: SHIKI_THEME });
+      return toJsxRuntime(hast, { Fragment, jsx, jsxs }) as React.ReactElement;
+    } catch {
+      // unloaded/unknown language — fall through to a plain block
+    }
+  }
+  return (
+    <pre className="plain">
+      <code>{code}</code>
+    </pre>
+  );
+}
+
+/**
+ * Rewrite a cross-doc relative .md link to its site route
+ * (./getting-started.md → <base>getting-started/, ../x.md from a subdir →
+ * <base>x/). `docDir` is the current doc's directory. Non-.md hrefs pass through.
+ */
+function rewriteHref(href: string, docDir: string): string {
+  const m = href.match(/^(\.{1,2}\/)?([\w./-]+)\.md(#.*)?$/);
+  if (!m) return href;
+  const [, rel, target, hash] = m;
+  let ref = target;
+  if (rel !== "../" && docDir && (rel === "./" || rel == null)) {
+    ref = `${docDir}/${ref}`;
+  }
+  ref = ref.replace(/^\.\//, "");
+  if (ref.endsWith("/README") || ref === "README") {
+    ref = ref.replace(/\/?README$/, "");
+  }
+  const route = ref === "" ? BASE : `${BASE}${ref}/`;
+  return `${route}${hash ?? ""}`;
+}
+
+/** markdown-to-jsx options for a doc living in directory `docDir`. */
+function mdOptions(docDir: string) {
+  return {
+    overrides: {
+      a: {
+        component: ({
+          href,
+          ...rest
+        }: { href?: string } & Record<string, unknown>) => (
+          <a {...rest} href={href ? rewriteHref(href, docDir) : href} />
+        ),
+      },
+      pre: { component: CodeBlock },
     },
-  },
-});
+  };
+}
 
 // This module renders from its BUILT location (docs-site/dist/server/page),
 // not its source location — walk up until the repo's docs/ dir appears.
@@ -159,38 +219,18 @@ function listDocs(): DocEntry[] {
   return entries;
 }
 
-function renderDoc(slug: string): string {
+function loadMarkdown(slug: string): { markdown: string; docDir: string } {
   // a slug may be a directory index ("" or "internals") or a doc file
   const candidates =
-    slug === ""
-      ? ["README.md"]
-      : [`${slug}.md`, `${slug}/README.md`];
+    slug === "" ? ["README.md"] : [`${slug}.md`, `${slug}/README.md`];
   const file = candidates.find((c) => existsSync(resolve(DOCS_DIR, c)));
   if (!file) {
     throw new Error(`[docs-site] no markdown source for route "/${slug}"`);
   }
   const markdown = readFileSync(resolve(DOCS_DIR, file), "utf-8");
-  const html = marked.parse(markdown, { async: false }) as string;
-  // Cross-doc links in the markdown point at relative .md files — rewrite
-  // them to site routes (./getting-started.md → <base>getting-started/,
-  // ./internals/architecture.md → <base>internals/architecture/, ../x.md
-  // from a subdir doc → <base>x/).
+  // The current doc's directory, used to resolve relative cross-doc links.
   const docDir = slug.includes("/") ? slug.slice(0, slug.lastIndexOf("/")) : "";
-  return html.replace(
-    /href="(\.{1,2}\/)?([\w./-]+)\.md(#[^"]*)?"/g,
-    (_m, rel, target, hash) => {
-      // resolve the target slug relative to the current doc's directory
-      let ref = target as string;
-      if (rel === "../") ref = ref; // ../x.md from a subdir → top-level x
-      else if (docDir && (rel === "./" || rel == null)) ref = `${docDir}/${ref}`;
-      ref = ref.replace(/^\.\//, "");
-      if (ref.endsWith("/README") || ref === "README") {
-        ref = ref.replace(/\/?README$/, "");
-      }
-      const route = ref === "" ? BASE : `${BASE}${ref}/`;
-      return `href="${route}${hash ?? ""}"`;
-    }
-  );
+  return { markdown, docDir };
 }
 
 const STYLE = `
@@ -232,7 +272,7 @@ export function Page({ url = "/" }: { url?: string }) {
   // url arrives as the route ("/", "/getting-started") — normalize to a slug
   const slug = url.replace(/^\//, "").replace(/\/$/, "");
   const docs = listDocs();
-  const html = renderDoc(slug);
+  const { markdown, docDir } = loadMarkdown(slug);
   const current = docs.find((d) => d.slug === slug);
   const title = current
     ? `${current.title} — vite-plugin-react-server`
@@ -249,7 +289,7 @@ export function Page({ url = "/" }: { url?: string }) {
         name="description"
         content="React Server Components for Vite on stable React — no framework, no experimental channel. These docs are statically generated by the plugin itself."
       />
-      <style dangerouslySetInnerHTML={{ __html: STYLE }} />
+      <style>{STYLE}</style>
       <nav className="sidebar">
         <a className="brand" href={BASE}>
           vite-plugin-react-server
@@ -278,7 +318,9 @@ export function Page({ url = "/" }: { url?: string }) {
         </div>
       </nav>
       <main className="doc">
-        <article dangerouslySetInnerHTML={{ __html: html }} />
+        <article>
+          <Markdown options={mdOptions(docDir)}>{markdown}</Markdown>
+        </article>
         <footer className="docfoot">
           Statically generated by vite-plugin-react-server itself — React
           Server Components on stable React, zero client JS for this content.
