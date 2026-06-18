@@ -592,48 +592,6 @@ describe('Custom Loader', () => {
 ### Integration Testing
 
 Test loaders in the context of the full plugin:
-
-<!-- TOC START -->
-
-## 📚 Documentation Navigation
-
-<!-- Auto-generated TOC - Do not edit manually -->
-
-## Table of Contents
-
-<!-- Auto-generated TOC - Do not edit manually -->
-
-
-
-1.	[Getting Started](../getting-started.md)
-2.	[Core Concepts](../core-concepts.md)
-3.	[Configuration Guide](../configuration.md)
-4.	[CSS & Styling](../css-handling.md)
-5.	[Server Actions](../server-actions.md)
-6.	[Build & Deployment](../build-orchestration.md)
-7.	[Advanced Development](./advanced-topics.md)
-8.	**[Plugin Internals](./transformer-plugin.md) ← you are here**
-9.	[Worker System](./rsc-worker.md)
-10.	[API Reference](../api-reference.md)
-11.	[React Compatibility](../react-type-compatibility.md)
-12.	[Troubleshooting](../troubleshooting-guide.md)
-13.	[Package Exports](../package-exports.md)
-14.	[Transformations](../transformations.md)
-
-### Quick Links
-- [🏠 Main Documentation](../README.md)
-- [🚀 Getting Started](../getting-started.md)
-- [📖 GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
-- [🎮 Official Demo](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
-
----
-
-<!-- TOC END -->
-
-
-
-
-
 ```typescript
 // integration.test.js
 import { build } from 'vite';
