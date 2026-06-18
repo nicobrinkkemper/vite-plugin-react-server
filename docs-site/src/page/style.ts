@@ -7,9 +7,13 @@
  */
 export const STYLE = `
 :root { --fg: #1a1a1a; --muted: #6b7280; --accent: #646cff; --border: #e5e7eb; --code-bg: #f6f8fa; --bg: #ffffff; }
-/* Dark mode follows the browser/OS preference (prefers-color-scheme) — no toggle, no JS. */
+/* Dark palette: applied for an explicit dark choice, or the OS preference unless
+   the user explicitly picked light. The header toggle (client.tsx) sets
+   data-theme on <html> and persists it; an inline <head> script (html.tsx)
+   applies the stored choice before paint, so there's no flash. */
+:root[data-theme="dark"] { --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --border: #30363d; --code-bg: #161b22; --bg: #0d1117; }
 @media (prefers-color-scheme: dark) {
-  :root { --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --border: #30363d; --code-bg: #161b22; --bg: #0d1117; }
+  :root:not([data-theme="light"]) { --fg: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --border: #30363d; --code-bg: #161b22; --bg: #0d1117; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--fg); background: var(--bg); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -20,6 +24,8 @@ nav.sidebar a { display: block; padding: 0.3rem 0.5rem; border-radius: 6px; colo
 nav.sidebar a:hover { background: var(--code-bg); }
 nav.sidebar a.active { color: var(--accent); font-weight: 600; }
 nav.sidebar .section { display: block; margin: 0.9rem 0 0.2rem; padding: 0 0.5rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.theme-toggle { float: right; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--fg); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0.25rem 0.5rem; }
+.theme-toggle:hover { background: var(--code-bg); }
 main.doc { flex: 1; min-width: 0; max-width: 52rem; padding: 2rem 2.5rem 4rem; }
 main.doc h1, main.doc h2, main.doc h3 { line-height: 1.3; }
 main.doc h2 { border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-top: 2.2rem; }
@@ -29,8 +35,9 @@ main.doc pre { background: var(--code-bg); padding: 1rem; border-radius: 8px; ov
    block keeps the site's subtle --code-bg (which is itself dark in dark mode). */
 main.doc pre.shiki { background: var(--code-bg) !important; }
 main.doc .shiki, main.doc .shiki span { color: var(--shiki-light); }
+:root[data-theme="dark"] main.doc .shiki, :root[data-theme="dark"] main.doc .shiki span { color: var(--shiki-dark); }
 @media (prefers-color-scheme: dark) {
-  main.doc .shiki, main.doc .shiki span { color: var(--shiki-dark); }
+  :root:not([data-theme="light"]) main.doc .shiki, :root:not([data-theme="light"]) main.doc .shiki span { color: var(--shiki-dark); }
 }
 main.doc code { background: var(--code-bg); padding: 0.15em 0.35em; border-radius: 4px; font-size: 0.9em; }
 main.doc pre code { padding: 0; background: none; }
