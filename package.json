@@ -3,9 +3,9 @@
   "version": "2.6.0",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
-  "main": "./dist/plugin/index.js",
-  "module": "./dist/plugin/index.js",
-  "types": "./dist/plugin/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "plugin",
@@ -18,6 +18,7 @@
   ],
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "react-server": "./dist/plugin/index.server.js",
       "default": "./dist/plugin/index.client.js"
     },
@@ -310,6 +311,7 @@
     "build": "npm run clean && npm run build:types && npm run build:vite",
     "build:types": "tsc --build --force",
     "build:vite": "vite build",
+    "test:package": "node scripts/verify-package-entrypoints.mjs",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build",
     "lint": "eslint ./plugin --fix",
