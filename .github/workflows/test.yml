@@ -26,3 +26,6 @@ jobs:
 
       - name: Run full test suite
         run: npm run test-all
+
+      - name: Verify package manifest (publint + entrypoints)
+        run: npm run build && npm run verify:package
