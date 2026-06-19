@@ -676,6 +676,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       (options.build?.pages && (Array.isArray(options.build.pages) || typeof options.build.pages === 'function')) ? true : DEFAULT_CONFIG.BUILD.useHtmlWorker,
     renderMode: options.build?.renderMode ?? "parallel",
     batchSize: options.build?.batchSize ?? 8,
+    inlineFlight: options.build?.inlineFlight ?? false,
   } satisfies ResolvedUserOptions["build"];
 
   // Development configuration
