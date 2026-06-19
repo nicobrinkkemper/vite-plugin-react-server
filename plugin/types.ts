@@ -1136,6 +1136,16 @@ export type BuildConfig = {
    * @default 8
    */
   batchSize?: number;
+  /**
+   * Inline each prerendered route's flight payload into its own `index.html`
+   * (a non-executable `<script id="vprs-flight">`), so the browser has the
+   * initial RSC payload at load and hydrates in place with no `index.rsc`
+   * round-trip or flash. The plugin runs this itself at the post-SSG point in
+   * BOTH build modes (client-first and server-first), so the outcome is
+   * identical regardless of `--conditions react-server`. Idempotent.
+   * @default false
+   */
+  inlineFlight?: boolean;
 };
 
 export type DevConfig = {

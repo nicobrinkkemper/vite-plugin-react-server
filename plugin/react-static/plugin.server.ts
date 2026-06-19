@@ -44,6 +44,7 @@ import { baseURL } from "../utils/envUrls.node.js";
 import { handleError } from "../error/handleError.js";
 import { shouldCausePanic } from "../error/panicThresholdHandler.js";
 import { renderPage } from "./renderPage.server.js";
+import { maybeInlineFlight } from "./maybeInlineFlight.js";
 import { temporaryReferences } from "./temporaryReferences.server.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
 import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
@@ -536,6 +537,16 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         this.info(
           `Rendered ${finalResult.completedRoutes.size} pages in ${duration}ms`
         );
+
+        // Flash-free first render: inline each route's flight payload if
+        // build.inlineFlight is enabled. The client-static plugin runs the
+        // SAME call at the same post-write point, so the outcome is identical
+        // in both build modes (runs before build.ssg.end so consumers see it).
+        await maybeInlineFlight({
+          build: userOptions.build,
+          logger,
+          verbose: userOptions.verbose,
+        });
 
         // Emit the static site generation completion event once
         if (typeof userOptions.onEvent === "function") {
