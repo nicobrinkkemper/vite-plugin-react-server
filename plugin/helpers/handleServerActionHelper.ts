@@ -1,5 +1,5 @@
 import { logError, toError } from "../error/index.js";
-import { join } from "node:path";
+import { join, relative, isAbsolute } from "node:path";
 import type { Logger } from "vite";
 import type { ServerResponse } from "node:http";
 import type { IncomingMessage } from "node:http";
@@ -161,7 +161,19 @@ export function resolveServerAction(
   // Convert the server action ID to a file path
   const actionPath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
   const fullPath = join(projectRoot, actionPath);
-  
+
+  // Containment guard: the id is client-supplied, and `join` collapses `../`, so
+  // a crafted id could otherwise resolve outside the project root and be imported
+  // and invoked. Reject anything that escapes projectRoot. (This is defense in
+  // depth; resolving against the build's server manifest is the stronger gate —
+  // see docs/server-actions.md and bead i0j.)
+  const rel = relative(projectRoot, fullPath);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    throw new Error(
+      `Server action id resolves outside the project root: ${id}`
+    );
+  }
+
   if (verbose) {
     logger?.info(
       `[handleServerActionHelper] Resolved file path: id=${id}, actionPath=${actionPath}, projectRoot=${projectRoot}, filePath=${fullPath}, exportName=${exportName}`
