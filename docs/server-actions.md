@@ -115,6 +115,33 @@ node --conditions react-server dist/server/index.js
 
 Server actions work in both the client environment's `rsc-worker` and the server environment's main thread. See [Build Output](./build-output.md) and [Examples](./examples.md) for server setup details.
 
+## Security
+
+A server action is a callable endpoint. The client POSTs a reference id of the
+form `<base><path>#<export>` and the server runs the matching function. vprs
+resolves that id through a sealed reference gate, rather than importing a path
+derived from the id.
+
+- The gate is built from the build's own manifest. An id maps to a real built
+  module by exact lookup, and the importer is bound to that module, never to
+  anything parsed out of the incoming id. An id the build never emitted does not
+  resolve, so `../` path traversal is structurally impossible, and an export that
+  was not registered as a server reference is rejected.
+- In production the gate is sealed: an unknown id throws, with no on-demand
+  import fallback. Development keeps an open fallback for iteration speed; that is
+  not a trust boundary and is not meant to face untrusted clients.
+- A static (no-server) build has no runtime to POST to, so it has no server
+  action surface at all.
+
+The gate decides *which* functions are reachable, not *what* arguments they
+accept. Inside each action you still own the rest:
+
+- Validate and authorize every argument. Treat all of them as untrusted input.
+- Do not close over secrets in an action you hand to a client component. The ESM
+  transport serializes a reference for that function and does not encrypt the
+  values it captures, so treat anything an exposed action closes over as visible
+  to the client. Pass an id and look the value up on the server instead.
+
 ## Limitations
 
 - Server actions don't support CSS collection or custom prop functions
