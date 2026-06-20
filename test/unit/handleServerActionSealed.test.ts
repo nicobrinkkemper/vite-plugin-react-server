@@ -85,4 +85,22 @@ describe("handleServerAction sealed path", () => {
     });
     expect(ssrLoadModule).toHaveBeenCalledTimes(1);
   });
+
+  it("refuses devOpen under NODE_ENV=production (defense in depth)", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const ssrLoadModule = vi.fn(async () => ({ addTodo: () => "ok" }));
+      const res = mockRes();
+      await handleServerAction(mockReq("src/server/actions.server.ts#addTodo"), res, {
+        projectRoot: "/proj",
+        devOpen: true,
+        ssrLoadModule,
+      });
+      expect(res.statusCode).toBe(500); // refused even though devOpen was set
+      expect(ssrLoadModule).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
 });

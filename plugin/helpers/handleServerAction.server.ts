@@ -112,8 +112,16 @@ export async function handleServerAction(
     if (options.devOpen) {
       // OPEN path — reachable ONLY when the Vite dev wrapper opts in. Dev serves
       // live source, so there is no build manifest to seal against. NOT a trust
-      // boundary; never used in production. Resolve against the project root with
-      // a traversal guard, then load on demand.
+      // boundary. Defense in depth: refuse it under NODE_ENV=production so a
+      // misconfigured prod deploy can never take the unsealed path even if the
+      // flag leaks in.
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          "[handleServerAction] devOpen (the unsealed dev resolver) was requested " +
+            "under NODE_ENV=production. Server actions must be sealed in production; refusing."
+        );
+      }
+      // Resolve against the project root with a traversal guard, then load on demand.
       const { fullPath, exportName } = resolveServerAction(
         id,
         projectRoot,
