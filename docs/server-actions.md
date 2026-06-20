@@ -118,23 +118,42 @@ Server actions work in both the client environment's `rsc-worker` and the server
 ## Security
 
 A server action is a callable endpoint. The client POSTs a reference id of the
-form `<base><path>#<export>` and the server runs the matching function. vprs
-resolves that id through a sealed reference gate, rather than importing a path
-derived from the id.
+form `<base><path>#<export>` and the server runs the matching function. That id
+is attacker-controllable, so resolving it is a trust boundary, and **on a
+server-backed deploy that boundary is the server you run**. vprs renders through
+the ESM transport, which on its own resolves a reference by the path the id
+encodes with only a prefix check, no allowlist. There is no automatic sealed
+resolver yet, so do not assume one.
 
-- The gate is built from the build's own manifest. An id maps to a real built
-  module by exact lookup, and the importer is bound to that module, never to
-  anything parsed out of the incoming id. An id the build never emitted does not
-  resolve, so `../` path traversal is structurally impossible, and an export that
-  was not registered as a server reference is rejected.
-- In production the gate is sealed: an unknown id throws, with no on-demand
-  import fallback. Development keeps an open fallback for iteration speed; that is
-  not a trust boundary and is not meant to face untrusted clients.
+The rule for your handler is simple: **resolve the incoming id against the
+build's server manifest and reject anything not in it. Never `import()` a path
+derived from the id.** The build writes that manifest
+(`<serverRoot>/.vite/manifest.json`); its keys are the real server modules, which
+is exactly the allowlist you want.
+
+```ts
+// Safe resolution sketch (the official demo, bidoof-template, has a full one)
+const [key, exportName] = id.split("#");
+const stripped = key.startsWith(base) ? key.slice(base.length) : key;
+const file = serverSrcToFile.get(stripped);            // manifest lookup
+if (!file) throw new Error("action not in manifest");  // reject unknown ids
+const mod = await import(join(serverRoot, file));       // import the manifest's file, not the id
+```
+
+vprs ships the pieces for this: the server manifest above, and a reference-gate
+primitive (`vite-plugin-react-server/references`, `createSealedServerReferenceGate`)
+that wraps the lookup-or-throw. A built-in sealed resolver that wires this for you
+is in progress; until it lands, add the manifest check yourself.
+
+Two more notes:
+
 - A static (no-server) build has no runtime to POST to, so it has no server
   action surface at all.
+- In development vprs resolves actions on demand (it imports the path the id
+  encodes) for iteration speed. That is **not** a trust boundary; keep the dev
+  server off untrusted networks.
 
-The gate decides *which* functions are reachable, not *what* arguments they
-accept. Inside each action you still own the rest:
+Whatever resolves the id, these stay yours per action:
 
 - Validate and authorize every argument. Treat all of them as untrusted input.
 - Do not close over secrets in an action you hand to a client component. The ESM

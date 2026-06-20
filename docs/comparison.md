@@ -126,13 +126,17 @@ the path the id encodes, guarded only by a prefix check. It has no manifest of
 which references are real, which is the trust boundary the webpack-family
 transports get from their bundler plugin.
 
-vprs supplies that boundary in the layer above the transport. References resolve
-through a sealed gate built from the build's own manifest: an exact lookup that
-binds each id to a real built module and throws on anything the build did not
-emit, so a crafted id cannot import an arbitrary path. A static build has no
-server runtime, so it has no callable surface at all. See
-[Server Actions → Security](./server-actions.md#security) for the action
-endpoint specifics and the app-level responsibilities that remain yours.
+The other transports get that boundary from their bundler plugin, automatically.
+vprs is lower-level: it does not yet ship an automatic sealed resolver, so on a
+server-backed deploy **you** supply the boundary in the server you run. The
+pieces are there for it: the build emits a server manifest (the allowlist of real
+server modules) and exposes a reference-gate primitive
+(`vite-plugin-react-server/references`), and the rule is to resolve an incoming id
+against that manifest and reject anything not in it rather than importing the
+id's path. A static build has no server runtime, so it has no callable surface at
+all. See [Server Actions → Security](./server-actions.md#security) for the recipe
+and the responsibilities that remain yours; wiring this in by default is in
+progress.
 
 ## What vprs deliberately does NOT do
 
