@@ -60,7 +60,22 @@ describe("handleServerAction sealed path", () => {
     expect(ssrLoadModule).not.toHaveBeenCalled();
   });
 
-  it("falls back to the open dev resolver when devOpen is set (no auto-seal)", async () => {
+  it("FAILS CLOSED when no manifest is found and devOpen is not set", async () => {
+    // Empty dir → no .vite/manifest.json. A production call must refuse, NOT fall
+    // back to the open resolver, even though ssrLoadModule is available.
+    const dir = await mkdtemp(join(tmpdir(), "vprs-sa-empty-"));
+    const ssrLoadModule = vi.fn(async () => ({ addTodo: () => "ok" }));
+    const res = mockRes();
+    await handleServerAction(mockReq("src/server/actions.server.ts#addTodo"), res, {
+      projectRoot: "/proj",
+      serverRoot: dir,
+      ssrLoadModule,
+    });
+    expect(res.statusCode).toBe(500); // refused
+    expect(ssrLoadModule).not.toHaveBeenCalled(); // never reached the open resolver
+  });
+
+  it("uses the open dev resolver ONLY when devOpen is set", async () => {
     const ssrLoadModule = vi.fn(async () => ({ addTodo: () => "ok" }));
     const res = mockRes();
     await handleServerAction(mockReq("src/server/actions.server.ts#addTodo"), res, {

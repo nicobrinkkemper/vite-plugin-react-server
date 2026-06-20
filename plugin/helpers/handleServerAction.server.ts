@@ -34,8 +34,9 @@ const manifestByRoot = new Map<string, ServerManifest | null>();
  *  1. an explicit `serverManifest` option (with its serverRoot), else
  *  2. auto-load `<serverRoot>/.vite/manifest.json` (serverRoot defaults to
  *     `<projectRoot>/dist/server`) — so production seals with no extra args.
- * Returns null when none is found (dev, or an unbuilt/custom layout) → caller
- * falls back to the open dev resolver.
+ * Returns null only when no manifest exists; the caller then FAILS CLOSED rather
+ * than falling back to the open resolver. (The open resolver is reachable only via
+ * the dev wrapper's `devOpen`, handled before this is called.)
  */
 async function resolveServerManifest(
   options: ServerActionHandlerOptions
@@ -46,7 +47,6 @@ async function resolveServerManifest(
       serverRoot: options.serverRoot ?? join(options.projectRoot, "dist", "server"),
     };
   }
-  if (options.devOpen) return null; // dev serves live source; a built manifest would be stale
   const serverRoot = options.serverRoot ?? join(options.projectRoot, "dist", "server");
   if (!manifestByRoot.has(serverRoot)) {
     try {
@@ -108,28 +108,12 @@ export async function handleServerAction(
       logger
     );
 
-    // Resolve (or auto-load) the build manifest; its presence seals by default.
-    const resolved = await resolveServerManifest(options);
-
     let action: Function;
-    if (resolved) {
-      // SEALED path (production trust boundary): resolve the client-supplied id
-      // through a gate built from the build's server manifest. An id the build
-      // never emitted is rejected before any import; the importer is bound to the
-      // manifest's real file, never to a path derived from the id.
-      let gate = sealedGates.get(resolved.serverManifest);
-      if (!gate) {
-        gate = createSealedServerReferenceGate({
-          serverManifest: resolved.serverManifest,
-          serverRoot: resolved.serverRoot,
-          base,
-        });
-        sealedGates.set(resolved.serverManifest, gate);
-      }
-      action = (await gate.resolveServerReference(id)) as Function;
-    } else {
-      // Open path (development / preview only — not a trust boundary). Resolve
-      // against the project root with a traversal guard, then load on demand.
+    if (options.devOpen) {
+      // OPEN path — reachable ONLY when the Vite dev wrapper opts in. Dev serves
+      // live source, so there is no build manifest to seal against. NOT a trust
+      // boundary; never used in production. Resolve against the project root with
+      // a traversal guard, then load on demand.
       const { fullPath, exportName } = resolveServerAction(
         id,
         projectRoot,
@@ -146,6 +130,32 @@ export async function handleServerAction(
         verbose,
         logger
       );
+    } else {
+      // SEALED path (production trust boundary). Resolve the client-supplied id
+      // through a gate built from the build's server manifest: an id the build
+      // never emitted is rejected before any import; the importer is bound to the
+      // manifest's real file, never to a path derived from the id.
+      const resolved = await resolveServerManifest(options);
+      if (!resolved) {
+        // FAIL CLOSED. A missing manifest in production must NOT silently fall back
+        // to the open resolver — that would reopen the boundary we are enforcing.
+        throw new Error(
+          `[handleServerAction] No server manifest found (looked for ` +
+            `${join(options.serverRoot ?? join(projectRoot, "dist", "server"), ".vite", "manifest.json")}). ` +
+            `Server actions resolve through a sealed allowlist; pass serverRoot for a ` +
+            `custom build.outDir, or serverManifest directly. Refusing unsealed resolution.`
+        );
+      }
+      let gate = sealedGates.get(resolved.serverManifest);
+      if (!gate) {
+        gate = createSealedServerReferenceGate({
+          serverManifest: resolved.serverManifest,
+          serverRoot: resolved.serverRoot,
+          base,
+        });
+        sealedGates.set(resolved.serverManifest, gate);
+      }
+      action = (await gate.resolveServerReference(id)) as Function;
     }
 
     // Execute the server action

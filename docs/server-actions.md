@@ -144,20 +144,25 @@ await handleServerAction(req, res, { projectRoot, serverRoot, base });
 `build.outDir`. You can also pass `serverManifest` directly to override (e.g. a
 manifest you already hold). The manifest lookup is cached, so it reads disk once.
 
-If no manifest is found (development, or an unbuilt tree), the handler falls back
-to the open dev resolver (project-root resolution with a traversal guard, then
-on-demand `import`). That path is **not** a trust boundary — the Vite dev wrapper
-forces it, and it never auto-seals against a possibly stale built manifest. The
-underlying primitive is exported as `vite-plugin-react-server/references`
+It **fails closed**: if no manifest can be found and you are not in the dev path,
+the handler refuses the request rather than falling back to unsealed resolution.
+A missing manifest is a misconfiguration (wrong `serverRoot`, or an unbuilt tree),
+and silently reopening the boundary would defeat the point. If you hit this in
+production, point `serverRoot` at your build's server dir (or pass `serverManifest`).
+The underlying primitive is exported as `vite-plugin-react-server/references`
 (`createSealedServerReferenceGate`) if you wire your own handler.
+
+The only unsealed path is development: the Vite dev wrapper sets `devOpen`, which
+resolves actions on demand against live source (project-root resolution with a
+traversal guard, no build manifest exists yet). That is **not** a trust boundary —
+it is reachable only via the dev wrapper, never from a missing manifest in prod.
 
 Two more notes:
 
 - A static (no-server) build has no runtime to POST to, so it has no server
   action surface at all.
-- In development vprs resolves actions on demand (it imports the path the id
-  encodes) for iteration speed. That is **not** a trust boundary; keep the dev
-  server off untrusted networks.
+- Keep the dev server off untrusted networks (its on-demand resolver is not a
+  trust boundary).
 
 Whatever resolves the id, these stay yours per action:
 
