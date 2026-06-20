@@ -119,39 +119,50 @@ Server actions work in both the client environment's `rsc-worker` and the server
 
 A server action is a callable endpoint. The client POSTs a reference id of the
 form `<base><path>#<export>` and the server runs the matching function. That id
-is attacker-controllable, so resolving it is a trust boundary, and **on a
-server-backed deploy that boundary is the server you run**. vprs renders through
-the ESM transport, which on its own resolves a reference by the path the id
-encodes with only a prefix check, no allowlist. There is no automatic sealed
-resolver yet, so do not assume one.
+is attacker-controllable, so resolving it is a trust boundary. vprs renders
+through the ESM transport, which on its own resolves a reference by the path the
+id encodes with only a prefix check, no allowlist, so the boundary has to be
+enforced one level up.
 
-The rule for your handler is simple: **resolve the incoming id against the
-build's server manifest and reject anything not in it. Never `import()` a path
-derived from the id.** The build writes that manifest
-(`<serverRoot>/.vite/manifest.json`); its keys are the real server modules, which
-is exactly the allowlist you want.
+**`handleServerAction` seals automatically — you do not pass anything extra.** In
+production it reads the build's server manifest from
+`<serverRoot>/.vite/manifest.json` and resolves the id through a sealed allowlist:
+an id the build never emitted is rejected before any import, and the importer is
+bound to the manifest's real file, never to a path derived from the id.
 
 ```ts
-// Safe resolution sketch (the official demo, bidoof-template, has a full one)
-const [key, exportName] = id.split("#");
-const stripped = key.startsWith(base) ? key.slice(base.length) : key;
-const file = serverSrcToFile.get(stripped);            // manifest lookup
-if (!file) throw new Error("action not in manifest");  // reject unknown ids
-const mod = await import(join(serverRoot, file));       // import the manifest's file, not the id
+import { handleServerAction } from "vite-plugin-react-server/helpers";
+
+// Default build layout (dist/server): nothing else needed — this is sealed.
+await handleServerAction(req, res, { projectRoot });
+
+// Custom build output? Point it at the server dir; still no manifest to load.
+await handleServerAction(req, res, { projectRoot, serverRoot, base });
 ```
 
-vprs ships the pieces for this: the server manifest above, and a reference-gate
-primitive (`vite-plugin-react-server/references`, `createSealedServerReferenceGate`)
-that wraps the lookup-or-throw. A built-in sealed resolver that wires this for you
-is in progress; until it lands, add the manifest check yourself.
+`serverRoot` defaults to `<projectRoot>/dist/server`; pass it only if you changed
+`build.outDir`. You can also pass `serverManifest` directly to override (e.g. a
+manifest you already hold). The manifest lookup is cached, so it reads disk once.
+
+It **fails closed**: if no manifest can be found and you are not in the dev path,
+the handler refuses the request rather than falling back to unsealed resolution.
+A missing manifest is a misconfiguration (wrong `serverRoot`, or an unbuilt tree),
+and silently reopening the boundary would defeat the point. If you hit this in
+production, point `serverRoot` at your build's server dir (or pass `serverManifest`).
+The underlying primitive is exported as `vite-plugin-react-server/references`
+(`createSealedServerReferenceGate`) if you wire your own handler.
+
+The only unsealed path is development: the Vite dev wrapper sets `devOpen`, which
+resolves actions on demand against live source (project-root resolution with a
+traversal guard, no build manifest exists yet). That is **not** a trust boundary —
+it is reachable only via the dev wrapper, never from a missing manifest in prod.
 
 Two more notes:
 
 - A static (no-server) build has no runtime to POST to, so it has no server
   action surface at all.
-- In development vprs resolves actions on demand (it imports the path the id
-  encodes) for iteration speed. That is **not** a trust boundary; keep the dev
-  server off untrusted networks.
+- Keep the dev server off untrusted networks (its on-demand resolver is not a
+  trust boundary).
 
 Whatever resolves the id, these stay yours per action:
 

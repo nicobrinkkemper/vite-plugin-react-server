@@ -9,6 +9,29 @@ export type ServerActionHandlerOptions = {
   verbose?: boolean;
   logger?: Logger;
   ssrLoadModule?: (path: string) => Promise<any>;
+  /**
+   * Vite's emitted server manifest. Optional: in production the handler auto-loads
+   * it from `<serverRoot>/.vite/manifest.json`, so you normally do not pass this.
+   * Provide it only to override (e.g. a manifest you already hold in memory).
+   * When a manifest is available, actions resolve through a SEALED gate — an
+   * allowlist that rejects any id the build did not emit.
+   */
+  serverManifest?: Record<string, { file: string; src?: string } | undefined>;
+  /**
+   * Absolute path to the built server dir (where manifest `entry.file` and
+   * `.vite/manifest.json` live). Defaults to `<projectRoot>/dist/server`. When the
+   * manifest is found there (or passed via `serverManifest`), the sealed gate is
+   * used automatically — no need to load or pass the manifest yourself.
+   */
+  serverRoot?: string;
+  /** URL base the client prefixes onto reference ids (default `/`). */
+  base?: string;
+  /**
+   * Force the open dev resolver and skip manifest auto-loading. Set internally by
+   * the Vite dev wrapper (dev serves live source, so a built manifest would be
+   * stale). Consumers should not set this in production.
+   */
+  devOpen?: boolean;
 };
 
 export type ServerActionRequest = {
