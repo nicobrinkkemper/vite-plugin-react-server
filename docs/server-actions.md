@@ -172,6 +172,39 @@ Whatever resolves the id, these stay yours per action:
   values it captures, so treat anything an exposed action closes over as visible
   to the client. Pass an id and look the value up on the server instead.
 
+### Endpoint hardening
+
+The sealed gate decides *which function* a request may resolve — it confirms the
+*target* is a real action, not that the *caller* is allowed to call it or that the
+request is well-sized. Two opt-in options on `handleServerAction` cover the
+endpoint itself; both are off by default so they never silently change an existing
+deploy:
+
+```ts
+await handleServerAction(req, res, {
+  projectRoot,
+  allowedOrigins: ["https://app.example.com"], // CSRF guard (see below)
+  maxBodyBytes: 1024 * 1024,                    // reject bodies over 1 MiB with 413
+});
+```
+
+- **`allowedOrigins` (CSRF / cross-origin).** A server action is a cookie-bearing,
+  state-changing POST, so a page on another origin can drive a logged-in user's
+  browser to invoke one. When set, a request whose `Origin` header is present and
+  not in the allowlist is rejected with `403` before the action runs (mirrors
+  Next's `serverActions.allowedOrigins`). A *missing* `Origin` is allowed: a page
+  cannot suppress it on a cross-origin browser POST, so its absence means
+  same-origin or a non-browser client, which is not a CSRF vector.
+- **`maxBodyBytes` (DoS).** The handler buffers the POST body in memory to decode
+  the arguments. When set, a body exceeding the cap is rejected with `413` before
+  it is fully buffered, so an unauthenticated client cannot exhaust memory.
+
+Error responses never include a stack trace — only `{ success: false, error }`.
+The full error (with stack) goes to the server log via your Vite logger, not to
+the client. If you mount your own handler instead of `handleServerAction`, keep
+the same three properties: an origin check, a body cap, and no stack in the
+response.
+
 ## Limitations
 
 - Server actions don't support CSS collection or custom prop functions

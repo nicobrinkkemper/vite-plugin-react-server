@@ -32,6 +32,21 @@ export type ServerActionHandlerOptions = {
    * stale). Consumers should not set this in production.
    */
   devOpen?: boolean;
+  /**
+   * Opt-in CSRF guard. When set, a request whose `Origin` header is present and
+   * not in this allowlist is rejected with 403 before the action runs. A missing
+   * `Origin` is allowed: a page cannot suppress it on a cross-origin browser POST,
+   * so its absence means same-origin or a non-browser client (not a CSRF vector).
+   * List your own origins, e.g. `["https://app.example.com"]`. Off by default to
+   * avoid breaking existing deploys; the endpoint is otherwise the host's to guard.
+   */
+  allowedOrigins?: string[];
+  /**
+   * Opt-in cap on the server-action request body, in bytes. When set, a body that
+   * exceeds it is rejected with 413 instead of being buffered into memory. Off by
+   * default (no limit). Recommended for any internet-facing deploy.
+   */
+  maxBodyBytes?: number;
 };
 
 export type ServerActionRequest = {
@@ -97,7 +112,8 @@ export function setupServerActionHeaders(res: ServerResponse) {
 export async function parseServerActionRequest(
   req: IncomingMessage,
   verbose = false,
-  logger?: Logger
+  logger?: Logger,
+  maxBodyBytes?: number
 ): Promise<ServerActionRequest> {
   // Get action ID from x-rsc-action header (preferred) or URL
   let id = (req.headers["x-rsc-action"] as string) ?? req.url?.split("?")[0] ?? "";
@@ -111,7 +127,18 @@ export async function parseServerActionRequest(
   let args: unknown[];
   try {
     const chunks: Buffer[] = [];
+    let received = 0;
     for await (const chunk of req) {
+      received += chunk.length;
+      if (maxBodyBytes !== undefined && received > maxBodyBytes) {
+        // Reject oversized bodies before buffering them all into memory. Tagged
+        // with a statusCode so the handler answers 413, not a generic 500.
+        const err = new Error(
+          `Server action request body exceeds maxBodyBytes (${maxBodyBytes})`
+        ) as Error & { statusCode?: number };
+        err.statusCode = 413;
+        throw err;
+      }
       chunks.push(chunk);
     }
     const body = Buffer.concat(chunks).toString();
@@ -146,6 +173,11 @@ export async function parseServerActionRequest(
       args = [body]; // Pass raw body as first arg, worker will decode
     }
   } catch (error: unknown) {
+    // Preserve a tagged status (e.g. 413 from the size cap) rather than masking it
+    // as a generic parse failure.
+    if (error instanceof Error && "statusCode" in error) {
+      throw error;
+    }
     throw new Error(`Failed to parse server action request`, {
       cause: error,
     });
@@ -292,14 +324,16 @@ export function handleServerActionError(
   res: ServerResponse,
   logger?: Logger
 ): void {
-  const err = toError(error);
+  const err = toError(error) as Error & { statusCode?: number };
   logError(err, logger);
-  
-  res.statusCode = 500;
+
+  // Honor a tagged status (403 origin, 413 oversized) else 500.
+  res.statusCode = typeof err.statusCode === "number" ? err.statusCode : 500;
   res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify({ 
-    success: false, 
+  // Never ship err.stack to the client — it exposes absolute paths and internal
+  // module ids. The full error (with stack) is written to the server log above.
+  res.end(JSON.stringify({
+    success: false,
     error: err.message,
-    stack: err.stack 
   }));
 } 
