@@ -27,4 +27,14 @@ describe("isPathWithin", () => {
   it("rejects an unrelated absolute path", () => {
     expect(isPathWithin(BASE, "/etc/passwd")).toBe(false);
   });
+
+  it("accepts a contained file whose name starts with '..'", () => {
+    // `..foo.ts` is a legit in-tree filename, not a traversal — a bare
+    // startsWith('..') prefix check would wrongly reject it.
+    expect(isPathWithin(BASE, "/proj/..foo.ts")).toBe(true);
+  });
+
+  it("rejects real parent traversal", () => {
+    expect(isPathWithin(BASE, "/proj/../secret.ts")).toBe(false);
+  });
 });

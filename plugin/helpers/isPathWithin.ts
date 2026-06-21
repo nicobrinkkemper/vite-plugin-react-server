@@ -1,4 +1,4 @@
-import { relative, isAbsolute } from "node:path";
+import { relative, isAbsolute, sep } from "node:path";
 
 /**
  * Containment guard. Returns true when `target` is `base` itself or resolves to
@@ -10,5 +10,11 @@ import { relative, isAbsolute } from "node:path";
  */
 export function isPathWithin(base: string, target: string): boolean {
   const rel = relative(base, target);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  // An escape is `..` itself or anything below it (`../x`). Match the segment,
+  // not a bare prefix, so a contained file whose name merely starts with `..`
+  // (e.g. `..foo.ts`) is not falsely rejected.
+  return (
+    rel === "" ||
+    (rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel))
+  );
 }
