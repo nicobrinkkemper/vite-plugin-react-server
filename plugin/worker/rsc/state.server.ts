@@ -2,7 +2,7 @@ import { workerData } from "node:worker_threads";
 import { createCssProps } from "../../helpers/createCssProps.js";
 import type { CssContent, ResolvedUserOptions, HmrState } from "../../types.js";
 import type { PassThrough } from "node:stream";
-import { relative, join } from "node:path";
+import { relative, join, isAbsolute } from "node:path";
 import { createReferenceGate } from "react-server-loader/references";
 import { registerServerReference } from "react-server-dom-esm/server";
 import { createLazyTemporaryReferenceSet } from "../../react-static/temporaryReferences.server.js";
@@ -62,10 +62,18 @@ export const referenceGate = createReferenceGate({
       moduleBasePath && key.startsWith(moduleBasePath)
         ? key.slice(moduleBasePath.length)
         : key;
-    const mod = (await import(join(projectRoot, actionPath))) as Record<
-      string,
-      unknown
-    >;
+    const fullPath = join(projectRoot, actionPath);
+    // Containment guard (defense in depth). Open mode is dev-only and not a trust
+    // boundary, but `join` collapses `../`, so without this a crafted id could
+    // resolve and import a module outside the project root. Mirrors the
+    // main-thread resolveServerAction guard.
+    const rel = relative(projectRoot, fullPath);
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+      throw new Error(
+        `Server action id resolves outside the project root: ${key}`
+      );
+    }
+    const mod = (await import(fullPath)) as Record<string, unknown>;
     return tagServerExports(key, mod);
   },
 });

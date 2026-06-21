@@ -1,7 +1,7 @@
 import type {  
   StreamError,  
 } from "../types.js";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
@@ -34,6 +34,15 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
       
       // Handle static files including CSS
       if (filePath && (isRscRequest)) {
+        // Containment assertion (defense in depth). `filePath` is
+        // resolve(staticHostDir, <route>); route normalization already clamps
+        // `../`, but assert the resolved path stays under the static dir so a
+        // future change to URL handling cannot silently reintroduce traversal.
+        if (filePath !== staticHostDir && !filePath.startsWith(staticHostDir + sep)) {
+          res.statusCode = 403;
+          res.end("Forbidden");
+          return;
+        }
         try {
           const stats = await stat(filePath);
           if (stats.isFile()) {
