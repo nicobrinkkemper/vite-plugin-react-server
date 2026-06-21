@@ -101,11 +101,27 @@ export async function handleServerAction(
       logger?.info("[handleServerAction:server] Processing server action request");
     }
 
+    // CSRF / cross-origin guard (opt-in). When allowedOrigins is configured, a
+    // browser-driven cross-site POST carries an Origin header set to the calling
+    // site; reject anything not in the allowlist. A missing Origin is allowed: a
+    // page cannot suppress it on a cross-origin fetch, so its absence means
+    // same-origin or a non-browser client (not a CSRF vector).
+    if (options.allowedOrigins && options.allowedOrigins.length > 0) {
+      const origin = (req.headers.origin as string | undefined) ?? "";
+      if (origin && !options.allowedOrigins.includes(origin)) {
+        res.statusCode = 403;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: false, error: "Origin not allowed" }));
+        return;
+      }
+    }
+
     // Parse the server action request
     const { id, args } = await parseServerActionRequestHelper(
       req,
       verbose,
-      logger
+      logger,
+      options.maxBodyBytes
     );
 
     let action: Function;
