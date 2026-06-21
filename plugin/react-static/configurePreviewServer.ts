@@ -1,10 +1,11 @@
 import type {  
   StreamError,  
 } from "../types.js";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
+import { isPathWithin } from "../helpers/isPathWithin.js";
 import { requestInfo } from "../helpers/requestInfo.js";
 import { logError } from "../error/logError.js";
 import type { ConfigurePreviewServerFn } from "./types.js";
@@ -38,7 +39,7 @@ export const configurePreviewServer: ConfigurePreviewServerFn =
         // resolve(staticHostDir, <route>); route normalization already clamps
         // `../`, but assert the resolved path stays under the static dir so a
         // future change to URL handling cannot silently reintroduce traversal.
-        if (filePath !== staticHostDir && !filePath.startsWith(staticHostDir + sep)) {
+        if (!isPathWithin(staticHostDir, filePath)) {
           res.statusCode = 403;
           res.end("Forbidden");
           return;

@@ -1,5 +1,6 @@
 import { logError, toError } from "../error/index.js";
-import { join, relative, isAbsolute } from "node:path";
+import { join } from "node:path";
+import { isPathWithin } from "./isPathWithin.js";
 import type { Logger } from "vite";
 import type { ServerResponse } from "node:http";
 import type { IncomingMessage } from "node:http";
@@ -222,8 +223,7 @@ export function resolveServerAction(
   // and invoked. Reject anything that escapes projectRoot. (This is defense in
   // depth; resolving against the build's server manifest is the stronger gate —
   // see docs/server-actions.md and bead i0j.)
-  const rel = relative(projectRoot, fullPath);
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+  if (!isPathWithin(projectRoot, fullPath)) {
     throw new Error(
       `Server action id resolves outside the project root: ${id}`
     );

@@ -2,7 +2,8 @@ import { workerData } from "node:worker_threads";
 import { createCssProps } from "../../helpers/createCssProps.js";
 import type { CssContent, ResolvedUserOptions, HmrState } from "../../types.js";
 import type { PassThrough } from "node:stream";
-import { relative, join, isAbsolute } from "node:path";
+import { relative, join } from "node:path";
+import { isPathWithin } from "../../helpers/isPathWithin.js";
 import { createReferenceGate } from "react-server-loader/references";
 import { registerServerReference } from "react-server-dom-esm/server";
 import { createLazyTemporaryReferenceSet } from "../../react-static/temporaryReferences.server.js";
@@ -67,8 +68,7 @@ export const referenceGate = createReferenceGate({
     // boundary, but `join` collapses `../`, so without this a crafted id could
     // resolve and import a module outside the project root. Mirrors the
     // main-thread resolveServerAction guard.
-    const rel = relative(projectRoot, fullPath);
-    if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    if (!isPathWithin(projectRoot, fullPath)) {
       throw new Error(
         `Server action id resolves outside the project root: ${key}`
       );
