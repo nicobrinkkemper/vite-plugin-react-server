@@ -14,6 +14,9 @@ export * from "./createHtmlStream.server.js";
 // HTML Stream creation with inlined flight payload (flash-free dynamic SSR)
 export * from "./createHtmlStreamWithInlineFlight.server.js";
 
+// High-level dynamic-route renderer (worker + dual-flight + manifest wiring)
+export * from "./createInlineFlightRenderer.server.js";
+
 // Worker Stream handling - using unified API
 export * from "./createRscWorkerStream.js";
 // Shared type exports
