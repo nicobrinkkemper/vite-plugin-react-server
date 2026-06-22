@@ -15,10 +15,10 @@ import {
   createDefaultOptions,
   resolveAutoDiscoveredFiles,
   buildSharedHandlerOptions,
+  createConfiguredWorker,
 } from "./createHandlerOptions.shared.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
-import { createWorker } from "../worker/createWorker.js";
 
 /**
  * Server-specific handler options creation for React Server Components (RSC).
@@ -270,17 +270,9 @@ export async function createHandlerOptions(
                                (userOptions.build?.useRscWorker && isBuildMode);
   
   if (shouldCreateRscWorker) {
-    if (userOptions.verbose) {
-      logger.info(`[createHandlerOptions.server] Creating RSC worker for route: ${route}`);
-    }
-    
-    try {
-      
-      const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles);
-      
-      // We don't need to create the RSC worker, but if the user wants to use their own worker
-      // it can be done by setting dev.useRscWorker=true or build.useRscWorker=true
-      const workerResult = await createWorker({
+    rscWorker = await createConfiguredWorker(
+      `[createHandlerOptions.server] RSC worker (route ${route})`,
+      {
         currentCondition: "react-server",
         // same CONDITION as the current one (this worker may be redundant)
         reverseCondition: "react-server",
@@ -289,30 +281,13 @@ export async function createHandlerOptions(
         logger,
         workerData: {
           id: route,
-          userOptions: serializedUserOptions,
-          resolvedConfig: {
-            configEnv,
-            mode,
-          },
+          userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
+          resolvedConfig: { configEnv, mode },
         },
-      });
-
-      if (workerResult.type === "error") {
-        logger.warn(`[createHandlerOptions.server] Failed to create RSC worker: ${workerResult.error?.message}`);
-        rscWorker = undefined;
-      } else if (workerResult.type === "skip") {
-        logger.warn(`[createHandlerOptions.server] RSC worker creation skipped: ${workerResult.reason}`);
-        rscWorker = undefined;
-      } else {
-        rscWorker = workerResult.worker;
-        if (userOptions.verbose) {
-          logger.info(`[createHandlerOptions.server] RSC worker created successfully`);
-        }
-      }
-    } catch (error) {
-      logger.warn(`[createHandlerOptions.server] RSC worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
-      rscWorker = undefined;
-    }
+      },
+      logger,
+      userOptions.verbose
+    );
   }
 
   // Create HTML worker if:
@@ -323,15 +298,9 @@ export async function createHandlerOptions(
                                 (userOptions.build?.useHtmlWorker && isBuildMode);
   
   if (shouldCreateHtmlWorker) {
-    if (userOptions.verbose) {
-      logger.info(`[createHandlerOptions.server] Creating HTML worker for route: ${route}`);
-    }
-    
-    try {
-      
-      const serializedUserOptions = serializedOptions(userOptions, autoDiscoveredFiles);
-      
-      const workerResult = await createWorker({
+    htmlWorker = await createConfiguredWorker(
+      `[createHandlerOptions.server] HTML worker (route ${route})`,
+      {
         currentCondition: "react-server",
         reverseCondition: "react-client", // HTML worker needs react-client condition
         workerPath: userOptions.htmlWorkerPath,
@@ -339,30 +308,13 @@ export async function createHandlerOptions(
         logger,
         workerData: {
           id: route,
-          userOptions: serializedUserOptions,
-          resolvedConfig: {
-            configEnv,
-            mode,
-          },
+          userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
+          resolvedConfig: { configEnv, mode },
         },
-      });
-
-      if (workerResult.type === "error") {
-        logger.warn(`[createHandlerOptions.server] Failed to create HTML worker: ${workerResult.error?.message}`);
-        htmlWorker = undefined;
-      } else if (workerResult.type === "skip") {
-        logger.warn(`[createHandlerOptions.server] HTML worker creation skipped: ${workerResult.reason}`);
-        htmlWorker = undefined;
-      } else {
-        htmlWorker = workerResult.worker;
-        if (userOptions.verbose) {
-          logger.info(`[createHandlerOptions.server] HTML worker created successfully`);
-        }
-      }
-    } catch (error) {
-      logger.warn(`[createHandlerOptions.server] HTML worker creation failed: ${error instanceof Error ? error.message : String(error)}`);
-      htmlWorker = undefined;
-    }
+      },
+      logger,
+      userOptions.verbose
+    );
   }
 
   // Create server-specific handler options. The shared fields are assembled by
