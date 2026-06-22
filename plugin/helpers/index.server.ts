@@ -1,59 +1,12 @@
-// Route and file handling
-export * from "./getRouteFiles.js";
-export * from "./resolvePage.js";
-export * from "./resolveProps.js";
-export * from "./resolvePageAndProps.js";
-
-export * from "./requestInfo.js";
-export * from "./requestToRoute.js";
-
-// Configuration and options
-export * from "./serializeUserOptions.js";
-export * from "./cleanObject.js";
-export * from "./inputNormalizer.js";
-
-// CSS handling
-export * from "./collectManifestCss.js";
-export * from "./collectViteModuleGraphCss.js";
-export * from "./createCssProps.js";
-
-// Stream and handler creation
-// Stream-related functions are now exported from ../stream/index.js
-
-// Hydrate user options
-export * from "./hydrateUserOptions.js";
-
-// Metrics and monitoring
-export * from "./formatMetrics.js";
-export * from "./metrics.js";
-
-// Manifest handling
-export * from "./tryManifest.js";
-export * from "./getBundleManifest.js";
-
-// Module handling
-export * from "./moduleRefs.js";
-
-// Utility functions
-
-// Unified render helpers
-export * from "./validateRscRenderMessage.js";
-export * from "./resolveRenderUrl.js";
-export * from "./mergeMessageWithDefaults.js";
-export * from "./resolveWithDefaultRootAndHtml.js";
-// Server-side resolveComponents lives in resolveComponents.ts (no .client suffix)
-// or is intentionally absent here. Re-exporting resolveComponents.client.js from
-// a .server.ts aggregator violates the .server/.client split — under
+// Server-side aggregator for the public ./helpers subpath under react-server.
+// The condition-neutral surface lives in index.shared.ts; this file adds only
+// the server-side handleServerAction binding.
+//
+// resolveComponents.client is intentionally NOT re-exported here: under
 // react-server, ESM static linking would evaluate the .client module's
-// transitive deps (e.g. vendor.client.js → react-dom/server) and crash.
-// See bd-6pi.
+// transitive deps (vendor.client.js -> react-dom/server) and crash. See bd-6pi.
 
-export * from "./logRenderStart.js";
-export * from "./createSerializableHandlerOptions.js";
-
-export * from "./createPatternMatcher.js";
-
-export * from "./createUnifiedCssProcessor.js";
+export * from "./index.shared.js";
 
 // Server action handling
 export { handleServerAction } from "./handleServerAction.server.js";
