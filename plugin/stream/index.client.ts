@@ -1,46 +1,23 @@
-// RSC Stream handling
+// Client aggregator for the public ./stream subpath under the default condition.
+// The condition-neutral surface lives in index.shared.ts; the per-condition
+// stream impls are below.
+export * from "./index.shared.js";
+
+// RSC stream handling (worker)
 export * from "./handleRscStream.client.js";
 export * from "./createRscStream.client.js";
 
-// HTML Stream handling
+// HTML stream handling
 export * from "./createRenderToPipeableStreamHandler.client.js";
 
-// Node Stream handling
+// Node stream handling (RSC flight -> React elements)
 export * from "./createFromNodeStream.client.js";
 
-// HTML Stream creation
+// HTML stream creation
 export * from "./createHtmlStream.client.js";
 
-// High-level dynamic-route renderer (react-client barrel: clear "use react-server" error)
+// High-level dynamic-route renderer (clear "run under --conditions react-server" error)
 export * from "./createInlineFlightRenderer.client.js";
 
-// Worker Stream handling - using unified API
-export * from "./createRscWorkerStream.js";
-// Shared type exports
-export type { CreateRenderToPipeableStreamHandlerFn } from "./createRenderToPipeableStreamHandler.types.js";
-export type { 
-  CreateRscStreamFn,
-  CreateRscStreamFnUnified,
-  CreateRscStreamOptions,
-  ClientRscStreamOptions,
-  ServerRscStreamOptions,
-  RscStreamResult,
-  ClientRscStreamResult,
-  ServerRscStreamResult,
-  BaseRscStreamResult,
-} from "./createRscStream.types.js";
-export type { HandleRscStreamFn } from "./handleRscStream.types.js";
-
-// RSC Stream utilities
-export {
-  validateRscStreamOptions,
-  createBaseRscStreamResult,
-  handleRscStreamError,
-  createRscStreamMetrics,
-  setupRscStreamEventHandlers,
-} from "./createRscStream.utils.js";
-
-// Shared utilities
-export { pipeToResponse } from "../helpers/pipeToResponse.js";
+// Element resolution (decode flight)
 export { resolveStreamElements } from "../helpers/resolveStreamElements.client.js";
-export type { ResolveStreamElementsOptions } from "../helpers/resolveStreamElements.types.js";
