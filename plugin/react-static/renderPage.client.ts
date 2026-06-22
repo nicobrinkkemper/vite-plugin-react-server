@@ -41,6 +41,7 @@
  */
 
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
+import { createPageRenderMetrics } from "./renderPageMetrics.js";
 import type { RenderMetrics } from "../metrics/types.js";
 import { routeToURL } from "../utils/routeToURL.js";
 import type { RenderPageFn } from "./types.js";
@@ -49,8 +50,6 @@ import { assertNonReactServer } from "../config/getCondition.js";
 
 import { createRscStream } from "../stream/createRscStream.client.js";
 import { resolveComponents } from "../helpers/resolveComponents.client.js";
-
-import { join } from "node:path";
 
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { performance } from "node:perf_hooks";
@@ -180,44 +179,14 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     );
   }
 
-  const baseDir = join(
-    handlerOptions.build.outDir,
-    handlerOptions.build.static
-  );
-  const routePath = handlerOptions.route.replace(/^\//, "");
-
-  // Create metrics upfront with proper types - REVERSE from server
-  const htmlMetrics = createRenderMetrics({
-    route: handlerOptions.route,
-    type: "html",
-    fromMainThread: true, // Client: HTML rendered on main thread
-    fromRscWorker: false,
-    fromHtmlWorker: false,
-    baseDir,
-    routePath,
-    fileName: handlerOptions.build.htmlOutputPath,
-    outputPath: join(baseDir, routePath, handlerOptions.build.htmlOutputPath),
-  });
-  
-  const rscFullMetrics = createRenderMetrics({
-    route: handlerOptions.route,
-    type: "rsc-full",
-    fromMainThread: false,
-    fromRscWorker: true, // Client: RSC rendered on RSC worker
-    fromHtmlWorker: false,
-  });
-  
-  const rscHeadlessMetrics = createRenderMetrics({
-    route: handlerOptions.route,
-    type: "rsc-headless",
-    fromMainThread: false,
-    fromRscWorker: true, // Client: RSC rendered on RSC worker
-    fromHtmlWorker: false,
-    baseDir,
-    routePath,
-    fileName: handlerOptions.build.rscOutputPath,
-    outputPath: join(baseDir, routePath, handlerOptions.build.rscOutputPath),
-  });
+  // Metrics topology — client: RSC in the worker, HTML on the main thread
+  // (reverse of server).
+  const { htmlMetrics, rscFullMetrics, rscHeadlessMetrics } =
+    createPageRenderMetrics(handlerOptions, {
+      html: { fromMainThread: true, fromRscWorker: false, fromHtmlWorker: false },
+      rscFull: { fromMainThread: false, fromRscWorker: true, fromHtmlWorker: false },
+      rscHeadless: { fromMainThread: false, fromRscWorker: true, fromHtmlWorker: false },
+    });
 
   // Declare variables outside try block so they can be accessed in catch block
   let headlessRscStream: any = null;
