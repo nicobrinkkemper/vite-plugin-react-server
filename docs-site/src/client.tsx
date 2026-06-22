@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 /**
  * Client-side navigation for the docs site.
  *
@@ -12,7 +13,7 @@
  * Everything degrades gracefully: with JS disabled, the same `<a href>` links
  * are ordinary full-page navigations between the prerendered HTML files.
  */
-import { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { createReactFetcher } from "vite-plugin-react-server/utils";
