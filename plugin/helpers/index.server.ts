@@ -9,4 +9,4 @@
 export * from "./index.shared.js";
 
 // Server action handling
-export { handleServerAction } from "./handleServerAction.server.js";
+export { handleServerAction, handleServerActionRequest } from "./handleServerAction.server.js";

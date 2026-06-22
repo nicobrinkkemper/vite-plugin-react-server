@@ -7,6 +7,8 @@ import type {
 } from "./handleServerActionHelper.js";
 import {
   parseServerActionRequest as parseServerActionRequestHelper,
+  parseServerActionWebRequest,
+  assertOriginAllowed,
   createServerActionResponse,
   resolveServerAction,
   loadServerAction,
@@ -14,6 +16,7 @@ import {
   sendServerActionResponse,
   handleServerActionError as handleServerActionErrorHelper,
 } from "./handleServerActionHelper.js";
+import type { ServerActionRequest } from "./handleServerActionHelper.js";
 import { createSealedServerReferenceGate } from "../references/createSealedServerReferenceGate.server.js";
 import type { ReferenceGate } from "react-server-loader/references";
 import { readFile } from "node:fs/promises";
@@ -87,122 +90,159 @@ export function handleServerActionError(error: unknown, res: ServerResponse, log
 }
 
 /**
- * Server-side server action handler that uses ssrLoadModule
+ * I/O-agnostic core: resolve a parsed server-action request to its function (the
+ * devOpen dev resolver, or the sealed production gate) and execute it. Shared by
+ * the Node (req/res) and Web (Request/Response) entry points so the trust
+ * boundary lives in exactly one place. Returns the action's result.
+ */
+export async function resolveAndExecuteServerAction(
+  { id, args }: ServerActionRequest,
+  options: ServerActionHandlerOptions
+): Promise<unknown> {
+  const { projectRoot, verbose = false, logger, ssrLoadModule, base } = options;
+
+  let action: Function;
+  if (options.devOpen) {
+    // OPEN path — reachable ONLY when the Vite dev wrapper opts in. Dev serves
+    // live source, so there is no build manifest to seal against. NOT a trust
+    // boundary. Defense in depth: refuse it under NODE_ENV=production so a
+    // misconfigured prod deploy can never take the unsealed path even if the
+    // flag leaks in.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[handleServerAction] devOpen (the unsealed dev resolver) was requested " +
+          "under NODE_ENV=production. Server actions must be sealed in production; refusing."
+      );
+    }
+    // Resolve against the project root with a traversal guard, then load on demand.
+    const { fullPath, exportName } = resolveServerAction(
+      id,
+      projectRoot,
+      verbose,
+      logger
+    );
+    if (!ssrLoadModule) {
+      throw new Error("ssrLoadModule is required for server action execution");
+    }
+    action = await loadServerAction(
+      fullPath,
+      exportName,
+      ssrLoadModule,
+      verbose,
+      logger
+    );
+  } else {
+    // SEALED path (production trust boundary). Resolve the client-supplied id
+    // through a gate built from the build's server manifest: an id the build
+    // never emitted is rejected before any import; the importer is bound to the
+    // manifest's real file, never to a path derived from the id.
+    const resolved = await resolveServerManifest(options);
+    if (!resolved) {
+      // FAIL CLOSED. A missing manifest in production must NOT silently fall back
+      // to the open resolver — that would reopen the boundary we are enforcing.
+      throw new Error(
+        `[handleServerAction] No server manifest found (looked for ` +
+          `${join(options.serverRoot ?? join(projectRoot, "dist", "server"), ".vite", "manifest.json")}). ` +
+          `Server actions resolve through a sealed allowlist; pass serverRoot for a ` +
+          `custom build.outDir, or serverManifest directly. Refusing unsealed resolution.`
+      );
+    }
+    let gate = sealedGates.get(resolved.serverManifest);
+    if (!gate) {
+      gate = createSealedServerReferenceGate({
+        serverManifest: resolved.serverManifest,
+        serverRoot: resolved.serverRoot,
+        base,
+      });
+      sealedGates.set(resolved.serverManifest, gate);
+    }
+    action = (await gate.resolveServerReference(id)) as Function;
+  }
+
+  return executeServerAction(action, args, verbose, logger);
+}
+
+/**
+ * Server-side server action handler (Node req/res). A thin shim over the shared
+ * core: CSRF guard, parse, resolve + execute, send.
  */
 export async function handleServerAction(
   req: IncomingMessage,
   res: ServerResponse,
   options: ServerActionHandlerOptions
 ): Promise<void> {
-  const { projectRoot, verbose = false, logger, ssrLoadModule, base } = options;
+  const { verbose = false, logger } = options;
 
   try {
     if (verbose) {
       logger?.info("[handleServerAction:server] Processing server action request");
     }
 
-    // CSRF / cross-origin guard (opt-in). When allowedOrigins is configured, a
-    // browser-driven cross-site POST carries an Origin header set to the calling
-    // site; reject anything not in the allowlist. A missing Origin is allowed: a
-    // page cannot suppress it on a cross-origin fetch, so its absence means
-    // same-origin or a non-browser client (not a CSRF vector).
-    if (options.allowedOrigins && options.allowedOrigins.length > 0) {
-      const origin = (req.headers.origin as string | undefined) ?? "";
-      if (origin && !options.allowedOrigins.includes(origin)) {
-        res.statusCode = 403;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ success: false, error: "Origin not allowed" }));
-        return;
-      }
-    }
+    assertOriginAllowed(req.headers.origin as string | undefined, options.allowedOrigins);
 
-    // Parse the server action request
-    const { id, args } = await parseServerActionRequestHelper(
+    const parsed = await parseServerActionRequestHelper(
       req,
       verbose,
       logger,
       options.maxBodyBytes
     );
+    const result = await resolveAndExecuteServerAction(parsed, options);
 
-    let action: Function;
-    if (options.devOpen) {
-      // OPEN path — reachable ONLY when the Vite dev wrapper opts in. Dev serves
-      // live source, so there is no build manifest to seal against. NOT a trust
-      // boundary. Defense in depth: refuse it under NODE_ENV=production so a
-      // misconfigured prod deploy can never take the unsealed path even if the
-      // flag leaks in.
-      if (process.env.NODE_ENV === "production") {
-        throw new Error(
-          "[handleServerAction] devOpen (the unsealed dev resolver) was requested " +
-            "under NODE_ENV=production. Server actions must be sealed in production; refusing."
-        );
-      }
-      // Resolve against the project root with a traversal guard, then load on demand.
-      const { fullPath, exportName } = resolveServerAction(
-        id,
-        projectRoot,
-        verbose,
-        logger
-      );
-      if (!ssrLoadModule) {
-        throw new Error("ssrLoadModule is required for server action execution");
-      }
-      action = await loadServerAction(
-        fullPath,
-        exportName,
-        ssrLoadModule,
-        verbose,
-        logger
-      );
-    } else {
-      // SEALED path (production trust boundary). Resolve the client-supplied id
-      // through a gate built from the build's server manifest: an id the build
-      // never emitted is rejected before any import; the importer is bound to the
-      // manifest's real file, never to a path derived from the id.
-      const resolved = await resolveServerManifest(options);
-      if (!resolved) {
-        // FAIL CLOSED. A missing manifest in production must NOT silently fall back
-        // to the open resolver — that would reopen the boundary we are enforcing.
-        throw new Error(
-          `[handleServerAction] No server manifest found (looked for ` +
-            `${join(options.serverRoot ?? join(projectRoot, "dist", "server"), ".vite", "manifest.json")}). ` +
-            `Server actions resolve through a sealed allowlist; pass serverRoot for a ` +
-            `custom build.outDir, or serverManifest directly. Refusing unsealed resolution.`
-        );
-      }
-      let gate = sealedGates.get(resolved.serverManifest);
-      if (!gate) {
-        gate = createSealedServerReferenceGate({
-          serverManifest: resolved.serverManifest,
-          serverRoot: resolved.serverRoot,
-          base,
-        });
-        sealedGates.set(resolved.serverManifest, gate);
-      }
-      action = (await gate.resolveServerReference(id)) as Function;
-    }
-
-    // Execute the server action
-    const result = await executeServerAction(
-      action,
-      args,
-      verbose,
-      logger
-    );
-
-    // Send the response
-    sendServerActionResponse(
-      res,
-      result,
-      verbose,
-      logger
-    );
+    sendServerActionResponse(res, result, verbose, logger);
 
     if (verbose) {
       logger?.info("[handleServerAction:server] Server action completed successfully");
     }
   } catch (error: unknown) {
     handleServerActionErrorHelper(error, res, logger);
+  }
+}
+
+/**
+ * Web-standard server action handler: `(Request) => Promise<Response>`. The
+ * portable entry point for any Fetch-style runtime (Hono, Bun, Deno, edge
+ * functions). Same trust boundary as the Node handler — it shares
+ * `resolveAndExecuteServerAction` and the CSRF / body-cap guards — differing only
+ * in the request/response envelope. The Node `handleServerAction` is the req/res
+ * shim over the same core.
+ */
+export async function handleServerActionRequest(
+  request: Request,
+  options: ServerActionHandlerOptions
+): Promise<Response> {
+  const { verbose = false, logger } = options;
+  try {
+    if (verbose) {
+      logger?.info("[handleServerAction:web] Processing server action request");
+    }
+
+    assertOriginAllowed(request.headers.get("origin"), options.allowedOrigins);
+
+    const parsed = await parseServerActionWebRequest(
+      request,
+      verbose,
+      logger,
+      options.maxBodyBytes
+    );
+    const result = await resolveAndExecuteServerAction(parsed, options);
+
+    // RSC wire format, matching the Node sendServerActionResponse output.
+    return new Response(`0:${JSON.stringify(result)}\n`, {
+      headers: { "Content-Type": "text/x-component" },
+    });
+  } catch (error: unknown) {
+    const err = toError(error) as Error & { statusCode?: number };
+    logError(err, logger);
+    // Honor a tagged status (403 origin, 413 oversized) else 500. Never ship the
+    // stack to the client — it exposes absolute paths and internal module ids;
+    // the full error is logged above.
+    return new Response(
+      JSON.stringify({ success: false, error: err.message }),
+      {
+        status: typeof err.statusCode === "number" ? err.statusCode : 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 }
 
