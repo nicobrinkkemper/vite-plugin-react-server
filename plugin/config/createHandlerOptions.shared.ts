@@ -17,6 +17,8 @@ import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
 import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { createWorker } from "../worker/createWorker.js";
+import { getRouteFiles } from "../helpers/getRouteFiles.js";
+import { routeToURL } from "../utils/routeToURL.js";
 import type {
   CreateHandlerOptionsParams,
   ResolvedDefaults,
@@ -185,4 +187,51 @@ export async function createConfiguredWorker(
     );
     return undefined;
   }
+}
+
+export interface HandlerContext {
+  defaults: ResolvedDefaults;
+  autoDiscoveredFiles: AutoDiscoveredFiles;
+  url: string;
+  routeFiles: SharedHandlerOptionsInput["routeFiles"];
+}
+
+/**
+ * The byte-identical prelude both variants ran before their per-side work: merge
+ * defaults, resolve auto-discovered files, build the route URL, and load the
+ * route's file paths (throwing on failure). Covered by the createHandlerOptions
+ * characterization test, which exercises this whole path.
+ */
+export async function resolveHandlerContext(
+  route: string,
+  options: CreateHandlerOptionsParams,
+  userOptions: ResolvedUserOptions,
+  logger: Logger
+): Promise<HandlerContext> {
+  const defaults = { ...createDefaultOptions(), ...options.defaults };
+
+  const autoDiscoveredFiles = await resolveAutoDiscoveredFiles(
+    options,
+    userOptions,
+    logger
+  );
+
+  const url = routeToURL(
+    route,
+    userOptions.moduleBaseURL,
+    userOptions.build.rscOutputPath
+  );
+
+  const routeFilesResult = await getRouteFiles(
+    route,
+    autoDiscoveredFiles,
+    userOptions,
+    logger
+  );
+
+  if (routeFilesResult.type === "error") {
+    throw routeFilesResult.error || new Error("Failed to get route files");
+  }
+
+  return { defaults, autoDiscoveredFiles, url, routeFiles: routeFilesResult };
 }

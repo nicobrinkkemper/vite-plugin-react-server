@@ -1,6 +1,4 @@
 import type { CreateHandlerOptions, RootComponentType, HtmlComponentType } from "../types.js";
-import { getRouteFiles } from "../helpers/getRouteFiles.js";
-import { routeToURL } from "../utils/routeToURL.js";
 import {
   getStashedUserOptions,
   getStashedHandlerOptions,
@@ -12,10 +10,9 @@ import { getNodeEnv } from "./getNodeEnv.js";
 import { createLogger } from "vite";
 import type { CreateHandlerOptionsParams } from "./createHandlerOptions.types.js";
 import {
-  createDefaultOptions,
-  resolveAutoDiscoveredFiles,
   buildSharedHandlerOptions,
   createConfiguredWorker,
+  resolveHandlerContext,
 } from "./createHandlerOptions.shared.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
@@ -73,34 +70,9 @@ export async function createHandlerOptions(
     );
   }
 
-  // Resolve defaults
-  const defaults = { ...createDefaultOptions(), ...options.defaults };
-
-  // Resolve auto-discovered files
-  const autoDiscoveredFiles = await resolveAutoDiscoveredFiles(
-    options,
-    userOptions,
-    logger
-  );
-
-  // Create URL
-  const url = routeToURL(
-    route,
-    userOptions.moduleBaseURL,
-    userOptions.build.rscOutputPath
-  );
-
-  // Get route files
-  const routeFilesResult = await getRouteFiles(
-    route,
-    autoDiscoveredFiles,
-    userOptions,
-    logger
-  );
-
-  if (routeFilesResult.type === "error") {
-    throw routeFilesResult.error || new Error("Failed to get route files");
-  }
+  // Resolve the shared prelude: defaults, auto-discovery, url, route files.
+  const { defaults, autoDiscoveredFiles, url, routeFiles: routeFilesResult } =
+    await resolveHandlerContext(route, options, userOptions, logger);
 
   // Load components from resolved file paths
   let PageComponent = userOptions.components?.Page;
