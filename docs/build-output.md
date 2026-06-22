@@ -130,6 +130,41 @@ app.listen(3000);
 
 For a real-world example, see the [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official) demo.
 
+## Where it runs: static anywhere, dynamic on Node
+
+The three build outputs do not all target the same runtime, so it is worth being
+precise about what deploys where.
+
+**`dist/static/` runs anywhere.** It is just files — HTML, `.rsc` payloads,
+hashed JS/CSS. Serve it from any static host, CDN, or edge network (GitHub
+Pages, Netlify, S3/CloudFront, Cloudflare Pages). There is no runtime
+requirement. For a fully static site this is the entire deployment.
+
+**Dynamic SSR runs on Node, not on the edge.** The moment you render HTML per
+request — the flash-free dynamic-route path (`createInlineFlightRenderer` and
+the html-worker behind it) — you need Node. vprs renders the react-dom HTML in a
+worker thread that runs in the *opposite* React condition from your main thread
+(server components resolve under `--conditions react-server`; react-dom renders
+the client half without it). That worker is `node:worker_threads`, and the
+streams it speaks are `node:stream` / `MessagePort`. Edge runtimes such as
+Cloudflare Workers and Deno Deploy have no `worker_threads`, so this path does
+not run there. The cross-condition worker is also what lets the single-condition
+ESM transport render both halves at all — see
+[Workers](./internals/workers.md) and [How vprs compares](./comparison.md).
+
+The runtime RSC-payload and server-action helpers are likewise implemented on
+Node primitives today. A *static* build has no server runtime and therefore no
+callable surface, so this only applies once you stand up a dynamic server.
+
+**The pattern for an edge deployment today is hybrid:** serve `dist/static/`
+from the edge/CDN (instant, global, no runtime) and put any dynamic SSR or
+server actions on a Node origin behind it. vprs does not currently ship an
+in-process edge SSR path (`react-dom/server.edge`, no worker); whether to add
+one is an open question, not a present feature. If first-class edge SSR is a
+hard requirement, `@vitejs/plugin-rsc` reaches the edge in-process today (via
+Vite's environment API and Cloudflare's child-environment workers) and is the
+better fit.
+
 ## Stream Types
 
 ### Headless RSC Stream (`index.rsc`)

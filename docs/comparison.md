@@ -153,7 +153,9 @@ scope on purpose:
   needs the webpack transport, use `@vitejs/plugin-rsc`.
 - **No deployment/hosting layer.** The build emits ESM and a static directory;
   wiring them into a host (static CDN, Express, Hono, serverless) is up to you.
-  See [Build Output](./build-output.md).
+  The static output runs anywhere (including the edge); dynamic SSR is Node-only
+  today, because the flash-free HTML path renders in a `worker_threads` worker.
+  See [Build Output → Where it runs](./build-output.md#where-it-runs-static-anywhere-dynamic-on-node).
 - **Two React trains, not any React build.** vprs pins React through
   `react-server-loader`, which ships a stable train and an experimental train;
   you pick one (see "React" above). `@vitejs/plugin-rsc` instead lets you bring
