@@ -198,6 +198,92 @@ export async function parseServerActionRequest(
 }
 
 /**
+ * CSRF / cross-origin guard shared by the Node and Web entry points. When
+ * `allowedOrigins` is set, a request whose `Origin` is present and not in the
+ * allowlist is rejected (throws a 403-tagged error). A missing `Origin` is
+ * allowed: a browser cannot suppress it on a cross-origin POST, so its absence
+ * means same-origin or a non-browser client (not a CSRF vector).
+ */
+export function assertOriginAllowed(
+  origin: string | null | undefined,
+  allowedOrigins?: string[]
+): void {
+  if (!allowedOrigins || allowedOrigins.length === 0) return;
+  if (origin && !allowedOrigins.includes(origin)) {
+    const err = new Error("Origin not allowed") as Error & { statusCode?: number };
+    err.statusCode = 403;
+    throw err;
+  }
+}
+
+/**
+ * Web-standard counterpart to {@link parseServerActionRequest}: extract
+ * `{ id, args }` from a Fetch `Request`. Same id resolution (the `x-rsc-action`
+ * header, else the URL path) and body formats (a JSON args array, a `{id,args}`
+ * object, or a raw React-encoded body), and the same `maxBodyBytes` cap —
+ * rejected with a 413-tagged error before the whole body is buffered.
+ */
+export async function parseServerActionWebRequest(
+  request: Request,
+  verbose = false,
+  logger?: Logger,
+  maxBodyBytes?: number
+): Promise<ServerActionRequest> {
+  let id =
+    request.headers.get("x-rsc-action") ??
+    new URL(request.url).pathname ??
+    "";
+
+  let body = "";
+  if (request.body) {
+    const reader = request.body.getReader();
+    const decoder = new TextDecoder();
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (maxBodyBytes !== undefined && received > maxBodyBytes) {
+        await reader.cancel();
+        const err = new Error(
+          `Server action request body exceeds maxBodyBytes (${maxBodyBytes})`
+        ) as Error & { statusCode?: number };
+        err.statusCode = 413;
+        throw err;
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    body += decoder.decode();
+  } else {
+    body = await request.text();
+  }
+
+  let args: unknown[];
+  try {
+    const parsed = JSON.parse(body);
+    if (Array.isArray(parsed)) {
+      args = parsed;
+    } else if (parsed && typeof parsed === "object" && "id" in parsed) {
+      id = (parsed as { id: string }).id;
+      args = (parsed as { args?: unknown[] }).args ?? [];
+    } else {
+      throw new Error("Invalid server action request format");
+    }
+  } catch {
+    // Not JSON — React's encoded format; pass the raw body for downstream decode.
+    args = [body];
+  }
+
+  if (!id) {
+    throw new Error("Server action ID is required");
+  }
+  if (verbose) {
+    logger?.info(`[handleServerActionHelper] Web server action request for ${id}`);
+  }
+  return { id, args };
+}
+
+/**
  * Resolves a server action ID to file path and export name
  */
 export function resolveServerAction(
