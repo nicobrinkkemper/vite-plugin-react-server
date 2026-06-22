@@ -56,6 +56,7 @@ import {
 } from "../bundle/manifests.js";
 import { deferStaticGeneration } from "../bundle/deferredStaticGeneration.js";
 import type { Worker } from "node:worker_threads";
+import { gracefulWorkerShutdown } from "../worker/gracefulShutdown.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { join } from "node:path";
 
@@ -884,58 +885,17 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         throw finalError;
         }
       } finally {
-        // Graceful worker shutdown — runs on both success and error paths
+        // Graceful worker shutdown — runs on both success and error paths.
         if (rscWorker) {
-          try {
-            await Promise.race([
-              new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                  reject(new Error("Worker shutdown timeout"));
-                }, userOptions.workerShutdownTimeout);
-
-                const backupTimeout = setTimeout(() => {
-                  reject(new Error("Worker shutdown backup timeout"));
-                }, Math.floor(userOptions.workerShutdownTimeout * 0.6));
-
-                const shutdownMessageHandler = (message: any) => {
-                  if (message.type === "SHUTDOWN_COMPLETE") {
-                    clearTimeout(timeout);
-                    clearTimeout(backupTimeout);
-                    rscWorker?.removeListener(
-                      "message",
-                      shutdownMessageHandler
-                    );
-                    rscWorker?.removeAllListeners();
-                    resolve();
-                  }
-                };
-
-                rscWorker?.on("message", shutdownMessageHandler);
-                rscWorker?.postMessage({
-                  type: "SHUTDOWN",
-                  id: "*",
-                });
-              }),
-            ]);
-          } catch {
-            // Shutdown protocol failed — force terminate below
-          } finally {
-            if (rscWorker) {
-              try {
-                (rscWorker as Worker).removeAllListeners();
-                // Await full worker exit before letting the build's promise
-                // resolve. Without this, libuv-level handles in the worker
-                // (file reads/writes pending at exit) can fire AFTER doBuild
-                // has restored cwd, producing post-teardown ENOENT errors
-                // against relative paths the worker started while cwd was
-                // the test fixture root.
-                await (rscWorker as Worker).terminate();
-              } catch {
-                // Ignore termination errors
-              }
-              rscWorker = undefined;
-            }
-          }
+          await gracefulWorkerShutdown(rscWorker, {
+            timeoutMs: userOptions.workerShutdownTimeout,
+            // Await full worker exit before the build's promise resolves: libuv
+            // handles still pending in the worker (file reads/writes) can
+            // otherwise fire AFTER doBuild restores cwd, producing post-teardown
+            // ENOENT errors against relative paths. See bd-6pi.
+            awaitTerminate: true,
+          });
+          rscWorker = undefined;
         }
 
         // Reset any cached state to prevent issues in subsequent builds
