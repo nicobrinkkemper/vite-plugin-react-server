@@ -1,74 +1,17 @@
 import type { Plugin } from "vite";
-import { createEnvironmentPlugin } from "../environments/createEnvironmentPlugin.js";
-import { createBuildEventPlugin } from "../environments/createBuildEventPlugin.js";
 import { vitePluginReactDevServer } from "../dev-server/plugin.client.js";
 import { reactStaticPlugin } from "../react-static/plugin.client.js";
-import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
-import { serverReferenceClientPlugin } from "../transformer/serverReferenceClientPlugin.js";
-import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
-import { vitePluginVendorAlias } from "../vendor/vendor-alias.js";
-import { clientPackagesDiscoveryPlugin } from "../clientPackages/index.js";
+import { createPluginOrchestratorImpl } from "./createPluginOrchestrator.impl.js";
 
-// Client-first orchestrator - includes client SSG plugin for reverse paradigm
-export const createPluginOrchestrator = (
-  userOptions: any
-): Plugin[] => {
-  // Client-first logic - provide all environments for Environment API builds
-  const availableEnvironments = ["client", "ssr", "server"];
-
-  const plugins: Plugin[] = [];
-
-  // Auto-discover packages that opt into the `"use client"` convention via
-  // `react` in peerDependencies, and merge with any manual `clientPackages`
-  // the user supplied. Mutates `userOptions.clientPackages` so downstream
-  // plugins read the merged list when their own hooks fire.
-  //
-  // INVARIANT: every plugin below must receive the same `userOptions`
-  // *reference*. Spreading (`{...userOptions, foo}`) into a new object
-  // breaks the chain — the spread copy keeps the pre-discovery value of
-  // `clientPackages` and silently regresses node_modules `"use client"`
-  // handling. Mutate fields on userOptions directly instead.
-  plugins.push(clientPackagesDiscoveryPlugin(userOptions));
-
-  // Alias react-server-dom-esm to our vendored copy
-  plugins.push(vitePluginVendorAlias());
-
-  // Virtual module for RSC HMR utilities (works in both dev and build)
-  plugins.push(virtualRscHmrPlugin());
-
-  // Redirect client-side imports of "use server" modules to a virtual client
-  // proxy (createServerReference) so they resolve in dev. Must precede the
-  // transformer so the .server module is never client-transformed directly.
-  plugins.push(serverReferenceClientPlugin(userOptions));
-  
-  // Add transformer first so it runs before other plugins
-  plugins.push(
-    createTransformerPlugin({
-      name: "dynamic",
-      defaultEnvironment: "client",
-      allowedEnvironments: ["client", "ssr", "server"],
-    })(userOptions)
-  );
-  
-  // Core plugins. Mutating `availableEnvironments` on userOptions (rather
-  // than spreading into a new object) preserves the shared reference per
-  // the invariant above.
-  (userOptions as { availableEnvironments?: unknown }).availableEnvironments =
-    availableEnvironments;
-  plugins.push(createEnvironmentPlugin(userOptions));
-  plugins.push(createBuildEventPlugin(userOptions));
-  const devServerPlugins = vitePluginReactDevServer(userOptions);
-  if (Array.isArray(devServerPlugins)) {
-    plugins.push(...devServerPlugins);
-  } else {
-    plugins.push(devServerPlugins);
-  }
-
-  // Client SSG plugin for reverse paradigm
-  plugins.push(reactStaticPlugin(userOptions));
-
-  return plugins;
-};
+// Client-first orchestrator — pulls the .client dev-server / react-static plugins
+// and runs the transformer with a "client" default environment. The shared body
+// lives in createPluginOrchestrator.impl.ts.
+export const createPluginOrchestrator = (userOptions: any): Plugin[] =>
+  createPluginOrchestratorImpl(userOptions, {
+    defaultEnvironment: "client",
+    devServerPlugin: vitePluginReactDevServer,
+    staticPlugin: reactStaticPlugin,
+  });
 
 
 export interface Strategy {
