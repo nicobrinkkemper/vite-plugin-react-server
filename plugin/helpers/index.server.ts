@@ -10,3 +10,7 @@ export * from "./index.shared.js";
 
 // Server action handling
 export { handleServerAction, handleServerActionRequest } from "./handleServerAction.server.js";
+
+// Web-standard request handler (dispatch actions / dynamic routes / static files)
+export { createRequestHandler, toNodeListener } from "./createRequestHandler.server.js";
+export type { CreateRequestHandlerOptions } from "./createRequestHandler.server.js";
