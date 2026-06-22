@@ -15,6 +15,7 @@
  */
 
 import type { Worker } from "node:worker_threads";
+import { gracefulWorkerShutdown } from "../worker/gracefulShutdown.js";
 import {
   type ConfigEnv,
   type Logger,
@@ -667,73 +668,19 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
 
       // Graceful worker shutdown - only at the end of the entire build process
       if (worker) {
-        try {
-          await Promise.race([
-            new Promise<void>((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error("Worker shutdown timeout"));
-              }, userOptions.workerShutdownTimeout);
-
-              const backupTimeout = setTimeout(() => {
-                reject(new Error("Worker shutdown backup timeout"));
-              }, Math.floor(userOptions.workerShutdownTimeout * 0.6)); // 60% of main timeout
-
-              const messageHandler = (message: any) => {
-                if (message.type === "SHUTDOWN_COMPLETE") {
-                  if (userOptions.verbose) {
-                    logger.info("Worker shutdown complete");
-                  }
-                  clearTimeout(timeout);
-                  clearTimeout(backupTimeout);
-                  worker?.removeListener("message", messageHandler);
-                  // Remove all other event listeners as well
-                  worker?.removeAllListeners();
-                  resolve();
-                } else if (message.type === "CLEANUP_COMPLETE") {
-                  // Handle cleanup complete messages during shutdown - this is normal
-                  if (userOptions.verbose) {
-                    logger.info("Worker cleanup completed during shutdown");
-                  }
-                  // Don't resolve here - wait for SHUTDOWN_COMPLETE
-                } else {
-                  if (userOptions.verbose) {
-                    logger.info(
-                      "Worker is still busy, received message " + message?.type
-                    );
-                  }
-                }
-              };
-
-              worker?.on("message", messageHandler);
-
-              // Send shutdown message
-              worker?.postMessage({
-                type: "SHUTDOWN",
-                id: "*",
-              });
-            }),
-          ]);
-        } catch (error) {
-          // If shutdown protocol fails, force terminate
-          this.warn(
-            "Worker shutdown protocol failed, forcing termination: " +
-              (error instanceof Error ? error.message : String(error))
-          );
-          // Don't try to clean up listeners in error case - just force terminate
-        } finally {
-          // Always force cleanup and termination
-          if (worker) {
-            try {
-              worker.removeAllListeners();
-              worker.terminate();
-            } catch (terminateError) {
-              // Ignore termination errors
-            }
-            worker = undefined;
-            // Reset global worker since it's been terminated
-            globalWorker = undefined;
-          }
-        }
+        await gracefulWorkerShutdown(worker, {
+          timeoutMs: userOptions.workerShutdownTimeout,
+          logger,
+          verbose: userOptions.verbose,
+          onProtocolFail: (error) =>
+            this.warn(
+              "Worker shutdown protocol failed, forcing termination: " +
+                (error instanceof Error ? error.message : String(error))
+            ),
+        });
+        worker = undefined;
+        // Reset global worker since it's been terminated
+        globalWorker = undefined;
       }
     },
   } as const;
