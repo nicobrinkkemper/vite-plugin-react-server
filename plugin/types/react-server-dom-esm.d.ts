@@ -258,11 +258,83 @@ declare module 'react-server-dom-esm/server' {
 }
 
 /**
+ * Server-side EDGE module for dynamic RSC rendering on Web-streams runtimes.
+ *
+ * The edge counterpart of 'react-server-dom-esm/server.node': it renders to a
+ * Web `ReadableStream` (`renderToReadableStream`) and prerenders to one
+ * (`prerender`) instead of Node pipeable streams, with no Busboy decoder. This
+ * is what runs under workerd/Deno/Bun and behind vprs's Web `(Request) =>
+ * Response` handler. Aborts via `options.signal` rather than a `.abort()` on a
+ * returned object.
+ */
+declare module 'react-server-dom-esm/server.edge' {
+  import type { ReactElement } from 'react';
+
+  export type RenderToReadableStreamOptions = {
+    onError?: (error: unknown) => void;
+    identifierPrefix?: string;
+    signal?: AbortSignal;
+    temporaryReferences?: WeakMap<any, any>;
+    environmentName?: string;
+    filterStackFrame?: (stackFrame: string) => string;
+  };
+
+  export function renderToReadableStream(
+    element: ReactElement,
+    moduleBasePath: string,
+    options?: RenderToReadableStreamOptions
+  ): ReadableStream<Uint8Array>;
+
+  export function prerender(
+    element: ReactElement,
+    moduleBasePath: string,
+    options?: RenderToReadableStreamOptions
+  ): Promise<{ prelude: ReadableStream<Uint8Array> }>;
+
+  export function createTemporaryReferenceSet(): WeakMap<any, any>;
+
+  export function decodeReply(
+    body: Uint8Array | string,
+    moduleBasePath: string,
+    options?: { temporaryReferences?: WeakMap<any, any> }
+  ): Promise<any>;
+
+  export function decodeReplyFromAsyncIterable(
+    iterable: AsyncIterable<Uint8Array>,
+    moduleBasePath: string,
+    options?: { temporaryReferences?: WeakMap<any, any> }
+  ): Promise<any>;
+
+  export function decodeAction(
+    body: FormData,
+    serverManifest: any
+  ): Promise<((formData: FormData) => Promise<any>) | null>;
+
+  export function decodeFormState(
+    actionResult: any,
+    body: FormData,
+    serverManifest: any
+  ): Promise<[any, string, string, number] | null>;
+
+  export function registerClientReference(
+    reference: any,
+    id: string,
+    exportName?: string
+  ): any;
+
+  export function registerServerReference(
+    reference: Function,
+    id: string,
+    exportName?: string
+  ): Function;
+}
+
+/**
  * Server-side Node.js module for dynamic RSC rendering
- * 
+ *
  * This module exports the same functionality as 'react-server-dom-esm/server'
  * but is specifically for Node.js environments with the 'react-server' condition.
- * 
+ *
  * Use case: Dynamic server-side rendering with real-time data and interactive features.
  */
 declare module 'react-server-dom-esm/server.node' {
