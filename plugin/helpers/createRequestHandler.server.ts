@@ -1,0 +1,139 @@
+import { readFile } from "node:fs/promises";
+import { join, extname } from "node:path";
+import { Readable } from "node:stream";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { MIME_TYPES } from "../config/mimeTypes.js";
+import { isPathWithin } from "./isPathWithin.js";
+import { handleServerActionRequest } from "./handleServerAction.server.js";
+import type { ServerActionHandlerOptions } from "./handleServerActionHelper.js";
+
+export interface CreateRequestHandlerOptions {
+  /**
+   * Directory of the prerendered build output to serve files from (typically
+   * `dist/static`). Routes map to files: `/` -> `index.html`, `/about/` or
+   * `/about` -> `about/index.html`, and `*.rsc` / hashed assets are served as-is.
+   */
+  staticDir: string;
+  /**
+   * Server-action handling. When provided, a POST carrying the action header is
+   * dispatched to {@link handleServerActionRequest} (same trust boundary as the
+   * Node handler). Omit to serve a read-only site.
+   */
+  action?: ServerActionHandlerOptions;
+  /**
+   * Optional per-request renderer for dynamic routes. Called on a GET before the
+   * static fallback; return a `Response` to handle the route dynamically (e.g.
+   * driving `createInlineFlightRenderer`), or `null` to fall through to the
+   * prerendered file.
+   */
+  render?: (
+    route: string,
+    request: Request
+  ) => Promise<Response | null> | Response | null;
+  /** Header that marks a POST as a server action. Default `x-rsc-action`. */
+  actionHeader?: string;
+}
+
+async function resolveStaticFile(
+  staticDir: string,
+  pathname: string
+): Promise<{ body: Uint8Array; contentType: string } | null> {
+  let rel = decodeURIComponent(pathname);
+  if (rel.endsWith("/")) rel += "index.html";
+  else if (!extname(rel)) rel += "/index.html";
+
+  const full = join(staticDir, rel.startsWith("/") ? `.${rel}` : rel);
+  // Traversal guard: a request path must not escape the static root.
+  if (!isPathWithin(staticDir, full)) return null;
+
+  try {
+    const body = await readFile(full);
+    const contentType =
+      MIME_TYPES[extname(full).toLowerCase()] ?? "application/octet-stream";
+    return { body: new Uint8Array(body), contentType };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A Web-standard `(Request) => Promise<Response>` server for a vprs build:
+ * dispatches server actions, optional dynamic routes, and prerendered files.
+ * Compose it with {@link toNodeListener} for `http.createServer`, or pass it
+ * straight to a Fetch-style runtime (Hono, Bun, Deno).
+ *
+ * Note: static file serving reads from disk (`node:fs`), so the handler as a
+ * whole is Node-first. The action surface is runtime-agnostic; on edge, serve
+ * prerendered files from the platform and use `render` for dynamic routes.
+ */
+export function createRequestHandler(
+  options: CreateRequestHandlerOptions
+): (request: Request) => Promise<Response> {
+  const { staticDir, action, render, actionHeader = "x-rsc-action" } = options;
+
+  return async function handler(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (request.method === "POST" && action && request.headers.get(actionHeader)) {
+      return handleServerActionRequest(request, action);
+    }
+
+    if (request.method === "GET" || request.method === "HEAD") {
+      if (render) {
+        const dynamic = await render(url.pathname, request);
+        if (dynamic) return dynamic;
+      }
+      const file = await resolveStaticFile(staticDir, url.pathname);
+      if (file) {
+        return new Response(request.method === "HEAD" ? null : file.body, {
+          headers: { "Content-Type": file.contentType },
+        });
+      }
+    }
+
+    return new Response("Not Found", { status: 404 });
+  };
+}
+
+/**
+ * Adapt a Web `(Request) => Promise<Response>` handler to a Node
+ * `http`/Connect request listener, so the same handler runs under
+ * `http.createServer(toNodeListener(handler))` or as Express middleware.
+ */
+export function toNodeListener(
+  handler: (request: Request) => Promise<Response>
+): (req: IncomingMessage, res: ServerResponse) => void {
+  return (req, res) => {
+    const url = `http://${req.headers.host ?? "localhost"}${req.url ?? "/"}`;
+    const method = req.method ?? "GET";
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
+      else if (value != null) headers.set(key, value);
+    }
+    const hasBody = method !== "GET" && method !== "HEAD";
+    const request = new Request(url, {
+      method,
+      headers,
+      body: hasBody ? (Readable.toWeb(req) as unknown as ReadableStream) : undefined,
+      // Required by undici when streaming a request body.
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    handler(request)
+      .then(async (response) => {
+        res.statusCode = response.status;
+        response.headers.forEach((value, key) => res.setHeader(key, value));
+        if (response.body) {
+          for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+            res.write(chunk);
+          }
+        }
+        res.end();
+      })
+      .catch((err) => {
+        res.statusCode = 500;
+        res.end(String(err instanceof Error ? err.message : err));
+      });
+  };
+}
