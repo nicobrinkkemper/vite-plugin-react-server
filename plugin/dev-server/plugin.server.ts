@@ -2,9 +2,8 @@ import type { StreamPluginOptions } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { detectClientModule } from "react-server-loader/directives";
 import type { Plugin, ViteDevServer } from "vite";
-import { readFileSync } from "node:fs";
+import { emptyAutoDiscoveredFiles, isClientModuleFile } from "./devPluginShared.js";
 
 /**
  * Dev server plugin for server environment.
@@ -45,12 +44,7 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       // Client environment: Vite owns client-side HMR (Fast Refresh if
       // `@vitejs/plugin-react` is installed; plain reload otherwise).
       if (envName === 'client') {
-        const isClient = (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js')) && (() => {
-          try {
-            const source = readFileSync(file, "utf-8");
-            return detectClientModule({ source, moduleId: file });
-          } catch { return false; }
-        })();
+        const isClient = isClientModuleFile(file);
 
         if (isClient) return; // Vite's client-side HMR owns this update
 
@@ -118,23 +112,7 @@ applyToEnvironment(partialEnvironment: any) {
       // This uses the existing configureReactServer.server.js implementation
       configureReactServer({
         server,
-        autoDiscoveredFiles: {
-          propsMap: new Map(),
-          pageMap: new Map(),
-          rootMap: new Map(),
-          htmlMap: new Map(),
-          routeMap: new Map(),
-          urlMap: new Map(),
-          errors: [],
-          workerPaths: {},
-          serverEntry: null,
-          clientEntry: {},
-          clientInputs: {},
-          staticInputs: {},
-          serverInputs: {},
-          // staticManifest removed from AutoDiscoveredFiles
-          serverActions: {},
-        },
+        autoDiscoveredFiles: emptyAutoDiscoveredFiles(),
         userOptions,
         serverManifest: {},
         resolvedConfig: server.config,

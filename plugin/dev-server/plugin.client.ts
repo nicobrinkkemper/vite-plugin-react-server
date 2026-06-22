@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs";
 import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { detectClientModule } from "react-server-loader/directives";
+import { emptyAutoDiscoveredFiles, isClientModuleFile } from "./devPluginShared.js";
 import type { ConfigEnv } from "vite";
 
 
@@ -50,23 +49,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // This uses the existing configureReactServer.client.js implementation
       hmrHandler = configureReactServer({
         server,
-        autoDiscoveredFiles: {
-          propsMap: new Map(),
-          pageMap: new Map(),
-          rootMap: new Map(),
-          htmlMap: new Map(),
-          routeMap: new Map(),
-          urlMap: new Map(),
-          errors: [],
-          workerPaths: {},
-          serverEntry: null,
-          clientEntry: {},
-          clientInputs: {},
-          staticInputs: {},
-          serverInputs: {},
-          // staticManifest removed from AutoDiscoveredFiles
-          serverActions: {},
-        },
+        autoDiscoveredFiles: emptyAutoDiscoveredFiles(),
         userOptions,
         configEnv: configEnv!,
         serverManifest: {}, 
@@ -102,12 +85,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // Skip client components — Vite owns client-side HMR (Fast Refresh
       // when `@vitejs/plugin-react` is installed, plain reload otherwise).
       // Worker invalidation is for the server tree.
-      const isClientFile = isSourceFile && (() => {
-        try {
-          const source = readFileSync(file, "utf-8");
-          return detectClientModule({ source, moduleId: file });
-        } catch { return false; }
-      })();
+      const isClientFile = isSourceFile && isClientModuleFile(file);
 
       // A CSS module imported transitively by a "use client" component lives
       // in the CLIENT module graph (the browser fetches it directly and Vite
