@@ -16,6 +16,7 @@ import type { Logger, ConfigEnv, ResolvedConfig } from "vite";
 import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
 import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { createWorker } from "../worker/createWorker.js";
 import type {
   CreateHandlerOptionsParams,
   ResolvedDefaults,
@@ -146,4 +147,42 @@ export function buildSharedHandlerOptions(input: SharedHandlerOptionsInput) {
     rscWorker,
     htmlWorker,
   };
+}
+
+/**
+ * Run a createWorker() call and reduce its tagged result to a worker-or-undefined,
+ * logging error/skip uniformly.
+ *
+ * Both variants create up to two workers (RSC + HTML), and each block wrapped the
+ * createWorker() call in byte-identical try/catch + result-handling boilerplate —
+ * only the createWorker ARGS differ per side and per kind. This centralizes the
+ * boilerplate; the per-call args stay at the call site.
+ *
+ * Covered by test/unit/createConfiguredWorker.test.ts (the createHandlerOptions
+ * characterization test runs workers-disabled, so this carries its own coverage).
+ */
+export async function createConfiguredWorker(
+  label: string,
+  args: Parameters<typeof createWorker>[0],
+  logger: Logger,
+  verbose?: boolean
+): Promise<unknown> {
+  try {
+    const result = await createWorker(args);
+    if (result.type === "error") {
+      logger.warn(`${label} failed: ${result.error?.message}`);
+      return undefined;
+    }
+    if (result.type === "skip") {
+      logger.warn(`${label} skipped: ${result.reason}`);
+      return undefined;
+    }
+    if (verbose) logger.info(`${label} created successfully`);
+    return result.worker;
+  } catch (error) {
+    logger.warn(
+      `${label} failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+    return undefined;
+  }
 }

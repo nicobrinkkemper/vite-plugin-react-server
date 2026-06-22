@@ -1,7 +1,6 @@
 import type { CreateHandlerOptions } from "../types.js";
 import { getRouteFiles } from "../helpers/getRouteFiles.js";
 import { routeToURL } from "../utils/routeToURL.js";
-import { createWorker } from "../worker/createWorker.js";
 import {
   serializedOptions,
   serializeResolvedConfig,
@@ -20,6 +19,7 @@ import {
   createDefaultOptions,
   resolveAutoDiscoveredFiles,
   buildSharedHandlerOptions,
+  createConfiguredWorker,
 } from "./createHandlerOptions.shared.js";
 import { getCondition } from "./getCondition.js";
 
@@ -127,22 +127,17 @@ export async function createHandlerOptions(
     (userOptions.build?.useRscWorker && isBuildMode);
 
   if (shouldCreateRscWorker) {
-    if (userOptions.verbose) {
-      logger.info(
-        `[createHandlerOptions.client] Creating RSC worker for route: ${route}`
-      );
-    }
+    const serializedUserOptions = userOptions
+      ? serializedOptions(userOptions, autoDiscoveredFiles)
+      : undefined;
 
-    try {
-      const serializedUserOptions = userOptions
-        ? serializedOptions(userOptions, autoDiscoveredFiles)
-        : undefined;
+    const serializedResolvedConfig = config
+      ? serializeResolvedConfig(config)
+      : undefined;
 
-      const serializedResolvedConfig = config
-        ? serializeResolvedConfig(config)
-        : undefined;
-
-      const workerResult = await createWorker({
+    rscWorker = await createConfiguredWorker(
+      `[createHandlerOptions.client] RSC worker (route ${route})`,
+      {
         currentCondition: "react-client",
         workerPath: userOptions.rscWorkerPath,
         verbose: userOptions.verbose,
@@ -153,34 +148,10 @@ export async function createHandlerOptions(
           resolvedConfig: serializedResolvedConfig,
           configEnv,
         },
-      });
-
-      if (workerResult.type === "error") {
-        logger.warn(
-          `[createHandlerOptions.client] Failed to create RSC worker: ${workerResult.error?.message}`
-        );
-        rscWorker = undefined;
-      } else if (workerResult.type === "skip") {
-        logger.warn(
-          `[createHandlerOptions.client] RSC worker creation skipped: ${workerResult.reason}`
-        );
-        rscWorker = undefined;
-      } else {
-        rscWorker = workerResult.worker;
-        if (userOptions.verbose) {
-          logger.info(
-            `[createHandlerOptions.client] RSC worker created successfully`
-          );
-        }
-      }
-    } catch (error) {
-      logger.warn(
-        `[createHandlerOptions.client] RSC worker creation failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      rscWorker = undefined;
-    }
+      },
+      logger,
+      userOptions.verbose
+    );
   }
 
   // Create HTML worker if:
@@ -191,56 +162,51 @@ export async function createHandlerOptions(
     (userOptions.build?.useHtmlWorker && isBuildMode);
 
   if (shouldCreateHtmlWorker) {
-    if (userOptions.verbose) {
-      logger.info(
-        `[createHandlerOptions.client] Creating HTML worker for route: ${route}`
-      );
-    }
+    // Create fallback defaults based on configEnv
+    const fallbackDefaults = {
+      verbose: false,
+      panicThreshold: 1000,
+      moduleRootPath: "",
+      moduleBaseURL: "",
+      moduleBasePath: "",
+      projectRoot: process.cwd(),
+      htmlTimeout: 30000,
+      serverPipeableStreamOptions: {},
+      clientPipeableStreamOptions: {},
+      build: {
+        useHtmlWorker: isBuildMode,
+        useRscWorker: isBuildMode,
+        pages: [],
+      },
+      dev: {
+        useHtmlWorker: false,
+        useRscWorker: true,
+      },
+    };
 
-    try {
-      // Create fallback defaults based on configEnv
-      const fallbackDefaults = {
-        verbose: false,
-        panicThreshold: 1000,
-        moduleRootPath: "",
-        moduleBaseURL: "",
-        moduleBasePath: "",
-        projectRoot: process.cwd(),
-        htmlTimeout: 30000,
-        serverPipeableStreamOptions: {},
-        clientPipeableStreamOptions: {},
-        build: {
-          useHtmlWorker: isBuildMode,
-          useRscWorker: isBuildMode,
-          pages: [],
-        },
-        dev: {
-          useHtmlWorker: false,
-          useRscWorker: true,
-        },
-      };
+    const serializedUserOptions = userOptions
+      ? serializedOptions(userOptions, autoDiscoveredFiles)
+      : serializedOptions(fallbackDefaults as any, autoDiscoveredFiles);
 
-      const serializedUserOptions = userOptions
-        ? serializedOptions(userOptions, autoDiscoveredFiles)
-        : serializedOptions(fallbackDefaults as any, autoDiscoveredFiles);
+    const serializedResolvedConfig = config
+      ? serializeResolvedConfig(config)
+      : {
+          mode: configEnv?.mode || mode || "development",
+          root: process.cwd(),
+          logLevel: "info",
+          env: {},
+          envPrefix: "VITE_",
+          base: "/",
+          publicDir: "public",
+          cacheDir: "node_modules/.vite",
+          command: configEnv?.command || "serve",
+          isSsrBuild: configEnv?.command === "build",
+          isPreview: false,
+        };
 
-      const serializedResolvedConfig = config
-        ? serializeResolvedConfig(config)
-        : {
-            mode: configEnv?.mode || mode || "development",
-            root: process.cwd(),
-            logLevel: "info",
-            env: {},
-            envPrefix: "VITE_",
-            base: "/",
-            publicDir: "public",
-            cacheDir: "node_modules/.vite",
-            command: configEnv?.command || "serve",
-            isSsrBuild: configEnv?.command === "build",
-            isPreview: false,
-          };
-
-      const htmlWorkerResult = await createWorker({
+    htmlWorker = await createConfiguredWorker(
+      `[createHandlerOptions.client] HTML worker (route ${route})`,
+      {
         currentCondition: "react-client", // We are in a .client file
         reverseCondition: "react-client", // The user still requested a worker, which uses the same condition
         workerPath: userOptions.htmlWorkerPath,
@@ -252,34 +218,10 @@ export async function createHandlerOptions(
           resolvedConfig: serializedResolvedConfig,
           configEnv,
         },
-      });
-
-      if (htmlWorkerResult.type === "error") {
-        logger.warn(
-          `[createHandlerOptions.client] Failed to create HTML worker: ${htmlWorkerResult.error?.message}`
-        );
-        htmlWorker = undefined;
-      } else if (htmlWorkerResult.type === "skip") {
-        logger.warn(
-          `[createHandlerOptions.client] HTML worker creation skipped: ${htmlWorkerResult.reason}`
-        );
-        htmlWorker = undefined;
-      } else {
-        htmlWorker = htmlWorkerResult.worker;
-        if (userOptions.verbose) {
-          logger.info(
-            `[createHandlerOptions.client] HTML worker created successfully`
-          );
-        }
-      }
-    } catch (error) {
-      logger.warn(
-        `[createHandlerOptions.client] HTML worker creation failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      htmlWorker = undefined;
-    }
+      },
+      logger,
+      userOptions.verbose
+    );
   }
 
   // Create client-specific handler options. The shared fields are assembled by
