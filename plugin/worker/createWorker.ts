@@ -359,15 +359,27 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
 
     return await new Promise<CreateWorkerSuccess | CreateWorkerSkip>(
       (resolve, reject) => {
-        // Use appropriate timeout based on worker type
+        // Use appropriate timeout based on worker type. Fall back to the
+        // DEFAULT_CONFIG value when the caller didn't pre-resolve it — createWorker
+        // is a public entry (exported as `vite-plugin-react-server/worker`), and
+        // an undefined timeout makes `setTimeout(reject, undefined)` fire on the
+        // next tick, so the worker "times out" before it can even start.
         const workerType = reverseCondition === "react-server" ? "rsc" : "html";
         const startupTimeout =
-          workerType === "rsc"
+          (workerType === "rsc"
             ? options.workerData.userOptions?.rscWorkerStartupTimeout
-            : options.workerData.userOptions?.htmlWorkerStartupTimeout;
+            : options.workerData.userOptions?.htmlWorkerStartupTimeout) ??
+          (workerType === "rsc"
+            ? DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT
+            : DEFAULT_CONFIG.HTML_WORKER_STARTUP_TIMEOUT);
 
         const timeout = setTimeout(() => {
-          reject({ type: "error", error: new Error("Worker ready timeout") });
+          reject({
+            type: "error",
+            error: new Error(
+              `Worker ready timeout after ${startupTimeout}ms (worker/${workerType})`
+            ),
+          });
         }, startupTimeout);
         const exitHandler = (code: number) => {
           clearTimeout(timeout);
@@ -458,7 +470,17 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
         });
       }
     );
-  } catch (error) {
+  } catch (rawError) {
+    // The startup Promise rejects with a { type: "error", error: Error } shape
+    // (timeout / non-zero exit / worker 'error'). Unwrap it to the real Error so
+    // the cause survives instead of being stringified to "[object Object]".
+    const error =
+      rawError &&
+      typeof rawError === "object" &&
+      "error" in rawError &&
+      (rawError as { error?: unknown }).error instanceof Error
+        ? (rawError as { error: Error }).error
+        : rawError;
     if (verbose) {
       logger.error(
         `[create:${id}] Caught error during worker creation: ${

@@ -5,6 +5,32 @@ import { createSerializableHandlerOptions } from "../helpers/createSerializableH
 import { toError } from "../error/toError.js";
 import { serializeError } from "../error/serializeError.js";
 import { createMessageChannels } from "./createMessageChannels.js";
+
+/**
+ * A null React hook dispatcher during worker SSR (`Cannot read properties of null
+ * (reading 'useState')`) almost always means the worker resolved a "use client"
+ * chunk that bundles its OWN copy of React, separate from the worker's
+ * react-dom/server. Point the worker's moduleRootPath at the `--ssr` client build
+ * (bare react/react-dom externals), not the browser bundle. Augment the message so
+ * this isn't a cryptic dead end.
+ */
+function augmentHtmlWorkerError(error: Error): Error {
+  if (
+    /Cannot read properties of null \(reading '(use[A-Zёa-z]*|use)'\)/.test(
+      error.message
+    ) ||
+    /null is not an object.*\.use[A-Z]/.test(error.message)
+  ) {
+    error.message +=
+      "\n\n[vite-plugin-react-server] This null React hook dispatcher during HTML " +
+      "rendering usually means the html-worker resolved a 'use client' chunk that " +
+      "bundles its own React. Point the worker's moduleRootPath at the --ssr client " +
+      "build (where react/react-dom are bare-specifier externals), not the browser " +
+      "bundle that ships its own React copy.";
+  }
+  return error;
+}
+
 /**
  * Creates an HTML stream using a MessagePort for direct communication with the HTML worker
  */
@@ -212,7 +238,9 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
         }
         break;
       case "ERROR":
-        const error = toError(message.error, message.errorInfo);
+        const error = augmentHtmlWorkerError(
+          toError(message.error, message.errorInfo)
+        );
         htmlStream.destroy(error);
 
         // Call the error callback if provided

@@ -324,6 +324,7 @@
     "test:client": "vitest run",
     "test:examples": "npm run test:both -- test/examples",
     "test:streams": "npm run test:both -- test/streams",
+    "test:inline-renderer": "./scripts/test-both.sh test/streams/inline-flight-renderer.test.ts",
     "test:dev": "NODE_OPTIONS='--conditions react-server' vitest run test/dev",
     "pretest:both": "npm run build",
     "test:both": "./scripts/test-both.sh",

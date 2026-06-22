@@ -11,6 +11,9 @@ export * from "./createFromNodeStream.client.js";
 // HTML Stream creation
 export * from "./createHtmlStream.client.js";
 
+// High-level dynamic-route renderer (react-client barrel: clear "use react-server" error)
+export * from "./createInlineFlightRenderer.client.js";
+
 // Worker Stream handling - using unified API
 export * from "./createRscWorkerStream.js";
 // Shared type exports
