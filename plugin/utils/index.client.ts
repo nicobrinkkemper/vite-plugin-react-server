@@ -1,5 +1,6 @@
 // Client barrel: includes all utils including browser-only ones
 export * from "./createReactFetcher.js";
+export * from "./hydrateOrRender.js";
 export * from "./useRscHmr.js";
 export * from "./callServer.js";
 export * from "./urls.js";

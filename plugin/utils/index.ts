@@ -8,6 +8,7 @@
 // The `./utils/rsc-client` subpath re-exports just the RSC-client helpers
 // (createReactFetcher, callServer) for browser apps that want them in isolation.
 export * from "./createReactFetcher.js";
+export * from "./hydrateOrRender.js";
 export * from "./useRscHmr.js";
 export * from "./callServer.js";
 export * from "./urls.js";

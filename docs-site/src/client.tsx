@@ -15,8 +15,7 @@
  */
 import React, { useEffect, useState, useTransition } from "react";
 import type { ReactNode } from "react";
-import { createRoot, hydrateRoot } from "react-dom/client";
-import { createReactFetcher } from "vite-plugin-react-server/utils";
+import { createReactFetcher, hydrateOrRender } from "vite-plugin-react-server/utils";
 
 const BASE = import.meta.env.BASE_URL || "/";
 
@@ -159,23 +158,12 @@ function App({ initialNode }: { initialNode: ReactNode }) {
 
 const root = document.getElementById("root");
 if (root) {
-  // Fully resolve the initial payload (dynamic import + flight decode) to a
-  // ReactNode BEFORE mounting, then render that node directly — a synchronous
-  // first render with no Suspense boundary, so hydrateRoot matches the
-  // prerendered HTML exactly. (createReactFetcher returns a native promise that
-  // dynamically imports the flight client; use()-ing it, or wrapping the root in
-  // <Suspense> the server never rendered, mismatches the prerender → React #418.)
-  const initial = createReactFetcher();
-  const mount = (initialNode: ReactNode) => {
-    if (root.hasChildNodes()) {
-      hydrateRoot(root, <App initialNode={initialNode} />);
-    } else {
-      createRoot(root).render(<App initialNode={initialNode} />);
-    }
-  };
-  // On failure, stay on the prerendered static HTML (links fall back to normal
-  // full-page navigation) rather than hydrating a blank or broken tree.
-  Promise.resolve(initial).then(mount, (err) => {
-    console.error("[docs] initial RSC payload failed to load; staying static", err);
-  });
+  // Resolve the initial flight payload to a ReactNode, wrap it in <App>, and
+  // mount — hydrateOrRender does the #418-safe dance (fully resolve before the
+  // first render, no client-only Suspense, hydrate prerendered markup in place).
+  // On failure it leaves the prerendered static HTML up, so links fall back to
+  // ordinary full-page navigation.
+  hydrateOrRender(root, async () => (
+    <App initialNode={await createReactFetcher()} />
+  ));
 }

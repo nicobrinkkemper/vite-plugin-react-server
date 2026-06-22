@@ -5,6 +5,7 @@
 // resolves to the same surface in both conditions. The helpers still only *run*
 // in the browser; importing them here never evaluates the browser flight client.
 export * from "./createReactFetcher.js";
+export * from "./hydrateOrRender.js";
 export * from "./useRscHmr.js";
 export * from "./callServer.js";
 export * from "./urls.js";
