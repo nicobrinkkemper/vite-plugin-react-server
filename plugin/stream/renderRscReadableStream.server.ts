@@ -106,6 +106,12 @@ export function renderRscReadableStream(
       {
         signal: controller.signal,
         onError: (error: unknown) => {
+          // A deliberate abort() trips the renderer's onError with the abort
+          // reason — an intentional cancellation, not a route failure. abort()
+          // already raised its own ("Stream Aborted") onError, so swallow this
+          // one: no double-report, and no route.error that could spuriously
+          // trip panicThreshold on a normal cancellation.
+          if (controller.signal.aborted) return;
           if (verbose) logger?.error(`[renderRscReadableStream:${route}] React stream error: ${error}`);
           handlers?.onError?.(id, error, { route, context: "React Stream Error" });
           options.onEvent?.({

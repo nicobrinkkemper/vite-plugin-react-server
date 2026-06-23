@@ -83,4 +83,30 @@ describe.skipIf(!renderRscReadableStream)("edge RSC renderer (Web ReadableStream
     const res = renderRscResponse!(bad);
     expect(res.status).toBe(500);
   });
+
+  it("abort() reports a single Stream Aborted error and emits no route.error", async () => {
+    const config = await createHandlerOptions("/", {
+      configEnv: { command: "serve", mode: "development" },
+    });
+    const errors: Array<{ context?: string }> = [];
+    const events: Array<{ type?: string }> = [];
+    const result = renderRscReadableStream!(
+      { ...config, onEvent: (e: any) => events.push(e) } as any,
+      { onError: (_id: string, _err: unknown, ctx: any) => errors.push(ctx) }
+    );
+    expect(result.ok).toBe(true);
+
+    // Let the render begin, then abort it mid-flight.
+    await new Promise((r) => setTimeout(r, 0));
+    result.abort("test-abort");
+    // The renderer observes the aborted signal asynchronously — give it a tick.
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Exactly one explicit "Stream Aborted" report from abort()...
+    expect(errors.filter((c) => c?.context === "Stream Aborted")).toHaveLength(1);
+    // ...and the renderer's own onError must NOT also fire on a deliberate
+    // abort, nor emit a route.error (which would spuriously trip panicThreshold).
+    expect(errors.filter((c) => c?.context === "React Stream Error")).toHaveLength(0);
+    expect(events.filter((e) => e?.type === "route.error")).toHaveLength(0);
+  });
 });
