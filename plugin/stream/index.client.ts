@@ -13,6 +13,11 @@ export * from "./createRenderToPipeableStreamHandler.client.js";
 // Node stream handling (RSC flight -> React elements)
 export * from "./createFromNodeStream.client.js";
 
+// Web-stream handling (RSC flight ReadableStream / Response -> React elements).
+// Consumer mirror of renderRscReadableStream (the edge producer): the half a
+// client-first / Web-runtime user decodes Flight with.
+export * from "./createFromReadableStream.client.js";
+
 // HTML stream creation
 export * from "./createHtmlStream.client.js";
 
