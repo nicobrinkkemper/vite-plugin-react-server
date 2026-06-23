@@ -10,6 +10,9 @@ export * from "./createRscStream.server.js";
 // RSC -> pipeable stream
 export * from "./createRenderToPipeableStreamHandler.server.js";
 
+// RSC -> Web ReadableStream (edge / Web-streams runtimes)
+export * from "./renderRscReadableStream.server.js";
+
 // HTML stream creation
 export * from "./createHtmlStream.server.js";
 
