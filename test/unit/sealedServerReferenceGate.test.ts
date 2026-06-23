@@ -46,7 +46,19 @@ export const notAnAction = 42;
     expect(makeGate().sealed).toBe(true);
   });
 
-  it("resolves a manifest-registered action by its client-sent id", async () => {
+  it("resolves a manifest-registered action by its bare client-sent id", async () => {
+    // The directive transform bakes a BARE id (no base prefix) — this is what the
+    // real client sends, and what createRequestHandler must dispatch.
+    const gate = makeGate();
+    const ref = await gate.resolveServerReference(
+      "src/server/actions.server.ts#addItem"
+    );
+    expect(await (ref as (t: string) => Promise<{ ok: boolean }>)("x")).toEqual({
+      ok: true,
+    });
+  });
+
+  it("also resolves the base-prefixed id shape", async () => {
     const gate = makeGate();
     const ref = await gate.resolveServerReference(
       "/src/server/actions.server.ts#addItem"

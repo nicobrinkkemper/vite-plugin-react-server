@@ -30,7 +30,9 @@ export interface SealedServerReferenceGateOptions {
  * deploy.
  *
  * A server action POST carries a client-supplied id of the form
- * `<base><srcPath>#<exportName>`. The vendored transport would `import()` a path
+ * `<srcPath>#<exportName>` (the directive transform bakes the bare manifest key),
+ * or `<base><srcPath>#<exportName>` from a base-prefixed transport. The vendored
+ * transport would `import()` a path
  * derived from that id (an open allowlist); this gate instead resolves it as a
  * dictionary lookup against the modules the build actually emitted, with each
  * importer bound to the manifest's real built file — never to anything derived
@@ -57,15 +59,19 @@ export function createSealedServerReferenceGate({
 
   for (const [key, entry] of Object.entries(serverManifest)) {
     if (!entry?.file) continue;
-    // Hosted id = base + source key, matching what the client sends. The
-    // importer is bound to the built file from the manifest, not the id.
-    const id = prefix + key.replace(/^\//, "");
     const file = entry.file;
-    gate.register({
-      id,
-      kind: "server",
-      load: () => import(join(serverRoot, file)) as Promise<Record<string, unknown>>,
-    });
+    const load = () =>
+      import(join(serverRoot, file)) as Promise<Record<string, unknown>>;
+    // The directive transform bakes a BARE manifest-key id (`<srcKey>#<export>`);
+    // a base-prefixed transport sends `<base><srcKey>#<export>`. Register both
+    // shapes so resolution is an exact-key lookup either way. This does not widen
+    // the allowlist: only modules the build enumerated are registered, and every
+    // importer is bound to the manifest's built file, never to anything derived
+    // from the incoming id — so a forged id still has no entry to resolve.
+    const bareKey = key.replace(/^\//, "");
+    for (const id of new Set([bareKey, prefix + bareKey])) {
+      gate.register({ id, kind: "server", load });
+    }
   }
 
   gate.seal();
