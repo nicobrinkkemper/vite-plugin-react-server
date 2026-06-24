@@ -11,11 +11,12 @@ import { createLogger } from "vite";
 import type { CreateHandlerOptionsParams } from "./createHandlerOptions.types.js";
 import {
   buildSharedHandlerOptions,
-  createConfiguredWorker,
+  createHandlerWorkers,
   resolveHandlerContext,
 } from "./createHandlerOptions.shared.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
+import { REACT_CONDITION } from "./getCondition.js";
 
 /**
  * Server-specific handler options creation for React Server Components (RSC).
@@ -53,7 +54,7 @@ export async function createHandlerOptions(
     id = `${route}-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`,
-    envId = getEnvironmentId("react-server", mode),
+    envId = getEnvironmentId(REACT_CONDITION.server, mode),
     userOptions = getStashedUserOptions(envId),
   } = options;
 
@@ -227,67 +228,41 @@ export async function createHandlerOptions(
     }
   }
 
-  // Create workers for server environment based on configuration and configEnv
-  let rscWorker: any = undefined;
-  let htmlWorker: any = undefined;
-  
-  // Determine if we need workers based on configEnv and dev config
-  const isServeMode = configEnv?.command === "serve" || configEnv?.mode === "development" || mode === "development";
-  const isBuildMode = configEnv?.command === "build";
-  
-  // Create RSC worker if:
-  // 1. useRscWorker is enabled in dev config AND we're in serve mode, OR
-  // 2. useRscWorker is enabled in build config AND we're in build mode
-  const shouldCreateRscWorker = (userOptions.dev?.useRscWorker && isServeMode) || 
-                               (userOptions.build?.useRscWorker && isBuildMode);
-  
-  if (shouldCreateRscWorker) {
-    rscWorker = await createConfiguredWorker(
-      `[createHandlerOptions.server] RSC worker (route ${route})`,
-      {
-        currentCondition: "react-server",
-        // same CONDITION as the current one (this worker may be redundant)
-        reverseCondition: "react-server",
-        workerPath: userOptions.rscWorkerPath,
-        verbose: userOptions.verbose,
-        logger,
-        workerData: {
-          id: route,
-          userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
-          resolvedConfig: { configEnv, mode },
-        },
-      },
+  // Create workers for the server environment. The gate + run loop is shared;
+  // only the per-worker createWorker args (conditions, worker path, workerData)
+  // are server-specific. Server passes the RAW { configEnv, mode } as
+  // resolvedConfig and omits a top-level configEnv (vs client).
+  const serverWorkerData = () => ({
+    id: route,
+    userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
+    resolvedConfig: { configEnv, mode } as any,
+  });
+  const { rscWorker, htmlWorker } = await createHandlerWorkers({
+    route,
+    userOptions,
+    configEnv,
+    mode,
+    logger,
+    labelPrefix: "[createHandlerOptions.server]",
+    rscWorkerArgs: () => ({
+      currentCondition: REACT_CONDITION.server,
+      // RSC worker keeps the current condition (it may be redundant).
+      reverseCondition: REACT_CONDITION.server,
+      workerPath: userOptions.rscWorkerPath,
+      verbose: userOptions.verbose,
       logger,
-      userOptions.verbose
-    );
-  }
-
-  // Create HTML worker if:
-  // Create HTML worker if:
-  // 1. useHtmlWorker is enabled in dev config AND we're in serve mode, OR
-  // 2. useHtmlWorker is enabled in build config AND we're in build mode
-  const shouldCreateHtmlWorker = (userOptions.dev?.useHtmlWorker && isServeMode) || 
-                                (userOptions.build?.useHtmlWorker && isBuildMode);
-  
-  if (shouldCreateHtmlWorker) {
-    htmlWorker = await createConfiguredWorker(
-      `[createHandlerOptions.server] HTML worker (route ${route})`,
-      {
-        currentCondition: "react-server",
-        reverseCondition: "react-client", // HTML worker needs react-client condition
-        workerPath: userOptions.htmlWorkerPath,
-        verbose: userOptions.verbose,
-        logger,
-        workerData: {
-          id: route,
-          userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
-          resolvedConfig: { configEnv, mode },
-        },
-      },
+      workerData: serverWorkerData(),
+    }),
+    htmlWorkerArgs: () => ({
+      currentCondition: REACT_CONDITION.server,
+      // HTML worker needs the react-client condition.
+      reverseCondition: REACT_CONDITION.client,
+      workerPath: userOptions.htmlWorkerPath,
+      verbose: userOptions.verbose,
       logger,
-      userOptions.verbose
-    );
-  }
+      workerData: serverWorkerData(),
+    }),
+  });
 
   // Create server-specific handler options. The shared fields are assembled by
   // buildSharedHandlerOptions; only the server-specific tail lives here.
