@@ -18,7 +18,7 @@ import {
   createHandlerWorkers,
   resolveHandlerContext,
 } from "./createHandlerOptions.shared.js";
-import { getCondition } from "./getCondition.js";
+import { getCondition, REACT_CONDITION } from "./getCondition.js";
 
 /**
  * Client-specific handler options creation for HTML generation.
@@ -81,10 +81,12 @@ export async function createHandlerOptions(
     await resolveHandlerContext(route, options, userOptions, logger);
 
   // Create workers for the client environment. The gate + run loop is shared;
-  // only the per-kind createWorker args are client-specific. The client always
-  // threads a top-level configEnv into workerData and serializes resolvedConfig
-  // (with a kind-specific fallback when no `config` was supplied: undefined for
-  // the RSC worker, a synthesized ResolvedConfig literal for the HTML worker).
+  // only the per-worker createWorker args are client-specific. The client always
+  // threads a top-level configEnv into workerData and serializes resolvedConfig.
+  // We are in a .client file, so currentCondition is react-client for both.
+  const serializedClientUserOptions = () =>
+    serializedOptions(userOptions, autoDiscoveredFiles);
+
   const { rscWorker, htmlWorker } = await createHandlerWorkers({
     route,
     userOptions,
@@ -92,16 +94,34 @@ export async function createHandlerOptions(
     mode,
     logger,
     labelPrefix: "[createHandlerOptions.client]",
-    buildWorkerArgs: (kind) => {
-      const serializedUserOptions = serializedOptions(
-        userOptions,
-        autoDiscoveredFiles
-      );
-
-      const serializedResolvedConfig = config
-        ? serializeResolvedConfig(config)
-        : kind === "html"
-          ? {
+    rscWorkerArgs: () => ({
+      currentCondition: REACT_CONDITION.client,
+      // RSC worker omits reverseCondition (createWorker derives react-server).
+      workerPath: userOptions.rscWorkerPath,
+      verbose: userOptions.verbose,
+      logger,
+      workerData: {
+        id: route,
+        userOptions: serializedClientUserOptions(),
+        // No config supplied -> RSC resolvedConfig stays undefined.
+        resolvedConfig: config ? serializeResolvedConfig(config) : undefined,
+        configEnv,
+      },
+    }),
+    htmlWorkerArgs: () => ({
+      currentCondition: REACT_CONDITION.client,
+      // The user requested a worker, which uses the same (react-client) condition.
+      reverseCondition: REACT_CONDITION.client,
+      workerPath: userOptions.htmlWorkerPath,
+      verbose: userOptions.verbose,
+      logger,
+      workerData: {
+        id: route,
+        userOptions: serializedClientUserOptions(),
+        // No config supplied -> synthesize a ResolvedConfig-shaped fallback.
+        resolvedConfig: (config
+          ? serializeResolvedConfig(config)
+          : {
               mode: configEnv?.mode || mode || "development",
               root: process.cwd(),
               logLevel: "info",
@@ -113,28 +133,10 @@ export async function createHandlerOptions(
               command: configEnv?.command || "serve",
               isSsrBuild: configEnv?.command === "build",
               isPreview: false,
-            }
-          : undefined;
-
-      return {
-        // We are in a .client file. The RSC worker omits reverseCondition
-        // (createWorker derives react-server); the HTML worker stays react-client.
-        currentCondition: "react-client",
-        ...(kind === "html" ? { reverseCondition: "react-client" } : {}),
-        workerPath:
-          kind === "rsc"
-            ? userOptions.rscWorkerPath
-            : userOptions.htmlWorkerPath,
-        verbose: userOptions.verbose,
-        logger,
-        workerData: {
-          id: route,
-          userOptions: serializedUserOptions,
-          resolvedConfig: serializedResolvedConfig as any,
-          configEnv,
-        },
-      };
-    },
+            }) as any,
+        configEnv,
+      },
+    }),
   });
 
   // Create client-specific handler options. The shared fields are assembled by
@@ -166,7 +168,7 @@ export async function createHandlerOptions(
     RootComponent: undefined,
 
     // Backward compatibility: prefer the condition-appropriate worker
-    worker: condition === "react-server" ? rscWorker : htmlWorker,
+    worker: condition === REACT_CONDITION.server ? rscWorker : htmlWorker,
 
     // Children provided directly via options
     children,

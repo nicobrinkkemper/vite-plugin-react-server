@@ -2,6 +2,19 @@
 // This file is consumed in both server and client plugin contexts.
 
 /**
+ * The two React resolution conditions vprs cares about. Named so call sites can
+ * reference REACT_CONDITION.server / .client instead of the bare string
+ * literals scattered across the codebase.
+ */
+export const REACT_CONDITION = {
+  server: "react-server",
+  client: "react-client",
+} as const;
+
+export type ReactCondition =
+  (typeof REACT_CONDITION)[keyof typeof REACT_CONDITION];
+
+/**
  * Tokenizes NODE_OPTIONS string into individual arguments.
  * Tokens split on unquoted whitespace only; a quoted segment stays attached
  * to the token it appears in (Node semantics: quotes protect spaces, so
@@ -115,7 +128,10 @@ export const getAllConditions = (): string[] => {
 // ----------------------------------------------------------------------------
 let didWarnAmbiguousConditions = false;
 // react-static does not exists, because you still need condition react-server for the .static imports to work.
-const reactConditionSet = new Set(["react-server", "react-client"]);
+const reactConditionSet = new Set<string>([
+  REACT_CONDITION.server,
+  REACT_CONDITION.client,
+]);
 
 export const detectReactConditionAmbiguity = (): string[] => {
   const conditions = getAllConditions();

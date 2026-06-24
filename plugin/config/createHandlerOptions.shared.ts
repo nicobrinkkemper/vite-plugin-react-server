@@ -217,6 +217,8 @@ export function resolveWorkerGate(
   return { isServeMode, isBuildMode, rsc, html };
 }
 
+type CreateWorkerArgs = Parameters<typeof createWorker>[0];
+
 export interface CreateHandlerWorkersInput {
   route: string;
   userOptions: ResolvedUserOptions;
@@ -226,11 +228,13 @@ export interface CreateHandlerWorkersInput {
   /** Label prefix for log lines, e.g. "[createHandlerOptions.server]". */
   labelPrefix: string;
   /**
-   * Per-variant createWorker args. Called once per enabled worker kind; the
-   * divergent bits (conditions, workerPath, workerData shape) live here so the
-   * gate + run loop can stay shared. See createHandlerOptions.{server,client}.ts.
+   * Per-variant createWorker args, evaluated only when the gate enables that
+   * worker. The divergent bits (conditions, workerPath, workerData shape) live
+   * in these thunks so the gate + run loop stay shared. See
+   * createHandlerOptions.{server,client}.ts.
    */
-  buildWorkerArgs: (kind: "rsc" | "html") => Parameters<typeof createWorker>[0];
+  rscWorkerArgs: () => CreateWorkerArgs;
+  htmlWorkerArgs: () => CreateWorkerArgs;
 }
 
 /**
@@ -246,31 +250,27 @@ export async function createHandlerWorkers(
   // The worker fields on CreateHandlerOptions are loosely typed; both variants
   // previously held these in `any` locals. Preserve that to avoid churn here.
 ): Promise<{ rscWorker: any; htmlWorker: any }> {
-  const { route, userOptions, configEnv, mode, logger, labelPrefix, buildWorkerArgs } =
-    input;
+  const { route, userOptions, configEnv, mode, logger, labelPrefix } = input;
 
   const gate = resolveWorkerGate(userOptions, configEnv, mode);
 
-  let rscWorker: any = undefined;
-  let htmlWorker: any = undefined;
+  const rscWorker = gate.rsc
+    ? await createConfiguredWorker(
+        `${labelPrefix} RSC worker (route ${route})`,
+        input.rscWorkerArgs(),
+        logger,
+        userOptions.verbose
+      )
+    : undefined;
 
-  if (gate.rsc) {
-    rscWorker = await createConfiguredWorker(
-      `${labelPrefix} RSC worker (route ${route})`,
-      buildWorkerArgs("rsc"),
-      logger,
-      userOptions.verbose
-    );
-  }
-
-  if (gate.html) {
-    htmlWorker = await createConfiguredWorker(
-      `${labelPrefix} HTML worker (route ${route})`,
-      buildWorkerArgs("html"),
-      logger,
-      userOptions.verbose
-    );
-  }
+  const htmlWorker = gate.html
+    ? await createConfiguredWorker(
+        `${labelPrefix} HTML worker (route ${route})`,
+        input.htmlWorkerArgs(),
+        logger,
+        userOptions.verbose
+      )
+    : undefined;
 
   return { rscWorker, htmlWorker };
 }

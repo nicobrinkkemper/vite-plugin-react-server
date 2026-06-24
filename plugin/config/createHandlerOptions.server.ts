@@ -16,6 +16,7 @@ import {
 } from "./createHandlerOptions.shared.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { serializedOptions } from "../helpers/serializeUserOptions.js";
+import { REACT_CONDITION } from "./getCondition.js";
 
 /**
  * Server-specific handler options creation for React Server Components (RSC).
@@ -53,7 +54,7 @@ export async function createHandlerOptions(
     id = `${route}-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`,
-    envId = getEnvironmentId("react-server", mode),
+    envId = getEnvironmentId(REACT_CONDITION.server, mode),
     userOptions = getStashedUserOptions(envId),
   } = options;
 
@@ -228,9 +229,14 @@ export async function createHandlerOptions(
   }
 
   // Create workers for the server environment. The gate + run loop is shared;
-  // only the per-kind createWorker args (conditions, worker path, workerData)
+  // only the per-worker createWorker args (conditions, worker path, workerData)
   // are server-specific. Server passes the RAW { configEnv, mode } as
   // resolvedConfig and omits a top-level configEnv (vs client).
+  const serverWorkerData = () => ({
+    id: route,
+    userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
+    resolvedConfig: { configEnv, mode } as any,
+  });
   const { rscWorker, htmlWorker } = await createHandlerWorkers({
     route,
     userOptions,
@@ -238,20 +244,23 @@ export async function createHandlerOptions(
     mode,
     logger,
     labelPrefix: "[createHandlerOptions.server]",
-    buildWorkerArgs: (kind) => ({
-      currentCondition: "react-server",
-      // RSC worker keeps the current condition (it may be redundant); HTML
-      // worker needs the react-client condition.
-      reverseCondition: kind === "rsc" ? "react-server" : "react-client",
-      workerPath:
-        kind === "rsc" ? userOptions.rscWorkerPath : userOptions.htmlWorkerPath,
+    rscWorkerArgs: () => ({
+      currentCondition: REACT_CONDITION.server,
+      // RSC worker keeps the current condition (it may be redundant).
+      reverseCondition: REACT_CONDITION.server,
+      workerPath: userOptions.rscWorkerPath,
       verbose: userOptions.verbose,
       logger,
-      workerData: {
-        id: route,
-        userOptions: serializedOptions(userOptions, autoDiscoveredFiles),
-        resolvedConfig: { configEnv, mode } as any,
-      },
+      workerData: serverWorkerData(),
+    }),
+    htmlWorkerArgs: () => ({
+      currentCondition: REACT_CONDITION.server,
+      // HTML worker needs the react-client condition.
+      reverseCondition: REACT_CONDITION.client,
+      workerPath: userOptions.htmlWorkerPath,
+      verbose: userOptions.verbose,
+      logger,
+      workerData: serverWorkerData(),
     }),
   });
 
