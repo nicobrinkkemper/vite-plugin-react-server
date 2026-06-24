@@ -3,14 +3,16 @@
  *
  * Logic shared verbatim by createHandlerOptions.server.ts and .client.ts.
  *
- * Scope note: this intentionally covers only the parts that are byte-identical
- * across the two variants AND guarded by test/unit/createHandlerOptions.test.ts
- * — the default options, the auto-discovery resolution, and the assembly of the
- * fields that are the same in both. The worker-creation blocks and the
- * variant-specific tail (components vs placeholders, clientPipeableStreamOptions
- * coercion, worker selection, children) deliberately stay in each variant; the
- * characterization test runs with workers disabled, so unifying the worker
- * blocks needs its own coverage first.
+ * Scope note: this covers the parts shared across the two variants — the
+ * default options, the auto-discovery resolution, the assembly of the fields
+ * that are the same in both, and the worker-creation gate + run loop
+ * (createHandlerWorkers). The per-kind createWorker args stay at each call site
+ * (they genuinely diverge: server passes raw { configEnv, mode }, client
+ * serializes + threads configEnv), as does the variant-specific tail
+ * (components vs placeholders, clientPipeableStreamOptions coercion, worker
+ * selection, children). Coverage: createHandlerOptions.test.ts pins the shared
+ * output (workers disabled); createHandlerOptionsWorkers.test.ts pins the
+ * per-variant createWorker call shape (workers enabled).
  */
 import type { Logger, ConfigEnv, ResolvedConfig } from "vite";
 import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
@@ -187,6 +189,90 @@ export async function createConfiguredWorker(
     );
     return undefined;
   }
+}
+
+/**
+ * Decide whether the RSC / HTML workers should be created. Both variants used
+ * the identical gate: a worker is created when its flag is on for the current
+ * command (dev flag in serve mode, build flag in build mode).
+ */
+export function resolveWorkerGate(
+  userOptions: ResolvedUserOptions,
+  configEnv: ConfigEnv | undefined,
+  mode: string | undefined
+): { isServeMode: boolean; isBuildMode: boolean; rsc: boolean; html: boolean } {
+  const isServeMode =
+    configEnv?.command === "serve" ||
+    configEnv?.mode === "development" ||
+    mode === "development";
+  const isBuildMode = configEnv?.command === "build";
+
+  const rsc =
+    (!!userOptions.dev?.useRscWorker && isServeMode) ||
+    (!!userOptions.build?.useRscWorker && isBuildMode);
+  const html =
+    (!!userOptions.dev?.useHtmlWorker && isServeMode) ||
+    (!!userOptions.build?.useHtmlWorker && isBuildMode);
+
+  return { isServeMode, isBuildMode, rsc, html };
+}
+
+export interface CreateHandlerWorkersInput {
+  route: string;
+  userOptions: ResolvedUserOptions;
+  configEnv: ConfigEnv | undefined;
+  mode: string | undefined;
+  logger: Logger;
+  /** Label prefix for log lines, e.g. "[createHandlerOptions.server]". */
+  labelPrefix: string;
+  /**
+   * Per-variant createWorker args. Called once per enabled worker kind; the
+   * divergent bits (conditions, workerPath, workerData shape) live here so the
+   * gate + run loop can stay shared. See createHandlerOptions.{server,client}.ts.
+   */
+  buildWorkerArgs: (kind: "rsc" | "html") => Parameters<typeof createWorker>[0];
+}
+
+/**
+ * The shared worker-creation driver: run the (identical) gate, then run each
+ * enabled worker through createConfiguredWorker with the variant's args. Returns
+ * the worker-or-undefined pair both variants assemble into their handler options.
+ *
+ * Covered by test/unit/createHandlerOptionsWorkers.test.ts (the createHandlerOptions
+ * characterization test runs workers-disabled, so this carries its own coverage).
+ */
+export async function createHandlerWorkers(
+  input: CreateHandlerWorkersInput
+  // The worker fields on CreateHandlerOptions are loosely typed; both variants
+  // previously held these in `any` locals. Preserve that to avoid churn here.
+): Promise<{ rscWorker: any; htmlWorker: any }> {
+  const { route, userOptions, configEnv, mode, logger, labelPrefix, buildWorkerArgs } =
+    input;
+
+  const gate = resolveWorkerGate(userOptions, configEnv, mode);
+
+  let rscWorker: any = undefined;
+  let htmlWorker: any = undefined;
+
+  if (gate.rsc) {
+    rscWorker = await createConfiguredWorker(
+      `${labelPrefix} RSC worker (route ${route})`,
+      buildWorkerArgs("rsc"),
+      logger,
+      userOptions.verbose
+    );
+  }
+
+  if (gate.html) {
+    htmlWorker = await createConfiguredWorker(
+      `${labelPrefix} HTML worker (route ${route})`,
+      buildWorkerArgs("html"),
+      logger,
+      userOptions.verbose
+    );
+  }
+
+  return { rscWorker, htmlWorker };
 }
 
 export interface HandlerContext {

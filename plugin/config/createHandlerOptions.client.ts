@@ -15,7 +15,7 @@ import { createLogger } from "vite";
 import type { CreateHandlerOptionsParams } from "./createHandlerOptions.types.js";
 import {
   buildSharedHandlerOptions,
-  createConfiguredWorker,
+  createHandlerWorkers,
   resolveHandlerContext,
 } from "./createHandlerOptions.shared.js";
 import { getCondition } from "./getCondition.js";
@@ -80,121 +80,62 @@ export async function createHandlerOptions(
   const { defaults, autoDiscoveredFiles, url, routeFiles: routeFilesResult } =
     await resolveHandlerContext(route, options, userOptions, logger);
 
-  // Create workers for client environment based on configuration and configEnv
-  let rscWorker: any = undefined;
-  let htmlWorker: any = undefined;
+  // Create workers for the client environment. The gate + run loop is shared;
+  // only the per-kind createWorker args are client-specific. The client always
+  // threads a top-level configEnv into workerData and serializes resolvedConfig
+  // (with a kind-specific fallback when no `config` was supplied: undefined for
+  // the RSC worker, a synthesized ResolvedConfig literal for the HTML worker).
+  const { rscWorker, htmlWorker } = await createHandlerWorkers({
+    route,
+    userOptions,
+    configEnv,
+    mode,
+    logger,
+    labelPrefix: "[createHandlerOptions.client]",
+    buildWorkerArgs: (kind) => {
+      const serializedUserOptions = serializedOptions(
+        userOptions,
+        autoDiscoveredFiles
+      );
 
-  // Determine if we need workers based on configEnv and dev config
-  const isServeMode =
-    configEnv?.command === "serve" ||
-    configEnv?.mode === "development" ||
-    mode === "development";
-  const isBuildMode = configEnv?.command === "build";
+      const serializedResolvedConfig = config
+        ? serializeResolvedConfig(config)
+        : kind === "html"
+          ? {
+              mode: configEnv?.mode || mode || "development",
+              root: process.cwd(),
+              logLevel: "info",
+              env: {},
+              envPrefix: "VITE_",
+              base: "/",
+              publicDir: "public",
+              cacheDir: "node_modules/.vite",
+              command: configEnv?.command || "serve",
+              isSsrBuild: configEnv?.command === "build",
+              isPreview: false,
+            }
+          : undefined;
 
-  // Create RSC worker if:
-  // 1. useRscWorker is enabled in dev config AND we're in serve mode, OR
-  // 2. useRscWorker is enabled in build config AND we're in build mode
-  const shouldCreateRscWorker =
-    (userOptions.dev?.useRscWorker && isServeMode) ||
-    (userOptions.build?.useRscWorker && isBuildMode);
-
-  if (shouldCreateRscWorker) {
-    const serializedUserOptions = userOptions
-      ? serializedOptions(userOptions, autoDiscoveredFiles)
-      : undefined;
-
-    const serializedResolvedConfig = config
-      ? serializeResolvedConfig(config)
-      : undefined;
-
-    rscWorker = await createConfiguredWorker(
-      `[createHandlerOptions.client] RSC worker (route ${route})`,
-      {
+      return {
+        // We are in a .client file. The RSC worker omits reverseCondition
+        // (createWorker derives react-server); the HTML worker stays react-client.
         currentCondition: "react-client",
-        workerPath: userOptions.rscWorkerPath,
+        ...(kind === "html" ? { reverseCondition: "react-client" } : {}),
+        workerPath:
+          kind === "rsc"
+            ? userOptions.rscWorkerPath
+            : userOptions.htmlWorkerPath,
         verbose: userOptions.verbose,
         logger,
         workerData: {
           id: route,
           userOptions: serializedUserOptions,
-          resolvedConfig: serializedResolvedConfig,
+          resolvedConfig: serializedResolvedConfig as any,
           configEnv,
         },
-      },
-      logger,
-      userOptions.verbose
-    );
-  }
-
-  // Create HTML worker if:
-  // 1. useHtmlWorker is enabled in dev config AND we're in serve mode, OR
-  // 2. useHtmlWorker is enabled in build config AND we're in build mode
-  const shouldCreateHtmlWorker =
-    (userOptions.dev?.useHtmlWorker && isServeMode) ||
-    (userOptions.build?.useHtmlWorker && isBuildMode);
-
-  if (shouldCreateHtmlWorker) {
-    // Create fallback defaults based on configEnv
-    const fallbackDefaults = {
-      verbose: false,
-      panicThreshold: 1000,
-      moduleRootPath: "",
-      moduleBaseURL: "",
-      moduleBasePath: "",
-      projectRoot: process.cwd(),
-      htmlTimeout: 30000,
-      serverPipeableStreamOptions: {},
-      clientPipeableStreamOptions: {},
-      build: {
-        useHtmlWorker: isBuildMode,
-        useRscWorker: isBuildMode,
-        pages: [],
-      },
-      dev: {
-        useHtmlWorker: false,
-        useRscWorker: true,
-      },
-    };
-
-    const serializedUserOptions = userOptions
-      ? serializedOptions(userOptions, autoDiscoveredFiles)
-      : serializedOptions(fallbackDefaults as any, autoDiscoveredFiles);
-
-    const serializedResolvedConfig = config
-      ? serializeResolvedConfig(config)
-      : {
-          mode: configEnv?.mode || mode || "development",
-          root: process.cwd(),
-          logLevel: "info",
-          env: {},
-          envPrefix: "VITE_",
-          base: "/",
-          publicDir: "public",
-          cacheDir: "node_modules/.vite",
-          command: configEnv?.command || "serve",
-          isSsrBuild: configEnv?.command === "build",
-          isPreview: false,
-        };
-
-    htmlWorker = await createConfiguredWorker(
-      `[createHandlerOptions.client] HTML worker (route ${route})`,
-      {
-        currentCondition: "react-client", // We are in a .client file
-        reverseCondition: "react-client", // The user still requested a worker, which uses the same condition
-        workerPath: userOptions.htmlWorkerPath,
-        verbose: userOptions.verbose,
-        logger,
-        workerData: {
-          id: route,
-          userOptions: serializedUserOptions,
-          resolvedConfig: serializedResolvedConfig,
-          configEnv,
-        },
-      },
-      logger,
-      userOptions.verbose
-    );
-  }
+      };
+    },
+  });
 
   // Create client-specific handler options. The shared fields are assembled by
   // buildSharedHandlerOptions; only the client-specific tail lives here.
