@@ -6,7 +6,7 @@
  * ENABLES the worker flags, mocks createWorker, and pins the EXACT createWorker
  * call shape each of the four blocks (server/client × rsc/html) produces for
  * identical input. That is the safety net that makes folding the four blocks
- * onto one shared helper safe (bd-3ly) — assert-the-call-shape, then unify.
+ * onto one shared helper safe: assert-the-call-shape, then unify.
  *
  * Pinned divergences (must survive consolidation):
  *  - currentCondition: server="react-server", client="react-client".
