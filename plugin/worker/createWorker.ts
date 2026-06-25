@@ -6,7 +6,11 @@ import {
 } from "node:worker_threads";
 import type { ConfigEnv } from "vite";
 import { getMode, getNodePath } from "../config/getPaths.js";
-import { getCondition } from "../config/getCondition.js";
+import {
+  getCondition,
+  REACT_CONDITION,
+  type ReactCondition,
+} from "../config/getCondition.js";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { pluginRoot } from "../root.js";
@@ -126,7 +130,7 @@ export type CreateWorkerReturn =
 
 export type CreateWorkerOptions = {
   projectRoot?: string;
-  currentCondition?: "react-server" | "react-client";
+  currentCondition?: ReactCondition;
   nodePath?: string;
   nodeOptions?: string[];
   envPrefix?: string;
@@ -168,9 +172,9 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     nodePath = getNodePath(projectRoot),
     currentCondition = getCondition(),
     envPrefix = DEFAULT_CONFIG.ENV_PREFIX,
-    reverseCondition = currentCondition === "react-server"
-      ? "react-client"
-      : "react-server",
+    reverseCondition = currentCondition === REACT_CONDITION.server
+      ? REACT_CONDITION.client
+      : REACT_CONDITION.server,
     maxListeners = 100,
     mode = getMode(),
     workerPath,
@@ -183,14 +187,14 @@ export const createWorker: CreateWorkerFn = async function _createWorker(
     logger = createLogger(),
     verbose = false,
   } = options;
-  const id = reverseCondition === "react-server" ? "worker/rsc" : "worker/html";
+  const id = reverseCondition === REACT_CONDITION.server ? "worker/rsc" : "worker/html";
   let workerPathWithDefault =
     typeof workerPath === "string" ? workerPath : undefined;
   if (!workerPathWithDefault) {
     // Use the default worker paths that include the full filename
     const isProduction = mode === "production";
     const workerFileName =
-      reverseCondition === "react-server"
+      reverseCondition === REACT_CONDITION.server
         ? `rsc-worker.${isProduction ? "production" : "development"}.js`
         : `html-worker.${isProduction ? "production" : "development"}.js`;
 
@@ -364,7 +368,7 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
         // is a public entry (exported as `vite-plugin-react-server/worker`), and
         // an undefined timeout makes `setTimeout(reject, undefined)` fire on the
         // next tick, so the worker "times out" before it can even start.
-        const workerType = reverseCondition === "react-server" ? "rsc" : "html";
+        const workerType = reverseCondition === REACT_CONDITION.server ? "rsc" : "html";
         const startupTimeout =
           (workerType === "rsc"
             ? options.workerData.userOptions?.rscWorkerStartupTimeout

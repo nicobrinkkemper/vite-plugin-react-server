@@ -195,10 +195,10 @@ export const getCondition = <Prefix extends string = "react-", DefaultCondition 
     | `${Prefix}client` = `${prefix}client` as `${Prefix}client`
 ): `${Prefix}client` | `${Prefix}server` | DefaultCondition => {
   const condition = getCurrentCondition();
-  if (condition === "react-server") {
+  if (condition === REACT_CONDITION.server) {
     return `${prefix}server` as `${Prefix}server`;
   }
-  if (condition === "react-client") {
+  if (condition === REACT_CONDITION.client) {
     return `${prefix}client` as `${Prefix}client`;
   }
   return defaultReturn;
@@ -212,7 +212,7 @@ export function assertReactServer(): asserts this is {
   condition: "react-server";
 } {
   const currentCondition = getCurrentCondition();
-  if (currentCondition !== "react-server") {
+  if (currentCondition !== REACT_CONDITION.server) {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
     console.warn(
       `[vite-plugin-react-server] Condition mismatch: expected react-server. Set NODE_OPTIONS="--conditions=react-server"`
@@ -225,7 +225,7 @@ export function assertNonReactServer(): asserts this is {
   condition: "react-client";
 } {
   const currentCondition = getCurrentCondition();
-  if (currentCondition === "react-server") {
+  if (currentCondition === REACT_CONDITION.server) {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
     console.warn(
       `[vite-plugin-react-server] Condition mismatch: unexpected react-server condition on this module.`
@@ -239,14 +239,14 @@ export function assertNonReactServer(): asserts this is {
  * Use this for React Server DOM compatibility checks
  */
 export const isReactServerCondition = (): boolean =>
-  getCurrentCondition() === "react-server";
+  getCurrentCondition() === REACT_CONDITION.server;
 
 /**
  * Checks if the current condition is react-client (strict - requires both NODE_OPTIONS and execArgv)
  * Use this for React Server DOM compatibility checks
  */
 export const isReactClientCondition = (): boolean =>
-  getCurrentCondition() === "react-client";
+  getCurrentCondition() === REACT_CONDITION.client;
 
 /**
  * Checks if react-server condition is present in either NODE_OPTIONS OR execArgv (lenient)

@@ -2,6 +2,7 @@ import type { Plugin } from "vite";
 import { vitePluginReactDevServer } from "../dev-server/plugin.server.js";
 import { reactStaticPlugin } from "../react-static/plugin.server.js";
 import { createPluginOrchestratorImpl } from "./createPluginOrchestrator.impl.js";
+import type { ReactCondition } from "../config/getCondition.js";
 
 // Server-first orchestrator — pulls the .server dev-server / react-static plugins
 // and runs the transformer with a "server" default environment. The shared body
@@ -17,8 +18,8 @@ export const createPluginOrchestrator = (userOptions: any): Plugin[] =>
 export interface Strategy {
   mode?: "auto" | "server" | "client";
   bundleTarget?: "server" | "client" | "ssr";
-  importContext?: "react-server" | "react-client";
-  mainThreadCondition?: "react-server" | "react-client";
+  importContext?: ReactCondition;
+  mainThreadCondition?: ReactCondition;
   legacyBuilder?: boolean;
   staticBuild?: boolean;
   ssg?: boolean;

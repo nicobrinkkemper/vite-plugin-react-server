@@ -6,6 +6,7 @@ import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
 import { React } from "../vendor/vendor.client.js";
 import type { RestartWorkerFn } from "../react-client/types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
+import { REACT_CONDITION } from "../config/getCondition.js";
 import { handleError } from "../error/handleError.js";
 import { setMaxListenersOnPort, unrefPort } from "../stream/setMaxListeners.js";
 import { attachRunnerFetchHandler } from "./handleRunnerFetch.server.js";
@@ -139,8 +140,8 @@ export const restartWorker: RestartWorkerFn = async function _restartWorker({
     const workerResult = await createWorker({
       projectRoot: userOptions.projectRoot || server.config.root,
       workerPath: userOptions.rscWorkerPath,
-      reverseCondition: "react-server",
-      currentCondition: "react-client",
+      reverseCondition: REACT_CONDITION.server,
+      currentCondition: REACT_CONDITION.client,
       maxListeners: maxListeners,
       envPrefix: envPrefixFromConfig(server.config),
       workerData: {

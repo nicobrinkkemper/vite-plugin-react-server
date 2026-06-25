@@ -9,6 +9,7 @@ import { createDefaultModuleID } from "../config/createModuleID.js";
 import { createLogger } from "vite";
 import { join } from "node:path";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
+import { REACT_CONDITION } from "../config/getCondition.js";
 import { runDeferredStaticGeneration } from "../bundle/deferredStaticGeneration.js";
 
 /**
@@ -212,7 +213,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         // detect if legacy build or not
         const legacyBuild = userOptions.strategy?.legacyBuilder && !config?.builder;
         const implicitSsr =
-          userOptions.strategy?.mainThreadCondition === "react-server" &&
+          userOptions.strategy?.mainThreadCondition === REACT_CONDITION.server &&
           userOptions.strategy?.legacyBuilder;
         // this follows vite's logic for legacy builds
         const implicitViteBuildName =

@@ -15,6 +15,7 @@ import { readFileSync, existsSync } from "node:fs";
 import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
+import { REACT_CONDITION, type ReactCondition } from "./getCondition.js";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
 import {
   mergeClientPackagesNoExternal,
@@ -25,7 +26,7 @@ import { createRollupLikeHash } from "./createRollupLikeHash.js";
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
 export type ResolveUserConfigProps = {
-  condition: "react-client" | "react-server";
+  condition: ReactCondition;
   config: UserConfig;
   configEnv: ConfigEnv;
   userOptions: ResolvedUserOptions;
@@ -63,22 +64,22 @@ export const resolveUserConfig: ResolveUserConfigFn =
         ? ssr
         : typeof config.build?.ssr === "boolean"
         ? config.build?.ssr
-        : condition === "react-server"
+        : condition === REACT_CONDITION.server
         ? true
         : typeof configEnv.isSsrBuild === "boolean"
         ? configEnv.isSsrBuild
         : false;
 
-    if (condition === "react-server" && !ssr) {
+    if (condition === REACT_CONDITION.server && !ssr) {
       const logger = config.customLogger ?? createLogger();
       logger.warn(
         "react-server build should be ssr, but is was manually set to false. This may not work as expected."
       );
     }
     const envDir =
-      condition === "react-client" && ssr
+      condition === REACT_CONDITION.client && ssr
         ? userOptions.build.client
-        : condition === "react-client"
+        : condition === REACT_CONDITION.client
         ? userOptions.build.static
         : userOptions.build.server;
     const envId = `${envDir}${ssr ? "-ssr" : ""}`;
@@ -215,7 +216,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
     // For static builds (browser/ESM): bundle everything - no need to preserve modules or node_modules structure
     // For client/server environments (SSR): preserve modules to maintain module structure for server-side rendering
     // Use preserveModules: true for SSR, but for static builds use false to prevent _virtual files
-    const shouldPreserveModules = ssr || condition === "react-server";
+    const shouldPreserveModules = ssr || condition === REACT_CONDITION.server;
     
     const pluginOutput = {
       // For static builds: false to bundle everything and prevent _virtual files
@@ -487,7 +488,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
       setEnvValue("PUBLIC_ORIGIN", publicOrigin, primaryPrefix);
     }
 
-    if (condition === "react-client") {
+    if (condition === REACT_CONDITION.client) {
       // client plugin build options (client plugin still outputs server files)
       const clientConfig = {
         ...config,

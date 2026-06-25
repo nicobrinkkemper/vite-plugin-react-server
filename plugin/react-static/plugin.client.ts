@@ -41,7 +41,7 @@ import { getBundleManifest } from "../helpers/getBundleManifest.js";
 import { handleError } from "../error/handleError.js";
 import { shouldCausePanic } from "../error/panicThresholdHandler.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
-import { assertNonReactServer } from "../config/getCondition.js";
+import { assertNonReactServer, REACT_CONDITION } from "../config/getCondition.js";
 import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
 import { createWorkerStartupMetrics } from "../metrics/createWorkerStartupMetrics.js";
 import { processCssFilesForPages } from "./processCssFilesForPages.js";
@@ -546,8 +546,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           rscWorkerResult = await createWorker({
             projectRoot: userOptions.projectRoot,
             workerPath: userOptions.rscWorkerPath,
-            currentCondition: "react-client",
-            reverseCondition: "react-server",
+            currentCondition: REACT_CONDITION.client,
+            reverseCondition: REACT_CONDITION.server,
             maxListeners: Math.max(routes.length * 3, 10), // Account for multiple listeners per route
             envPrefix: envPrefixFromConfig(resolvedConfig as any),
             logger: logger,
