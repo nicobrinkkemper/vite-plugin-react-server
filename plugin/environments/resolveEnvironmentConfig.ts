@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createLogger } from "vite";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { REACT_CONDITION, type ReactCondition } from "../config/getCondition.js";
 
 
 // Cache for resolved environment configs to avoid recomputation
@@ -33,7 +34,7 @@ let originalConfig: UserConfig | null = null;
  */
 
 export type ResolveEnvironmentConfigProps = {
-  condition: "react-client" | "react-server";
+  condition: ReactCondition;
   config: UserConfig;
   userOptions: ResolvedUserOptions;
   autoDiscoveredFiles: AutoDiscoveredFiles;
@@ -76,11 +77,11 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
         ? ssr
         : typeof config.build?.ssr === "boolean"
         ? config.build?.ssr
-        : condition === "react-server"
+        : condition === REACT_CONDITION.server
         ? true
         : false;
 
-    if (condition === "react-server" && !ssr) {
+    if (condition === REACT_CONDITION.server && !ssr) {
       const logger = config.customLogger ?? createLogger();
       logger.warn(
         "react-server build should be ssr, but it was manually set to false. This may not work as expected."
@@ -89,9 +90,9 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
 
     // Determine environment-specific directory
     const envDir =
-      condition === "react-client" && ssr
+      condition === REACT_CONDITION.client && ssr
         ? userOptions.build.client
-        : condition === "react-client"
+        : condition === REACT_CONDITION.client
         ? userOptions.build.static
         : userOptions.build.server;
     
@@ -131,7 +132,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
 
       // Determine inputs based on condition and SSR with better normalization
       let inputs: Record<string, string>;
-      if (condition === "react-client") {
+      if (condition === REACT_CONDITION.client) {
         if (ssr) {
           // For SSR builds, exclude HTML files and use only client inputs
           inputs = Object.fromEntries(
@@ -212,7 +213,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
         },
       };
 
-      if (condition === "react-client") {
+      if (condition === REACT_CONDITION.client) {
         // Client environment configuration
         const clientEnvironmentConfig: BuildEnvironmentOptions = {
           outDir: join(userOptions.build.outDir, envDir),
@@ -296,7 +297,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
                 name: "react-server-conditions",
                 buildStart() {
                   // Ensure react-server condition is available during server builds
-                  if (condition === "react-server") {
+                  if (condition === REACT_CONDITION.server) {
                    // process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || "") + " --conditions react-server";
                   }
                 },

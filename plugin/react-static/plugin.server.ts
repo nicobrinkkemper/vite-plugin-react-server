@@ -55,7 +55,7 @@ import { createWorkerStartupMetrics } from "../metrics/createWorkerStartupMetric
 import { tryManifest } from "../helpers/tryManifest.js";
 import { join } from "node:path";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
-import { assertReactServer } from "../config/getCondition.js";
+import { assertReactServer, REACT_CONDITION } from "../config/getCondition.js";
 import { toError } from "../error/toError.js";
 
 assertReactServer();
@@ -372,8 +372,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           const workerResult = await createWorker({
             projectRoot: userOptions.projectRoot,
             workerPath: userOptions.htmlWorkerPath,
-            currentCondition: "react-server",
-            reverseCondition: "react-client", // HTML worker needs react-client for react-dom/server
+            currentCondition: REACT_CONDITION.server,
+            reverseCondition: REACT_CONDITION.client, // HTML worker needs react-client for react-dom/server
             maxListeners: maxListeners,
             envPrefix: viteEnvPrefix,
             logger: logger,

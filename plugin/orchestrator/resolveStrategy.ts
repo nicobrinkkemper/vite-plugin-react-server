@@ -1,9 +1,10 @@
 import type { Strategy } from "./types.js";
+import { REACT_CONDITION, type ReactCondition } from "../config/getCondition.js";
 
 export interface ResolveStrategyOptions {
   userStrategy?: Partial<Strategy>;
-  mainThreadCondition: "react-client" | "react-server";
-  importContext: "react-client" | "react-server";
+  mainThreadCondition: ReactCondition;
+  importContext: ReactCondition;
   functionName: "vitePluginReactClient" | "vitePluginReactServer";
 }
 
@@ -35,14 +36,14 @@ export function resolveStrategy(options: ResolveStrategyOptions): Strategy {
   };
 
   // Validate bundleTarget compatibility with mainThreadCondition
-  if (strategy.bundleTarget === "server" && mainThreadCondition === "react-client") {
+  if (strategy.bundleTarget === "server" && mainThreadCondition === REACT_CONDITION.client) {
     throw new Error(
       `Invalid strategy: bundleTarget "server" is not compatible with mainThreadCondition "react-client". ` +
       `Use vitePluginReactServer for server builds or set mainThreadCondition to "react-server".`
     );
   }
 
-  if (strategy.bundleTarget === "client" && mainThreadCondition === "react-server") {
+  if (strategy.bundleTarget === "client" && mainThreadCondition === REACT_CONDITION.server) {
     throw new Error(
       `Invalid strategy: bundleTarget "client" is not compatible with mainThreadCondition "react-server". ` +
       `Use vitePluginReactServer for client builds or set mainThreadCondition to "react-client".`

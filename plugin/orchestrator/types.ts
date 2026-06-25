@@ -1,11 +1,12 @@
 import type { StreamPluginOptions } from "../types.js";
+import type { ReactCondition } from "../config/getCondition.js";
 
 // Strategy types
 export interface Strategy {
     mode?: "auto" | "client" | "server";
     bundleTarget?: "server" | "client" | "ssr";
-    importContext?: "react-server" | "react-client";
-    mainThreadCondition?: "react-server" | "react-client";
+    importContext?: ReactCondition;
+    mainThreadCondition?: ReactCondition;
     staticBuild?: boolean;
     ssg?: boolean;
     environmentTargets?: Map<string, string>;

@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import type { Readable } from "node:stream";
 import { React } from "../vendor/vendor.server.js";
-import { assertReactServer } from "../config/getCondition.js";
+import { assertReactServer, REACT_CONDITION } from "../config/getCondition.js";
 import { createRenderToPipeableStreamHandler } from "./createRenderToPipeableStreamHandler.server.js";
 import { createHtmlStreamWithInlineFlight } from "./createHtmlStreamWithInlineFlight.server.js";
 import { createWorker } from "../worker/createWorker.js";
@@ -99,8 +99,8 @@ export const createInlineFlightRenderer: CreateInlineFlightRendererFn = function
       workerPromise = createWorker({
         projectRoot,
         ...(config.htmlWorkerPath ? { workerPath: config.htmlWorkerPath } : {}),
-        currentCondition: "react-server",
-        reverseCondition: "react-client",
+        currentCondition: REACT_CONDITION.server,
+        reverseCondition: REACT_CONDITION.client,
         mode: "production",
         verbose,
         workerData: {

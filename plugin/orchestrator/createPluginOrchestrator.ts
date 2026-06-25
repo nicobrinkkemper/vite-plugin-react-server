@@ -29,14 +29,14 @@
 // without honoring them; bd-6pi tracks the resulting bidoof regression.
 
 import type { Plugin } from "vite";
-import { getCondition } from "../config/getCondition.js";
+import { getCondition, REACT_CONDITION } from "../config/getCondition.js";
 import type { UserOptions } from "./types.js";
 
 const condition = getCondition();
 const dirpath = new URL("./", import.meta.url).pathname.replace(/\/$/, "");
 
 const mod = (await import(
-  `${dirpath}/createPluginOrchestrator.${condition === "react-server" ? "server" : "client"}.js`
+  `${dirpath}/createPluginOrchestrator.${condition === REACT_CONDITION.server ? "server" : "client"}.js`
 )) as {
   createPluginOrchestrator: (userOptions: UserOptions) => Plugin[];
 };
