@@ -31,6 +31,24 @@ const lazyReactDOMServer = createLazyVendorModule(
   reactPairedMode
 );
 const ReactDOMServer = lazyReactDOMServer.proxy;
+
+// Web-streams HTML renderer (react-dom/server.edge — renderToReadableStream).
+// The edge counterpart of ReactDOMServer's renderToPipeableStream: used by
+// renderFlightToHtml to render a decoded Flight tree to an HTML ReadableStream
+// in-process (no worker). Same consumer react-dom, edge entry; lazy for the
+// same settled-NODE_ENV reason as the others.
+// Named ...HtmlServerEdge (not ReactDOMServerEdge) deliberately: vendorEdge.
+// server.ts already exports a `ReactDOMServerEdge` that is the react-server-dom
+// FLIGHT renderer. This one is react-dom's HTML renderer — different module,
+// different signature — so it gets a distinct name to avoid confusion.
+const lazyReactDOMHtmlServerEdge = createLazyVendorModule(
+  () =>
+    projectRequire(
+      "react-dom/server.edge"
+    ) as typeof import("react-dom/server.edge"),
+  reactPairedMode
+);
+const ReactDOMHtmlServerEdge = lazyReactDOMHtmlServerEdge.proxy;
 const lazyReact = createLazyVendorModule(
   () => projectRequire("react") as typeof import("react"),
   reactPairedMode
@@ -49,5 +67,5 @@ if (hasReactServerCondition()) {
     .renderToPipeableStream;
 }
 
-export { ReactDOMServer, React, ReactDOMClient };
+export { ReactDOMServer, ReactDOMHtmlServerEdge, React, ReactDOMClient };
 export type React = typeof import("react");

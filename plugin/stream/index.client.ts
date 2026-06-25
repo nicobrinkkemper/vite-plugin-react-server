@@ -18,6 +18,11 @@ export * from "./createFromNodeStream.client.js";
 // client-first / Web-runtime user decodes Flight with.
 export * from "./createFromReadableStream.client.js";
 
+// Single-isolate flash-free HTML: decode a Flight ReadableStream and render it
+// to an HTML ReadableStream in one process (no worker). The in-process twin of
+// plugin/worker/html, for edge / single-isolate builds.
+export * from "./renderFlightToHtml.client.js";
+
 // HTML stream creation
 export * from "./createHtmlStream.client.js";
 
