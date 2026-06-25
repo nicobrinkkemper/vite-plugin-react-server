@@ -48,6 +48,15 @@ export type ServerActionHandlerOptions = {
    * default (no limit). Recommended for any internet-facing deploy.
    */
   maxBodyBytes?: number;
+  /**
+   * Resolve a client-supplied action id to its function, bypassing the built-in
+   * disk-backed sealed gate. The single-isolate edge bake passes a gate whose
+   * modules are baked into the edge bundle, so the action runs in a process with
+   * no `react-server` condition (the bake holds the server React). Still a sealed
+   * allowlist — an unregistered id rejects. When set, the sealed path uses this
+   * and never reads `<serverRoot>/.vite/manifest.json`.
+   */
+  resolveServerReference?: (id: string) => Promise<unknown>;
 };
 
 export type ServerActionRequest = {

@@ -1,4 +1,3 @@
-import { createLogger } from "vite";
 import { toError } from "./toError.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { logError } from "./logError.js";
@@ -19,7 +18,8 @@ export const handleError: HandleErrorFn = function _handleError(
   const {
     error,
     errorInfo,
-    logger = createLogger(),
+    // Default to `console` (not vite's createLogger) so this is edge-bundle safe.
+    logger = console,
     mode = getNodeEnv(),
     panicThreshold = "none",
     critical = false,

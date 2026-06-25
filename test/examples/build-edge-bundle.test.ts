@@ -143,6 +143,32 @@ describe.skipIf(!renderFlightToHtml)(
       expect(html).toContain(clientEntry);
     });
 
+    it("renders a flash-free inline-flight document via renderDocument mode", async () => {
+      const { renderRouteToDocument } = await import(
+        pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+      );
+      const clientManifest = JSON.parse(
+        await readFile(join(testDir, "dist/client/.vite/manifest.json"), "utf8")
+      );
+      const clientEntry = clientManifest["src/client.tsx"]?.file as string;
+
+      const handler = createEdgeHandler!({
+        renderDocument: (url: string) => renderRouteToDocument(url),
+        moduleBaseURL: "/",
+        bootstrapModules: ["/" + clientEntry],
+      });
+
+      const response = await handler(new Request("http://edge.test/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      // A full document, the live content, the inline flight (zero-refetch
+      // hydration), and the bootstrap entry.
+      expect(html).toContain("<html");
+      expect(html).toContain("edge-isolate");
+      expect(html).toContain('id="vprs-flight"');
+      expect(html).toContain(clientEntry);
+    });
+
     it("returns 404 for a route the bundle was not baked with", async () => {
       const { renderRouteToFlight } = await import(
         pathToFileURL(join(testDir, "dist/server-edge/render.js")).href

@@ -172,16 +172,47 @@ export async function buildEdgeBundle(opts: {
   // render does not diverge. moduleBasePath/URL come from the user config (the
   // SSG used the same), so client-reference ids align with the ssr bundle the
   // runtime points moduleBaseURL at.
-  const { entryFileName, flightExport } = DEFAULT_CONFIG.EDGE;
+  const { entryFileName, flightExport, documentExport, actionExport } =
+    DEFAULT_CONFIG.EDGE;
   const pageExport = userOptions.pageExportName ?? "Page";
   const propsExport = userOptions.propsExportName ?? "props";
+  const moduleBase = userOptions.moduleBase ?? "";
   const moduleBasePath = userOptions.moduleBasePath ?? "";
   const moduleBaseURL = userOptions.moduleBaseURL ?? "/";
-  // resolvePageAndProps lives beside this module in the SAME installed vprs.
-  const resolveHelper = join(
-    dirname(fileURLToPath(import.meta.url)),
-    "../helpers/resolvePageAndProps.js"
-  );
+  // resolvePageAndProps + createElementWithReact live beside this module in the
+  // SAME installed vprs. createElementWithReact is the canonical composer the
+  // static build uses — reusing it keeps the edge document tree byte-identical
+  // (no hydration mismatch).
+  const here = dirname(fileURLToPath(import.meta.url));
+  const resolveHelper = join(here, "../helpers/resolvePageAndProps.js");
+  const elementHelper = join(here, "../helpers/createElementWithReact.js");
+  const actionHelper = join(here, "../helpers/handleServerAction.server.js");
+  const gateHelper = join(here, "../references/createSealedServerReferenceGate.server.js");
+
+  // Resolve the Html + Root components for the full-document flight. A configured
+  // `Html`/`Root` string resolves to its built module (export named by
+  // html/rootExportName); otherwise the bundled defaults. A functional
+  // Html/Root (per-url) is uncommon here and falls back to the default with a
+  // warning — document mode wants one document shell.
+  const htmlExport = userOptions.htmlExportName ?? "Html";
+  const rootExport = userOptions.rootExportName ?? "Root";
+  const resolveComponent = (
+    opt: unknown,
+    exportName: string,
+    defaultFile: string,
+    defaultExport: string
+  ): { abs: string; exportName: string } => {
+    if (typeof opt === "string") {
+      const abs = resolveBuilt(opt);
+      if (abs) return { abs, exportName };
+      logger.warn(`${tag} could not resolve built component "${opt}"; using default`);
+    } else if (typeof opt === "function") {
+      logger.warn(`${tag} functional Html/Root not supported in document mode; using default`);
+    }
+    return { abs: join(here, defaultFile), exportName: defaultExport };
+  };
+  const htmlComp = resolveComponent(userOptions.Html, htmlExport, "../components/html.js", "Html");
+  const rootComp = resolveComponent(userOptions.Root, rootExport, "../components/root.js", "Root");
 
   // Static namespace imports of each built module, deduped by file. The loader
   // resolvePageAndProps calls is a dictionary lookup over these — a closed
@@ -207,22 +238,60 @@ export async function buildEdgeBundle(opts: {
     )}: ${pageNs}, ${JSON.stringify(r.propsSrc)}: ${propsNs} } },`;
   });
 
+  const htmlNs = nsFor(htmlComp.abs);
+  const rootNs = nsFor(rootComp.abs);
+
+  // Enumerate server-action modules from the server manifest (the sealed-gate
+  // allowlist): keys matching the action pattern, baked so the gate resolves
+  // them without a disk import (and thus no `react-server` condition at runtime).
+  const actionKeyRe = new RegExp(DEFAULT_CONFIG.EDGE.actionKeyPattern);
+  const actionEntries: { key: string; file: string; ns: string }[] = [];
+  for (const [key, entry] of Object.entries(
+    manifest as Record<string, { file?: string } | undefined>
+  )) {
+    if (!entry?.file || !actionKeyRe.test(key)) continue;
+    const abs = join(serverDir, entry.file);
+    if (!existsSync(abs)) continue;
+    actionEntries.push({ key, file: entry.file, ns: nsFor(abs) });
+  }
+  const actionDictLines = actionEntries.map(
+    (a) => `  ${JSON.stringify(a.key)}: ${a.ns},`
+  );
+  const actionManifestLines = actionEntries.map(
+    (a) => `  ${JSON.stringify(a.key)}: { file: ${JSON.stringify(a.file)} },`
+  );
+  if (actionEntries.length > 0) {
+    logger.info(
+      `${tag} baking server-action gate over ${actionEntries.length} module(s): ${actionEntries
+        .map((a) => a.key)
+        .join(", ")}`
+    );
+  }
+
   const entryPath = join(serverDir, `.vprs-${entryFileName}`);
-  const entrySource = `import { createElement } from "react";
+  const entrySource = `import * as React from "react";
+import { createElement } from "react";
 import { renderToReadableStream } from ${JSON.stringify(serverEdge)};
 import { resolvePageAndProps } from ${JSON.stringify(resolveHelper)};
+import { createElementWithReact } from ${JSON.stringify(elementHelper)};
+import { handleServerActionRequest } from ${JSON.stringify(actionHelper)};
+import { createSealedServerReferenceGate } from ${JSON.stringify(gateHelper)};
 ${importLines.join("\n")}
 
 const PAGE_EXPORT = ${JSON.stringify(pageExport)};
 const PROPS_EXPORT = ${JSON.stringify(propsExport)};
+const MODULE_BASE = ${JSON.stringify(moduleBase)};
 const MODULE_BASE_PATH = ${JSON.stringify(moduleBasePath)};
 const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
+const HtmlComponent = ${htmlNs}[${JSON.stringify(htmlComp.exportName)}];
+const RootComponent = ${rootNs}[${JSON.stringify(rootComp.exportName)}];
 
 const routes = {
 ${routeLines.join("\n")}
 };
 
-export async function ${flightExport}(url) {
+/** Resolve a route's Page component + live props through the canonical helper. */
+async function resolveRoute(url) {
   const route = routes[url];
   if (!route) throw new Error("[edge] unknown route: " + url);
   const resolved = await resolvePageAndProps({
@@ -243,10 +312,84 @@ export async function ${flightExport}(url) {
   if (resolved.type !== "success") {
     throw resolved.error ?? new Error("[edge] failed to resolve route: " + url);
   }
+  return resolved;
+}
+
+/** Headless page flight (Page only) — the simple producer. */
+export async function ${flightExport}(url) {
+  const resolved = await resolveRoute(url);
   return renderToReadableStream(
     createElement(resolved.PageComponent, resolved.pageProps),
     MODULE_BASE_PATH
   );
+}
+
+/**
+ * Full-document flights for the flash-free inline-flight path: two flights from
+ * the SAME live props (so markup and inline payload agree). \`full\` is the
+ * Html/Root-wrapped document; \`headless\` is the Root-only #root contents the
+ * client decodes from the inline payload. Pass live \`cssFiles\`/\`globalCss\`
+ * (Map<string, CssContent>) so both carry the page styles.
+ */
+export async function ${documentExport}(url, opts = {}) {
+  const resolved = await resolveRoute(url);
+  const base = {
+    PageComponent: resolved.PageComponent,
+    RootComponent,
+    pageProps: resolved.pageProps,
+    cssFiles: opts.cssFiles ?? new Map(),
+    globalCss: opts.globalCss ?? new Map(),
+    moduleBase: MODULE_BASE,
+    moduleBaseURL: MODULE_BASE_URL,
+    moduleBasePath: MODULE_BASE_PATH,
+    route: url,
+    url,
+    as: "div",
+  };
+  const full = renderToReadableStream(
+    createElementWithReact(React, { ...base, HtmlComponent }),
+    MODULE_BASE_PATH
+  );
+  const headless = renderToReadableStream(
+    createElementWithReact(React, { ...base, HtmlComponent: React.Fragment }),
+    MODULE_BASE_PATH
+  );
+  return { full, headless };
+}
+
+// Server-action modules baked into this bundle (server React inlined), keyed by
+// their server-manifest key. The sealed gate loads from here instead of disk, so
+// dispatching an action needs no \`react-server\` condition at runtime.
+const ACTION_MODULES = {
+${actionDictLines.join("\n")}
+};
+const ACTION_MANIFEST = {
+${actionManifestLines.join("\n")}
+};
+const actionGate = createSealedServerReferenceGate({
+  serverManifest: ACTION_MANIFEST,
+  serverRoot: "",
+  base: MODULE_BASE_URL,
+  loadModule: async (key) => {
+    const mod = ACTION_MODULES[key];
+    if (!mod) throw new Error("[edge] no baked action module for: " + key);
+    return mod;
+  },
+});
+
+/**
+ * Baked server-action handler: a sealed gate over the action modules above,
+ * dispatched through the same trust boundary as the on-disk handler (CSRF /
+ * body-cap guards, post-import server-reference check) — but with no disk import
+ * and no \`react-server\` condition. \`(Request, { projectRoot? }) => Response\`.
+ */
+export async function ${actionExport}(request, opts = {}) {
+  return handleServerActionRequest(request, {
+    projectRoot: opts.projectRoot ?? "",
+    base: MODULE_BASE_URL,
+    resolveServerReference: (id) => actionGate.resolveServerReference(id),
+    ...opts,
+  });
 }
 `;
   writeFileSync(entryPath, entrySource, "utf8");

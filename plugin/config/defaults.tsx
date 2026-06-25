@@ -308,6 +308,17 @@ export const DEFAULT_CONFIG = {
     entryFileName: "render.js",
     // Its exported per-route flight renderer: (url) => Web ReadableStream.
     flightExport: "renderRouteToFlight",
+    // Its exported full-document renderer: (url, {cssFiles, globalCss}) =>
+    // { full, headless } Web ReadableStreams (Html-wrapped + Root-only), for the
+    // flash-free inline-flight document path (createEdgeHandler renderDocument).
+    documentExport: "renderRouteToDocument",
+    // Its exported baked server-action handler: (request, {projectRoot}) =>
+    // Response. A sealed gate over the action modules baked into the bundle, so a
+    // no-`--conditions` process dispatches actions without the on-disk transport.
+    actionExport: "handleRouteAction",
+    // Server-module manifest keys to bake as action candidates (the sealed-gate
+    // allowlist). Server actions live in `*.server.*` modules.
+    actionKeyPattern: "\\.server\\.[cm]?[jt]sx?$",
     // React subpaths re-aliased to their `react-server` exports so the bundle
     // bakes SERVER React. The alias TARGETS are derived from react's own
     // package `exports` map at bake time (no hardcoded `*.react-server.js`).

@@ -3,9 +3,34 @@ import type {
   EdgeFetchHandler,
 } from "./createEdgeHandler.types.js";
 import { renderFlightToHtml } from "./renderFlightToHtml.client.js";
+import { injectInlineFlightIntoHtml } from "../utils/inlineFlight.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
 assertNonReactServer();
+
+/** Drain a Web ReadableStream of bytes into a single Uint8Array. */
+async function collectBytes(
+  stream: ReadableStream<Uint8Array>
+): Promise<Uint8Array> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.byteLength;
+  }
+  return out;
+}
 
 /**
  * Marker the baked flight producer uses for a url with no baked route (see the
@@ -38,6 +63,7 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
 ): EdgeFetchHandler {
   const {
     render,
+    renderDocument,
     moduleBaseURL = "/",
     bootstrapModules,
     bootstrapScriptContent,
@@ -50,23 +76,73 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     verbose,
   } = options;
 
+  if (!render && !renderDocument) {
+    throw new Error(
+      "[createEdgeHandler] one of `render` or `renderDocument` is required"
+    );
+  }
+
+  const htmlHeaders = (): Record<string, string> => ({
+    "content-type": "text/html; charset=utf-8",
+    ...(headers ? Object.fromEntries(new Headers(headers)) : {}),
+  });
+
+  const notFound = (url: string, request: Request): Response | Promise<Response> =>
+    onNotFound
+      ? onNotFound(url, request)
+      : new Response("Not Found", {
+          status: 404,
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        });
+
+  /** The producer 404s an unbaked route by throwing the unknown-route marker. */
+  const isUnknownRoute = (error: unknown): boolean =>
+    error instanceof Error && error.message.includes(UNKNOWN_ROUTE_MARKER);
+
   return async function edgeHandler(request: Request): Promise<Response> {
     const url = getURL(request);
 
+    // Full flash-free document: render the Html-wrapped `full` flight to a
+    // complete HTML document and inline the `headless` flight so the client
+    // hydrates in place with no `.rsc` refetch. Buffers the (small) dynamic
+    // document to splice the inline script before </body>.
+    if (renderDocument) {
+      let flights;
+      try {
+        flights = await renderDocument(url);
+      } catch (error) {
+        if (isUnknownRoute(error)) return notFound(url, request);
+        onError?.(error);
+        throw error;
+      }
+      const htmlStream = await renderFlightToHtml({
+        rscStream: flights.full,
+        moduleBaseURL,
+        bootstrapModules,
+        bootstrapScriptContent,
+        nonce,
+        onError,
+        signal: request.signal,
+        logger,
+        verbose,
+      });
+      const [htmlString, headlessBytes] = await Promise.all([
+        new Response(htmlStream).text(),
+        collectBytes(flights.headless),
+      ]);
+      return new Response(
+        injectInlineFlightIntoHtml(htmlString, headlessBytes),
+        { headers: htmlHeaders() }
+      );
+    }
+
     let rscStream: ReadableStream<Uint8Array>;
     try {
-      rscStream = await render(url);
+      rscStream = await render!(url);
     } catch (error) {
       // The producer is a closed manifest over `build.pages`; an unknown url is
       // a 404, not a 500. Everything else is a real failure — surface it.
-      if (error instanceof Error && error.message.includes(UNKNOWN_ROUTE_MARKER)) {
-        return onNotFound
-          ? onNotFound(url, request)
-          : new Response("Not Found", {
-              status: 404,
-              headers: { "content-type": "text/plain; charset=utf-8" },
-            });
-      }
+      if (isUnknownRoute(error)) return notFound(url, request);
       onError?.(error);
       throw error;
     }
@@ -83,11 +159,6 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       verbose,
     });
 
-    return new Response(htmlStream, {
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-        ...(headers ? Object.fromEntries(new Headers(headers)) : {}),
-      },
-    });
+    return new Response(htmlStream, { headers: htmlHeaders() });
   };
 };

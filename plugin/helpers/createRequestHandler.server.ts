@@ -4,8 +4,16 @@ import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { MIME_TYPES } from "../config/mimeTypes.js";
 import { isPathWithin } from "./isPathWithin.js";
-import { handleServerActionRequest } from "./handleServerAction.server.js";
 import type { ServerActionHandlerOptions } from "./handleServerActionHelper.js";
+
+/**
+ * A pre-built action handler — `(Request) => Response`. The single-isolate edge
+ * bake provides one (the baked action gate), so a no-`--conditions` process can
+ * dispatch actions without statically importing the react-server transport.
+ */
+export type ActionRequestHandler = (
+  request: Request
+) => Promise<Response> | Response;
 
 export interface CreateRequestHandlerOptions {
   /**
@@ -15,11 +23,16 @@ export interface CreateRequestHandlerOptions {
    */
   staticDir: string;
   /**
-   * Server-action handling. When provided, a POST carrying the action header is
-   * dispatched to {@link handleServerActionRequest} (same trust boundary as the
-   * Node handler). Omit to serve a read-only site.
+   * Server-action handling for a POST carrying the action header. Omit to serve
+   * a read-only site. Either:
+   *  - {@link ServerActionHandlerOptions} — the built-in disk-backed sealed gate
+   *    (needs `--conditions react-server`; the transport is imported lazily, only
+   *    when this form is used, so passing a function keeps the handler
+   *    condition-neutral); or
+   *  - an {@link ActionRequestHandler} function — e.g. the single-isolate edge
+   *    bake's baked action gate, for a no-`--conditions` process.
    */
-  action?: ServerActionHandlerOptions;
+  action?: ServerActionHandlerOptions | ActionRequestHandler;
   /**
    * Optional per-request renderer for dynamic routes. Called on a GET before the
    * static fallback; return a `Response` to handle the route dynamically (e.g.
@@ -75,6 +88,15 @@ export function createRequestHandler(
     const url = new URL(request.url);
 
     if (request.method === "POST" && action && request.headers.get(actionHeader)) {
+      if (typeof action === "function") return action(request);
+      // Lazy import: pulling handleServerActionRequest eagerly would static-link
+      // the react-server transport (asserts the `react-server` condition) into
+      // every importer — including no-`--conditions` edge servers that pass a
+      // baked action function instead. Imported only when the built-in gate is
+      // actually used.
+      const { handleServerActionRequest } = await import(
+        "./handleServerAction.server.js"
+      );
       return handleServerActionRequest(request, action);
     }
 
