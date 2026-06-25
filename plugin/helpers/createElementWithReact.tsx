@@ -1,4 +1,3 @@
-import { createLogger } from "vite";
 import type { CreateHandlerOptions } from "../types.js";
 
 export type CreateElementWithReactOptions = Pick<
@@ -54,9 +53,11 @@ export const createElementWithReact: CreateElementWithReactFN =
       url,
       as = "div",
       verbose = false,
-      logger = createLogger("info", {
-        prefix: "vite:plugin-react-server/helpers/createElementWithReact",
-      }),
+      // No default logger: importing one from "vite" would drag the dev-only
+      // bundler into the single-isolate edge bundle (this helper composes the
+      // baked document tree). Call sites that want logs pass their own; the
+      // verbose branches below are already `logger?.`-guarded.
+      logger = undefined,
     }
   ) {
     // Add debug logging

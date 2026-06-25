@@ -131,6 +131,12 @@ export async function resolveAndExecuteServerAction(
       verbose,
       logger
     );
+  } else if (options.resolveServerReference) {
+    // SEALED path, caller-supplied gate. The single-isolate edge bake passes a
+    // gate whose modules are baked into the edge bundle, so this runs with no
+    // `react-server` condition and never disk-imports the transport. Still
+    // sealed — an unregistered id throws inside the resolver.
+    action = (await options.resolveServerReference(id)) as Function;
   } else {
     // SEALED path (production trust boundary). Resolve the client-supplied id
     // through a gate built from the build's server manifest: an id the build

@@ -5,8 +5,7 @@ import {
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
-import { createLogger } from "vite";
-const LOGGER = createLogger();
+import type { Logger } from "vite";
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
   // Client directive must be at start of file
@@ -101,7 +100,12 @@ export const DEFAULT_LOADER_CONFIG = {
   parse: parse,
   mode: MODE,
   verbose: false,
-  logger: LOGGER,
+  // No eager default logger: constructing vite's createLogger() at module top
+  // dragged vite (a devDependency) into every prod/edge bundle that imports
+  // DEFAULT_CONFIG. Call sites supply their own logger; this defaults undefined.
+  // `import type { Logger }` is erased, so no runtime vite. (Typed as Logger to
+  // satisfy Required<LoaderConfig>; consumers already guard a missing logger.)
+  logger: undefined as unknown as Logger,
   moduleID: (moduleId: string, _sourceContent?: string) =>
     typeof moduleId === "string" ? moduleId : String(moduleId),
 } as const;
@@ -224,6 +228,7 @@ export const DEFAULT_CONFIG = {
     // which will be done in createHandlerOptions.server.ts and createHandlerOptions.client.ts
     useRscWorker: !IS_SERVER && IS_BUILD,
     useHtmlWorker: IS_SERVER && IS_BUILD,
+    edge: { enabled: true, outDir: "server-edge", minify: true },
   },
   DEV: {
     // these defaults rely on process.argv
@@ -294,5 +299,31 @@ export const DEFAULT_CONFIG = {
   REACT_LOADER_PATH: pluginRoot + "/loader/react-loader.js",
   CSS_LOADER_PATH: pluginRoot + "/loader/css-loader.js",
   ENV_LOADER_PATH: pluginRoot + "/loader/env-loader.js",
-  
+
+  // Single-isolate edge bake (build.edge, on by default). The user-facing
+  // `outDir` default lives in BUILD.edge; these are the internal names the bake
+  // step uses, centralized here rather than scattered as literals.
+  EDGE: {
+    // The generated flight-producer entry the bake emits + bundles.
+    entryFileName: "render.js",
+    // Its exported per-route flight renderer: (url) => Web ReadableStream.
+    flightExport: "renderRouteToFlight",
+    // Its exported full-document renderer: (url, {cssFiles, globalCss}) =>
+    // { full, headless } Web ReadableStreams (Html-wrapped + Root-only), for the
+    // flash-free inline-flight document path (createEdgeHandler renderDocument).
+    documentExport: "renderRouteToDocument",
+    // Its exported baked server-action handler: (request, {projectRoot}) =>
+    // Response. A sealed gate over the action modules baked into the bundle, so a
+    // no-`--conditions` process dispatches actions without the on-disk transport.
+    actionExport: "handleRouteAction",
+    // Server-module manifest keys to bake as action candidates (the sealed-gate
+    // allowlist). Server actions live in `*.server.*` modules.
+    actionKeyPattern: "\\.server\\.[cm]?[jt]sx?$",
+    // React subpaths re-aliased to their `react-server` exports so the bundle
+    // bakes SERVER React. The alias TARGETS are derived from react's own
+    // package `exports` map at bake time (no hardcoded `*.react-server.js`).
+    // ORDER MATTERS: the bare "react" alias prefix-matches "react/jsx-runtime",
+    // so the specific subpaths must come first (alias uses first match).
+    reactServerSubpaths: ["./jsx-runtime", "./jsx-dev-runtime", "."] as const,
+  },
 };

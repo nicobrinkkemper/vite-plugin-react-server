@@ -22,6 +22,16 @@ export interface SealedServerReferenceGateOptions {
   serverRoot: string;
   /** URL base the client prefixes onto reference ids (default `/`). */
   base?: string;
+  /**
+   * Override how a registered module is loaded. The default disk-imports
+   * `<serverRoot>/<entry.file>` — correct under `--conditions react-server`. The
+   * single-isolate edge bake injects a loader that returns a module STATICALLY
+   * BAKED into the edge bundle (server React inlined), so the gate runs in a
+   * process with no `react-server` condition and never disk-imports the
+   * transport. Called with the manifest key and its built file. The allowlist
+   * is unchanged: only manifest-enumerated keys are registered.
+   */
+  loadModule?: (key: string, file: string) => Promise<Record<string, unknown>>;
 }
 
 /**
@@ -53,6 +63,7 @@ export function createSealedServerReferenceGate({
   serverManifest,
   serverRoot,
   base = "/",
+  loadModule,
 }: SealedServerReferenceGateOptions): ReferenceGate {
   const gate = createReferenceGate({ mode: "sealed" });
   const prefix = base.endsWith("/") ? base : `${base}/`;
@@ -60,8 +71,9 @@ export function createSealedServerReferenceGate({
   for (const [key, entry] of Object.entries(serverManifest)) {
     if (!entry?.file) continue;
     const file = entry.file;
-    const load = () =>
-      import(join(serverRoot, file)) as Promise<Record<string, unknown>>;
+    const load = loadModule
+      ? () => loadModule(key, file)
+      : () => import(join(serverRoot, file)) as Promise<Record<string, unknown>>;
     // The directive transform bakes a BARE manifest-key id (`<srcKey>#<export>`);
     // a base-prefixed transport sends `<base><srcKey>#<export>`. Register both
     // shapes so resolution is an exact-key lookup either way. This does not widen

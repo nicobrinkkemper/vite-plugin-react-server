@@ -186,8 +186,29 @@ interface BuildConfig {
   htmlOutputPath?: string; // Default: "index.html"
   preserveModulesRoot?: boolean;
   hash?: string;
+  edge?: EdgeBuildConfig;
 }
 ```
+
+### `build.edge`
+
+Single-isolate edge bundle (additive; **ON by default**). See [Edge / Single-Isolate](./edge.md).
+
+```typescript
+// build.edge?: boolean | EdgeBuildConfig   (default: true)
+//   true / omitted  → emit with defaults
+//   false           → opt out
+//   { … }           → emit, with overrides
+interface EdgeBuildConfig {
+  outDir?: string;  // Default: "server-edge" (under build.outDir)
+  minify?: boolean; // Default: true — edge runtimes cap bundle size
+}
+```
+
+Drive the baked `render.js` with `createEdgeHandler` from
+`vite-plugin-react-server/stream`: `renderRouteToDocument` for a flash-free
+inline-flight document, `handleRouteAction` for the baked server-action gate, or
+the low-level `renderRouteToFlight` producer.
 
 ### CssConfig
 

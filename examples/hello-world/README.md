@@ -41,3 +41,21 @@ This example is the smallest config that ships all four. Use it as a reference w
 ## Build
 
 This example focuses on dev. For production-build flags see [docs/getting-started.md](../../docs/getting-started.md) and the larger [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official).
+
+## Edge / single-isolate
+
+The single-isolate edge build (`build.edge`, on by default) bakes
+`dist/server-edge/render.js` — flash-free SSR from one Web `fetch` handler, no
+`worker_threads` and no `--conditions`. This example only sets `edge: { minify:
+false }` in `vite.config.ts` to keep the baked bundle readable.
+
+```bash
+npm run build     # emits dist/server-edge/render.js + dist/client
+npm run edge      # node edge-server.mjs → http://localhost:8787
+```
+
+[`edge-server.mjs`](./edge-server.mjs) is a small Node adapter around
+`createEdgeHandler`; on a real edge platform (Cloudflare/Deno/Bun) you export the
+handler directly. `minify` is set to `false` here so the baked bundle stays
+readable — leave it on (the default) for real deploys. See
+[docs/edge.md](../../docs/edge.md).

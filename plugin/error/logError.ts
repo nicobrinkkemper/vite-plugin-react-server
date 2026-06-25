@@ -1,4 +1,4 @@
-import { createLogger, type Logger } from "vite";
+import type { Logger } from "vite";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 /**
  * Simple error logging function focused purely on logging errors
@@ -6,7 +6,10 @@ import { getNodeEnv } from "../config/getNodeEnv.js";
  */
 export function logError(
   err: Error,
-  logger: Logger | Console = createLogger(),
+  // Default to `console`, not vite's `createLogger()`: a top-level "vite" import
+  // would drag the dev-only bundler into the single-isolate edge bundle (this
+  // runs in the baked action gate). Callers pass a real logger when they have one.
+  logger: Logger | Console = console,
   mode: "development" | "production" | "test" = getNodeEnv()
 ) {
   // when a proper logger is provided

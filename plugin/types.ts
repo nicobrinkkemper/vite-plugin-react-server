@@ -438,7 +438,7 @@ export type ResolvedUserOptions = {
   clientPipeableStreamOptions?: any; // For HTML worker
   autoDiscover: Required<AutoDiscoverConfig>;
   loader?: Required<LoaderConfig> | undefined;
-  build: Required<BuildConfig>;
+  build: Omit<Required<BuildConfig>, "edge"> & { edge: ResolvedEdgeConfig };
   dev: Required<DevConfig>;
   css: RootOptions<boolean>;
   components?: StreamPluginOptions["components"]; // Direct component overrides (optional)
@@ -1146,6 +1146,42 @@ export type BuildConfig = {
    * @default false
    */
   inlineFlight?: boolean;
+  /**
+   * Single-isolate edge build. Emits an additional baked rsc bundle to
+   * `build.edge.outDir` (default `server-edge`): the server graph with React
+   * INLINED, so it runs in one isolate with no worker_threads and no runtime
+   * `--conditions` (drive it with `createEdgeHandler` / `renderRouteToDocument`).
+   * The default worker-based build (`dist/server`) is untouched — purely
+   * additive. Dev is unaffected.
+   *
+   * On by DEFAULT. Pass `false` to skip the artifact, or an {@link EdgeBuildConfig}
+   * object to tune it (presence still means enabled):
+   *   - `edge: false`            — disable
+   *   - `edge: true` / omitted   — enable with defaults
+   *   - `edge: { minify: false }` — enable, override a default
+   *
+   * @default true
+   */
+  edge?: boolean | EdgeBuildConfig;
+};
+
+export type EdgeBuildConfig = {
+  /** Output dir for the baked edge bundle, under `build.outDir`. @default "server-edge" */
+  outDir?: string;
+  /**
+   * Minify the baked edge bundle. The artifact bakes React in, so it is large;
+   * edge runtimes (Cloudflare Workers, Deno Deploy, Vercel Edge) enforce bundle
+   * size limits, so minification is on by default. Set `false` to emit readable
+   * output for inspection/debugging. @default true
+   */
+  minify?: boolean;
+};
+
+/** Resolved edge config (after normalizing the `boolean | EdgeBuildConfig` form). */
+export type ResolvedEdgeConfig = {
+  enabled: boolean;
+  outDir: string;
+  minify: boolean;
 };
 
 export type DevConfig = {

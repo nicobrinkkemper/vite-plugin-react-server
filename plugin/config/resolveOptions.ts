@@ -677,6 +677,17 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     renderMode: options.build?.renderMode ?? "parallel",
     batchSize: options.build?.batchSize ?? 8,
     inlineFlight: options.build?.inlineFlight ?? false,
+    edge: (() => {
+      // `build.edge`: boolean | EdgeBuildConfig, default ON. `false` disables;
+      // `true`/omitted enables with defaults; an object enables + overrides.
+      const edge = options.build?.edge;
+      const obj = edge && typeof edge === "object" ? edge : {};
+      return {
+        enabled: edge === false ? false : true,
+        outDir: obj.outDir ?? DEFAULT_CONFIG.BUILD.edge.outDir,
+        minify: obj.minify ?? DEFAULT_CONFIG.BUILD.edge.minify,
+      };
+    })(),
   } satisfies ResolvedUserOptions["build"];
 
   // Development configuration

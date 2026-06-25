@@ -49,6 +49,7 @@
       "default": "./dist/plugin/storybook/preset.js"
     },
     "./metrics": "./dist/plugin/metrics/index.js",
+    "./request-handler": "./dist/plugin/helpers/createRequestHandler.server.js",
     "./stream": {
       "react-server": "./dist/plugin/stream/index.server.js",
       "default": "./dist/plugin/stream/index.client.js"
