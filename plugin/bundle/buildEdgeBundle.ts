@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import type { ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
 
 /** Resolve a package subpath's `react-server` export target to an absolute path. */
 function reactServerExportTarget(
@@ -28,18 +29,6 @@ function reactServerExportTarget(
   }
 }
 
-/** Look up a source module's built output file in a Vite manifest. */
-function manifestFileFor(
-  manifest: Record<string, { file: string; src?: string }>,
-  source: unknown
-): string | null {
-  if (typeof source !== "string") return null;
-  if (manifest[source]?.file) return manifest[source].file;
-  // Fallback: match by source basename (handles minor key normalization).
-  const base = source.split("/").pop();
-  const hit = Object.values(manifest).find((e) => e.src?.split("/").pop() === base);
-  return hit?.file ?? null;
-}
 
 /**
  * Single-isolate edge bake (build.edge.singleIsolate). Generates a flight-
@@ -107,25 +96,45 @@ export async function buildEdgeBundle(opts: {
   const routeSource = (opt: unknown, url: string): unknown =>
     typeof opt === "function" ? (opt as (u: string) => unknown)(url) : opt;
 
+  // Map a source module to its built file via vprs's canonical manifest
+  // resolver (the same one the RSC worker + build loaders use — honors the
+  // normalizer and the moduleBase prefix), returning the absolute built path.
+  const resolveBuilt = (src: unknown): string | null => {
+    if (typeof src !== "string") return null;
+    const { resolvedPath } = resolveModuleFromManifest({
+      moduleId: src,
+      normalizer: userOptions.normalizer,
+      manifest,
+      moduleBase: userOptions.moduleBase,
+      preserveModulesRoot: userOptions.build.preserveModulesRoot,
+      projectRoot,
+      buildOutDir: userOptions.build.outDir,
+      buildServerDir: userOptions.build.server,
+      verbose: userOptions.verbose,
+      logger,
+    });
+    return resolvedPath;
+  };
+
   const routes: {
     url: string;
     pageSrc: string;
-    pageFile: string;
+    pageAbs: string;
     propsSrc: string;
-    propsFile: string;
+    propsAbs: string;
   }[] = [];
   for (const url of urls ?? []) {
     const pageSrc = routeSource(userOptions.Page, url);
     const propsSrc = routeSource(userOptions.props, url);
-    const pageFile = manifestFileFor(manifest, pageSrc);
-    const propsFile = manifestFileFor(manifest, propsSrc);
+    const pageAbs = resolveBuilt(pageSrc);
+    const propsAbs = resolveBuilt(propsSrc);
     if (
       typeof pageSrc === "string" &&
       typeof propsSrc === "string" &&
-      pageFile &&
-      propsFile
+      pageAbs &&
+      propsAbs
     ) {
-      routes.push({ url, pageSrc, pageFile, propsSrc, propsFile });
+      routes.push({ url, pageSrc, pageAbs, propsSrc, propsAbs });
     } else {
       logger.warn(`${tag} could not resolve built Page/props for route ${url}; omitting`);
     }
@@ -179,20 +188,18 @@ export async function buildEdgeBundle(opts: {
   // manifest, no runtime import().
   const importLines: string[] = [];
   const idByFile = new Map<string, string>();
-  const nsFor = (file: string): string => {
-    let id = idByFile.get(file);
+  const nsFor = (absPath: string): string => {
+    let id = idByFile.get(absPath);
     if (!id) {
       id = `M${idByFile.size}`;
-      idByFile.set(file, id);
-      importLines.push(
-        `import * as ${id} from ${JSON.stringify(join(serverDir, file))};`
-      );
+      idByFile.set(absPath, id);
+      importLines.push(`import * as ${id} from ${JSON.stringify(absPath)};`);
     }
     return id;
   };
   const routeLines = routes.map((r) => {
-    const pageNs = nsFor(r.pageFile);
-    const propsNs = nsFor(r.propsFile);
+    const pageNs = nsFor(r.pageAbs);
+    const propsNs = nsFor(r.propsAbs);
     return `  ${JSON.stringify(r.url)}: { pagePath: ${JSON.stringify(
       r.pageSrc
     )}, propsPath: ${JSON.stringify(r.propsSrc)}, modules: { ${JSON.stringify(
