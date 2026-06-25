@@ -1,6 +1,7 @@
 import { build as viteBuild, type Logger } from "vite";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import type { ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
@@ -106,13 +107,28 @@ export async function buildEdgeBundle(opts: {
   const routeSource = (opt: unknown, url: string): unknown =>
     typeof opt === "function" ? (opt as (u: string) => unknown)(url) : opt;
 
-  const routes: { url: string; pageFile: string; propsFile: string }[] = [];
+  const routes: {
+    url: string;
+    pageSrc: string;
+    pageFile: string;
+    propsSrc: string;
+    propsFile: string;
+  }[] = [];
   for (const url of urls ?? []) {
-    const pageFile = manifestFileFor(manifest, routeSource(userOptions.Page, url));
-    const propsFile = manifestFileFor(manifest, routeSource(userOptions.props, url));
-    if (pageFile && propsFile) routes.push({ url, pageFile, propsFile });
-    else
+    const pageSrc = routeSource(userOptions.Page, url);
+    const propsSrc = routeSource(userOptions.props, url);
+    const pageFile = manifestFileFor(manifest, pageSrc);
+    const propsFile = manifestFileFor(manifest, propsSrc);
+    if (
+      typeof pageSrc === "string" &&
+      typeof propsSrc === "string" &&
+      pageFile &&
+      propsFile
+    ) {
+      routes.push({ url, pageSrc, pageFile, propsSrc, propsFile });
+    } else {
       logger.warn(`${tag} could not resolve built Page/props for route ${url}; omitting`);
+    }
   }
   if (routes.length === 0) {
     logger.warn(`${tag} no routes resolved from build.pages; skipping`);
@@ -140,45 +156,60 @@ export async function buildEdgeBundle(opts: {
     alias[key] = target;
   }
 
-  // Generate a router-aware flight-producer entry: renderRouteToFlight(url) maps
-  // a known route to its baked Page/props and renders the Flight. moduleBasePath
-  // comes from the user config (the SSG used the same), so client-reference ids
-  // align with the ssr bundle the runtime points moduleBaseURL at.
+  // Generate a router-aware flight-producer entry. Rather than re-implement
+  // props resolution, it routes through vprs's canonical resolvePageAndProps
+  // (the same helper dev/SSG use — handles props-as-function/class/async, the
+  // props-in-page-module fallback, the {url} default, errors), so the edge
+  // render does not diverge. moduleBasePath/URL come from the user config (the
+  // SSG used the same), so client-reference ids align with the ssr bundle the
+  // runtime points moduleBaseURL at.
   const { entryFileName, flightExport } = DEFAULT_CONFIG.EDGE;
   const pageExport = userOptions.pageExportName ?? "Page";
   const propsExport = userOptions.propsExportName ?? "props";
   const moduleBasePath = userOptions.moduleBasePath ?? "";
+  const moduleBaseURL = userOptions.moduleBaseURL ?? "/";
+  // resolvePageAndProps lives beside this module in the SAME installed vprs.
+  const resolveHelper = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../helpers/resolvePageAndProps.js"
+  );
 
-  // Dedup imports by built file (distinct routes can share a module).
+  // Static namespace imports of each built module, deduped by file. The loader
+  // resolvePageAndProps calls is a dictionary lookup over these — a closed
+  // manifest, no runtime import().
   const importLines: string[] = [];
-  const idByKey = new Map<string, string>();
-  const idFor = (file: string, kind: "P" | "Q", exportName: string): string => {
-    const key = `${kind}:${file}`;
-    let id = idByKey.get(key);
+  const idByFile = new Map<string, string>();
+  const nsFor = (file: string): string => {
+    let id = idByFile.get(file);
     if (!id) {
-      id = `${kind}${idByKey.size}`;
-      idByKey.set(key, id);
+      id = `M${idByFile.size}`;
+      idByFile.set(file, id);
       importLines.push(
-        `import { ${exportName} as ${id} } from ${JSON.stringify(
-          join(serverDir, file)
-        )};`
+        `import * as ${id} from ${JSON.stringify(join(serverDir, file))};`
       );
     }
     return id;
   };
-  const routeLines = routes.map(
-    (r) =>
-      `  ${JSON.stringify(r.url)}: { Page: ${idFor(
-        r.pageFile,
-        "P",
-        pageExport
-      )}, props: ${idFor(r.propsFile, "Q", propsExport)} },`
-  );
+  const routeLines = routes.map((r) => {
+    const pageNs = nsFor(r.pageFile);
+    const propsNs = nsFor(r.propsFile);
+    return `  ${JSON.stringify(r.url)}: { pagePath: ${JSON.stringify(
+      r.pageSrc
+    )}, propsPath: ${JSON.stringify(r.propsSrc)}, modules: { ${JSON.stringify(
+      r.pageSrc
+    )}: ${pageNs}, ${JSON.stringify(r.propsSrc)}: ${propsNs} } },`;
+  });
 
   const entryPath = join(serverDir, `.vprs-${entryFileName}`);
   const entrySource = `import { createElement } from "react";
 import { renderToReadableStream } from ${JSON.stringify(serverEdge)};
+import { resolvePageAndProps } from ${JSON.stringify(resolveHelper)};
 ${importLines.join("\n")}
+
+const PAGE_EXPORT = ${JSON.stringify(pageExport)};
+const PROPS_EXPORT = ${JSON.stringify(propsExport)};
+const MODULE_BASE_PATH = ${JSON.stringify(moduleBasePath)};
+const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
 
 const routes = {
 ${routeLines.join("\n")}
@@ -187,10 +218,28 @@ ${routeLines.join("\n")}
 export async function ${flightExport}(url) {
   const route = routes[url];
   if (!route) throw new Error("[edge] unknown route: " + url);
-  const props = await route.props(url);
-  return renderToReadableStream(createElement(route.Page, props), ${JSON.stringify(
-    moduleBasePath
-  )});
+  const resolved = await resolvePageAndProps({
+    pagePath: route.pagePath,
+    propsPath: route.propsPath,
+    pageExportName: PAGE_EXPORT,
+    propsExportName: PROPS_EXPORT,
+    moduleBaseURL: MODULE_BASE_URL,
+    url,
+    loader: async (id) => {
+      // resolvePage/resolveProps may pass "<path>#<export>"; key by the path.
+      const path = String(id).split("#")[0];
+      const mod = route.modules[path];
+      if (!mod) throw new Error("[edge] no baked module for id: " + id);
+      return mod;
+    },
+  });
+  if (resolved.type !== "success") {
+    throw resolved.error ?? new Error("[edge] failed to resolve route: " + url);
+  }
+  return renderToReadableStream(
+    createElement(resolved.PageComponent, resolved.pageProps),
+    MODULE_BASE_PATH
+  );
 }
 `;
   writeFileSync(entryPath, entrySource, "utf8");
