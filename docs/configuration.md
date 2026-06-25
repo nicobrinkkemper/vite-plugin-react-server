@@ -52,6 +52,14 @@ export default defineConfig({
       batchSize: 8,                    // pages per batch in parallel mode
       rscOutputPath: "index.rsc",
       htmlOutputPath: "index.html",
+
+      // Optional — single-isolate edge bundle (additive; default off).
+      // See docs/edge.md.
+      edge: {
+        singleIsolate: false,          // emit dist/server-edge/render.js
+        outDir: "server-edge",         // under build.dir
+        minify: true,                  // edge runtimes enforce size limits
+      },
     },
 
     // Optional — workers

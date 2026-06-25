@@ -5,7 +5,7 @@ import { useRscHmr } from "virtual:react-server/hmr";
 
 const Shell = ({ data }: { data: React.Usable<React.ReactNode> }) => {
   const [, startTransition] = useTransition();
-  const [stream, setStream] = useState(data);
+  const [stream, setStream] = useState<React.Usable<React.ReactNode>>(data);
   const refetch = useCallback(() => {
     startTransition(() => setStream(createReactFetcher()));
   }, []);

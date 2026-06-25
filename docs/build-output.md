@@ -209,6 +209,21 @@ build: {
 
 Use `renderMode: "sequential"` for debugging or low-memory environments.
 
+## Optional: `dist/server-edge/` (single-isolate edge bundle)
+
+With `build.edge.singleIsolate: true`, the build emits one extra artifact:
+
+```
+dist/
+└── server-edge/
+    └── render.js      # baked Flight producer, React inlined (server condition)
+```
+
+This is **additive** — the three directories above are untouched. `render.js`
+exports `renderRouteToFlight(url)` and runs in a single isolate with no
+`worker_threads` and no runtime `--conditions`, for edge runtimes. Pair it with
+`createEdgeHandler` to get a Web `fetch` handler. See [Edge / Single-Isolate](./edge.md).
+
 ## Environment Variables
 
 The plugin sets these automatically if not provided:

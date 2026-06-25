@@ -186,8 +186,24 @@ interface BuildConfig {
   htmlOutputPath?: string; // Default: "index.html"
   preserveModulesRoot?: boolean;
   hash?: string;
+  edge?: EdgeBuildConfig;
 }
 ```
+
+### EdgeBuildConfig
+
+Single-isolate edge bundle (additive; off by default). See [Edge / Single-Isolate](./edge.md).
+
+```typescript
+interface EdgeBuildConfig {
+  singleIsolate?: boolean; // Default: false — emit dist/server-edge/render.js
+  outDir?: string;         // Default: "server-edge" (under build.outDir)
+  minify?: boolean;        // Default: true — edge runtimes cap bundle size
+}
+```
+
+Pair the baked `render.js` (`renderRouteToFlight`) with `createEdgeHandler` from
+`vite-plugin-react-server/stream` to get a Web `(Request) => Response` handler.
 
 ### CssConfig
 

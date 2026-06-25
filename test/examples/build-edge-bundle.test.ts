@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdir, rm, writeFile, symlink } from "node:fs/promises";
+import { mkdir, rm, writeFile, symlink, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -12,6 +12,9 @@ import { doBuild } from "../doBuild.js";
 // build under the client condition, which is enough to exercise the edge bake.
 const renderFlightToHtml = (streamApi as any).renderFlightToHtml as
   | typeof import("../../plugin/stream/renderFlightToHtml.client.js").renderFlightToHtml
+  | undefined;
+const createEdgeHandler = (streamApi as any).createEdgeHandler as
+  | typeof import("../../plugin/stream/createEdgeHandler.client.js").createEdgeHandler
   | undefined;
 
 const testDir = resolve(__dirname, "../fixtures/build-edge-bundle.test");
@@ -106,6 +109,47 @@ describe.skipIf(!renderFlightToHtml)(
       expect(html).toContain("edge-isolate");
       expect(html).toContain('id="root"');
       expect(html).not.toContain("Switched to client rendering");
+    });
+
+    it("serves rendered HTML with a hydration bootstrap via createEdgeHandler", async () => {
+      const { renderRouteToFlight } = await import(
+        pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+      );
+
+      // Derive the bootstrap entry from the client manifest, exactly as a real
+      // edge adapter would (so the served HTML can hydrate).
+      const clientManifest = JSON.parse(
+        await readFile(
+          join(testDir, "dist/client/.vite/manifest.json"),
+          "utf8"
+        )
+      );
+      const clientEntry = clientManifest["src/client.tsx"]?.file as string;
+      expect(clientEntry).toBeTruthy();
+
+      const handler = createEdgeHandler!({
+        render: renderRouteToFlight,
+        moduleBaseURL: "/",
+        bootstrapModules: ["/" + clientEntry],
+      });
+
+      const response = await handler(new Request("http://edge.test/"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+
+      const html = await response.text();
+      expect(html).toContain("edge-isolate");
+      // The bootstrap entry must be wired into the HTML for hydration.
+      expect(html).toContain(clientEntry);
+    });
+
+    it("returns 404 for a route the bundle was not baked with", async () => {
+      const { renderRouteToFlight } = await import(
+        pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+      );
+      const handler = createEdgeHandler!({ render: renderRouteToFlight });
+      const response = await handler(new Request("http://edge.test/missing"));
+      expect(response.status).toBe(404);
     });
   }
 );

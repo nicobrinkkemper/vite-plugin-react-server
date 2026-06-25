@@ -228,7 +228,7 @@ export const DEFAULT_CONFIG = {
     // which will be done in createHandlerOptions.server.ts and createHandlerOptions.client.ts
     useRscWorker: !IS_SERVER && IS_BUILD,
     useHtmlWorker: IS_SERVER && IS_BUILD,
-    edge: { singleIsolate: false, outDir: "server-edge" },
+    edge: { singleIsolate: false, outDir: "server-edge", minify: true },
   },
   DEV: {
     // these defaults rely on process.argv

@@ -262,7 +262,7 @@ export async function ${flightExport}(url) {
         ssr: true,
         outDir: edgeDir,
         emptyOutDir: true,
-        minify: false,
+        minify: userOptions.build.edge.minify ?? true,
         rollupOptions: {
           input: { [entryFileName.replace(/\.js$/, "")]: entryPath },
           output: { preserveModules: false, format: "es" },

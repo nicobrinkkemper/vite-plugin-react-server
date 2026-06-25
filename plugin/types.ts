@@ -1165,6 +1165,13 @@ export type EdgeBuildConfig = {
   singleIsolate?: boolean;
   /** Output dir for the baked edge bundle, under `build.outDir`. @default "server-edge" */
   outDir?: string;
+  /**
+   * Minify the baked edge bundle. The artifact bakes React in, so it is large;
+   * edge runtimes (Cloudflare Workers, Deno Deploy, Vercel Edge) enforce bundle
+   * size limits, so minification is on by default. Set `false` to emit readable
+   * output for inspection/debugging. @default true
+   */
+  minify?: boolean;
 };
 
 export type DevConfig = {
