@@ -142,6 +142,68 @@ npm run build        # emits dist/server-edge/render.js + dist/client
 npm run edge         # node edge-server.mjs → http://localhost:8787
 ```
 
+## Flash-free documents (`renderRouteToDocument`)
+
+`renderRouteToFlight` renders partial markup. For a **full flash-free document** —
+one whose initial HTML carries the live data and hydrates with no `.rsc` refetch —
+the bundle also exports `renderRouteToDocument`:
+
+```ts
+renderRouteToDocument(url, { cssFiles, globalCss }): Promise<{
+  full: ReadableStream;      // Html/Root-wrapped document flight
+  headless: ReadableStream;  // Root-only #root contents, for the inline payload
+}>
+```
+
+`createEdgeHandler`'s **document mode** drives it: it renders `full` to a complete
+HTML document and inlines `headless` as `<script id="vprs-flight">`, so the browser
+hydrates in place.
+
+```ts
+const handler = createEdgeHandler({
+  renderDocument: (url) => renderRouteToDocument(url, { cssFiles }),
+  moduleBaseURL: pathToFileURL(join(buildDir, "client")).href + "/", // ssr bundle, on disk
+  bootstrapModules: ["/" + clientEntry],
+});
+```
+
+> The in-process render decodes the flight under client React and resolves
+> client-component references by importing them from the **ssr bundle**
+> (`dist/client`) — so `moduleBaseURL` here is that directory as a **file URL**,
+> not the browser's HTTP base. The browser hydrates from its own base separately;
+> the client-component filenames are hash-identical across `dist/client` and
+> `dist/static`, so the same refs resolve on both sides.
+
+Pass live `cssFiles`/`globalCss` (a `Map<string, CssContent>`, e.g. via
+`collectManifestCss`) so the document and the inline payload carry the same styles.
+
+## Server actions, no `--conditions` (`handleRouteAction`)
+
+A `"use server"` app needs the server RSC transport to decode/dispatch actions —
+which normally forces `--conditions react-server` and so conflicts with the
+client-React document render above. The bundle resolves this by **baking the
+action gate** too: it exports `handleRouteAction`, a sealed gate over the action
+modules (the `*.server.*` allowlist) baked in with server React, so the action
+path never disk-imports the transport.
+
+```ts
+import { createRequestHandler } from "vite-plugin-react-server/request-handler";
+
+const { renderRouteToDocument, handleRouteAction } = await import(edgeBundleUrl);
+
+const handler = createRequestHandler({
+  staticDir,
+  action: (request) => handleRouteAction(request, { projectRoot }), // baked gate (a function)
+  render: async (pathname, request) => { /* renderDocument for dynamic routes */ },
+});
+```
+
+`createRequestHandler` lazy-imports its built-in (disk) gate, so passing the baked
+**function** keeps the whole server condition-neutral. The baked gate is still a
+sealed allowlist — an id the build did not enumerate is rejected. This is the
+shape that runs a full server-actions app (live data + flash-free SSR) in one
+isolate with `NODE_OPTIONS` unset; see the bidoof-template demo's `start.tsx`.
+
 ## When to use it
 
 - **Use it** for edge runtimes, or any single-process deploy where you want
@@ -159,3 +221,6 @@ npm run edge         # node edge-server.mjs → http://localhost:8787
 - `createEdgeHandler` / `renderFlightToHtml` are client-condition exports (they
   run client React); import them from `vite-plugin-react-server/stream` **without**
   the `react-server` condition. Only the baked `render.js` is server React.
+- The baked action gate (`handleRouteAction`) enumerates `*.server.*` modules as
+  the allowlist — a `"use server"` action must live in such a module (the common
+  convention). Inline `"use server"` in a non-`.server.` file is not baked.
