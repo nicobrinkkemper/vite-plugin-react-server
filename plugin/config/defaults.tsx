@@ -224,6 +224,7 @@ export const DEFAULT_CONFIG = {
     // which will be done in createHandlerOptions.server.ts and createHandlerOptions.client.ts
     useRscWorker: !IS_SERVER && IS_BUILD,
     useHtmlWorker: IS_SERVER && IS_BUILD,
+    edge: { singleIsolate: false, outDir: "server-edge" },
   },
   DEV: {
     // these defaults rely on process.argv
@@ -294,5 +295,20 @@ export const DEFAULT_CONFIG = {
   REACT_LOADER_PATH: pluginRoot + "/loader/react-loader.js",
   CSS_LOADER_PATH: pluginRoot + "/loader/css-loader.js",
   ENV_LOADER_PATH: pluginRoot + "/loader/env-loader.js",
-  
+
+  // Single-isolate edge bake (build.edge.singleIsolate). The user-facing
+  // `outDir` default lives in BUILD.edge; these are the internal names the bake
+  // step uses, centralized here rather than scattered as literals.
+  EDGE: {
+    // The generated flight-producer entry the bake emits + bundles.
+    entryFileName: "render.js",
+    // Its exported per-route flight renderer: (url) => Web ReadableStream.
+    flightExport: "renderRouteToFlight",
+    // React subpaths re-aliased to their `react-server` exports so the bundle
+    // bakes SERVER React. The alias TARGETS are derived from react's own
+    // package `exports` map at bake time (no hardcoded `*.react-server.js`).
+    // ORDER MATTERS: the bare "react" alias prefix-matches "react/jsx-runtime",
+    // so the specific subpaths must come first (alias uses first match).
+    reactServerSubpaths: ["./jsx-runtime", "./jsx-dev-runtime", "."] as const,
+  },
 };

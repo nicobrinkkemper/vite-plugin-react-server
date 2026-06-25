@@ -677,6 +677,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     renderMode: options.build?.renderMode ?? "parallel",
     batchSize: options.build?.batchSize ?? 8,
     inlineFlight: options.build?.inlineFlight ?? false,
+    edge: {
+      singleIsolate:
+        options.build?.edge?.singleIsolate ??
+        DEFAULT_CONFIG.BUILD.edge.singleIsolate,
+      outDir: options.build?.edge?.outDir ?? DEFAULT_CONFIG.BUILD.edge.outDir,
+    },
   } satisfies ResolvedUserOptions["build"];
 
   // Development configuration

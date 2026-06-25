@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import { REACT_CONDITION } from "../config/getCondition.js";
 import { runDeferredStaticGeneration } from "../bundle/deferredStaticGeneration.js";
+import { buildEdgeBundle } from "../bundle/buildEdgeBundle.js";
 
 /**
  * Creates a plugin that ensures consistent hash generation across environments
@@ -353,6 +354,12 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             }
             // Step 4: Run deferred static generation now that all manifests are available
             await runDeferredStaticGeneration();
+            // Step 5: Single-isolate edge bake (additive, gated on build.edge).
+            await buildEdgeBundle({
+              userOptions,
+              projectRoot: userOptions.projectRoot,
+              logger,
+            });
           },
         },
       };

@@ -1146,6 +1146,25 @@ export type BuildConfig = {
    * @default false
    */
   inlineFlight?: boolean;
+  /**
+   * Single-isolate edge build. When `singleIsolate` is set, the build emits an
+   * additional baked rsc bundle to `build.edge.outDir` (default
+   * `server-edge`): the server graph with React INLINED (via esbuild under the
+   * react-server condition), so it runs in one isolate with no worker_threads
+   * and no runtime `--conditions`. The default worker-based build (`dist/server`)
+   * is untouched — this is additive. Pair it at runtime with
+   * `renderFlightToHtml`, pointing `moduleBaseURL` at the ssr bundle
+   * (`dist/client`). Dev is unaffected.
+   * @default undefined (no edge bundle)
+   */
+  edge?: EdgeBuildConfig;
+};
+
+export type EdgeBuildConfig = {
+  /** Emit the single-isolate baked rsc bundle. @default false */
+  singleIsolate?: boolean;
+  /** Output dir for the baked edge bundle, under `build.outDir`. @default "server-edge" */
+  outDir?: string;
 };
 
 export type DevConfig = {
