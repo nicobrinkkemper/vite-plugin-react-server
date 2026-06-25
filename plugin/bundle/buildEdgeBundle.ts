@@ -90,14 +90,32 @@ export async function buildEdgeBundle(opts: {
     return;
   }
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  const pageFile = manifestFileFor(manifest, userOptions.Page);
-  const propsFile = manifestFileFor(manifest, userOptions.props);
-  if (!pageFile || !propsFile) {
-    logger.warn(
-      `${tag} could not resolve built Page/props from the manifest (Page=${String(
-        userOptions.Page
-      )}, props=${String(userOptions.props)}); skipping`
-    );
+
+  // Enumerate every prerendered route. Post-build, build.pages already lists
+  // all URLs (the SSG just rendered them) and every page module is in
+  // dist/server — so we CALL the (possibly functional) Page/props router for
+  // each URL to map the route to its built module. No need to understand the
+  // router: a closed enumeration over what the build already produced.
+  const rawPages = userOptions.build.pages;
+  const urls: string[] = Array.isArray(rawPages)
+    ? rawPages
+    : typeof rawPages === "function"
+    ? await rawPages()
+    : await rawPages;
+
+  const routeSource = (opt: unknown, url: string): unknown =>
+    typeof opt === "function" ? (opt as (u: string) => unknown)(url) : opt;
+
+  const routes: { url: string; pageFile: string; propsFile: string }[] = [];
+  for (const url of urls ?? []) {
+    const pageFile = manifestFileFor(manifest, routeSource(userOptions.Page, url));
+    const propsFile = manifestFileFor(manifest, routeSource(userOptions.props, url));
+    if (pageFile && propsFile) routes.push({ url, pageFile, propsFile });
+    else
+      logger.warn(`${tag} could not resolve built Page/props for route ${url}; omitting`);
+  }
+  if (routes.length === 0) {
+    logger.warn(`${tag} no routes resolved from build.pages; skipping`);
     return;
   }
 
@@ -122,17 +140,57 @@ export async function buildEdgeBundle(opts: {
     alias[key] = target;
   }
 
-  // Generate the flight-producer entry: (url) => Web ReadableStream Flight.
-  // moduleBasePath "" mirrors renderRscReadableStream's default.
+  // Generate a router-aware flight-producer entry: renderRouteToFlight(url) maps
+  // a known route to its baked Page/props and renders the Flight. moduleBasePath
+  // comes from the user config (the SSG used the same), so client-reference ids
+  // align with the ssr bundle the runtime points moduleBaseURL at.
   const { entryFileName, flightExport } = DEFAULT_CONFIG.EDGE;
+  const pageExport = userOptions.pageExportName ?? "Page";
+  const propsExport = userOptions.propsExportName ?? "props";
+  const moduleBasePath = userOptions.moduleBasePath ?? "";
+
+  // Dedup imports by built file (distinct routes can share a module).
+  const importLines: string[] = [];
+  const idByKey = new Map<string, string>();
+  const idFor = (file: string, kind: "P" | "Q", exportName: string): string => {
+    const key = `${kind}:${file}`;
+    let id = idByKey.get(key);
+    if (!id) {
+      id = `${kind}${idByKey.size}`;
+      idByKey.set(key, id);
+      importLines.push(
+        `import { ${exportName} as ${id} } from ${JSON.stringify(
+          join(serverDir, file)
+        )};`
+      );
+    }
+    return id;
+  };
+  const routeLines = routes.map(
+    (r) =>
+      `  ${JSON.stringify(r.url)}: { Page: ${idFor(
+        r.pageFile,
+        "P",
+        pageExport
+      )}, props: ${idFor(r.propsFile, "Q", propsExport)} },`
+  );
+
   const entryPath = join(serverDir, `.vprs-${entryFileName}`);
   const entrySource = `import { createElement } from "react";
 import { renderToReadableStream } from ${JSON.stringify(serverEdge)};
-import { Page } from ${JSON.stringify(join(serverDir, pageFile))};
-import { props } from ${JSON.stringify(join(serverDir, propsFile))};
+${importLines.join("\n")}
 
-export function ${flightExport}(url) {
-  return renderToReadableStream(createElement(Page, props(url)), "");
+const routes = {
+${routeLines.join("\n")}
+};
+
+export async function ${flightExport}(url) {
+  const route = routes[url];
+  if (!route) throw new Error("[edge] unknown route: " + url);
+  const props = await route.props(url);
+  return renderToReadableStream(createElement(route.Page, props), ${JSON.stringify(
+    moduleBasePath
+  )});
 }
 `;
   writeFileSync(entryPath, entrySource, "utf8");
