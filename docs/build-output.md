@@ -209,9 +209,10 @@ build: {
 
 Use `renderMode: "sequential"` for debugging or low-memory environments.
 
-## Optional: `dist/server-edge/` (single-isolate edge bundle)
+## `dist/server-edge/` (single-isolate edge bundle)
 
-With `build.edge.singleIsolate: true`, the build emits one extra artifact:
+`build.edge` is **on by default** (pass `build.edge: false` to opt out), so the
+build also emits:
 
 ```
 dist/

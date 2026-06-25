@@ -59,20 +59,27 @@ vitePluginReactServer({
   props: "src/props.ts",
   build: {
     pages: ["/"],
-    edge: {
-      singleIsolate: true,   // emit dist/server-edge/render.js
-      // outDir: "server-edge",
-      // minify: true,        // default; turn off to inspect the bundle
-    },
+    // edge is ON by default. Omit it entirely to get the defaults, or:
+    //   edge: false             — opt out (no dist/server-edge artifact)
+    //   edge: { minify: false } — keep on, tune a default
   },
 });
 ```
 
-| option         | default        | meaning |
-| -------------- | -------------- | ------- |
-| `singleIsolate`| `false`        | emit the baked edge bundle |
-| `outDir`       | `"server-edge"`| output dir, under `build.dir` |
-| `minify`       | `true`         | minify the bundle. It bakes React in, so it is large; edge platforms cap bundle size. Set `false` for readable output. |
+`build.edge` is `boolean | { outDir?, minify? }`, default **`true`** (the bundle
+is additive — the worker-based `dist/server` build is untouched — and a bake
+failure is a warning, never a build failure).
+
+| form                     | meaning |
+| ------------------------ | ------- |
+| `edge: true` / omitted   | emit the baked edge bundle with defaults |
+| `edge: false`            | opt out — no `dist/server-edge` artifact |
+| `edge: { … }`            | emit, with overrides (presence means enabled) |
+
+| option    | default        | meaning |
+| --------- | -------------- | ------- |
+| `outDir`  | `"server-edge"`| output dir, under `build.dir` |
+| `minify`  | `true`         | minify the bundle. It bakes React in, so it is large; edge platforms cap bundle size. Set `false` for readable output. |
 
 ## Serve it: `createEdgeHandler`
 

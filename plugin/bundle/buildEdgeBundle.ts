@@ -31,7 +31,7 @@ function reactServerExportTarget(
 
 
 /**
- * Single-isolate edge bake (build.edge.singleIsolate). Generates a flight-
+ * Single-isolate edge bake (build.edge, on by default). Generates a flight-
  * producer entry over the already-transformed server build (`dist/server`) and
  * bundles it into a single-isolate rsc bundle (`dist/server-edge`) with React
  * INLINED, so it runs on an edge runtime with no worker_threads and no runtime
@@ -58,7 +58,7 @@ export async function buildEdgeBundle(opts: {
   logger: Logger;
 }): Promise<void> {
   const { userOptions, projectRoot, logger } = opts;
-  if (!userOptions.build.edge.singleIsolate) return;
+  if (!userOptions.build.edge.enabled) return;
 
   const tag = "[build.edge]";
   const outRoot = join(projectRoot, userOptions.build.outDir);
@@ -405,7 +405,7 @@ export async function ${actionExport}(request, opts = {}) {
         ssr: true,
         outDir: edgeDir,
         emptyOutDir: true,
-        minify: userOptions.build.edge.minify ?? true,
+        minify: userOptions.build.edge.minify,
         rollupOptions: {
           input: { [entryFileName.replace(/\.js$/, "")]: entryPath },
           output: { preserveModules: false, format: "es" },
@@ -413,6 +413,17 @@ export async function ${actionExport}(request, opts = {}) {
       },
     });
     logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
+  } catch (error) {
+    // The edge bundle is ADDITIVE and on by default — a bake failure must not
+    // fail an otherwise-good build. Warn loudly and skip the artifact; the
+    // worker-based dist/server build stands on its own. Opt out with
+    // `build.edge: false` if the bake is not wanted.
+    logger.warn(
+      `${tag} skipped — edge bundle bake failed (the main build is unaffected; ` +
+        `set build.edge:false to silence): ${
+          error instanceof Error ? error.message : String(error)
+        }`
+    );
   } finally {
     rmSync(entryPath, { force: true });
   }

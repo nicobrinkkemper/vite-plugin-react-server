@@ -1,4 +1,4 @@
-// Runnable demo of the single-isolate edge build (`build.edge.singleIsolate`).
+// Runnable demo of the single-isolate edge build (`build.edge`, on by default).
 //
 // The deployable artifact is a Web `fetch` handler — exactly what Cloudflare
 // Workers, Deno Deploy, Vercel Edge and Bun call. This file is the thin Node

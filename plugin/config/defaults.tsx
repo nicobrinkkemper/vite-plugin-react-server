@@ -228,7 +228,7 @@ export const DEFAULT_CONFIG = {
     // which will be done in createHandlerOptions.server.ts and createHandlerOptions.client.ts
     useRscWorker: !IS_SERVER && IS_BUILD,
     useHtmlWorker: IS_SERVER && IS_BUILD,
-    edge: { singleIsolate: false, outDir: "server-edge", minify: true },
+    edge: { enabled: true, outDir: "server-edge", minify: true },
   },
   DEV: {
     // these defaults rely on process.argv
@@ -300,7 +300,7 @@ export const DEFAULT_CONFIG = {
   CSS_LOADER_PATH: pluginRoot + "/loader/css-loader.js",
   ENV_LOADER_PATH: pluginRoot + "/loader/env-loader.js",
 
-  // Single-isolate edge bake (build.edge.singleIsolate). The user-facing
+  // Single-isolate edge bake (build.edge, on by default). The user-facing
   // `outDir` default lives in BUILD.edge; these are the internal names the bake
   // step uses, centralized here rather than scattered as literals.
   EDGE: {

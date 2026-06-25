@@ -78,7 +78,7 @@ describe.skipIf(!renderFlightToHtml)(
         build: {
           pages: ["/"],
           outDir: "dist",
-          edge: { singleIsolate: true },
+          edge: true,
         },
       } as any);
     });

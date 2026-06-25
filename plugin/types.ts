@@ -438,7 +438,7 @@ export type ResolvedUserOptions = {
   clientPipeableStreamOptions?: any; // For HTML worker
   autoDiscover: Required<AutoDiscoverConfig>;
   loader?: Required<LoaderConfig> | undefined;
-  build: Required<BuildConfig>;
+  build: Omit<Required<BuildConfig>, "edge"> & { edge: ResolvedEdgeConfig };
   dev: Required<DevConfig>;
   css: RootOptions<boolean>;
   components?: StreamPluginOptions["components"]; // Direct component overrides (optional)
@@ -1147,22 +1147,25 @@ export type BuildConfig = {
    */
   inlineFlight?: boolean;
   /**
-   * Single-isolate edge build. When `singleIsolate` is set, the build emits an
-   * additional baked rsc bundle to `build.edge.outDir` (default
-   * `server-edge`): the server graph with React INLINED (via esbuild under the
-   * react-server condition), so it runs in one isolate with no worker_threads
-   * and no runtime `--conditions`. The default worker-based build (`dist/server`)
-   * is untouched — this is additive. Pair it at runtime with
-   * `renderFlightToHtml`, pointing `moduleBaseURL` at the ssr bundle
-   * (`dist/client`). Dev is unaffected.
-   * @default undefined (no edge bundle)
+   * Single-isolate edge build. Emits an additional baked rsc bundle to
+   * `build.edge.outDir` (default `server-edge`): the server graph with React
+   * INLINED, so it runs in one isolate with no worker_threads and no runtime
+   * `--conditions` (drive it with `createEdgeHandler` / `renderRouteToDocument`).
+   * The default worker-based build (`dist/server`) is untouched — purely
+   * additive. Dev is unaffected.
+   *
+   * On by DEFAULT. Pass `false` to skip the artifact, or an {@link EdgeBuildConfig}
+   * object to tune it (presence still means enabled):
+   *   - `edge: false`            — disable
+   *   - `edge: true` / omitted   — enable with defaults
+   *   - `edge: { minify: false }` — enable, override a default
+   *
+   * @default true
    */
-  edge?: EdgeBuildConfig;
+  edge?: boolean | EdgeBuildConfig;
 };
 
 export type EdgeBuildConfig = {
-  /** Emit the single-isolate baked rsc bundle. @default false */
-  singleIsolate?: boolean;
   /** Output dir for the baked edge bundle, under `build.outDir`. @default "server-edge" */
   outDir?: string;
   /**
@@ -1172,6 +1175,13 @@ export type EdgeBuildConfig = {
    * output for inspection/debugging. @default true
    */
   minify?: boolean;
+};
+
+/** Resolved edge config (after normalizing the `boolean | EdgeBuildConfig` form). */
+export type ResolvedEdgeConfig = {
+  enabled: boolean;
+  outDir: string;
+  minify: boolean;
 };
 
 export type DevConfig = {

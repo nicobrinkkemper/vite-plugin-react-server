@@ -44,9 +44,10 @@ This example focuses on dev. For production-build flags see [docs/getting-starte
 
 ## Edge / single-isolate
 
-This example also enables the single-isolate edge build (`build.edge.singleIsolate`
-in `vite.config.ts`), which bakes `dist/server-edge/render.js` — flash-free SSR
-from one Web `fetch` handler, no `worker_threads` and no `--conditions`.
+The single-isolate edge build (`build.edge`, on by default) bakes
+`dist/server-edge/render.js` — flash-free SSR from one Web `fetch` handler, no
+`worker_threads` and no `--conditions`. This example only sets `edge: { minify:
+false }` in `vite.config.ts` to keep the baked bundle readable.
 
 ```bash
 npm run build     # emits dist/server-edge/render.js + dist/client

@@ -53,13 +53,11 @@ export default defineConfig({
       rscOutputPath: "index.rsc",
       htmlOutputPath: "index.html",
 
-      // Optional — single-isolate edge bundle (additive; default off).
-      // See docs/edge.md.
-      edge: {
-        singleIsolate: false,          // emit dist/server-edge/render.js
-        outDir: "server-edge",         // under build.dir
-        minify: true,                  // edge runtimes enforce size limits
-      },
+      // Optional — single-isolate edge bundle (additive; ON by default).
+      // `boolean | { outDir?, minify? }`. See docs/edge.md.
+      //   edge: false             — opt out
+      //   edge: { minify: false } — keep on, tune a default
+      edge: true,
     },
 
     // Optional — workers

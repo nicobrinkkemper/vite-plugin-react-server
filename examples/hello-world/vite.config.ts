@@ -8,12 +8,10 @@ export default defineConfig({
     props: "src/props.ts",
     build: {
       pages: ["/"],
-      edge: {
-        singleIsolate: true,
-        // Keep the baked dist/server-edge/render.js readable for learning.
-        // Defaults to true — leave it on for real edge deploys (size limits).
-        minify: false,
-      },
+      // The single-isolate edge bundle is ON by default; the object form just
+      // tunes it. Here: keep dist/server-edge/render.js unminified for learning
+      // (minify defaults to true for real edge deploys). `edge: false` opts out.
+      edge: { minify: false },
     },
   } satisfies StreamPluginOptions) as PluginOption],
   optimizeDeps: {
