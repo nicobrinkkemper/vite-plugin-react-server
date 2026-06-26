@@ -211,14 +211,25 @@ sealed allowlist — an id the build did not enumerate is rejected. This is the
 shape that runs a full server-actions app (live data + flash-free SSR) in one
 isolate with `NODE_OPTIONS` unset; see the bidoof-template demo's `start.tsx`.
 
-> ⚠️ **Do not statically import (or re-export) your built `*.server.*` modules in
+> ⚠️ **Do not statically import or re-export your built `*.server.*` modules in
 > the no-`--conditions` process.** A built `"use server"` module imports the
 > react-server transport at load (`registerServerReference`), which asserts the
-> `react-server` condition and **crashes the server at startup** — e.g. a server
-> entry that does `export { addTodo } from "./actions.server.js"`. Let the baked
-> gate own them: dispatch through `handleRouteAction`, and keep the entry a
-> side-effect import (`import "./start.js"`). The actions are still built (they're
-> reachable via your pages/props), so the gate's allowlist is unchanged.
+> `react-server` condition and **crashes the server at startup**. Let the baked
+> gate own them — dispatch through `handleRouteAction` and keep the entry a
+> side-effect import. The actions are still built (reachable via your
+> pages/props), so the gate's allowlist is unchanged.
+
+```ts
+// ❌ server/index.ts — crashes at startup with no --conditions:
+//    "The react-server condition must be enabled ..."
+export { addTodo } from "./actions.server.js"; // ← pulls the react-server transport
+import "./start.js";
+
+// ✅ server/index.ts — side-effect import only; nothing here pulls the transport
+import "./start.js";
+// addTodo & co. are dispatched at request time through the baked gate
+// (handleRouteAction), which carries its own server React.
+```
 
 ## When to use it
 
