@@ -290,6 +290,16 @@ const routes = {
 ${routeLines.join("\n")}
 };
 
+// Public route map: url -> { pagePath, propsPath } (no baked module refs). Lets a
+// runtime (e.g. createEdgeRequestHandler) collect each route's CSS from the build
+// manifests without knowing the Page/props routers.
+export const routeManifest = Object.fromEntries(
+  Object.entries(routes).map(([u, r]) => [
+    u,
+    { pagePath: r.pagePath, propsPath: r.propsPath },
+  ])
+);
+
 /** Resolve a route's Page component + live props through the canonical helper. */
 async function resolveRoute(url) {
   const route = routes[url];
