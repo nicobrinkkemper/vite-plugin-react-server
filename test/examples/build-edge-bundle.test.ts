@@ -25,9 +25,17 @@ async function setupFixture() {
     join(testDir, "src/page/page.tsx"),
     `export const Page = ({ name }: { name: string }) => <div id="root">Hello {name}</div>;`
   );
+  // A "use server" action, imported by props so it lands in the build graph +
+  // server manifest. The edge bake gates `*.server.*` modules, so the no-
+  // conditions action path below dispatches through the BAKED gate.
+  await writeFile(
+    join(testDir, "src/page/actions.server.ts"),
+    `"use server";\nexport async function bump(n: number) { return n + 1; }`
+  );
   await writeFile(
     join(testDir, "src/page/props.ts"),
-    `export const props = (_url: string) => ({ name: "edge-isolate" });`
+    `import { bump } from "./actions.server.js";\n` +
+      `export const props = (_url: string) => ({ name: "edge-isolate", bump });`
   );
   await writeFile(
     join(testDir, "tsconfig.json"),
@@ -176,6 +184,31 @@ describe.skipIf(!renderFlightToHtml)(
       const handler = createEdgeHandler!({ render: renderRouteToFlight });
       const response = await handler(new Request("http://edge.test/missing"));
       expect(response.status).toBe(404);
+    });
+
+    // Regression guard for the no-`--conditions` crash class: a server action
+    // must dispatch through the bundle's BAKED gate without the process pulling
+    // the on-disk react-server transport (which asserts the condition). This test
+    // runs under the default condition (the suite skips the react-server leg), so
+    // importing the gate and executing the action here proves the no-conditions
+    // edge-server path is import-safe AND functional end to end.
+    it("dispatches a server action through the baked gate with no --conditions", async () => {
+      const { handleRouteAction } = await import(
+        pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+      );
+      const request = new Request("http://edge.test/", {
+        method: "POST",
+        headers: {
+          "x-rsc-action": "src/page/actions.server.ts#bump",
+          "content-type": "application/json",
+        },
+        // Body is a bare JSON args array (the id rides in the header).
+        body: JSON.stringify([41]),
+      });
+      const response = await handleRouteAction(request, { projectRoot: testDir });
+      expect(response.status).toBe(200);
+      // RSC success wire format `0:<json>` — bump(41) ran through the gate → 42.
+      expect(await response.text()).toContain("0:42");
     });
   }
 );
