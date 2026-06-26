@@ -267,6 +267,9 @@ for falls through to your own routes.
 
 ```ts
 import express from "express";
+import { createEdgeRequestHandler } from "vite-plugin-react-server/edge";
+import { toNodeListener } from "vite-plugin-react-server/request-handler";
+
 const handler = await createEdgeRequestHandler({ buildDir, dynamic: ["/todos"] });
 
 const app = express();
