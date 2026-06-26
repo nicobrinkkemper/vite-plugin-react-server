@@ -211,6 +211,15 @@ sealed allowlist — an id the build did not enumerate is rejected. This is the
 shape that runs a full server-actions app (live data + flash-free SSR) in one
 isolate with `NODE_OPTIONS` unset; see the bidoof-template demo's `start.tsx`.
 
+> ⚠️ **Do not statically import (or re-export) your built `*.server.*` modules in
+> the no-`--conditions` process.** A built `"use server"` module imports the
+> react-server transport at load (`registerServerReference`), which asserts the
+> `react-server` condition and **crashes the server at startup** — e.g. a server
+> entry that does `export { addTodo } from "./actions.server.js"`. Let the baked
+> gate own them: dispatch through `handleRouteAction`, and keep the entry a
+> side-effect import (`import "./start.js"`). The actions are still built (they're
+> reachable via your pages/props), so the gate's allowlist is unchanged.
+
 ## When to use it
 
 - **Use it** for edge runtimes, or any single-process deploy where you want
