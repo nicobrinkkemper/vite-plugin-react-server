@@ -118,14 +118,26 @@ export function createRequestHandler(
 }
 
 /**
- * Adapt a Web `(Request) => Promise<Response>` handler to a Node
- * `http`/Connect request listener, so the same handler runs under
- * `http.createServer(toNodeListener(handler))` or as Express middleware.
+ * Adapt a Web `(Request) => Promise<Response>` handler to a Node `http`/Connect
+ * request listener — a standard `(req, res, next?)` so it drops into any
+ * Connect/Express/polka stack:
+ *
+ *   - `http.createServer(toNodeListener(handler))` — terminal (no `next`): the
+ *     handler's response is always sent, 404 included.
+ *   - `app.use(toNodeListener(handler))` — as middleware: a 404 from the handler
+ *     means vprs has nothing for this request, so it calls `next()` and the
+ *     request falls through to your other routes; a thrown error goes to
+ *     `next(err)`. Put your own middleware (auth, logging, body limits) before
+ *     it and your own routes after.
  */
 export function toNodeListener(
   handler: (request: Request) => Promise<Response>
-): (req: IncomingMessage, res: ServerResponse) => void {
-  return (req, res) => {
+): (
+  req: IncomingMessage,
+  res: ServerResponse,
+  next?: (err?: unknown) => void
+) => void {
+  return (req, res, next) => {
     const url = `http://${req.headers.host ?? "localhost"}${req.url ?? "/"}`;
     const method = req.method ?? "GET";
     const headers = new Headers();
@@ -144,6 +156,12 @@ export function toNodeListener(
 
     handler(request)
       .then(async (response) => {
+        // Mounted as middleware, a 404 means "not mine" — fall through to the
+        // next handler instead of ending the chain. Terminal without `next`.
+        if (next && response.status === 404) {
+          next();
+          return;
+        }
         res.statusCode = response.status;
         response.headers.forEach((value, key) => res.setHeader(key, value));
         if (response.body) {
@@ -154,6 +172,10 @@ export function toNodeListener(
         res.end();
       })
       .catch((err) => {
+        if (next) {
+          next(err);
+          return;
+        }
         res.statusCode = 500;
         res.end(String(err instanceof Error ? err.message : err));
       });

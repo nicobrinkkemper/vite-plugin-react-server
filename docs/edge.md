@@ -256,10 +256,38 @@ served from `dist/static`.
 | `inlineThreshold`| `10000`          | CSS at/under this many bytes inlines as `<style>`, else `<link>` |
 
 It returns the Web handler — *you* bring the runtime (node `http` above, or a
-Bun/Deno/platform `fetch` export). When you need custom middleware, auth, or your
-own routing, drop to the lower-level `createEdgeHandler` + `createRequestHandler`
-shown above: `createEdgeRequestHandler` is a thin wrapper over exactly those, so
-ejecting is swapping the wrapper, not a rewrite.
+Bun/Deno/platform `fetch` export).
+
+### Middleware (auth, logging, …)
+
+You don't eject for this — it's standard middleware. `toNodeListener(handler)` is
+a Connect/Express `(req, res, next)` middleware, so it slots into any Node stack:
+your middleware runs first, vprs serves the rest, and a request vprs has no page
+for falls through to your own routes.
+
+```ts
+import express from "express";
+const handler = await createEdgeRequestHandler({ buildDir, dynamic: ["/todos"] });
+
+const app = express();
+app.use(myAuth);                  // your middleware runs first
+app.use(rateLimit);
+app.use(toNodeListener(handler)); // vprs: static + actions + dynamic routes
+app.use("/api", myApiRouter);     // vprs 404s fall through to here (next())
+app.listen(3000);
+```
+
+On a Web runtime it's the same shape — middleware, then hand vprs the raw request:
+
+```ts
+app.use(myAuth);                  // Hono / itty / your framework
+app.all("*", (c) => handler(c.req.raw));
+```
+
+(For something more exotic than "wrap with middleware" — your own routing, a
+bespoke response envelope — the lower-level `createEdgeHandler` +
+`createRequestHandler` are the building blocks `createEdgeRequestHandler` is a
+thin wrapper over, so dropping a level is swapping the wrapper, not a rewrite.)
 
 > ⚠️ **Do not statically import or re-export your built `*.server.*` modules in
 > the no-`--conditions` process.** A built `"use server"` module imports the
