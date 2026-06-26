@@ -34,7 +34,12 @@ export type CreateEdgeRequestHandlerOptions = {
    * predicate. Everything else is served from the prerendered `static/` build.
    */
   dynamic?: string[] | ((url: string) => boolean);
-  /** URL base the build was made for. @default "/" */
+  /**
+   * URL base the build was made for. Pass your build's `import.meta.env.BASE_URL`
+   * (baked in at build time) rather than a runtime env var, so it can't drift
+   * from the base the prerendered assets and bootstrap paths were built with.
+   * @default "/"
+   */
   base?: string;
   /** CSS at or under this many bytes inlines as `<style>`, else a `<link>`. @default 10000 */
   inlineThreshold?: number;

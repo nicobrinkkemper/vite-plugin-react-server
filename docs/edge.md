@@ -229,7 +229,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url)); // dist/server/server
 async function main() {
   const handler = await createEdgeRequestHandler({
     buildDir: path.resolve(dir, "../.."), // → dist
-    base: process.env.BASE_URL || "/",
+    base: import.meta.env.BASE_URL, // the base this build was made for (baked in)
     dynamic: ["/todos"], // the only app-specific line
   });
   http.createServer(toNodeListener(handler)).listen(3000);
