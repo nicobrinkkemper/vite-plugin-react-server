@@ -207,9 +207,59 @@ const handler = createRequestHandler({
 
 `createRequestHandler` lazy-imports its built-in (disk) gate, so passing the baked
 **function** keeps the whole server condition-neutral. The baked gate is still a
-sealed allowlist — an id the build did not enumerate is rejected. This is the
-shape that runs a full server-actions app (live data + flash-free SSR) in one
-isolate with `NODE_OPTIONS` unset; see the bidoof-template demo's `start.tsx`.
+sealed allowlist — an id the build did not enumerate is rejected.
+
+## The whole server in one call: `createEdgeRequestHandler`
+
+Static serving, the baked action gate, per-route document/flight rendering, CSS
+collection, bootstrap derivation — that wiring is the same for every consumer.
+`vite-plugin-react-server/edge` assembles it into one Web handler, so the server
+is a few lines and you supply only the runtime adapter:
+
+```ts
+// src/server/start.ts
+import http from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createEdgeRequestHandler } from "vite-plugin-react-server/edge";
+import { toNodeListener } from "vite-plugin-react-server/request-handler";
+
+const dir = path.dirname(fileURLToPath(import.meta.url)); // dist/server/server
+
+async function main() {
+  const handler = await createEdgeRequestHandler({
+    buildDir: path.resolve(dir, "../.."), // → dist
+    base: process.env.BASE_URL || "/",
+    dynamic: ["/todos"], // the only app-specific line
+  });
+  http.createServer(toNodeListener(handler)).listen(3000);
+}
+main();
+```
+
+It serves the prerendered `dist/static`, dispatches actions through the baked
+gate, and renders the `dynamic` routes live per request (flash-free document on a
+GET, headless flight on a client `.rsc` nav), collecting each route's CSS from the
+build manifests.
+
+`dynamic` is a **serving** decision — a url list or a `(url) => boolean`
+predicate — deliberately *not* on `Page`/`props`, which define the static page
+surface. A route is in `build.pages` because it's a page; you mark it `dynamic`
+here because rendering it live is a serving choice. Everything not matched is
+served from `dist/static`.
+
+| option           | default          | meaning |
+| ---------------- | ---------------- | ------- |
+| `buildDir`       | —                | build output dir (holds `static/`, `client/`, `server/`, `server-edge/`) |
+| `dynamic`        | `[]`             | routes to render live per request — url list or predicate |
+| `base`           | `"/"`            | url base the build was made for |
+| `inlineThreshold`| `10000`          | CSS at/under this many bytes inlines as `<style>`, else `<link>` |
+
+It returns the Web handler — *you* bring the runtime (node `http` above, or a
+Bun/Deno/platform `fetch` export). When you need custom middleware, auth, or your
+own routing, drop to the lower-level `createEdgeHandler` + `createRequestHandler`
+shown above: `createEdgeRequestHandler` is a thin wrapper over exactly those, so
+ejecting is swapping the wrapper, not a rewrite.
 
 > ⚠️ **Do not statically import or re-export your built `*.server.*` modules in
 > the no-`--conditions` process.** A built `"use server"` module imports the
