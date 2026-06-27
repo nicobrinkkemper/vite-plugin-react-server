@@ -1,8 +1,6 @@
-import type {
-  OutputBundle,
-  // OutputChunk - removed unused import
-} from "rollup";
-import type {  ManifestChunk } from "vite";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+import type { ManifestChunk, Rollup } from "vite";
+type OutputBundle = Rollup.OutputBundle;
 import type { InputNormalizer } from "../types.js";
 
 
@@ -50,7 +48,9 @@ export function getBundleManifest<SSR extends boolean>({
               name: chunk.names[0],
               src: originalFileName,
               source: chunk.source,
-              isEntry: chunk.needsCodeReference,
+              // `needsCodeReference` is a Rollup-only asset field (absent on
+              // Rolldown/Vite 8); assets are never entries, so undefined is fine.
+              isEntry: (chunk as { needsCodeReference?: boolean }).needsCodeReference,
             }
           ]
         }

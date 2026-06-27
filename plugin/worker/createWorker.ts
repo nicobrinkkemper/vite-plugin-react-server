@@ -32,8 +32,9 @@ import type {
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";
-import type { Manifest } from "vite";
-import type { OutputBundle } from "rollup";
+import type { Manifest, Rollup } from "vite";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+type OutputBundle = Rollup.OutputBundle;
 import { handleError } from "../error/handleError.js";
 import { toError } from "../error/toError.js";
 

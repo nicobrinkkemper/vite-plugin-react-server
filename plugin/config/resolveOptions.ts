@@ -1,4 +1,7 @@
-import type { PreRenderedAsset, PreRenderedChunk } from "rollup";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+import type { Rollup } from "vite";
+type PreRenderedAsset = Rollup.PreRenderedAsset;
+type PreRenderedChunk = Rollup.PreRenderedChunk;
 import type {
   StreamPluginOptions,
   ResolvedUserOptions,

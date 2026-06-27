@@ -1,5 +1,4 @@
-import type { OutputAsset } from "rollup";
-import type { ESBuildOptions, Plugin as VitePlugin } from "vite";
+import type { ESBuildOptions, Plugin as VitePlugin, Rollup } from "vite";
 import { transformWithEsbuild } from "vite";
 import { writeFile } from "node:fs/promises";
 import { join, sep } from "node:path";
@@ -61,10 +60,12 @@ export function filePreserverPlugin(fileName: string | string[]): VitePlugin[] {
         if (sources.length === 0) return;
         const entries = Object.entries(bundle);
         const mapEntries = entries.filter(
-          (entry): entry is [string, OutputAsset] => {
+          (entry): entry is [string, Rollup.OutputAsset] => {
+            const out = entry[1];
             return (
-              entry[1].fileName.endsWith(".map") &&
-              shouldPreserve(entry[1].fileName)
+              out.type === "asset" &&
+              out.fileName.endsWith(".map") &&
+              shouldPreserve(out.fileName)
             );
           }
         );

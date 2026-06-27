@@ -1,6 +1,7 @@
-import type { UserConfig, BuildEnvironmentOptions } from "vite";
+import type { UserConfig, BuildEnvironmentOptions, Rollup } from "vite";
 import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
-import type { OutputOptions } from "rollup";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+type OutputOptions = Rollup.OutputOptions;
 import { join } from "node:path";
 import { createLogger } from "vite";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";

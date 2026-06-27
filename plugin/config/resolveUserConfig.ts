@@ -12,7 +12,11 @@ import type {
 } from "../types.js";
 import { join, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
-import type { OutputOptions, PreRenderedAsset, PreRenderedChunk } from "rollup";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+import type { Rollup } from "vite";
+type OutputOptions = Rollup.OutputOptions;
+type PreRenderedAsset = Rollup.PreRenderedAsset;
+type PreRenderedChunk = Rollup.PreRenderedChunk;
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { REACT_CONDITION, type ReactCondition } from "./getCondition.js";

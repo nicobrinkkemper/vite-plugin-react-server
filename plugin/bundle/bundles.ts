@@ -1,4 +1,6 @@
-import type { OutputBundle } from "rollup";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+import type { Rollup } from "vite";
+type OutputBundle = Rollup.OutputBundle;
 
 export const bundles = {
   server: null,

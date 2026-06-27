@@ -5,12 +5,11 @@ import type {
 } from "node:worker_threads";
 import type React from "react";
 // React types are imported from vendor system at runtime
-import type {
-  NormalizedOutputOptions,
-  OutputBundle,
-  PreRenderedAsset,
-  PreRenderedChunk,
-} from "rollup";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+type NormalizedOutputOptions = Rollup.NormalizedOutputOptions;
+type OutputBundle = Rollup.OutputBundle;
+type PreRenderedAsset = Rollup.PreRenderedAsset;
+type PreRenderedChunk = Rollup.PreRenderedChunk;
 import type { PassThrough, Transform } from "stream";
 import type {
   AliasOptions,
@@ -20,6 +19,7 @@ import type {
   Manifest,
   Plugin,
   ResolveOptions,
+  Rollup,
   UserConfig,
   ViteDevServer,
 } from "vite";
