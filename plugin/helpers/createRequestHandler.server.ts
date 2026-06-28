@@ -107,7 +107,10 @@ export function createRequestHandler(
       }
       const file = await resolveStaticFile(staticDir, url.pathname);
       if (file) {
-        return new Response(request.method === "HEAD" ? null : file.body, {
+        // file.body is a Uint8Array (a valid BodyInit at runtime); newer
+        // @types/node types it as Uint8Array<ArrayBufferLike>, which the DOM
+        // Response constructor doesn't structurally accept — cast across it.
+        return new Response(request.method === "HEAD" ? null : (file.body as BodyInit), {
           headers: { "Content-Type": file.contentType },
         });
       }

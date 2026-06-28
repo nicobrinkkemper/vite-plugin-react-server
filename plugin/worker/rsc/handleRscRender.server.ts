@@ -104,8 +104,13 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       }
     }
 
-    const passThrough =
-      rscStreamOverride || handlers.getWritable?.() || new PassThrough();
+    // The override / getWritable() / PassThrough members type to different
+    // stream shapes (e.g. NodeJS.WritableStream has no readable events), so the
+    // union's `.on` isn't callable. We use it as a Duplex (data/end/close/pipe)
+    // below, which every runtime value here satisfies — type it as PassThrough.
+    const passThrough = (rscStreamOverride ||
+      handlers.getWritable?.() ||
+      new PassThrough()) as PassThrough;
 
     // No need to collect chunks since we're storing the React element directly
 
