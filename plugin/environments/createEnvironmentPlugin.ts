@@ -241,6 +241,17 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           keepProcessEnv: envConfig.name === "server" ? true : false,
           define: userConfig.define,
           consumer: consumer,
+          optimizeDeps: {
+            ...userConfig.optimizeDeps,
+            // Vite 8's dep scanner crawls the build input for entry points; in
+            // dev that resolves to the static `index.html`, which an RSC dev
+            // server never serves, so the scan fails and logs (per re-optimize)
+            // "failed to resolve rolldownOptions.input value: index.html".
+            // An explicit empty entries list skips the html crawl; deps still
+            // optimize lazily. optimizeDeps is a no-op in build, so the real
+            // index.html build entry is unaffected.
+            entries: userConfig.optimizeDeps?.entries ?? [],
+          },
           resolve: {
             ...userConfig.resolve,
             // IMPORTANT: Map externals from resolveUserConfig (rollupOptions.external) to Environment API format
