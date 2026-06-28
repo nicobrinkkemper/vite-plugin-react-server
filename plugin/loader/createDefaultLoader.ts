@@ -26,7 +26,7 @@ const defaultNextLoad: Parameters<LoadHook>[2] = async (url) => {
     sourcemap: "external",
   });
   return {
-    source: result.code,
+    source: result["code"],
     format: "module",
     map: result.map,
   };
@@ -65,7 +65,7 @@ export function createDefaultLoader(
             sourcemap: "external",
           });
           return {
-            source: result.code,
+            source: result["code"],
             format: "module",
             map: result.map,
           };
