@@ -532,6 +532,18 @@ export const resolveUserConfig: ResolveUserConfigFn =
           noExternal: mergedNoExternal,
         },
         define: define,
+        optimizeDeps: {
+          ...config.optimizeDeps,
+          // Vite's dep scanner defaults to crawling the build input for entry
+          // points; in dev that resolves to the static `index.html`, which an
+          // RSC dev server never serves — so the scan fails and logs
+          // "failed to resolve rolldownOptions.input value: index.html".
+          // Give it an explicit (empty) entry list to skip the html crawl;
+          // deps are still optimized lazily / via ssr.optimizeDeps.include.
+          // (optimizeDeps is a no-op in build, so the real index.html entry
+          // there is unaffected.)
+          entries: config.optimizeDeps?.entries ?? [],
+        },
         ssr: srrConfig,
         server: {
           ...config.server,
