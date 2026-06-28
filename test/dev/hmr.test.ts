@@ -35,6 +35,30 @@ export const Page = () => <div>Initial Content</div>;`
   );
 }
 
+/**
+ * Fetch the RSC stream until it contains `needle` (the HMR change has
+ * propagated) or the deadline passes. A fixed sleep before a single fetch is
+ * flaky on loaded CI runners, where file-watch -> invalidate -> re-render can
+ * take longer than the wait; polling is robust without weakening the assertion.
+ */
+async function fetchUntil(
+  url: string,
+  needle: string,
+  timeoutMs = 12000
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  let last = "";
+  while (Date.now() < deadline) {
+    const res = await fetch(url, { headers: { Accept: "text/x-component" } });
+    if (res.ok) {
+      last = await res.text();
+      if (last.includes(needle)) return last;
+    }
+    await sleep(200);
+  }
+  return last;
+}
+
 describe("HMR", () => {
   beforeAll(async () => {
     await rm(testDir, { recursive: true, force: true });
@@ -92,24 +116,21 @@ describe("HMR", () => {
 export const Page = () => <div>Updated Content</div>;`
     );
 
-    // Wait for file watcher to pick up change
-    await sleep(1500);
+    // Poll until the change propagates (file watch -> invalidate -> re-render).
+    const afterContent = await fetchUntil(
+      `http://localhost:${port}/`,
+      "Updated Content"
+    );
 
-    // Check if any events were sent (for debugging)
     console.log('Captured events:', events.map(e => ({ type: e.type, event: e.event })));
-
-    // For now, verify that content was updated (which proves HMR worked)
-    // The custom event sending depends on the plugin's handleHotUpdate being called
-    // which may require the RSC mode to be active
-    const afterResponse = await fetch(`http://localhost:${port}/`, {
-      headers: { Accept: "text/x-component" },
-    });
-    expect(afterResponse.ok).toBe(true);
-    const afterContent = await afterResponse.text();
     expect(afterContent).toContain("Updated Content");
   }, 15000);
 
   it("should return updated content after file change", async () => {
+    // Let the file watcher settle from the previous test's edit to this same
+    // file — back-to-back same-path changes can be coalesced if too close.
+    await sleep(1500);
+
     // Update page with new content
     await writeFile(
       join(testDir, "src/page/page.tsx"),
@@ -117,15 +138,8 @@ export const Page = () => <div>Updated Content</div>;`
 export const Page = () => <div>Version 2 Content</div>;`
     );
 
-    // Wait for file watcher and module cache to update
-    await sleep(1500);
-
-    // Request should return new content
-    const response = await fetch(`http://localhost:${port}/`, {
-      headers: { Accept: "text/x-component" },
-    });
-    expect(response.ok).toBe(true);
-    const content = await response.text();
+    // Poll until propagated (see fetchUntil note).
+    const content = await fetchUntil(`http://localhost:${port}/`, "Version 2");
     expect(content).toContain("Version 2");
   }, 15000);
 
