@@ -67,7 +67,14 @@ describe("HMR", () => {
     server = await createServer({
       root: testDir,
       configFile: false,
-      server: { port, strictPort: true },
+      // Poll the filesystem for changes. Native fs events (inotify) are
+      // unreliable in CI containers, where the writeFile edits below otherwise
+      // go undetected and HMR never fires; polling detects them deterministically.
+      server: {
+        port,
+        strictPort: true,
+        watch: { usePolling: true, interval: 80 },
+      },
       plugins: [
         vitePluginReactServer({
           ...testUserOptions,
