@@ -196,7 +196,8 @@ which is itself built with vprs.
   transport exports) ship in stable React; the matching `react-server-dom-esm`
   transport comes from the `react-server-loader` dependency, which tracks your
   React track. See [React Compatibility](./docs/react-type-compatibility.md).
-- Vite 6+
+- **Vite 6, 7, or 8** (`vite` peer: `^6.3.5 || ^7 || ^8`). Vite 8 builds with
+  Rolldown/Oxc instead of Rollup/esbuild; vprs runs on all three.
 
 ## TypeScript
 
