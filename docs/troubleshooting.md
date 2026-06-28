@@ -168,6 +168,23 @@ vitePluginReactServer({
 });
 ```
 
+## Variable Dynamic Imports on Vite 8 (Rolldown)
+
+A *variable* dynamic import in a server module — ``import(`./pages/${name}.js`)``
+where the specifier is built from a variable — fails to build on Vite 8. The
+plugin's server bundle uses `preserveModules`, and Rolldown does not emit its
+dynamic-import helper module in that mode, so the build can't resolve it:
+
+```
+Failed to load url ../_virtual/_rolldown_dynamic_import_helper.js
+Component resolution failed: missing required components (Page: false)
+```
+
+This is an upstream Rolldown limitation, not vprs-specific. Workarounds:
+
+- Replace the variable import with a static map (`{ light: () => import("./light.js"), … }[name]()`), or
+- Build that route on **Vite 6 or 7** (Rollup), which emit the helper.
+
 ## Checklist for New Projects
 
 - [ ] React packages have matching versions (19+)
