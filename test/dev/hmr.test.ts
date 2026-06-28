@@ -59,6 +59,20 @@ async function fetchUntil(
   return last;
 }
 
+/**
+ * Write a source file and notify Vite of the change. This test exercises vprs's
+ * HMR *logic* (hotUpdate -> invalidate -> RSC re-render), not the OS file
+ * watcher: native fs events (inotify) are unreliable in CI containers, where the
+ * edit otherwise goes undetected and hotUpdate never fires. Emitting the change
+ * on server.watcher triggers Vite's onFileChange -> the plugin hotUpdate hooks
+ * deterministically, on any environment.
+ */
+async function writeAndNotify(relPath: string, content: string) {
+  const abs = join(testDir, relPath);
+  await writeFile(abs, content);
+  server.watcher.emit("change", abs);
+}
+
 describe("HMR", () => {
   beforeAll(async () => {
     await rm(testDir, { recursive: true, force: true });
@@ -109,14 +123,14 @@ describe("HMR", () => {
       return originalSend(payload);
     };
 
-    // Modify the page file
-    await writeFile(
-      join(testDir, "src/page/page.tsx"),
+    // Modify the page file and notify Vite.
+    await writeAndNotify(
+      "src/page/page.tsx",
       `import React from "react";
 export const Page = () => <div>Updated Content</div>;`
     );
 
-    // Poll until the change propagates (file watch -> invalidate -> re-render).
+    // Poll until the change propagates (hotUpdate -> invalidate -> re-render).
     const afterContent = await fetchUntil(
       `http://localhost:${port}/`,
       "Updated Content"
@@ -127,13 +141,9 @@ export const Page = () => <div>Updated Content</div>;`
   }, 15000);
 
   it("should return updated content after file change", async () => {
-    // Let the file watcher settle from the previous test's edit to this same
-    // file — back-to-back same-path changes can be coalesced if too close.
-    await sleep(1500);
-
-    // Update page with new content
-    await writeFile(
-      join(testDir, "src/page/page.tsx"),
+    // Update page with new content and notify Vite.
+    await writeAndNotify(
+      "src/page/page.tsx",
       `import React from "react";
 export const Page = () => <div>Version 2 Content</div>;`
     );
@@ -144,13 +154,13 @@ export const Page = () => <div>Version 2 Content</div>;`
   }, 15000);
 
   it("should update props when props file changes", async () => {
-    // Update props
-    await writeFile(
-      join(testDir, "src/page/props.ts"),
+    // Update props and notify Vite
+    await writeAndNotify(
+      "src/page/props.ts",
       `export const props = () => ({ version: 2, updated: true });`
     );
 
-    // Wait for file watcher and module cache
+    // Wait for module cache to settle
     await sleep(1500);
 
     // Request should use new props
