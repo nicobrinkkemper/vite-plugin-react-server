@@ -142,7 +142,6 @@ describe('handleWorkerRscStream', () => {
     const options = createOptions(route);
 
     // Call the function and get the stream
-    console.log('About to call handleRscStream with options:', { ...options, rscWorker: mockWorker, url: '', logger: mockLogger });
     const stream = handleRscStream({
       options: {
         ...options,
