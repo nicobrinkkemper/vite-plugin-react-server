@@ -9,8 +9,9 @@ import type {
   ResolvedUserOptions,
   StreamMetrics,
 } from "../types.js";
-import type { Logger, Manifest, PreviewServer } from "vite";
-import type { OutputBundle } from "rollup";
+import type { Logger, Manifest, PreviewServer, Rollup } from "vite";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+type OutputBundle = Rollup.OutputBundle;
 
 export type FileWriterOptions = Pick<
   CreateHandlerOptions,

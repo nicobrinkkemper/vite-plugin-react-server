@@ -15,6 +15,11 @@ import { userProjectRoot } from "../root.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
 import { detectClientModule, analyzeModule } from "react-server-loader/directives";
+// rsl's acorn-based parse replaces the bundler's `this.parse`, which is
+// Rollup (acorn) on Vite 6/7 but Oxc on Vite 8 — different AST shape. rsl's
+// parser is JS-only (matching Rollup's, which `this.parse` always was at
+// order:post once JSX is compiled away) and version-independent.
+import { parse as rslParse } from "react-server-loader";
 import { isViteInjectedCode } from "../loader/isViteInjectedCode.js";
 
 export interface TransformerPluginOptions {
@@ -203,7 +208,10 @@ export const createTransformerPlugin = (
         // dist/server / env=server - it adds registerClientReference and registerServerReference based on directive (ssg portable)
         // dist/client / env=ssr - removes use client directive and hides server modules, hides client entry or without exports (ssg portable)
         // dist/static / env=client  -  removes use client directive and hides server modules, emits client entry (and is browser portable)
-        async handler(code, id, { ssr } = {}) {
+        async handler(code, id, meta) {
+          // Vite 8 (rolldown) makes the 3rd-arg options bag required with a
+          // mandatory `moduleType`; read `ssr` defensively to work on 6/7/8.
+          const ssr = meta?.ssr;
           const isWhitelistedClientPackage =
             getClientPackagesPattern()?.test(id) ?? false;
           if (
@@ -297,7 +305,7 @@ export const createTransformerPlugin = (
           // `createModuleID` via the same helper.
           const isClientByDirective = detectClientModule({
             source: code,
-            parseFn: (src, opts) => this.parse(src, opts) as Program,
+            parseFn: (src) => rslParse(src).ast as unknown as Program,
           });
 
           // Use the original normalized path for moduleID function calls
@@ -351,11 +359,7 @@ export const createTransformerPlugin = (
 
           const transformer = createTransformer({
             parseFn: (source) => {
-              const ast = this.parse(source, {
-                allowReturnOutsideFunction: true,
-                jsx: true,
-              }) as Program;
-              return ast;
+              return rslParse(source).ast as unknown as Program;
             },
             options: {
               loader: runtimeResolvedUserOptions.loader,

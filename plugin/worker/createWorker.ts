@@ -1,7 +1,6 @@
 import {
   Worker,
   type ResourceLimits,
-  type TransferListItem,
   type MessagePort,
 } from "node:worker_threads";
 import type { ConfigEnv } from "vite";
@@ -32,8 +31,9 @@ import type {
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";
-import type { Manifest } from "vite";
-import type { OutputBundle } from "rollup";
+import type { Manifest, Rollup } from "vite";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+type OutputBundle = Rollup.OutputBundle;
 import { handleError } from "../error/handleError.js";
 import { toError } from "../error/toError.js";
 
@@ -155,7 +155,11 @@ export type CreateWorkerOptions = {
     hmrPort?: MessagePort;
     runnerPort?: MessagePort;
   };
-  transferList?: TransferListItem[];
+  // @types/node renamed the transfer-list element type across versions
+  // (TransferListItem -> Transferable) and dropped the old name; derive it from
+  // WorkerOptions (where this value is passed) so it resolves — and stays
+  // mutable/readonly-correct — on whichever @types/node is installed.
+  transferList?: NonNullable<ConstructorParameters<typeof Worker>[1]>["transferList"];
   logger?: Logger;
   verbose?: boolean;
 };
@@ -436,7 +440,7 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
         };
         worker.once("message", messageHandler);
         worker.once("exit", exitHandler);
-        worker.on("error", (err) => {
+        worker.on("error", (err: Error) => {
           // Remove worker from registry on error
           activeWorkers.delete(worker);
           

@@ -26,7 +26,9 @@ import type {
   VitePluginFn,
   AutoDiscoveredFiles,
 } from "../types.js";
-import type { OutputBundle } from "rollup";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+import type { Rollup } from "vite";
+type OutputBundle = Rollup.OutputBundle;
 import { renderPagesBatched } from "./renderPagesBatched.js";
 import { performance } from "node:perf_hooks";
 import { renderPage } from "./renderPage.client.js";

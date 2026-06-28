@@ -5,6 +5,10 @@ import type { Program } from "acorn";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { analyzeModule } from "react-server-loader/directives";
+// Version-independent acorn parse: the bundler's `this.parse` is Oxc on Vite 8
+// (different AST shape) but Rollup/acorn on 6/7. rsl's parser matches the
+// JS-only Rollup behavior we already relied on here.
+import { parse as rslParse } from "react-server-loader";
 import type { VitePluginFn } from "../types.js";
 
 // Virtual id prefix for the client-side server-reference proxy. The real
@@ -97,7 +101,7 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
         loader: isTsx ? "tsx" : "ts",
       });
       const analysis = await analyzeModule(js, {
-        loader: { parse: (s: string) => this.parse(s) as Program },
+        loader: { parse: (s: string) => rslParse(s).ast as unknown as Program },
       });
       if (
         analysis.type !== "success" ||

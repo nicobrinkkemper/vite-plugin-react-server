@@ -1,5 +1,4 @@
-import type { OutputAsset } from "rollup";
-import type { ESBuildOptions, Plugin as VitePlugin } from "vite";
+import type { ESBuildOptions, Plugin as VitePlugin, Rollup } from "vite";
 import { transformWithEsbuild } from "vite";
 import { writeFile } from "node:fs/promises";
 import { join, sep } from "node:path";
@@ -30,12 +29,15 @@ export function filePreserverPlugin(fileName: string | string[]): VitePlugin[] {
     typeof fileName === "string" ? fileName : fileName.slice(3).join("-");
   let outDir: string = "dist";
   let root: string = process.cwd();
-  let esbuildOptions: ESBuildOptions = {
+  // `jsxDev` is a valid esbuild transform option, but some resolutions of
+  // Vite's ESBuildOptions don't declare it; assert past the excess-property
+  // check rather than drop the prod-JSX override.
+  let esbuildOptions = {
     jsxDev: false,
     supported: { "import-meta": true },
     target: "esnext",
     format: "esm",
-  };
+  } as ESBuildOptions;
   const shouldPreserve = Array.isArray(fileName)
     ? (id: string) => fileName.some((f) => id.includes(f))
     : (id: string) => id.includes(fileName);
@@ -61,10 +63,12 @@ export function filePreserverPlugin(fileName: string | string[]): VitePlugin[] {
         if (sources.length === 0) return;
         const entries = Object.entries(bundle);
         const mapEntries = entries.filter(
-          (entry): entry is [string, OutputAsset] => {
+          (entry): entry is [string, Rollup.OutputAsset] => {
+            const out = entry[1];
             return (
-              entry[1].fileName.endsWith(".map") &&
-              shouldPreserve(entry[1].fileName)
+              out.type === "asset" &&
+              out.fileName.endsWith(".map") &&
+              shouldPreserve(out.fileName)
             );
           }
         );
@@ -102,8 +106,8 @@ export function filePreserverPlugin(fileName: string | string[]): VitePlugin[] {
         const source = {
           id: id.replace(root + sep, ""),
           originalCode: code,
-          transformedCode: result.code,
-          map: JSON.stringify(result.map),
+          transformedCode: result["code"],
+          map: JSON.stringify(result["map"]),
         };
         sources.push(source);
         return {

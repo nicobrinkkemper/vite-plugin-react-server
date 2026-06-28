@@ -1,6 +1,7 @@
 import type { Plugin } from "vite";
 import { join } from "node:path";
-import { lstatSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
+import { lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
+import { dirname } from "node:path";
 import { transportPkgDir, transportRoot } from "./transportDir.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 
@@ -112,7 +113,12 @@ function ensureVendoredPackageLinked(root?: string): void {
         symlinkSync(pkg, target, "junction");
       }
     } else if (!stat) {
-      // No existing file — create symlink
+      // No existing file — create symlink. Vite 8's dev module runner resolves
+      // bare specifiers (e.g. `react-server-dom-esm/server`) via Node, not the
+      // plugin `resolveId` external path Vite 6 used, so the symlink must
+      // actually exist. Ensure the parent `node_modules` dir is present first;
+      // a freshly-scaffolded project root may not have one yet.
+      mkdirSync(dirname(target), { recursive: true });
       symlinkSync(pkg, target, "junction");
     }
     // If a real directory/file exists (user installed it), leave it alone

@@ -9,7 +9,9 @@ import type {
   SerializedResolvedConfig,
   SerializedUserOptions,
 } from "../types.js";
-import type { ModuleInfo } from "rollup";
+// Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
+import type { Rollup } from "vite";
+type ModuleInfo = Rollup.ModuleInfo;
 import { parentPort } from "node:worker_threads";
 import type { MessagePort } from "node:worker_threads";
 import type {

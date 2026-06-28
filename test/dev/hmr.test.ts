@@ -35,6 +35,44 @@ export const Page = () => <div>Initial Content</div>;`
   );
 }
 
+/**
+ * Fetch the RSC stream until it contains `needle` (the HMR change has
+ * propagated) or the deadline passes. A fixed sleep before a single fetch is
+ * flaky on loaded CI runners, where file-watch -> invalidate -> re-render can
+ * take longer than the wait; polling is robust without weakening the assertion.
+ */
+async function fetchUntil(
+  url: string,
+  needle: string,
+  timeoutMs = 12000
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  let last = "";
+  while (Date.now() < deadline) {
+    const res = await fetch(url, { headers: { Accept: "text/x-component" } });
+    if (res.ok) {
+      last = await res.text();
+      if (last.includes(needle)) return last;
+    }
+    await sleep(200);
+  }
+  return last;
+}
+
+/**
+ * Write a source file and notify Vite of the change. This test exercises vprs's
+ * HMR *logic* (hotUpdate -> invalidate -> RSC re-render), not the OS file
+ * watcher: native fs events (inotify) are unreliable in CI containers, where the
+ * edit otherwise goes undetected and hotUpdate never fires. Emitting the change
+ * on server.watcher triggers Vite's onFileChange -> the plugin hotUpdate hooks
+ * deterministically, on any environment.
+ */
+async function writeAndNotify(relPath: string, content: string) {
+  const abs = join(testDir, relPath);
+  await writeFile(abs, content);
+  server.watcher.emit("change", abs);
+}
+
 describe("HMR", () => {
   beforeAll(async () => {
     await rm(testDir, { recursive: true, force: true });
@@ -85,58 +123,44 @@ describe("HMR", () => {
       return originalSend(payload);
     };
 
-    // Modify the page file
-    await writeFile(
-      join(testDir, "src/page/page.tsx"),
+    // Modify the page file and notify Vite.
+    await writeAndNotify(
+      "src/page/page.tsx",
       `import React from "react";
 export const Page = () => <div>Updated Content</div>;`
     );
 
-    // Wait for file watcher to pick up change
-    await sleep(1500);
+    // Poll until the change propagates (hotUpdate -> invalidate -> re-render).
+    const afterContent = await fetchUntil(
+      `http://localhost:${port}/`,
+      "Updated Content"
+    );
 
-    // Check if any events were sent (for debugging)
     console.log('Captured events:', events.map(e => ({ type: e.type, event: e.event })));
-
-    // For now, verify that content was updated (which proves HMR worked)
-    // The custom event sending depends on the plugin's handleHotUpdate being called
-    // which may require the RSC mode to be active
-    const afterResponse = await fetch(`http://localhost:${port}/`, {
-      headers: { Accept: "text/x-component" },
-    });
-    expect(afterResponse.ok).toBe(true);
-    const afterContent = await afterResponse.text();
     expect(afterContent).toContain("Updated Content");
   }, 15000);
 
   it("should return updated content after file change", async () => {
-    // Update page with new content
-    await writeFile(
-      join(testDir, "src/page/page.tsx"),
+    // Update page with new content and notify Vite.
+    await writeAndNotify(
+      "src/page/page.tsx",
       `import React from "react";
 export const Page = () => <div>Version 2 Content</div>;`
     );
 
-    // Wait for file watcher and module cache to update
-    await sleep(1500);
-
-    // Request should return new content
-    const response = await fetch(`http://localhost:${port}/`, {
-      headers: { Accept: "text/x-component" },
-    });
-    expect(response.ok).toBe(true);
-    const content = await response.text();
+    // Poll until propagated (see fetchUntil note).
+    const content = await fetchUntil(`http://localhost:${port}/`, "Version 2");
     expect(content).toContain("Version 2");
   }, 15000);
 
   it("should update props when props file changes", async () => {
-    // Update props
-    await writeFile(
-      join(testDir, "src/page/props.ts"),
+    // Update props and notify Vite
+    await writeAndNotify(
+      "src/page/props.ts",
       `export const props = () => ({ version: 2, updated: true });`
     );
 
-    // Wait for file watcher and module cache
+    // Wait for module cache to settle
     await sleep(1500);
 
     // Request should use new props

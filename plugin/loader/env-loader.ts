@@ -83,7 +83,9 @@ export const load: LoadHook = async (
     result.source instanceof Uint8Array ||
     Buffer.isBuffer(result.source)
   ) {
-    sourceStr = result.source.toString("utf-8");
+    // Buffer.from handles both Uint8Array and Buffer; narrowing collapses to
+    // Uint8Array, whose toString() takes no encoding arg.
+    sourceStr = Buffer.from(result.source).toString("utf-8");
   } else {
     console.warn(
       `[env-loader] Unexpected source type: ${typeof result.source}`

@@ -41,12 +41,32 @@ export function attachRunnerFetchHandler(
         );
       }
       const { name, data } = invoke.data;
-      if (name !== "fetchModule") {
-        throw new Error(`[runner-fetch] unsupported method: ${name}`);
-      }
       const env = server.environments?.["server"];
       if (!env) {
         throw new Error("[runner-fetch] server environment not initialized");
+      }
+      if (name === "getBuiltins") {
+        // Vite 7+ added a `getBuiltins` transport call to the module runner
+        // (Vite 6 had none). Our custom transport must answer it or the runner
+        // import rejects and the RSC render comes back empty. Mirror Vite's own
+        // transport: serialize `resolve.builtins` to {type, value|source,flags}.
+        const builtins =
+          (env.config as { resolve?: { builtins?: Array<string | RegExp> } })
+            .resolve?.builtins ?? [];
+        const builtinsResult = builtins.map((b) =>
+          typeof b === "string"
+            ? { type: "string" as const, value: b }
+            : { type: "RegExp" as const, source: b.source, flags: b.flags }
+        );
+        port.postMessage({
+          __vprs: "runner-response",
+          requestId,
+          result: { result: builtinsResult },
+        } satisfies RunnerPortResponse);
+        return;
+      }
+      if (name !== "fetchModule") {
+        throw new Error(`[runner-fetch] unsupported method: ${name}`);
       }
       const [url, importer, options] = data;
       const result = await fetchModule(env, url, importer, options);
