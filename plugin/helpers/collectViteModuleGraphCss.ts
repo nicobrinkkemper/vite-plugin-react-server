@@ -208,18 +208,20 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
         }
         // Found imported modules
         for (const importedMod of importedModules) {
-          if (typeof importedMod === "object" && importedMod != null) {
-            if (
-              "id" in importedMod &&
-              importedMod.id &&
-              typeof importedMod.id === "string"
-            ) {
-              await walkModule(importedMod);
-            } else {
-              throw new Error(`Imported module has no id`);
-            }
-          } else {
-            throw new Error(`Imported module is not an object`);
+          // Vite's dev module graph can hold unresolved nodes whose `id` is
+          // still null (referenced but not yet resolved/transformed). They
+          // carry no CSS to collect and nothing to recurse into, so skip them
+          // rather than aborting the whole walk — a single such node used to
+          // throw `Imported module has no id` and break CSS collection for the
+          // entire page in dev:rsc.
+          if (
+            typeof importedMod === "object" &&
+            importedMod != null &&
+            "id" in importedMod &&
+            importedMod.id &&
+            typeof importedMod.id === "string"
+          ) {
+            await walkModule(importedMod);
           }
         }
       }
