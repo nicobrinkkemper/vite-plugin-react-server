@@ -384,9 +384,19 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       // Build order: client → ssr → server → static generation (step 4)
       // Server build runs LAST so dist/client exists when HTML rendering references client components
       // Static generation is deferred to run after ALL environments complete (needs server manifest)
+      // This hook echoes the incoming config via `...config`. On Vite 8 that
+      // re-emits any upstream `esbuild` option, and Vite attributes the
+      // deprecation warning to whichever plugin last emitted it — i.e. us. We
+      // don't own that option (the only knob we set, dev JSX, is mapped onto
+      // `oxc` in `esbuildJsxDevOverride`), so drop `esbuild` from the echo on
+      // Vite 8. The original value still lives on the resolved config; we just
+      // stop re-attributing the deprecated key to this plugin.
+      const { esbuild: _droppedEsbuild, ...configEcho } = config as UserConfig & {
+        esbuild?: unknown;
+      };
       return {
         root: userOptions.projectRoot,
-        ...config,
+        ...(isOxcVite ? configEcho : config),
         ...esbuildJsxDevOverride,
         environments,
         builder: {
