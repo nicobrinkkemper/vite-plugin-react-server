@@ -22,7 +22,7 @@ const RUN = process.env["VPRS_WORKER_STRESS"] === "1";
 
 const stubPath = join(
   dirname(fileURLToPath(import.meta.url)),
-  "../fixtures/worker-startup/stub-worker.mjs"
+  "worker-startup-stub.mjs"
 );
 
 const silentLogger = { info() {}, warn() {}, error() {} } as never;
