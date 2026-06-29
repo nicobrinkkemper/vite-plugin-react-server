@@ -9,14 +9,14 @@
     "edge": "node edge-server.mjs"
   },
   "dependencies": {
-    "react": "0.0.0-experimental-f93b9fd4-20251217",
-    "react-dom": "0.0.0-experimental-f93b9fd4-20251217",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "vite-plugin-react-server": "file:../.."
   },
   "devDependencies": {
     "@types/react": "^19.0.9",
     "@types/react-dom": "^19.0.3",
     "typescript": "^5.7.3",
-    "vite": "^6.4.1"
+    "vite": "^8.1.0"
   }
 }
