@@ -317,6 +317,7 @@
     "test:unit": "NODE_OPTIONS='--conditions react-server' vitest run test/unit/*",
     "test:tee": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
     "test:rsc-worker": "npm run build && vitest run test/client/rsc-worker.test.ts",
+    "test:worker-startup": "npm run build && VPRS_WORKER_STRESS=1 NODE_OPTIONS='--conditions react-server' vitest run test/unit/worker-startup-watchdog.test.ts",
     "test:large-html": "npm run test:examples -- test/examples/large-html-handling.test.ts",
     "test:metrics": "npm run test:examples -- test/examples/metrics.test.ts",
     "test:error-boundaries": "npm run test:examples -- test/examples/error-boundaries-build.test.ts test/examples/error-boundaries.test.ts",

@@ -381,16 +381,38 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
             ? DEFAULT_CONFIG.RSC_WORKER_STARTUP_TIMEOUT
             : DEFAULT_CONFIG.HTML_WORKER_STARTUP_TIMEOUT);
 
-        const timeout = setTimeout(() => {
-          reject({
-            type: "error",
-            error: new Error(
-              `Worker ready timeout after ${startupTimeout}ms (worker/${workerType})`
-            ),
-          });
-        }, startupTimeout);
+        // Inactivity watchdog instead of a fixed deadline measured from spawn.
+        // Under heavy parallel load a freshly-spawned worker can sit queued for
+        // CPU for seconds before it executes a single line — that scheduling
+        // delay must not count against startup. Re-arm the timer on every sign
+        // of life ("online" = the isolate began executing; any message), so it
+        // only fires after `startupTimeout` ms of genuine silence. Real
+        // crashes/hangs are still caught by the exit/error handlers below,
+        // independently of this timer.
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        const onActivity = () => armWatchdog();
+        const clearStartupListeners = () => {
+          if (timeout) clearTimeout(timeout);
+          worker.removeListener("online", onActivity);
+          worker.removeListener("message", onActivity);
+        };
+        function armWatchdog() {
+          if (timeout) clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            clearStartupListeners();
+            reject({
+              type: "error",
+              error: new Error(
+                `Worker ready timeout after ${startupTimeout}ms of inactivity (worker/${workerType})`
+              ),
+            });
+          }, startupTimeout);
+        }
+        armWatchdog();
+        worker.on("online", onActivity);
+        worker.on("message", onActivity);
         const exitHandler = (code: number) => {
-          clearTimeout(timeout);
+          clearStartupListeners();
           worker.removeListener("message", messageHandler);
           // Remove worker from registry when it exits
           activeWorkers.delete(worker);
@@ -413,7 +435,7 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
           if (msg.type === "READY" && msg.id === id) {
             if (verbose)
               logger.info(`[create:${id}] Worker running for ${msg.env}`);
-            clearTimeout(timeout);
+            clearStartupListeners();
             worker.removeListener("message", messageHandler);
             worker.removeListener("exit", exitHandler);
             // Compare against the NODE_ENV we spawned the worker with (the
@@ -443,7 +465,8 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
         worker.on("error", (err: Error) => {
           // Remove worker from registry on error
           activeWorkers.delete(worker);
-          
+          clearStartupListeners();
+
           if (verbose && err != null) {
             logger.error(
               `[create:${id}] Worker error: ${err.message}.\n${err.stack}`,
