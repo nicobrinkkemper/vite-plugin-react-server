@@ -178,8 +178,14 @@ export const DEFAULT_CONFIG = {
   REACT_DIRECTIVES: new Set(["use client", "use server"]),
   RSC_TIMEOUT: 5000, // 5 seconds default timeout for RSC operations
   HTML_TIMEOUT: 15000, // 15 seconds default timeout for HTML generation operations
-  HTML_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for HTML worker startup
-  RSC_WORKER_STARTUP_TIMEOUT: 3000, // 3 seconds default timeout for RSC worker startup
+  // Worker startup is an INACTIVITY budget (see createWorker.ts): re-armed on
+  // the worker's `online` event and every message, so spawn-queue latency under
+  // load doesn't count. 10s is a hang-guard for a worker that started but then
+  // went silent — not a perf SLA. A cold worker imports `vite` into a fresh
+  // isolate, which under heavy parallel load (e.g. a full test run) can take
+  // several seconds of wall time; 3s routinely killed healthy-but-slow starts.
+  HTML_WORKER_STARTUP_TIMEOUT: 10000, // 10s inactivity hang-guard for HTML worker startup
+  RSC_WORKER_STARTUP_TIMEOUT: 10000, // 10s inactivity hang-guard for RSC worker startup
   FILE_WRITE_TIMEOUT: 10000, // 10 seconds default timeout for file write operations
   WORKER_SHUTDOWN_TIMEOUT: 1000, // Reduced to 1 second for faster test cleanup
   // Default Html/Root components are intentionally NOT held here: they import
