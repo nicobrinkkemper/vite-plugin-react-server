@@ -17,6 +17,12 @@ export type FileRouterConfig = {
   build: { pages: string[] };
   /** The discovered table, exposed for getStaticPaths aggregation / tooling. */
   routes: RouteEntry[];
+  /**
+   * Params for a concrete url, from the matched pattern (`/profile/123` →
+   * `{ id: "123" }`). This is what the loader plumbing threads into
+   * `props(url, { params, request })`; returns `{}` when nothing matches.
+   */
+  getParams: (url: string) => Record<string, string>;
 };
 
 export function fileRouter(routesDir: string): FileRouterConfig {
@@ -37,5 +43,6 @@ export function fileRouter(routesDir: string): FileRouterConfig {
     // are matched per-request (and enumerated via getStaticPaths when wanted).
     build: { pages: routes.filter((r) => !r.dynamic).map((r) => r.pattern) },
     routes,
+    getParams: (url) => matchRoutes(patterns, url)?.params ?? {},
   };
 }

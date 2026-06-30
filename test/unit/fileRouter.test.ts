@@ -33,4 +33,11 @@ describe("fileRouter", () => {
   it("throws on an unmatched url", () => {
     expect(() => r.Page("/nope/x")).toThrow(/no route matches/);
   });
+
+  it("extracts params for the loader (matched pattern), {} when unmatched", () => {
+    expect(r.getParams("/profile/123")).toEqual({ id: "123" });
+    expect(r.getParams("/blog/tech/rsc")).toEqual({ category: "tech", slug: "rsc" });
+    expect(r.getParams("/profile/me")).toEqual({});
+    expect(r.getParams("/nope/x")).toEqual({});
+  });
 });
