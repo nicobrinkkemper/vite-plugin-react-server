@@ -1,11 +1,17 @@
 import { crawlFrameworkPkgs } from "vitefu";
 import type { Logger } from "vite";
 
+// React itself and the transport are never client-component packages. vprs is
+// intentionally NOT excluded: it ships "use client" modules (./router/client:
+// Link, RouterProvider, startClient) and has `react` in peerDependencies, so
+// letting discovery pick it up means a consumer using the router doesn't have
+// to hand-add clientPackages: ["vite-plugin-react-server"]. Only files that
+// carry the directive are treated as client references; vprs's server/plugin
+// code has no directive, so it stays server-side.
 const SELF_PACKAGES = new Set([
   "react",
   "react-dom",
   "react-server-dom-esm",
-  "vite-plugin-react-server",
 ]);
 
 export interface DiscoverOptions {
