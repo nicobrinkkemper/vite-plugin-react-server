@@ -29,6 +29,12 @@ export type FileRouterConfig = {
   /** The discovered table, exposed for getStaticPaths aggregation / tooling. */
   routes: RouteEntry[];
   /**
+   * The route patterns (`["/", "/profile/$id", "/blog/$category/$slug"]`).
+   * Spread into the plugin config so vprs can compute a loader's `params`
+   * automatically at request time — no `withParams` pattern to repeat.
+   */
+  routePatterns: string[];
+  /**
    * Params for a concrete url, from the matched pattern (`/profile/123` →
    * `{ id: "123" }`). This is what the loader plumbing threads into
    * `props(url, { params, request })`; returns `{}` when nothing matches.
@@ -79,6 +85,7 @@ export function fileRouter(
     props: (url) => matched(url).props,
     build: { pages },
     routes,
+    routePatterns: patterns,
     getParams: (url) => matchRoutes(patterns, url)?.params ?? {},
   };
 }

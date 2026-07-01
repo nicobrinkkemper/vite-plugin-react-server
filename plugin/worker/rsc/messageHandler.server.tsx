@@ -195,6 +195,7 @@ async function loadComponentsWithCache(options: {
   verbose?: boolean;
   logger?: any;
   panicThreshold?: PanicThreshold;
+  routePatterns?: readonly string[];  // For request-time param resolution
   resolvedPageProps?: Record<string, unknown>;  // Pre-resolved props from main thread
 }) {
   const {
@@ -211,6 +212,7 @@ async function loadComponentsWithCache(options: {
     verbose,
     logger,
     panicThreshold = "none",
+    routePatterns,
     resolvedPageProps,
   } = options;
   
@@ -310,6 +312,7 @@ async function loadComponentsWithCache(options: {
           pageExportName,
           propsExportName,
           url: normalizedUrl,
+          routePatterns,
           loader,
           verbose: verbose || false,
           logger,
@@ -392,11 +395,12 @@ async function loadComponentsWithCache(options: {
           pageExportName,
           propsExportName,
           url: normalizedUrl,
+          routePatterns,
           loader,
           verbose: verbose || false,
           logger,
         });
-        
+
         if (pageAndPropsResult.type === "success") {
           pageProps = pageAndPropsResult.pageProps;
 
@@ -771,6 +775,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             verbose,
             logger,
             panicThreshold: msg.options.panicThreshold,
+            routePatterns: msg.options.routePatterns ?? userOptions.routePatterns,
             resolvedPageProps: msg.options.resolvedPageProps,  // Pre-resolved from main thread
           });
 
@@ -1166,6 +1171,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             loader,
             verbose,
             logger,
+            routePatterns: workerData.userOptions?.routePatterns,
           });
 
           const resolutionTime = performance.now() - resolutionStartTime;

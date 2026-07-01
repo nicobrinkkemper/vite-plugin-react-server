@@ -283,6 +283,7 @@ const PROPS_EXPORT = ${JSON.stringify(propsExport)};
 const MODULE_BASE = ${JSON.stringify(moduleBase)};
 const MODULE_BASE_PATH = ${JSON.stringify(moduleBasePath)};
 const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
+const ROUTE_PATTERNS = ${JSON.stringify(userOptions.routePatterns ?? [])};
 const HtmlComponent = ${htmlNs}[${JSON.stringify(htmlComp.exportName)}];
 const RootComponent = ${rootNs}[${JSON.stringify(rootComp.exportName)}];
 
@@ -300,6 +301,7 @@ async function resolveRoute(url) {
     pageExportName: PAGE_EXPORT,
     propsExportName: PROPS_EXPORT,
     moduleBaseURL: MODULE_BASE_URL,
+    routePatterns: ROUTE_PATTERNS,
     url,
     loader: async (id) => {
       // resolvePage/resolveProps may pass "<path>#<export>"; key by the path.

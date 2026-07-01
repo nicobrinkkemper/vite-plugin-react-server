@@ -1,11 +1,24 @@
 import { toError } from "../error/toError.js";
 import type { GenericModuleLoader, PagePropOpt, PropsName } from "../types.js";
 
+/**
+ * Second argument passed to a loader function: `props(url, ctx)`. Optional and
+ * back-compatible — a `(url) => …` loader simply ignores it.
+ */
+export type LoaderCtx = {
+  /** Params parsed from the request url against the matched route pattern. */
+  params: Record<string, string>;
+  /** In-flight request; present only on the dev request thread (see CreateHandlerOptions). */
+  request?: Request;
+};
+
 type ResolvePropsOptions = {
   id: string;
   url: string;
   exportName: string;
   loader: GenericModuleLoader;
+  /** Loader context threaded into `props(url, { params, request })`. */
+  ctx?: LoaderCtx;
 };
 
 type ValidPropTypes<T> =
@@ -13,7 +26,7 @@ type ValidPropTypes<T> =
   | Promise<T>
   | Array<T[keyof T]>
   | Array<[string, T[keyof T]]>
-  | ((url: string) => ValidPropTypes<T>);
+  | ((url: string, ctx?: LoaderCtx) => ValidPropTypes<T>);
 
 // prototype classes
 
@@ -69,6 +82,7 @@ export const resolveProps = async <
   url,
   exportName,
   loader,
+  ctx,
 }: ResolvePropsOptions): Promise<ResolvePropsResult<T, N>> => {
   // Check if this is a stashed page that needs special handling
   const propsLoadResult = await (async (): Promise<
@@ -133,10 +147,17 @@ export const resolveProps = async <
       let propsResult;
       if (props.prototype && props.prototype.constructor) {
         // Class constructor case
-        propsResult = new (props as unknown as new (url: string) => T)(url);
+        propsResult = new (props as unknown as new (
+          url: string,
+          ctx?: LoaderCtx
+        ) => T)(url, ctx);
       } else {
-        // Regular function case
-        propsResult = props(url);
+        // Regular function case — `props(url, { params, request })`.
+        // A `(url) => …` loader ignores the 2nd arg (back-compat).
+        propsResult = (props as (url: string, ctx?: LoaderCtx) => unknown)(
+          url,
+          ctx
+        );
       }
 
       // Handle recursive props validation
@@ -149,6 +170,7 @@ export const resolveProps = async <
           id,
           url,
           exportName,
+          ctx,
           loader: async () =>
             ({ [exportName]: propsResult } as {
               [key in N]: ValidPropTypes<T>;

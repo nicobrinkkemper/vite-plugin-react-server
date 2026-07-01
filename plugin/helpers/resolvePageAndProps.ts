@@ -6,8 +6,9 @@ import type {
   PagePropOpt,
 } from "../types.js";
 import { resolvePage } from "./resolvePage.js";
-import { resolveProps } from "./resolveProps.js";
+import { resolveProps, type LoaderCtx } from "./resolveProps.js";
 import { routeToURL } from "../utils/routeToURL.js";
+import { matchRoutes } from "../router/matchRoute.js";
 
 /**
  * Resolves the page and props for a given route, works in combination with resolveComponents
@@ -39,6 +40,16 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         );
       }
 
+      // Loader context: `props(url, { params, request })`. Params are either
+      // precomputed by the caller or derived here from the route patterns +
+      // url (file-based router). Back-compat: `(url) => …` loaders ignore it.
+      const params =
+        handlerOptions.params ??
+        (handlerOptions.routePatterns?.length
+          ? matchRoutes(handlerOptions.routePatterns, url)?.params ?? {}
+          : {});
+      const loaderCtx: LoaderCtx = { params, request: handlerOptions.request };
+
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
         exportName:
@@ -54,6 +65,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
 
       const resolvePropsPromise = resolveProps({
         url,
+        ctx: loaderCtx,
         id: handlerOptions.propsPath || handlerOptions.pagePath,
         exportName:
           handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
@@ -200,7 +212,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           );
         }
         try {
-          pageProps = pageProps(url);
+          pageProps = pageProps(url, loaderCtx);
           // Await if it returns a Promise
           if (pageProps instanceof Promise) {
             pageProps = await pageProps;
@@ -274,6 +286,9 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
     | "loader"
     | "verbose"
     | "logger"
+    | "routePatterns"
+    | "params"
+    | "request"
   > & {
     moduleBaseURL?: string;
     route?: string;

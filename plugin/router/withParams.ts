@@ -9,9 +9,12 @@ import { matchRoute, type RouteParams } from "./matchRoute.js";
 //     id: params.id, // params.id: string (inferred from the pattern literal)
 //   }));
 //
-// Declare the same pattern as the route's file location. This is the minimal,
-// composable way to get params into a loader; an automatic (no-pattern) variant
-// can thread params through the handler pipeline later as an enhancement.
+// Declare the same pattern as the route's file location. `withParams` is now
+// OPTIONAL: when you configure the plugin via `fileRouter(...)`, vprs threads
+// `params` (and `request`) into your loader automatically as
+// `props(url, { params, request })` — no pattern to repeat. Reach for
+// `withParams` only when you want the params typed from a pattern literal
+// without wiring up the file router, or to parse params off a one-off url.
 export type LoaderContext<Pattern extends string> = {
   /** The concrete request url vprs passed to the loader. */
   url: string;

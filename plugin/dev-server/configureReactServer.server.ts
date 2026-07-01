@@ -365,6 +365,18 @@ export const configureReactServer: ConfigureReactServerFn =
             logger.info(`[configureReactServer] Loading props for route ${info.route}, pagePath: ${pagePath}, propsPath: ${propsPath}, url: ${info.url}`);
           }
           
+          // A Web Request for loaders that read headers/cookies. Available only
+          // on this dev request thread (undefined in worker/static/edge).
+          const reqHeaders = new Headers();
+          for (const [k, v] of Object.entries(req.headers)) {
+            if (typeof v === "string") reqHeaders.set(k, v);
+            else if (Array.isArray(v)) reqHeaders.set(k, v.join(", "));
+          }
+          const request = new Request(
+            new URL(req.url ?? info.url, `http://${req.headers.host ?? "localhost"}`),
+            { method: req.method ?? "GET", headers: reqHeaders }
+          );
+
           const propsResult = await resolvePageAndProps({
             pagePath,
             propsPath,
@@ -373,6 +385,8 @@ export const configureReactServer: ConfigureReactServerFn =
             url: info.url,
             route: info.route,
             moduleBaseURL: server.config.base,
+            routePatterns: userHandlerOptions.routePatterns,
+            request,
             loader,
             verbose,
             logger,
