@@ -50,9 +50,12 @@ export default defineConfig({
       // condition (they import from react-server-only paths). Streams stay
       // included in both modes — the worker mechanism handles RSC rendering
       // from a react-client process via spawning a react-server worker.
+      // The router client suite (Link / RouterProvider) imports
+      // react-dom/client, which throws under the react-server condition, so it
+      // runs client-mode only — mirror of the unit/server exclusion above.
       ...(getCondition() !== "react-server"
         ? ["test/unit/**/*.test.*", "test/server/**/*.test.*"]
-        : []),
+        : ["test/router/**/*.test.*"]),
     ],
   },
 });
