@@ -72,4 +72,13 @@ describe("matchRoutes (specificity ordering)", () => {
   it("returns null when no pattern matches", () => {
     expect(matchRoutes(patterns, "/nope/x")).toBeNull();
   });
+
+  // A malformed %-escape in an attacker-controlled url must not throw a URIError
+  // (matched on the request thread, incl. the edge handler outside a try).
+  it("does not throw on a malformed percent-encoded segment", () => {
+    expect(() => matchRoute("/profile/$id", "/profile/%zz")).not.toThrow();
+    expect(matchRoute("/profile/$id", "/profile/%zz")).toEqual({ id: "%zz" });
+    expect(() => matchRoutes(patterns, "/files/%E0%A4%A")).not.toThrow();
+    expect(matchRoute("/profile/$id", "/profile/%41")).toEqual({ id: "A" });
+  });
 });

@@ -28,6 +28,19 @@ export type RouteParams<Pattern extends string> = {
 
 const segs = (s: string) => s.split("/").filter(Boolean);
 
+// Decode a path segment defensively: a malformed %-escape (e.g. "%zz" or a bare
+// "%") makes `decodeURIComponent` throw a URIError. The pathname is
+// attacker-controlled and matched on the request thread (incl. the edge handler,
+// which resolves routes outside resolvePageAndProps' try), so a throw here would
+// surface as an unhandled error / 500. Keep the raw segment instead.
+const decodeSegment = (s: string): string => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
+
 /** Match one pattern against a pathname. Returns typed params, or null. */
 export function matchRoute<P extends string>(
   pattern: P,
@@ -41,12 +54,12 @@ export function matchRoute<P extends string>(
     const seg = p[i];
     if (seg === "$") {
       // Catch-all: take the rest of the path (may be empty).
-      params["_splat"] = u.slice(i).map(decodeURIComponent).join("/");
+      params["_splat"] = u.slice(i).map(decodeSegment).join("/");
       return params as RouteParams<P>;
     }
     if (u[i] === undefined) return null;
     if (seg.startsWith("$")) {
-      params[seg.slice(1)] = decodeURIComponent(u[i]);
+      params[seg.slice(1)] = decodeSegment(u[i]);
     } else if (seg !== u[i]) {
       return null;
     }
