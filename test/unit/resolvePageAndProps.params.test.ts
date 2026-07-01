@@ -102,4 +102,78 @@ describe("resolvePageAndProps — automatic params", () => {
       url: "/profile/42",
     });
   });
+
+  it("passes multiple params (most-specific pattern wins)", async () => {
+    const result = await resolvePageAndProps({
+      pagePath: "virtual:page",
+      propsPath: "virtual:props",
+      propsExportName: "props",
+      loader: makeLoader((_url, ctx) => ctx?.params),
+      url: "/blog/tech/rsc",
+      routePatterns: ["/blog/$category/$slug", "/blog/$category/me"],
+      logger: noopLogger,
+    });
+
+    expect(result.type === "success" && result.pageProps).toEqual({
+      category: "tech",
+      slug: "rsc",
+    });
+  });
+
+  it("exposes a catch-all's _splat to the loader", async () => {
+    const result = await resolvePageAndProps({
+      pagePath: "virtual:page",
+      propsPath: "virtual:props",
+      propsExportName: "props",
+      loader: makeLoader((_url, ctx) => ({ splat: ctx?.params?._splat })),
+      url: "/files/a/b/c.png",
+      routePatterns: ["/files/$"],
+      logger: noopLogger,
+    });
+
+    expect(result.type === "success" && result.pageProps).toEqual({
+      splat: "a/b/c.png",
+    });
+  });
+
+  it("normalizes the match target: query, index.rsc suffix, trailing slash", async () => {
+    for (const url of [
+      "/profile/42?ref=x",
+      "/profile/42/index.rsc",
+      "/profile/42/",
+      "/profile/42.html",
+    ]) {
+      const result = await resolvePageAndProps({
+        pagePath: "virtual:page",
+        propsPath: "virtual:props",
+        propsExportName: "props",
+        loader: makeLoader((_url, ctx) => ctx?.params),
+        url,
+        routePatterns: ["/profile/$id"],
+        build: { rscOutputPath: "index.rsc" },
+        logger: noopLogger,
+      });
+      expect(result.type === "success" && result.pageProps, `for ${url}`).toEqual({
+        id: "42",
+      });
+    }
+  });
+
+  it("leaves request undefined on the non-request paths (worker/static)", async () => {
+    const result = await resolvePageAndProps({
+      pagePath: "virtual:page",
+      propsPath: "virtual:props",
+      propsExportName: "props",
+      loader: makeLoader((_url, ctx) => ({
+        hasRequest: ctx?.request !== undefined,
+      })),
+      url: "/profile/42",
+      routePatterns: ["/profile/$id"],
+      logger: noopLogger,
+    });
+
+    expect(result.type === "success" && result.pageProps).toEqual({
+      hasRequest: false,
+    });
+  });
 });

@@ -57,6 +57,24 @@ export function Page({ label }: { label: string }) {
 `,
     );
 
+    // Catch-all route: files/$ -> loader reads params._splat (the rest of the path).
+    await mkdir(join(testDir, "src/routes/files/$"), { recursive: true });
+    await writeFile(
+      join(testDir, "src/routes/files/$/page.tsx"),
+      `import React from "react";
+export function Page({ label }: { label: string }) {
+  return <div data-testid="file">{label}</div>;
+}
+`,
+    );
+    await writeFile(
+      join(testDir, "src/routes/files/$/props.ts"),
+      `export const props = (_url: string, { params }: { params: { _splat: string } }) => ({
+  label: "splat-" + params._splat + "-end",
+});
+`,
+    );
+
     const fr = fileRouter(join(testDir, "src/routes"), { root: testDir });
 
     server = await createClientDevServer(
@@ -114,5 +132,10 @@ export function Page({ label }: { label: string }) {
     const flight = await readFlight("/profile/99/index.rsc");
     expect(flight).toContain("pid-99-end");
     expect(flight).not.toContain("pid-42-end");
+  });
+
+  it("threads a catch-all's _splat (rest of the path) into the loader", async () => {
+    const flight = await readFlight("/files/a/b/c.png/index.rsc");
+    expect(flight).toContain("splat-a/b/c.png-end");
   });
 });
