@@ -41,12 +41,27 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       }
 
       // Loader context: `props(url, { params, request })`. Params are either
-      // precomputed by the caller or derived here from the route patterns +
-      // url (file-based router). Back-compat: `(url) => …` loaders ignore it.
+      // precomputed by the caller or derived here from the route patterns.
+      // Match against the normalized pathname (same basis page-selection uses):
+      // drop the query, the `.rsc`/`.html` transport suffix, and a trailing
+      // slash, so `/profile/42.rsc` resolves `{ id: "42" }`, not `"42.rsc"`.
+      const rscSuffix =
+        handlerOptions.build?.rscOutputPath ??
+        DEFAULT_CONFIG.BUILD.rscOutputPath;
+      const normalizeForMatch = (u: string): string => {
+        let p = u.split("?")[0];
+        if (rscSuffix && p.endsWith(rscSuffix)) p = p.slice(0, -rscSuffix.length);
+        else if (p.endsWith(".html")) p = p.slice(0, -".html".length);
+        if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+        return p || "/";
+      };
       const params =
         handlerOptions.params ??
         (handlerOptions.routePatterns?.length
-          ? matchRoutes(handlerOptions.routePatterns, url)?.params ?? {}
+          ? matchRoutes(
+              handlerOptions.routePatterns,
+              normalizeForMatch(handlerOptions.route || url)
+            )?.params ?? {}
           : {});
       const loaderCtx: LoaderCtx = { params, request: handlerOptions.request };
 

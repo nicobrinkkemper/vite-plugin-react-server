@@ -64,4 +64,20 @@ describe("fileRouter", () => {
     expect(r.getParams("/profile/me")).toEqual({});
     expect(r.getParams("/nope/x")).toEqual({});
   });
+
+  it("emits page/props paths relative to `root` (cwd ≠ project root)", () => {
+    // ROUTES is <fixtures>/router-fixtures/routes; scanning it with the fixtures
+    // dir as root must yield project-root-relative, posix-slashed paths.
+    const projectRoot = join(ROUTES, "../..");
+    const rr = fileRouter(ROUTES, { root: projectRoot });
+    expect(rr.Page("/profile/123")).toBe(
+      "router-fixtures/routes/profile/$id/page.tsx",
+    );
+    expect(rr.props("/profile/123")).toBe(
+      "router-fixtures/routes/profile/$id/props.ts",
+    );
+    expect(rr.Page("/")).toBe("router-fixtures/routes/page.tsx");
+    // Matching + params are unaffected by the root rewrite.
+    expect(rr.getParams("/profile/123")).toEqual({ id: "123" });
+  });
 });

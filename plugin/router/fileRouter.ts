@@ -1,3 +1,4 @@
+import { relative, resolve, sep } from "node:path";
 import { fillPattern, matchRoutes } from "./matchRoute.js";
 import { type RouteEntry, scanRoutes } from "./scanRoutes.js";
 
@@ -44,9 +45,24 @@ export type FileRouterConfig = {
 
 export function fileRouter(
   routesDir: string,
-  opts: { staticPaths?: StaticPathsMap } = {},
+  opts: { staticPaths?: StaticPathsMap; root?: string } = {},
 ): FileRouterConfig {
-  const routes = scanRoutes(routesDir);
+  // `root` decouples "where to scan" from "what path to emit": scan
+  // `resolve(root, routesDir)` on disk but emit page/props paths relative to
+  // `root` (the project root vprs resolves modules against). Omitting it keeps
+  // the default — the emitted paths are exactly what `join(routesDir, …)`
+  // produces (relative for a relative routesDir, which is the common case where
+  // cwd is the project root). Supply `root` when cwd ≠ project root.
+  const { root } = opts;
+  const scanned = scanRoutes(root ? resolve(root, routesDir) : routesDir);
+  const toRel = (p: string) => relative(root!, p).split(sep).join("/");
+  const routes: RouteEntry[] = root
+    ? scanned.map((r) => ({
+        ...r,
+        page: toRel(r.page),
+        props: r.props ? toRel(r.props) : undefined,
+      }))
+    : scanned;
   const patterns = routes.map((r) => r.pattern);
   const byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
 
