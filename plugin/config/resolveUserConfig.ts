@@ -10,7 +10,7 @@ import type {
   ResolvedUserOptions,
   AutoDiscoveredFiles,
 } from "../types.js";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 // Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
 import type { Rollup } from "vite";
@@ -236,6 +236,15 @@ export const resolveUserConfig: ResolveUserConfigFn =
           const input =
             info.facadeModuleId ??
             info.name + userOptions.build.moduleExtension;
+          // A node_modules "use client" entry (e.g. vprs's own router barrel,
+          // added as an input so it's hosted for a direct server-side import)
+          // must emit at its preserved node_modules path — that's the exact path
+          // the server build's client reference points at. Hashing it (the
+          // default for entries) would make the reference dangle.
+          if (info.facadeModuleId && info.facadeModuleId.includes("node_modules")) {
+            const rel = relative(userOptions.projectRoot, info.facadeModuleId);
+            if (rel && !rel.startsWith("..")) return rel;
+          }
           const inputId = input + (ssr ? "-ssr" : "");
           if (!stashedReturns[inputId]) {
             const r = handleSsrEntryName(

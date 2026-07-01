@@ -1,3 +1,5 @@
+import { relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type ConfigEnv, type UserConfig } from "vite";
 import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../../types.js";
 import { resolveBuildPages } from "./resolveBuildPages.js";
@@ -35,6 +37,7 @@ type ResolveAutoDiscoverProps = {
     | "verbose"
     | "panicThreshold"
     | "autoDiscover"
+    | "routePatterns"
   >;
   logger: Logger;
 };
@@ -178,6 +181,30 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
 
 
     
+    // vprs ships its client router (Link / RouterProvider / useParams) as a
+    // "use client" package export. When a SERVER component imports it directly,
+    // the react-server build records a client reference at vprs's node_modules
+    // path — but nothing in the CLIENT graph pulls that file in, so it is never
+    // emitted and the reference dangles (ERR_MODULE_NOT_FOUND). Add vprs's own
+    // client barrel as a client build input so it is always hosted at the
+    // reference path. Gated on a configured file router (routePatterns present)
+    // so consumers that don't use the router don't emit an unused chunk.
+    // node_modules "use client" files are otherwise skipped as build inputs
+    // (see createDirectiveClientAutoDiscover), which is why this is explicit.
+    // Value must be project-root-relative: env config strips a leading "/" from
+    // input paths, so an absolute path would be mangled. `relative` also keeps
+    // the node_modules/... shape so preserveModules emits the chunk at the
+    // client-reference path the server build points to.
+    const routerClientInput: Record<string, string> =
+      userOptions.routePatterns && userOptions.routePatterns.length > 0
+        ? {
+            "vprs-router-client": relative(
+              userOptions.projectRoot,
+              fileURLToPath(new URL("../../router/client.js", import.meta.url))
+            ),
+          }
+        : {};
+
     // Separate client and server inputs
     const clientInputsCollection = {
       ...configInputRecord,
@@ -185,6 +212,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       ...directiveClientInputs,
       ...clientEntry,
       ...cssInputs,
+      ...routerClientInput,
     };
     // If no client entries found, fall back to index.html so SSR environment has inputs
     if (Object.keys(clientInputsCollection).length === 0) {
