@@ -5,6 +5,7 @@ import type {
   AnchorHTMLAttributes,
   MouseEvent as ReactMouseEvent,
 } from "react";
+import type { ToPath } from "./register.js";
 import { useOptionalRouter } from "./router-react.js";
 
 // Client-side <Link> over the nav primitive: intercepts plain internal clicks
@@ -15,7 +16,8 @@ import { useOptionalRouter } from "./router-react.js";
 export type LinkPrefetch = "intent" | "hover" | false;
 
 export type LinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
-  to: string;
+  /** Registered routes autocomplete; any string is still accepted. */
+  to: ToPath;
   replace?: boolean;
   /** "intent" (default): warm after a short hover/on focus; "hover": warm
    *  immediately; false: never. */

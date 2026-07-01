@@ -5,3 +5,4 @@ export * from "./matchRoute.js";
 export * from "./scanRoutes.js";
 export * from "./fileRouter.js";
 export * from "./withParams.js";
+export type { Register, RegisteredRoutes, ToPath } from "./register.js";

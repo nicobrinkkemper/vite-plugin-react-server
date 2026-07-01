@@ -1,4 +1,5 @@
 import { createFlightCache, type FlightCache } from "./flightCache.js";
+import type { ToPath } from "./register.js";
 
 // Headless client router: history + a flight cache + a subscribe store. The
 // React bindings (<Router>, useLocation, useParams) are a thin layer over this
@@ -19,8 +20,8 @@ export type CreateRouterOptions<T> = {
 export type Router<T> = {
   getState: () => RouterState;
   subscribe: (cb: () => void) => () => void;
-  navigate: (to: string, opts?: { replace?: boolean }) => void;
-  prefetch: (to: string) => void;
+  navigate: (to: ToPath, opts?: { replace?: boolean }) => void;
+  prefetch: (to: ToPath) => void;
   /** The (cached) flight for a url; reuses a warmed/in-flight fetch. */
   flight: (url: string) => Promise<T>;
 };

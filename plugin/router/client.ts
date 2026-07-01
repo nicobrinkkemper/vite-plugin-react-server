@@ -28,3 +28,4 @@ export { Link } from "./link.js";
 export type { LinkPrefetch, LinkProps } from "./link.js";
 export { startClient } from "./startClient.js";
 export type { StartClientOptions } from "./startClient.js";
+export type { Register, RegisteredRoutes, ToPath } from "./register.js";
