@@ -10,7 +10,7 @@ import type {
   ResolvedUserOptions,
   AutoDiscoveredFiles,
 } from "../types.js";
-import { join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 // Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
 import type { Rollup } from "vite";
@@ -249,8 +249,14 @@ export const resolveUserConfig: ResolveUserConfigFn =
               info.facadeModuleId
             )
           ) {
-            const rel = relative(userOptions.projectRoot, info.facadeModuleId);
-            if (rel && !rel.startsWith("..")) return rel;
+            // Emit at the package-relative node_modules path (sliced from vprs's
+            // own node_modules segment), which is what the server build's client
+            // reference points at — independent of where vprs is installed
+            // (direct dependency or hoisted to a parent node_modules).
+            const posix = info.facadeModuleId.split("\\").join("/");
+            const seg = "node_modules/vite-plugin-react-server/";
+            const idx = posix.lastIndexOf(seg);
+            if (idx >= 0) return posix.slice(idx);
           }
           const inputId = input + (ssr ? "-ssr" : "");
           if (!stashedReturns[inputId]) {

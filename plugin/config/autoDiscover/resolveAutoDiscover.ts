@@ -37,7 +37,6 @@ type ResolveAutoDiscoverProps = {
     | "verbose"
     | "panicThreshold"
     | "autoDiscover"
-    | "routePatterns"
   >;
   logger: Logger;
 };
@@ -133,10 +132,11 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       inputs: {},
       userOptions,
     });
-    const directiveClientInputs = await directiveClientFiles({
-      inputs: {},
-      userOptions,
-    });
+    const { inputs: directiveClientInputs, serverImportsRouterClient } =
+      await directiveClientFiles({
+        inputs: {},
+        userOptions,
+      });
     const serverActions = await serverFiles({
       inputs: {},
       userOptions,
@@ -186,24 +186,22 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     // the react-server build records a client reference at vprs's node_modules
     // path — but nothing in the CLIENT graph pulls that file in, so it is never
     // emitted and the reference dangles (ERR_MODULE_NOT_FOUND). Add vprs's own
-    // client barrel as a client build input so it is always hosted at the
-    // reference path. Gated on a configured file router (routePatterns present)
-    // so consumers that don't use the router don't emit an unused chunk.
-    // node_modules "use client" files are otherwise skipped as build inputs
-    // (see createDirectiveClientAutoDiscover), which is why this is explicit.
-    // Value must be project-root-relative: env config strips a leading "/" from
-    // input paths, so an absolute path would be mangled. `relative` also keeps
-    // the node_modules/... shape so preserveModules emits the chunk at the
-    // client-reference path the server build points to. Skip when the barrel is
-    // hoisted above the project root (rel escapes with ".."): it can't be
-    // emitted at the reference path anyway, so adding it would only produce a
-    // broken/orphan input.
+    // client barrel as a client build input so it is hosted at the reference
+    // path. Reference-driven: only when a server-side file actually imports the
+    // barrel (a client-side importer already auto-hosts it), so consumers that
+    // don't use the router — or use it only client-side — emit no extra chunk.
+    // Value must be project-root-relative (env config strips a leading "/", so
+    // an absolute path would be mangled). Skip a hoisted install (rel escapes
+    // with ".."): preserveModules emits its node_modules deps at a leaked
+    // absolute path there, so the cluster can't be hosted consistently — better
+    // a clear "reference dangles" build error than a silently broken chunk
+    // cluster. Direct server-side import of the router is a direct-dependency
+    // feature today; the first-party *.client.tsx wrapper still works hoisted.
     const routerClientInput: Record<string, string> = ((): Record<
       string,
       string
     > => {
-      if (!(userOptions.routePatterns && userOptions.routePatterns.length > 0))
-        return {};
+      if (!serverImportsRouterClient) return {};
       const rel = relative(
         userOptions.projectRoot,
         fileURLToPath(new URL("../../router/client.js", import.meta.url))
