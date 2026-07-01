@@ -194,16 +194,23 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     // Value must be project-root-relative: env config strips a leading "/" from
     // input paths, so an absolute path would be mangled. `relative` also keeps
     // the node_modules/... shape so preserveModules emits the chunk at the
-    // client-reference path the server build points to.
-    const routerClientInput: Record<string, string> =
-      userOptions.routePatterns && userOptions.routePatterns.length > 0
-        ? {
-            "vprs-router-client": relative(
-              userOptions.projectRoot,
-              fileURLToPath(new URL("../../router/client.js", import.meta.url))
-            ),
-          }
-        : {};
+    // client-reference path the server build points to. Skip when the barrel is
+    // hoisted above the project root (rel escapes with ".."): it can't be
+    // emitted at the reference path anyway, so adding it would only produce a
+    // broken/orphan input.
+    const routerClientInput: Record<string, string> = ((): Record<
+      string,
+      string
+    > => {
+      if (!(userOptions.routePatterns && userOptions.routePatterns.length > 0))
+        return {};
+      const rel = relative(
+        userOptions.projectRoot,
+        fileURLToPath(new URL("../../router/client.js", import.meta.url))
+      );
+      if (!rel || rel.startsWith("..")) return {};
+      return { "vprs-router-client": rel };
+    })();
 
     // Separate client and server inputs
     const clientInputsCollection = {

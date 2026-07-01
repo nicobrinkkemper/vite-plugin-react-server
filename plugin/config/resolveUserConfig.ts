@@ -236,12 +236,19 @@ export const resolveUserConfig: ResolveUserConfigFn =
           const input =
             info.facadeModuleId ??
             info.name + userOptions.build.moduleExtension;
-          // A node_modules "use client" entry (e.g. vprs's own router barrel,
-          // added as an input so it's hosted for a direct server-side import)
-          // must emit at its preserved node_modules path — that's the exact path
-          // the server build's client reference points at. Hashing it (the
-          // default for entries) would make the reference dangle.
-          if (info.facadeModuleId && info.facadeModuleId.includes("node_modules")) {
+          // vprs's own router barrel is added as a node_modules ENTRY (see
+          // resolveAutoDiscover.routerClientInput) so a direct server-side
+          // import of the client router resolves. It must emit at its preserved
+          // node_modules path — the exact path the server build's client
+          // reference points at; the default entry hash would make it dangle.
+          // Scoped to vprs's router so no unrelated node_modules entry is
+          // renamed.
+          if (
+            info.facadeModuleId &&
+            /[\\/]node_modules[\\/]vite-plugin-react-server[\\/].*[\\/]router[\\/]/.test(
+              info.facadeModuleId
+            )
+          ) {
             const rel = relative(userOptions.projectRoot, info.facadeModuleId);
             if (rel && !rel.startsWith("..")) return rel;
           }
