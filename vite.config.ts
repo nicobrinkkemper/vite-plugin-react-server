@@ -111,6 +111,12 @@ export default defineConfig({
         "plugin/orchestrator/createPluginOrchestrator.client": resolve(__dirname, "plugin/orchestrator/createPluginOrchestrator.client.ts"),
         "plugin/config/createHandlerOptions.server": resolve(__dirname, "plugin/config/createHandlerOptions.server.ts"),
         "plugin/config/createHandlerOptions.client": resolve(__dirname, "plugin/config/createHandlerOptions.client.ts"),
+        // Public "./router" + "./router/client" entries. Declaring them keeps
+        // the file-router API (fileRouter, fillPattern, matchRoutes, Link…)
+        // fully exported — otherwise cross-entry tree-shaking can drop a symbol
+        // only fileRouter uses (e.g. fillPattern) from the shared matchRoute chunk.
+        "plugin/router/index": resolve(__dirname, "plugin/router/index.ts"),
+        "plugin/router/client": resolve(__dirname, "plugin/router/client.ts"),
       },
       formats: ["es"],
     },
