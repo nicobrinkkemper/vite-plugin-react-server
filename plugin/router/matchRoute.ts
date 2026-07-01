@@ -41,7 +41,7 @@ export function matchRoute<P extends string>(
     const seg = p[i];
     if (seg === "$") {
       // Catch-all: take the rest of the path (may be empty).
-      params._splat = u.slice(i).map(decodeURIComponent).join("/");
+      params["_splat"] = u.slice(i).map(decodeURIComponent).join("/");
       return params as RouteParams<P>;
     }
     if (u[i] === undefined) return null;
