@@ -1,10 +1,11 @@
 "use client";
-import React, {
-  type AnchorHTMLAttributes,
-  type MouseEvent as ReactMouseEvent,
-  useRef,
+// Namespace import for react-server barrel import-safety (see router-react.tsx).
+import * as React from "react";
+import type {
+  AnchorHTMLAttributes,
+  MouseEvent as ReactMouseEvent,
 } from "react";
-import { useRouter } from "./router-react.js";
+import { useOptionalRouter } from "./router-react.js";
 
 // Client-side <Link> over the nav primitive: intercepts plain internal clicks
 // to navigate without a reload, and warms the target's flight on hover/focus so
@@ -42,11 +43,14 @@ export function Link({
   children,
   ...rest
 }: LinkProps) {
-  const router = useRouter();
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Optional: Link also renders during static prerender (no provider yet) and
+  // as a plain <a> outside a router — it just doesn't intercept there.
+  const router = useOptionalRouter();
+  const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const canIntercept = !isExternal(to) && (!target || target === "_self");
-  const warm = () => router.prefetch(to);
+  const canIntercept =
+    router !== null && !isExternal(to) && (!target || target === "_self");
+  const warm = () => router?.prefetch(to);
   const cancel = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = undefined;
@@ -61,7 +65,7 @@ export function Link({
         if (e.defaultPrevented || !canIntercept || isModified(e)) return;
         e.preventDefault();
         cancel();
-        router.navigate(to, { replace });
+        router?.navigate(to, { replace });
       }}
       onMouseEnter={(e) => {
         onMouseEnter?.(e);

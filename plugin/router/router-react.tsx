@@ -1,11 +1,11 @@
 "use client";
-import React, {
-  createContext,
-  type ReactNode,
-  useContext,
-  useMemo,
-  useSyncExternalStore,
-} from "react";
+// Namespace import (not named hooks) so this module is import-safe when the
+// react-server build traverses the ./client barrel — the react-server React
+// build omits client-only APIs like createContext, and a named import binds
+// eagerly (breaks); React.createContext defers the access. See
+// vprs_react_server_barrel_import_safety.
+import * as React from "react";
+import type { ReactNode } from "react";
 import type { Router } from "./createRouter.js";
 import { matchRoutes, type RouteParams } from "./matchRoute.js";
 
@@ -18,7 +18,7 @@ type RouterContextValue = {
   params: Record<string, string>;
 };
 
-const RouterContext = createContext<RouterContextValue | null>(null);
+const RouterContext = React.createContext<RouterContextValue | null>(null);
 
 export function RouterProvider<T>({
   router,
@@ -30,12 +30,12 @@ export function RouterProvider<T>({
   patterns?: readonly string[];
   children: ReactNode;
 }) {
-  const state = useSyncExternalStore(
+  const state = React.useSyncExternalStore(
     router.subscribe,
     router.getState,
     router.getState,
   );
-  const value = useMemo<RouterContextValue>(
+  const value = React.useMemo<RouterContextValue>(
     () => ({
       router: router as Router<unknown>,
       location: state.url,
@@ -49,7 +49,7 @@ export function RouterProvider<T>({
 }
 
 function useRouterContext(): RouterContextValue {
-  const ctx = useContext(RouterContext);
+  const ctx = React.useContext(RouterContext);
   if (!ctx) {
     throw new Error(
       "useRouter / useLocation / useParams must be used inside <RouterProvider>",
@@ -59,6 +59,15 @@ function useRouterContext(): RouterContextValue {
 }
 
 export const useRouter = () => useRouterContext().router;
+
+/**
+ * The router if inside a <RouterProvider>, else null — non-throwing, for
+ * components that must also render outside a provider (e.g. Link during static
+ * prerender, before startClient mounts the provider on the client).
+ */
+export function useOptionalRouter(): Router<unknown> | null {
+  return React.useContext(RouterContext)?.router ?? null;
+}
 export const useLocation = () => useRouterContext().location;
 export function useParams<P extends string = string>(): RouteParams<P> {
   return useRouterContext().params as RouteParams<P>;

@@ -65,6 +65,14 @@
       "default": "./dist/plugin/config/index.client.js"
     },
     "./error": "./dist/plugin/error/index.js",
+    "./router": {
+      "types": "./dist/plugin/router/index.d.ts",
+      "default": "./dist/plugin/router/index.js"
+    },
+    "./router/client": {
+      "types": "./dist/plugin/router/client.d.ts",
+      "default": "./dist/plugin/router/client.js"
+    },
     "./references": "./dist/plugin/references/createSealedServerReferenceGate.server.js",
     "./vendor": {
       "react-server": "./dist/plugin/vendor/vendor.server.js",

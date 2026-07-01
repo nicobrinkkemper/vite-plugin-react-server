@@ -94,4 +94,16 @@ describe("Link", () => {
     });
     expect(prefetch).not.toHaveBeenCalled();
   });
+
+  it("renders a plain anchor (no interception) outside a RouterProvider", async () => {
+    // During static prerender there's no provider yet — Link must still render
+    // and must NOT intercept (the browser handles the navigation).
+    const a = await mount(<Link to="/x">x</Link>);
+    expect(a.getAttribute("href")).toBe("/x");
+    const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
+    await act(async () => {
+      a.dispatchEvent(ev);
+    });
+    expect(ev.defaultPrevented).toBe(false);
+  });
 });
