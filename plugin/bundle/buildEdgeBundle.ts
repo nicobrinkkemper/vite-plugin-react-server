@@ -188,6 +188,7 @@ export async function buildEdgeBundle(opts: {
   const elementHelper = join(here, "../helpers/createElementWithReact.js");
   const actionHelper = join(here, "../helpers/handleServerAction.server.js");
   const gateHelper = join(here, "../references/createSealedServerReferenceGate.server.js");
+  const matchRouteHelper = join(here, "../router/matchRoute.js");
 
   // Resolve the Html + Root components for the full-document flight. A configured
   // `Html`/`Root` string resolves to its built module (export named by
@@ -238,6 +239,45 @@ export async function buildEdgeBundle(opts: {
     )}: ${pageNs}, ${JSON.stringify(r.propsSrc)}: ${propsNs} } },`;
   });
 
+  // Dynamic routes: bake each route PATTERN's modules once (identical for every
+  // concrete id), keyed by pattern, so the edge renders an UNENUMERATED url
+  // (any `/profile/<id>`) by matching ROUTE_PATTERNS at request time — not only
+  // the getStaticPaths-enumerated set. A concrete "probe" url (each `$` segment
+  // replaced by a placeholder no static segment equals) resolves Page/props to
+  // this pattern's module via the same functional router the enumerated pass uses.
+  const patternRouteLines: string[] = [];
+  for (const pattern of (userOptions.routePatterns ?? []) as readonly string[]) {
+    const probe =
+      "/" +
+      pattern
+        .split("/")
+        .filter(Boolean)
+        .map((s) => (s.startsWith("$") ? "__vprs_dyn__" : s))
+        .join("/");
+    const pageSrc = routeSource(userOptions.Page, probe);
+    const propsSrc = routeSource(userOptions.props, probe);
+    const pageAbs = resolveBuilt(pageSrc);
+    const propsAbs = resolveBuilt(propsSrc);
+    if (
+      typeof pageSrc === "string" &&
+      typeof propsSrc === "string" &&
+      pageAbs &&
+      propsAbs
+    ) {
+      const pageNs = nsFor(pageAbs);
+      const propsNs = nsFor(propsAbs);
+      patternRouteLines.push(
+        `  ${JSON.stringify(pattern)}: { pagePath: ${JSON.stringify(
+          pageSrc
+        )}, propsPath: ${JSON.stringify(
+          propsSrc
+        )}, modules: { ${JSON.stringify(pageSrc)}: ${pageNs}, ${JSON.stringify(
+          propsSrc
+        )}: ${propsNs} } },`
+      );
+    }
+  }
+
   const htmlNs = nsFor(htmlComp.abs);
   const rootNs = nsFor(rootComp.abs);
 
@@ -273,6 +313,7 @@ export async function buildEdgeBundle(opts: {
 import { createElement } from "react";
 import { renderToReadableStream } from ${JSON.stringify(serverEdge)};
 import { resolvePageAndProps } from ${JSON.stringify(resolveHelper)};
+import { matchRoutes } from ${JSON.stringify(matchRouteHelper)};
 import { createElementWithReact } from ${JSON.stringify(elementHelper)};
 import { handleServerActionRequest } from ${JSON.stringify(actionHelper)};
 import { createSealedServerReferenceGate } from ${JSON.stringify(gateHelper)};
@@ -291,9 +332,21 @@ const routes = {
 ${routeLines.join("\n")}
 };
 
+// Route patterns → baked modules, for rendering unenumerated dynamic urls.
+const patternRoutes = {
+${patternRouteLines.join("\n")}
+};
+
 /** Resolve a route's Page component + live props through the canonical helper. */
 async function resolveRoute(url) {
-  const route = routes[url];
+  // Exact match for the enumerated/prerendered set; else fall back to matching
+  // the url against the route patterns so any concrete dynamic url (e.g. a
+  // /profile/<id> that wasn't prerendered) renders per-request on the edge.
+  let route = routes[url];
+  if (!route && ROUTE_PATTERNS.length) {
+    const matched = matchRoutes(ROUTE_PATTERNS, url);
+    if (matched) route = patternRoutes[matched.pattern];
+  }
   if (!route) throw new Error("[edge] unknown route: " + url);
   const resolved = await resolvePageAndProps({
     pagePath: route.pagePath,

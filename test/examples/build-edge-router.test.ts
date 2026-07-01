@@ -79,18 +79,30 @@ describe.skipIf(!renderFlightToHtml)("build.edge + file router (params)", () => 
     expect(existsSync(join(testDir, "dist/server-edge/render.js"))).toBe(true);
   });
 
-  it("threads the matched param into the loader on the edge render path", async () => {
+  async function renderEdge(url: string): Promise<string> {
     const { renderRouteToFlight } = await import(
       pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
     );
-    const html = await new Response(
+    return new Response(
       await renderFlightToHtml!({
-        rscStream: await renderRouteToFlight("/profile/42"),
+        rscStream: await renderRouteToFlight(url),
         moduleBaseURL: "/",
       })
     ).text();
+  }
+
+  it("threads the matched param into the loader for an enumerated route", async () => {
+    const html = await renderEdge("/profile/42");
     // params.id === "42" reached the loader → label rendered by the edge bundle.
     expect(html).toContain("pid-42-end");
+    expect(html).not.toContain("Switched to client rendering");
+  });
+
+  it("renders an UNENUMERATED dynamic url per-request (pattern match)", async () => {
+    // /profile/999 was NOT in getStaticPaths, so it's not in the enumerated
+    // routes — the edge must match it to /profile/$id and render per-request.
+    const html = await renderEdge("/profile/999");
+    expect(html).toContain("pid-999-end");
     expect(html).not.toContain("Switched to client rendering");
   });
 });
