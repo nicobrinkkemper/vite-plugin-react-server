@@ -70,6 +70,32 @@ function moreSpecific(a: number[], b: number[]): number {
   return 0;
 }
 
+/**
+ * Inverse of matchRoute: build a concrete url from a pattern + params
+ * (`/profile/$id` + `{id:"5"}` → `/profile/5`). Used to enumerate a dynamic
+ * route's static paths for prerendering. A bare `$` catch-all is filled from
+ * `params._splat` (kept raw — it may itself be a path); named params are
+ * percent-encoded. Throws if a named param is missing.
+ */
+export function fillPattern(
+  pattern: string,
+  params: Record<string, string>,
+): string {
+  const out = segs(pattern).map((seg) => {
+    if (seg === "$") return params["_splat"] ?? "";
+    if (seg.startsWith("$")) {
+      const name = seg.slice(1);
+      const value = params[name];
+      if (value === undefined) {
+        throw new Error(`fillPattern: missing param "${name}" for "${pattern}"`);
+      }
+      return encodeURIComponent(value);
+    }
+    return seg;
+  });
+  return `/${out.filter((s) => s !== "").join("/")}`;
+}
+
 /** Match a pathname against many patterns, most-specific first. */
 export function matchRoutes<P extends string>(
   patterns: readonly P[],

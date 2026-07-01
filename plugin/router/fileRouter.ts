@@ -1,5 +1,16 @@
-import { matchRoutes } from "./matchRoute.js";
+import { fillPattern, matchRoutes } from "./matchRoute.js";
 import { type RouteEntry, scanRoutes } from "./scanRoutes.js";
+
+// Per-dynamic-route enumeration of concrete paths to prerender. Each entry is a
+// full url ("/blog/tech/rsc") or a params object ({category:"tech",slug:"rsc"})
+// that fileRouter expands against the pattern. Keyed by route pattern. This is
+// vprs's getStaticPaths, kept in config (data-driven) rather than loaded from
+// route modules at build time.
+export type StaticPathEntry = string | Record<string, string>;
+export type StaticPathsMap = Record<
+  string,
+  () => Iterable<StaticPathEntry> | Promise<Iterable<StaticPathEntry>>
+>;
 
 // `fileRouter` turns a `src/routes/**` tree into the `Page` / `props` /
 // `build.pages` config vprs already consumes — so file-based routing is the
@@ -14,7 +25,7 @@ import { type RouteEntry, scanRoutes } from "./scanRoutes.js";
 export type FileRouterConfig = {
   Page: (url: string) => string;
   props: (url: string) => string | undefined;
-  build: { pages: string[] };
+  build: { pages: string[] | (() => Promise<string[]>) };
   /** The discovered table, exposed for getStaticPaths aggregation / tooling. */
   routes: RouteEntry[];
   /**
@@ -25,7 +36,10 @@ export type FileRouterConfig = {
   getParams: (url: string) => Record<string, string>;
 };
 
-export function fileRouter(routesDir: string): FileRouterConfig {
+export function fileRouter(
+  routesDir: string,
+  opts: { staticPaths?: StaticPathsMap } = {},
+): FileRouterConfig {
   const routes = scanRoutes(routesDir);
   const patterns = routes.map((r) => r.pattern);
   const byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
@@ -36,12 +50,34 @@ export function fileRouter(routesDir: string): FileRouterConfig {
     return byPattern.get(m.pattern)!;
   };
 
+  const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
+
+  // Without staticPaths, only fully-static routes prerender; dynamic (`$`)
+  // routes resolve per-request. With staticPaths, each dynamic route's concrete
+  // urls are enumerated into the (async) prerender list too. A dynamic route
+  // with no staticPaths entry stays server-only.
+  const { staticPaths } = opts;
+  const pages: string[] | (() => Promise<string[]>) = staticPaths
+    ? async () => {
+        const out = [...staticRoutes];
+        for (const route of routes) {
+          if (!route.dynamic) continue;
+          const gen = staticPaths[route.pattern];
+          if (!gen) continue;
+          for (const entry of await gen()) {
+            out.push(
+              typeof entry === "string" ? entry : fillPattern(route.pattern, entry),
+            );
+          }
+        }
+        return out;
+      }
+    : staticRoutes;
+
   return {
     Page: (url) => matched(url).page,
     props: (url) => matched(url).props,
-    // Only fully-static routes are prerendered by default; dynamic (`$`) routes
-    // are matched per-request (and enumerated via getStaticPaths when wanted).
-    build: { pages: routes.filter((r) => !r.dynamic).map((r) => r.pattern) },
+    build: { pages },
     routes,
     getParams: (url) => matchRoutes(patterns, url)?.params ?? {},
   };
