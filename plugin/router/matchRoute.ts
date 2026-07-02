@@ -109,6 +109,19 @@ export function fillPattern(
   return `/${out.filter((s) => s !== "").join("/")}`;
 }
 
+/**
+ * A concrete, matchable "probe" url for a pattern: each `$name` / `$` segment is
+ * replaced by a placeholder that no static segment equals, so the functional
+ * router resolves it to THIS pattern's page/props. Used at build time to bake a
+ * dynamic route's modules (edge bundle) or add them as build inputs, without a
+ * real — and therefore prerenderable — url.
+ */
+export function patternProbeUrl(pattern: string): string {
+  return `/${segs(pattern)
+    .map((s) => (s.startsWith("$") ? "__vprs_dyn__" : s))
+    .join("/")}`;
+}
+
 /** Match a pathname against many patterns, most-specific first. */
 export function matchRoutes<P extends string>(
   patterns: readonly P[],

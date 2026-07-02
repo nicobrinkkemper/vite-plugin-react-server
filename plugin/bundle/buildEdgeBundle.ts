@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import type { ResolvedUserOptions } from "../types.js";
+import { patternProbeUrl } from "../router/matchRoute.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
 
@@ -116,30 +117,56 @@ export async function buildEdgeBundle(opts: {
     return resolvedPath;
   };
 
-  const routes: {
-    url: string;
-    pageSrc: string;
-    pageAbs: string;
-    propsSrc: string;
-    propsAbs: string;
-  }[] = [];
-  for (const url of urls ?? []) {
-    const pageSrc = routeSource(userOptions.Page, url);
-    const propsSrc = routeSource(userOptions.props, url);
+  // Static namespace imports of each built module, deduped by file. The loader
+  // resolvePageAndProps calls is a dictionary lookup over these — a closed
+  // manifest, no runtime import().
+  const importLines: string[] = [];
+  const idByFile = new Map<string, string>();
+  const nsFor = (absPath: string): string => {
+    let id = idByFile.get(absPath);
+    if (!id) {
+      id = `M${idByFile.size}`;
+      idByFile.set(absPath, id);
+      importLines.push(`import * as ${id} from ${JSON.stringify(absPath)};`);
+    }
+    return id;
+  };
+
+  // Resolve one route's Page/props to built modules and emit its baked
+  // `{ key: { pagePath, propsPath, modules } }` line — shared by the enumerated
+  // (exact-url) and dynamic (pattern) maps. Returns null when the built modules
+  // can't be resolved.
+  const routeEntryLine = (key: string, resolveUrl: string): string | null => {
+    const pageSrc = routeSource(userOptions.Page, resolveUrl);
+    const propsSrc = routeSource(userOptions.props, resolveUrl);
     const pageAbs = resolveBuilt(pageSrc);
     const propsAbs = resolveBuilt(propsSrc);
     if (
-      typeof pageSrc === "string" &&
-      typeof propsSrc === "string" &&
-      pageAbs &&
-      propsAbs
+      typeof pageSrc !== "string" ||
+      typeof propsSrc !== "string" ||
+      !pageAbs ||
+      !propsAbs
     ) {
-      routes.push({ url, pageSrc, pageAbs, propsSrc, propsAbs });
-    } else {
-      logger.warn(`${tag} could not resolve built Page/props for route ${url}; omitting`);
+      return null;
     }
+    return `  ${JSON.stringify(key)}: { pagePath: ${JSON.stringify(
+      pageSrc
+    )}, propsPath: ${JSON.stringify(propsSrc)}, modules: { ${JSON.stringify(
+      pageSrc
+    )}: ${nsFor(pageAbs)}, ${JSON.stringify(propsSrc)}: ${nsFor(propsAbs)} } },`;
+  };
+
+  // Enumerated routes → exact-url map (the flash-free prerendered set).
+  const routeLines: string[] = [];
+  for (const url of urls ?? []) {
+    const line = routeEntryLine(url, url);
+    if (line) routeLines.push(line);
+    else
+      logger.warn(
+        `${tag} could not resolve built Page/props for route ${url}; omitting`
+      );
   }
-  if (routes.length === 0) {
+  if (routeLines.length === 0) {
     logger.warn(`${tag} no routes resolved from build.pages; skipping`);
     return;
   }
@@ -215,67 +242,15 @@ export async function buildEdgeBundle(opts: {
   const htmlComp = resolveComponent(userOptions.Html, htmlExport, "../components/html.js", "Html");
   const rootComp = resolveComponent(userOptions.Root, rootExport, "../components/root.js", "Root");
 
-  // Static namespace imports of each built module, deduped by file. The loader
-  // resolvePageAndProps calls is a dictionary lookup over these — a closed
-  // manifest, no runtime import().
-  const importLines: string[] = [];
-  const idByFile = new Map<string, string>();
-  const nsFor = (absPath: string): string => {
-    let id = idByFile.get(absPath);
-    if (!id) {
-      id = `M${idByFile.size}`;
-      idByFile.set(absPath, id);
-      importLines.push(`import * as ${id} from ${JSON.stringify(absPath)};`);
-    }
-    return id;
-  };
-  const routeLines = routes.map((r) => {
-    const pageNs = nsFor(r.pageAbs);
-    const propsNs = nsFor(r.propsAbs);
-    return `  ${JSON.stringify(r.url)}: { pagePath: ${JSON.stringify(
-      r.pageSrc
-    )}, propsPath: ${JSON.stringify(r.propsSrc)}, modules: { ${JSON.stringify(
-      r.pageSrc
-    )}: ${pageNs}, ${JSON.stringify(r.propsSrc)}: ${propsNs} } },`;
-  });
-
-  // Dynamic routes: bake each route PATTERN's modules once (identical for every
-  // concrete id), keyed by pattern, so the edge renders an UNENUMERATED url
-  // (any `/profile/<id>`) by matching ROUTE_PATTERNS at request time — not only
-  // the getStaticPaths-enumerated set. A concrete "probe" url (each `$` segment
-  // replaced by a placeholder no static segment equals) resolves Page/props to
-  // this pattern's module via the same functional router the enumerated pass uses.
+  // Dynamic routes → pattern map: bake each route pattern's modules once
+  // (identical for every concrete id) so the edge renders an UNENUMERATED url
+  // (any `/profile/<id>`) by matching ROUTE_PATTERNS at request time, not only
+  // the getStaticPaths-enumerated set. `patternProbeUrl` resolves each pattern
+  // to its module via the same functional router the enumerated pass uses.
   const patternRouteLines: string[] = [];
-  for (const pattern of (userOptions.routePatterns ?? []) as readonly string[]) {
-    const probe =
-      "/" +
-      pattern
-        .split("/")
-        .filter(Boolean)
-        .map((s) => (s.startsWith("$") ? "__vprs_dyn__" : s))
-        .join("/");
-    const pageSrc = routeSource(userOptions.Page, probe);
-    const propsSrc = routeSource(userOptions.props, probe);
-    const pageAbs = resolveBuilt(pageSrc);
-    const propsAbs = resolveBuilt(propsSrc);
-    if (
-      typeof pageSrc === "string" &&
-      typeof propsSrc === "string" &&
-      pageAbs &&
-      propsAbs
-    ) {
-      const pageNs = nsFor(pageAbs);
-      const propsNs = nsFor(propsAbs);
-      patternRouteLines.push(
-        `  ${JSON.stringify(pattern)}: { pagePath: ${JSON.stringify(
-          pageSrc
-        )}, propsPath: ${JSON.stringify(
-          propsSrc
-        )}, modules: { ${JSON.stringify(pageSrc)}: ${pageNs}, ${JSON.stringify(
-          propsSrc
-        )}: ${propsNs} } },`
-      );
-    }
+  for (const pattern of userOptions.routePatterns ?? []) {
+    const line = routeEntryLine(pattern, patternProbeUrl(pattern));
+    if (line) patternRouteLines.push(line);
   }
 
   const htmlNs = nsFor(htmlComp.abs);

@@ -7,6 +7,7 @@ import { resolvePages } from "../resolvePages.js";
 import type { Logger, ResolvedConfig } from "vite";
 import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
 import { createDirectiveClientAutoDiscover } from "./createDirectiveClientAutoDiscover.js";
+import { patternProbeUrl } from "../../router/matchRoute.js";
 import { customWorkerFiles } from "./customWorkerFiles.js";
 import { pageAndPropFiles } from "./pageAndPropFiles.js";
 
@@ -157,13 +158,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     // so nothing extra gets prerendered.
     const routeModuleInputs: Record<string, string> = {};
     for (const pattern of userOptions.routePatterns ?? []) {
-      const probe =
-        "/" +
-        pattern
-          .split("/")
-          .filter(Boolean)
-          .map((s) => (s.startsWith("$") ? "__vprs_dyn__" : s))
-          .join("/");
+      const probe = patternProbeUrl(pattern);
       for (const opt of [userOptions.Page, userOptions.props]) {
         const src = typeof opt === "function" ? opt(probe) : opt;
         if (typeof src !== "string") continue;

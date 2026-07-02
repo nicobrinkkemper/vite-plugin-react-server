@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { fillPattern, matchRoute } from "../../plugin/router/matchRoute.js";
+import {
+  fillPattern,
+  matchRoute,
+  matchRoutes,
+  patternProbeUrl,
+} from "../../plugin/router/matchRoute.js";
 
 describe("fillPattern", () => {
   it("fills a single param", () => {
@@ -34,5 +39,27 @@ describe("fillPattern", () => {
       category: "x",
       slug: "y",
     });
+  });
+});
+
+describe("patternProbeUrl", () => {
+  it("replaces $ segments with a placeholder, keeps static segments", () => {
+    expect(patternProbeUrl("/")).toBe("/");
+    expect(patternProbeUrl("/profile/me")).toBe("/profile/me");
+    expect(patternProbeUrl("/profile/$id")).toBe("/profile/__vprs_dyn__");
+    expect(patternProbeUrl("/blog/$cat/$slug")).toBe(
+      "/blog/__vprs_dyn__/__vprs_dyn__"
+    );
+    expect(patternProbeUrl("/files/$")).toBe("/files/__vprs_dyn__");
+  });
+
+  it("produces a url that matches its own pattern (most-specific wins)", () => {
+    const patterns = ["/profile/me", "/profile/$id", "/blog/$cat/$slug"];
+    expect(matchRoutes(patterns, patternProbeUrl("/profile/$id"))?.pattern).toBe(
+      "/profile/$id"
+    );
+    expect(
+      matchRoutes(patterns, patternProbeUrl("/blog/$cat/$slug"))?.pattern
+    ).toBe("/blog/$cat/$slug");
   });
 });
