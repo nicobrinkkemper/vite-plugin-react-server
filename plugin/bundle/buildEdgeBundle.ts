@@ -82,6 +82,45 @@ export async function buildEdgeBundle(opts: {
   }
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
+  // Collect the built stylesheets so the document producer defaults `globalCss`
+  // — the Html component renders them via <Css> as react-dom precedence-hoisted
+  // <link>s in <head>. Without this the edge document render ships UNSTYLED (the
+  // SSG scans CSS per page; the single-isolate edge render had no equivalent, so
+  // consumers had to rebuild the CSS map by hand). The static manifest is the
+  // canonical browser manifest — it includes HTML-entry CSS (e.g. a globals.css
+  // the client entry imports) that the SSR client manifest omits. Hrefs are
+  // root-absolute, matching how the built client assets are served.
+  const bakedGlobalCss: Array<Record<string, string>> = [];
+  const staticManifestPath = join(
+    outRoot,
+    userOptions.build.static,
+    ".vite/manifest.json"
+  );
+  if (existsSync(staticManifestPath)) {
+    const staticManifest = JSON.parse(readFileSync(staticManifestPath, "utf8"));
+    const seen = new Set<string>();
+    for (const entry of Object.values(
+      staticManifest as Record<string, { css?: string[] } | undefined>
+    )) {
+      for (const css of entry?.css ?? []) {
+        if (seen.has(css)) continue;
+        seen.add(css);
+        bakedGlobalCss.push({
+          as: "link",
+          rel: "stylesheet",
+          href: "/" + css,
+          id: css,
+          precedence: "high",
+        });
+      }
+    }
+    if (bakedGlobalCss.length) {
+      logger.info(
+        `${tag} baking ${bakedGlobalCss.length} stylesheet(s) into the document producer's default globalCss`
+      );
+    }
+  }
+
   // Enumerate every prerendered route. Post-build, build.pages already lists
   // all URLs (the SSG just rendered them) and every page module is in
   // dist/server — so we CALL the (possibly functional) Page/props router for
@@ -300,6 +339,10 @@ const MODULE_BASE = ${JSON.stringify(moduleBase)};
 const MODULE_BASE_PATH = ${JSON.stringify(moduleBasePath)};
 const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
 const ROUTE_PATTERNS = ${JSON.stringify(userOptions.routePatterns ?? [])};
+// Built stylesheets, baked from the static manifest, so the document producer
+// renders styled HTML on the edge with no per-app CSS wiring. Consumers can
+// still override via opts.globalCss.
+const BAKED_GLOBAL_CSS = ${JSON.stringify(bakedGlobalCss)};
 const HtmlComponent = ${htmlNs}[${JSON.stringify(htmlComp.exportName)}];
 const RootComponent = ${rootNs}[${JSON.stringify(rootComp.exportName)}];
 
@@ -372,7 +415,9 @@ export async function ${documentExport}(url, opts = {}) {
     RootComponent,
     pageProps: resolved.pageProps,
     cssFiles: opts.cssFiles ?? new Map(),
-    globalCss: opts.globalCss ?? new Map(),
+    // Default to the built stylesheets (rendered in <head> via the Html
+    // component's <Css>) so the edge document is styled out of the box.
+    globalCss: opts.globalCss ?? BAKED_GLOBAL_CSS,
     moduleBase: MODULE_BASE,
     moduleBaseURL: MODULE_BASE_URL,
     moduleBasePath: MODULE_BASE_PATH,
