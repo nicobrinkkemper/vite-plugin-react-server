@@ -65,8 +65,15 @@ export type CreateEdgeHandlerOptions = {
    * (a `build.pages` entry). @default `req => new URL(req.url).pathname`
    */
   getURL?: (request: Request) => string;
-  /** Extra response headers, merged over the default `content-type: text/html`. */
-  headers?: HeadersInit;
+  /**
+   * Extra response headers, merged over the default `content-type: text/html`.
+   * A function form is resolved per request so caching can differ by route —
+   * e.g. `public, max-age` for prerendered routes but `private, no-store` for an
+   * authenticated route, so a shared CDN never caches user-specific HTML.
+   */
+  headers?:
+    | HeadersInit
+    | ((url: string, request: Request) => HeadersInit);
   /** Render-time error hook (forwarded to react-dom/server.edge onError). */
   onError?: (error: unknown) => void;
   /**

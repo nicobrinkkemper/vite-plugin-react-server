@@ -82,10 +82,13 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     );
   }
 
-  const htmlHeaders = (): Record<string, string> => ({
-    "content-type": "text/html; charset=utf-8",
-    ...(headers ? Object.fromEntries(new Headers(headers)) : {}),
-  });
+  const htmlHeaders = (url: string, request: Request): Record<string, string> => {
+    const extra = typeof headers === "function" ? headers(url, request) : headers;
+    return {
+      "content-type": "text/html; charset=utf-8",
+      ...(extra ? Object.fromEntries(new Headers(extra)) : {}),
+    };
+  };
 
   const notFound = (url: string, request: Request): Response | Promise<Response> =>
     onNotFound
@@ -134,7 +137,7 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       ]);
       return new Response(
         injectInlineFlightIntoHtml(htmlString, headlessBytes),
-        { headers: htmlHeaders() }
+        { headers: htmlHeaders(url, request) }
       );
     }
 
@@ -161,6 +164,6 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       verbose,
     });
 
-    return new Response(htmlStream, { headers: htmlHeaders() });
+    return new Response(htmlStream, { headers: htmlHeaders(url, request) });
   };
 };

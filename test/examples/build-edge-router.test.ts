@@ -13,6 +13,9 @@ import { doBuild } from "../doBuild.js";
 const renderFlightToHtml = (streamApi as any).renderFlightToHtml as
   | typeof import("../../plugin/stream/renderFlightToHtml.client.js").renderFlightToHtml
   | undefined;
+const createEdgeHandler = (streamApi as any).createEdgeHandler as
+  | typeof import("../../plugin/stream/createEdgeHandler.client.js").createEdgeHandler
+  | undefined;
 
 const testDir = resolve(__dirname, "../fixtures/build-edge-router.test");
 
@@ -133,5 +136,24 @@ describe.skipIf(!renderFlightToHtml)("build.edge + file router (params)", () => 
     // No request (e.g. prerender) → the loader sees no identity.
     const anon = await renderEdge("/secret/9");
     expect(anon).toContain("secret-for-anon");
+  });
+
+  it("supports per-route cache headers so auth routes aren't CDN-cached", async () => {
+    const { renderRouteToFlight } = await import(
+      pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+    );
+    const handler = createEdgeHandler!({
+      render: renderRouteToFlight,
+      moduleBaseURL: "/",
+      // Cache the prerendered set; never cache an authenticated route.
+      headers: (url) =>
+        url.startsWith("/secret/")
+          ? { "cache-control": "private, no-store" }
+          : { "cache-control": "public, max-age=3600" },
+    });
+    const secret = await handler(new Request("http://edge.test/secret/9"));
+    expect(secret.headers.get("cache-control")).toBe("private, no-store");
+    const pub = await handler(new Request("http://edge.test/profile/42"));
+    expect(pub.headers.get("cache-control")).toBe("public, max-age=3600");
   });
 });

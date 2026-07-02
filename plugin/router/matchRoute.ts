@@ -123,12 +123,25 @@ export function patternProbeUrl(pattern: string): string {
 }
 
 /** Match a pathname against many patterns, most-specific first. */
+// Specificity ordering only depends on the pattern list, but matchRoutes runs
+// per request (dev / edge / Node). Cache the sorted order by array identity —
+// callers pass a stable patterns array (fileRouter's routePatterns, the edge
+// bundle's ROUTE_PATTERNS) — so we sort once, not on every request.
+const orderedCache = new WeakMap<readonly string[], readonly string[]>();
+const orderPatterns = <P extends string>(patterns: readonly P[]): readonly P[] => {
+  let ordered = orderedCache.get(patterns) as readonly P[] | undefined;
+  if (!ordered) {
+    ordered = [...patterns].sort((a, b) => moreSpecific(score(a), score(b)));
+    orderedCache.set(patterns, ordered);
+  }
+  return ordered;
+};
+
 export function matchRoutes<P extends string>(
   patterns: readonly P[],
   pathname: string,
 ): { pattern: P; params: RouteParams<P> } | null {
-  const ordered = [...patterns].sort((a, b) => moreSpecific(score(a), score(b)));
-  for (const pattern of ordered) {
+  for (const pattern of orderPatterns(patterns)) {
     const params = matchRoute(pattern, pathname);
     if (params) return { pattern, params };
   }
