@@ -538,6 +538,23 @@ export const resolveUserConfig: ResolveUserConfigFn =
           conditions: ssr
             ? [...defaultServerConditions]
             : [...defaultClientConditions],
+          // Force a single physical react/react-dom across every entry in the
+          // build. The static build bundles react (no externalization), so
+          // without dedupe a client-reference chunk (e.g. a hosted "use client"
+          // component loaded by the flight) can resolve "react" to a DIFFERENT
+          // file than the main client entry — an optimized-dep copy vs the
+          // node_modules copy — and Rollup then bundles a SECOND react into that
+          // chunk. react-dom activates the dispatcher on the shared react, the
+          // client component reads its own copy whose dispatcher stays null, and
+          // hooks crash at hydration ("Cannot read properties of null (reading
+          // 'useState')"). Deduping collapses them to one shared react chunk
+          // that every client-component chunk imports.
+          dedupe: config.resolve?.dedupe ?? [
+            "react",
+            "react-dom",
+            "react/jsx-runtime",
+            "react/jsx-dev-runtime",
+          ],
           // For static builds (browser/ESM): don't externalize anything - bundle everything
           // For client/server builds (SSR): externalize React modules as usual
           external: ssr

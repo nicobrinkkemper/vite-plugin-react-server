@@ -1,5 +1,5 @@
 "use client";
-import * as React from "react";
+import { useEffect, useState } from "react";
 import { Link } from "vite-plugin-react-server/router/client";
 
 // A client component: Link intercepts internal clicks and navigates client-side
@@ -7,8 +7,8 @@ import { Link } from "vite-plugin-react-server/router/client";
 // after hydration — the demo/e2e uses it to prove the page hydrated and that a
 // Link nav did NOT full-reload (the flag stays "hydrated" across nav).
 export function Nav() {
-  const [hydrated, setHydrated] = React.useState(false);
-  React.useEffect(() => setHydrated(true), []);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   return (
     <nav>
       <Link to="/">Home</Link>
