@@ -239,13 +239,18 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
           });
         }
 
-        // CRITICAL: Ensure stream is ended when error occurs to prevent hanging (like server-side does)
-        // Use setImmediate to ensure the error handler completes before ending the stream
-        setImmediate(() => {
-          if ('destroyed' in passThrough && !passThrough.destroyed) {
-            passThrough.end();
-          }
-        });
+        // Do NOT force-end the stream here. React's flight renderer emits the
+        // error in-band (the `$E` error frame) and then closes the destination
+        // itself once the request settles — for the dev flight timeline the
+        // renderer first flushes a leading `:N<timeOrigin>` debug chunk. Ending
+        // the passThrough from onError raced that flush: under load the manual
+        // end could win and truncate the stream to just the `:N` chunk, dropping
+        // the `$E` error frame. The HTTP response (committed on the first chunk)
+        // was then a silent 200 carrying only `:N<timeOrigin>` — the exact
+        // swallowed-error regression the rsc-stream-error-surface test guards
+        // against. Let React own stream completion; the outer stream
+        // `error`/`close` handlers and the worker error path (which calls onEnd)
+        // remain the hang safety net.
 
         if (optionalOnError) {
           if (verbose) {
