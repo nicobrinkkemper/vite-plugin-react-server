@@ -46,6 +46,29 @@ async function setupFixture() {
       `  { request }: { request?: Request }\n` +
       `) => ({ who: "secret-for-" + (request?.headers.get("x-user") ?? "anon") });`
   );
+  // A route rendering a "use client" component — the single-isolate render must
+  // resolve the client reference by importing the built chunk (moduleBaseURL =
+  // file url to dist/client). A page with a client component is the common case
+  // the edge server must handle.
+  await mkdir(join(testDir, "src/routes/widget"), { recursive: true });
+  await writeFile(
+    join(testDir, "src/Widget.client.tsx"),
+    `"use client";
+import * as React from "react";
+export function Widget() {
+  const [n] = React.useState(0);
+  return <button id="root">{"widget-" + n}</button>;
+}`
+  );
+  await writeFile(
+    join(testDir, "src/routes/widget/page.tsx"),
+    `import { Widget } from "../../Widget.client.js";
+export const Page = () => <Widget />;`
+  );
+  await writeFile(
+    join(testDir, "src/routes/widget/props.ts"),
+    `export const props = () => ({});`
+  );
   await writeFile(
     join(testDir, "index.html"),
     `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body><div id="root"></div><script type="module" src="/src/client.tsx"></script></body></html>`
@@ -136,6 +159,23 @@ describe.skipIf(!renderFlightToHtml)("build.edge + file router (params)", () => 
     // No request (e.g. prerender) → the loader sees no identity.
     const anon = await renderEdge("/secret/9");
     expect(anon).toContain("secret-for-anon");
+  });
+
+  it("resolves a client component in the single-isolate render (file-url moduleBaseURL)", async () => {
+    const { renderRouteToFlight } = await import(
+      pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+    );
+    const html = await new Response(
+      await renderFlightToHtml!({
+        rscStream: await renderRouteToFlight("/widget"),
+        // Client references are imported from the built chunks on disk — a
+        // browser http base ("/") would resolve them to filesystem root and
+        // ERR_MODULE_NOT_FOUND (the footgun the router example's edge server hit).
+        moduleBaseURL: pathToFileURL(join(testDir, "dist/client")).href + "/",
+      })
+    ).text();
+    expect(html).toContain("widget-0");
+    expect(html).not.toContain("Switched to client rendering");
   });
 
   it("supports per-route cache headers so auth routes aren't CDN-cached", async () => {
