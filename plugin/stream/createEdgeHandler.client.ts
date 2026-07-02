@@ -109,7 +109,9 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     if (renderDocument) {
       let flights;
       try {
-        flights = await renderDocument(url);
+        // Pass the request so a loader can gate an authenticated route on
+        // cookies/headers (the baked producer forwards it to props).
+        flights = await renderDocument(url, { request });
       } catch (error) {
         if (isUnknownRoute(error)) return notFound(url, request);
         onError?.(error);
@@ -138,7 +140,7 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
 
     let rscStream: ReadableStream<Uint8Array>;
     try {
-      rscStream = await render!(url);
+      rscStream = await render!(url, request);
     } catch (error) {
       // The producer is a closed manifest over `build.pages`; an unknown url is
       // a 404, not a 500. Everything else is a real failure — surface it.

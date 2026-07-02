@@ -338,7 +338,7 @@ ${patternRouteLines.join("\n")}
 };
 
 /** Resolve a route's Page component + live props through the canonical helper. */
-async function resolveRoute(url) {
+async function resolveRoute(url, request) {
   // Exact match for the enumerated/prerendered set; else fall back to matching
   // the url against the route patterns so any concrete dynamic url (e.g. a
   // /profile/<id> that wasn't prerendered) renders per-request on the edge.
@@ -355,6 +355,10 @@ async function resolveRoute(url) {
     propsExportName: PROPS_EXPORT,
     moduleBaseURL: MODULE_BASE_URL,
     routePatterns: ROUTE_PATTERNS,
+    // The in-flight request, so a loader can read cookies/headers to gate an
+    // authenticated route. Present only for per-request edge renders (the
+    // handler passes it); undefined at prerender.
+    request,
     url,
     loader: async (id) => {
       // resolvePage/resolveProps may pass "<path>#<export>"; key by the path.
@@ -371,8 +375,8 @@ async function resolveRoute(url) {
 }
 
 /** Headless page flight (Page only) — the simple producer. */
-export async function ${flightExport}(url) {
-  const resolved = await resolveRoute(url);
+export async function ${flightExport}(url, request) {
+  const resolved = await resolveRoute(url, request);
   return renderToReadableStream(
     createElement(resolved.PageComponent, resolved.pageProps),
     MODULE_BASE_PATH
@@ -387,7 +391,7 @@ export async function ${flightExport}(url) {
  * (Map<string, CssContent>) so both carry the page styles.
  */
 export async function ${documentExport}(url, opts = {}) {
-  const resolved = await resolveRoute(url);
+  const resolved = await resolveRoute(url, opts.request);
   const base = {
     PageComponent: resolved.PageComponent,
     RootComponent,

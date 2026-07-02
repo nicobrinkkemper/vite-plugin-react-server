@@ -37,6 +37,7 @@ type ResolveAutoDiscoverProps = {
     | "verbose"
     | "panicThreshold"
     | "autoDiscover"
+    | "routePatterns"
   >;
   logger: Logger;
 };
@@ -147,6 +148,30 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       inputs: {},
     });
 
+    // Every file-router route's modules must be BUILT, even a server-only
+    // dynamic route with no getStaticPaths entry (e.g. an authenticated route
+    // you deliberately don't prerender) — otherwise it can't be served
+    // per-request in production (edge/handler). Probe each pattern (each `$`
+    // segment → a placeholder no static segment equals) to map it to its
+    // page/props module and add those as build inputs WITHOUT enumerating a url,
+    // so nothing extra gets prerendered.
+    const routeModuleInputs: Record<string, string> = {};
+    for (const pattern of userOptions.routePatterns ?? []) {
+      const probe =
+        "/" +
+        pattern
+          .split("/")
+          .filter(Boolean)
+          .map((s) => (s.startsWith("$") ? "__vprs_dyn__" : s))
+          .join("/");
+      for (const opt of [userOptions.Page, userOptions.props]) {
+        const src = typeof opt === "function" ? opt(probe) : opt;
+        if (typeof src !== "string") continue;
+        const [key, value] = userOptions.normalizer(src);
+        if (!routeModuleInputs[key]) routeModuleInputs[key] = value;
+      }
+    }
+
     const cssInputs = await cssFiles({
       inputs: {},
       userOptions,
@@ -228,6 +253,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       ...clientInputsCollection,
       ...customWorkerInputs,
       ...pageAndPropInputs,
+      ...routeModuleInputs, // server-only route modules (built, not prerendered)
       ...cssInputs,
       ...serverActions,
       ...serverEntry,

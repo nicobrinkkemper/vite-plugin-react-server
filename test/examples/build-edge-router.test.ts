@@ -29,6 +29,20 @@ async function setupFixture() {
     `export const props = (_url: string, { params }: { params: { id: string } }) => ({\n` +
       `  label: "pid-" + params.id + "-end",\n});`
   );
+  // An authenticated route: NOT prerendered (no getStaticPaths entry), so it
+  // renders per-request; the loader reads the request to gate on identity.
+  await mkdir(join(testDir, "src/routes/secret/$id"), { recursive: true });
+  await writeFile(
+    join(testDir, "src/routes/secret/$id/page.tsx"),
+    `export const Page = ({ who }: { who: string }) => <div id="root">{who}</div>;`
+  );
+  await writeFile(
+    join(testDir, "src/routes/secret/$id/props.ts"),
+    `export const props = (\n` +
+      `  _url: string,\n` +
+      `  { request }: { request?: Request }\n` +
+      `) => ({ who: "secret-for-" + (request?.headers.get("x-user") ?? "anon") });`
+  );
   await writeFile(
     join(testDir, "index.html"),
     `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body><div id="root"></div><script type="module" src="/src/client.tsx"></script></body></html>`
@@ -79,13 +93,13 @@ describe.skipIf(!renderFlightToHtml)("build.edge + file router (params)", () => 
     expect(existsSync(join(testDir, "dist/server-edge/render.js"))).toBe(true);
   });
 
-  async function renderEdge(url: string): Promise<string> {
+  async function renderEdge(url: string, request?: Request): Promise<string> {
     const { renderRouteToFlight } = await import(
       pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
     );
     return new Response(
       await renderFlightToHtml!({
-        rscStream: await renderRouteToFlight(url),
+        rscStream: await renderRouteToFlight(url, request),
         moduleBaseURL: "/",
       })
     ).text();
@@ -104,5 +118,20 @@ describe.skipIf(!renderFlightToHtml)("build.edge + file router (params)", () => 
     const html = await renderEdge("/profile/999");
     expect(html).toContain("pid-999-end");
     expect(html).not.toContain("Switched to client rendering");
+  });
+
+  it("threads the request into an edge loader (authenticated route)", async () => {
+    // The loader gates on the request's identity header — proving an edge route
+    // can authenticate per-request, not just read params.
+    const authed = await renderEdge(
+      "/secret/9",
+      new Request("http://edge.test/secret/9", {
+        headers: { "x-user": "alice" },
+      })
+    );
+    expect(authed).toContain("secret-for-alice");
+    // No request (e.g. prerender) → the loader sees no identity.
+    const anon = await renderEdge("/secret/9");
+    expect(anon).toContain("secret-for-anon");
   });
 });

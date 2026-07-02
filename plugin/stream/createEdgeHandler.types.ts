@@ -31,7 +31,10 @@ export type CreateEdgeHandlerOptions = {
    * Provide either `render` (partial markup) or `renderDocument` (full
    * flash-free document). `renderDocument` wins if both are set.
    */
-  render?: (url: string) => Promise<ReadableStream<Uint8Array>>;
+  render?: (
+    url: string,
+    request?: Request
+  ) => Promise<ReadableStream<Uint8Array>>;
   /**
    * The baked full-document producer: the `renderRouteToDocument` export of the
    * edge bundle (typically closed over the live `cssFiles`/`globalCss` the
@@ -40,7 +43,10 @@ export type CreateEdgeHandlerOptions = {
    * `<script id="vprs-flight">`, so the browser hydrates in place with no
    * `.rsc` round-trip.
    */
-  renderDocument?: (url: string) => Promise<EdgeDocumentFlights>;
+  renderDocument?: (
+    url: string,
+    opts?: { request?: Request }
+  ) => Promise<EdgeDocumentFlights>;
   /**
    * Base URL the client transport uses to resolve client-reference modules —
    * point it at where the client (ssr) bundle is served (`dist/client`). Must
