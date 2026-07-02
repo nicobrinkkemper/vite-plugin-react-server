@@ -479,6 +479,17 @@ export async function ${actionExport}(request, opts = {}) {
       logLevel: "warn",
       configFile: false,
       resolve: { alias },
+      // Pin the edge bundle to the PRODUCTION React build. The vendored
+      // react-server-dom-esm transport branches on process.env.NODE_ENV at
+      // RUNTIME (the production build drops the flight-timeline debug chunks the
+      // dev build emits), and Vite does NOT replace process.env for SSR builds —
+      // so without this the edge server emits a DEV flight the production client
+      // refuses to decode ("Failed to read a RSC payload created by a development
+      // version of React on the server"), and hydrateOrRender silently falls back
+      // to static (no hydration, links full-reload). The edge bundle is a
+      // production deploy artifact paired with the production client, so bake the
+      // mode in rather than depend on the runtime NODE_ENV of the edge process.
+      define: { "process.env.NODE_ENV": JSON.stringify("production") },
       ssr: { target: "node", noExternal: true },
       build: {
         ssr: true,
