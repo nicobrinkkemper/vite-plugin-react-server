@@ -158,7 +158,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     // so nothing extra gets prerendered.
     const routeModuleInputs: Record<string, string> = {};
     for (const pattern of userOptions.routePatterns ?? []) {
-      const probe = patternProbeUrl(pattern);
+      const probe = patternProbeUrl(pattern, userOptions.routePatterns);
       for (const opt of [userOptions.Page, userOptions.props]) {
         const src = typeof opt === "function" ? opt(probe) : opt;
         if (typeof src !== "string") continue;
@@ -226,7 +226,21 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
         userOptions.projectRoot,
         fileURLToPath(new URL("../../router/client.js", import.meta.url))
       );
-      if (!rel || rel.startsWith("..")) return {};
+      if (!rel || rel.startsWith("..")) {
+        // Hoisted install (vprs lives outside the project root, e.g. a pnpm /
+        // monorepo layout): preserveModules would emit the barrel at a leaked
+        // absolute path, so it can't be hosted at the recorded reference path.
+        // Fail loudly with a fix rather than dangle to a runtime
+        // ERR_MODULE_NOT_FOUND on the first request.
+        throw new Error(
+          "[vprs] A server component imports the router client barrel " +
+            "(vite-plugin-react-server/router/client), but vite-plugin-react-server " +
+            "is installed outside the project root (hoisted / monorepo layout), so " +
+            "its client reference can't be hosted. Import <Link> etc. from a " +
+            "first-party '*.client.tsx' wrapper instead, or install vprs at the " +
+            "project root."
+        );
+      }
       return { "vprs-router-client": rel };
     })();
 

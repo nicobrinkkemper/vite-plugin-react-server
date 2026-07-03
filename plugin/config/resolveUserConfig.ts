@@ -549,11 +549,17 @@ export const resolveUserConfig: ResolveUserConfigFn =
           // hooks crash at hydration ("Cannot read properties of null (reading
           // 'useState')"). Deduping collapses them to one shared react chunk
           // that every client-component chunk imports.
-          dedupe: config.resolve?.dedupe ?? [
-            "react",
-            "react-dom",
-            "react/jsx-runtime",
-            "react/jsx-dev-runtime",
+          // Merge, don't replace: a consumer's own dedupe list must not drop
+          // react/react-dom deduping (losing it re-introduces the null-dispatcher
+          // hydration crash the block above describes).
+          dedupe: [
+            ...new Set([
+              ...(config.resolve?.dedupe ?? []),
+              "react",
+              "react-dom",
+              "react/jsx-runtime",
+              "react/jsx-dev-runtime",
+            ]),
           ],
           // For static builds (browser/ESM): don't externalize anything - bundle everything
           // For client/server builds (SSR): externalize React modules as usual

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { matchRoute, matchRoutes } from "../../plugin/router/matchRoute.js";
+import {
+  matchRoute,
+  matchRoutes,
+  normalizePathForMatch,
+  patternProbeUrl,
+} from "../../plugin/router/matchRoute.js";
 
 // matchRoute works on a clean pathname; the caller (requestToRoute) strips the
 // query/hash before matching.
@@ -80,5 +85,56 @@ describe("matchRoutes (specificity ordering)", () => {
     expect(matchRoute("/profile/$id", "/profile/%zz")).toEqual({ id: "%zz" });
     expect(() => matchRoutes(patterns, "/files/%E0%A4%A")).not.toThrow();
     expect(matchRoute("/profile/$id", "/profile/%41")).toEqual({ id: "A" });
+  });
+});
+
+describe("patternProbeUrl (build-time module resolution)", () => {
+  it("replaces each dynamic segment with a placeholder", () => {
+    expect(patternProbeUrl("/profile/$id")).toBe("/profile/__vprs_dyn__");
+    expect(patternProbeUrl("/blog/$category/$slug")).toBe(
+      "/blog/__vprs_dyn__/__vprs_dyn__",
+    );
+  });
+
+  // A catch-all sibling of a same-prefix named param must probe to a url that
+  // ONLY the catch-all matches — otherwise the more-specific `$name` route wins
+  // the probe and the catch-all bakes the wrong module (and its own is never
+  // built). The padded probe resolves each pattern to ITSELF.
+  it("disambiguates a catch-all from a named-param sibling", () => {
+    const patterns = ["/files/$name", "/files/$"] as const;
+    const catchAllProbe = patternProbeUrl("/files/$", patterns);
+    const namedProbe = patternProbeUrl("/files/$name", patterns);
+    expect(matchRoutes(patterns, catchAllProbe)?.pattern).toBe("/files/$");
+    expect(matchRoutes(patterns, namedProbe)?.pattern).toBe("/files/$name");
+  });
+
+  it("pads a catch-all past the longest named pattern", () => {
+    const patterns = ["/blog/$category/$slug", "/blog/$"] as const;
+    expect(matchRoutes(patterns, patternProbeUrl("/blog/$", patterns))?.pattern).toBe(
+      "/blog/$",
+    );
+    expect(
+      matchRoutes(patterns, patternProbeUrl("/blog/$category/$slug", patterns))
+        ?.pattern,
+    ).toBe("/blog/$category/$slug");
+  });
+});
+
+describe("normalizePathForMatch", () => {
+  it("drops the query string", () => {
+    expect(normalizePathForMatch("/profile/42?ref=x")).toBe("/profile/42");
+  });
+
+  it("drops the .rsc transport suffix", () => {
+    expect(normalizePathForMatch("/profile/42.rsc")).toBe("/profile/42");
+  });
+
+  it("drops a trailing slash but keeps root", () => {
+    expect(normalizePathForMatch("/profile/42/")).toBe("/profile/42");
+    expect(normalizePathForMatch("/")).toBe("/");
+  });
+
+  it("honors a custom rsc suffix", () => {
+    expect(normalizePathForMatch("/p/42.flight", ".flight")).toBe("/p/42");
   });
 });

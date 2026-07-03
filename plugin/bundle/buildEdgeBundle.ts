@@ -91,6 +91,12 @@ export async function buildEdgeBundle(opts: {
   // the client entry imports) that the SSR client manifest omits. Hrefs are
   // root-absolute, matching how the built client assets are served.
   const bakedGlobalCss: Array<Record<string, string>> = [];
+  // Prefix baked hrefs with the configured base so a non-root deploy
+  // (base: "/app/") emits <link href="/app/assets/…">, not a root-absolute
+  // "/assets/…" the browser can't find. Root base ("/") is the no-op default.
+  const baseUrl = userOptions.moduleBaseURL ?? "/";
+  const withBase = (css: string): string =>
+    baseUrl === "/" ? "/" + css : baseUrl.replace(/\/$/, "") + "/" + css;
   const staticManifestPath = join(
     outRoot,
     userOptions.build.static,
@@ -108,7 +114,7 @@ export async function buildEdgeBundle(opts: {
         bakedGlobalCss.push({
           as: "link",
           rel: "stylesheet",
-          href: "/" + css,
+          href: withBase(css),
           id: css,
           precedence: "high",
         });
@@ -205,8 +211,30 @@ export async function buildEdgeBundle(opts: {
         `${tag} could not resolve built Page/props for route ${url}; omitting`
       );
   }
-  if (routeLines.length === 0) {
-    logger.warn(`${tag} no routes resolved from build.pages; skipping`);
+
+  // Dynamic routes → pattern map: bake each route pattern's modules once
+  // (identical for every concrete id) so the edge renders an UNENUMERATED url
+  // (any `/profile/<id>`) by matching ROUTE_PATTERNS at request time, not only
+  // the getStaticPaths-enumerated set. `patternProbeUrl` (passed the full
+  // pattern list so a catch-all disambiguates from a named sibling) resolves
+  // each pattern to its module via the same functional router the enumerated
+  // pass uses.
+  const patternRouteLines: string[] = [];
+  for (const pattern of userOptions.routePatterns ?? []) {
+    const line = routeEntryLine(pattern, patternProbeUrl(pattern, userOptions.routePatterns));
+    if (line) patternRouteLines.push(line);
+    else
+      logger.warn(
+        `${tag} could not resolve built Page/props for dynamic route ${pattern}; ` +
+          `it will 404 at request time; omitting`
+      );
+  }
+
+  // Skip only when NEITHER an enumerated nor a dynamic route resolved — a
+  // fully-dynamic app (only `$` routes, no prerendered pages) still needs the
+  // edge bundle to serve its per-request routes.
+  if (routeLines.length === 0 && patternRouteLines.length === 0) {
+    logger.warn(`${tag} no routes resolved from build.pages or routePatterns; skipping`);
     return;
   }
 
@@ -280,17 +308,6 @@ export async function buildEdgeBundle(opts: {
   };
   const htmlComp = resolveComponent(userOptions.Html, htmlExport, "../components/html.js", "Html");
   const rootComp = resolveComponent(userOptions.Root, rootExport, "../components/root.js", "Root");
-
-  // Dynamic routes → pattern map: bake each route pattern's modules once
-  // (identical for every concrete id) so the edge renders an UNENUMERATED url
-  // (any `/profile/<id>`) by matching ROUTE_PATTERNS at request time, not only
-  // the getStaticPaths-enumerated set. `patternProbeUrl` resolves each pattern
-  // to its module via the same functional router the enumerated pass uses.
-  const patternRouteLines: string[] = [];
-  for (const pattern of userOptions.routePatterns ?? []) {
-    const line = routeEntryLine(pattern, patternProbeUrl(pattern));
-    if (line) patternRouteLines.push(line);
-  }
 
   const htmlNs = nsFor(htmlComp.abs);
   const rootNs = nsFor(rootComp.abs);

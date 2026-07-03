@@ -28,6 +28,24 @@ export type RouteParams<Pattern extends string> = {
 
 const segs = (s: string) => s.split("/").filter(Boolean);
 
+/** The placeholder a `$`/`$name` segment probes as — no static segment equals it. */
+const PROBE_SEGMENT = "__vprs_dyn__";
+
+/**
+ * Normalize a request path for route matching: drop the query, the transport
+ * suffix (`.rsc`/`rscOutputPath`) or `.html`, and a trailing slash — so
+ * `/profile/42.rsc` and `/profile/42/` both resolve `{ id: "42" }`, not
+ * `"42.rsc"`. Shared by the fileRouter-threaded `params` (resolvePageAndProps)
+ * and the manual `withParams` escape hatch so the two agree for a given request.
+ */
+export function normalizePathForMatch(path: string, rscSuffix = ".rsc"): string {
+  let p = path.split("?")[0];
+  if (rscSuffix && p.endsWith(rscSuffix)) p = p.slice(0, -rscSuffix.length);
+  else if (p.endsWith(".html")) p = p.slice(0, -".html".length);
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return p || "/";
+}
+
 // Decode a path segment defensively: a malformed %-escape (e.g. "%zz" or a bare
 // "%") makes `decodeURIComponent` throw a URIError. The pathname is
 // attacker-controlled and matched on the request thread (incl. the edge handler,
@@ -115,11 +133,26 @@ export function fillPattern(
  * router resolves it to THIS pattern's page/props. Used at build time to bake a
  * dynamic route's modules (edge bundle) or add them as build inputs, without a
  * real — and therefore prerenderable — url.
+ *
+ * Catch-all disambiguation: a bare-`$` catch-all is LESS specific than a
+ * same-prefix `$name` sibling, so a single-segment probe (`/files/X`) would
+ * resolve to the `$name` route and bake the WRONG module for the catch-all (and
+ * never build the catch-all's own module). Pass `allPatterns` so a catch-all
+ * probe is padded past the longest pattern — only the catch-all matches a url
+ * deeper than every named route, so it resolves to itself.
  */
-export function patternProbeUrl(pattern: string): string {
-  return `/${segs(pattern)
-    .map((s) => (s.startsWith("$") ? "__vprs_dyn__" : s))
-    .join("/")}`;
+export function patternProbeUrl(
+  pattern: string,
+  allPatterns?: readonly string[],
+): string {
+  const parts = segs(pattern);
+  const out = parts.map((s) => (s.startsWith("$") ? PROBE_SEGMENT : s));
+  const isCatchAll = parts[parts.length - 1] === "$";
+  if (isCatchAll && allPatterns?.length) {
+    const maxSegs = Math.max(...allPatterns.map((p) => segs(p).length));
+    while (out.length <= maxSegs) out.push(PROBE_SEGMENT);
+  }
+  return `/${out.join("/")}`;
 }
 
 /** Match a pathname against many patterns, most-specific first. */
