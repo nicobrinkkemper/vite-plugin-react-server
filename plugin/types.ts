@@ -873,6 +873,18 @@ export interface StreamPluginOptions<
   // Manual configuration
   Page?: UrlOpt;
   props?: PropsOpt;
+  /**
+   * Route patterns (`["/", "/profile/$id"]`) for dynamic file-based routing —
+   * spread from `fileRouter().routePatterns`. vprs derives a loader's `params`
+   * from these at request time and bakes unenumerated dynamic routes into the
+   * edge bundle. Omit for a fully static / hand-rolled `Page` router.
+   */
+  routePatterns?: readonly string[];
+  /**
+   * Extra `node_modules` packages to treat as client (`"use client"`) packages
+   * beyond what vprs auto-detects. Rarely needed.
+   */
+  clientPackages?: readonly string[];
   // Escape hatches
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
