@@ -418,6 +418,13 @@ export type ResolvedUserOptions = {
    */
   clientPackages?: readonly string[];
 
+  /**
+   * Route patterns (`["/profile/$id", …]`) used to compute a loader's `params`
+   * automatically at request time. Supplied by `fileRouter(...)` (spread into
+   * the plugin config); empty when no file-based router is configured.
+   */
+  routePatterns?: readonly string[];
+
   // Required complex properties
   Page: StreamPluginOptions["Page"];
   Html: StreamPluginOptions["Html"]; // Unresolved: can be string, function
@@ -968,8 +975,22 @@ export type CreateHandlerOptions<
   | "workerShutdownTimeout"
   | "rscWorkerPath"
   | "htmlWorkerPath"
+  | "routePatterns"
 > & {
   id?: string;
+  /**
+   * Params parsed from the request url against the matched route pattern
+   * (`/profile/123` → `{ id: "123" }`). Passed to a loader as
+   * `props(url, { params, request })`. When absent, vprs derives it from
+   * `routePatterns` + `url`; `{}` when nothing matches.
+   */
+  params?: Record<string, string>;
+  /**
+   * The in-flight request, when rendering happens on the request thread
+   * (dev middleware). Undefined in the RSC worker, at static build, and on
+   * the edge-flight path — a loader must treat it as optional.
+   */
+  request?: Request;
   /** ID of headless stream to reuse for efficiency */
   reuseHeadlessStreamId?: string;
   /** Storage for headless stream reuse Map<id, { PageComponent: any, errored: boolean }> */

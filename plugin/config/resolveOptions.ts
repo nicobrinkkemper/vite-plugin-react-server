@@ -843,6 +843,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
       serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
       clientPackages: (options as { clientPackages?: readonly string[] }).clientPackages,
+      routePatterns: (options as { routePatterns?: readonly string[] }).routePatterns,
       autoDiscover: autoDiscover,
       loader: loader,
       pipeableStreamOptions,

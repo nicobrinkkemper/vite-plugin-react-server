@@ -100,6 +100,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
           route: handlerOptions.route,
           url: handlerOptions.url,
           moduleBaseURL: handlerOptions.moduleBaseURL,
+          routePatterns: handlerOptions.routePatterns,
           build: {
             rscOutputPath: handlerOptions.build.rscOutputPath,
           },

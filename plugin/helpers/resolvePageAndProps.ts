@@ -6,8 +6,9 @@ import type {
   PagePropOpt,
 } from "../types.js";
 import { resolvePage } from "./resolvePage.js";
-import { resolveProps } from "./resolveProps.js";
+import { resolveProps, type LoaderCtx } from "./resolveProps.js";
 import { routeToURL } from "../utils/routeToURL.js";
+import { matchRoutes } from "../router/matchRoute.js";
 
 /**
  * Resolves the page and props for a given route, works in combination with resolveComponents
@@ -39,6 +40,31 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         );
       }
 
+      // Loader context: `props(url, { params, request })`. Params are either
+      // precomputed by the caller or derived here from the route patterns.
+      // Match against the normalized pathname (same basis page-selection uses):
+      // drop the query, the `.rsc`/`.html` transport suffix, and a trailing
+      // slash, so `/profile/42.rsc` resolves `{ id: "42" }`, not `"42.rsc"`.
+      const rscSuffix =
+        handlerOptions.build?.rscOutputPath ??
+        DEFAULT_CONFIG.BUILD.rscOutputPath;
+      const normalizeForMatch = (u: string): string => {
+        let p = u.split("?")[0];
+        if (rscSuffix && p.endsWith(rscSuffix)) p = p.slice(0, -rscSuffix.length);
+        else if (p.endsWith(".html")) p = p.slice(0, -".html".length);
+        if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+        return p || "/";
+      };
+      const params =
+        handlerOptions.params ??
+        (handlerOptions.routePatterns?.length
+          ? matchRoutes(
+              handlerOptions.routePatterns,
+              normalizeForMatch(handlerOptions.route || url)
+            )?.params ?? {}
+          : {});
+      const loaderCtx: LoaderCtx = { params, request: handlerOptions.request };
+
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
         exportName:
@@ -54,6 +80,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
 
       const resolvePropsPromise = resolveProps({
         url,
+        ctx: loaderCtx,
         id: handlerOptions.propsPath || handlerOptions.pagePath,
         exportName:
           handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
@@ -200,7 +227,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           );
         }
         try {
-          pageProps = pageProps(url);
+          pageProps = pageProps(url, loaderCtx);
           // Await if it returns a Promise
           if (pageProps instanceof Promise) {
             pageProps = await pageProps;
@@ -274,6 +301,9 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
     | "loader"
     | "verbose"
     | "logger"
+    | "routePatterns"
+    | "params"
+    | "request"
   > & {
     moduleBaseURL?: string;
     route?: string;
