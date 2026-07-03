@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import type { ResolvedUserOptions } from "../types.js";
+import { patternProbeUrl } from "../router/matchRoute.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
 
@@ -81,6 +82,51 @@ export async function buildEdgeBundle(opts: {
   }
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
+  // Collect the built stylesheets so the document producer defaults `globalCss`
+  // — the Html component renders them via <Css> as react-dom precedence-hoisted
+  // <link>s in <head>. Without this the edge document render ships UNSTYLED (the
+  // SSG scans CSS per page; the single-isolate edge render had no equivalent, so
+  // consumers had to rebuild the CSS map by hand). The static manifest is the
+  // canonical browser manifest — it includes HTML-entry CSS (e.g. a globals.css
+  // the client entry imports) that the SSR client manifest omits. Hrefs are
+  // root-absolute, matching how the built client assets are served.
+  const bakedGlobalCss: Array<Record<string, string>> = [];
+  // Prefix baked hrefs with the configured base so a non-root deploy
+  // (base: "/app/") emits <link href="/app/assets/…">, not a root-absolute
+  // "/assets/…" the browser can't find. Root base ("/") is the no-op default.
+  const baseUrl = userOptions.moduleBaseURL ?? "/";
+  const withBase = (css: string): string =>
+    baseUrl === "/" ? "/" + css : baseUrl.replace(/\/$/, "") + "/" + css;
+  const staticManifestPath = join(
+    outRoot,
+    userOptions.build.static,
+    ".vite/manifest.json"
+  );
+  if (existsSync(staticManifestPath)) {
+    const staticManifest = JSON.parse(readFileSync(staticManifestPath, "utf8"));
+    const seen = new Set<string>();
+    for (const entry of Object.values(
+      staticManifest as Record<string, { css?: string[] } | undefined>
+    )) {
+      for (const css of entry?.css ?? []) {
+        if (seen.has(css)) continue;
+        seen.add(css);
+        bakedGlobalCss.push({
+          as: "link",
+          rel: "stylesheet",
+          href: withBase(css),
+          id: css,
+          precedence: "high",
+        });
+      }
+    }
+    if (bakedGlobalCss.length) {
+      logger.info(
+        `${tag} baking ${bakedGlobalCss.length} stylesheet(s) into the document producer's default globalCss`
+      );
+    }
+  }
+
   // Enumerate every prerendered route. Post-build, build.pages already lists
   // all URLs (the SSG just rendered them) and every page module is in
   // dist/server — so we CALL the (possibly functional) Page/props router for
@@ -116,31 +162,79 @@ export async function buildEdgeBundle(opts: {
     return resolvedPath;
   };
 
-  const routes: {
-    url: string;
-    pageSrc: string;
-    pageAbs: string;
-    propsSrc: string;
-    propsAbs: string;
-  }[] = [];
-  for (const url of urls ?? []) {
-    const pageSrc = routeSource(userOptions.Page, url);
-    const propsSrc = routeSource(userOptions.props, url);
+  // Static namespace imports of each built module, deduped by file. The loader
+  // resolvePageAndProps calls is a dictionary lookup over these — a closed
+  // manifest, no runtime import().
+  const importLines: string[] = [];
+  const idByFile = new Map<string, string>();
+  const nsFor = (absPath: string): string => {
+    let id = idByFile.get(absPath);
+    if (!id) {
+      id = `M${idByFile.size}`;
+      idByFile.set(absPath, id);
+      importLines.push(`import * as ${id} from ${JSON.stringify(absPath)};`);
+    }
+    return id;
+  };
+
+  // Resolve one route's Page/props to built modules and emit its baked
+  // `{ key: { pagePath, propsPath, modules } }` line — shared by the enumerated
+  // (exact-url) and dynamic (pattern) maps. Returns null when the built modules
+  // can't be resolved.
+  const routeEntryLine = (key: string, resolveUrl: string): string | null => {
+    const pageSrc = routeSource(userOptions.Page, resolveUrl);
+    const propsSrc = routeSource(userOptions.props, resolveUrl);
     const pageAbs = resolveBuilt(pageSrc);
     const propsAbs = resolveBuilt(propsSrc);
     if (
-      typeof pageSrc === "string" &&
-      typeof propsSrc === "string" &&
-      pageAbs &&
-      propsAbs
+      typeof pageSrc !== "string" ||
+      typeof propsSrc !== "string" ||
+      !pageAbs ||
+      !propsAbs
     ) {
-      routes.push({ url, pageSrc, pageAbs, propsSrc, propsAbs });
-    } else {
-      logger.warn(`${tag} could not resolve built Page/props for route ${url}; omitting`);
+      return null;
     }
+    return `  ${JSON.stringify(key)}: { pagePath: ${JSON.stringify(
+      pageSrc
+    )}, propsPath: ${JSON.stringify(propsSrc)}, modules: { ${JSON.stringify(
+      pageSrc
+    )}: ${nsFor(pageAbs)}, ${JSON.stringify(propsSrc)}: ${nsFor(propsAbs)} } },`;
+  };
+
+  // Enumerated routes → exact-url map (the flash-free prerendered set).
+  const routeLines: string[] = [];
+  for (const url of urls ?? []) {
+    const line = routeEntryLine(url, url);
+    if (line) routeLines.push(line);
+    else
+      logger.warn(
+        `${tag} could not resolve built Page/props for route ${url}; omitting`
+      );
   }
-  if (routes.length === 0) {
-    logger.warn(`${tag} no routes resolved from build.pages; skipping`);
+
+  // Dynamic routes → pattern map: bake each route pattern's modules once
+  // (identical for every concrete id) so the edge renders an UNENUMERATED url
+  // (any `/profile/<id>`) by matching ROUTE_PATTERNS at request time, not only
+  // the getStaticPaths-enumerated set. `patternProbeUrl` (passed the full
+  // pattern list so a catch-all disambiguates from a named sibling) resolves
+  // each pattern to its module via the same functional router the enumerated
+  // pass uses.
+  const patternRouteLines: string[] = [];
+  for (const pattern of userOptions.routePatterns ?? []) {
+    const line = routeEntryLine(pattern, patternProbeUrl(pattern, userOptions.routePatterns));
+    if (line) patternRouteLines.push(line);
+    else
+      logger.warn(
+        `${tag} could not resolve built Page/props for dynamic route ${pattern}; ` +
+          `it will 404 at request time; omitting`
+      );
+  }
+
+  // Skip only when NEITHER an enumerated nor a dynamic route resolved — a
+  // fully-dynamic app (only `$` routes, no prerendered pages) still needs the
+  // edge bundle to serve its per-request routes.
+  if (routeLines.length === 0 && patternRouteLines.length === 0) {
+    logger.warn(`${tag} no routes resolved from build.pages or routePatterns; skipping`);
     return;
   }
 
@@ -188,6 +282,7 @@ export async function buildEdgeBundle(opts: {
   const elementHelper = join(here, "../helpers/createElementWithReact.js");
   const actionHelper = join(here, "../helpers/handleServerAction.server.js");
   const gateHelper = join(here, "../references/createSealedServerReferenceGate.server.js");
+  const matchRouteHelper = join(here, "../router/matchRoute.js");
 
   // Resolve the Html + Root components for the full-document flight. A configured
   // `Html`/`Root` string resolves to its built module (export named by
@@ -213,30 +308,6 @@ export async function buildEdgeBundle(opts: {
   };
   const htmlComp = resolveComponent(userOptions.Html, htmlExport, "../components/html.js", "Html");
   const rootComp = resolveComponent(userOptions.Root, rootExport, "../components/root.js", "Root");
-
-  // Static namespace imports of each built module, deduped by file. The loader
-  // resolvePageAndProps calls is a dictionary lookup over these — a closed
-  // manifest, no runtime import().
-  const importLines: string[] = [];
-  const idByFile = new Map<string, string>();
-  const nsFor = (absPath: string): string => {
-    let id = idByFile.get(absPath);
-    if (!id) {
-      id = `M${idByFile.size}`;
-      idByFile.set(absPath, id);
-      importLines.push(`import * as ${id} from ${JSON.stringify(absPath)};`);
-    }
-    return id;
-  };
-  const routeLines = routes.map((r) => {
-    const pageNs = nsFor(r.pageAbs);
-    const propsNs = nsFor(r.propsAbs);
-    return `  ${JSON.stringify(r.url)}: { pagePath: ${JSON.stringify(
-      r.pageSrc
-    )}, propsPath: ${JSON.stringify(r.propsSrc)}, modules: { ${JSON.stringify(
-      r.pageSrc
-    )}: ${pageNs}, ${JSON.stringify(r.propsSrc)}: ${propsNs} } },`;
-  });
 
   const htmlNs = nsFor(htmlComp.abs);
   const rootNs = nsFor(rootComp.abs);
@@ -273,6 +344,7 @@ export async function buildEdgeBundle(opts: {
 import { createElement } from "react";
 import { renderToReadableStream } from ${JSON.stringify(serverEdge)};
 import { resolvePageAndProps } from ${JSON.stringify(resolveHelper)};
+import { matchRoutes } from ${JSON.stringify(matchRouteHelper)};
 import { createElementWithReact } from ${JSON.stringify(elementHelper)};
 import { handleServerActionRequest } from ${JSON.stringify(actionHelper)};
 import { createSealedServerReferenceGate } from ${JSON.stringify(gateHelper)};
@@ -284,6 +356,10 @@ const MODULE_BASE = ${JSON.stringify(moduleBase)};
 const MODULE_BASE_PATH = ${JSON.stringify(moduleBasePath)};
 const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
 const ROUTE_PATTERNS = ${JSON.stringify(userOptions.routePatterns ?? [])};
+// Built stylesheets, baked from the static manifest, so the document producer
+// renders styled HTML on the edge with no per-app CSS wiring. Consumers can
+// still override via opts.globalCss.
+const BAKED_GLOBAL_CSS = ${JSON.stringify(bakedGlobalCss)};
 const HtmlComponent = ${htmlNs}[${JSON.stringify(htmlComp.exportName)}];
 const RootComponent = ${rootNs}[${JSON.stringify(rootComp.exportName)}];
 
@@ -291,9 +367,21 @@ const routes = {
 ${routeLines.join("\n")}
 };
 
+// Route patterns → baked modules, for rendering unenumerated dynamic urls.
+const patternRoutes = {
+${patternRouteLines.join("\n")}
+};
+
 /** Resolve a route's Page component + live props through the canonical helper. */
-async function resolveRoute(url) {
-  const route = routes[url];
+async function resolveRoute(url, request) {
+  // Exact match for the enumerated/prerendered set; else fall back to matching
+  // the url against the route patterns so any concrete dynamic url (e.g. a
+  // /profile/<id> that wasn't prerendered) renders per-request on the edge.
+  let route = routes[url];
+  if (!route && ROUTE_PATTERNS.length) {
+    const matched = matchRoutes(ROUTE_PATTERNS, url);
+    if (matched) route = patternRoutes[matched.pattern];
+  }
   if (!route) throw new Error("[edge] unknown route: " + url);
   const resolved = await resolvePageAndProps({
     pagePath: route.pagePath,
@@ -302,6 +390,10 @@ async function resolveRoute(url) {
     propsExportName: PROPS_EXPORT,
     moduleBaseURL: MODULE_BASE_URL,
     routePatterns: ROUTE_PATTERNS,
+    // The in-flight request, so a loader can read cookies/headers to gate an
+    // authenticated route. Present only for per-request edge renders (the
+    // handler passes it); undefined at prerender.
+    request,
     url,
     loader: async (id) => {
       // resolvePage/resolveProps may pass "<path>#<export>"; key by the path.
@@ -318,8 +410,8 @@ async function resolveRoute(url) {
 }
 
 /** Headless page flight (Page only) — the simple producer. */
-export async function ${flightExport}(url) {
-  const resolved = await resolveRoute(url);
+export async function ${flightExport}(url, request) {
+  const resolved = await resolveRoute(url, request);
   return renderToReadableStream(
     createElement(resolved.PageComponent, resolved.pageProps),
     MODULE_BASE_PATH
@@ -334,13 +426,15 @@ export async function ${flightExport}(url) {
  * (Map<string, CssContent>) so both carry the page styles.
  */
 export async function ${documentExport}(url, opts = {}) {
-  const resolved = await resolveRoute(url);
+  const resolved = await resolveRoute(url, opts.request);
   const base = {
     PageComponent: resolved.PageComponent,
     RootComponent,
     pageProps: resolved.pageProps,
     cssFiles: opts.cssFiles ?? new Map(),
-    globalCss: opts.globalCss ?? new Map(),
+    // Default to the built stylesheets (rendered in <head> via the Html
+    // component's <Css>) so the edge document is styled out of the box.
+    globalCss: opts.globalCss ?? BAKED_GLOBAL_CSS,
     moduleBase: MODULE_BASE,
     moduleBaseURL: MODULE_BASE_URL,
     moduleBasePath: MODULE_BASE_PATH,
@@ -402,6 +496,17 @@ export async function ${actionExport}(request, opts = {}) {
       logLevel: "warn",
       configFile: false,
       resolve: { alias },
+      // Pin the edge bundle to the PRODUCTION React build. The vendored
+      // react-server-dom-esm transport branches on process.env.NODE_ENV at
+      // RUNTIME (the production build drops the flight-timeline debug chunks the
+      // dev build emits), and Vite does NOT replace process.env for SSR builds —
+      // so without this the edge server emits a DEV flight the production client
+      // refuses to decode ("Failed to read a RSC payload created by a development
+      // version of React on the server"), and hydrateOrRender silently falls back
+      // to static (no hydration, links full-reload). The edge bundle is a
+      // production deploy artifact paired with the production client, so bake the
+      // mode in rather than depend on the runtime NODE_ENV of the edge process.
+      define: { "process.env.NODE_ENV": JSON.stringify("production") },
       ssr: { target: "node", noExternal: true },
       build: {
         ssr: true,

@@ -3,7 +3,10 @@
  *
  * Vite prepends code above a module's own source in several situations — most
  * importantly a `__vitePreload` import for files that use dynamic `import()`,
- * and HMR / env wiring in dev. That injected preamble lands *above* a file's
+ * the `__vite__cjsImport…` named-binding consts it emits when a module imports
+ * named exports from a CJS-optimized dep (e.g. `import { useState } from
+ * "react"` → `const useState = __vite__cjsImport0_react["useState"]`), and HMR /
+ * env wiring in dev. That injected preamble lands *above* a file's
  * `"use client"` / `"use server"` directive, which would otherwise look like
  * "real code before the directive".
  *
@@ -20,4 +23,5 @@ export const isViteInjectedCode = (source: string): boolean =>
   source.includes("import.meta.env") ||
   source.includes("/@vite/client") ||
   source.includes("__vitePreload") ||
+  source.includes("__vite__cjsImport") ||
   source.includes("\0vite/");

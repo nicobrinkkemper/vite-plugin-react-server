@@ -58,6 +58,11 @@ export function Link({
     timer.current = undefined;
   };
 
+  // Clear a pending intent-prefetch timer if the Link unmounts inside the 60ms
+  // window (a route change can unmount it before onMouseLeave fires) so warm()
+  // doesn't run against a torn-down tree.
+  React.useEffect(() => cancel, []);
+
   return (
     <a
       href={to}
