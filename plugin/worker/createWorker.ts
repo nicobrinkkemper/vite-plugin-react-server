@@ -406,6 +406,15 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
                 `Worker ready timeout after ${startupTimeout}ms of inactivity (worker/${workerType})`
               ),
             });
+            // clearStartupListeners() only removes the startup LISTENERS — the
+            // worker thread is still alive (it was merely CPU-starved past the
+            // window). Terminate it and drop it from the registry, or it lingers
+            // as a zombie holding a thread + CPU: under a parallel build suite
+            // that zombie starves the NEXT worker's startup, which trips its
+            // watchdog too, cascading one timeout into many. Fire-and-forget —
+            // the promise is already settled above.
+            activeWorkers.delete(worker);
+            worker.terminate();
           }, startupTimeout);
         }
         armWatchdog();

@@ -1,4 +1,8 @@
-import { matchRoute, type RouteParams } from "./matchRoute.js";
+import {
+  matchRoute,
+  normalizePathForMatch,
+  type RouteParams,
+} from "./matchRoute.js";
 
 // vprs calls a route's `props` export as `props(url)`. `withParams` wraps a
 // loader so it instead receives typed params parsed from that url against the
@@ -27,5 +31,12 @@ export function withParams<Pattern extends string, T>(
   loader: (ctx: LoaderContext<Pattern>) => T,
 ): (url: string) => T {
   return (url) =>
-    loader({ url, params: (matchRoute(pattern, url) ?? {}) as RouteParams<Pattern> });
+    loader({
+      url,
+      // Match against the normalized pathname (drop query / `.rsc` / trailing
+      // slash) so `withParams` yields the same params the fileRouter-threaded
+      // `params` does for the same request — e.g. `/greet/alice.rsc` → `alice`.
+      params: (matchRoute(pattern, normalizePathForMatch(url)) ??
+        {}) as RouteParams<Pattern>,
+    });
 }

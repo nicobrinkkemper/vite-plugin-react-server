@@ -872,7 +872,19 @@ export interface StreamPluginOptions<
     | undefined;
   // Manual configuration
   Page?: UrlOpt;
-  props?: UrlOpt;
+  props?: PropsOpt;
+  /**
+   * Route patterns (`["/", "/profile/$id"]`) for dynamic file-based routing —
+   * spread from `fileRouter().routePatterns`. vprs derives a loader's `params`
+   * from these at request time and bakes unenumerated dynamic routes into the
+   * edge bundle. Omit for a fully static / hand-rolled `Page` router.
+   */
+  routePatterns?: readonly string[];
+  /**
+   * Extra `node_modules` packages to treat as client (`"use client"`) packages
+   * beyond what vprs auto-detects. Rarely needed.
+   */
+  clientPackages?: readonly string[];
   // Escape hatches
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
@@ -1298,6 +1310,18 @@ export type UrlOpt =
   | string
   | ((url: string) => string)
   | ((url: string) => Promise<string>);
+
+/**
+ * Like {@link UrlOpt}, but a props resolver may return `undefined` for a url
+ * with no props source (e.g. `fileRouter`'s `props`, for a route that has no
+ * sibling `props.ts`). vprs then falls back to a `props` export in the page
+ * module, or the default `{ url }`. Widening only the props option keeps
+ * `Page`/`Html`/`Root` required to resolve to a string.
+ */
+export type PropsOpt =
+  | UrlOpt
+  | ((url: string) => string | undefined)
+  | ((url: string) => Promise<string | undefined>);
 export type PageName = "Page";
 export type PropsName = "props";
 export type HtmlName = "Html";
