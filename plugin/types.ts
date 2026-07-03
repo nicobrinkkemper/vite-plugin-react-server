@@ -28,6 +28,7 @@ import type {
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
 import type { AllowedDirectives, Program } from "react-server-loader/directives";
+import type { RoutesOption } from "./router/fileRouter.js";
 import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 import type {
   RenderMetrics,
@@ -870,7 +871,16 @@ export interface StreamPluginOptions<
         virtualPattern?: RegExpOpt;
       }
     | undefined;
-  // Manual configuration
+  /**
+   * File-based routing in one field. Pass `{ dir }` (relative to `moduleBase`,
+   * e.g. `{ dir: "page" }` → `src/page`) and vprs scans the route tree and
+   * derives `Page`, `props`, `routePatterns` and the prerender worklist for you
+   * — no need to restate them. Also accepts a `fileRouter()` result or a
+   * hand-rolled router table. Explicit `Page` / `props` / `routePatterns` /
+   * `build.pages` still win over what the router derives.
+   */
+  routes?: RoutesOption;
+  // Manual configuration (a lower-level alternative to `routes`)
   Page?: UrlOpt;
   props?: PropsOpt;
   /**

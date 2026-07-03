@@ -18,6 +18,7 @@ import {
 import { join, resolve } from "node:path";
 import { pluginRoot } from "../root.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
+import { resolveRoutesOption } from "../router/fileRouter.js";
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
@@ -148,6 +149,19 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   if (options.verbose && options.projectRoot != originalOptions?.projectRoot) {
     logger.info(`[resolveOptions] new projectRoot: ${projectRoot}`);
   }
+
+  // File-based routing: if `routes` is set, scan the route tree once and derive
+  // Page / props / routePatterns / build.pages from it. An explicit option
+  // still wins over the router-derived value, so `routes` composes with manual
+  // overrides and stays backward-compatible with the loose Page/props form.
+  const routerTable = options.routes
+    ? resolveRoutesOption(options.routes, { moduleBase, projectRoot })
+    : undefined;
+  const effectivePage = options.Page ?? routerTable?.Page;
+  const effectiveProps = options.props ?? routerTable?.props;
+  const effectiveRoutePatterns =
+    options.routePatterns ?? routerTable?.routePatterns;
+  const effectiveBuildPages = options.build?.pages ?? routerTable?.build?.pages;
 
   // Build options
   const preserveModulesRoot =
@@ -634,7 +648,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
    * nodeExtension
    */
   const build = {
-    pages: options.build?.pages ?? DEFAULT_CONFIG.BUILD.pages,
+    pages: effectiveBuildPages ?? DEFAULT_CONFIG.BUILD.pages,
     assetsDir: options.build?.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir,
     client: options.build?.client ?? DEFAULT_CONFIG.BUILD.client,
     server: options.build?.server ?? DEFAULT_CONFIG.BUILD.server,
@@ -674,9 +688,10 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     cssModuleExtension: cssModuleExtension,
     nodeExtension: DEFAULT_CONFIG.BUILD.nodeExtension,
     useRscWorker: options.build?.useRscWorker ?? DEFAULT_CONFIG.BUILD.useRscWorker,
-    useHtmlWorker: options.build?.useHtmlWorker ?? 
-      // Force useHtmlWorker to true when build.pages is explicitly configured, regardless of default logic
-      (options.build?.pages && (Array.isArray(options.build.pages) || typeof options.build.pages === 'function')) ? true : DEFAULT_CONFIG.BUILD.useHtmlWorker,
+    useHtmlWorker: options.build?.useHtmlWorker ??
+      // Force useHtmlWorker to true when pages are configured (directly or via
+      // the router), regardless of default logic
+      (effectiveBuildPages && (Array.isArray(effectiveBuildPages) || typeof effectiveBuildPages === 'function')) ? true : DEFAULT_CONFIG.BUILD.useHtmlWorker,
     renderMode: options.build?.renderMode ?? "parallel",
     batchSize: options.build?.batchSize ?? 8,
     inlineFlight: options.build?.inlineFlight ?? false,
@@ -808,8 +823,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         typeof options.onEvent === "function"
           ? options.onEvent
           : DEFAULT_CONFIG.ON_EVENT,
-      Page: options.Page,
-      props: options.props,
+      Page: effectivePage,
+      props: effectiveProps,
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
       Root: options.Root ?? DEFAULT_CONFIG.ROOT,
       components: options.components,
@@ -843,7 +858,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       clientEntry: options.clientEntry ?? DEFAULT_CONFIG.CLIENT_ENTRY,
       serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
       clientPackages: options.clientPackages,
-      routePatterns: options.routePatterns,
+      routePatterns: effectiveRoutePatterns,
       autoDiscover: autoDiscover,
       loader: loader,
       pipeableStreamOptions,
