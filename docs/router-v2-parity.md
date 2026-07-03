@@ -208,11 +208,19 @@ fixed as their surrounding code is reworked.
 
 ---
 
-## 8. Open questions
+## 8. Resolved decisions (provisional — revisit if they bite)
 
-- **`routes.dir` default** — default to `moduleBase` root (zero-config
-  `routes: true`, but scans everything under `src`) vs always explicit
-  (`{ dir: "page" }`, scopes the subtree). Leaning explicit-but-short.
-- **How far on head/meta** — a per-segment `head.ts` export vs a `<Head>`
-  component convention.
-- **`error.tsx` granularity** — per-segment only, or also a root-level default.
+- **`routes.dir` — explicit, short.** Require `routes: { dir: "page" }` (relative
+  to `moduleBase`). Scopes routing to a subtree, stays predictable, and is one
+  short string. A zero-config `routes: true` (scan all of `moduleBase`) can be
+  added later if demand appears, but scanning every `page.*` under `src`
+  risks picking up non-route pages.
+- **Head/meta — `head.ts` export.** A `head.ts` beside the route exports
+  `title`/`meta`, receiving `{ params, data }` so meta can derive from loader
+  data, and merging up the matched chain. Matches the loader model and fits RSC
+  (meta usually comes from data, not markup). A `<Head>` component can coexist
+  later, but the export is the primary convention.
+- **`error.tsx` — per-segment + root default.** `error.tsx` at any segment wraps
+  that subtree; a root-level `error.tsx` catches anything otherwise uncaught
+  (full Next/Remix parity). Falls through to vprs's existing error handling if no
+  boundary matches.
