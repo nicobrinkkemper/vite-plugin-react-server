@@ -872,7 +872,7 @@ export interface StreamPluginOptions<
     | undefined;
   // Manual configuration
   Page?: UrlOpt;
-  props?: UrlOpt;
+  props?: PropsOpt;
   // Escape hatches
   htmlWorkerPath?: string;
   rscWorkerPath?: string;
@@ -1298,6 +1298,18 @@ export type UrlOpt =
   | string
   | ((url: string) => string)
   | ((url: string) => Promise<string>);
+
+/**
+ * Like {@link UrlOpt}, but a props resolver may return `undefined` for a url
+ * with no props source (e.g. `fileRouter`'s `props`, for a route that has no
+ * sibling `props.ts`). vprs then falls back to a `props` export in the page
+ * module, or the default `{ url }`. Widening only the props option keeps
+ * `Page`/`Html`/`Root` required to resolve to a string.
+ */
+export type PropsOpt =
+  | UrlOpt
+  | ((url: string) => string | undefined)
+  | ((url: string) => Promise<string | undefined>);
 export type PageName = "Page";
 export type PropsName = "props";
 export type HtmlName = "Html";
