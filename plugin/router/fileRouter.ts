@@ -61,6 +61,10 @@ export function fileRouter(
         ...r,
         page: toRel(r.page),
         props: r.props ? toRel(r.props) : undefined,
+        layouts: r.layouts.map((l) => ({
+          component: toRel(l.component),
+          props: l.props ? toRel(l.props) : undefined,
+        })),
       }))
     : scanned;
   const patterns = routes.map((r) => r.pattern);

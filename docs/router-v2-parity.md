@@ -135,6 +135,26 @@ page (or emit the 404 shell). Consumers still must not key urls on mutable data.
 nested element chain with wrappers — over machinery vprs already has (streaming
 flight, client references, Suspense). No new transport or worker model.
 
+**Shell layering — unopinionated, both supported.** The persistent chrome and the
+nested layouts are *orthogonal*, so an app uses either or both:
+
+- **Server `route.tsx` layouts** live *inside* the flight — server-rendered,
+  data-driven, and swapped on navigation.
+- **The client `wrap`** (`startClient({ wrap })`) lives *outside* the flight —
+  providers / app frame that must persist across navigation and hold client
+  state. Required when the chrome can't render under the `react-server` condition
+  (the dashboard's Chakra providers, vprs bug 2dd).
+
+Navigation swaps the flight content inside the stable wrap. Layering:
+`Html (document) → client wrap (persistent chrome) → Root (#root) → route.tsx
+layouts (swappable, data-driven) → leaf page`. Every layer is opt-in — a bare
+app is just `Html → Root → page`; a static site (mmc) leans on layout-loaders +
+merged head; a client-heavy app (dashboard) leans on the wrap + file routes.
+
+*Optimization, later:* shared layouts persisting across navigation (partial
+rendering) rather than re-fetching the full flight. Correct-but-simple first;
+optimize once the tree lands.
+
 ---
 
 ## 5. Config surface (the `routes` field)
