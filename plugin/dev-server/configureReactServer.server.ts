@@ -369,6 +369,10 @@ export const configureReactServer: ConfigureReactServerFn =
           // on this dev request thread (undefined in worker/static/edge).
           const reqHeaders = new Headers();
           for (const [k, v] of Object.entries(req.headers)) {
+            // Skip HTTP/2 pseudo-headers (":method", ":path", …): their leading
+            // colon is an invalid Headers name and would throw, dropping the
+            // whole request (and every loader's props) under an http2 dev server.
+            if (k.startsWith(":")) continue;
             if (typeof v === "string") reqHeaders.set(k, v);
             else if (Array.isArray(v)) reqHeaders.set(k, v.join(", "));
           }

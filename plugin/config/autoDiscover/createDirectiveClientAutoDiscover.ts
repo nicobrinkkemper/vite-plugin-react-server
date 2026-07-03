@@ -54,7 +54,22 @@ export function createDirectiveClientAutoDiscover(
       ResolvedUserOptions,
       "moduleBase" | "projectRoot" | "normalizer"
     >;
-  }) {
+  }): Promise<{
+    inputs: Record<string, string>;
+    /**
+     * True when a SERVER-side first-party file imports vprs's client router
+     * barrel directly. A server-only client reference isn't pulled into the
+     * client graph, so the barrel must be hosted explicitly (see
+     * resolveAutoDiscover.routerClientInput). A client-side importer auto-hosts
+     * it, so only the no-directive (server) case is tracked here.
+     */
+    serverImportsRouterClient: boolean;
+  }> {
+    // Substring is enough: a server file that references this specifier imports
+    // it. False positives just host an unused barrel (safe); the alternative,
+    // a full import parse, isn't worth it at config time.
+    const ROUTER_CLIENT_SPECIFIER = "vite-plugin-react-server/router/client";
+    let serverImportsRouterClient = false;
     const baseDir = resolve(userOptions.projectRoot, userOptions.moduleBase);
     const absolutePattern = resolve(baseDir, modulePattern);
     // Files Vite already discovers via index.html's <script type="module">
@@ -66,7 +81,7 @@ export function createDirectiveClientAutoDiscover(
     try {
       allFiles = glob(absolutePattern);
     } catch {
-      return inputs;
+      return { inputs, serverImportsRouterClient };
     }
 
     for await (const file of allFiles) {
@@ -85,7 +100,14 @@ export function createDirectiveClientAutoDiscover(
         continue;
       }
 
-      if (!sourceHasTopLevelClientDirective(source)) continue;
+      if (!sourceHasTopLevelClientDirective(source)) {
+        // Server-side file (no client directive): flag a direct barrel import
+        // so the client build hosts it. Client-side importers auto-host it.
+        if (source.includes(ROUTER_CLIENT_SPECIFIER)) {
+          serverImportsRouterClient = true;
+        }
+        continue;
+      }
 
       const relativePath = file
         .replace(baseDir, "")
@@ -98,6 +120,6 @@ export function createDirectiveClientAutoDiscover(
       }
     }
 
-    return inputs;
+    return { inputs, serverImportsRouterClient };
   };
 }

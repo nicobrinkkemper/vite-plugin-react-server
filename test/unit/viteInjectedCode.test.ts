@@ -39,6 +39,14 @@ describe("isViteInjectedCode", () => {
     expect(isViteInjectedCode(`const e = import.meta.env.MODE;`)).toBe(true);
     expect(isViteInjectedCode(`import "/@vite/client";`)).toBe(true);
     expect(isViteInjectedCode(`import x from "\0vite/preload-helper";`)).toBe(true);
+    // Vite's CJS named-binding preamble for an optimized dep (e.g. a "use client"
+    // component doing `import { useState } from "react"`), which lands above the
+    // directive in dev.
+    expect(
+      isViteInjectedCode(
+        `const useState = __vite__cjsImport0_react["useState"];"use client";`
+      )
+    ).toBe(true);
   });
 
   it("does not flag ordinary author code", () => {

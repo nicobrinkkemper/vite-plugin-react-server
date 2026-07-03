@@ -236,6 +236,28 @@ export const resolveUserConfig: ResolveUserConfigFn =
           const input =
             info.facadeModuleId ??
             info.name + userOptions.build.moduleExtension;
+          // vprs's own router barrel is added as a node_modules ENTRY (see
+          // resolveAutoDiscover.routerClientInput) so a direct server-side
+          // import of the client router resolves. It must emit at its preserved
+          // node_modules path — the exact path the server build's client
+          // reference points at; the default entry hash would make it dangle.
+          // Scoped to vprs's router so no unrelated node_modules entry is
+          // renamed.
+          if (
+            info.facadeModuleId &&
+            /[\\/]node_modules[\\/]vite-plugin-react-server[\\/].*[\\/]router[\\/]/.test(
+              info.facadeModuleId
+            )
+          ) {
+            // Emit at the package-relative node_modules path (sliced from vprs's
+            // own node_modules segment), which is what the server build's client
+            // reference points at — independent of where vprs is installed
+            // (direct dependency or hoisted to a parent node_modules).
+            const posix = info.facadeModuleId.split("\\").join("/");
+            const seg = "node_modules/vite-plugin-react-server/";
+            const idx = posix.lastIndexOf(seg);
+            if (idx >= 0) return posix.slice(idx);
+          }
           const inputId = input + (ssr ? "-ssr" : "");
           if (!stashedReturns[inputId]) {
             const r = handleSsrEntryName(
@@ -516,6 +538,29 @@ export const resolveUserConfig: ResolveUserConfigFn =
           conditions: ssr
             ? [...defaultServerConditions]
             : [...defaultClientConditions],
+          // Force a single physical react/react-dom across every entry in the
+          // build. The static build bundles react (no externalization), so
+          // without dedupe a client-reference chunk (e.g. a hosted "use client"
+          // component loaded by the flight) can resolve "react" to a DIFFERENT
+          // file than the main client entry — an optimized-dep copy vs the
+          // node_modules copy — and Rollup then bundles a SECOND react into that
+          // chunk. react-dom activates the dispatcher on the shared react, the
+          // client component reads its own copy whose dispatcher stays null, and
+          // hooks crash at hydration ("Cannot read properties of null (reading
+          // 'useState')"). Deduping collapses them to one shared react chunk
+          // that every client-component chunk imports.
+          // Merge, don't replace: a consumer's own dedupe list must not drop
+          // react/react-dom deduping (losing it re-introduces the null-dispatcher
+          // hydration crash the block above describes).
+          dedupe: [
+            ...new Set([
+              ...(config.resolve?.dedupe ?? []),
+              "react",
+              "react-dom",
+              "react/jsx-runtime",
+              "react/jsx-dev-runtime",
+            ]),
+          ],
           // For static builds (browser/ESM): don't externalize anything - bundle everything
           // For client/server builds (SSR): externalize React modules as usual
           external: ssr

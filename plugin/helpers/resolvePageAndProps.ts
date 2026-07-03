@@ -8,7 +8,7 @@ import type {
 import { resolvePage } from "./resolvePage.js";
 import { resolveProps, type LoaderCtx } from "./resolveProps.js";
 import { routeToURL } from "../utils/routeToURL.js";
-import { matchRoutes } from "../router/matchRoute.js";
+import { matchRoutes, normalizePathForMatch } from "../router/matchRoute.js";
 
 /**
  * Resolves the page and props for a given route, works in combination with resolveComponents
@@ -48,19 +48,12 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       const rscSuffix =
         handlerOptions.build?.rscOutputPath ??
         DEFAULT_CONFIG.BUILD.rscOutputPath;
-      const normalizeForMatch = (u: string): string => {
-        let p = u.split("?")[0];
-        if (rscSuffix && p.endsWith(rscSuffix)) p = p.slice(0, -rscSuffix.length);
-        else if (p.endsWith(".html")) p = p.slice(0, -".html".length);
-        if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
-        return p || "/";
-      };
       const params =
         handlerOptions.params ??
         (handlerOptions.routePatterns?.length
           ? matchRoutes(
               handlerOptions.routePatterns,
-              normalizeForMatch(handlerOptions.route || url)
+              normalizePathForMatch(handlerOptions.route || url, rscSuffix)
             )?.params ?? {}
           : {});
       const loaderCtx: LoaderCtx = { params, request: handlerOptions.request };

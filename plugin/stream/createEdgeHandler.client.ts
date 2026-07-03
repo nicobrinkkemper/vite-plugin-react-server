@@ -82,10 +82,13 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     );
   }
 
-  const htmlHeaders = (): Record<string, string> => ({
-    "content-type": "text/html; charset=utf-8",
-    ...(headers ? Object.fromEntries(new Headers(headers)) : {}),
-  });
+  const htmlHeaders = (url: string, request: Request): Record<string, string> => {
+    const extra = typeof headers === "function" ? headers(url, request) : headers;
+    return {
+      "content-type": "text/html; charset=utf-8",
+      ...(extra ? Object.fromEntries(new Headers(extra)) : {}),
+    };
+  };
 
   const notFound = (url: string, request: Request): Response | Promise<Response> =>
     onNotFound
@@ -109,7 +112,9 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     if (renderDocument) {
       let flights;
       try {
-        flights = await renderDocument(url);
+        // Pass the request so a loader can gate an authenticated route on
+        // cookies/headers (the baked producer forwards it to props).
+        flights = await renderDocument(url, { request });
       } catch (error) {
         if (isUnknownRoute(error)) return notFound(url, request);
         onError?.(error);
@@ -132,13 +137,13 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       ]);
       return new Response(
         injectInlineFlightIntoHtml(htmlString, headlessBytes),
-        { headers: htmlHeaders() }
+        { headers: htmlHeaders(url, request) }
       );
     }
 
     let rscStream: ReadableStream<Uint8Array>;
     try {
-      rscStream = await render!(url);
+      rscStream = await render!(url, request);
     } catch (error) {
       // The producer is a closed manifest over `build.pages`; an unknown url is
       // a 404, not a 500. Everything else is a real failure — surface it.
@@ -159,6 +164,6 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       verbose,
     });
 
-    return new Response(htmlStream, { headers: htmlHeaders() });
+    return new Response(htmlStream, { headers: htmlHeaders(url, request) });
   };
 };

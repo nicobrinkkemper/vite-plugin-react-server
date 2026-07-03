@@ -1,0 +1,22 @@
+{
+  "name": "vite-plugin-react-server-router",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --app",
+    "edge": "node edge-server.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "vite-plugin-react-server": "file:../.."
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.9",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3",
+    "vite": "^8.1.0"
+  }
+}
