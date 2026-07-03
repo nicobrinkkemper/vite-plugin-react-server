@@ -367,7 +367,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const hashOption = options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
 
   // User-facing hash function that can take source content or filename
-  const hash = (input: string | null, _ssr: boolean, sourceContent?: string) => {
+  const hash = (input: string | null, ssr: boolean, sourceContent?: string) => {
     if (!input) return "";
     if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) {
       return input;
@@ -398,11 +398,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     //   - pagePattern / propsPattern / serverPattern: SSR entry modules the
     //     runtime imports by literal path (see resolvePageAndProps), not
     //     browser-served assets so caching isn't a concern either
-    // Everything else falls through to content-based hashing so prod deploys
-    // bust browser/CDN caches. Cross-environment hash consistency is provided
-    // by handleSsrEntryName / handleSsrAssetName in resolveUserConfig.ts
-    // (which feed sourceContent through to this function) and the
-    // augmentChunkHash plugin.
+    // Everything else falls through to content-based hashing: in a browser/
+    // static build for cache-busting, and in an SSR build only for
+    // client-reference modules (see the ssr guard below). Cross-environment hash
+    // consistency is provided by handleSsrEntryName / handleSsrAssetName in
+    // resolveUserConfig.ts (which feed sourceContent through to this function)
+    // and the augmentChunkHash plugin.
     if (
       htmlPattern.test(input) ||
       rscPattern.test(input) ||
@@ -445,6 +446,21 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
      }
     }
     
+    // In an SSR build (server / ssr-client), only CLIENT-REFERENCE modules need
+    // a content-addressed name: they're loaded by the browser via the flight, so
+    // their hashed id must stay consistent with the client build. Pure
+    // server-only modules are loaded by Node from disk by literal path — hashing
+    // them busts no browser/CDN cache and only churns filenames (and can emit
+    // duplicate chunks), so keep their names stable. The browser/static build
+    // (ssr=false) still hashes everything for real cache-busting.
+    if (
+      ssr &&
+      !isClientComponentByName(input) &&
+      !isClientComponentByCode(contentToHash)
+    ) {
+      return input;
+    }
+
     // Generate hash using Rollup-like algorithm
     const hashCharacters = typeof hashOption === 'object' && hashOption?.format === 'hex' ? 'hex' : 'base36';
     const contentHash = createRollupLikeHash(contentToHash, hashCharacters);
