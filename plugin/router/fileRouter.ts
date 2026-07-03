@@ -111,14 +111,19 @@ export function fileRouter(
 }
 
 /**
- * The declarative form of the plugin's `routes` option: a route-tree directory
- * (relative to `moduleBase`) plus optional per-dynamic-route prerender paths.
+ * The declarative form of the plugin's `routes` option: an optional route-tree
+ * directory plus optional per-dynamic-route prerender paths.
  *
- *   routes: { dir: "page" }   // scans moduleBase + "/page"
+ *   routes: {}                // scans `moduleBase` itself (the default)
+ *   routes: { dir: "app" }    // scans `moduleBase` + "/app" (a subfolder)
  */
 export type FileRoutesConfig = {
-  /** Route-tree directory, relative to `moduleBase` (`"page"` → `src/page`). */
-  dir: string;
+  /**
+   * Route-tree directory, relative to `moduleBase`. Defaults to `moduleBase`
+   * itself; set it only when routes live in a subfolder of a larger source root
+   * (`{ dir: "app" }` → `src/app` when `moduleBase: "src"`).
+   */
+  dir?: string;
   /** Concrete paths to prerender per dynamic route — vprs's getStaticPaths. */
   staticPaths?: StaticPathsMap;
 };
@@ -141,11 +146,11 @@ export function resolveRoutesOption(
   routes: RoutesOption,
   opts: { moduleBase: string; projectRoot: string },
 ): FileRouterConfig {
-  if ("dir" in routes) {
-    return fileRouter(join(opts.moduleBase, routes.dir), {
-      staticPaths: routes.staticPaths,
-      root: opts.projectRoot,
-    });
-  }
-  return routes;
+  // A pre-built router table has a `Page` resolver; a declarative config
+  // doesn't (so `dir` can be omitted to mean "scan moduleBase itself").
+  if ("Page" in routes) return routes;
+  return fileRouter(join(opts.moduleBase, routes.dir ?? ""), {
+    staticPaths: routes.staticPaths,
+    root: opts.projectRoot,
+  });
 }

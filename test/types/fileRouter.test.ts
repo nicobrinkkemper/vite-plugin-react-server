@@ -43,6 +43,14 @@ describe("fileRouter → plugin options", () => {
 });
 
 describe("routes field", () => {
+  it("accepts an empty config (scan moduleBase itself)", () => {
+    const options = {
+      moduleBase: "app",
+      routes: {},
+    } satisfies StreamPluginOptions;
+    expectTypeOf(options).toMatchTypeOf<StreamPluginOptions>();
+  });
+
   it("accepts the declarative { dir } form", () => {
     const options = {
       moduleBase: "src",

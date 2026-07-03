@@ -872,12 +872,12 @@ export interface StreamPluginOptions<
       }
     | undefined;
   /**
-   * File-based routing in one field. Pass `{ dir }` (relative to `moduleBase`,
-   * e.g. `{ dir: "page" }` → `src/page`) and vprs scans the route tree and
-   * derives `Page`, `props`, `routePatterns` and the prerender worklist for you
-   * — no need to restate them. Also accepts a `fileRouter()` result or a
-   * hand-rolled router table. Explicit `Page` / `props` / `routePatterns` /
-   * `build.pages` still win over what the router derives.
+   * File-based routing in one field. `routes: {}` scans `moduleBase` itself;
+   * `{ dir: "app" }` scans a subfolder (`src/app` when `moduleBase: "src"`).
+   * vprs derives `Page`, `props`, `routePatterns` and the prerender worklist
+   * from the tree — no need to restate them. Also accepts a `fileRouter()`
+   * result or a hand-rolled router table. Explicit `Page` / `props` /
+   * `routePatterns` / `build.pages` still win over what the router derives.
    */
   routes?: RoutesOption;
   // Manual configuration (a lower-level alternative to `routes`)

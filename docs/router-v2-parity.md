@@ -230,11 +230,13 @@ fixed as their surrounding code is reworked.
 
 ## 8. Resolved decisions (provisional — revisit if they bite)
 
-- **`routes.dir` — explicit, short.** Require `routes: { dir: "page" }` (relative
-  to `moduleBase`). Scopes routing to a subtree, stays predictable, and is one
-  short string. A zero-config `routes: true` (scan all of `moduleBase`) can be
-  added later if demand appears, but scanning every `page.*` under `src`
-  risks picking up non-route pages.
+- **`routes.dir` — optional, defaults to `moduleBase` root.** `routes: {}` scans
+  `moduleBase` itself; *where* the routes live is expressed by `moduleBase` (an
+  app can point it at `app`, matching the `app/`-at-root convention). Set `dir`
+  only when routes are a subfolder of a larger source root — mmc keeps
+  `moduleBase: "src"` and `routes: { dir: "app" }` because `src` also holds
+  `data`/`config`/`components`. So the default is Next-like (`app` at the base),
+  and `dir` is the escape hatch for a mixed `src`.
 - **Head/meta — `head.ts` export.** A `head.ts` beside the route exports
   `title`/`meta`, receiving `{ params, data }` so meta can derive from loader
   data, and merging up the matched chain. Matches the loader model and fits RSC
