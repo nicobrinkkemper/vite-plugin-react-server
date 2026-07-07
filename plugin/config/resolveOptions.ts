@@ -162,6 +162,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const effectiveRoutePatterns =
     options.routePatterns ?? routerTable?.routePatterns;
   const effectiveBuildPages = options.build?.pages ?? routerTable?.build?.pages;
+  // Nested layouts: the router table's per-url `route.tsx` chain resolver.
+  // Threaded like Page/props so the renderer folds the nested tree.
+  const effectiveLayouts = options.layouts ?? routerTable?.layouts;
 
   // Build options
   const preserveModulesRoot =
@@ -825,6 +828,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
           : DEFAULT_CONFIG.ON_EVENT,
       Page: effectivePage,
       props: effectiveProps,
+      layoutsResolver: effectiveLayouts,
+      layoutExportName:
+        options.layoutExportName ?? DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
       Root: options.Root ?? DEFAULT_CONFIG.ROOT,
       components: options.components,

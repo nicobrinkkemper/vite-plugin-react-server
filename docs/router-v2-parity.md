@@ -39,8 +39,8 @@ Legend: ✅ have · ⛏ v2 target · — n/a.
 | Data loader (params + request) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Client nav + prefetch | ✅ | ✅ | ✅ | ✅ | ✅ |
 | SSR / streaming / RSC | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Nested layouts / `<Outlet/>`** | ✅ | ✅ | ✅ | — | ⛏ |
-| **Per-layout (nested) loaders** | ✅ | ✅ | ✅ | — | ⛏ |
+| **Nested layouts / `<Outlet/>`** | ✅ | ✅ | ✅ | — | ✅ |
+| **Per-layout (nested) loaders** | ✅ | ✅ | ✅ | — | ✅ |
 | **Index routes** | ✅ | ✅ | ✅ | — | ⛏ |
 | **Pathless / grouping layouts** | ✅ | ✅ | ✅ | — | ⛏ |
 | **Per-route error boundary** | ✅ | ✅ | ✅ | — | ⛏ |
@@ -246,3 +246,36 @@ fixed as their surrounding code is reworked.
   that subtree; a root-level `error.tsx` catches anything otherwise uncaught
   (full Next/Remix parity). Falls through to vprs's existing error handling if no
   boundary matches.
+
+## 9. Shipped: nested layouts (`route.tsx`)
+
+Nested layouts + per-layer loaders (parity-matrix section 2, sequencing step 4)
+are implemented. A `route.tsx` beside/above a `page.tsx` is a server layout that
+renders `{children}` (the RSC-native `<Outlet/>`); `scanRoutes` builds the
+root→leaf chain, `resolvePageAndProps` resolves each layer's component + loader
+props (`resolveLayoutChain`), and `createElementWithReact` folds
+`<L0 {...p0}><L1 {...p1}><Page/>…` so the whole tree streams as one flight.
+
+Threading mirrors `Page`/`props`: `fileRouter().layouts(url)` → `resolveOptions`
+(`layoutsResolver`) → `getRouteFiles` → the render pipeline. Works on **static**
+prerender, **dev** (both the react-server main-thread render and the client-dev
+RSC worker), and the baked **edge** bundle. **Client navigation is free** — the
+server flight already carries the nested tree, so the client renders it with no
+extra work.
+
+Conventions as-built:
+
+- **Layout export = `Layout`** (configurable via `layoutExportName`). Distinct
+  from `Page` (leaf) and `Root` (the `#root` shell) — a segment may have both a
+  `Layout` and a `Page`, and they share that segment's `props.ts`.
+- **Layout modules are build inputs.** Every matched `route.tsx` (+ its shared
+  `props.ts`) is added to the server build so the renderer can load it; an
+  unbuilt/malformed layer is skipped (the page still renders) rather than failing
+  the route.
+- **Known limitation:** in *client-dev* (RSC in the worker) a layout loader sees
+  `{ params }` only, not the live `request` (it can't cross the worker boundary).
+  Page loaders keep `request` via main-thread pre-resolution; the react-server
+  dev path and edge give layout loaders `request` too. Request-dependent *layout*
+  loaders in client-dev are the one gap; revisit with pre-resolved layout props
+  if it bites. `head.ts`, `error.tsx`, `loading.tsx`, index/pathless routes, and
+  loader redirect/notFound remain (sequencing step 5).

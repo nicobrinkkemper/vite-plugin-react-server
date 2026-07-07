@@ -16,6 +16,7 @@
  */
 import type { Logger, ConfigEnv, ResolvedConfig } from "vite";
 import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
+import type { RouteLayer } from "../router/scanRoutes.js";
 import { resolveAutoDiscover } from "./autoDiscover/resolveAutoDiscover.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { createWorker } from "../worker/createWorker.js";
@@ -75,6 +76,7 @@ export interface SharedHandlerOptionsInput {
     props?: string | undefined;
     root?: string | undefined;
     html?: string | undefined;
+    layouts?: RouteLayer[] | undefined;
   };
   logger: Logger;
   rscWorker: any;
@@ -96,12 +98,15 @@ export function buildSharedHandlerOptions(input: SharedHandlerOptionsInput) {
     propsPath: routeFiles.props,
     rootPath: routeFiles.root,
     htmlPath: routeFiles.html,
+    // Nested layouts: the matched route's root→leaf `route.tsx` chain (paths).
+    layouts: routeFiles.layouts,
 
     // Export names
     pageExportName: userOptions.pageExportName,
     propsExportName: userOptions.propsExportName,
     rootExportName: userOptions.rootExportName,
     htmlExportName: userOptions.htmlExportName,
+    layoutExportName: userOptions.layoutExportName,
 
     // Route and loader
     route,

@@ -1,6 +1,6 @@
 import { join, relative, resolve, sep } from "node:path";
 import { fillPattern, matchRoutes } from "./matchRoute.js";
-import { type RouteEntry, scanRoutes } from "./scanRoutes.js";
+import { type RouteEntry, type RouteLayer, scanRoutes } from "./scanRoutes.js";
 
 // Per-dynamic-route enumeration of concrete paths to prerender. Each entry is a
 // full url ("/blog/tech/rsc") or a params object ({category:"tech",slug:"rsc"})
@@ -41,6 +41,12 @@ export type FileRouterConfig = {
    * `props(url, { params, request })`; returns `{}` when nothing matches.
    */
   getParams: (url: string) => Record<string, string>;
+  /**
+   * Root→leaf `route.tsx` layout chain for a url's matched route. Threaded like
+   * `Page`/`props`: resolveOptions projects it onto the request pipeline so the
+   * renderer folds the nested tree. Empty array when the route is unwrapped.
+   */
+  layouts: (url: string) => RouteLayer[];
 };
 
 export function fileRouter(
@@ -107,6 +113,7 @@ export function fileRouter(
     routes,
     routePatterns: patterns,
     getParams: (url) => matchRoutes(patterns, url)?.params ?? {},
+    layouts: (url) => matched(url).layouts,
   };
 }
 

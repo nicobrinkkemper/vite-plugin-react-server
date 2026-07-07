@@ -100,7 +100,7 @@ export const renderPages: RenderPagesFn = (
           results,
         } satisfies RenderPagesResult;
       }
-      const { page, props, root, html } =
+      const { page, props, root, html, layouts } =
         autoDiscoveredFiles.urlMap.get(route) || {};
       if (!page) continue;
 
@@ -117,6 +117,12 @@ export const renderPages: RenderPagesFn = (
         const resolvedHtmlPath = html
           ? resolvePathWithManifest(html, manifest)
           : undefined;
+        // Nested layouts: manifest-resolve each layer's built module (mirroring
+        // page/props) so the renderer can load + fold the chain.
+        const resolvedLayouts = layouts?.map((l) => ({
+          component: resolvePathWithManifest(l.component, manifest),
+          props: l.props ? resolvePathWithManifest(l.props, manifest) : undefined,
+        }));
 
         if (options.verbose) {
           options.logger?.info(
@@ -192,6 +198,7 @@ export const renderPages: RenderPagesFn = (
           propsPath: resolvedPropsPath as string,
           rootPath: resolvedRootPath as string,
           htmlPath: resolvedHtmlPath as string,
+          layouts: resolvedLayouts,
           cssFiles: cssFilesByPage.get(route) ?? new Map(),
           // Ensure global CSS is available to Html component
           globalCss: options.globalCss ?? new Map(),

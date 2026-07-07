@@ -29,6 +29,8 @@ import type {
 } from "./helpers/serializeUserOptions.js";
 import type { AllowedDirectives, Program } from "react-server-loader/directives";
 import type { RoutesOption } from "./router/fileRouter.js";
+import type { RouteLayer } from "./router/scanRoutes.js";
+import type { ResolvedLayoutLayer } from "./helpers/resolveLayoutChain.js";
 import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 import type {
   RenderMetrics,
@@ -425,6 +427,16 @@ export type ResolvedUserOptions = {
    * the plugin config); empty when no file-based router is configured.
    */
   routePatterns?: readonly string[];
+
+  /**
+   * Per-url `route.tsx` layout-chain resolver (from the user's `layouts` option /
+   * `fileRouter(...)`). Named distinctly from the resolved `layouts: RouteLayer[]`
+   * array on {@link CreateHandlerOptions} so a `...userOptions` spread never
+   * collides. Absent when no file-based router is configured.
+   */
+  layoutsResolver?: StreamPluginOptions["layouts"];
+  /** Export a `route.tsx` uses for its layout component (default "Layout"). */
+  layoutExportName?: string;
 
   // Required complex properties
   Page: StreamPluginOptions["Page"];
@@ -891,6 +903,14 @@ export interface StreamPluginOptions<
    */
   routePatterns?: readonly string[];
   /**
+   * Per-url resolver for a route's root→leaf `route.tsx` layout chain — spread
+   * from `fileRouter().layouts`. vprs folds the chain around the leaf page so the
+   * nested tree streams as one flight. Omit for a flat / hand-rolled router.
+   */
+  layouts?: (url: string) => RouteLayer[];
+  /** Export a `route.tsx` uses for its layout component (default "Layout"). */
+  layoutExportName?: string;
+  /**
    * Extra `node_modules` packages to treat as client (`"use client"`) packages
    * beyond what vprs auto-detects. Rarely needed.
    */
@@ -998,6 +1018,7 @@ export type CreateHandlerOptions<
   | "rscWorkerPath"
   | "htmlWorkerPath"
   | "routePatterns"
+  | "layoutExportName"
 > & {
   id?: string;
   /**
@@ -1024,6 +1045,16 @@ export type CreateHandlerOptions<
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;
+  /**
+   * Resolved root→leaf `route.tsx` layer paths for the matched route (from
+   * `getRouteFiles`). The renderer loads + folds these around the leaf page.
+   */
+  layouts?: RouteLayer[];
+  /**
+   * Loaded + prop-resolved layout chain (from `resolvePageAndProps`), consumed by
+   * `createElementWithReact` to fold the nested tree. Set on the render path only.
+   */
+  layoutChain?: ResolvedLayoutLayer[];
   pageProps?: Interface["PageProps"];
   PageComponent?:
     | PageComponentType<Interface["PageProps"], R>
@@ -1300,7 +1331,14 @@ export type ResolvedBuildPages = {
    */
   urlMap: Map<
     string,
-    { props?: string; page: string; root?: string; html?: string }
+    {
+      props?: string;
+      page: string;
+      root?: string;
+      html?: string;
+      /** Resolved `route.tsx` layer module paths (root→leaf), for nested layouts. */
+      layouts?: { component: string; props?: string }[];
+    }
   >;
   errors: unknown[];
 };

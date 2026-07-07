@@ -27,6 +27,8 @@ type ResolveAutoDiscoverProps = {
     | "moduleBasePath"
     | "Page"
     | "props"
+    | "layoutsResolver"
+    | "layoutExportName"
     | "htmlWorkerPath"
     | "rscWorkerPath"
     | "pageExportName"
@@ -164,6 +166,17 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
         if (typeof src !== "string") continue;
         const [key, value] = userOptions.normalizer(src);
         if (!routeModuleInputs[key]) routeModuleInputs[key] = value;
+      }
+      // Nested layouts: every matched `route.tsx` (and its shared props) must be
+      // BUILT too, or the renderer can't load the chain to fold it (the layer
+      // gets silently skipped). Add each layer's component + props as inputs,
+      // mirroring the Page/props probe above.
+      for (const layer of userOptions.layoutsResolver?.(probe) ?? []) {
+        for (const src of [layer.component, layer.props]) {
+          if (typeof src !== "string") continue;
+          const [key, value] = userOptions.normalizer(src);
+          if (!routeModuleInputs[key]) routeModuleInputs[key] = value;
+        }
       }
     }
 

@@ -94,6 +94,32 @@ export function Page({ label }: { label: string }) {
 `,
     );
 
+    // Nested layouts: a root `route.tsx` wraps every route; a `profile/route.tsx`
+    // section layout (with its OWN loader) nests inside it around /profile/*. A
+    // matched /profile/42 composes root-layout › profile-layout › page, each with
+    // its own props — proving the tree scan + chain compose + per-layer loaders.
+    await writeFile(
+      join(testDir, "src/routes/route.tsx"),
+      `import React from "react";
+export function Layout({ children }: { children?: React.ReactNode }) {
+  return <div data-testid="root-layout">ROOTLAYOUTMARK{children}</div>;
+}
+`,
+    );
+    await writeFile(
+      join(testDir, "src/routes/profile/route.tsx"),
+      `import React from "react";
+export function Layout({ tag, children }: { tag?: string; children?: React.ReactNode }) {
+  return <section data-testid="profile-layout">{tag}{children}</section>;
+}
+`,
+    );
+    await writeFile(
+      join(testDir, "src/routes/profile/props.ts"),
+      `export const props = () => ({ tag: "PROFILELAYOUTMARK" });
+`,
+    );
+
     const fr = fileRouter(join(testDir, "src/routes"), { root: testDir });
 
     server = await createClientDevServer(
@@ -103,6 +129,7 @@ export function Page({ label }: { label: string }) {
         Page: fr.Page,
         props: fr.props,
         routePatterns: fr.routePatterns,
+        layouts: fr.layouts,
         build: { pages: fr.build.pages as string[] },
         verbose: false,
       } as any,
@@ -155,6 +182,23 @@ export function Page({ label }: { label: string }) {
 
   it("threads a catch-all's _splat (rest of the path) into the loader", async () => {
     const flight = await readFlight("/files/a/b/c.png/index.rsc");
+    expect(flight).toContain("splat-a/b/c.png-end");
+  });
+
+  it("folds the nested route.tsx layout chain around the leaf page", async () => {
+    const flight = await readFlight("/profile/42/index.rsc");
+    // Every layer rendered: root layout, section layout (with its own loader
+    // prop), and the leaf page (with its param-derived prop).
+    expect(flight).toContain("ROOTLAYOUTMARK"); // root route.tsx
+    expect(flight).toContain("PROFILELAYOUTMARK"); // profile/route.tsx loader prop
+    expect(flight).toContain("pid-42-end"); // leaf page loader prop
+  });
+
+  it("renders an unwrapped-by-section route with only the root layout", async () => {
+    // /files/$ has no section route.tsx, so just the root layout wraps it.
+    const flight = await readFlight("/files/a/b/c.png/index.rsc");
+    expect(flight).toContain("ROOTLAYOUTMARK");
+    expect(flight).not.toContain("PROFILELAYOUTMARK");
     expect(flight).toContain("splat-a/b/c.png-end");
   });
 

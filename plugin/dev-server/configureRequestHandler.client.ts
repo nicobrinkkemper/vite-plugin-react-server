@@ -166,6 +166,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       const pagePath = routeFiles.page;
       const propsPath = routeFiles.props;
       const rootPath = routeFiles.root;
+      const layouts = routeFiles.layouts;  // Nested layouts: worker folds the chain
       // Note: htmlPath not used for RSC requests (always "" for headless mode)
       
       // Pre-load props on main thread to apply Vite transforms (server actions need this).
@@ -281,6 +282,10 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             url: info.url,
             pagePath: pagePath,
             propsPath: propsPath,
+            // Nested layouts: the route's `route.tsx` chain (paths); the worker
+            // loads + folds it into the flight (loaders see `{ params }` — no
+            // request across the worker boundary).
+            layouts: layouts,
             // Pass pre-resolved props (loaded via Vite's ssrLoadModule for proper transforms)
             resolvedPageProps: resolvedPageProps,
             rootPath: rootPath,

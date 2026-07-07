@@ -199,6 +199,7 @@ export const configureReactServer: ConfigureReactServerFn =
         const pagePath = routeFiles.page;
         const propsPath = routeFiles.props;
         const rootPath = routeFiles.root;
+        const layouts = routeFiles.layouts;
 
         // Check if we have a page path - if not, skip this route
         if (!pagePath) {
@@ -242,6 +243,7 @@ export const configureReactServer: ConfigureReactServerFn =
         let PageComponent: React.ComponentType<any> = React.Fragment;
         let RootComponent: React.ComponentType<any> = DefaultRoot;
         let pageProps: any = {};
+        let layoutChain: any;
         
         // Load the Root component
         if (rootPath) {
@@ -390,6 +392,11 @@ export const configureReactServer: ConfigureReactServerFn =
             route: info.route,
             moduleBaseURL: server.config.base,
             routePatterns: userHandlerOptions.routePatterns,
+            // Nested layouts: resolve the chain here (dev renders directly on the
+            // main thread via Vite's runner, so a layout loader also sees the live
+            // `request`) and thread the resolved chain into the stream below.
+            layouts,
+            layoutExportName: userHandlerOptions.layoutExportName,
             request,
             loader,
             verbose,
@@ -405,6 +412,7 @@ export const configureReactServer: ConfigureReactServerFn =
 
           if (propsResult.type === "success") {
             pageProps = propsResult.pageProps || {};
+            layoutChain = propsResult.layoutChain;
             if (verbose) {
               logger.info(`[configureReactServer] Loaded props for route ${info.route}: ${JSON.stringify(pageProps, null, 2)}`);
             }
@@ -489,7 +497,7 @@ export const configureReactServer: ConfigureReactServerFn =
         // Use worker-based RSC stream if worker is available, otherwise fall back to direct rendering
         // CRITICAL: For RSC requests, use htmlPath: "" for headless mode (no Html wrapper)
         // This prevents hydration errors where <html> would be rendered inside #root div
-        const rscResult = rscWorker 
+        const rscResult = rscWorker
           ? createRscStream({
               ...handlerOptions,
               url: info.url,
@@ -497,6 +505,7 @@ export const configureReactServer: ConfigureReactServerFn =
               propsPath,
               rootPath,  // Pass the root path for worker to load
               htmlPath: "",  // Empty string = headless RSC (no Html wrapper)
+              layouts,  // Nested layouts: worker resolves + folds the chain
               rscWorker,
               cssFiles: collectedCssFiles,
               globalCss: new Map(),
@@ -508,6 +517,7 @@ export const configureReactServer: ConfigureReactServerFn =
               RootComponent: RootComponent as any,
               HtmlComponent: React.Fragment,  // Headless stream - no Html wrapper
               pageProps: pageProps,  // Pass the loaded props
+              layoutChain,  // Nested layouts: pre-resolved chain, folded by createElementWithReact
               cssFiles: collectedCssFiles,
             });
 

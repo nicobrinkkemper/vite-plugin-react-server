@@ -36,8 +36,8 @@ async function renderSingleRoute(
   failedRoutes: Map<string, unknown>,
 ): Promise<{ route: string; results: RenderPageResult[]; error?: Error }> {
   const { autoDiscoveredFiles, cssFilesByPage, ...options } = handlerOptions;
-  const { page, props, root, html } = autoDiscoveredFiles.urlMap?.get(route) || {};
-  
+  const { page, props, root, html, layouts } = autoDiscoveredFiles.urlMap?.get(route) || {};
+
   if (!page) {
     return { route, results: [], error: new Error(`No page found for route ${route}`) };
   }
@@ -47,6 +47,12 @@ async function renderSingleRoute(
     const resolvedPropsPath = props ? resolvePathWithManifest(props, manifest) : undefined;
     const resolvedRootPath = root ? resolvePathWithManifest(root, manifest) : undefined;
     const resolvedHtmlPath = html ? resolvePathWithManifest(html, manifest) : undefined;
+    // Nested layouts: manifest-resolve each built layer so the RSC worker folds
+    // the chain into the flight (mirrors page/props resolution above).
+    const resolvedLayouts = layouts?.map((l) => ({
+      component: resolvePathWithManifest(l.component, manifest),
+      props: l.props ? resolvePathWithManifest(l.props, manifest) : undefined,
+    }));
 
     // Store results for metrics tracking
     const routeResults = new Map<string, RenderPageResult>();
@@ -92,6 +98,7 @@ async function renderSingleRoute(
       propsPath: resolvedPropsPath as string,
       rootPath: resolvedRootPath as string,
       htmlPath: resolvedHtmlPath as string,
+      layouts: resolvedLayouts,
       cssFiles: cssFilesByPage?.get(route) ?? new Map(),
       globalCss: options.globalCss ?? new Map(),
       id: `${route}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,

@@ -85,6 +85,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
     let RootComponent: any = null;
     let HtmlComponent: any = null;
     let pageProps: any = {}; // Initialize as empty object - props function will populate it
+    let layoutChain: any;
 
     // Use resolvePageAndProps helper to properly load page and props
     if (handlerOptions.pagePath) {
@@ -101,6 +102,8 @@ export const renderPage: RenderPageFn = async function* renderPage(
           url: handlerOptions.url,
           moduleBaseURL: handlerOptions.moduleBaseURL,
           routePatterns: handlerOptions.routePatterns,
+          layouts: handlerOptions.layouts,
+          layoutExportName: handlerOptions.layoutExportName,
           build: {
             rscOutputPath: handlerOptions.build.rscOutputPath,
           },
@@ -111,6 +114,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
           // Always use the props returned from the props function
           // Root components can handle empty props with their defaults
           pageProps = pageAndPropsResult.pageProps || {};
+          layoutChain = pageAndPropsResult.layoutChain;
           
           if (handlerOptions.verbose) {
             handlerOptions.logger?.info(
@@ -224,8 +228,9 @@ export const renderPage: RenderPageFn = async function* renderPage(
       RootComponent,
       HtmlComponent,
       pageProps,
+      layoutChain,
     };
-    
+
     if (handlerOptions.verbose) {
       handlerOptions.logger?.info(
         `[renderPage.server] Created newHandlerOptions for route ${handlerOptions.route} with pageProps: ${JSON.stringify(pageProps)}`

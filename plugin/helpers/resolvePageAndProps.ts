@@ -7,8 +7,13 @@ import type {
 } from "../types.js";
 import { resolvePage } from "./resolvePage.js";
 import { resolveProps, type LoaderCtx } from "./resolveProps.js";
+import {
+  resolveLayoutChain,
+  type ResolvedLayoutLayer,
+} from "./resolveLayoutChain.js";
 import { routeToURL } from "../utils/routeToURL.js";
 import { matchRoutes, normalizePathForMatch } from "../router/matchRoute.js";
+import type { RouteLayer } from "../router/scanRoutes.js";
 
 /**
  * Resolves the page and props for a given route, works in combination with resolveComponents
@@ -244,12 +249,34 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         );
       }
 
+      // Nested layouts: resolve the matched route's root→leaf `route.tsx` chain
+      // (loaded components + per-layer loader props) so createElementWithReact can
+      // fold them around the leaf page. Absent/empty when the route has no layouts.
+      let layoutChain: ResolvedLayoutLayer[] | undefined;
+      if (handlerOptions.layouts?.length) {
+        layoutChain = await resolveLayoutChain({
+          layouts: handlerOptions.layouts,
+          url,
+          ctx: loaderCtx,
+          loader: handlerOptions.loader,
+          layoutExportName:
+            handlerOptions.layoutExportName ??
+            DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
+          propsExportName:
+            handlerOptions.propsExportName ??
+            DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+          verbose: handlerOptions.verbose,
+          logger: handlerOptions.logger,
+        });
+      }
+
       return {
         type: "success" as const,
         PageComponent: resolvePageResult.module[
           handlerOptions.pageExportName
         ] as never,
         pageProps: pageProps ?? {}, // Ensure pageProps is always an object, not undefined
+        layoutChain,
       };
     } catch (error) {
       if (handlerOptions.verbose) {
@@ -270,6 +297,8 @@ type ResolvePageAndPropsResult<T extends PagePropOpt = PagePropOpt> =
       error?: never;
       PageComponent: PageComponentType<T>;
       pageProps: T;
+      /** Resolved root→leaf `route.tsx` layout chain (empty/undefined when none). */
+      layoutChain?: ResolvedLayoutLayer[];
     }
   | {
       type: "error";
@@ -301,6 +330,10 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
     moduleBaseURL?: string;
     route?: string;
     url?: string;
+    /** Root→leaf `route.tsx` layers for the matched route (from scanRoutes). */
+    layouts?: RouteLayer[];
+    /** Export name a `route.tsx` uses for its layout (default "Layout"). */
+    layoutExportName?: string;
     build?: {
       rscOutputPath: string;
       outDir?: never;

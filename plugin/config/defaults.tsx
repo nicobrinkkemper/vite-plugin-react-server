@@ -158,6 +158,10 @@ export const DEFAULT_CONFIG = {
   PROPS_EXPORT_NAME: "props",
   HTML_EXPORT_NAME: "Html",
   ROOT_EXPORT_NAME: "Root",
+  // A `route.tsx` nested layout exports its component under this name (renders
+  // `{children}` — the RSC-native `<Outlet/>`). Distinct from Page (leaf) and
+  // Root (the #root shell): a segment can have both a Layout and a Page.
+  LAYOUT_EXPORT_NAME: "Layout",
   HTML_WORKER_PATH: `worker/html/html-worker.${
     process.env["NODE_ENV"] === "production" ? "production" : "development"
   }.js`,

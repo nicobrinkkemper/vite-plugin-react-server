@@ -29,6 +29,9 @@ export interface RscWorkerStreamOptions {
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;
+  /** Nested-layout chain (`route.tsx` layer paths) for the matched route. */
+  layouts?: { component: string; props?: string }[];
+  layoutExportName?: string;
 }
 
 /**
@@ -59,7 +62,9 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
     pagePath,
     propsPath,
     rootPath,
-    htmlPath
+    htmlPath,
+    layouts,
+    layoutExportName,
   } = options;
 
   // Create two separate MessagePorts for clean separation of concerns
@@ -156,6 +161,8 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
       propsPath,
       rootPath,
       htmlPath,
+      layouts,
+      layoutExportName,
       build: build ? {
         outDir: build.outDir,
         assetsDir: build.assetsDir,
