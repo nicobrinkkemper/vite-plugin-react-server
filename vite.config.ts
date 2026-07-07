@@ -1,9 +1,7 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
-import { filePreserverPlugin } from "./plugin/file-preserver/plugin.js";
 
 export default defineConfig({
-  plugins: [filePreserverPlugin("utils/env")],
   build: {
     minify: false,
     target: "esnext",
@@ -53,6 +51,14 @@ export default defineConfig({
         ),
         "plugin/components/index": resolve(__dirname, "plugin/components/index.ts"),
         "plugin/utils/index": resolve(__dirname, "plugin/utils/index.ts"),
+        // Isomorphic env-bound URL helpers, re-exported from the /utils barrels.
+        // Declared as an entry (like the router API below) so
+        // preserveEntrySignatures keeps its FULL public surface — vprs only
+        // imports `baseURL` internally, so otherwise cross-entry tree-shaking
+        // drops `absoluteURL` / `pageURL` from the emitted chunk and the barrel
+        // re-export dangles. (Same hosted-module export-prune that bites
+        // consumers — see bead c2u.8; keeping it fixed here is the pattern.)
+        "plugin/utils/envUrls": resolve(__dirname, "plugin/utils/envUrls.ts"),
         "plugin/storybook/preset": resolve(__dirname, "plugin/storybook/preset.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
         
@@ -81,10 +87,6 @@ export default defineConfig({
         "plugin/stream/createRscStream.server": resolve(__dirname, "plugin/stream/createRscStream.server.ts"),
         "plugin/stream/createRscStream.client": resolve(__dirname, "plugin/stream/createRscStream.client.ts"),
         
-        "plugin/file-preserver/plugin": resolve(
-          __dirname,
-          "plugin/file-preserver/plugin.ts"
-        ),
         "plugin/loader/directives/index": resolve(
           __dirname,
           "plugin/loader/directives/index.ts"
@@ -206,10 +208,21 @@ export default defineConfig({
     // Preserve module structure for proper tree-shaking
     modulePreload: false,
   },
-  // Prevent Vite from replacing import.meta.hot with undefined during library build.
-  // Consumers use useRscHmr in dev where import.meta.hot IS defined.
+  // Keep these import.meta expressions UNPARSED in the shipped dist so the
+  // CONSUMER's Vite resolves them against the real app, not vprs's build. A
+  // self-referential define (replace X with X) is a reliable, bundler-agnostic
+  // shield that works under both esbuild and Vite 8's Oxc.
+  // - import.meta.hot: consumers use useRscHmr in dev where hot IS defined.
+  // - import.meta.env.{BASE_URL,PUBLIC_ORIGIN,DEV,MODE}: read (dot access) by the
+  //   isomorphic env-URL helper (utils/envUrls) so absoluteURL/baseURL resolve
+  //   against the consumer's real BASE_URL / PUBLIC_ORIGIN, not "/".
+  //   (utils/env.ts uses bracket access to stay out of this + Node-safe.)
   define: {
     "import.meta.hot": "import.meta.hot",
+    "import.meta.env.BASE_URL": "import.meta.env.BASE_URL",
+    "import.meta.env.PUBLIC_ORIGIN": "import.meta.env.PUBLIC_ORIGIN",
+    "import.meta.env.DEV": "import.meta.env.DEV",
+    "import.meta.env.MODE": "import.meta.env.MODE",
   },
   esbuild: {
     // Preserve import.meta expressions in utils files

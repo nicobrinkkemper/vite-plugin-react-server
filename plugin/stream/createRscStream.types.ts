@@ -2,6 +2,7 @@ import type { StreamMetrics } from "../helpers/metrics.js";
 import type { Stream } from "node:stream";
 import type { OnMetrics, PanicThreshold } from "../types.js";
 import type { SerializableHandlerOptions } from "../helpers/createSerializableHandlerOptions.js";
+import type { ResolvedLayoutLayer } from "../helpers/resolveLayoutChain.js";
 
 /**
  * Base RSC Stream Result - common interface for both client and server
@@ -60,10 +61,15 @@ export type ClientRscStreamOptions = SerializableHandlerOptions &  {
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;
+  /** Nested-layout chain (`route.tsx` layer paths) for the matched route. */
+  layouts?: { component: string; props?: string }[];
+  /** Loaded + prop-resolved layout chain (pre-resolved render path). */
+  layoutChain?: ResolvedLayoutLayer[];
   pageExportName: string;
   propsExportName: string;
   rootExportName: string;
   htmlExportName: string;
+  layoutExportName?: string;
   moduleBase: string;
   publicOrigin: string;
   rscTimeout: number;
@@ -106,10 +112,15 @@ export interface ServerRscStreamOptions {
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;
+  /** Nested-layout chain (`route.tsx` layer paths) for the matched route. */
+  layouts?: { component: string; props?: string }[];
+  /** Loaded + prop-resolved layout chain (pre-resolved render path). */
+  layoutChain?: ResolvedLayoutLayer[];
   pageExportName: string;
   propsExportName: string;
   rootExportName: string;
   htmlExportName: string;
+  layoutExportName?: string;
   moduleBase: string;
   publicOrigin: string;
   rscTimeout: number;

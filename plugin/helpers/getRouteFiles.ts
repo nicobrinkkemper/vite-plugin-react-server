@@ -2,6 +2,7 @@ import type { PageName, PropsName, ResolvedUserOptions } from "../types.js";
 
 import { resolveUrlOption } from "../config/resolveUrlOption.js";
 import type { AutoDiscoveredFiles } from "../types.js";
+import type { RouteLayer } from "../router/scanRoutes.js";
 import { createLogger } from "vite";
 
 type GetRouteFilesSuccess = {
@@ -10,6 +11,8 @@ type GetRouteFilesSuccess = {
   props?: string | undefined;
   root?: string | undefined;
   html?: string | undefined;
+  /** Root→leaf `route.tsx` layers for the route (empty when unwrapped). */
+  layouts?: RouteLayer[] | undefined;
 };
 
 type GetRouteFilesError = {
@@ -52,6 +55,7 @@ export const getRouteFiles = async (
     | PropsName
     | "Root"
     | "Html"
+    | "layoutsResolver"
     | "moduleBasePath"
     | "verbose"
     | "pageExportName"
@@ -61,6 +65,9 @@ export const getRouteFiles = async (
   >,
   logger = createLogger()
 ): Promise<GetRouteFilesSuccess | GetRouteFilesError> => {
+  // Nested-layout chain for this route. Cheap (a matched-table lookup in the
+  // file router); threaded alongside page/props so the renderer can fold it.
+  const layouts = userOptions.layoutsResolver?.(route) ?? undefined;
   if (autoDiscoveredFiles.urlMap.has(route)) {
     const cached = autoDiscoveredFiles.urlMap.get(route)!;
     const { page, props } = cached;
@@ -122,7 +129,7 @@ export const getRouteFiles = async (
       autoDiscoveredFiles.urlMap.set(route, { page, props, root, html });
     }
 
-      return { type: "success", page, props, root, html };
+      return { type: "success", page, props, root, html, layouts };
     }
   }
   if (userOptions.verbose) {
@@ -177,7 +184,7 @@ export const getRouteFiles = async (
       root,
       html,
     });
-    return { type: "success", page: Page, props: undefined, root, html };
+    return { type: "success", page: Page, props: undefined, root, html, layouts };
   }
   if (userOptions.verbose) {
     logger.info("[getRouteFiles] Resolving props option");
@@ -195,5 +202,5 @@ export const getRouteFiles = async (
     logger.info(`[getRouteFiles] Props resolved to: ${props}`);
   }
   autoDiscoveredFiles.urlMap.set(route, { page: Page, props, root, html });
-  return { type: "success", page: Page, props, root, html };
+  return { type: "success", page: Page, props, root, html, layouts };
 };

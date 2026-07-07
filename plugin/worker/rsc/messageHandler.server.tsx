@@ -35,9 +35,15 @@ import {
 import { routeToURL } from "../../utils/routeToURL.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
+import {
+  resolveLayoutChain,
+  type ResolvedLayoutLayer,
+} from "../../helpers/resolveLayoutChain.js";
+import { matchRoutes, normalizePathForMatch } from "../../router/matchRoute.js";
 import { resolveComponent } from "../../helpers/resolveComponent.js";
 import { handleError } from "../../error/handleError.js";
 import type { PanicThreshold } from "../../types.js";
+import type { RouteLayer } from "../../router/scanRoutes.js";
 import { workerUserOptions } from "./workerUserOptions.js";
 import { hydrateUserOptions } from "../../helpers/hydrateUserOptions.js";
 import { React } from "../../vendor/vendor.server.js";
@@ -197,6 +203,10 @@ async function loadComponentsWithCache(options: {
   panicThreshold?: PanicThreshold;
   routePatterns?: readonly string[];  // For request-time param resolution
   resolvedPageProps?: Record<string, unknown>;  // Pre-resolved props from main thread
+  layouts?: RouteLayer[];  // Root→leaf route.tsx chain for nested layouts
+  layoutExportName?: string;
+  rscOutputPath?: string;  // Transport suffix, for stripping when matching params
+  request?: Request;  // Rebuilt from serializedRequest; threaded into loader ctx
 }) {
   const {
     pagePath,
@@ -214,7 +224,16 @@ async function loadComponentsWithCache(options: {
     panicThreshold = "none",
     routePatterns,
     resolvedPageProps,
+    layouts,
+    layoutExportName = DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
+    rscOutputPath = DEFAULT_CONFIG.BUILD.rscOutputPath,
+    request,
   } = options;
+
+  // Nested layouts: resolved once per request (independent of the page-cache
+  // fast paths below), so a cache hit still folds the chain. Filled in after
+  // the page/props block once params are known.
+  let layoutChain: ResolvedLayoutLayer[] | undefined;
   
   // Normalize URL for cache key - ensure trailing slash for folder routes
   // This ensures /8mmc/levels and /8mmc/levels/ use the same cache key
@@ -313,6 +332,7 @@ async function loadComponentsWithCache(options: {
           propsExportName,
           url: normalizedUrl,
           routePatterns,
+          request,
           loader,
           verbose: verbose || false,
           logger,
@@ -396,6 +416,7 @@ async function loadComponentsWithCache(options: {
           propsExportName,
           url: normalizedUrl,
           routePatterns,
+          request,
           loader,
           verbose: verbose || false,
           logger,
@@ -428,6 +449,28 @@ async function loadComponentsWithCache(options: {
         pageProps = {};
       }
     }
+  }
+
+  // Nested layouts: resolve the matched route's `route.tsx` chain (components +
+  // per-layer loader props) once. Params mirror the page's own resolution
+  // (`normalizePathForMatch` strips the transport suffix). `request` is rebuilt
+  // from the serialized request (dev), so layout loaders can gate on
+  // cookies/headers here too; undefined at static build.
+  if (layouts?.length) {
+    const params = routePatterns?.length
+      ? matchRoutes(routePatterns, normalizePathForMatch(url, rscOutputPath))
+          ?.params ?? {}
+      : {};
+    layoutChain = await resolveLayoutChain({
+      layouts,
+      url: normalizedUrl,
+      ctx: { params, request },
+      loader,
+      layoutExportName,
+      propsExportName,
+      verbose,
+      logger,
+    });
   }
 
   // Load Root component
@@ -597,7 +640,7 @@ async function loadComponentsWithCache(options: {
     }
   }
 
-  return { PageComponent, pageProps, RootComponent, HtmlComponent };
+  return { PageComponent, pageProps, RootComponent, HtmlComponent, layoutChain };
 }
 
 /**
@@ -756,7 +799,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           logger?.info(`  htmlPath: ${msg.options.htmlPath}`);
         }
 
-        const { PageComponent, pageProps, RootComponent, HtmlComponent } =
+        const { PageComponent, pageProps, RootComponent, HtmlComponent, layoutChain } =
           await loadComponentsWithCache({
             pagePath: msg.options.pagePath,
             propsPath: msg.options.propsPath,
@@ -777,6 +820,27 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             panicThreshold: msg.options.panicThreshold,
             routePatterns: msg.options.routePatterns ?? userOptions.routePatterns,
             resolvedPageProps: msg.options.resolvedPageProps,  // Pre-resolved from main thread
+            layouts: msg.options.layouts,
+            layoutExportName:
+              msg.options.layoutExportName ?? userOptions.layoutExportName,
+            rscOutputPath:
+              userOptions.build?.rscOutputPath ??
+              DEFAULT_CONFIG.BUILD.rscOutputPath,
+            // Rebuild a Request from the serialized parts (dev only) so layout
+            // and page loaders can read cookies/headers in the worker. A malformed
+            // stand-in must never abort the render, so guard the construction.
+            request: (() => {
+              const sr = msg.options.serializedRequest;
+              if (!sr?.url) return undefined;
+              try {
+                return new Request(sr.url, {
+                  method: sr.method || "GET",
+                  headers: sr.headers || {},
+                });
+              } catch {
+                return undefined;
+              }
+            })(),
           });
 
         if (verbose) {
@@ -857,6 +921,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           PageComponent,
           RootComponent,
           HtmlComponent,
+          layoutChain,
           cssFiles: combinedCssFiles,
           globalCss: msg.options.globalCss ?? new Map(),
           manifest: msg.options.manifest || {},

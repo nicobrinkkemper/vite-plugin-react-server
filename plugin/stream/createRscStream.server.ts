@@ -103,6 +103,8 @@ export const createRscStream: CreateRscStreamFn<"server"> =
           propsPath: options.propsPath,
           rootPath: options.rootPath,
           htmlPath: options.htmlPath,
+          layouts: options.layouts,
+          layoutExportName: options.layoutExportName,
         });
 
         const { stream: workerStream, dataPort1, controlPort1 } = workerStreamResult;

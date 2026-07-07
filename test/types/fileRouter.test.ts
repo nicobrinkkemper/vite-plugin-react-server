@@ -41,3 +41,38 @@ describe("fileRouter → plugin options", () => {
     expectTypeOf(options).toMatchTypeOf<StreamPluginOptions>();
   });
 });
+
+describe("routes field", () => {
+  it("accepts an empty config (scan moduleBase itself)", () => {
+    const options = {
+      moduleBase: "app",
+      routes: {},
+    } satisfies StreamPluginOptions;
+    expectTypeOf(options).toMatchTypeOf<StreamPluginOptions>();
+  });
+
+  it("accepts the declarative { dir } form", () => {
+    const options = {
+      moduleBase: "src",
+      routes: {
+        dir: "page",
+        staticPaths: { "/profile/$id": () => [{ id: "1" }] },
+      },
+    } satisfies StreamPluginOptions;
+    expectTypeOf(options).toMatchTypeOf<StreamPluginOptions>();
+  });
+
+  it("accepts a pre-built router table", () => {
+    const table = {
+      Page: (u: string) => u,
+      props: () => undefined,
+      routePatterns: [] as readonly string[],
+      build: { pages: [] as string[] },
+    };
+    const options = {
+      moduleBase: "src",
+      routes: table,
+    } satisfies StreamPluginOptions;
+    expectTypeOf(options).toMatchTypeOf<StreamPluginOptions>();
+  });
+});

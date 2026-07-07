@@ -62,7 +62,7 @@ import { gracefulWorkerShutdown } from "../worker/gracefulShutdown.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { join } from "node:path";
 
-import { baseURL } from "../utils/envUrls.node.js";
+import { baseURL } from "../utils/envUrls.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 // cssCollector removed - using filesystem-based CSS processing
 

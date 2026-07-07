@@ -62,6 +62,8 @@ export async function resolveBuildPages({
     | PropsName
     | "Root"
     | "Html"
+    | "layoutsResolver"
+    | "layoutExportName"
     | "build"
     | "moduleBase"
     | "projectRoot"
@@ -109,7 +111,13 @@ export async function resolveBuildPages({
   const htmlMap = new Map<string, string>();
   const urlMap = new Map<
     string,
-    { props: string | undefined; page: string; root?: string; html?: string }
+    {
+      props: string | undefined;
+      page: string;
+      root?: string;
+      html?: string;
+      layouts?: { component: string; props?: string }[];
+    }
   >();
   const routeMap = new Map<string, string[]>();
 
@@ -188,12 +196,28 @@ export async function resolveBuildPages({
       }
     }
 
+    // Nested layouts: resolve this route's `route.tsx` chain to (manifest-mapped)
+    // module paths, stored alongside page/props so the static prerender can fold
+    // the tree. Normalized + manifest-resolved exactly like page/props.
+    const layouts = (userOptions.layoutsResolver?.(page) ?? [])
+      .map((l) => ({
+        component: resolvePathWithManifest(
+          userOptions.normalizer(l.component)[1],
+          manifest
+        ),
+        props: l.props
+          ? resolvePathWithManifest(userOptions.normalizer(l.props)[1], manifest)
+          : undefined,
+      }))
+      .filter((l) => typeof l.component === "string" && l.component.length > 0);
+
     if (!userOptions.props) {
       urlMap.set(page, {
         props: undefined,
         page: manifestResolvedPageValue,
         root: rootValue,
         html: htmlValue,
+        layouts,
       });
       pageMap.set(pageKey, manifestResolvedPageValue);
       // Add to routeMap
@@ -229,6 +253,7 @@ export async function resolveBuildPages({
         page: manifestResolvedPageValue,
         root: rootValue,
         html: htmlValue,
+        layouts,
       });
       propsMap.set(propsKey, manifestResolvedPropsValue);
 
@@ -247,6 +272,7 @@ export async function resolveBuildPages({
         page: manifestResolvedPageValue,
         root: rootValue,
         html: htmlValue,
+        layouts,
       });
 
       // Add to routeMap for page file only

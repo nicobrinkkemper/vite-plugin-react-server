@@ -41,4 +41,19 @@ describe("scanRoutes", () => {
     expect(byPattern["/profile/$id"].page).toMatch(/profile\/\$id\/page\.tsx$/);
     expect(byPattern["/"].page).toMatch(/routes\/page\.tsx$/);
   });
+
+  it("collects the root→leaf route.tsx layout chain per page", () => {
+    // Root route.tsx wraps every page.
+    expect(byPattern["/"].layouts).toHaveLength(1);
+    expect(byPattern["/"].layouts[0].component).toMatch(/routes\/route\.tsx$/);
+    // /blog/* is wrapped by root + blog layouts, in order.
+    const blog = byPattern["/blog/$category/$slug"].layouts;
+    expect(blog).toHaveLength(2);
+    expect(blog[0].component).toMatch(/routes\/route\.tsx$/);
+    expect(blog[1].component).toMatch(/blog\/route\.tsx$/);
+    // A layout shares its segment's props.ts (blog/props.ts here).
+    expect(blog[1].props).toMatch(/blog\/props\.ts$/);
+    // A page with no route.tsx above it beyond the root has just the root layer.
+    expect(byPattern["/profile/$id"].layouts).toHaveLength(1);
+  });
 });

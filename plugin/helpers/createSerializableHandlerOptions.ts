@@ -1,4 +1,5 @@
 import type { CreateHandlerOptions, PanicThreshold } from "../types.js";
+import type { RouteLayer } from "../router/scanRoutes.js";
 import { cleanObject } from "./cleanObject.js";
 import { processForSerialization } from "./serializeUserOptions.js";
 
@@ -37,6 +38,11 @@ export interface SerializableHandlerOptions {
   propsExportName: string;
   rootExportName: string;
   htmlExportName: string;
+  layoutExportName?: string;
+
+  // Nested layouts: matched route's root→leaf `route.tsx` layer paths (plain
+  // strings — cloneable across the worker boundary).
+  layouts?: RouteLayer[];
   
   // Module configuration
   projectRoot: string;
@@ -105,6 +111,8 @@ export function createSerializableHandlerOptions(
     propsExportName,
     rootExportName,
     htmlExportName,
+    layoutExportName,
+    layouts,
     projectRoot,
     moduleRootPath,
     moduleBaseURL,
@@ -139,6 +147,14 @@ export function createSerializableHandlerOptions(
   if (typeof propsExportName === 'string') result.propsExportName = propsExportName;
   if (typeof rootExportName === 'string') result.rootExportName = rootExportName;
   if (typeof htmlExportName === 'string') result.htmlExportName = htmlExportName;
+  if (typeof layoutExportName === 'string') result.layoutExportName = layoutExportName;
+  if (Array.isArray(layouts) && layouts.length) {
+    // RouteLayer entries are plain string paths — structured-clone safe.
+    result.layouts = layouts.map((l) => ({
+      component: l.component,
+      ...(l.props ? { props: l.props } : {}),
+    }));
+  }
   if (typeof projectRoot === 'string') result.projectRoot = projectRoot;
   if (typeof moduleRootPath === 'string') result.moduleRootPath = moduleRootPath;
   if (typeof moduleBaseURL === 'string') result.moduleBaseURL = moduleBaseURL;

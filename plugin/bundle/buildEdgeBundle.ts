@@ -194,11 +194,50 @@ export async function buildEdgeBundle(opts: {
     ) {
       return null;
     }
+    // Bake this route's `route.tsx` layout chain: each layer's component (and
+    // shared props) module is added to the closed `modules` dictionary keyed by
+    // src path, and a `layouts: [{ component, props }]` array is emitted so the
+    // edge folds the nested tree via resolveLayoutChain. A layer whose built
+    // module can't be resolved is skipped (the page still renders).
+    const moduleParts = [
+      `${JSON.stringify(pageSrc)}: ${nsFor(pageAbs)}`,
+      `${JSON.stringify(propsSrc)}: ${nsFor(propsAbs)}`,
+    ];
+    const layoutParts: string[] = [];
+    for (const layer of userOptions.layoutsResolver?.(resolveUrl) ?? []) {
+      const compAbs =
+        typeof layer.component === "string"
+          ? resolveBuilt(layer.component)
+          : undefined;
+      if (!compAbs) {
+        logger.warn(
+          `${tag} could not resolve built layout ${String(
+            layer.component
+          )} for route ${key}; skipping that layer`
+        );
+        continue;
+      }
+      moduleParts.push(`${JSON.stringify(layer.component)}: ${nsFor(compAbs)}`);
+      let propsField = "";
+      const layerPropsAbs = layer.props ? resolveBuilt(layer.props) : undefined;
+      if (layer.props && layerPropsAbs) {
+        moduleParts.push(
+          `${JSON.stringify(layer.props)}: ${nsFor(layerPropsAbs)}`
+        );
+        propsField = `, props: ${JSON.stringify(layer.props)}`;
+      }
+      layoutParts.push(
+        `{ component: ${JSON.stringify(layer.component)}${propsField} }`
+      );
+    }
+    const layoutsField = layoutParts.length
+      ? `, layouts: [${layoutParts.join(", ")}]`
+      : "";
     return `  ${JSON.stringify(key)}: { pagePath: ${JSON.stringify(
       pageSrc
-    )}, propsPath: ${JSON.stringify(propsSrc)}, modules: { ${JSON.stringify(
-      pageSrc
-    )}: ${nsFor(pageAbs)}, ${JSON.stringify(propsSrc)}: ${nsFor(propsAbs)} } },`;
+    )}, propsPath: ${JSON.stringify(propsSrc)}, modules: { ${moduleParts.join(
+      ", "
+    )} }${layoutsField} },`;
   };
 
   // Enumerated routes → exact-url map (the flash-free prerendered set).
@@ -270,6 +309,7 @@ export async function buildEdgeBundle(opts: {
     DEFAULT_CONFIG.EDGE;
   const pageExport = userOptions.pageExportName ?? "Page";
   const propsExport = userOptions.propsExportName ?? "props";
+  const layoutExport = userOptions.layoutExportName ?? "Layout";
   const moduleBase = userOptions.moduleBase ?? "";
   const moduleBasePath = userOptions.moduleBasePath ?? "";
   const moduleBaseURL = userOptions.moduleBaseURL ?? "/";
@@ -352,6 +392,7 @@ ${importLines.join("\n")}
 
 const PAGE_EXPORT = ${JSON.stringify(pageExport)};
 const PROPS_EXPORT = ${JSON.stringify(propsExport)};
+const LAYOUT_EXPORT = ${JSON.stringify(layoutExport)};
 const MODULE_BASE = ${JSON.stringify(moduleBase)};
 const MODULE_BASE_PATH = ${JSON.stringify(moduleBasePath)};
 const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
@@ -388,6 +429,10 @@ async function resolveRoute(url, request) {
     propsPath: route.propsPath,
     pageExportName: PAGE_EXPORT,
     propsExportName: PROPS_EXPORT,
+    // Nested layouts baked for this route (undefined when unwrapped). The
+    // renderer folds resolved.layoutChain around the leaf page.
+    layouts: route.layouts,
+    layoutExportName: LAYOUT_EXPORT,
     moduleBaseURL: MODULE_BASE_URL,
     routePatterns: ROUTE_PATTERNS,
     // The in-flight request, so a loader can read cookies/headers to gate an
@@ -412,8 +457,16 @@ async function resolveRoute(url, request) {
 /** Headless page flight (Page only) — the simple producer. */
 export async function ${flightExport}(url, request) {
   const resolved = await resolveRoute(url, request);
+  // Page-only compose (Html/Root as Fragment) so nested layouts fold around the
+  // leaf; equivalent to createElement(Page, props) when there is no chain.
   return renderToReadableStream(
-    createElement(resolved.PageComponent, resolved.pageProps),
+    createElementWithReact(React, {
+      PageComponent: resolved.PageComponent,
+      pageProps: resolved.pageProps,
+      layoutChain: resolved.layoutChain,
+      HtmlComponent: React.Fragment,
+      RootComponent: React.Fragment,
+    }),
     MODULE_BASE_PATH
   );
 }
@@ -431,6 +484,7 @@ export async function ${documentExport}(url, opts = {}) {
     PageComponent: resolved.PageComponent,
     RootComponent,
     pageProps: resolved.pageProps,
+    layoutChain: resolved.layoutChain,
     cssFiles: opts.cssFiles ?? new Map(),
     // Default to the built stylesheets (rendered in <head> via the Html
     // component's <Css>) so the edge document is styled out of the box.

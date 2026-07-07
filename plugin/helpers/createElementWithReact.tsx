@@ -1,4 +1,5 @@
 import type { CreateHandlerOptions } from "../types.js";
+import type { ResolvedLayoutLayer } from "./resolveLayoutChain.js";
 
 export type CreateElementWithReactOptions = Pick<
   CreateHandlerOptions,
@@ -18,7 +19,15 @@ export type CreateElementWithReactOptions = Pick<
   | "url"
   | "as"
 > &
-  Partial<Pick<CreateHandlerOptions, "verbose" | "logger">>;
+  Partial<Pick<CreateHandlerOptions, "verbose" | "logger">> & {
+    /**
+     * Ordered root→leaf `route.tsx` layout layers wrapping the leaf page. When
+     * present, the page is composed as `<L0 {...p0}><L1 {...p1}><Page/>…` so the
+     * nested tree streams as one flight (the client renders it for free). Resolved
+     * by {@link resolveLayoutChain}; empty/absent for an unwrapped page.
+     */
+    layoutChain?: ResolvedLayoutLayer[];
+  };
 
 export type CreateElementWithReactFN = <
   R extends {
@@ -52,6 +61,7 @@ export const createElementWithReact: CreateElementWithReactFN =
       projectRoot,
       url,
       as = "div",
+      layoutChain,
       verbose = false,
       // No default logger: importing one from "vite" would drag the dev-only
       // bundler into the single-isolate edge bundle (this helper composes the
@@ -72,6 +82,24 @@ export const createElementWithReact: CreateElementWithReactFN =
         `[createElementWithReact] Global CSS: ${globalCss?.size || 0} files`
       );
     }
+
+    // Nested layouts: fold the root→leaf `route.tsx` chain around the leaf page
+    // so `<L0 {...p0}><L1 {...p1}><Page {...leafProps}/>…` renders as one tree.
+    // The composed component takes the leaf's props (Root/Html render it as
+    // `<Page {...pageProps}/>`); each layer closes over its own resolved props.
+    // No layers → the leaf page passes through unchanged, so every branch below
+    // stays byte-identical for the flat case.
+    const EffectivePage =
+      layoutChain && layoutChain.length && PageComponent
+        ? function ComposedPage(leafProps: Record<string, unknown>) {
+            const create = (React as unknown as { createElement: Function })
+              .createElement;
+            return layoutChain.reduceRight(
+              (child, layer) => create(layer.Component, layer.props, child),
+              create(PageComponent, leafProps)
+            );
+          }
+        : PageComponent;
 
     if (
       HtmlComponent != null &&
@@ -95,7 +123,7 @@ export const createElementWithReact: CreateElementWithReactFN =
           globalCss={globalCss}
           Root={RootComponent ? RootComponent : React.Fragment}
           manifest={manifest}
-          Page={PageComponent ? PageComponent : React.Fragment}
+          Page={EffectivePage ? EffectivePage : React.Fragment}
           as={as}
         />
       ) as never;
@@ -109,14 +137,15 @@ export const createElementWithReact: CreateElementWithReactFN =
           as={React.Fragment}
           cssFiles={cssFiles}
           pageProps={pageProps}
-          Page={PageComponent ? PageComponent : React.Fragment}
+          Page={EffectivePage ? EffectivePage : React.Fragment}
         />
       ) as never;
     } else if (PageComponent != null && PageComponent !== React.Fragment) {
       if (verbose) {
         logger?.info(`[createElementWithReact] Returning Page only`);
       }
-      return (<PageComponent {...pageProps} />) as never;
+      const Composed = EffectivePage as typeof PageComponent;
+      return (<Composed {...pageProps} />) as never;
     }
     return null as never;
   };

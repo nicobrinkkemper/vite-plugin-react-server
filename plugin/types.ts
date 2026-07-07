@@ -28,6 +28,20 @@ import type {
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
 import type { AllowedDirectives, Program } from "react-server-loader/directives";
+import type { RoutesOption } from "./router/fileRouter.js";
+import type { RouteLayer } from "./router/scanRoutes.js";
+import type { ResolvedLayoutLayer } from "./helpers/resolveLayoutChain.js";
+
+/**
+ * Structured-clone-safe stand-in for a `Request` sent to the RSC worker (a real
+ * `Request` can't cross the worker boundary). Carries the absolute url, method
+ * and headers — the worker rebuilds a `Request` for loader `ctx.request`.
+ */
+export type SerializedRequest = {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+};
 import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 import type {
   RenderMetrics,
@@ -424,6 +438,16 @@ export type ResolvedUserOptions = {
    * the plugin config); empty when no file-based router is configured.
    */
   routePatterns?: readonly string[];
+
+  /**
+   * Per-url `route.tsx` layout-chain resolver (from the user's `layouts` option /
+   * `fileRouter(...)`). Named distinctly from the resolved `layouts: RouteLayer[]`
+   * array on {@link CreateHandlerOptions} so a `...userOptions` spread never
+   * collides. Absent when no file-based router is configured.
+   */
+  layoutsResolver?: StreamPluginOptions["layouts"];
+  /** Export a `route.tsx` uses for its layout component (default "Layout"). */
+  layoutExportName?: string;
 
   // Required complex properties
   Page: StreamPluginOptions["Page"];
@@ -870,7 +894,16 @@ export interface StreamPluginOptions<
         virtualPattern?: RegExpOpt;
       }
     | undefined;
-  // Manual configuration
+  /**
+   * File-based routing in one field. `routes: {}` scans `moduleBase` itself;
+   * `{ dir: "app" }` scans a subfolder (`src/app` when `moduleBase: "src"`).
+   * vprs derives `Page`, `props`, `routePatterns` and the prerender worklist
+   * from the tree — no need to restate them. Also accepts a `fileRouter()`
+   * result or a hand-rolled router table. Explicit `Page` / `props` /
+   * `routePatterns` / `build.pages` still win over what the router derives.
+   */
+  routes?: RoutesOption;
+  // Manual configuration (a lower-level alternative to `routes`)
   Page?: UrlOpt;
   props?: PropsOpt;
   /**
@@ -880,6 +913,14 @@ export interface StreamPluginOptions<
    * edge bundle. Omit for a fully static / hand-rolled `Page` router.
    */
   routePatterns?: readonly string[];
+  /**
+   * Per-url resolver for a route's root→leaf `route.tsx` layout chain — spread
+   * from `fileRouter().layouts`. vprs folds the chain around the leaf page so the
+   * nested tree streams as one flight. Omit for a flat / hand-rolled router.
+   */
+  layouts?: (url: string) => RouteLayer[];
+  /** Export a `route.tsx` uses for its layout component (default "Layout"). */
+  layoutExportName?: string;
   /**
    * Extra `node_modules` packages to treat as client (`"use client"`) packages
    * beyond what vprs auto-detects. Rarely needed.
@@ -988,6 +1029,7 @@ export type CreateHandlerOptions<
   | "rscWorkerPath"
   | "htmlWorkerPath"
   | "routePatterns"
+  | "layoutExportName"
 > & {
   id?: string;
   /**
@@ -999,10 +1041,19 @@ export type CreateHandlerOptions<
   params?: Record<string, string>;
   /**
    * The in-flight request, when rendering happens on the request thread
-   * (dev middleware). Undefined in the RSC worker, at static build, and on
-   * the edge-flight path — a loader must treat it as optional.
+   * (dev middleware). Undefined at static build and on the edge-flight path —
+   * a loader must treat it as optional. In the RSC worker it is reconstructed
+   * from {@link serializedRequest} (a full `Request` can't be structured-cloned
+   * across the worker boundary).
    */
   request?: Request;
+  /**
+   * Cloneable stand-in for {@link request} sent to the RSC worker: the absolute
+   * url + method + headers (enough for a loader to read cookies/headers to gate
+   * an authenticated route). The worker rebuilds a `Request` from it. Absent at
+   * static build / edge (no live request).
+   */
+  serializedRequest?: SerializedRequest;
   /** ID of headless stream to reuse for efficiency */
   reuseHeadlessStreamId?: string;
   /** Storage for headless stream reuse Map<id, { PageComponent: any, errored: boolean }> */
@@ -1014,6 +1065,16 @@ export type CreateHandlerOptions<
   propsPath?: string;
   rootPath?: string;
   htmlPath?: string;
+  /**
+   * Resolved root→leaf `route.tsx` layer paths for the matched route (from
+   * `getRouteFiles`). The renderer loads + folds these around the leaf page.
+   */
+  layouts?: RouteLayer[];
+  /**
+   * Loaded + prop-resolved layout chain (from `resolvePageAndProps`), consumed by
+   * `createElementWithReact` to fold the nested tree. Set on the render path only.
+   */
+  layoutChain?: ResolvedLayoutLayer[];
   pageProps?: Interface["PageProps"];
   PageComponent?:
     | PageComponentType<Interface["PageProps"], R>
@@ -1290,7 +1351,14 @@ export type ResolvedBuildPages = {
    */
   urlMap: Map<
     string,
-    { props?: string; page: string; root?: string; html?: string }
+    {
+      props?: string;
+      page: string;
+      root?: string;
+      html?: string;
+      /** Resolved `route.tsx` layer module paths (root→leaf), for nested layouts. */
+      layouts?: { component: string; props?: string }[];
+    }
   >;
   errors: unknown[];
 };

@@ -10,5 +10,10 @@ export * from "./useRscHmr.js";
 export * from "./callServer.js";
 export * from "./urls.js";
 export * from "./env.js";
+// Isomorphic env-bound URL helpers (absoluteURL / baseURL / pageURL): one module
+// that reads import.meta.env (browser/edge, statically replaced) with a
+// process.env fallback (Node/SSG), so a consumer imports them once and they work
+// in every runtime — no hand-split env.server / env.client module.
+export * from "./envUrls.js";
 export * from "./createCallServer.js";
 export * from "./routeToURL.js";

@@ -1,6 +1,6 @@
-import { relative, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { fillPattern, matchRoutes } from "./matchRoute.js";
-import { type RouteEntry, scanRoutes } from "./scanRoutes.js";
+import { type RouteEntry, type RouteLayer, scanRoutes } from "./scanRoutes.js";
 
 // Per-dynamic-route enumeration of concrete paths to prerender. Each entry is a
 // full url ("/blog/tech/rsc") or a params object ({category:"tech",slug:"rsc"})
@@ -41,6 +41,12 @@ export type FileRouterConfig = {
    * `props(url, { params, request })`; returns `{}` when nothing matches.
    */
   getParams: (url: string) => Record<string, string>;
+  /**
+   * Root→leaf `route.tsx` layout chain for a url's matched route. Threaded like
+   * `Page`/`props`: resolveOptions projects it onto the request pipeline so the
+   * renderer folds the nested tree. Empty array when the route is unwrapped.
+   */
+  layouts: (url: string) => RouteLayer[];
 };
 
 export function fileRouter(
@@ -61,6 +67,10 @@ export function fileRouter(
         ...r,
         page: toRel(r.page),
         props: r.props ? toRel(r.props) : undefined,
+        layouts: r.layouts.map((l) => ({
+          component: toRel(l.component),
+          props: l.props ? toRel(l.props) : undefined,
+        })),
       }))
     : scanned;
   const patterns = routes.map((r) => r.pattern);
@@ -103,5 +113,51 @@ export function fileRouter(
     routes,
     routePatterns: patterns,
     getParams: (url) => matchRoutes(patterns, url)?.params ?? {},
+    layouts: (url) => matched(url).layouts,
   };
+}
+
+/**
+ * The declarative form of the plugin's `routes` option: an optional route-tree
+ * directory plus optional per-dynamic-route prerender paths.
+ *
+ *   routes: {}                // scans `moduleBase` itself (the default)
+ *   routes: { dir: "app" }    // scans `moduleBase` + "/app" (a subfolder)
+ */
+export type FileRoutesConfig = {
+  /**
+   * Route-tree directory, relative to `moduleBase`. Defaults to `moduleBase`
+   * itself; set it only when routes live in a subfolder of a larger source root
+   * (`{ dir: "app" }` → `src/app` when `moduleBase: "src"`).
+   */
+  dir?: string;
+  /** Concrete paths to prerender per dynamic route — vprs's getStaticPaths. */
+  staticPaths?: StaticPathsMap;
+};
+
+/**
+ * The `routes` plugin option: either a declarative {@link FileRoutesConfig}, or
+ * an already-built router table — a `fileRouter()` result or a hand-rolled
+ * router supplying `Page` / `props` / `routePatterns` / `build.pages`.
+ */
+export type RoutesOption = FileRoutesConfig | FileRouterConfig;
+
+/**
+ * Resolve the `routes` option to a router table. A {@link FileRoutesConfig} is
+ * scanned into a file router — its `dir` joined onto `moduleBase`, with paths
+ * emitted relative to `projectRoot` so they're independent of the cwd. An
+ * already-built table is returned as-is. Called by resolveOptions to project
+ * routing into the existing `Page` / `props` / `routePatterns` / `build.pages`.
+ */
+export function resolveRoutesOption(
+  routes: RoutesOption,
+  opts: { moduleBase: string; projectRoot: string },
+): FileRouterConfig {
+  // A pre-built router table has a `Page` resolver; a declarative config
+  // doesn't (so `dir` can be omitted to mean "scan moduleBase itself").
+  if ("Page" in routes) return routes;
+  return fileRouter(join(opts.moduleBase, routes.dir ?? ""), {
+    staticPaths: routes.staticPaths,
+    root: opts.projectRoot,
+  });
 }

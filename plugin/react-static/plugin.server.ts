@@ -41,7 +41,7 @@ import {
   serializeResolvedConfig,
 } from "../helpers/serializeUserOptions.js";
 import { performance } from "node:perf_hooks";
-import { baseURL } from "../utils/envUrls.node.js";
+import { baseURL } from "../utils/envUrls.js";
 import { handleError } from "../error/handleError.js";
 import { shouldCausePanic } from "../error/panicThresholdHandler.js";
 import { renderPage } from "./renderPage.server.js";
