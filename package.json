@@ -81,7 +81,6 @@
     "./vendor.server": "./dist/plugin/vendor/vendor.server.js",
     "./vendor.client": "./dist/plugin/vendor/vendor.client.js",
     "./vendor.static": "./dist/plugin/vendor/vendor.static.js",
-    "./file-preserver": "./dist/plugin/file-preserver/plugin.js",
     "./loader": "./dist/plugin/loader/index.js",
     "./helpers": {
       "react-server": "./dist/plugin/helpers/index.server.js",
@@ -249,9 +248,6 @@
       ],
       "error": [
         "./dist/plugin/error/index.d.ts"
-      ],
-      "file-preserver": [
-        "./dist/plugin/file-preserver/plugin.d.ts"
       ],
       "worker": [
         "./dist/plugin/worker/index.d.ts"
