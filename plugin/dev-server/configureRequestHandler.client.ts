@@ -270,6 +270,26 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         // Notify about worker creation
         onWorkerCreated?.(currentWorker, restartWorkerForHMR);
 
+        // Serialize the request for the worker: a `Request` can't be
+        // structured-cloned across the worker boundary, so send the absolute
+        // url + method + headers and let the worker rebuild one for loader
+        // `ctx.request` (so a layout/page loader can gate on cookies/headers in
+        // client-dev too). Skip HTTP/2 pseudo-headers (leading ":") — they are
+        // invalid `Headers` names and would throw on reconstruction.
+        const serializedRequest = (() => {
+          const headers: Record<string, string> = {};
+          for (const [k, v] of Object.entries(req.headers)) {
+            if (k.startsWith(":")) continue;
+            if (typeof v === "string") headers[k] = v;
+            else if (Array.isArray(v)) headers[k] = v.join(", ");
+          }
+          const absoluteUrl = new URL(
+            req.url ?? info.url,
+            `http://${req.headers.host ?? "localhost"}`
+          ).toString();
+          return { url: absoluteUrl, method: req.method ?? "GET", headers };
+        })();
+
         const stream = handleRscStream({
           options: {
             ...serializedUserOptions,
@@ -283,9 +303,12 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             pagePath: pagePath,
             propsPath: propsPath,
             // Nested layouts: the route's `route.tsx` chain (paths); the worker
-            // loads + folds it into the flight (loaders see `{ params }` — no
-            // request across the worker boundary).
+            // loads + folds it into the flight. Layout (and page) loaders get the
+            // live request via serializedRequest below.
             layouts: layouts,
+            // Cloneable request stand-in; the worker rebuilds a Request so loaders
+            // can read cookies/headers in client-dev.
+            serializedRequest: serializedRequest,
             // Pass pre-resolved props (loaded via Vite's ssrLoadModule for proper transforms)
             resolvedPageProps: resolvedPageProps,
             rootPath: rootPath,

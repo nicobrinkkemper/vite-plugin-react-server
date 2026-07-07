@@ -31,6 +31,17 @@ import type { AllowedDirectives, Program } from "react-server-loader/directives"
 import type { RoutesOption } from "./router/fileRouter.js";
 import type { RouteLayer } from "./router/scanRoutes.js";
 import type { ResolvedLayoutLayer } from "./helpers/resolveLayoutChain.js";
+
+/**
+ * Structured-clone-safe stand-in for a `Request` sent to the RSC worker (a real
+ * `Request` can't cross the worker boundary). Carries the absolute url, method
+ * and headers — the worker rebuilds a `Request` for loader `ctx.request`.
+ */
+export type SerializedRequest = {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+};
 import type { LoaderConfig, TransformOptions } from "./loader/types.js";
 import type {
   RenderMetrics,
@@ -1030,10 +1041,19 @@ export type CreateHandlerOptions<
   params?: Record<string, string>;
   /**
    * The in-flight request, when rendering happens on the request thread
-   * (dev middleware). Undefined in the RSC worker, at static build, and on
-   * the edge-flight path — a loader must treat it as optional.
+   * (dev middleware). Undefined at static build and on the edge-flight path —
+   * a loader must treat it as optional. In the RSC worker it is reconstructed
+   * from {@link serializedRequest} (a full `Request` can't be structured-cloned
+   * across the worker boundary).
    */
   request?: Request;
+  /**
+   * Cloneable stand-in for {@link request} sent to the RSC worker: the absolute
+   * url + method + headers (enough for a loader to read cookies/headers to gate
+   * an authenticated route). The worker rebuilds a `Request` from it. Absent at
+   * static build / edge (no live request).
+   */
+  serializedRequest?: SerializedRequest;
   /** ID of headless stream to reuse for efficiency */
   reuseHeadlessStreamId?: string;
   /** Storage for headless stream reuse Map<id, { PageComponent: any, errored: boolean }> */

@@ -206,6 +206,7 @@ async function loadComponentsWithCache(options: {
   layouts?: RouteLayer[];  // Root→leaf route.tsx chain for nested layouts
   layoutExportName?: string;
   rscOutputPath?: string;  // Transport suffix, for stripping when matching params
+  request?: Request;  // Rebuilt from serializedRequest; threaded into loader ctx
 }) {
   const {
     pagePath,
@@ -226,6 +227,7 @@ async function loadComponentsWithCache(options: {
     layouts,
     layoutExportName = DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
     rscOutputPath = DEFAULT_CONFIG.BUILD.rscOutputPath,
+    request,
   } = options;
 
   // Nested layouts: resolved once per request (independent of the page-cache
@@ -330,6 +332,7 @@ async function loadComponentsWithCache(options: {
           propsExportName,
           url: normalizedUrl,
           routePatterns,
+          request,
           loader,
           verbose: verbose || false,
           logger,
@@ -413,6 +416,7 @@ async function loadComponentsWithCache(options: {
           propsExportName,
           url: normalizedUrl,
           routePatterns,
+          request,
           loader,
           verbose: verbose || false,
           logger,
@@ -449,8 +453,9 @@ async function loadComponentsWithCache(options: {
 
   // Nested layouts: resolve the matched route's `route.tsx` chain (components +
   // per-layer loader props) once. Params mirror the page's own resolution
-  // (`normalizePathForMatch` strips the transport suffix). The `request` object
-  // can't cross the worker boundary, so layout loaders see `{ params }` only.
+  // (`normalizePathForMatch` strips the transport suffix). `request` is rebuilt
+  // from the serialized request (dev), so layout loaders can gate on
+  // cookies/headers here too; undefined at static build.
   if (layouts?.length) {
     const params = routePatterns?.length
       ? matchRoutes(routePatterns, normalizePathForMatch(url, rscOutputPath))
@@ -459,7 +464,7 @@ async function loadComponentsWithCache(options: {
     layoutChain = await resolveLayoutChain({
       layouts,
       url: normalizedUrl,
-      ctx: { params },
+      ctx: { params, request },
       loader,
       layoutExportName,
       propsExportName,
@@ -821,6 +826,21 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             rscOutputPath:
               userOptions.build?.rscOutputPath ??
               DEFAULT_CONFIG.BUILD.rscOutputPath,
+            // Rebuild a Request from the serialized parts (dev only) so layout
+            // and page loaders can read cookies/headers in the worker. A malformed
+            // stand-in must never abort the render, so guard the construction.
+            request: (() => {
+              const sr = msg.options.serializedRequest;
+              if (!sr?.url) return undefined;
+              try {
+                return new Request(sr.url, {
+                  method: sr.method || "GET",
+                  headers: sr.headers || {},
+                });
+              } catch {
+                return undefined;
+              }
+            })(),
           });
 
         if (verbose) {

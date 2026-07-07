@@ -180,6 +180,9 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
         // stripped in serialization) the way routePatterns does.
         layouts: options.layouts,
         layoutExportName: options.layoutExportName,
+        // Cloneable request stand-in (absolute url + method + headers) — the
+        // worker rebuilds a Request for loader ctx.request in client-dev.
+        serializedRequest: options.serializedRequest,
         pageExportName: options.pageExportName,
         propsExportName: options.propsExportName,
         rootExportName: options.rootExportName,

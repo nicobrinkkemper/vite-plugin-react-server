@@ -109,14 +109,20 @@ export function Layout({ children }: { children?: React.ReactNode }) {
     await writeFile(
       join(testDir, "src/routes/profile/route.tsx"),
       `import React from "react";
-export function Layout({ tag, children }: { tag?: string; children?: React.ReactNode }) {
-  return <section data-testid="profile-layout">{tag}{children}</section>;
+export function Layout({ tag, probe, children }: { tag?: string; probe?: string; children?: React.ReactNode }) {
+  return <section data-testid="profile-layout">{tag}<span data-testid="probe">{probe}</span>{children}</section>;
 }
 `,
     );
+    // The section-layout loader reads a request HEADER — proving a layout loader
+    // sees the live request even on the client-dev worker path (rebuilt from the
+    // serialized request), not just params.
     await writeFile(
       join(testDir, "src/routes/profile/props.ts"),
-      `export const props = () => ({ tag: "PROFILELAYOUTMARK" });
+      `export const props = (_url: string, { request }: { request?: Request }) => ({
+  tag: "PROFILELAYOUTMARK",
+  probe: "probe-" + (request?.headers.get("x-probe") ?? "none") + "-end",
+});
 `,
     );
 
@@ -151,9 +157,12 @@ export function Layout({ tag, children }: { tag?: string; children?: React.React
     }
   });
 
-  async function readFlight(path: string): Promise<string> {
+  async function readFlight(
+    path: string,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<string> {
     const res = await fetch(`http://localhost:${port}${path}`, {
-      headers: { Accept: "text/x-component; charset=utf-8" },
+      headers: { Accept: "text/x-component; charset=utf-8", ...extraHeaders },
     });
     expect(res.status).toBe(200);
     if (!res.body) throw new Error("no response body");
@@ -192,6 +201,16 @@ export function Layout({ tag, children }: { tag?: string; children?: React.React
     expect(flight).toContain("ROOTLAYOUTMARK"); // root route.tsx
     expect(flight).toContain("PROFILELAYOUTMARK"); // profile/route.tsx loader prop
     expect(flight).toContain("pid-42-end"); // leaf page loader prop
+  });
+
+  it("threads the live request into a layout loader (worker path)", async () => {
+    // The section-layout loader reads the `x-probe` header; the request is
+    // rebuilt in the RSC worker from the serialized request, so the header value
+    // reaches the loader and lands in the flight.
+    const flight = await readFlight("/profile/42/index.rsc", {
+      "x-probe": "abc123",
+    });
+    expect(flight).toContain("probe-abc123-end");
   });
 
   it("renders an unwrapped-by-section route with only the root layout", async () => {

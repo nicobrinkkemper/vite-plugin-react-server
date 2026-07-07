@@ -272,10 +272,10 @@ Conventions as-built:
   `props.ts`) is added to the server build so the renderer can load it; an
   unbuilt/malformed layer is skipped (the page still renders) rather than failing
   the route.
-- **Known limitation:** in *client-dev* (RSC in the worker) a layout loader sees
-  `{ params }` only, not the live `request` (it can't cross the worker boundary).
-  Page loaders keep `request` via main-thread pre-resolution; the react-server
-  dev path and edge give layout loaders `request` too. Request-dependent *layout*
-  loaders in client-dev are the one gap; revisit with pre-resolved layout props
-  if it bites. `head.ts`, `error.tsx`, `loading.tsx`, index/pathless routes, and
-  loader redirect/notFound remain (sequencing step 5).
+- **`request` reaches layout loaders in every mode**, including client-dev (RSC
+  in the worker): a `Request` can't be structured-cloned across the worker
+  boundary, so the dev handler sends a serialized stand-in (absolute url + method
+  + headers) that the worker rebuilds into a `Request` for the loader ctx. So an
+  authenticated *layout* can gate on cookies/headers the same way a page loader
+  does. `head.ts`, `error.tsx`, `loading.tsx`, index/pathless routes, and loader
+  redirect/notFound remain (sequencing step 5).
