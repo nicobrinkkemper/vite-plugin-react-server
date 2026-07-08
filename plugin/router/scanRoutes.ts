@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 /** One layer of a route's nested-layout chain (a `route.tsx` + its loader). */
@@ -30,48 +30,68 @@ export type RouteEntry = {
   layouts: RouteLayer[];
 };
 
-const PAGE = /^page\.(t|j)sx?$/;
-const LAYOUT = /^route\.(t|j)sx?$/;
-const PROPS = ["props.ts", "props.js"];
+// File conventions for the scan. `pagePattern` / `propsPattern` default here but
+// the plugin passes the resolved `autoDiscover.pagePattern` / `propsPattern`
+// (see resolveRoutesOption) so the scanner and the rest of the build share one
+// source of truth — a custom autoDiscover pattern is honored, no divergence.
+// `route.tsx` layouts are router-specific (no autoDiscover equivalent).
+export type ScanPatterns = {
+  pagePattern?: RegExp;
+  propsPattern?: RegExp;
+  layoutPattern?: RegExp;
+};
 
-const findProps = (dir: string): string | undefined =>
-  PROPS.map((p) => join(dir, p)).find(existsSync);
+const DEFAULT_PAGE = /^page\.(t|j)sx?$/;
+const DEFAULT_PROPS = /^props\.(t|j)sx?$/;
+const DEFAULT_LAYOUT = /^route\.(t|j)sx?$/;
 
-// Convention: every `page.tsx` under `routesDir` defines a route; its directory
+// Convention: every page file under `routesDir` defines a route; its directory
 // path (relative to routesDir) is the URL, with `$name` segments as params and a
-// bare `$` directory as a catch-all. A sibling `props.ts` is the segment's
+// bare `$` directory as a catch-all. A sibling props file is the segment's
 // loader. A `route.tsx` in a segment is a LAYOUT that wraps that segment's page
-// and every descendant, sharing the segment's `props.ts`.
+// and every descendant, sharing the segment's props.
 export function scanRoutes(
   routesDir: string,
-  base = routesDir,
-  layouts: RouteLayer[] = [],
+  patterns: ScanPatterns = {},
 ): RouteEntry[] {
-  const out: RouteEntry[] = [];
-  const names = readdirSync(routesDir).sort();
-  const segProps = findProps(routesDir);
-  // A `route.tsx` here wraps this segment's page and all descendants, sharing
-  // this segment's loader — extend the chain for children and this page.
-  const layoutName = names.find((n) => LAYOUT.test(n));
-  const chain = layoutName
-    ? [...layouts, { component: join(routesDir, layoutName), props: segProps }]
-    : layouts;
-  for (const name of names) {
-    const abs = join(routesDir, name);
-    if (statSync(abs).isDirectory()) {
-      out.push(...scanRoutes(abs, base, chain));
-    } else if (PAGE.test(name)) {
-      const rel = relative(base, routesDir);
-      const parts = rel === "" ? [] : rel.split(sep);
-      const pattern = parts.length ? "/" + parts.join("/") : "/";
-      out.push({
-        pattern,
-        page: abs,
-        props: segProps,
-        dynamic: parts.some((p) => p.startsWith("$")),
-        layouts: chain,
-      });
+  const pagePattern = patterns.pagePattern ?? DEFAULT_PAGE;
+  const propsPattern = patterns.propsPattern ?? DEFAULT_PROPS;
+  const layoutPattern = patterns.layoutPattern ?? DEFAULT_LAYOUT;
+
+  const findProps = (names: string[], dir: string): string | undefined => {
+    const n = names.find((name) => propsPattern.test(name));
+    return n ? join(dir, n) : undefined;
+  };
+
+  const walk = (dir: string, layouts: RouteLayer[]): RouteEntry[] => {
+    const out: RouteEntry[] = [];
+    const names = readdirSync(dir).sort();
+    const segProps = findProps(names, dir);
+    // A `route.tsx` here wraps this segment's page and all descendants, sharing
+    // this segment's loader — extend the chain for children and this page.
+    const layoutName = names.find((name) => layoutPattern.test(name));
+    const chain = layoutName
+      ? [...layouts, { component: join(dir, layoutName), props: segProps }]
+      : layouts;
+    for (const name of names) {
+      const abs = join(dir, name);
+      if (statSync(abs).isDirectory()) {
+        out.push(...walk(abs, chain));
+      } else if (pagePattern.test(name)) {
+        const rel = relative(routesDir, dir);
+        const parts = rel === "" ? [] : rel.split(sep);
+        const pattern = parts.length ? "/" + parts.join("/") : "/";
+        out.push({
+          pattern,
+          page: abs,
+          props: segProps,
+          dynamic: parts.some((p) => p.startsWith("$")),
+          layouts: chain,
+        });
+      }
     }
-  }
-  return out;
+    return out;
+  };
+
+  return walk(routesDir, []);
 }

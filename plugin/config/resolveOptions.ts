@@ -154,8 +154,24 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // Page / props / routePatterns / build.pages from it. An explicit option
   // still wins over the router-derived value, so `routes` composes with manual
   // overrides and stays backward-compatible with the loose Page/props form.
+  // Page/props matchers, resolved up here so the router's scanner shares the
+  // SAME patterns as autoDiscover (a custom pagePattern/propsPattern is honored;
+  // no hardcoded divergence in scanRoutes). Reused for autoDiscover below.
+  const propsPattern = resolveRegExp(
+    options.autoDiscover?.propsPattern,
+    DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
+  );
+  const pagePattern = resolveRegExp(
+    options.autoDiscover?.pagePattern,
+    DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
+  );
+
   const routerTable = options.routes
-    ? resolveRoutesOption(options.routes, { moduleBase, projectRoot })
+    ? resolveRoutesOption(options.routes, {
+        moduleBase,
+        projectRoot,
+        patterns: { pagePattern, propsPattern },
+      })
     : undefined;
   const effectivePage = options.Page ?? routerTable?.Page;
   const effectiveProps = options.props ?? routerTable?.props;
@@ -326,15 +342,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     DEFAULT_CONFIG.AUTO_DISCOVER.nodeOnly
   );
 
-  const propsPattern = resolveRegExp(
-    options.autoDiscover?.propsPattern,
-    DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
-  );
-
-  const pagePattern = resolveRegExp(
-    options.autoDiscover?.pagePattern,
-    DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
-  );
 
   const cssModulePattern = resolveRegExp(
     options.autoDiscover?.cssModulePattern,

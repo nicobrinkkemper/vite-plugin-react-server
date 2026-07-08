@@ -56,4 +56,18 @@ describe("scanRoutes", () => {
     // A page with no route.tsx above it beyond the root has just the root layer.
     expect(byPattern["/profile/$id"].layouts).toHaveLength(1);
   });
+
+  it("honors a custom pagePattern (shared with autoDiscover, no hardcoding)", () => {
+    // The plugin passes the resolved autoDiscover pagePattern; a pattern that
+    // matches nothing discovers no routes, proving the scanner uses it.
+    expect(scanRoutes(ROUTES, { pagePattern: /^__never__$/ })).toHaveLength(0);
+    // The default still finds the standard page files.
+    expect(scanRoutes(ROUTES).length).toBeGreaterThan(0);
+  });
+
+  it("honors a custom propsPattern", () => {
+    const routes = scanRoutes(ROUTES, { propsPattern: /^__never__$/ });
+    expect(routes.length).toBeGreaterThan(0); // pages still found
+    expect(routes.every((r) => r.props === undefined)).toBe(true); // no props matched
+  });
 });
