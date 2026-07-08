@@ -154,14 +154,51 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // Page / props / routePatterns / build.pages from it. An explicit option
   // still wins over the router-derived value, so `routes` composes with manual
   // overrides and stays backward-compatible with the loose Page/props form.
+  // Page/props matchers, resolved up here so the router's scanner shares the
+  // SAME patterns as autoDiscover (a custom pagePattern/propsPattern is honored;
+  // no hardcoded divergence in scanRoutes). Reused for autoDiscover below.
+  const propsPattern = resolveRegExp(
+    options.autoDiscover?.propsPattern,
+    DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
+  );
+  const pagePattern = resolveRegExp(
+    options.autoDiscover?.pagePattern,
+    DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
+  );
+
   const routerTable = options.routes
-    ? resolveRoutesOption(options.routes, { moduleBase, projectRoot })
+    ? resolveRoutesOption(options.routes, {
+        moduleBase,
+        projectRoot,
+        patterns: { pagePattern, propsPattern },
+      })
     : undefined;
   const effectivePage = options.Page ?? routerTable?.Page;
   const effectiveProps = options.props ?? routerTable?.props;
   const effectiveRoutePatterns =
     options.routePatterns ?? routerTable?.routePatterns;
-  const effectiveBuildPages = options.build?.pages ?? routerTable?.build?.pages;
+  // `build.pages` is the prerender worklist (an output concern). Its function
+  // form now receives the ROUTER-derived list, so a user can filter / extend /
+  // replace it without restating routes:
+  //   build: { pages: (routerPages) => [...routerPages, "/extra"] }
+  // A nullary function (the pre-existing form) simply ignores the argument =
+  // replace. An array or absent value behaves as before. The router list is
+  // resolved lazily (it may itself be async when `staticPaths` is set), so the
+  // transform stays a nullary async thunk downstream (resolvePages awaits it).
+  const routerBuildPages = routerTable?.build?.pages;
+  const userBuildPages = options.build?.pages;
+  const effectiveBuildPages =
+    typeof userBuildPages === "function"
+      ? async () => {
+          const routerPages = Array.isArray(routerBuildPages)
+            ? routerBuildPages
+            : typeof routerBuildPages === "function"
+              ? await routerBuildPages()
+              : [];
+          const out = (userBuildPages as (p: string[]) => unknown)(routerPages);
+          return (out instanceof Promise ? await out : out) as string[];
+        }
+      : (userBuildPages ?? routerBuildPages);
   // Nested layouts: the router table's per-url `route.tsx` chain resolver.
   // Threaded like Page/props so the renderer folds the nested tree.
   const effectiveLayouts = options.layouts ?? routerTable?.layouts;
@@ -305,15 +342,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     DEFAULT_CONFIG.AUTO_DISCOVER.nodeOnly
   );
 
-  const propsPattern = resolveRegExp(
-    options.autoDiscover?.propsPattern,
-    DEFAULT_CONFIG.AUTO_DISCOVER.propsPattern
-  );
-
-  const pagePattern = resolveRegExp(
-    options.autoDiscover?.pagePattern,
-    DEFAULT_CONFIG.AUTO_DISCOVER.pagePattern
-  );
 
   const cssModulePattern = resolveRegExp(
     options.autoDiscover?.cssModulePattern,

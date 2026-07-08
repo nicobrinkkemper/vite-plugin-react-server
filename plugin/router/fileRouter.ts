@@ -1,6 +1,11 @@
 import { join, relative, resolve, sep } from "node:path";
 import { fillPattern, matchRoutes } from "./matchRoute.js";
-import { type RouteEntry, type RouteLayer, scanRoutes } from "./scanRoutes.js";
+import {
+  type RouteEntry,
+  type RouteLayer,
+  type ScanPatterns,
+  scanRoutes,
+} from "./scanRoutes.js";
 
 // Per-dynamic-route enumeration of concrete paths to prerender. Each entry is a
 // full url ("/blog/tech/rsc") or a params object ({category:"tech",slug:"rsc"})
@@ -51,7 +56,12 @@ export type FileRouterConfig = {
 
 export function fileRouter(
   routesDir: string,
-  opts: { staticPaths?: StaticPathsMap; root?: string } = {},
+  opts: {
+    staticPaths?: StaticPathsMap;
+    root?: string;
+    /** page/props/layout matchers; the plugin passes the resolved autoDiscover ones. */
+    patterns?: ScanPatterns;
+  } = {},
 ): FileRouterConfig {
   // `root` decouples "where to scan" from "what path to emit": scan
   // `resolve(root, routesDir)` on disk but emit page/props paths relative to
@@ -60,7 +70,10 @@ export function fileRouter(
   // produces (relative for a relative routesDir, which is the common case where
   // cwd is the project root). Supply `root` when cwd ≠ project root.
   const { root } = opts;
-  const scanned = scanRoutes(root ? resolve(root, routesDir) : routesDir);
+  const scanned = scanRoutes(
+    root ? resolve(root, routesDir) : routesDir,
+    opts.patterns,
+  );
   const toRel = (p: string) => relative(root!, p).split(sep).join("/");
   const routes: RouteEntry[] = root
     ? scanned.map((r) => ({
@@ -151,12 +164,18 @@ export type RoutesOption = FileRoutesConfig | FileRouterConfig;
  */
 export function resolveRoutesOption(
   routes: RoutesOption,
-  opts: { moduleBase: string; projectRoot: string },
+  opts: {
+    moduleBase: string;
+    projectRoot: string;
+    /** Resolved autoDiscover page/props matchers so the scanner shares them. */
+    patterns?: ScanPatterns;
+  },
 ): FileRouterConfig {
   // A pre-built router table has a `Page` resolver; a declarative config
   // doesn't (so `dir` can be omitted to mean "scan moduleBase itself").
   if ("Page" in routes) return routes;
   return fileRouter(join(opts.moduleBase, routes.dir ?? ""), {
+    patterns: opts.patterns,
     staticPaths: routes.staticPaths,
     root: opts.projectRoot,
   });
