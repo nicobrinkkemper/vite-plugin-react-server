@@ -87,7 +87,7 @@ export function processCssFilesForPages({
   });
 
   // Collect CSS files for each page and its props
-  for (const [url, { page, props }] of urlMap) {
+  for (const [url, { page, props, layouts }] of urlMap) {
     if (userOptions.verbose) {
       logger.info(
         `[plugin.server] Processing route: ${url}, page: ${page}, props: ${props}`
@@ -113,10 +113,18 @@ export function processCssFilesForPages({
       }
     }
     
-    const cssInputs = collectManifestCss(
-      transformedServerManifest,
-      props ? [page, props] : page
-    );
+    // Seed the walk with the page, its props loader, AND every `route.tsx`
+    // layout wrapping this route (+ each layer's props). Layouts resolve from a
+    // separate module graph than the page (resolveLayoutChain), so a layout's
+    // CSS module — e.g. a per-theme `.Theme` stylesheet — only reaches this
+    // route's manifest if its component is an explicit collection root.
+    const cssRoots = [page];
+    if (props) cssRoots.push(props);
+    for (const layer of layouts ?? []) {
+      if (layer.component) cssRoots.push(layer.component);
+      if (layer.props) cssRoots.push(layer.props);
+    }
+    const cssInputs = collectManifestCss(transformedServerManifest, cssRoots);
     if (userOptions.verbose) {
       logger.info(
         `[plugin.server] CSS inputs for ${url}: ${
