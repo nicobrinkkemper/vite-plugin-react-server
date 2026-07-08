@@ -136,7 +136,9 @@ export async function buildEdgeBundle(opts: {
   const urls: string[] = Array.isArray(rawPages)
     ? rawPages
     : typeof rawPages === "function"
-    ? await rawPages()
+    ? // Resolved build.pages is a nullary thunk (resolveOptions wraps any
+      // `(routerPages) => …` transform), so the no-arg call is sound.
+      await (rawPages as () => Promise<string[]> | string[])()
     : await rawPages;
 
   const routeSource = (opt: unknown, url: string): unknown =>

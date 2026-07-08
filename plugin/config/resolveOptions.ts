@@ -161,7 +161,28 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const effectiveProps = options.props ?? routerTable?.props;
   const effectiveRoutePatterns =
     options.routePatterns ?? routerTable?.routePatterns;
-  const effectiveBuildPages = options.build?.pages ?? routerTable?.build?.pages;
+  // `build.pages` is the prerender worklist (an output concern). Its function
+  // form now receives the ROUTER-derived list, so a user can filter / extend /
+  // replace it without restating routes:
+  //   build: { pages: (routerPages) => [...routerPages, "/extra"] }
+  // A nullary function (the pre-existing form) simply ignores the argument =
+  // replace. An array or absent value behaves as before. The router list is
+  // resolved lazily (it may itself be async when `staticPaths` is set), so the
+  // transform stays a nullary async thunk downstream (resolvePages awaits it).
+  const routerBuildPages = routerTable?.build?.pages;
+  const userBuildPages = options.build?.pages;
+  const effectiveBuildPages =
+    typeof userBuildPages === "function"
+      ? async () => {
+          const routerPages = Array.isArray(routerBuildPages)
+            ? routerBuildPages
+            : typeof routerBuildPages === "function"
+              ? await routerBuildPages()
+              : [];
+          const out = (userBuildPages as (p: string[]) => unknown)(routerPages);
+          return (out instanceof Promise ? await out : out) as string[];
+        }
+      : (userBuildPages ?? routerBuildPages);
   // Nested layouts: the router table's per-url `route.tsx` chain resolver.
   // Threaded like Page/props so the renderer folds the nested tree.
   const effectiveLayouts = options.layouts ?? routerTable?.layouts;

@@ -8,9 +8,12 @@ export async function resolvePages(
   }
 
   try {
-    // Handle function
+    // Handle function. The RESOLVED build.pages is always a nullary thunk (a
+    // `(routerPages) => …` transform is wrapped into one by resolveOptions), so
+    // calling with no args is sound — the cast just drops the input-only unary
+    // form from the shared BuildConfig type.
     if (typeof pages === "function") {
-      const result = pages();
+      const result = (pages as () => string[] | Promise<string[]>)();
       if(result instanceof Promise) {
         return resolvePages(await result);
       }

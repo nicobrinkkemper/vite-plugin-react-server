@@ -1176,7 +1176,18 @@ export type BuildOutput = {
 export type BuildConfig = {
   useRscWorker?: boolean;
   useHtmlWorker?: boolean;
-  pages?: string[] | (() => Promise<string[]> | string[]) | Promise<string[]>;
+  /**
+   * The prerender worklist. An array or a thunk, or — when a `routes` router is
+   * configured — a transform that receives the router-derived page list so you
+   * can filter / extend / replace it without restating routes
+   * (`pages: (routerPages) => [...routerPages, "/extra"]`). The pre-existing
+   * nullary function form still works (it ignores the argument = replace).
+   */
+  pages?:
+    | string[]
+    | ((routerPages: string[]) => Promise<string[]> | string[])
+    | (() => Promise<string[]> | string[])
+    | Promise<string[]>;
   assetsDir?: string;
   client?: string; // Output directory for client files
   server?: string; // Output directory for server files
