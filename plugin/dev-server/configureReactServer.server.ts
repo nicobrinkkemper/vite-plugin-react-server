@@ -226,6 +226,7 @@ export const configureReactServer: ConfigureReactServerFn =
           route: info.route,
           pagePath,
           propsPath,
+          layouts,
           logger: logger,
           manifest: serverManifest,
           server,
@@ -325,6 +326,26 @@ export const configureReactServer: ConfigureReactServerFn =
             if (panicError != null) {
               return next(panicError);
             }
+          }
+        }
+
+        // Load each route.tsx layout module too, so its CSS (e.g. a per-theme
+        // stylesheet) is registered in the module graph before collection. The
+        // page doesn't import the chain — it's folded separately below — so
+        // without this its layouts' CSS would be missing from the response.
+        for (const layer of layouts ?? []) {
+          if (!layer?.component) continue;
+          try {
+            await loader(layer.component);
+          } catch (error) {
+            handleError({
+              error,
+              logger,
+              panicThreshold: userHandlerOptions.panicThreshold,
+              critical: false,
+              context: `configureReactServer: load layout from ${layer.component}`,
+              log: true,
+            });
           }
         }
 

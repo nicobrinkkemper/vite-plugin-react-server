@@ -40,6 +40,7 @@ type CollectViteModuleGraphCssResult =
 export type CollectViteModuleGraphCssOptions = Pick<
   CreateHandlerOptions,
   | "pagePath"
+  | "layouts"
   | "moduleBaseURL"
   | "moduleBasePath"
   | "moduleRootPath"
@@ -99,32 +100,38 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
       logger.info(`Getting module by URL: ${pagePath}`);
     }
     
-    // Try multiple path formats since different module graphs use different URL schemes
-    let pageModule = await moduleGraph.getModuleByUrl(pagePath, true);
-    
-    // If not found, try with full path (server environment uses full paths)
-    if (!pageModule && projectRoot && !pagePath.startsWith('/')) {
-      const fullPath = `${projectRoot}/${pagePath}`;
-      if(verbose) {
-        logger.info(`Trying full path: ${fullPath}`);
+    // Resolve a module by path, trying the URL schemes different module graphs
+    // use (dev client vs. server-environment full paths vs. leading slash).
+    const getModule = async (path: string) => {
+      let mod = await moduleGraph.getModuleByUrl(path, true);
+      if (!mod && projectRoot && !path.startsWith('/')) {
+        mod = await moduleGraph.getModuleByUrl(`${projectRoot}/${path}`, true);
       }
-      pageModule = await moduleGraph.getModuleByUrl(fullPath, true);
-    }
-    
-    // Also try with leading slash
-    if (!pageModule && !pagePath.startsWith('/')) {
-      const slashPath = `/${pagePath}`;
-      if(verbose) {
-        logger.info(`Trying slash path: ${slashPath}`);
+      if (!mod && !path.startsWith('/')) {
+        mod = await moduleGraph.getModuleByUrl(`/${path}`, true);
       }
-      pageModule = await moduleGraph.getModuleByUrl(slashPath, true);
-    }
-    
+      return mod;
+    };
+
+    const pageModule = await getModule(pagePath);
+
     if (!pageModule) {
       if(verbose) {
         logger.info(`No page module found for any path variant, skipping`);
       }
       return { type: "skip" };
+    }
+
+    // `route.tsx` layouts resolve from a separate module graph than the page
+    // (resolveLayoutChain loads them directly), so a layout's CSS module — e.g.
+    // a per-theme `.Theme` stylesheet — is collected only if we also seed the
+    // walk with each layout module. Mirrors the static build path in
+    // processCssFilesForPages.
+    const layoutModules = [];
+    for (const layer of handlerOptions.layouts ?? []) {
+      if (!layer?.component) continue;
+      const mod = await getModule(layer.component);
+      if (mod) layoutModules.push(mod);
     }
 
     if(verbose) {
@@ -235,6 +242,9 @@ export const collectViteModuleGraphCss: CollectViteModuleGraphCssFn =
         logger.info(`Starting module walk`);
       }
       await walkModule(pageModule);
+      for (const mod of layoutModules) {
+        await walkModule(mod);
+      }
       if(verbose) {
         logger.info(`Module walk completed successfully`);
       }
