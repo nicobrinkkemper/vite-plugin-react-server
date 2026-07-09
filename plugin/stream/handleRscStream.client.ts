@@ -4,6 +4,8 @@ import { createMessageChannels, createTransferList } from "./createMessageChanne
 
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { join } from "node:path";
+import { toError } from "../error/toError.js";
+import { logError } from "../error/logError.js";
 
 /**
  * Client-side RSC stream handler using unified stream management
@@ -82,17 +84,21 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           controlEndedReceived = true;
           rscStream.end();
           break;
-        case "ERROR":
+        case "ERROR": {
           // Always log: this is an RSC render error from the worker. Without
           // this log the failure surfaces only as an in-band RSC error frame
           // on the client, with nothing on the dev console.
-          options.logger?.error(
-            `[client] RSC render error for ${message.id}: ${
-              message.error?.message || "Unknown error"
-            }`,
-            { error: message.error }
-          );
+          //
+          // Log the FULL error (stack included) via logError, not just
+          // err.message — the worker serializes the stack across the thread
+          // boundary (serializeError → toError), so dev:ssr can surface the same
+          // detail as dev:rsc (the main-thread runner). Previously only the
+          // message was logged, so worker render failures looked stackless.
+          const err = toError(message.error, message.errorInfo);
+          err.message = `[client] RSC render error for ${message.id}: ${err.message}`;
+          logError(err, options.logger);
           break;
+        }
         default:
           if (options.verbose) {
             options.logger?.info(
