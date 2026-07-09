@@ -8,7 +8,7 @@ import type {
 import { fileURLToPath } from "node:url";
 import { preprocessCSS, resolveConfig } from "vite";
 import { readFile } from "node:fs/promises";
-import { env } from "../utils/env.js";
+import { env } from "#env";
 import type {
   CssFileMessage,
   InitializedCssLoaderMessage,

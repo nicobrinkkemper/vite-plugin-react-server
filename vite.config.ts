@@ -59,6 +59,11 @@ export default defineConfig({
         // re-export dangles. (Same hosted-module export-prune that bites
         // consumers — see bead c2u.8; keeping it fixed here is the pattern.)
         "plugin/utils/envUrls": resolve(__dirname, "plugin/utils/envUrls.ts"),
+        // Condition-split env source (package.json `imports` → `#env`): browser
+        // reads import.meta.env, Node/edge reads process.env. Entries so both are
+        // emitted; `#env` itself stays external so the CONSUMER picks the branch.
+        "plugin/utils/env.browser": resolve(__dirname, "plugin/utils/env.browser.ts"),
+        "plugin/utils/env.node": resolve(__dirname, "plugin/utils/env.node.ts"),
         "plugin/storybook/preset": resolve(__dirname, "plugin/storybook/preset.ts"),
         "plugin/metrics/index": resolve(__dirname, "plugin/metrics/index.ts"),
         
@@ -129,7 +134,14 @@ export default defineConfig({
         if (id.includes('/test/') || id.includes('\\test\\')) {
           return true;
         }
-        
+
+        // Keep `#env` (package.json `imports`) unresolved in the dist so the
+        // CONSUMER's resolver picks env.browser (browser) vs env.node (Node/edge)
+        // per condition — baking either here would defeat the split.
+        if (id === "#env") {
+          return true;
+        }
+
         // Check against the static external list
         const staticExternals = [
         // Node.js built-ins

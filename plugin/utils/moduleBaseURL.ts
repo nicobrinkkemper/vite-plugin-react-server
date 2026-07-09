@@ -1,4 +1,4 @@
-import { env } from "./env.js";
+import { env } from "#env";
 
 const { BASE_URL: baseURL, PUBLIC_ORIGIN: publicOrigin } = env;
 

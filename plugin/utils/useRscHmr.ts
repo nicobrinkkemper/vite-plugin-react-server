@@ -8,7 +8,7 @@
 import * as React from "react";
 import { RSC_HMR_EVENT } from "./createReactFetcher.js";
 import type { RscHmrData } from "./createReactFetcher.js";
-import { env } from "./env.js";
+import { env } from "#env";
 
 // Mirror of refreshCssLinks in virtualRscHmrPlugin.ts (see comment there).
 // data.file is the project-relative path (eg "src/css/9mmc.module.css") and

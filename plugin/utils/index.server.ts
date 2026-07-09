@@ -9,7 +9,7 @@ export * from "./hydrateOrRender.js";
 export * from "./useRscHmr.js";
 export * from "./callServer.js";
 export * from "./urls.js";
-export * from "./env.js";
+export * from "#env";
 // Isomorphic env-bound URL helpers (absoluteURL / baseURL / pageURL): one module
 // that reads import.meta.env (browser/edge, statically replaced) with a
 // process.env fallback (Node/SSG), so a consumer imports them once and they work

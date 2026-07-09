@@ -1,6 +1,6 @@
 import type React from "react";
 import { createCallServer } from "./createCallServer.js";
-import { env } from "./env.js";
+import { env } from "#env";
 import { createPageURL } from "./urls.js";
 import { INLINE_FLIGHT_ID } from "./inlineFlightId.js";
 
