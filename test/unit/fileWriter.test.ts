@@ -30,7 +30,7 @@ describe("fileWriter", () => {
   it("should write file successfully with normal stream", async () => {
     const stream = new Readable({
       read() {
-        this.push("Hello, World!");
+        this.push("<html><body>Hello, World!</body></html>");
         this.push(null);
       },
     });
@@ -127,9 +127,13 @@ describe("fileWriter", () => {
   });
 
   it("should emit file.write and file.write.done events", async () => {
+    // A real HTML document (with an <html> root) so the degraded-document guard
+    // in fileWriter does not fire — this test exercises the event mechanics, not
+    // a fragment degrade.
+    const htmlDoc = "<html><body>Test content</body></html>";
     const stream = new Readable({
       read() {
-        this.push("Test content");
+        this.push(htmlDoc);
         this.push(null);
       },
     });
@@ -159,6 +163,6 @@ describe("fileWriter", () => {
     expect(events).toHaveLength(2);
     expect(events[0].type).toBe("file.write");
     expect(events[1].type).toBe("file.write.done");
-    expect(events[1].data.content).toBe("Test content");
+    expect(events[1].data.content).toBe(htmlDoc);
   });
 });

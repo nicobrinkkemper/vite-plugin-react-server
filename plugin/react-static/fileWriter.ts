@@ -293,6 +293,34 @@ export const fileWriter: FileWriterFn = function _fileWriter(
               reject(error);
               return;
             }
+
+            // Loud guard against a silently-degraded document. A full-document
+            // SSG page must have a root <html> element; if the render fell back
+            // to a fragment (e.g. a server-component document wrapper failed to
+            // render), the file has content but no <html>/<head>/<body> — a
+            // broken page that would otherwise ship in a GREEN build. Surface it
+            // as a route.error so panic policy applies, instead of writing it
+            // silently. RSC payloads (fileType "rsc") are exempt — only the HTML
+            // document is expected to be a full document.
+            if (fileType === "html" && !/<html[\s>]/i.test(content)) {
+              const degradeError = new Error(
+                `[fileWriter] Degraded HTML document for route ${options.route}: ` +
+                  `${content.length} bytes emitted with no <html> root element. The ` +
+                  `document wrapper did not render — the page shipped without ` +
+                  `<html>/<head>/<body>. This is usually a server-component render ` +
+                  `that failed and fell back to a fragment (check for a swallowed ` +
+                  `RSC render error on this route).`
+              );
+              options.logger?.error(degradeError.message);
+              options.onEvent?.({
+                type: "route.error",
+                data: {
+                  error: degradeError,
+                  route: options.route,
+                  panicThreshold: options.panicThreshold,
+                },
+              });
+            }
           } else {
             // Instead of rejecting, let's be more lenient about empty content
             // This can happen legitimately with empty files or fast builds
