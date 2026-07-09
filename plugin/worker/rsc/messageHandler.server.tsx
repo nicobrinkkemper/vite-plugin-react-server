@@ -5,6 +5,7 @@ import { join, relative } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
 import { handleRscRender } from "./handleRscRender.server.js";
 import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
+import { describeProps } from "../../helpers/describeProps.js";
 import type {
   RscWorkerInputMessage,
   ComponentsResolvedMessage,
@@ -848,7 +849,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             `[rsc-worker] Loaded components for route ${msg.options.route}:`
           );
           logger.info(`[rsc-worker] - PageComponent: ${typeof PageComponent}`);
-          logger.info(`[rsc-worker] - pageProps: ${JSON.stringify(pageProps)}`);
+          logger.info(`[rsc-worker] - pageProps: ${describeProps(pageProps)}`);
           logger.info(`[rsc-worker] - RootComponent: ${typeof RootComponent}`);
           logger.info(`[rsc-worker] - HtmlComponent: ${typeof HtmlComponent}`);
         }
