@@ -1,8 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handleRscStream } from "vite-plugin-react-server/stream/client";
+import * as streamApi from "vite-plugin-react-server/stream";
 import type { Worker } from "node:worker_threads";
 import type { Logger } from "vite";
 import type { StreamHandlers } from "vite-plugin-react-server/worker";
+
+// `vite-plugin-react-server/stream` resolves to index.client (client handler +
+// client-only helpers) under the default condition, and to index.server under
+// react-server — where the client handler would eagerly pull in react-dom/server
+// (unsupported in RSC). Gate on a client-only export (renderFlightToHtml, absent
+// from index.server) so this runs only on the client leg of test-both, like the
+// other client-only stream tests.
+const handleRscStream = (streamApi as any)
+  .handleRscStream as typeof import("../../plugin/stream/handleRscStream.client.js").handleRscStream;
+const renderFlightToHtml = (streamApi as any).renderFlightToHtml;
 
 // Regression guard for dev:ssr worker-error visibility.
 //
@@ -19,7 +29,7 @@ vi.mock("../../dist/plugin/config/getNodeEnv.js", () => ({
   getNodeEnv: vi.fn(() => "development"),
 }));
 
-describe("handleRscStream (client) — worker error visibility", () => {
+describe.skipIf(!renderFlightToHtml)("handleRscStream (client) — worker error visibility", () => {
   let mockWorker: Worker;
   let mockLogger: Logger;
   let mockHandlers: StreamHandlers<"server">;
