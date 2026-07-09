@@ -16,6 +16,12 @@
     "LICENSE",
     "tsconfig.json"
   ],
+  "imports": {
+    "#env": {
+      "browser": "./dist/plugin/utils/env.browser.js",
+      "default": "./dist/plugin/utils/env.node.js"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
