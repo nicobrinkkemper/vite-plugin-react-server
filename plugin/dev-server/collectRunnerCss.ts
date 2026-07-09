@@ -25,7 +25,12 @@ export async function collectRunnerCss(
   pagePath: string,
   projectRoot: string,
   logger: Logger,
-  verbose = false
+  verbose = false,
+  // `route.tsx` layouts resolve from a separate module graph than the page, so
+  // their CSS (a per-theme stylesheet, say) is collected only if we also seed
+  // the walk with each layout module. Mirrors the server-env path in
+  // collectViteModuleGraphCss.
+  layoutPaths: string[] = []
 ): Promise<CollectedCss[]> {
   const env = server.environments?.["server"];
   if (!env) {
@@ -34,38 +39,37 @@ export async function collectRunnerCss(
   }
 
   const moduleGraph: EnvironmentModuleGraph = env.moduleGraph;
-  const candidates = [
-    pagePath,
-    pagePath.startsWith("/") ? pagePath : `/${pagePath}`,
-    pagePath.startsWith(projectRoot) ? pagePath : `${projectRoot}/${pagePath}`,
-  ];
 
-  let pageModule: EnvironmentModuleNode | ModuleNode | undefined;
-  for (const url of candidates) {
-    pageModule = await moduleGraph.getModuleByUrl(url);
-    if (pageModule) break;
-  }
-
-  // Fallback: scan idToModuleMap for an entry whose id endsWith the pagePath.
-  // Vite keys server-env modules by full absolute path with optional query.
-  if (!pageModule) {
+  // Resolve a module by path, trying the URL schemes Vite's server graph uses,
+  // then a suffix scan of idToModuleMap (keyed by absolute path + optional query).
+  const resolveModule = async (
+    p: string
+  ): Promise<EnvironmentModuleNode | ModuleNode | undefined> => {
+    const candidates = [
+      p,
+      p.startsWith("/") ? p : `/${p}`,
+      p.startsWith(projectRoot) ? p : `${projectRoot}/${p}`,
+    ];
+    for (const url of candidates) {
+      const m = await moduleGraph.getModuleByUrl(url);
+      if (m) return m;
+    }
     const idMap = (moduleGraph as any).idToModuleMap as
       | Map<string, EnvironmentModuleNode>
       | undefined;
     if (idMap) {
       for (const [id, node] of idMap.entries()) {
-        if (id.endsWith(pagePath) || id.endsWith(`/${pagePath}`)) {
-          pageModule = node;
-          break;
-        }
+        if (id.endsWith(p) || id.endsWith(`/${p}`)) return node;
       }
     }
-  }
+    return undefined;
+  };
 
+  const pageModule = await resolveModule(pagePath);
   if (!pageModule) {
     if (verbose) {
       logger.warn(
-        `[collectRunnerCss] no module for pagePath: ${pagePath} (tried: ${candidates.join(", ")}; graph size: ${
+        `[collectRunnerCss] no module for pagePath: ${pagePath} (graph size: ${
           (moduleGraph as any).idToModuleMap?.size ?? "?"
         })`
       );
@@ -75,6 +79,10 @@ export async function collectRunnerCss(
   if (verbose) {
     logger.info(`[collectRunnerCss] resolved page module: ${pageModule.id}`);
   }
+
+  const layoutModules = (
+    await Promise.all(layoutPaths.map((p) => resolveModule(p)))
+  ).filter((m): m is EnvironmentModuleNode | ModuleNode => m != null);
 
   const seen = new Set<string>();
   const out: CollectedCss[] = [];
@@ -132,6 +140,9 @@ export async function collectRunnerCss(
   };
 
   await walk(pageModule);
+  for (const mod of layoutModules) {
+    await walk(mod);
+  }
 
   if (verbose) {
     logger.info(

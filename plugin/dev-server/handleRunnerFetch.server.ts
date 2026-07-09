@@ -108,13 +108,18 @@ export function attachRunnerFetchHandler(
     try {
       let result: unknown;
       if (method === "collectCss") {
-        const [pagePath, projectRoot] = args as [string, string];
+        const [pagePath, projectRoot, layoutPaths] = args as [
+          string,
+          string,
+          string[]?,
+        ];
         result = await collectRunnerCss(
           server,
           pagePath,
           projectRoot,
           logger,
-          verbose
+          verbose,
+          layoutPaths ?? []
         );
       } else {
         throw new Error(`[runner-rpc] unsupported method: ${method}`);
