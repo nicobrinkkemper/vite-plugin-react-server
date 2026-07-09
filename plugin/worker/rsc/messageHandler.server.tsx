@@ -883,7 +883,11 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             const cssFileUserOptions = getUserOptions();
             const collected = (await rpc<
               Array<{ id: string; code: string }>
-            >("collectCss", [msg.options.pagePath, projectRoot])) || [];
+            >("collectCss", [
+              msg.options.pagePath,
+              projectRoot,
+              (msg.options.layouts ?? []).map((l) => l.component),
+            ])) || [];
             for (const { id, code } of collected) {
               addCssFileContent(id, code, cssFileUserOptions);
             }
