@@ -1,5 +1,6 @@
 import type { ServerResponse } from "http";
 import { React } from "../vendor/vendor.server.js";
+import { describeProps } from "../helpers/describeProps.js";
 import { collectViteModuleGraphCss } from "../helpers/collectViteModuleGraphCss.js";
 import { createRscStream } from "../stream/createRscStream.server.js";
 import { createRenderToPipeableStreamHandler } from "../stream/createRenderToPipeableStreamHandler.server.js";
@@ -435,7 +436,7 @@ export const configureReactServer: ConfigureReactServerFn =
             pageProps = propsResult.pageProps || {};
             layoutChain = propsResult.layoutChain;
             if (verbose) {
-              logger.info(`[configureReactServer] Loaded props for route ${info.route}: ${JSON.stringify(pageProps, null, 2)}`);
+              logger.info(`[configureReactServer] Loaded props for route ${info.route}: ${describeProps(pageProps)}`);
             }
           } else if (propsResult.type === "skip") {
             if (verbose) {

@@ -22,6 +22,7 @@
 
 import { createPageRenderMetrics } from "./renderPageMetrics.js";
 import { routeToURL } from "../utils/routeToURL.js";
+import { describeProps } from "../helpers/describeProps.js";
 import type { RenderPageFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
 import { assertReactServer } from "../config/getCondition.js";
@@ -118,7 +119,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
           
           if (handlerOptions.verbose) {
             handlerOptions.logger?.info(
-              `[renderPage.server] Successfully loaded page and props for route ${handlerOptions.route}: pageProps=${JSON.stringify(pageProps)}`
+              `[renderPage.server] Successfully loaded page and props for route ${handlerOptions.route}: pageProps=${describeProps(pageProps)}`
             );
           }
         } else {
@@ -233,7 +234,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
 
     if (handlerOptions.verbose) {
       handlerOptions.logger?.info(
-        `[renderPage.server] Created newHandlerOptions for route ${handlerOptions.route} with pageProps: ${JSON.stringify(pageProps)}`
+        `[renderPage.server] Created newHandlerOptions for route ${handlerOptions.route}`
       );
     }
 
