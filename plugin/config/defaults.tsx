@@ -5,7 +5,6 @@ import {
 import { pluginRoot } from "../root.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
-import type { Logger } from "vite";
 // Directive patterns - matching the logic in findDirectiveMatches.ts
 const DIRECTIVE_PATTERNS = {
   // Client directive must be at start of file
@@ -103,9 +102,8 @@ export const DEFAULT_LOADER_CONFIG = {
   // No eager default logger: constructing vite's createLogger() at module top
   // dragged vite (a devDependency) into every prod/edge bundle that imports
   // DEFAULT_CONFIG. Call sites supply their own logger; this defaults undefined.
-  // `import type { Logger }` is erased, so no runtime vite. (Typed as Logger to
-  // satisfy Required<LoaderConfig>; consumers already guard a missing logger.)
-  logger: undefined as unknown as Logger,
+  // The resolved loader types logger as optional, so no cast is needed.
+  logger: undefined,
   moduleID: (moduleId: string, _sourceContent?: string) =>
     typeof moduleId === "string" ? moduleId : String(moduleId),
 } as const;
