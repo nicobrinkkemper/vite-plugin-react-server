@@ -3,6 +3,7 @@ import {
   matchRoute,
   matchRoutes,
   normalizePathForMatch,
+  orderPatterns,
   patternProbeUrl,
 } from "../../plugin/router/matchRoute.js";
 
@@ -136,5 +137,28 @@ describe("normalizePathForMatch", () => {
 
   it("honors a custom rsc suffix", () => {
     expect(normalizePathForMatch("/p/42.flight", ".flight")).toBe("/p/42");
+  });
+});
+
+describe("orderPatterns", () => {
+  it("orders literal > param > catch-all", () => {
+    expect([...orderPatterns(["/$", "/$id", "/about"])]).toEqual([
+      "/about",
+      "/$id",
+      "/$",
+    ]);
+  });
+
+  it("caches the order by content, not array identity", () => {
+    // Per-request callers mint a fresh array each time
+    // (createSerializableHandlerOptions' `[...routePatterns]`), so the old
+    // identity-keyed WeakMap never hit and re-sorted every request. Content
+    // keying returns the same cached order for two distinct-but-equal arrays.
+    const a = ["/$id", "/about", "/$"];
+    const b = ["/$id", "/about", "/$"];
+    expect(a).not.toBe(b);
+    const first = orderPatterns(a);
+    const second = orderPatterns(b);
+    expect(second).toBe(first);
   });
 });
