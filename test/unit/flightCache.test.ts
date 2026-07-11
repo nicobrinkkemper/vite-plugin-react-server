@@ -70,4 +70,27 @@ describe("createFlightCache", () => {
     cache.invalidate();
     expect(cache.has("/b")).toBe(false);
   });
+
+  it("evicts the least-recently-used entry past maxSize", async () => {
+    const cache = createFlightCache<string>({ maxSize: 2 });
+    const fetcher = async (u: string) => `flight:${u}`;
+    await cache.get("/a", { fetcher });
+    await cache.get("/b", { fetcher });
+    await cache.get("/c", { fetcher }); // over capacity → evict LRU (/a)
+    expect(cache.has("/a")).toBe(false);
+    expect(cache.has("/b")).toBe(true);
+    expect(cache.has("/c")).toBe(true);
+  });
+
+  it("touches an entry on access, so LRU is by use, not insertion (not FIFO)", async () => {
+    const cache = createFlightCache<string>({ maxSize: 2 });
+    const fetcher = async (u: string) => `flight:${u}`;
+    await cache.get("/a", { fetcher });
+    await cache.get("/b", { fetcher });
+    await cache.get("/a", { fetcher }); // touch /a → /b is now the LRU
+    await cache.get("/c", { fetcher }); // over capacity → evict /b, keep /a
+    expect(cache.has("/a")).toBe(true);
+    expect(cache.has("/b")).toBe(false);
+    expect(cache.has("/c")).toBe(true);
+  });
 });

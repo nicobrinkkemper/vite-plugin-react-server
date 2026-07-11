@@ -8,6 +8,12 @@
 export type FlightCacheOptions = {
   /** Injectable clock (defaults to Date.now); handy for tests. */
   now?: () => number;
+  /**
+   * Max number of cached entries before least-recently-used eviction. A
+   * long-lived SPA that navigates many distinct dynamic urls would otherwise
+   * grow the cache without bound. Default 100.
+   */
+  maxSize?: number;
 };
 
 export type FlightGetOptions<T> = {
@@ -27,11 +33,25 @@ export function createFlightCache<T>(
   options: FlightCacheOptions = {},
 ): FlightCache<T> {
   const now = options.now ?? Date.now;
+  const maxSize = Math.max(1, options.maxSize ?? 100);
   const cache = new Map<string, { promise: Promise<T>; at: number }>();
+
+  // Re-insert so the entry becomes most-recently-used (Map preserves insertion
+  // order), then evict from the front until within capacity.
+  const store = (url: string, entry: { promise: Promise<T>; at: number }) => {
+    cache.delete(url);
+    cache.set(url, entry);
+    while (cache.size > maxSize) {
+      const lru = cache.keys().next().value;
+      if (lru === undefined) break;
+      cache.delete(lru);
+    }
+  };
 
   const get = (url: string, opts: FlightGetOptions<T>): Promise<T> => {
     const hit = cache.get(url);
     if (hit && (opts.ttlMs === undefined || now() - hit.at < opts.ttlMs)) {
+      store(url, hit); // touch: mark most-recently-used
       return hit.promise;
     }
     const promise = Promise.resolve(opts.fetcher(url));
@@ -39,7 +59,7 @@ export function createFlightCache<T>(
     promise.catch(() => {
       if (cache.get(url)?.promise === promise) cache.delete(url);
     });
-    cache.set(url, { promise, at: now() });
+    store(url, { promise, at: now() });
     return promise;
   };
 
