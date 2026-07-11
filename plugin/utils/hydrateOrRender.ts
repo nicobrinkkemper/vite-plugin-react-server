@@ -59,7 +59,24 @@ export function hydrateOrRender(
     Promise.resolve().then(getInitialNode),
     import("react-dom/client"),
   ])
-    .then(([initialNode, { createRoot, hydrateRoot }]) => {
+    .then(([initialNode, mod]) => {
+      // react-dom/client's default (browser) build is CJS. A production bundle
+      // re-exports createRoot/hydrateRoot at the namespace top level, but Vite's
+      // dev server serves the raw CJS module — a dynamic `import()` then lands
+      // the exports on `.default`, where a static `import {}` would have been
+      // rewritten by Vite's named-export interop. (This helper must stay a
+      // dynamic import to remain load-safe under the react-server condition.)
+      // Read the top level first (build), fall back to `.default` (dev).
+      type ClientApi = Pick<typeof mod, "createRoot" | "hydrateRoot">;
+      const client = mod as unknown as ClientApi & { default?: ClientApi };
+      const createRoot = client.createRoot ?? client.default?.createRoot;
+      const hydrateRoot = client.hydrateRoot ?? client.default?.hydrateRoot;
+      if (!createRoot || !hydrateRoot) {
+        throw new Error(
+          "[vprs] react-dom/client did not expose createRoot/hydrateRoot " +
+            "(neither at the module top level nor on `.default`)"
+        );
+      }
       // hasChildNodes(): a prerendered/SSR'd shell already holds the server
       // markup, so hydrate it; an empty client-only shell gets a fresh render.
       if (root.hasChildNodes()) {
