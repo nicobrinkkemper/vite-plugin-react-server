@@ -468,7 +468,12 @@ export type ResolvedUserOptions = {
   serverPipeableStreamOptions?: any; // For dev server and RSC worker
   clientPipeableStreamOptions?: any; // For HTML worker
   autoDiscover: Required<AutoDiscoverConfig>;
-  loader?: Required<LoaderConfig> | undefined;
+  // Everything resolved to a default EXCEPT logger, which stays optional: the
+  // default is `undefined` (so defaults.tsx doesn't eagerly import vite's
+  // createLogger and drag vite — a devDep — into prod/edge bundles).
+  loader?:
+    | (Required<Omit<LoaderConfig, "logger">> & { logger?: Logger })
+    | undefined;
   build: Omit<Required<BuildConfig>, "edge"> & { edge: ResolvedEdgeConfig };
   dev: Required<DevConfig>;
   css: RootOptions<boolean>;
