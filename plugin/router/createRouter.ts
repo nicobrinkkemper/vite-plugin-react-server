@@ -24,6 +24,8 @@ export type Router<T> = {
   prefetch: (to: ToPath) => void;
   /** The (cached) flight for a url; reuses a warmed/in-flight fetch. */
   flight: (url: string) => Promise<T>;
+  /** Drop a cached flight (one url, or all) so the next `flight()` refetches. */
+  invalidate: (url?: string) => void;
 };
 
 const currentUrl = () =>
@@ -73,5 +75,6 @@ export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
       cache.prefetch(to, { fetcher: opts.fetchFlight, ttlMs: ttlFor(to) });
     },
     flight,
+    invalidate: (url) => cache.invalidate(url),
   };
 }
