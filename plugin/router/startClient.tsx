@@ -61,6 +61,12 @@ function RouteView({
   }, [location, router]);
 
   useRscHmr(() => {
+    // A server-component edit can invalidate any route's flight, and the flight
+    // cache holds static routes indefinitely — so refetching straight through
+    // `router.flight` would just return the stale cached copy and the view would
+    // never update (HMR appears dead until a full reload). Drop the whole cache
+    // first, then refetch the current route.
+    router.invalidate();
     const url = router.getState().url;
     Promise.resolve(router.flight(url)).then(setNode);
   });
