@@ -589,12 +589,6 @@ async function loadComponentsWithCache(options: {
     if (verbose) {
       logger?.info(`[rsc-worker] Using headless Html component (empty string)`);
     }
-  } else if (htmlPath === undefined) {
-    // undefined = use default HTML component
-    if (verbose) {
-      logger?.info(`[rsc-worker] htmlPath is undefined, using default Html component`);
-    }
-    HtmlComponent = await loadDefaultHtml({ logger, panicThreshold, verbose });
   } else if (htmlPath) {
     if (verbose) {
       logger?.info(`[rsc-worker] Attempting to load custom Html component from: ${htmlPath}`);
@@ -658,6 +652,10 @@ async function loadComponentsWithCache(options: {
       }
     }
   } else {
+    // No html configured (undefined) — use the built-in document wrapper.
+    if (verbose) {
+      logger?.info(`[rsc-worker] No htmlPath configured, using default Html component`);
+    }
     HtmlComponent = await loadDefaultHtml({ logger, panicThreshold, verbose });
   }
 
