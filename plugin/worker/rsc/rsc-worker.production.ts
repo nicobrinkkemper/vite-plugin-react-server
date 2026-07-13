@@ -161,7 +161,17 @@ try {
           DEFAULT_CONFIG.ENV_LOADER_PATH
         ));
 
-  // Only register loaders if not in build mode
+  // Serve mode only: register the loaders and the tsx hook.
+  //
+  // Build mode registers nothing. Everything the worker imports there is built
+  // JavaScript, and the tsx hook actively breaks it — tsx's package-type lookup
+  // stops at the nearest `node_modules` boundary, so the modules Rollup emits
+  // under `dist/server/node_modules/<pkg>/` (no package.json of their own) are
+  // read as CJS and their ESM named exports vanish at link time. That is what
+  // made a document wrapper importing vite-plugin-react-server/components fail
+  // with "does not provide an export named 'Css'" and degrade every route to an
+  // <html>-less fragment. Node's own resolution walks past that boundary to the
+  // project's package.json and loads them as ESM.
   if (!isBuildMode) {
     try {
       register(cssLoaderPath, {
@@ -230,9 +240,6 @@ try {
       });
       if (handledError != null) throw handledError;
     }
-  } else {
-    // In build mode, just register tsx for basic TypeScript support
-    registerTsx();
   }
 
   // Increase max listeners on parentPort to prevent warnings

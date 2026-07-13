@@ -1,6 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { PassThrough } from "node:stream";
-import { createLogger } from "vite";
+import { createLogger, type Logger } from "vite";
 import { join, relative } from "node:path";
 import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
 import { handleRscRender } from "./handleRscRender.server.js";
@@ -183,6 +183,41 @@ function cleanupRender(id: string) {
 
 function clearHeadlessError(route: string) {
   headlessStreamErrors.delete(route);
+}
+
+/**
+ * Load the built-in Html document wrapper (used when the app configures no
+ * `html` path). Imported lazily so the static import graph never roots React.
+ * A failure here means the plugin's own runtime can't load — never degrade to a
+ * headless fragment, which would ship every route without <html>/<head>/<body>.
+ */
+async function loadDefaultHtml({
+  logger,
+  panicThreshold,
+  verbose,
+}: {
+  logger?: Logger;
+  panicThreshold?: PanicThreshold;
+  verbose?: boolean;
+}): Promise<React.ElementType> {
+  try {
+    const { Html } = await import("../../components/html.js");
+    if (verbose) {
+      logger?.info(`[rsc-worker] Using built-in default Html component`);
+    }
+    return Html;
+  } catch (error) {
+    const htmlError = toError(error);
+    const panicError = handleError({
+      error: htmlError,
+      logger,
+      panicThreshold,
+      critical: true,
+      context: `rsc-worker: load built-in Html component`,
+      log: true,
+    });
+    throw panicError ?? htmlError;
+  }
 }
 
 /**
@@ -554,25 +589,6 @@ async function loadComponentsWithCache(options: {
     if (verbose) {
       logger?.info(`[rsc-worker] Using headless Html component (empty string)`);
     }
-  } else if (htmlPath === undefined) {
-    // undefined = use default HTML component
-    if (verbose) {
-      logger?.info(`[rsc-worker] htmlPath is undefined, using default Html component`);
-    }
-    try {
-      const { Html } = await import("../../components/html.js");
-      HtmlComponent = Html;
-      if (verbose) {
-        logger?.info(`[rsc-worker] Successfully loaded default Html component`);
-      }
-    } catch (error) {
-      logger?.warn(
-        `[rsc-worker] Error loading default Html component: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      HtmlComponent = React.Fragment; // Fallback to headless if default fails
-    }
   } else if (htmlPath) {
     if (verbose) {
       logger?.info(`[rsc-worker] Attempting to load custom Html component from: ${htmlPath}`);
@@ -615,30 +631,32 @@ async function loadComponentsWithCache(options: {
           );
         }
       } else {
-        // Handle component resolution failure gracefully (same as server environment)
-        if (verbose) {
-          logger?.warn(
-            `[rsc-worker] Failed to load Html component from ${htmlPath}: ${htmlResult.error?.message || 'Unknown error'}`
-          );
-          logger?.warn(`[rsc-worker] Html resolution error details:`, htmlResult.error);
-        }
-        // Use React.Fragment as fallback (same as server environment)
-        HtmlComponent = React.Fragment;
+        // The document wrapper failed to load. Falling back to React.Fragment
+        // here renders every route as an <html>-less fragment — a silent
+        // degrade that hides the real load error (the fileWriter's
+        // degraded-document guard then reports the symptom, not the cause).
+        // Mirror the Root path: route through handleError for dedup + panic
+        // handling, then re-throw so the outer worker catch propagates it.
+        const htmlError = htmlResult.error ?? new Error(
+          `[rsc-worker] Failed to load Html component from ${htmlPath}`,
+        );
+        const panicError = handleError({
+          error: htmlError,
+          logger,
+          panicThreshold,
+          critical: true,
+          context: `rsc-worker: load Html from ${htmlPath}`,
+          log: true,
+        });
+        throw panicError ?? htmlError;
       }
     }
   } else {
-    // Use default Html component
-    try {
-      const { Html } = await import("../../components/html.js");
-      HtmlComponent = Html;
-      if (verbose) {
-        logger?.info(`[rsc-worker] Using default Html component`);
-      }
-    } catch (error) {
-      logger?.warn(
-        `[rsc-worker] Error loading default Html component: ${error}`
-      );
+    // No html configured (undefined) — use the built-in document wrapper.
+    if (verbose) {
+      logger?.info(`[rsc-worker] No htmlPath configured, using default Html component`);
     }
+    HtmlComponent = await loadDefaultHtml({ logger, panicThreshold, verbose });
   }
 
   return { PageComponent, pageProps, RootComponent, HtmlComponent, layoutChain };

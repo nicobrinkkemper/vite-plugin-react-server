@@ -39,11 +39,22 @@ try {
     );
   }
 
-  // Keep the tsx hook around for the rare non-runner import path where a
+  // Dev only: the tsx hook covers the rare non-runner import path where a
   // module that isn't transformed by Vite (e.g. a vendored dependency that
-  // ships .ts sources) still needs TypeScript stripping. Runner-loaded
-  // modules receive code that's already been through Vite's transform.
-  registerTsx();
+  // ships .ts sources) still needs TypeScript stripping. Runner-loaded modules
+  // receive code that's already been through Vite's transform.
+  //
+  // Never register it in build mode: everything the worker imports is built
+  // JavaScript, and tsx's package-type lookup stops at the nearest
+  // `node_modules` boundary. Modules Rollup emits under
+  // `dist/server/node_modules/<pkg>/` have no package.json of their own, so tsx
+  // reads them as CJS and their ESM named exports vanish at link time
+  // ("does not provide an export named 'Css'" when a document wrapper imports
+  // vite-plugin-react-server/components). Node's own resolution walks past that
+  // boundary to the project's package.json and loads them as ESM.
+  if (!isBuildMode) {
+    registerTsx();
+  }
 
   parentPort!.on("messageerror", (error: Error) => {
     logger.error("Parent port message serialization failed.", { error });
