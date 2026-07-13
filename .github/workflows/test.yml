@@ -29,3 +29,59 @@ jobs:
 
       - name: Verify package manifest (publint + entrypoints)
         run: npm run build && npm run verify:package
+
+  # Drive a REAL browser against a REAL installed consumer.
+  #
+  # Everything above tests this repo against its own fixtures, which resolve the
+  # plugin by package self-reference. An installed consumer resolves it through
+  # `node_modules`, and that difference is not cosmetic — it is where the bugs
+  # live. Two shipped regressions were invisible to the fixtures and obvious
+  # here:
+  #
+  #   - a document wrapper importing the hosted `Css`/`Root` degraded every route
+  #     to an <html>-less fragment (only reproducible from node_modules), and
+  #   - the demo's production server — plain Node, deliberately NO
+  #     `--conditions react-server` — died on load, because the plugin's own
+  #     `stream/index.client.js` was being stubbed out as a client component.
+  #
+  # So: pack the plugin exactly as a consumer would install it, install THAT into
+  # the demo, build it, boot the plain-Node production server, and drive Chromium
+  # against it. Server actions round-trip and hydration is asserted.
+  e2e:
+    name: e2e (demo app, plain-Node prod server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout the plugin
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build + pack the plugin (the bytes a consumer installs)
+        run: |
+          npm ci
+          npm run build
+          npm pack
+
+      - name: Checkout the demo app
+        uses: actions/checkout@v6
+        with:
+          repository: nicobrinkkemper/vite-plugin-react-server-demo-official
+          path: demo
+
+      - name: Install the demo against THIS build of the plugin
+        working-directory: demo
+        run: |
+          npm ci
+          npm install ../vite-plugin-react-server-*.tgz
+
+      - name: Install Chromium
+        working-directory: demo
+        run: npx playwright install --with-deps chromium
+
+      - name: e2e — build, boot the prod server, drive the browser
+        working-directory: demo
+        run: npm run test:e2e
