@@ -86,29 +86,28 @@ export const Page = () => (
 );
 ```
 
-## Custom Routing
+## Routing
 
-The plugin doesn't own routing. The `Page` option is a simple URL-to-file mapper:
+vprs ships a file-based router — `routes: { dir: "routes" }`, and the file tree is
+the URL tree, with dynamic params, per-segment loaders, nested layouts and
+client-side `Link` navigation. It has its own page: **[Routing](./routing.md)**.
+
+It stays optional. Without `routes`, map URLs to files yourself with `Page` and
+bring your own client router (React Router, TanStack Router, or none):
 
 ```ts
-// File-based routing
-Page: (url) => `src/pages${url}page.tsx`,
-
 // Single page
 Page: "src/page.tsx",
 
-// Custom mapping
+// Your own mapping
 Page: (url) => {
   const routes: Record<string, string> = {
     "/": "src/home.tsx",
     "/about/": "src/about.tsx",
-    "/blog/": "src/blog/index.tsx",
   };
   return routes[url] || "src/404.tsx";
 },
 ```
-
-Bring your own client-side router (React Router, TanStack Router, etc.) for navigation.
 
 ## React in Config (Server-First)
 

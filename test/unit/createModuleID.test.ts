@@ -50,6 +50,14 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
   } satisfies Parameters<typeof createDefaultModuleID>[0];
 
   const CLIENT_ID = "src/components/Widget.client.tsx";
+  // What makes it a client module is the DIRECTIVE, not the name. The `.client.`
+  // suffix here is incidental — react-server-loader 19.2.15 stopped reading
+  // filenames, because a name is not a signal any other React toolchain honours.
+  // Production always has one of these two to hand: the module's source, or the
+  // transformer's already-computed answer (`isClientByDirective`), which is why
+  // `moduleID` takes both. Passing neither, as this test used to, is not a shape
+  // the build ever produces.
+  const CLIENT_SOURCE = `"use client";\nexport function Widget() { return null; }\n`;
 
   const buildDev: ConfigEnv = { command: "build", mode: "development" };
   const buildProd: ConfigEnv = { command: "build", mode: "production" };
@@ -57,21 +65,27 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
 
   it("development-mode build hashes + strips `src/` (matches the emitted chunk)", () => {
     const moduleID = createDefaultModuleID(options, buildDev, "development");
-    const id = moduleID(CLIENT_ID);
+    const id = moduleID(CLIENT_ID, CLIENT_SOURCE);
     // moduleBasePath defaults to "/", so the hosted ref is "/components/...".
     expect(id).toMatch(/^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/);
     expect(id).not.toContain("src/");
   });
 
+  it("the transformer's `isClientByDirective` answer alone is enough (no re-parse)", () => {
+    const moduleID = createDefaultModuleID(options, buildDev, "development");
+    const id = moduleID(CLIENT_ID, undefined, true);
+    expect(id).toMatch(/^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/);
+  });
+
   it("development-mode build === production-mode build (core regression assertion)", () => {
-    const devId = createDefaultModuleID(options, buildDev, "development")(CLIENT_ID);
-    const prodId = createDefaultModuleID(options, buildProd, "production")(CLIENT_ID);
+    const devId = createDefaultModuleID(options, buildDev, "development")(CLIENT_ID, CLIENT_SOURCE);
+    const prodId = createDefaultModuleID(options, buildProd, "production")(CLIENT_ID, CLIENT_SOURCE);
     expect(devId).toBe(prodId);
   });
 
   it("dev SERVER keeps `src/` and does not hash (dev-server path intact)", () => {
     const moduleID = createDefaultModuleID(options, serveDev, "development");
-    const id = moduleID(CLIENT_ID);
+    const id = moduleID(CLIENT_ID, CLIENT_SOURCE);
     // No build → no hashing, no `src/` stripping, no extension mapping.
     expect(id).toContain("src/components/Widget.client");
     expect(id).not.toMatch(/-[A-Za-z0-9]+\.js$/);
