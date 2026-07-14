@@ -7,7 +7,30 @@ import type {
   BaseRscStreamResult,
 } from "./createRscStream.types.js";
 import type { PassThrough } from "node:stream";
-import { createLogger, type Logger } from "vite";
+import type { Logger } from "vite";
+
+/**
+ * Console fallback for `setupRscStreamEventHandlers`, used instead of vite's
+ * `createLogger()`.
+ *
+ * This module is reachable from the `/stream` barrel, which a consumer imports
+ * AT RUNTIME to build a request handler (`createEdgeHandler`). A value import of
+ * `vite` here therefore pulls vite — and with it rollup and esbuild — into that
+ * runtime. On a serverless platform that breaks the deploy outright: the file
+ * tracer cannot follow rollup's dynamic require of its native binding, so the
+ * function ships without it and throws on first import.
+ *
+ * The `Logger` type import above is erased at build time and costs nothing.
+ */
+const consoleLogger: Logger = {
+  info: (msg) => console.log(msg),
+  warn: (msg) => console.warn(msg),
+  warnOnce: (msg) => console.warn(msg),
+  error: (msg) => console.error(msg),
+  clearScreen: () => {},
+  hasErrorLogged: () => false,
+  hasWarned: false,
+};
 
 /**
  * Validates common RSC stream options
@@ -115,7 +138,7 @@ export function setupRscStreamEventHandlers(
     logger?: Logger;
   }
 ): () => void {
-  const { route, verbose = false, logger = createLogger() } = options;
+  const { route, verbose = false, logger = consoleLogger } = options;
 
   stream.on("data", (chunk: Buffer) => {
     if (verbose) {
