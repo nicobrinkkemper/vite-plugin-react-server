@@ -123,28 +123,44 @@ describe("createReactFetcher cancellation semantics", () => {
  *
  * The payload is the TEXT of an inline `<script>` near the end of the body, and
  * the client entry is an `async` module — so a cached entry can execute while the
- * parser is still streaming text into that element. Reading `textContent` then
- * yields a TRUNCATED payload, React hits the end of an incomplete flight stream
- * and throws "Connection closed" (#412), and the page never hydrates.
+ * parser is still streaming text into that element, and `textContent` then holds
+ * only the bytes seen so far. Decoding that yields a truncated flight stream:
+ * React reaches the end of an incomplete payload and throws "Connection closed"
+ * (#412), which the mount helper can only degrade on — the page never hydrates.
  *
- * These pin the read to a point where the text is guaranteed complete: the
- * fetcher must not touch `textContent` while `readyState === "loading"`.
+ * The build stamps the payload's length on the opening tag, so a short read is
+ * DETECTABLE rather than inferred from timing. Anything unusable — half-written,
+ * truncated by an abandoned parse, or undecodable — must fall back to fetching
+ * index.rsc, never throw.
  */
 const PAYLOAD = Buffer.from('0:"ok"\n').toString("base64");
 
-function stubParsingDocument(initial: "loading" | "complete") {
+interface DomOptions {
+  readyState?: "loading" | "complete";
+  /** What the element holds right now. Defaults to the whole payload. */
+  text?: string;
+  /** The stamped length. `null` models HTML built before the stamp existed. */
+  stamped?: number | null;
+}
+
+function stubDocument({
+  readyState = "complete",
+  text = PAYLOAD,
+  stamped = PAYLOAD.length,
+}: DomOptions = {}) {
   const listeners: Record<string, Array<() => void>> = {};
-  /** readyState captured at each `textContent` access — when the read happened. */
+  /** readyState captured at each `textContent` access. */
   const readsAt: string[] = [];
-  let state = initial;
-  /** Mid-parse, the element holds only the bytes seen so far. */
-  let text = initial === "loading" ? PAYLOAD.slice(0, 4) : PAYLOAD;
+  let state = readyState;
+  let current = text;
 
   const el = {
     get textContent() {
       readsAt.push(state);
-      return text;
+      return current;
     },
+    getAttribute: (name: string) =>
+      name === "data-length" && stamped !== null ? String(stamped) : null,
   };
 
   const document = {
@@ -160,14 +176,23 @@ function stubParsingDocument(initial: "loading" | "complete") {
   return {
     document,
     readsAt,
-    /** The parser finishes: the element's text is now whole. */
-    finishParsing() {
+    /** The parser reaches the end of the document. `finalText` defaults to whole. */
+    finishParsing(finalText = PAYLOAD) {
       state = "complete";
-      text = PAYLOAD;
+      current = finalText;
       for (const cb of listeners["DOMContentLoaded"] ?? []) cb();
     },
   };
 }
+
+const settle = () => new Promise((r) => setTimeout(r, 0));
+
+/** react-server-dom is not the subject here; swallow the decode. */
+const ignore = (content: unknown) =>
+  Promise.resolve(content).then(
+    () => {},
+    () => {}
+  );
 
 describe("createReactFetcher inline flight payload", () => {
   beforeEach(() => {
@@ -175,54 +200,99 @@ describe("createReactFetcher inline flight payload", () => {
     vi.resetModules();
   });
 
-  it("does NOT read the payload while the document is still parsing", async () => {
-    const createReactFetcher = await importFetcher();
-    const dom = stubParsingDocument("loading");
-    vi.stubGlobal("document", dom.document);
-    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
-
-    const content = createReactFetcher({
+  const fetcher = (createReactFetcher: any) =>
+    createReactFetcher({
       url: "/",
       moduleBaseURL: "/",
       publicOrigin: "http://localhost",
     });
-    // Swallow the decode: react-server-dom is not the subject here.
-    Promise.resolve(content).then(
-      () => {},
-      () => {}
-    );
 
-    // The element exists, so the inlined payload is claimed — but its text must
-    // NOT have been touched yet, because it is still being written.
-    expect(dom.readsAt).toEqual([]);
-    // ...and it must not have silently fallen back to the network either.
+  it("waits for the parser rather than using a half-written payload", async () => {
+    const createReactFetcher = await importFetcher();
+    const dom = stubDocument({ readyState: "loading", text: PAYLOAD.slice(0, 4) });
+    vi.stubGlobal("document", dom.document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    ignore(fetcher(createReactFetcher));
+
+    // The text is short, so it must not have been used — and it must not have
+    // given up on the inlined payload either, since the rest is still coming.
     expect(globalThis.fetch).not.toHaveBeenCalled();
 
     dom.finishParsing();
-    await new Promise((r) => setTimeout(r, 0));
+    await settle();
 
-    // Read exactly once, and only after the document was parsed.
-    expect(dom.readsAt).toEqual(["complete"]);
+    // Used the payload once it was whole; never touched the network.
     expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(dom.readsAt.at(-1)).toBe("complete");
   });
 
-  it("reads the payload immediately when the document is already parsed", async () => {
+  it("uses a payload that is ALREADY whole, without waiting for the parser", async () => {
     const createReactFetcher = await importFetcher();
-    const dom = stubParsingDocument("complete");
+    // Parser still running, but this element is finished — the stamp proves it.
+    const dom = stubDocument({ readyState: "loading", text: PAYLOAD });
     vi.stubGlobal("document", dom.document);
     globalThis.fetch = vi.fn(async () => flightResponse()) as any;
 
-    const content = createReactFetcher({
-      url: "/",
-      moduleBaseURL: "/",
-      publicOrigin: "http://localhost",
-    });
-    Promise.resolve(content).then(
-      () => {},
-      () => {}
-    );
+    ignore(fetcher(createReactFetcher));
+    await settle();
 
-    expect(dom.readsAt).toEqual(["complete"]);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(dom.readsAt).toEqual(["loading"]);
+  });
+
+  it("falls back to the network when an ABANDONED parse leaves the payload truncated", async () => {
+    const createReactFetcher = await importFetcher();
+    // Stop pressed / connection given up: DOMContentLoaded fires, text stays short.
+    const dom = stubDocument({ readyState: "loading", text: PAYLOAD.slice(0, 4) });
+    vi.stubGlobal("document", dom.document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    const content = fetcher(createReactFetcher);
+
+    dom.finishParsing(PAYLOAD.slice(0, 4));
+    await settle();
+
+    // Must fetch index.rsc instead of decoding a truncated flight stream...
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    // ...and must not reject: a throw here surfaces as an un-hydratable page.
+    await expect(Promise.resolve(content)).resolves.toBeDefined();
+  });
+
+  it("falls back to the network when the payload is not decodable", async () => {
+    const createReactFetcher = await importFetcher();
+    const garbage = "!!!not base64!!!";
+    const dom = stubDocument({
+      readyState: "complete",
+      text: garbage,
+      stamped: garbage.length,
+    });
+    vi.stubGlobal("document", dom.document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    const content = fetcher(createReactFetcher);
+    await settle();
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    await expect(Promise.resolve(content)).resolves.toBeDefined();
+  });
+
+  it("still waits for a parsed document when the HTML predates the length stamp", async () => {
+    const createReactFetcher = await importFetcher();
+    const dom = stubDocument({
+      readyState: "loading",
+      text: PAYLOAD.slice(0, 4),
+      stamped: null,
+    });
+    vi.stubGlobal("document", dom.document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    ignore(fetcher(createReactFetcher));
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    dom.finishParsing();
+    await settle();
+
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
@@ -235,11 +305,7 @@ describe("createReactFetcher inline flight payload", () => {
     });
     globalThis.fetch = vi.fn(async () => flightResponse()) as any;
 
-    createReactFetcher({
-      url: "/",
-      moduleBaseURL: "/",
-      publicOrigin: "http://localhost",
-    });
+    fetcher(createReactFetcher);
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });

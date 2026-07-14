@@ -110,7 +110,7 @@ describe("createInlineFlightRenderer", () => {
         // Inline flight present, base64, before </body>.
         const match = html.match(
           new RegExp(
-            `<script type="text/x-component" id="${INLINE_FLIGHT_ID}" data-encoding="base64">([^<]*)</script>`
+            `<script type="text/x-component" id="${INLINE_FLIGHT_ID}" data-encoding="base64" data-length="(\\d+)">([^<]*)</script>`
           )
         );
         expect(match, "inline-flight <script> must be present").toBeTruthy();
@@ -118,8 +118,12 @@ describe("createInlineFlightRenderer", () => {
           html.lastIndexOf("</body>")
         );
 
+        // The stamped length must match the payload exactly — it is what lets the
+        // browser tell a whole element from one the parser is still writing into.
+        expect(Number(match![1])).toBe(match![2].length);
+
         // The inlined payload decodes to non-empty flight bytes.
-        const decoded = Buffer.from(match![1], "base64");
+        const decoded = Buffer.from(match![2], "base64");
         expect(decoded.length).toBeGreaterThan(0);
       } finally {
         await renderer.close();
