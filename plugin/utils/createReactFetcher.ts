@@ -2,7 +2,10 @@ import type React from "react";
 import { createCallServer } from "./createCallServer.js";
 import { env } from "#env";
 import { createPageURL } from "./urls.js";
-import { INLINE_FLIGHT_ID } from "./inlineFlightId.js";
+import {
+  INLINE_FLIGHT_ID,
+  INLINE_FLIGHT_LENGTH_ATTR,
+} from "./inlineFlightId.js";
 
 // The static build can inline the initial route's flight payload into the HTML
 // (see inlineFlightPayload). Consume it exactly once — for the first fetch after
@@ -10,54 +13,82 @@ import { INLINE_FLIGHT_ID } from "./inlineFlightId.js";
 // client navigations, whose payloads aren't inlined.
 let inlineFlightConsumed = false;
 
+/**
+ * Decode the payload, but only if the element actually holds the whole thing.
+ *
+ * THE PAYLOAD IS THE TEXT OF AN INLINE `<script>`, so an element that the HTML
+ * parser is still writing into is indistinguishable from a finished one — its
+ * `textContent` is simply shorter. The build stamps the expected length on the
+ * opening tag (available as soon as the element exists), so a short read is
+ * *detectable* instead of being inferred from timing.
+ *
+ * Returns `null` for anything unusable — still being written, truncated by an
+ * abandoned parse, or not valid base64. Never throws: the caller treats `null`
+ * as "no inlined payload" and fetches `index.rsc`, which the static build emits
+ * alongside the inlined copy. Throwing here would surface as an un-hydratable
+ * page, since the mount helper can only degrade on a rejected payload.
+ */
 function decodeInlineFlight(el: Element): Uint8Array | null {
-  const encoded = el.textContent?.trim();
+  const text = el.textContent ?? "";
+  const stamped = el.getAttribute(INLINE_FLIGHT_LENGTH_ATTR);
+  if (stamped !== null) {
+    if (text.length !== Number(stamped)) return null; // partial: not all of it is here
+  } else if (document.readyState === "loading") {
+    // HTML from a build that predates the stamp: completeness is unknowable, so
+    // fall back to trusting a parsed document.
+    return null;
+  }
+
+  const encoded = text.trim();
   if (!encoded) return null;
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  try {
+    const binary = atob(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch {
+    // Not decodable (e.g. base64 cut mid-quantum by an abandoned parse).
+    return null;
+  }
 }
 
 /**
- * Take the inlined payload, if this document carries one.
+ * Take the inlined payload, if this document carries a complete one.
  *
- * Resolves to `null` when there is nothing to take, in which case the caller
- * fetches `index.rsc` as usual.
+ * Resolves to `null` when there is nothing usable to take, in which case the
+ * caller fetches `index.rsc` as usual.
  *
- * THE PAYLOAD IS THE TEXT OF AN INLINE `<script>`, and the client entry is an
- * `async` module — its execution is not ordered against the HTML parser. When
- * the entry is already in cache (a repeat visit, or a navigation away from a
- * still-loading page) it can run WHILE THE PARSER IS STILL STREAMING TEXT INTO
- * THAT ELEMENT. `textContent` then holds only the bytes parsed so far, and
- * decoding it yields a truncated flight stream: React reaches the end of an
- * incomplete payload and throws "Connection closed" (#412), which the caller
- * can only degrade on — leaving the page un-hydrated until a reload.
+ * The client entry is an `async` module, so its execution is not ordered against
+ * the HTML parser: when the entry is already in cache (a repeat visit, or a
+ * navigation away from a still-loading page) it can run while the parser is
+ * still streaming text into the payload element. A short read is caught by the
+ * length stamp; if the parser is still going, we wait for it and re-check, since
+ * the rest of the payload is still on its way.
  *
- * An element's text is guaranteed complete once the document is parsed, so when
- * the parser is still running we wait for it. That wait only ever applies to
- * this inline read: the payload element sits near the end of the body, so a
- * parser that has not finished has, at most, the document's tail left to go.
- * The network path below is untouched and still starts its fetch immediately.
+ * If the document's parse was ABANDONED (the user pressing Stop, a stalled
+ * connection), `DOMContentLoaded` still fires and the text is still short — so
+ * the re-check fails too and we fall through to the network rather than
+ * decoding a truncated flight stream.
  */
 function takeInlineFlight(): Uint8Array | PromiseLike<Uint8Array | null> | null {
   if (inlineFlightConsumed || typeof document === "undefined") return null;
   const el = document.getElementById(INLINE_FLIGHT_ID);
   // No element: either this document has no inlined payload, or the parser has
-  // not reached it yet. Both are served correctly by fetching index.rsc, which
-  // the static build emits alongside the inlined copy.
+  // not reached it yet. Both are served correctly by fetching index.rsc.
   if (!el) return null;
   inlineFlightConsumed = true;
-  if (document.readyState === "loading") {
-    return new Promise<Uint8Array | null>((resolve) => {
-      document.addEventListener(
-        "DOMContentLoaded",
-        () => resolve(decodeInlineFlight(el)),
-        { once: true }
-      );
-    });
-  }
-  return decodeInlineFlight(el);
+
+  const whole = decodeInlineFlight(el);
+  if (whole) return whole;
+  // Nothing usable yet. Only worth waiting if the parser is still running.
+  if (document.readyState !== "loading") return null;
+  return new Promise<Uint8Array | null>((resolve) => {
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => resolve(decodeInlineFlight(el)),
+      { once: true }
+    );
+  });
 }
 
 export function createReactFetcher({

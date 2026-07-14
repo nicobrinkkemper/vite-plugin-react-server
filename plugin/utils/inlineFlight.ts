@@ -12,19 +12,25 @@
  * Node-side only (uses Buffer for base64); the browser only ever *reads* the
  * element, never builds it, so the dependency-free id lives in inlineFlightId.ts.
  */
-import { INLINE_FLIGHT_ID } from "./inlineFlightId.js";
+import {
+  INLINE_FLIGHT_ID,
+  INLINE_FLIGHT_LENGTH_ATTR,
+} from "./inlineFlightId.js";
 
-export { INLINE_FLIGHT_ID };
+export { INLINE_FLIGHT_ID, INLINE_FLIGHT_LENGTH_ATTR };
 
 /**
  * Build the inline-flight <script> for a flight payload. base64-encoded so the
  * flight wire format can't collide with HTML/script parsing; `type` is a
  * non-JS mime so the browser never executes it (createReactFetcher reads its
  * textContent).
+ *
+ * `data-length` stamps how many characters the payload has, so the reader can
+ * tell a whole element from a half-written one — see INLINE_FLIGHT_LENGTH_ATTR.
  */
 export function buildInlineFlightScript(flight: Uint8Array): string {
   const base64 = Buffer.from(flight).toString("base64");
-  return `<script type="text/x-component" id="${INLINE_FLIGHT_ID}" data-encoding="base64">${base64}</script>`;
+  return `<script type="text/x-component" id="${INLINE_FLIGHT_ID}" data-encoding="base64" ${INLINE_FLIGHT_LENGTH_ATTR}="${base64.length}">${base64}</script>`;
 }
 
 /** Whether the HTML already carries an inline-flight script (idempotency guard). */
