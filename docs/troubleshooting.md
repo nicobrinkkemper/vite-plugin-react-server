@@ -36,12 +36,16 @@ If resolution still fails, confirm `react-server-loader` is installed
 
 ## `"use client"` Not Working
 
-vprs treats a file as a client module when either of these is true:
+The directive is the only thing that makes a client module, and it must come
+before any real code. Leading whitespace, comments, and a `"use strict"` prologue
+are tolerated above it.
 
-- the filename matches `(^|[\/.])client\.[cm]?[jt]sx?$` (e.g. `Counter.client.tsx`, or the standalone basename `src/client.tsx`), or
-- the file starts with a top-of-file `"use client"` directive — leading whitespace, comments, and an optional `"use strict"` prologue are tolerated above it, but the directive must come before any real code.
+If the build warns that a file *looks* like a client module but has no directive,
+that is this: the filename does not mark a component, so add `"use client"` to
+the top of the file. (Naming it `.client.tsx` and omitting the directive used to
+work here, and worked nowhere else — which is why it no longer does.)
 
-Substrings like `clientUtils.tsx` or `clientId.ts` are **not** matched. Import with `.js` extension regardless: `import { Counter } from "./Counter.js"`.
+Import with the `.js` extension regardless: `import { Counter } from "./Counter.js"`.
 
 ## Global CSS / Fonts Not Loading
 

@@ -42,14 +42,23 @@ describe("resolveOptions isClientComponent* routing", () => {
     );
   });
 
-  it("default isClientComponentCode recognises filename-only client modules", () => {
+  it("default isClientComponentCode classifies by directive, never by filename", () => {
     const { loader } = resolve();
-    // No directive in source — the filename branch must decide. The shadowed
-    // regex matcher returned false here.
+    // The source decides, and only the source. A `.client.tsx` name with no
+    // directive is a server module — here and under every other React toolchain
+    // (react-server-loader 19.2.15 stopped reading the name; a first-party file
+    // shaped like this gets a build warning telling the author to add it).
     expect(
       loader!.isClientComponentCode(
         `export const x = 1;`,
         "src/components/Counter.client.tsx"
+      )
+    ).toBe(false);
+    // A real directive is recognised regardless of the filename.
+    expect(
+      loader!.isClientComponentCode(
+        `"use client";\nexport const x = 1;`,
+        "src/components/Counter.tsx"
       )
     ).toBe(true);
     // Substring trap stays rejected.

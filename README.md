@@ -102,15 +102,12 @@ dist/
 
 ## Client components
 
-vprs recognises a file as a client module when **either** of these is true:
-
-- the filename matches `(^|[\/.])client\.[cm]?[jt]sx?$` — i.e. `Button.client.tsx`, `bar.client.mjs`, or the standalone basename `src/client.tsx` / `client.tsx`, or
-- the file starts with a top-of-file `"use client"` directive (leading whitespace, line/block comments, and an optional `"use strict"` prologue are tolerated above it).
-
-Either is sufficient. Substrings like `clientUtils.tsx`, `clientId.ts`, or `clients.tsx` are **not** treated as client modules, and a `"use client"` directive placed after real code does not count.
+A file is a client module when it starts with a `"use client"` directive — the
+same rule as every other React setup. Nothing else marks one: the filename is
+just a filename.
 
 ```tsx
-// src/components/Counter.tsx  ← no `.client.` suffix needed
+// src/components/Counter.tsx
 "use client";
 import { useState } from "react";
 export function Counter() {
@@ -118,6 +115,13 @@ export function Counter() {
   return <button onClick={() => setCount(count + 1)}>{count}</button>;
 }
 ```
+
+Leading whitespace, comments, and a `"use strict"` prologue may sit above the
+directive; a `"use client"` placed after real code does not count.
+
+Name a file `Counter.client.tsx` if you like the reminder — but the name carries
+no meaning, and a file named that way *without* the directive gets a build
+warning telling you to add one.
 
 See [Getting Started](./docs/getting-started.md#the-client-filename-is-optional).
 

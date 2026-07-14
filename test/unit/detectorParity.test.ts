@@ -107,10 +107,15 @@ const CASES: ParityCase[] = [
     expected: true,
   })),
   {
-    name: "`.client.` filename without a directive (filename convention)",
+    // A filename is not a classifier. Only `"use client"` makes a client module
+    // — the one signal React defines and the only one that survives a move to
+    // another toolchain. react-server-loader 19.2.15 stopped reading the name;
+    // a first-party file named like this now gets a build warning telling the
+    // author to add the directive, rather than a silent guess.
+    name: "`.client.` filename without a directive is NOT a client module",
     filePath: "/proj/src/components/Link.client.tsx",
     source: `export function Link() { return null; }\n`,
-    expected: true,
+    expected: false,
   },
   {
     name: "directive-only first-party path",

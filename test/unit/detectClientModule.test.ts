@@ -26,38 +26,44 @@ const acornParse = (src: string): Program =>
   }) as unknown as Program;
 
 describe("detectClientModule (unified client-module detector)", () => {
-  describe("filename pattern (no source)", () => {
+  /**
+   * A filename never classifies a module. Only a top-of-file `"use client"`
+   * does — the one signal React defines, and the only one that survives a move
+   * to another toolchain. react-server-loader 19.2.15 stopped reading names: a
+   * first-party file shaped like a client module but missing the directive now
+   * gets a build warning telling the author to add it, instead of a silent
+   * guess that works here and nowhere else.
+   */
+  describe("filename never classifies (no source)", () => {
     it.each([
-      // Dotted suffix convention.
+      // The dotted-suffix convention...
       "components/Counter.client.tsx",
-      "components/Counter.client.ts",
-      "components/Counter.client.jsx",
       "components/Counter.client.js",
       "components/Counter.client.mjs",
-      "components/Counter.client.cjs",
-      "components/Counter.client.mts",
-      "components/Counter.client.cts",
-      // Standalone-basename convention — common app-entry filename.
+      // ...and the standalone-basename app-entry convention. Neither is a signal.
       "client.tsx",
       "src/client.tsx",
-      "src/client.ts",
-      "src/client.jsx",
       "src/client.js",
-      "src/client.mjs",
-    ])("recognises %s", (moduleId) => {
-      expect(detectClientModule({ moduleId })).toBe(true);
+      // Nor is anything merely containing "client".
+      "components/Counter.tsx",
+      "src/lib/clientId.ts",
+      "src/client/foo.ts",
+      "src/clients.tsx",
+    ])("does not classify %s without a directive", (moduleId) => {
+      expect(detectClientModule({ moduleId })).toBe(false);
     });
 
-    it.each([
-      "components/Counter.tsx",
-      "src/lib/clientId.ts", // substring "client" must NOT trigger
-      "components/clientCode.tsx",
-      "src/lib/clientUtils.ts", // substring with letter prefix must NOT trigger
-      "src/client/foo.ts", // directory named "client" must NOT trigger
-      "src/clients.tsx", // "client" followed by other letters must NOT trigger
-      "src/page/page.tsx",
-    ])("does not flag %s by filename alone", (moduleId) => {
-      expect(detectClientModule({ moduleId })).toBe(false);
+    it("classifies a `.client.tsx` only once it carries the directive", () => {
+      const moduleId = "components/Counter.client.tsx";
+      expect(
+        detectClientModule({ moduleId, source: `export const C = () => null;` })
+      ).toBe(false);
+      expect(
+        detectClientModule({
+          moduleId,
+          source: `"use client";\nexport const C = () => null;`,
+        })
+      ).toBe(true);
     });
   });
 
@@ -178,13 +184,13 @@ describe("detectClientModule (unified client-module detector)", () => {
   });
 
   describe("filename + source combined", () => {
-    it("returns true when filename matches even with non-directive source", () => {
+    it("returns false when the filename matches but the source has no directive", () => {
       expect(
         detectClientModule({
           moduleId: "components/Counter.client.tsx",
           source: `export const x = 1;`,
         }),
-      ).toBe(true);
+      ).toBe(false);
     });
 
     it("returns true when source has directive even without `.client.` filename", () => {
@@ -254,13 +260,13 @@ describe("DEFAULT_LOADER_CONFIG.isClientComponent* public surface", () => {
         "src/lib/clientId.ts",
       ),
     ).toBe(false);
-    // Real `.client.tsx` filename — recognised.
+    // A `.client.tsx` filename proves nothing without the directive.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentCode(
         `export const x = 1;`,
         "src/components/Counter.client.tsx",
       ),
-    ).toBe(true);
+    ).toBe(false);
     // Real top-of-file `"use client"` directive — recognised.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentCode(
@@ -270,17 +276,21 @@ describe("DEFAULT_LOADER_CONFIG.isClientComponent* public surface", () => {
     ).toBe(true);
   });
 
-  it("isClientComponentByName accepts the 2-arg signature", () => {
-    // The `_transformedModuleId` second arg is accepted but ignored. The
-    // call shape is part of the configurable loader hook surface in
-    // `plugin/types.ts`; if it ever drops to a single arg, this test fails
-    // to compile.
+  it("isClientComponentByName keeps the 2-arg signature but never classifies", () => {
+    // The hook survives as an OPT-IN escape hatch: a project can still supply
+    // its own name-based predicate via `loader.isClientComponentByName`, and the
+    // transformer honours it. The DEFAULT no longer classifies by name at all
+    // (react-server-loader 19.2.15), so it answers false for every path.
+    //
+    // The `_transformedModuleId` second arg is accepted but ignored. The call
+    // shape is part of the configurable loader hook surface in `plugin/types.ts`;
+    // if it ever drops to a single arg, this test fails to compile.
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentByName(
         "src/components/Counter.client.tsx",
         "dist/components/Counter.client.js",
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       DEFAULT_LOADER_CONFIG.isClientComponentByName(
         "src/lib/clientId.ts",

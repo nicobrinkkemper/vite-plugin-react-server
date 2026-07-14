@@ -202,17 +202,14 @@ export const Page = () => (
 );
 ```
 
-### The `.client.` filename is optional
+### What makes it a client component
 
-vprs recognises a file as a client module when **either** of these is true:
-
-- the filename matches `(^|[\/.])client\.[cm]?[jt]sx?$` — i.e. `Button.client.tsx`, `bar.client.mjs`, or the standalone basename `src/client.tsx` / `client.tsx`, or
-- the file starts with a top-of-file `"use client"` directive (leading whitespace, line/block comments, and an optional `"use strict"` prologue are tolerated above it).
-
-Either is sufficient. Substrings like `clientUtils.tsx`, `clientId.ts`, or `clients.tsx` are **not** treated as client modules, and a `"use client"` directive placed after real code does not count.
+The `"use client"` directive, and only that — the same rule as every other React
+setup. The `.client.tsx` name above is a convention for human readers; it carries
+no meaning to the build.
 
 ```tsx
-// src/components/Counter.tsx  ← no `.client.` suffix
+// src/components/Counter.tsx   ← same component, plainer name
 "use client";
 import { useState } from "react";
 
@@ -221,6 +218,11 @@ export function Counter() {
   return <button onClick={() => setCount(count + 1)}>{count}</button>;
 }
 ```
+
+A file named `.client.tsx` *without* the directive is a server module, and you
+get a build warning telling you to add one. (Leading whitespace, comments, and a
+`"use strict"` prologue may sit above the directive; one placed after real code
+does not count.)
 
 ```tsx
 // src/page.tsx (a server component)
@@ -283,6 +285,7 @@ if (import.meta.hot) {
 
 ## Next Steps
 
+- [Routing](./routing.md) — point `routes: { dir }` at a folder and the file tree becomes your URL tree: dynamic params, per-segment loaders, nested layouts, and client-side `Link` navigation
 - [Build Output](./build-output.md) — understand what you're deploying
 - [Configuration](./configuration.md) — all plugin options
 - [Examples](./examples.md) — static sites, dynamic servers, server actions

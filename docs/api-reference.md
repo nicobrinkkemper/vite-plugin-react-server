@@ -98,7 +98,7 @@ export const config = {
 | `isServerFunctionCode` | `(code: string, moduleId?: string) => boolean` | Custom server function detection | - |
 | `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client-module detection (source + filename) | `detectClientModule` (filename `.client.*` or top-of-file `"use client"`) |
 | `isClientComponentByCode` | `(code: string) => boolean` | Custom client-module detection (source only) | `detectClientModule` |
-| `isClientComponentByName` | `(moduleId: string) => boolean` | Custom client-module detection (filename only) | `detectClientModule`; a custom `autoDiscover.clientPattern` takes precedence |
+| `isClientComponentByName` | `(moduleId: string) => boolean` | Opt-in escape hatch for name-based client detection. The **default never classifies by name** — only a `"use client"` directive makes a client module. Supply your own predicate if you really want the filename to decide. | always `false` |
 | `getDirectiveType` | `(directive: string, moduleId?: string) => "client" \| "server" \| undefined` | Custom directive type detection | - |
 
 ### Auto-Discovery Options
@@ -107,7 +107,7 @@ export const config = {
 |--------|------|-------------|---------|
 | `cssPattern` | `RegExp \| string` | Pattern to match CSS files | `/\.css$/` |
 | `cssModulePattern` | `RegExp \| string` | Pattern to match CSS module files | `/\.css\.js$/` |
-| `clientPattern` | `RegExp \| string` | Pattern to match client-module filenames. Anchored so substrings like `clientUtils.tsx` are not matched; the standalone basename `client.tsx` matches alongside the dotted-suffix form `Foo.client.tsx`. A top-of-file `"use client"` directive is recognised independently. | `/(^\|[\/.])client\.[cm]?[jt]sx?$/` |
+| `clientPattern` | `RegExp \| string` | Which filenames *look* like client modules. Since 19.2.15 this no longer classifies anything — a first-party file matching it but carrying no `"use client"` directive gets a build **warning** telling you to add one. A filename is not a portable signal: name-classified files work under this plugin and silently become server modules under every other React toolchain. | `/(^\|[\/.])client\.[cm]?[jt]sx?$/` |
 | `serverPattern` | `RegExp \| string` | Pattern to match server function files | `/\.server\.(js\|ts\|jsx\|tsx)$/` |
 | `htmlPattern` | `RegExp \| string` | Pattern to match HTML files | `/\.html$/` |
 | `jsonPattern` | `RegExp \| string` | Pattern to match JSON files | `/\.json$/` |
@@ -411,7 +411,9 @@ const AUTO_DISCOVER = {
 };
 ```
 
-A file is treated as a client module when **either** the filename matches `clientPattern` **or** the source starts with a top-of-file `"use client"` directive. Both mechanisms are first-class — neither is a fallback to the other.
+A file is a client module when its source starts with a top-of-file `"use client"` directive. That is the only mechanism.
+
+`clientPattern` no longer classifies anything. It says which filenames *look* like client modules, and a first-party file that matches it but carries no directive gets a build **warning** telling you to add one. The name was never a portable signal — a module marked client by its filename works here and silently becomes a server module under every other React toolchain — so it is a hint to the author, not an input to the build.
 
 ### Extension Mapping
 
