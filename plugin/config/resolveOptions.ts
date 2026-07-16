@@ -91,6 +91,12 @@ const registerPath = (path: string, pattern?: RegExp, ext?: string) => {
 
 let originalOptions: any | null = null;
 /**
+ * The page list a transform receives when no `routes:` router is configured.
+ * A routerless app has exactly one route: the index its `Page` serves.
+ */
+const ROUTERLESS_PAGES: readonly string[] = ["/"];
+
+/**
  * Resolves the user options for the plugin.
  *
  * @param options - The user options to resolve.
@@ -194,11 +200,18 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
             ? routerBuildPages
             : typeof routerBuildPages === "function"
               ? await routerBuildPages()
-              : [];
+              : // `[]` here would make `(routerPages) => [...routerPages, "/x"]`
+                // silently drop the index, and a filter silently prerender
+                // nothing at all. Copied because it is handed to user code.
+                [...ROUTERLESS_PAGES];
           const out = (userBuildPages as (p: string[]) => unknown)(routerPages);
           return (out instanceof Promise ? await out : out) as string[];
         }
-      : (userBuildPages ?? routerBuildPages);
+      : // Absent `build.pages` keeps DEFAULT_CONFIG's empty worklist — only the
+        // TRANSFORM's input defaults to the index. Defaulting the worklist too
+        // would start prerendering an index for client-only builds that never
+        // asked for one.
+        (userBuildPages ?? routerBuildPages);
   // Nested layouts: the router table's per-url `route.tsx` chain resolver.
   // Threaded like Page/props so the renderer folds the nested tree.
   const effectiveLayouts = options.layouts ?? routerTable?.layouts;
