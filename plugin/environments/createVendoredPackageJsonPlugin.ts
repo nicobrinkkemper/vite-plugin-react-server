@@ -27,9 +27,13 @@ export const resolveVendoredPackageDir = (fileName: string): string | null => {
 };
 
 /**
- * Rollup's `preserveModules` lays dependency chunks out under
+ * `preserveModules` lays dependency chunks out under
  * `<outDir>/node_modules/<pkg>/…` but copies none of those packages' own
- * `package.json`. The chunks are ESM (`export { Link }`), and with no local
+ * `package.json`. Holds for both bundlers in vprs's peer range — rollup on
+ * Vite 6/7, rolldown on Vite 8 — which share the option and the
+ * `generateBundle`/`emitFile` API this relies on.
+ *
+ * The chunks are ESM (`export { Link }`), and with no local
  * `"type": "module"` Node decides their format from the nearest PARENT
  * package.json.
  *
@@ -44,6 +48,10 @@ export const resolveVendoredPackageDir = (fileName: string): string | null => {
  * Stamping a minimal package.json into each vendored package dir makes the
  * chunks unambiguously ESM wherever they run. Emitted as a build asset rather
  * than written post-build so it lands through the normal output pipeline.
+ *
+ * Node 22.12+/23+ detect the chunk as ESM from its syntax regardless, which
+ * masks the bug — don't take a passing load on a modern runtime as proof this
+ * is unnecessary.
  */
 export const createVendoredPackageJsonPlugin = (): Plugin => {
   return {
@@ -62,8 +70,8 @@ export const createVendoredPackageJsonPlugin = (): Plugin => {
 
       for (const dir of packageDirs) {
         const fileName = `${dir}/package.json`;
-        // Never clobber a package.json the build already produced — rollup
-        // would also throw on the duplicate fileName.
+        // Never clobber a package.json the build already produced — the
+        // bundler would also throw on the duplicate fileName.
         if (bundle[fileName]) continue;
         this.emitFile({
           type: "asset",

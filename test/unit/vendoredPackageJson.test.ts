@@ -36,7 +36,7 @@ describe("environments/resolveVendoredPackageDir", () => {
   });
 });
 
-/** Minimal stand-in for the rollup plugin context `generateBundle` runs under. */
+/** Minimal stand-in for the plugin context `generateBundle` runs under. */
 const runGenerateBundle = (fileNames: string[]) => {
   const plugin = createVendoredPackageJsonPlugin();
   const bundle = Object.fromEntries(
@@ -72,8 +72,8 @@ describe("environments/createVendoredPackageJsonPlugin", () => {
   });
 
   it("does not clobber a package.json the build already emitted", () => {
-    // Rollup throws on a duplicate fileName, so a real package.json in the
-    // bundle must win.
+    // The bundler throws on a duplicate fileName, so a real package.json in
+    // the bundle must win.
     const emitFile = runGenerateBundle([
       "node_modules/pkg/dist/x.js",
       "node_modules/pkg/package.json",
