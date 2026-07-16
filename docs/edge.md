@@ -1,15 +1,23 @@
 # Edge / Single-Isolate Rendering
 
 The default build renders HTML through worker threads under a `--conditions
-react-server` process flag. That model is great on Node, but it does not fit
-edge runtimes (Cloudflare Workers, Deno Deploy, Vercel Edge, Bun), which have no
-`worker_threads` and no process-level export conditions.
+react-server` process flag. That model is great on a full Node server, but it
+does not fit single-process targets — serverless functions and edge-style
+runtimes (Bun, Deno, Vercel/Netlify Functions) — which have no `worker_threads`
+and no process-level export conditions.
 
 The **single-isolate edge build** removes both requirements. It bakes a second,
 self-contained bundle in which React is **inlined** under the `react-server`
 condition at build time, so the running isolate needs no `worker_threads` and no
 runtime `--conditions`. You get flash-free streaming SSR from one Web `fetch`
 handler.
+
+One naming precision: "edge" here refers to the single-isolate *shape*, not to a
+literal V8-isolate runtime. Rendering a page with client islands imports the
+built client chunks off disk (see `moduleBaseURL` below), so the natural homes
+are Node-flavored serverless functions and single-process servers. A runtime
+with no filesystem, such as Cloudflare Workers, only fits when nothing in the
+render needs a disk import.
 
 It is **additive**: the normal `dist/server` / `dist/static` output is untouched.
 Dev is unaffected.
@@ -23,12 +31,18 @@ Two bundles co-exist in one isolate:
   renders to an RSC Flight stream. It exports one function:
 
   ```ts
-  export function renderRouteToFlight(url: string): Promise<ReadableStream<Uint8Array>>;
+  export function renderRouteToFlight(url: string, request?: Request): Promise<ReadableStream<Uint8Array>>;
   ```
 
-  It is a **closed manifest** over `build.pages`: every prerendered route is
-  baked in by static import, so there is no runtime `import()`. An unknown url
-  throws.
+  It is a **closed manifest**: every module is baked in by static import, so
+  there is no runtime `import()`. The enumerated `build.pages` set is baked
+  route-by-route; with the [file router](./routing.md), each dynamic route
+  *pattern*'s modules are baked once as well, so an unenumerated concrete url
+  (any `/profile/<id>` that was not in `staticPaths`) still renders per-request
+  by matching the route patterns. A url matching nothing throws — which
+  `createEdgeHandler` turns into a 404. Pass the in-flight `request` so a
+  loader can gate on cookies/headers (authenticated routes); it is `undefined`
+  at prerender.
 
 - **`dist/client`** — the client (ssr) bundle. React is the normal client build.
   The HTML render and client islands live here.
@@ -97,12 +111,12 @@ const handler = createEdgeHandler({
   bootstrapModules: ["/client-abc123.js"],  // your client entry (for hydration)
 });
 
-export default { fetch: handler };          // Cloudflare / Deno / Bun
+export default { fetch: handler };          // Bun / Deno / serverless function
 ```
 
 The handler **streams** (responds when the HTML shell is ready), returns **404**
-for a url the bundle was not baked with (override via `onNotFound`), and
-propagates other render errors after `onError`.
+for a url that matches no baked route or route pattern (override via
+`onNotFound`), and propagates other render errors after `onError`.
 
 ### Options
 
@@ -241,8 +255,10 @@ import "./start.js";
 
 ## Limitations
 
-- The producer is a closed enumeration of `build.pages`; it is not a dynamic
-  router. Unbaked urls 404.
+- The producer is a closed manifest of baked modules. With the file router,
+  unenumerated urls that match a route *pattern* render per-request; urls that
+  match no pattern (and are not in `build.pages`) 404. There is no runtime
+  `import()` of new modules.
 - The bundle inlines React, so it is large — keep `minify: true` for deploys and
   watch your platform's size limit.
 - `createEdgeHandler` / `renderFlightToHtml` are client-condition exports (they

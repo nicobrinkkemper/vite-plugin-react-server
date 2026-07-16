@@ -11,6 +11,9 @@ export default defineConfig({
     Page: "src/page.tsx",              // string or (url: string) => string
     build: { pages: ["/"] },
 
+    // Optional — file-based routing (replaces Page/props/build.pages, see below)
+    routes: { dir: "routes" },         // scans src/routes/** — see docs/routing.md
+
     // Optional — component resolution
     props: "src/props.ts",             // string or (url: string) => string
     Html: "src/Html.tsx",              // string — HTML shell component
@@ -80,6 +83,26 @@ export default defineConfig({
   }),
 });
 ```
+
+## File-based routing (`routes`)
+
+`routes` turns on the file-based router (v3+): the file tree under the routes
+directory becomes the URL tree, and vprs derives `Page`, `props`,
+`routePatterns` and the prerender worklist from it — you don't restate them.
+
+```ts
+routes: {
+  dir: "routes",                       // relative to moduleBase; omit to scan moduleBase itself
+  staticPaths: {                       // vprs's getStaticPaths, per dynamic route
+    "/greet/$name": () => [{ name: "ada" }, { name: "grace" }],
+  },
+},
+```
+
+It also accepts an already-built router table — a `fileRouter()` result or a
+hand-rolled equivalent. Explicit `Page` / `props` / `routePatterns` /
+`build.pages` still win over what the router derives. Full guide:
+[Routing](./routing.md).
 
 ## Component Resolution
 

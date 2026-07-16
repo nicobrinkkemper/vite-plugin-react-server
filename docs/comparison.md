@@ -8,9 +8,13 @@ If you want a framework to make the decisions for you, Waku or Vike are likely
 the better fit; if you want the official low-level building block, that is
 `@vitejs/plugin-rsc`. vprs is the niche in between: a small RSC dev/build setup,
 like the official plugin in spirit, but with portable output you host yourself.
-What mostly defines vprs is what it withholds: it takes no opinion on how your
-React app is built, so the optimizations that fit your app are yours to add
-rather than a general-purpose set baked in for you (more on that under
+Since v3 it also ships an opt-in [file-based router](./routing.md) — dynamic
+params, nested layouts, per-segment loaders, client-side navigation — without
+becoming a framework: the router is one config field, not an app structure you
+inherit. What mostly defines vprs is still what it withholds: it takes no
+opinion on how your React app is built, so the optimizations that fit your app
+are yours to add rather than a general-purpose set baked in for you (more on
+that under
 [What you get for wiring it yourself](#what-you-get-for-wiring-it-yourself)).
 The RSC transport underneath is supplied by `react-server-loader`; treat it as
 an implementation detail, not a knob you tune.
@@ -20,16 +24,16 @@ an implementation detail, not a knob you tune.
 | | **vprs** | **@vitejs/plugin-rsc** | **Waku** | **Vike** (+ vike-react-rsc) |
 |---|---|---|---|---|
 | Kind | Vite plugin | Vite plugin (official) | Framework | Framework (+ RSC extension) |
-| Imposes routing / app structure | No | No | Yes (file-based pages router) | Yes (file-based) |
+| Imposes routing / app structure | No — file-based router is opt-in (since v3) | No | Yes (file-based pages router) | Yes (file-based) |
 | React target | Stable 19.2+ (default) or experimental | Stable, canary, or experimental (your choice) | React 19 | React 19 |
 | RSC transport | `react-server-dom-esm`, via `react-server-loader` | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
 | Build output | `static/` + `client/` + `server/` portable ESM | app bundle via multi-environment build | framework-managed | framework-managed |
 | Host anywhere (static / Express / Hono) | Yes, you wire the server | Yes | Via the framework's server | Via vike-server |
 | Node `--conditions react-server` | Optional; works either way (see [below](#the-react-server-condition-is-optional)) | Used internally | Managed | Managed |
-| Maturity (mid-2026) | 2.x | 0.5.x, official and actively developed | 1.0 beta | extension is early-stage |
+| Maturity (mid-2026) | 3.x | 0.5.x, official and actively developed | 1.0 beta | extension is early-stage |
 
 Versions move fast; check each project for current numbers. One caveat on that
-Maturity row: vprs's `2.x` is not a maturity claim over the official plugin's
+Maturity row: vprs's `3.x` is not a maturity claim over the official plugin's
 `0.5.x`. vprs is the younger project with the smaller community; the two version
 lines simply count different things. The rows above describe positioning, not a
 scorecard, and every tool here is a legitimate choice for the job it is built
@@ -39,16 +43,19 @@ for.
 
 - **vprs** — you want RSC as a *plugin* on plain Vite, on stable React, with a
   build that produces portable ESM (a static site plus `client/` and `server/`
-  modules) you drop into your own static host or Node server. You are happy to
-  own routing and the server wiring, and you want a small RSC dev/build setup
-  rather than a framework.
+  modules) you drop into your own static host or Node server. Routing is
+  covered if you want it — the [file-based router](./routing.md) (v3+) gives you
+  dynamic params, nested layouts and loaders from one config field — or you map
+  URLs to files yourself. Either way you own the server wiring, and you want a
+  small RSC dev/build setup rather than a framework.
 - **`@vitejs/plugin-rsc`** — the official, framework-agnostic Vite RSC plugin
   and the foundation several tools build on. Reach for it when you want the
   canonical low-level plugin, the webpack-flavored transport, or the freedom to
   pin React (including canary/experimental) by installing
   `react-server-dom-webpack` yourself.
-- **Waku** — you want a minimal *framework*: a file-based pages router and the
-  conventions to go with it, batteries included, without assembling the pieces.
+- **Waku** — you want a minimal *framework*: not just a file-based pages router
+  but the whole set of conventions to go with it, batteries included, without
+  assembling the pieces.
 - **Vike (+ vike-react-rsc)** — you are already on Vike (or want its flexible
   framework model) and want to adopt RSC progressively, component by component.
 
@@ -89,9 +96,13 @@ strategy from a framework.
 
 Concretely, the build prerenders your pages to static HTML with each route's RSC
 payload inlined into the page, so a static route hydrates in place on first
-paint with no extra round-trip for its data. A route whose content depends on
-per-request data can render its HTML per request instead. You decide per route;
-nothing forces a single model across the whole app.
+paint with no extra round-trip for its data. The file writer that produces this
+output streams each route's HTML and `.rsc` payload straight to disk — no
+buffering the site in memory — and refuses to silently ship a degraded page: an
+HTML document that rendered without a root `<html>` element fails the build
+(under the default panic policy) instead of deploying broken. A route whose
+content depends on per-request data can render its HTML per request instead.
+You decide per route; nothing forces a single model across the whole app.
 
 This is not a claim that vprs is faster out of the box. A framework that bakes a
 strategy in is doing real work you would otherwise do yourself, and for many
@@ -141,10 +152,12 @@ responsibilities that remain yours.
 Being a plugin rather than a framework is the whole point, so a lot is out of
 scope on purpose:
 
-- **No router.** No file-based routing, no nested layouts, no data-loader
-  convention. You provide a `Page` (and optional `props`) and list the pages to
-  prerender; richer routing is yours to build (see
-  [Examples](./examples.md#custom-routing)).
+- **No imposed routing.** Since v3 vprs *does* ship a file-based router —
+  dynamic params, nested layouts, per-segment loaders, prerendering, client-side
+  `Link` navigation (see [Routing](./routing.md)) — but it is one opt-in config
+  field, not an app structure. Skip it and you provide a `Page` (and optional
+  `props`) yourself, mapping URLs to files however you like (see
+  [Examples](./examples.md#routing)).
 - **No framework conveniences.** No auth, i18n, head/meta management, image
   optimization, or plugin ecosystem. vprs transforms RSC boundaries, runs the
   workers, and emits ESM; the rest of the app is yours.
@@ -153,9 +166,13 @@ scope on purpose:
   needs the webpack transport, use `@vitejs/plugin-rsc`.
 - **No deployment/hosting layer.** The build emits ESM and a static directory;
   wiring them into a host (static CDN, Express, Hono, serverless) is up to you.
-  The static output runs anywhere (including the edge); dynamic SSR is Node-only
-  today, because the flash-free HTML path renders in a `worker_threads` worker.
-  See [Build Output → Where it runs](./build-output.md#where-it-runs-static-anywhere-dynamic-on-node).
+  The static output runs anywhere (including the edge). Dynamic SSR has two
+  shapes: the default worker-based build (Node, `worker_threads`) and the
+  [single-isolate edge bundle](./edge.md), which needs no workers and no
+  `--conditions` flag — but its render still imports built modules off disk, so
+  it targets Node-flavored serverless functions, not literal V8-isolate edge
+  runtimes. See
+  [Build Output → Where it runs](./build-output.md#where-it-runs-static-anywhere-dynamic-on-node).
 - **Two React trains, not any React build.** vprs pins React through
   `react-server-loader`, which ships a stable train and an experimental train;
   you pick one (see "React" above). `@vitejs/plugin-rsc` instead lets you bring
