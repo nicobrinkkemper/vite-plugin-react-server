@@ -12,6 +12,18 @@
 import { join } from "node:path";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { Transform, PassThrough } from "node:stream";
+
+/**
+ * Maps a route to its output directory, relative to the static dir: `/` writes
+ * to the root, `/about` to `about/`.
+ *
+ * Exported because this rule decides which route owns `<staticDir>/index.html`,
+ * and `pruneUnclaimedEntryHtml` has to ask that question with the SAME rule the
+ * writer answers it with. Two copies would drift and the prune would delete a
+ * real page.
+ */
+export const routeToOutputDir = (route: string): string =>
+  route === "/" ? "" : route.replace(/^\//, "");
 import type { FileWriterFn } from "./types.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { handleError } from "../error/handleError.js";
@@ -97,9 +109,7 @@ export const fileWriter: FileWriterFn = function _fileWriter(
   const isStreamWrapper =
     (stream as any).pipe && typeof (stream as any).pipe === "function";
 
-  // Remove leading slash from route for file path construction
-  const routePath =
-    options.route === "/" ? "" : options.route.replace(/^\//, "");
+  const routePath = routeToOutputDir(options.route);
   const baseDir = join(options.build.outDir, options.build.static);
   const outputPath = join(
     baseDir,
