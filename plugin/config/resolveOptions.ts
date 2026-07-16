@@ -91,6 +91,12 @@ const registerPath = (path: string, pattern?: RegExp, ext?: string) => {
 
 let originalOptions: any | null = null;
 /**
+ * The page list a transform receives when no `routes:` router is configured.
+ * A routerless app has exactly one route: the index its `Page` serves.
+ */
+const ROUTERLESS_PAGES: readonly string[] = ["/"];
+
+/**
  * Resolves the user options for the plugin.
  *
  * @param options - The user options to resolve.
@@ -187,37 +193,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // transform stays a nullary async thunk downstream (resolvePages awaits it).
   const routerBuildPages = routerTable?.build?.pages;
   const userBuildPages = options.build?.pages;
-  // A `(routerPages) => …` transform has nothing to transform unless `routes:`
-  // is configured: with no router table the wrapper below hands it `[]`, the
-  // transform filters an empty list, and the build prerenders NOTHING — green,
-  // silent, and empty. Refuse the config instead of shipping an empty site.
-  //
-  // Arity separates the forms: the legacy nullary thunk (`() => [...]`, length
-  // 0) means "replace" and stays valid with no router.
-  if (
-    typeof userBuildPages === "function" &&
-    userBuildPages.length > 0 &&
-    !routerTable
-  ) {
-    const error = new Error(
-      "build.pages was given a `(routerPages) => …` transform, but no `routes:` router is " +
-        "configured — there is no router-derived list to pass it, so it would receive an empty " +
-        "array and the build would prerender nothing. Either set `routes:`, or give build.pages " +
-        "an array or a nullary thunk (e.g. `pages: router.build.pages`)."
-    );
-    // `log` so this surfaces even for callers that treat an error result as a
-    // no-op, and return the Error itself rather than handleError's value, which
-    // is null unless the panic threshold escalates.
-    handleError({
-      error,
-      logger,
-      panicThreshold,
-      context: "config(resolveOptions)",
-      critical: true,
-      log: true,
-    });
-    return { type: "error", error };
-  }
   const effectiveBuildPages =
     typeof userBuildPages === "function"
       ? async () => {
@@ -225,11 +200,22 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
             ? routerBuildPages
             : typeof routerBuildPages === "function"
               ? await routerBuildPages()
-              : [];
+              : // No `routes:` router: the app still has exactly one route —
+                // the index that `Page` serves — so that IS its derived list.
+                // Handing the transform `[]` here instead would make
+                // `(routerPages) => [...routerPages, "/extra"]` silently drop
+                // the index, and a filter silently prerender nothing at all.
+                // A routerless app is the degenerate one-route router.
+                // Fresh copy: this array is handed to user code.
+                [...ROUTERLESS_PAGES];
           const out = (userBuildPages as (p: string[]) => unknown)(routerPages);
           return (out instanceof Promise ? await out : out) as string[];
         }
-      : (userBuildPages ?? routerBuildPages);
+      : // Absent `build.pages` keeps DEFAULT_CONFIG's empty worklist — only the
+        // TRANSFORM's input defaults to the index. Defaulting the worklist too
+        // would start prerendering an index for client-only builds that never
+        // asked for one.
+        (userBuildPages ?? routerBuildPages);
   // Nested layouts: the router table's per-url `route.tsx` chain resolver.
   // Threaded like Page/props so the renderer folds the nested tree.
   const effectiveLayouts = options.layouts ?? routerTable?.layouts;
