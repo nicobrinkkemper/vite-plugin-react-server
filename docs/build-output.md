@@ -140,30 +140,39 @@ hashed JS/CSS. Serve it from any static host, CDN, or edge network (GitHub
 Pages, Netlify, S3/CloudFront, Cloudflare Pages). There is no runtime
 requirement. For a fully static site this is the entire deployment.
 
-**Dynamic SSR runs on Node, not on the edge.** The moment you render HTML per
-request — the flash-free dynamic-route path (`createInlineFlightRenderer` and
-the html-worker behind it) — you need Node. vprs renders the react-dom HTML in a
-worker thread that runs in the *opposite* React condition from your main thread
-(server components resolve under `--conditions react-server`; react-dom renders
-the client half without it). That worker is `node:worker_threads`, and the
-streams it speaks are `node:stream` / `MessagePort`. Edge runtimes such as
-Cloudflare Workers and Deno Deploy have no `worker_threads`, so this path does
-not run there. The cross-condition worker is also what lets the single-condition
-ESM transport render both halves at all — see
-[Workers](./internals/workers.md) and [How vprs compares](./comparison.md).
+**Dynamic SSR runs on Node, in one of two shapes.**
+
+The *default* dynamic path (`createInlineFlightRenderer` and the html-worker
+behind it) renders the react-dom HTML in a worker thread that runs in the
+*opposite* React condition from your main thread (server components resolve
+under `--conditions react-server`; react-dom renders the client half without
+it). That worker is `node:worker_threads`, and the streams it speaks are
+`node:stream` / `MessagePort`, so this shape needs a full Node process. The
+cross-condition worker is also what lets the single-condition ESM transport
+render both halves at all — see [Workers](./internals/workers.md) and
+[How vprs compares](./comparison.md).
+
+The *single-isolate* shape is the [edge bundle](./edge.md) (`build.edge`, on by
+default): a baked `dist/server-edge/render.js` in which server React is inlined
+at build time, so the render needs **no** `worker_threads` and **no**
+`--conditions` flag — one process, one Web `fetch` handler, flash-free streaming
+SSR included. One precision matters here: "edge" refers to the single-isolate
+*shape*, not to a V8-isolate runtime. The render still imports the built client
+chunks and manifest off disk, so it deploys to Node-flavored serverless
+functions (Vercel/Netlify Functions, a small Node server) rather than to literal
+isolate runtimes like Cloudflare Workers.
 
 The runtime RSC-payload and server-action helpers are likewise implemented on
 Node primitives today. A *static* build has no server runtime and therefore no
 callable surface, so this only applies once you stand up a dynamic server.
 
-**The pattern for an edge deployment today is hybrid:** serve `dist/static/`
-from the edge/CDN (instant, global, no runtime) and put any dynamic SSR or
-server actions on a Node origin behind it. vprs does not currently ship an
-in-process edge SSR path (`react-dom/server.edge`, no worker); whether to add
-one is an open question, not a present feature. If first-class edge SSR is a
-hard requirement, `@vitejs/plugin-rsc` reaches the edge in-process today (via
-Vite's environment API and Cloudflare's child-environment workers) and is the
-better fit.
+**The pattern for an edge-network deployment is hybrid:** serve `dist/static/`
+from the edge/CDN (instant, global, no runtime) and put dynamic SSR or server
+actions on a Node origin or serverless function behind it — worker-based or
+single-isolate, your pick. If SSR inside a literal V8-isolate runtime is a hard
+requirement, `@vitejs/plugin-rsc` reaches it in-process today (via Vite's
+environment API and Cloudflare's child-environment workers) and is the better
+fit.
 
 ## Stream Types
 

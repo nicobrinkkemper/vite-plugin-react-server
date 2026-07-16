@@ -24,6 +24,8 @@ export const config = {
 | `publicOrigin` | `string` | Origin for moduleBaseURL | `"https://username.github.io"` |
 | `Page` | `(url: string) => string` | Maps URLs to page component files | - |
 | `props` | `(url: string) => string` | Maps URLs to props files | - |
+| `routes` | `RoutesOption` | File-based router (v3+): scans a route tree and derives `Page`, `props`, `routePatterns` and the prerender worklist. Takes `{ dir?, staticPaths? }` or a `fileRouter()` result. See [Routing](./routing.md). | `{ dir: "routes" }` |
+| `routePatterns` | `string[]` | Route patterns for param matching (derived by `routes`; state explicitly only without it) | `["/", "/greet/$name"]` |
 | `Html` | `React.ComponentType<HtmlProps>` | Wrapper component for production pages | - |
 | `pageExportName` | `string` | Name of the page export | `"Page"` |
 | `propsExportName` | `string` | Name of the props export | `"props"` |
@@ -476,6 +478,23 @@ import { vitePluginReactClient } from "vite-plugin-react-server/client";
 ```typescript
 import { vitePluginReactServer } from "vite-plugin-react-server/server";
 ```
+
+### Router (config side)
+
+```typescript
+// Condition-neutral: fileRouter builds the router table (used in vite.config),
+// withParams wraps a loader, matchRoutes/fillPattern are the pattern helpers.
+import { fileRouter, withParams, matchRoutes, fillPattern } from "vite-plugin-react-server/router";
+```
+
+### Router (client runtime)
+
+```typescript
+// "use client" side: startClient wires router + hydration + HMR in one call.
+import { startClient, Link, useParams, useLocation, useRouter, RouterProvider, createRouter } from "vite-plugin-react-server/router/client";
+```
+
+See [Routing](./routing.md) for the full guide.
 
 ### Stream Helpers
 

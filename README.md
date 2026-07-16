@@ -9,9 +9,12 @@ between.
 — the full docs, and itself a vprs app (the site dogfoods the plugin).
 
 vprs is the low-level layer rather than a framework: it handles the RSC
-transform, runs the worker threads, and emits portable ESM — and leaves routing
-and app structure to you. Use it directly, or as the engine under your own
-conventions. Its closest peer is the official
+transform, runs the worker threads, and emits portable ESM — and leaves app
+structure to you. Routing is covered if you want it: since v3 an opt-in
+[file-based router](./docs/routing.md) (dynamic params, nested layouts,
+per-segment loaders, client-side `Link`) ships in the box, or map URLs to files
+yourself. Use it directly, or as the engine under your own conventions. Its
+closest peer is the official
 [`@vitejs/plugin-rsc`](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-rsc);
 vprs differs by being a small dev/build setup whose output is portable ESM you
 host yourself. (The RSC transport underneath is an implementation detail —
@@ -168,6 +171,7 @@ which is itself built with vprs.
 |-----|---------------|
 | [How vprs compares](./docs/comparison.md) | vprs vs `@vitejs/plugin-rsc`, Waku, Vike — and what vprs does not do |
 | [Getting Started](./docs/getting-started.md) | Install → first page → dev server → build → deploy |
+| [Routing](./docs/routing.md) | The file-based router: params, loaders, nested layouts, `Link` |
 | [Storybook](./docs/storybook.md) | One-line Storybook support for vprs apps |
 | [Build Output](./docs/build-output.md) | What the build produces, how to use the ESM modules |
 | [Configuration](./docs/configuration.md) | All plugin options |
