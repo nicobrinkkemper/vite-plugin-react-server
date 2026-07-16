@@ -49,6 +49,7 @@ import { createWorkerStartupMetrics } from "../metrics/createWorkerStartupMetric
 import { processCssFilesForPages } from "./processCssFilesForPages.js";
 import { createBuildLoader } from "./createBuildLoader.client.js";
 import { maybeInlineFlight } from "./maybeInlineFlight.js";
+import { pruneUnclaimedEntryHtml } from "./pruneUnclaimedEntryHtml.js";
 import { getNodeEnv } from "../config/getNodeEnv.js";
 import { toError } from "../error/toError.js";
 import {
@@ -786,6 +787,17 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         if (userOptions.verbose) {
           logger?.info("[react-static-client] Static generation completed");
         }
+
+        // Keep build.pages authoritative: drop Vite's bare index.html template
+        // when no page claims "/". Runs before the inline pass so nothing
+        // downstream walks a shell SSG never wrote. The server-static plugin
+        // runs the SAME call at the same point (both build modes identical).
+        await pruneUnclaimedEntryHtml({
+          build: userOptions.build,
+          pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
+          logger,
+          verbose: userOptions.verbose,
+        });
 
         // Flash-free first render: inline each route's flight payload if
         // build.inlineFlight is enabled. The server-static plugin runs the

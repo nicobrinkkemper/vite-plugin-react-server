@@ -46,6 +46,7 @@ import { handleError } from "../error/handleError.js";
 import { shouldCausePanic } from "../error/panicThresholdHandler.js";
 import { renderPage } from "./renderPage.server.js";
 import { maybeInlineFlight } from "./maybeInlineFlight.js";
+import { pruneUnclaimedEntryHtml } from "./pruneUnclaimedEntryHtml.js";
 import { temporaryReferences } from "./temporaryReferences.server.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
 import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
@@ -538,6 +539,17 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         this.info(
           `Rendered ${finalResult.completedRoutes.size} pages in ${duration}ms`
         );
+
+        // Keep build.pages authoritative: drop Vite's bare index.html template
+        // when no page claims "/". Runs before the inline pass so nothing
+        // downstream walks a shell SSG never wrote. The client-static plugin
+        // runs the SAME call at the same point (both build modes identical).
+        await pruneUnclaimedEntryHtml({
+          build: userOptions.build,
+          pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
+          logger,
+          verbose: userOptions.verbose,
+        });
 
         // Flash-free first render: inline each route's flight payload if
         // build.inlineFlight is enabled. The client-static plugin runs the
