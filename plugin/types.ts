@@ -1182,11 +1182,16 @@ export type BuildConfig = {
   useRscWorker?: boolean;
   useHtmlWorker?: boolean;
   /**
-   * The prerender worklist. An array or a thunk, or — when a `routes` router is
-   * configured — a transform that receives the router-derived page list so you
-   * can filter / extend / replace it without restating routes
-   * (`pages: (routerPages) => [...routerPages, "/extra"]`). The pre-existing
-   * nullary function form still works (it ignores the argument = replace).
+   * The prerender worklist. An array or a thunk, or a transform that receives
+   * the derived page list so you can filter / extend / replace it without
+   * restating routes (`pages: (routerPages) => [...routerPages, "/extra"]`).
+   *
+   * With a `routes` router the transform receives the router-derived list; with
+   * no router it receives `["/"]`, since a routerless app's one route is the
+   * index its `Page` serves. The transform means the same thing either way.
+   *
+   * The pre-existing nullary function form still works (it ignores the argument
+   * = replace). Leaving `pages` unset prerenders nothing, router or not.
    */
   pages?:
     | string[]

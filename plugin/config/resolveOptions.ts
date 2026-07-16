@@ -200,13 +200,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
             ? routerBuildPages
             : typeof routerBuildPages === "function"
               ? await routerBuildPages()
-              : // No `routes:` router: the app still has exactly one route —
-                // the index that `Page` serves — so that IS its derived list.
-                // Handing the transform `[]` here instead would make
-                // `(routerPages) => [...routerPages, "/extra"]` silently drop
-                // the index, and a filter silently prerender nothing at all.
-                // A routerless app is the degenerate one-route router.
-                // Fresh copy: this array is handed to user code.
+              : // `[]` here would make `(routerPages) => [...routerPages, "/x"]`
+                // silently drop the index, and a filter silently prerender
+                // nothing at all. Copied because it is handed to user code.
                 [...ROUTERLESS_PAGES];
           const out = (userBuildPages as (p: string[]) => unknown)(routerPages);
           return (out instanceof Promise ? await out : out) as string[];
