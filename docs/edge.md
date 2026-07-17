@@ -118,6 +118,9 @@ static import stays visible to a deploy's file tracer. Handing over a *path* for
 the handler to `import()` at runtime is what makes the module go missing on the
 platforms this handler exists to serve.
 
+The bake emits `render.d.ts` next to `render.js`, so the import above type-checks
+in TypeScript with no shim of your own.
+
 `vite-plugin-react-server/edge` is condition-neutral: it resolves to the same
 module with or without `--conditions react-server`, so it is safe to import from
 code that a react-server-condition build also loads.
