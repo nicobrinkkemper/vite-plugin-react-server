@@ -95,11 +95,73 @@ failure is a warning, never a build failure).
 | `outDir`  | `"server-edge"`| output dir, under `build.dir` |
 | `minify`  | `true`         | minify the bundle. It bakes React in, so it is large; edge platforms cap bundle size. Set `false` for readable output. |
 
-## Serve it: `createEdgeHandler`
+## Serve it: `createEdgeRequestHandler`
 
-`createEdgeHandler` composes the producer and the HTML render into a standard
-Web `(Request) => Response` handler — the native entrypoint shape for edge
-runtimes:
+Hand the baked bundle to `createEdgeRequestHandler` and you have the server:
+
+```ts
+import * as bundle from "./dist/server-edge/render.js";
+import { createEdgeRequestHandler } from "vite-plugin-react-server/edge";
+
+export const handler = createEdgeRequestHandler(bundle);
+
+export default { fetch: handler };   // Bun / Deno / Cloudflare / serverless
+```
+
+That is the whole thing: a Web `(Request) => Response` serving the flash-free
+document on a GET, the headless flight on a client navigation, and `"use server"`
+actions through the bundle's baked gate.
+
+Import the bundle as a **namespace** and pass it whole. It carries its own routes,
+styles, client entry and action gate, so there is nothing to wire up — and a
+static import stays visible to a deploy's file tracer. Handing over a *path* for
+the handler to `import()` at runtime is what makes the module go missing on the
+platforms this handler exists to serve.
+
+`vite-plugin-react-server/edge` is condition-neutral: it resolves to the same
+module with or without `--conditions react-server`, so it is safe to import from
+code that a react-server-condition build also loads.
+
+### Options
+
+| option          | default            | meaning |
+| --------------- | ------------------ | ------- |
+| `dynamic`       | every baked route  | which routes render per request — a predicate, or a list of urls and/or route patterns (`/blog/$slug`). A serving-layer choice, so one build can be served static, dynamic, or a mix. |
+| `projectRoot`   | —                  | forwarded to the baked action gate |
+| `actionHeader`  | `"x-rsc-action"`   | header marking a POST as a server action |
+| `rscOutputPath` | `"index.rsc"`      | filename the client router fetches a flight from |
+
+It also accepts `createEdgeHandler`'s options below (`headers`, `nonce`,
+`onError`, `onNotFound`, …). `moduleBaseURL` and `bootstrapModules` come from the
+bundle's own bake; set them only to override.
+
+### Serving files from the same process
+
+`createEdgeRequestHandler` touches no filesystem: assets and prerendered
+snapshots are the host's to serve, and a CDN does it better. To serve them from
+disk anyway — a local runner, a Node self-host — compose `createEdgeRenderHook`
+into `createRequestHandler`:
+
+```ts
+import { createServer } from "node:http";
+import { createRequestHandler, toNodeListener } from "vite-plugin-react-server/request-handler";
+import { createEdgeRenderHook } from "vite-plugin-react-server/edge";
+import * as bundle from "./dist/server-edge/render.js";
+
+const app = createRequestHandler({
+  staticDir: "dist/static",
+  render: createEdgeRenderHook(bundle),   // null for a route it doesn't render
+  action: bundle.handleRouteAction,
+});
+
+createServer(toNodeListener(app)).listen(8787);
+```
+
+## The pieces underneath: `createEdgeHandler`
+
+`createEdgeRequestHandler` is built on `createEdgeHandler`, which composes the
+producer and the HTML render into a standard Web `(Request) => Response` handler.
+Reach for it directly only to drive the producer yourself:
 
 ```ts
 import { renderRouteToFlight } from "./dist/server-edge/render.js";
@@ -134,21 +196,35 @@ for a url that matches no baked route or route pattern (override via
 
 ### Finding `bootstrapModules`
 
-The bootstrap entry is your client entry's hashed filename, read from the client
-build manifest (`dist/client/.vite/manifest.json`) — the same mapping the static
-build uses:
+You don't. The bake reads the client entry's hashed filename out of the build
+manifest and exports it from the bundle as `bootstrapModules`, alongside
+`clientModuleBaseURL` (the built client bundle, resolved from `import.meta.url`).
+`createEdgeRequestHandler` uses both, which is why it needs no wiring.
+
+This is baked rather than read at runtime because a server that reads
+`.vite/manifest.json` on each boot forces the deploy to ship that dot-directory
+to the function — and platforms decline to in ways that only surface in
+production (Vercel's `includeFiles` glob skips dot-dirs, and its tracer will not
+follow a JSON import). Baking it into the module the server already imports
+leaves nothing extra to ship.
+
+Only when driving `createEdgeHandler` yourself do you pass them by hand:
 
 ```ts
-import { readFileSync } from "node:fs";
+import * as bundle from "./dist/server-edge/render.js";
 
-const manifest = JSON.parse(readFileSync("dist/client/.vite/manifest.json", "utf8"));
-const entry = manifest["src/client.tsx"]?.file;      // e.g. "client-abc123.js"
-const bootstrapModules = entry ? ["/" + entry] : [];
+createEdgeHandler({
+  render: bundle.renderRouteToFlight,
+  moduleBaseURL: bundle.clientModuleBaseURL,
+  bootstrapModules: bundle.bootstrapModules,
+});
 ```
 
-> Keep `moduleBaseURL` and the `bootstrapModules` prefix in sync with where you
-> actually host `dist/client`. A non-root deploy base (e.g. GitHub Pages) is the
-> usual reason hydration breaks — verify in a real prod build at the real base.
+> A non-root deploy base (e.g. GitHub Pages) is the usual reason hydration
+> breaks. The baked values already honor `base`; if you override them, keep
+> `moduleBaseURL` and the `bootstrapModules` prefix in sync with where you
+> actually host the client build — and verify in a real prod build at the real
+> base.
 
 ## Run it on Node
 
@@ -264,6 +340,9 @@ import "./start.js";
 - `createEdgeHandler` / `renderFlightToHtml` are client-condition exports (they
   run client React); import them from `vite-plugin-react-server/stream` **without**
   the `react-server` condition. Only the baked `render.js` is server React.
+  `vite-plugin-react-server/edge` has no such caveat — it resolves to one module
+  under either condition and defers the client-React import until a render, so
+  importing it from a react-server build is safe.
 - The baked action gate (`handleRouteAction`) enumerates `*.server.*` modules as
   the allowlist — a `"use server"` action must live in such a module (the common
   convention). Inline `"use server"` in a non-`.server.` file is not baked.

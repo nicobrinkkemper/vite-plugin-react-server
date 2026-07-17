@@ -324,6 +324,12 @@ export const DEFAULT_CONFIG = {
     // Response. A sealed gate over the action modules baked into the bundle, so a
     // no-`--conditions` process dispatches actions without the on-disk transport.
     actionExport: "handleRouteAction",
+    // Its exported content-hashed browser entry (string[]), baked from the client
+    // manifest so no server has to read `.vite/manifest.json` at runtime.
+    bootstrapExport: "bootstrapModules",
+    // Its exported location of the built client bundle, resolved from
+    // import.meta.url at runtime (a deploy's root is not the build's root).
+    clientBaseExport: "clientModuleBaseURL",
     // Server-module manifest keys to bake as action candidates (the sealed-gate
     // allowlist). Server actions live in `*.server.*` modules.
     actionKeyPattern: "\\.server\\.[cm]?[jt]sx?$",

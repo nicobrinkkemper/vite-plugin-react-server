@@ -56,6 +56,10 @@
     },
     "./metrics": "./dist/plugin/metrics/index.js",
     "./request-handler": "./dist/plugin/helpers/createRequestHandler.server.js",
+    "./edge": {
+      "types": "./dist/plugin/edge/index.d.ts",
+      "default": "./dist/plugin/edge/index.js"
+    },
     "./stream": {
       "react-server": "./dist/plugin/stream/index.server.js",
       "default": "./dist/plugin/stream/index.client.js"
