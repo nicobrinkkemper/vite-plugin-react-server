@@ -66,34 +66,39 @@ npx playwright test test/e2e/hmr.spec.ts
 
 ## 2. Bump the version
 
+Releases go through a PR like any other change, so the bump happens on a branch
+and the tag comes later. `npm version` is **not** used: it would tag the
+pre-merge commit on the branch rather than what lands on `main`.
+
 ```bash
-npm version patch   # 1.4.0 → 1.4.1
-# or: npm version minor  # 1.4.0 → 1.5.0
-# or: npm version major  # 1.4.0 → 2.0.0
+npm run version:patch   # 3.1.9 → 3.1.10
+# or: npm run version:minor  # 3.1.9 → 3.2.0
+# or: npm run version:major  # 3.1.9 → 4.0.0
 ```
 
-Use `--no-git-tag-version` if you want to commit and tag manually:
+That writes `package.json` + `package-lock.json` only. Commit them, open the PR,
+merge it.
+
+## 3. Tag the merged commit, then publish
+
+Tag `main` **after** the merge, so the tag points at the commit that is actually
+published:
 
 ```bash
-npm version minor --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "v1.5.0"
-git tag v1.5.0
-```
-
-For pre-releases:
-
-```bash
-npm version 1.5.0-alpha.0
-npm publish --tag alpha
-```
-
-## 3. Push and publish
-
-```bash
-git push && git push --tags
+git checkout main && git pull
+git tag -a v<version> -m "v<version>"
+git push origin v<version>
 npm publish   # requires 2FA (human step)
 ```
+
+This tag step is manual and has been missed before (v3.1.7 shipped untagged and
+needed backfilling; v3.1.9 nearly did). `prepublishOnly` runs `verify:tag`, which
+refuses to publish unless `v<version>` exists and points at `HEAD` — a forgotten
+tag now fails the publish instead of shipping. For a deliberate untagged publish,
+set `VPRS_SKIP_TAG_CHECK=1`.
+
+For pre-releases, hand-edit the version (e.g. `3.2.0-alpha.0`), tag it the same
+way, then `npm publish --tag alpha`.
 
 ## 4. Update demo projects
 
@@ -181,9 +186,9 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 - [ ] `mmc` linked via `file:../vite-plugin-react-server` — `npm run build` succeeds; dev server starts cleanly
 - [ ] Both demo repos restored to their committed `package.json`/`package-lock.json` afterwards
 - [ ] `npx playwright test test/e2e/hmr.spec.ts` — 9/9 pass
-- [ ] `npm version <type>`
-- [ ] `git push && git push --tags`
-- [ ] `npm publish` (2FA — human step)
+- [ ] `npm run version:<type>` — commit `package.json` + `package-lock.json`, PR, merge
+- [ ] `git tag -a v<version> -m "v<version>" && git push origin v<version>` — on merged `main`
+- [ ] `npm publish` (2FA — human step; `verify:tag` blocks an untagged publish)
 - [ ] For each demo repo:
   - [ ] Create branch from main
   - [ ] Update `package.json` version
