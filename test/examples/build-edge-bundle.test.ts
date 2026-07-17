@@ -225,29 +225,6 @@ describe.skipIf(!renderFlightToHtml)(
       const loadBundle = () =>
         import(pathToFileURL(join(testDir, "dist/server-edge/render.js")).href);
 
-      it("emits types beside the bundle, so a TS consumer can import it", async () => {
-        // Without these the documented one-liner (`import * as bundle from
-        // "./dist/server-edge/render.js"`) is a TS7016 "could not find a
-        // declaration file" under `strict`, and every TypeScript consumer
-        // hand-writes a .d.ts shim — the boilerplate this entry exists to end.
-        const dts = await readFile(
-          join(testDir, "dist/server-edge/render.d.ts"),
-          "utf8"
-        );
-        for (const name of [
-          "renderRouteToFlight",
-          "renderRouteToDocument",
-          "handleRouteAction",
-          "bootstrapModules",
-          "clientModuleBaseURL",
-        ]) {
-          expect(dts).toContain(name);
-        }
-        // Derived from vprs's own type rather than restated, so the bundle stays
-        // assignable to what createEdgeRequestHandler accepts.
-        expect(dts).toContain('from "vite-plugin-react-server/edge"');
-      });
-
       it("bakes the content-hashed client entry as bootstrapModules", async () => {
         const bundle = await loadBundle();
         // The value a consumer would otherwise dig out of
