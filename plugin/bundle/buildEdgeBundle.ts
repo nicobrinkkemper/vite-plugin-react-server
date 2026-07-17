@@ -1,12 +1,13 @@
 import { build as viteBuild, type Logger } from "vite";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import type { ResolvedUserOptions } from "../types.js";
 import { patternProbeUrl } from "../router/matchRoute.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
+import { UNKNOWN_ROUTE_MARKER } from "../stream/unknownRoute.js";
 
 /** Resolve a package subpath's `react-server` export target to an absolute path. */
 function reactServerExportTarget(
@@ -102,6 +103,14 @@ export async function buildEdgeBundle(opts: {
     userOptions.build.static,
     ".vite/manifest.json"
   );
+  // The browser's bootstrap module, baked from the same manifest. Its name is
+  // content-hashed, so it is only knowable from the build — and a server that
+  // reads it back out of `.vite/manifest.json` at runtime forces every deploy to
+  // ship that dot-directory to the function, which some platforms decline to do
+  // (Vercel's includeFiles glob skips dot-dirs, and its tracer won't follow a
+  // JSON import). Baking it into the bundle the server already imports removes
+  // the runtime read, so there is nothing extra to ship.
+  let bakedBootstrapModules: string[] = [];
   if (existsSync(staticManifestPath)) {
     const staticManifest = JSON.parse(readFileSync(staticManifestPath, "utf8"));
     const seen = new Set<string>();
@@ -125,7 +134,36 @@ export async function buildEdgeBundle(opts: {
         `${tag} baking ${bakedGlobalCss.length} stylesheet(s) into the document producer's default globalCss`
       );
     }
+    // The static build keys the browser bootstrap under the HTML input — that
+    // entry is the bundled client entry (startClient).
+    const entryFile = (
+      staticManifest as Record<string, { file?: string } | undefined>
+    )[userOptions.build.htmlOutputPath ?? DEFAULT_CONFIG.BUILD.htmlOutputPath]
+      ?.file;
+    if (entryFile) {
+      bakedBootstrapModules = [withBase(entryFile)];
+      logger.info(`${tag} baking client entry ${entryFile} as bootstrapModules`);
+    } else {
+      // Not fatal: a consumer can still pass bootstrapModules explicitly. But
+      // without one the document renders and never hydrates, which looks like a
+      // render bug rather than a missing entry — so say so here.
+      logger.warn(
+        `${tag} no HTML entry in the static manifest; the baked bootstrapModules ` +
+          `will be empty and the edge document will not hydrate unless the ` +
+          `handler is given bootstrapModules explicitly`
+      );
+    }
   }
+
+  // Where the built client (ssr) bundle sits RELATIVE to the edge bundle, so the
+  // handler can resolve client references without being told a path. Resolved
+  // from import.meta.url at runtime rather than baked absolute: the build machine
+  // and the deploy have different roots, and process.cwd() differs between a
+  // local `node server.mjs` and a platform function's task root. The relative
+  // layout is the one thing that holds across all of them.
+  const clientDir = join(outRoot, userOptions.build.client);
+  const relClientFromEdge =
+    relative(edgeDir, clientDir).split(sep).join("/") || ".";
 
   // Enumerate every prerendered route. Post-build, build.pages already lists
   // all URLs (the SSG just rendered them) and every page module is in
@@ -307,8 +345,14 @@ export async function buildEdgeBundle(opts: {
   // render does not diverge. moduleBasePath/URL come from the user config (the
   // SSG used the same), so client-reference ids align with the ssr bundle the
   // runtime points moduleBaseURL at.
-  const { entryFileName, flightExport, documentExport, actionExport } =
-    DEFAULT_CONFIG.EDGE;
+  const {
+    entryFileName,
+    flightExport,
+    documentExport,
+    actionExport,
+    bootstrapExport,
+    clientBaseExport,
+  } = DEFAULT_CONFIG.EDGE;
   const pageExport = userOptions.pageExportName ?? "Page";
   const propsExport = userOptions.propsExportName ?? "props";
   const layoutExport = userOptions.layoutExportName ?? "Layout";
@@ -406,6 +450,24 @@ const BAKED_GLOBAL_CSS = ${JSON.stringify(bakedGlobalCss)};
 const HtmlComponent = ${htmlNs}[${JSON.stringify(htmlComp.exportName)}];
 const RootComponent = ${rootNs}[${JSON.stringify(rootComp.exportName)}];
 
+/**
+ * The content-hashed browser entry to bootstrap hydration with, baked from the
+ * client manifest at build time — so no runtime manifest read, and nothing to
+ * ship beyond this bundle.
+ */
+export const ${bootstrapExport} = ${JSON.stringify(bakedBootstrapModules)};
+
+/**
+ * Where the built client (ssr) bundle lives, resolved relative to THIS module at
+ * runtime. The in-process HTML render imports client references from here, so it
+ * must be a location that exists wherever the bundle is deployed — hence
+ * import.meta.url, not a build-time absolute path or process.cwd().
+ */
+export const ${clientBaseExport} = new URL(
+  ${JSON.stringify(relClientFromEdge + "/")},
+  import.meta.url
+).href;
+
 const routes = {
 ${routeLines.join("\n")}
 };
@@ -425,7 +487,7 @@ async function resolveRoute(url, request) {
     const matched = matchRoutes(ROUTE_PATTERNS, url);
     if (matched) route = patternRoutes[matched.pattern];
   }
-  if (!route) throw new Error("[edge] unknown route: " + url);
+  if (!route) throw new Error(${JSON.stringify(UNKNOWN_ROUTE_MARKER + " ")} + url);
   const resolved = await resolvePageAndProps({
     pagePath: route.pagePath,
     propsPath: route.propsPath,

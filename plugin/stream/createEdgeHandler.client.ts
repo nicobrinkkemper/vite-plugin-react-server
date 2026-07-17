@@ -5,6 +5,7 @@ import type {
 import { renderFlightToHtml } from "./renderFlightToHtml.client.js";
 import { injectInlineFlightIntoHtml } from "../utils/inlineFlight.js";
 import { assertNonReactServer } from "../config/getCondition.js";
+import { isUnknownRoute } from "./unknownRoute.js";
 
 assertNonReactServer();
 
@@ -31,14 +32,6 @@ async function collectBytes(
   }
   return out;
 }
-
-/**
- * Marker the baked flight producer uses for a url with no baked route (see the
- * generated entry in plugin/bundle/buildEdgeBundle.ts — `"[edge] unknown route:
- * " + url`). Kept here so the handler can map that one throw to a 404 without
- * swallowing real render errors.
- */
-const UNKNOWN_ROUTE_MARKER = "[edge] unknown route:";
 
 /**
  * Compose a single-isolate edge build into a Web `fetch` handler.
@@ -97,10 +90,6 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
           status: 404,
           headers: { "content-type": "text/plain; charset=utf-8" },
         });
-
-  /** The producer 404s an unbaked route by throwing the unknown-route marker. */
-  const isUnknownRoute = (error: unknown): boolean =>
-    error instanceof Error && error.message.includes(UNKNOWN_ROUTE_MARKER);
 
   return async function edgeHandler(request: Request): Promise<Response> {
     const url = getURL(request);

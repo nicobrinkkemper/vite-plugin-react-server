@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import * as streamApi from "vite-plugin-react-server/stream";
+import * as edgeApi from "vite-plugin-react-server/edge";
 import { doBuild } from "../doBuild.js";
 
 // renderFlightToHtml is client-only (exported under the default condition, not
@@ -16,6 +17,11 @@ const renderFlightToHtml = (streamApi as any).renderFlightToHtml as
 const createEdgeHandler = (streamApi as any).createEdgeHandler as
   | typeof import("../../plugin/stream/createEdgeHandler.client.js").createEdgeHandler
   | undefined;
+
+// ./edge is condition-NEUTRAL: unlike ./stream above, it resolves to the same
+// module under react-server, so it needs no `as any` unwrapping. It is still only
+// exercised on the client leg, where the render it defers to can actually run.
+const { createEdgeRequestHandler, createEdgeRenderHook } = edgeApi;
 
 const testDir = resolve(__dirname, "../fixtures/build-edge-bundle.test");
 
@@ -209,6 +215,137 @@ describe.skipIf(!renderFlightToHtml)(
       expect(response.status).toBe(200);
       // RSC success wire format `0:<json>` — bump(41) ran through the gate → 42.
       expect(await response.text()).toContain("0:42");
+    });
+
+    // The ./edge one-liner. Every test below imports the bundle as a NAMESPACE
+    // and hands it straight to createEdgeRequestHandler — no manifest read, no
+    // bootstrap derivation, no moduleBaseURL. That absence IS the feature: the
+    // hand-rolled versions of exactly those steps are what this entry replaces.
+    describe("createEdgeRequestHandler (./edge)", () => {
+      const loadBundle = () =>
+        import(pathToFileURL(join(testDir, "dist/server-edge/render.js")).href);
+
+      it("bakes the content-hashed client entry as bootstrapModules", async () => {
+        const bundle = await loadBundle();
+        // The value a consumer would otherwise dig out of
+        // dist/static/.vite/manifest.json and ship to the function themselves.
+        expect(bundle.bootstrapModules).toHaveLength(1);
+
+        const staticManifest = JSON.parse(
+          await readFile(join(testDir, "dist/static/.vite/manifest.json"), "utf8")
+        );
+        // The REAL hashed entry, not merely a plausible-looking path.
+        expect(bundle.bootstrapModules[0]).toBe(
+          "/" + staticManifest["index.html"].file
+        );
+      });
+
+      it("resolves clientModuleBaseURL relative to the bundle, not the cwd", async () => {
+        const bundle = await loadBundle();
+        // Must point at the built client bundle wherever the file actually sits:
+        // a deploy's task root and the build's root are different places, and
+        // process.cwd() is neither inside a platform function.
+        expect(bundle.clientModuleBaseURL).toBe(
+          pathToFileURL(join(testDir, "dist/client")).href + "/"
+        );
+      });
+
+      it("serves a hydratable flash-free document from the bundle alone", async () => {
+        const bundle = await loadBundle();
+        const handler = createEdgeRequestHandler(bundle);
+
+        const response = await handler(new Request("http://edge.test/"));
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/html");
+
+        const html = await response.text();
+        expect(html).toContain("<html");
+        expect(html).toContain("edge-isolate");
+        // Inline flight (no .rsc round-trip) + the baked bootstrap entry, neither
+        // of them supplied by the caller.
+        expect(html).toContain('id="vprs-flight"');
+        expect(html).toContain(bundle.bootstrapModules[0]);
+      });
+
+      it("serves the headless flight for a client navigation", async () => {
+        const bundle = await loadBundle();
+        const handler = createEdgeRequestHandler(bundle);
+
+        const response = await handler(new Request("http://edge.test/index.rsc"));
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/x-component");
+        expect(await response.text()).toContain("edge-isolate");
+      });
+
+      it("404s a route the bundle was not baked with", async () => {
+        const bundle = await loadBundle();
+        const handler = createEdgeRequestHandler(bundle);
+        const response = await handler(new Request("http://edge.test/missing"));
+        expect(response.status).toBe(404);
+      });
+
+      it("dispatches a server action through the bundle's baked gate", async () => {
+        const bundle = await loadBundle();
+        const handler = createEdgeRequestHandler(bundle, {
+          projectRoot: testDir,
+        });
+
+        const response = await handler(
+          new Request("http://edge.test/", {
+            method: "POST",
+            headers: {
+              "x-rsc-action": "src/page/actions.server.ts#bump",
+              "content-type": "application/json",
+            },
+            body: JSON.stringify([41]),
+          })
+        );
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain("0:42");
+      });
+
+      it("renders only the routes `dynamic` selects", async () => {
+        const bundle = await loadBundle();
+        const handler = createEdgeRequestHandler(bundle, { dynamic: [] });
+        // "/" is baked, but the serving layer opted it out — a mixed deploy
+        // serves the prerendered snapshot for it instead.
+        const response = await handler(new Request("http://edge.test/"));
+        expect(response.status).toBe(404);
+      });
+
+      it("accepts route PATTERNS in `dynamic`, not just exact urls", async () => {
+        const bundle = await loadBundle();
+        // Matched through the router's own matchRoutes, so a pattern selects
+        // routes without the serving layer enumerating their urls — the point
+        // being that an unenumerated dynamic url (`/profile/<id>`) can be served
+        // per request.
+        const handler = createEdgeRequestHandler(bundle, { dynamic: ["/$"] });
+        const response = await handler(new Request("http://edge.test/"));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain("edge-isolate");
+
+        // ...while a pattern that does NOT match still opts the route out, so the
+        // predicate is really matching rather than waving everything through.
+        const narrow = createEdgeRequestHandler(bundle, {
+          dynamic: ["/blog/$slug"],
+        });
+        expect((await narrow(new Request("http://edge.test/"))).status).toBe(404);
+      });
+
+      it("falls through, rather than 404ing, as a createRequestHandler render hook", async () => {
+        const bundle = await loadBundle();
+        const hook = createEdgeRenderHook(bundle);
+
+        // A baked route answers...
+        const rendered = await hook("/", new Request("http://edge.test/"));
+        expect(rendered?.status).toBe(200);
+
+        // ...and an unbaked one yields null, so the composing handler can serve a
+        // file or 404 itself. A 404 Response here would shadow the static build.
+        expect(
+          await hook("/missing", new Request("http://edge.test/missing"))
+        ).toBeNull();
+      });
     });
   }
 );

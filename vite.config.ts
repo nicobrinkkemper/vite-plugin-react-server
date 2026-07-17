@@ -124,6 +124,9 @@ export default defineConfig({
         // only fileRouter uses (e.g. fillPattern) from the shared matchRoute chunk.
         "plugin/router/index": resolve(__dirname, "plugin/router/index.ts"),
         "plugin/router/client": resolve(__dirname, "plugin/router/client.ts"),
+        // Public "./edge" entry. Condition-neutral by design — one target serves
+        // both conditions, see plugin/edge/index.ts.
+        "plugin/edge/index": resolve(__dirname, "plugin/edge/index.ts"),
       },
       formats: ["es"],
     },
