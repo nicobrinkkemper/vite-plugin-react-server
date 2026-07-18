@@ -2,8 +2,8 @@
 
 The default build renders HTML through worker threads under a `--conditions
 react-server` process flag. That model is great on a full Node server, but it
-does not fit single-process targets — serverless functions and edge-style
-runtimes (Bun, Deno, Vercel/Netlify Functions) — which have no `worker_threads`
+does not fit single-process targets — serverless functions and single-process
+runtimes (Bun, Vercel/Netlify Functions) — which have no `worker_threads`
 and no process-level export conditions.
 
 The **single-isolate edge build** removes both requirements. It bakes a second,
@@ -13,11 +13,13 @@ runtime `--conditions`. You get flash-free streaming SSR from one Web `fetch`
 handler.
 
 One naming precision: "edge" here refers to the single-isolate *shape*, not to a
-literal V8-isolate runtime. Rendering a page with client islands imports the
-built client chunks off disk (see `moduleBaseURL` below), so the natural homes
-are Node-flavored serverless functions and single-process servers. A runtime
-with no filesystem, such as Cloudflare Workers, only fits when nothing in the
-render needs a disk import.
+literal V8-isolate runtime. The HTML half of the render resolves react-dom
+through `node:module` at request time, and client islands import the built
+client chunks off disk (see `moduleBaseURL` below) — so this runs on
+**Node-compatible hosts**: Node servers, Bun, Vercel/Netlify Node functions. It
+does not run on Cloudflare Workers or Deno Deploy today; those need a fully
+self-contained bundle with module-map reference resolution, which the current
+build does not produce.
 
 It is **additive**: the normal `dist/server` / `dist/static` output is untouched.
 Dev is unaffected.
@@ -105,7 +107,7 @@ import { createEdgeRequestHandler } from "vite-plugin-react-server/edge";
 
 export const handler = createEdgeRequestHandler(bundle);
 
-export default { fetch: handler };   // Bun / Deno / Cloudflare / serverless
+export default { fetch: handler };   // Node server, Bun, a Node serverless function
 ```
 
 That is the whole thing: a Web `(Request) => Response` serving the flash-free
@@ -173,7 +175,7 @@ const handler = createEdgeHandler({
   bootstrapModules: ["/client-abc123.js"],  // your client entry (for hydration)
 });
 
-export default { fetch: handler };          // Bun / Deno / serverless function
+export default { fetch: handler };          // Node server, Bun, a Node serverless function
 ```
 
 The handler **streams** (responds when the HTML shell is ready), returns **404**

@@ -39,13 +39,17 @@ async function collectBytes(
  * Wires the baked per-route flight producer (`dist/server-edge/render.js`'s
  * `renderRouteToFlight`, server React) to the in-process HTML render
  * (`renderFlightToHtml`, client React) and returns a `(Request) => Response`
- * handler — the native entrypoint shape for Cloudflare Workers, Deno Deploy,
- * Vercel Edge and Bun, and trivially adaptable to Node. No worker_threads, no
- * runtime `--conditions`: the producer baked server React, this side runs
- * client React, and they co-exist in one isolate (client islands resolve via
- * the client transport's `import(moduleBaseURL + id)` into the ssr bundle, so
+ * handler in the Web-standard `fetch` shape. No worker_threads, no runtime
+ * `--conditions`: the producer baked server React, this side runs client
+ * React, and they co-exist in one isolate (client islands resolve via the
+ * client transport's `import(moduleBaseURL + id)` into the ssr bundle, so
  * point {@link CreateEdgeHandlerOptions.moduleBaseURL} at where `dist/client`
  * is served).
+ *
+ * The shape is portable; the implementation today is not: the HTML render
+ * resolves react-dom through `node:module` at request time, so this runs on
+ * Node-compatible hosts (Node, Bun, Node serverless functions) — not on
+ * Cloudflare Workers or Deno Deploy.
  *
  * The returned handler streams: it responds as soon as the HTML shell is ready.
  * Unknown routes get a 404 (override via `onNotFound`); other render errors

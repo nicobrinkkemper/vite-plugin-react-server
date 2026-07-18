@@ -1,8 +1,9 @@
 import type { Logger } from "vite";
 
 /**
- * A Web `fetch` handler: the standard edge-runtime entrypoint shape
- * (Cloudflare Workers, Deno Deploy, Vercel Edge, Bun, Node via an adapter).
+ * A Web `fetch` handler: the standard `(Request) => Response` entrypoint
+ * shape. The shape is universal; where a given handler actually runs depends
+ * on what its implementation touches — see the docs of the handler you use.
  */
 export type EdgeFetchHandler = (request: Request) => Promise<Response>;
 

@@ -153,10 +153,15 @@ export function createEdgeRenderHook(
 }
 
 /**
- * The whole per-request edge server for a vprs build, in one call: hand it the
- * baked bundle and get back the Web `(Request) => Response` every runtime speaks
- * (Vercel/Netlify functions, Cloudflare Workers, Deno Deploy, Bun, and Node
- * through `toNodeListener`).
+ * The whole per-request server for a single-isolate vprs build, in one call:
+ * hand it the baked bundle and get back a Web `(Request) => Response`.
+ *
+ * Runs on Node-compatible hosts (Node servers via `toNodeListener`, Bun,
+ * Vercel/Netlify Node functions). NOT on Cloudflare Workers or Deno Deploy:
+ * the HTML render underneath resolves react-dom through `node:module` at
+ * request time, and client references resolve by `import()` off disk. "Edge"
+ * names the single-isolate build shape (no worker_threads, no runtime
+ * `--conditions`), not a literal isolate runtime.
  *
  * ```js
  * import * as bundle from "../dist/server-edge/render.js";
