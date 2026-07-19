@@ -19,8 +19,15 @@ import {
 import type { ServerActionRequest } from "./handleServerActionHelper.js";
 import { createSealedServerReferenceGate } from "../references/createSealedServerReferenceGate.server.js";
 import type { ReferenceGate } from "react-server-loader/references";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+// node:fs / node:path load lazily inside the disk-manifest fallback ONLY (see
+// resolveServerManifest): the baked edge path supplies resolveServerReference
+// and short-circuits before any disk access, and a top-level import would
+// crash module EVALUATION on a filesystem-less runtime regardless of whether
+// the fallback ever runs.
+const nodeDisk = () =>
+  Promise.all([import("node:fs/promises"), import("node:path")]).then(
+    ([fs, path]) => ({ readFile: fs.readFile, join: path.join })
+  );
 
 type ServerManifest = Record<string, { file: string; src?: string } | undefined>;
 
@@ -44,6 +51,7 @@ const manifestByRoot = new Map<string, ServerManifest | null>();
 async function resolveServerManifest(
   options: ServerActionHandlerOptions
 ): Promise<{ serverManifest: ServerManifest; serverRoot: string } | null> {
+  const { readFile, join } = await nodeDisk();
   if (options.serverManifest) {
     return {
       serverManifest: options.serverManifest,
@@ -148,7 +156,7 @@ export async function resolveAndExecuteServerAction(
       // to the open resolver — that would reopen the boundary we are enforcing.
       throw new Error(
         `[handleServerAction] No server manifest found (looked for ` +
-          `${join(options.serverRoot ?? join(projectRoot, "dist", "server"), ".vite", "manifest.json")}). ` +
+          `${options.serverRoot ?? `${projectRoot}/dist/server`}/.vite/manifest.json). ` +
           `Server actions resolve through a sealed allowlist; pass serverRoot for a ` +
           `custom build.outDir, or serverManifest directly. Refusing unsealed resolution.`
       );
