@@ -8,6 +8,7 @@ import { patternProbeUrl } from "../router/matchRoute.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
 import { UNKNOWN_ROUTE_MARKER } from "../stream/unknownRoute.js";
+import { buildWebpackClientManifest } from "./clientManifest.js";
 
 /** Resolve a package subpath's `react-server` export target to an absolute path. */
 function reactServerExportTarget(
@@ -164,6 +165,29 @@ export async function buildEdgeBundle(opts: {
   const clientDir = join(outRoot, userOptions.build.client);
   const relClientFromEdge =
     relative(edgeDir, clientDir).split(sep).join("/") || ".";
+
+  // The webpack-shaped client manifest (hosted id -> {id, chunks, name}),
+  // derived from the client build's Vite manifest. This is the module map a
+  // webpack-transport render resolves client references against — baked and
+  // exported so no runtime ever reads `.vite/manifest.json` (same reasoning as
+  // the baked bootstrapModules above).
+  let bakedClientManifest: Record<string, unknown> = {};
+  const clientManifestPath = join(clientDir, ".vite/manifest.json");
+  if (existsSync(clientManifestPath)) {
+    bakedClientManifest = buildWebpackClientManifest(
+      JSON.parse(readFileSync(clientManifestPath, "utf8")),
+      userOptions.moduleBasePath ?? ""
+    );
+    const count = Object.keys(bakedClientManifest).length;
+    if (count > 0) {
+      logger.info(`${tag} baking webpack client manifest over ${count} module(s)`);
+    }
+  } else {
+    logger.warn(
+      `${tag} no client manifest at ${clientManifestPath}; the baked ` +
+        `${DEFAULT_CONFIG.EDGE.clientManifestExport} export will be empty`
+    );
+  }
 
   // Enumerate every prerendered route. Post-build, build.pages already lists
   // all URLs (the SSG just rendered them) and every page module is in
@@ -352,6 +376,7 @@ export async function buildEdgeBundle(opts: {
     actionExport,
     bootstrapExport,
     clientBaseExport,
+    clientManifestExport,
   } = DEFAULT_CONFIG.EDGE;
   const pageExport = userOptions.pageExportName ?? "Page";
   const propsExport = userOptions.propsExportName ?? "props";
@@ -467,6 +492,17 @@ export const ${clientBaseExport} = new URL(
   ${JSON.stringify(relClientFromEdge + "/")},
   import.meta.url
 ).href;
+
+/**
+ * The webpack-shaped client manifest: hosted client-reference id ->
+ * { id, chunks, name }, derived from the client build's Vite manifest at bake
+ * time. Chunks list the module's own file plus its transitive import closure
+ * (all as hosted paths), so a consumer can preload before the sync require.
+ * This is the module map for rendering this build's flight through the
+ * webpack transport (react-server-loader/webpack/*) — the closed-registry
+ * resolution a fully self-contained deployment needs.
+ */
+export const ${clientManifestExport} = ${JSON.stringify(bakedClientManifest)};
 
 const routes = {
 ${routeLines.join("\n")}
