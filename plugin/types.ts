@@ -1305,7 +1305,16 @@ export type EdgeBuildConfig = {
    *
    * The baked bundle exports which transport it was built with
    * (`flightTransport`), so the serving handlers self-configure — a bundle and
-   * its handler cannot disagree. @default "esm"
+   * its handler cannot disagree.
+   *
+   * Do NOT mix transports across one deploy's routes: prerendered snapshots
+   * (SSG html / inlined flight / .rsc files) are esm-encoded, so serving them
+   * next to webpack-encoded dynamic routes breaks client-side navigation
+   * BETWEEN the two flavors (the browser picks its flight client per
+   * document, but a fetched .rsc of the other flavor cannot be decoded).
+   * With "webpack", serve every route through the edge bundle and drop the
+   * prerendered snapshots from serving (the prepare-vercel pattern).
+   * @default "esm"
    */
   transport?: "esm" | "webpack";
 };

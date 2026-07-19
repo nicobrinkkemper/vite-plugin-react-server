@@ -30,11 +30,17 @@ assertNonReactServer();
  * esm-transport users pay nothing for this branch.
  */
 type WebpackDecode = (stream: ReadableStream<Uint8Array>) => Promise<unknown>;
-let webpackDecodeReady: Promise<WebpackDecode> | undefined;
+// Memoized PER moduleBaseURL: a first-call-wins memo would silently resolve a
+// second bundle's chunks against the first bundle's base. The runtime's
+// globals merge on reinstall (loaders accumulate; a loader whose base 404s
+// falls through to the next), so multiple bases in one process compose.
+const webpackDecodeByBase = new Map<string, Promise<WebpackDecode>>();
 function getWebpackDecode(
   moduleBaseURL: string
 ): Promise<WebpackDecode> {
-  return (webpackDecodeReady ??= Promise.all([
+  const memo = webpackDecodeByBase.get(moduleBaseURL);
+  if (memo) return memo;
+  const ready = Promise.all([
     import("react-server-loader/webpack/client.edge"),
     import("react-server-loader/webpack/runtime"),
   ]).then(([clientEdge, runtime]) => {
@@ -74,9 +80,13 @@ function getWebpackDecode(
       serverModuleMap: null,
       moduleLoading: null,
     };
-    return (stream) =>
-      clientEdge.createFromReadableStream(stream, { serverConsumerManifest });
-  }));
+    return ((stream) =>
+      clientEdge.createFromReadableStream(stream, {
+        serverConsumerManifest,
+      })) as WebpackDecode;
+  });
+  webpackDecodeByBase.set(moduleBaseURL, ready);
+  return ready;
 }
 
 export const renderFlightToHtml: RenderFlightToHtmlFn =
