@@ -157,11 +157,13 @@ export function createEdgeRenderHook(
  * hand it the baked bundle and get back a Web `(Request) => Response`.
  *
  * Runs on Node-compatible hosts (Node servers via `toNodeListener`, Bun,
- * Vercel/Netlify Node functions). NOT on Cloudflare Workers or Deno Deploy:
- * the HTML render underneath resolves react-dom through `node:module` at
- * request time, and client references resolve by `import()` off disk. "Edge"
- * names the single-isolate build shape (no worker_threads, no runtime
- * `--conditions`), not a literal isolate runtime.
+ * Vercel/Netlify Node functions). The Node binding is a property of the esm
+ * transport this render path uses — react-dom resolves through `node:module`
+ * at request time, client references by `import()` off disk — not of the
+ * `(Request) => Response` shape. A filesystem-less runtime (Cloudflare
+ * Workers, Deno Deploy) needs the webpack transport's closed module-map
+ * resolution instead. "Edge" names the single-isolate build shape (no
+ * worker_threads, no runtime `--conditions`), not a literal isolate runtime.
  *
  * ```js
  * import * as bundle from "../dist/server-edge/render.js";

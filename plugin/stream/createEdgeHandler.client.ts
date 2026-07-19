@@ -46,10 +46,12 @@ async function collectBytes(
  * point {@link CreateEdgeHandlerOptions.moduleBaseURL} at where `dist/client`
  * is served).
  *
- * The shape is portable; the implementation today is not: the HTML render
- * resolves react-dom through `node:module` at request time, so this runs on
- * Node-compatible hosts (Node, Bun, Node serverless functions) — not on
- * Cloudflare Workers or Deno Deploy.
+ * The shape is portable; how far it travels is set by the transport underneath.
+ * This path uses the esm transport, whose HTML render resolves react-dom
+ * through `node:module` at request time — so it runs on Node-compatible hosts
+ * (Node, Bun, Node serverless functions). Filesystem-less runtimes (Cloudflare
+ * Workers, Deno Deploy) need a render path on the webpack transport's closed
+ * module-map resolution instead.
  *
  * The returned handler streams: it responds as soon as the HTML shell is ready.
  * Unknown routes get a 404 (override via `onNotFound`); other render errors

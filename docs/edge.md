@@ -13,13 +13,17 @@ runtime `--conditions`. You get flash-free streaming SSR from one Web `fetch`
 handler.
 
 One naming precision: "edge" here refers to the single-isolate *shape*, not to a
-literal V8-isolate runtime. The HTML half of the render resolves react-dom
-through `node:module` at request time, and client islands import the built
-client chunks off disk (see `moduleBaseURL` below) — so this runs on
-**Node-compatible hosts**: Node servers, Bun, Vercel/Netlify Node functions. It
-does not run on Cloudflare Workers or Deno Deploy today; those need a fully
-self-contained bundle with module-map reference resolution, which the current
-build does not produce.
+literal V8-isolate runtime. Which runtimes a handler reaches is a property of
+the **transport underneath**, not of the shape. This build renders through the
+esm transport, which resolves react-dom through `node:module` at request time
+and client islands by `import()` off disk (see `moduleBaseURL` below) — so it
+runs on **Node-compatible hosts**: Node servers, Bun, Vercel/Netlify Node
+functions. Filesystem-less runtimes (Cloudflare Workers, Deno Deploy) need the
+open resolution replaced with a closed module map — the webpack transport's
+model, which `react-server-loader` vendors alongside the esm one since 19.2.17.
+A render path built on it composes to a fully self-contained bundle with zero
+`node:` imports; until vprs ships that path, deploy this build to the
+Node-compatible hosts above.
 
 It is **additive**: the normal `dist/server` / `dist/static` output is untouched.
 Dev is unaffected.
