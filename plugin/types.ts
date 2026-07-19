@@ -1290,6 +1290,24 @@ export type EdgeBuildConfig = {
    * output for inspection/debugging. @default true
    */
   minify?: boolean;
+  /**
+   * Which RSC transport the baked bundle renders through.
+   *
+   * - `"esm"` (default): the vendored esm transport — client references
+   *   resolve by `import(moduleBaseURL + id)` at request time. Runs on
+   *   Node-compatible hosts.
+   * - `"webpack"`: the vendored webpack transport — client references resolve
+   *   through the baked client manifest (closed module map, `{id, chunks,
+   *   name}` records). The flight payload encodes manifest ids, the
+   *   in-process HTML decode reads the manifest, and the browser consumes the
+   *   payload through the webpack flight client. This is the model a fully
+   *   self-contained deployment builds on.
+   *
+   * The baked bundle exports which transport it was built with
+   * (`flightTransport`), so the serving handlers self-configure — a bundle and
+   * its handler cannot disagree. @default "esm"
+   */
+  transport?: "esm" | "webpack";
 };
 
 /** Resolved edge config (after normalizing the `boolean | EdgeBuildConfig` form). */
@@ -1297,6 +1315,7 @@ export type ResolvedEdgeConfig = {
   enabled: boolean;
   outDir: string;
   minify: boolean;
+  transport: "esm" | "webpack";
 };
 
 export type DevConfig = {

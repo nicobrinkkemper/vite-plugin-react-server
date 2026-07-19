@@ -13,6 +13,21 @@ export type RenderFlightToHtmlOptions = {
    * point this at the client-React (ssr) bundle so islands resolve in-process.
    */
   moduleBaseURL?: string;
+  /**
+   * Which transport produced the flight. `"esm"` (default) decodes with the
+   * esm client (`import(moduleBaseURL + id)`); `"webpack"` decodes with the
+   * webpack flight client against the baked client manifest — chunk loads
+   * resolve as `import()` of `moduleBaseURL + chunk`, references never
+   * compose module paths from payload input. Baked bundles export this as
+   * `flightTransport`, so handlers pass it straight through.
+   */
+  flightTransport?: "esm" | "webpack";
+  /**
+   * The baked webpack client manifest (`hosted id -> {id, chunks, name}`),
+   * used when `flightTransport` is `"webpack"` — the bundle exports it as
+   * `clientManifest`.
+   */
+  clientManifest?: Record<string, { id: string; chunks: string[]; name: string }>;
   /** Client entry modules to bootstrap for hydration (react-dom bootstrapModules). */
   bootstrapModules?: string[];
   /** Inline bootstrap script content (react-dom bootstrapScriptContent). */

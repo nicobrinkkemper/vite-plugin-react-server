@@ -67,6 +67,8 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     onNotFound,
     logger,
     verbose,
+    flightTransport = "esm",
+    clientManifest,
   } = options;
 
   if (!render && !renderDocument) {
@@ -112,6 +114,8 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       const htmlStream = await renderFlightToHtml({
         rscStream: flights.full,
         moduleBaseURL,
+        flightTransport,
+        clientManifest,
         bootstrapModules,
         bootstrapScriptContent,
         nonce,
@@ -144,6 +148,8 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     const htmlStream = await renderFlightToHtml({
       rscStream,
       moduleBaseURL,
+      flightTransport,
+      clientManifest,
       bootstrapModules,
       bootstrapScriptContent,
       nonce,

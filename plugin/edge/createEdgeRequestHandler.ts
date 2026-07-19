@@ -112,6 +112,20 @@ export function createEdgeRenderHook(
           // knows its entry. An explicit option still wins.
           moduleBaseURL: options.moduleBaseURL ?? bundle.clientModuleBaseURL ?? "/",
           bootstrapModules: options.bootstrapModules ?? bundle.bootstrapModules,
+          // The bundle knows which transport it was baked with; the decode side
+          // and the browser must follow. The inline hint is how the (transport-
+          // agnostic) client entry learns to consume a webpack-encoded payload.
+          flightTransport: bundle.flightTransport ?? "esm",
+          clientManifest: bundle.clientManifest,
+          bootstrapScriptContent:
+            [
+              options.bootstrapScriptContent,
+              bundle.flightTransport === "webpack"
+                ? 'self.__vprsFlightTransport="webpack";'
+                : undefined,
+            ]
+              .filter(Boolean)
+              .join("") || undefined,
           getURL: (request) => routeOf(new URL(request.url).pathname, rscOutputPath),
           onNotFound: () => NOT_HANDLED,
         })

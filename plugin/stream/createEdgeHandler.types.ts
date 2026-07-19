@@ -58,6 +58,17 @@ export type CreateEdgeHandlerOptions = {
   bootstrapModules?: string[];
   /** Inline bootstrap script content (react-dom bootstrapScriptContent). */
   bootstrapScriptContent?: string;
+  /**
+   * Which transport the flight producer encodes with. Baked bundles export it
+   * (`flightTransport`) and `createEdgeRequestHandler` forwards it — set it
+   * manually only when driving the producer yourself. @default "esm"
+   */
+  flightTransport?: "esm" | "webpack";
+  /**
+   * The baked webpack client manifest (bundle export `clientManifest`), used
+   * by the webpack decode path.
+   */
+  clientManifest?: Record<string, { id: string; chunks: string[]; name: string }>;
   /** Nonce forwarded to the HTML renderer (CSP). */
   nonce?: string;
   /**

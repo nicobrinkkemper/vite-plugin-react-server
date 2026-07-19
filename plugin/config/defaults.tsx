@@ -236,7 +236,14 @@ export const DEFAULT_CONFIG = {
     // which will be done in createHandlerOptions.server.ts and createHandlerOptions.client.ts
     useRscWorker: !IS_SERVER && IS_BUILD,
     useHtmlWorker: IS_SERVER && IS_BUILD,
-    edge: { enabled: true, outDir: "server-edge", minify: true },
+    edge: {
+      enabled: true,
+      outDir: "server-edge",
+      minify: true,
+      // The esm transport stays the default until the webpack path has parity
+      // e2e; "webpack" opts the baked bundle into closed module-map resolution.
+      transport: "esm" as const,
+    },
   },
   DEV: {
     // these defaults rely on process.argv

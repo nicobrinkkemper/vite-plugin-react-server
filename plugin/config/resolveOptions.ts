@@ -764,6 +764,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         enabled: edge === false ? false : true,
         outDir: obj.outDir ?? DEFAULT_CONFIG.BUILD.edge.outDir,
         minify: obj.minify ?? DEFAULT_CONFIG.BUILD.edge.minify,
+        transport: obj.transport ?? DEFAULT_CONFIG.BUILD.edge.transport,
       };
     })(),
   } satisfies ResolvedUserOptions["build"];

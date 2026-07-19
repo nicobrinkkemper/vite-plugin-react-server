@@ -132,18 +132,47 @@ export function createReactFetcher({
   // imported lazily so this module stays import-safe under the `react-server`
   // condition (a static import of client.browser would drag react-dom/client
   // into the server graph).
+  //
+  // WHICH flight client follows how the server encoded the payload. A
+  // webpack-transport bundle's document injects `self.__vprsFlightTransport`
+  // (see createEdgeRenderHook) and its payload carries baked-manifest ids —
+  // consumed through the webpack client over a chunk loader that `import()`s
+  // the served chunk URLs (the ids ARE the URLs; the map is closed, nothing is
+  // composed from payload input). Default: the esm client, unchanged.
+  type BrowserFlightClient = {
+    createFromReadableStream: (
+      stream: ReadableStream<Uint8Array>,
+      opts: typeof decodeOptions
+    ) => PromiseLike<React.ReactNode>;
+    createFromFetch: (
+      response: Promise<Response>,
+      opts: typeof decodeOptions
+    ) => PromiseLike<React.ReactNode>;
+  };
+  const flightClient = (): PromiseLike<BrowserFlightClient> =>
+    (globalThis as { __vprsFlightTransport?: string }).__vprsFlightTransport ===
+    "webpack"
+      ? (import("react-server-loader/webpack/runtime").then(
+          ({ createWebpackClient }) =>
+            createWebpackClient({
+              load: (chunk: string) => import(/* @vite-ignore */ chunk),
+            })
+        ) as PromiseLike<BrowserFlightClient>)
+      : (import(
+          "react-server-dom-esm/client.browser"
+        ) as unknown as PromiseLike<BrowserFlightClient>);
+
   const fromInline = (bytes: Uint8Array): PromiseLike<React.ReactNode> =>
-    import("react-server-dom-esm/client.browser").then(
-      ({ createFromReadableStream }) =>
-        createFromReadableStream(
-          new ReadableStream<Uint8Array>({
-            start(controller) {
-              controller.enqueue(bytes);
-              controller.close();
-            },
-          }),
-          decodeOptions
-        )
+    flightClient().then(({ createFromReadableStream }) =>
+      createFromReadableStream(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bytes);
+            controller.close();
+          },
+        }),
+        decodeOptions
+      )
     );
 
   const fromNetwork = (): PromiseLike<React.ReactNode> => {
@@ -152,8 +181,8 @@ export function createReactFetcher({
       headers: headers,
       signal,
     });
-    return import("react-server-dom-esm/client.browser").then(
-      ({ createFromFetch }) => createFromFetch(responsePromise, decodeOptions)
+    return flightClient().then(({ createFromFetch }) =>
+      createFromFetch(responsePromise, decodeOptions)
     );
   };
 
