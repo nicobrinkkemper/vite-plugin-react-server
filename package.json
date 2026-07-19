@@ -366,7 +366,8 @@
     "precoverage": "npm run build",
     "coverage": "npm run test:coverage",
     "test:dev:both": "bash scripts/test-dev-both-modes.sh",
-    "build:docs-site": "cd docs-site && NODE_OPTIONS='--conditions react-server' ../node_modules/.bin/vite build"
+    "build:docs-site": "cd docs-site && NODE_OPTIONS='--conditions react-server' ../node_modules/.bin/vite build",
+    "prepack": "rm -rf dist && tsc -p tsconfig.json"
   },
   "keywords": [
     "vite",
