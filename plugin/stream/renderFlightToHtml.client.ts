@@ -21,6 +21,74 @@ assertNonReactServer();
  * consumption + HTML render half, so it runs under the client renderer and
  * guards against being evaluated on the wrong side.
  */
+/**
+ * Webpack-transport decode: the flight encodes baked-manifest ids, so chunk
+ * loads resolve as `import(moduleBaseURL + chunk)` and the module map merely
+ * echoes ids through — the payload never composes a module path itself.
+ * Installed once per process (the runtime's globals are process-wide by the
+ * transport's design); everything webpack-flavored is lazy-imported so
+ * esm-transport users pay nothing for this branch.
+ */
+type WebpackDecode = (stream: ReadableStream<Uint8Array>) => Promise<unknown>;
+// Memoized PER moduleBaseURL: a first-call-wins memo would silently resolve a
+// second bundle's chunks against the first bundle's base. The runtime's
+// globals merge on reinstall (loaders accumulate; a loader whose base 404s
+// falls through to the next), so multiple bases in one process compose.
+const webpackDecodeByBase = new Map<string, Promise<WebpackDecode>>();
+function getWebpackDecode(
+  moduleBaseURL: string
+): Promise<WebpackDecode> {
+  const memo = webpackDecodeByBase.get(moduleBaseURL);
+  if (memo) return memo;
+  const ready = Promise.all([
+    import("react-server-loader/webpack/client.edge"),
+    import("react-server-loader/webpack/runtime"),
+  ]).then(([clientEdge, runtime]) => {
+    runtime.installWebpackGlobals({
+      load: (chunkId: string) =>
+        import(
+          /* @vite-ignore */ new URL(chunkId.replace(/^\//, ""), moduleBaseURL)
+            .href
+        ),
+    });
+    // Pass-through module map: outer key = the id the payload carries, inner
+    // key = the export name — both echoed into a {id, chunks, name} record.
+    // Chunks are just the module's own id: the payload's chunk closure names
+    // BROWSER-tree files (that's who preloads them), while this decode imports
+    // off the ssr tree (moduleBaseURL), where `import()` resolves the module's
+    // relative imports transitively — the closure would name files that don't
+    // exist here.
+    const moduleMap = new Proxy(
+      {},
+      {
+        get: (_outer, id: string | symbol) =>
+          typeof id !== "string"
+            ? undefined
+            : new Proxy(
+                {},
+                {
+                  get: (_inner, name: string | symbol) =>
+                    typeof name !== "string"
+                      ? undefined
+                      : { id, chunks: [id], name },
+                }
+              ),
+      }
+    );
+    const serverConsumerManifest = {
+      moduleMap,
+      serverModuleMap: null,
+      moduleLoading: null,
+    };
+    return ((stream) =>
+      clientEdge.createFromReadableStream(stream, {
+        serverConsumerManifest,
+      })) as WebpackDecode;
+  });
+  webpackDecodeByBase.set(moduleBaseURL, ready);
+  return ready;
+}
+
 export const renderFlightToHtml: RenderFlightToHtmlFn =
   async function _renderFlightToHtml(options) {
     const {
@@ -33,6 +101,7 @@ export const renderFlightToHtml: RenderFlightToHtmlFn =
       signal,
       logger,
       verbose = false,
+      flightTransport = "esm",
     } = options;
 
     if (!rscStream) {
@@ -44,9 +113,14 @@ export const renderFlightToHtml: RenderFlightToHtmlFn =
     // re-invoke its component on retry — so the decode must NOT live inside the
     // rendered component (that re-reads a locked stream). Decode here, React.use
     // the stable promise inside Root.
-    const elementPromise = ReactDOMClientEdge.createFromReadableStream(rscStream, {
-      moduleBaseURL: moduleBaseURL || "/",
-    });
+    const elementPromise =
+      flightTransport === "webpack"
+        ? ((await getWebpackDecode(moduleBaseURL || "/"))(
+            rscStream
+          ) as Promise<React.ReactNode>)
+        : ReactDOMClientEdge.createFromReadableStream(rscStream, {
+            moduleBaseURL: moduleBaseURL || "/",
+          });
 
     if (verbose) {
       logger?.info(

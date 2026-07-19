@@ -51,6 +51,13 @@ export type EdgeBundleExports = {
    * fully self-contained deployment.
    */
   clientManifest?: Record<string, { id: string; chunks: string[]; name: string }>;
+  /**
+   * `flightTransport`: which RSC transport the bundle was baked with
+   * (`build.edge.transport`). The handlers pick their decode side from this,
+   * so a bundle and its server cannot disagree. Absent on pre-transport-flag
+   * bundles — treated as `"esm"`.
+   */
+  flightTransport?: "esm" | "webpack";
 };
 
 /**

@@ -167,15 +167,24 @@ export async function buildEdgeBundle(opts: {
     relative(edgeDir, clientDir).split(sep).join("/") || ".";
 
   // The webpack-shaped client manifest (hosted id -> {id, chunks, name}),
-  // derived from the client build's Vite manifest. This is the module map a
-  // webpack-transport render resolves client references against — baked and
-  // exported so no runtime ever reads `.vite/manifest.json` (same reasoning as
-  // the baked bootstrapModules above).
+  // baked and exported so no runtime ever reads `.vite/manifest.json` (same
+  // reasoning as the baked bootstrapModules above).
+  //
+  // The `chunks` arrays are what the BROWSER preloads, so they must name
+  // browser-servable files: derive from the STATIC build's manifest (the
+  // browser tree). The SSR decode ignores them — it imports only the module's
+  // own hosted id off dist/client, whose relative imports Node resolves
+  // transitively. The two trees share the hosted id itself (same hash
+  // policy), which is what keys the payload either way. Fall back to the
+  // client (ssr) manifest only when no static build exists.
   let bakedClientManifest: Record<string, unknown> = {};
   const clientManifestPath = join(clientDir, ".vite/manifest.json");
-  if (existsSync(clientManifestPath)) {
+  const manifestSourcePath = existsSync(staticManifestPath)
+    ? staticManifestPath
+    : clientManifestPath;
+  if (existsSync(manifestSourcePath)) {
     bakedClientManifest = buildWebpackClientManifest(
-      JSON.parse(readFileSync(clientManifestPath, "utf8")),
+      JSON.parse(readFileSync(manifestSourcePath, "utf8")),
       userOptions.moduleBasePath ?? ""
     );
     const count = Object.keys(bakedClientManifest).length;
@@ -184,7 +193,7 @@ export async function buildEdgeBundle(opts: {
     }
   } else {
     logger.warn(
-      `${tag} no client manifest at ${clientManifestPath}; the baked ` +
+      `${tag} no manifest at ${manifestSourcePath}; the baked ` +
         `${DEFAULT_CONFIG.EDGE.clientManifestExport} export will be empty`
     );
   }
@@ -348,7 +357,23 @@ export async function buildEdgeBundle(opts: {
   const serverEdge = projectRequire.resolve("react-server-loader/server.edge");
   const serverNode = projectRequire.resolve("react-server-loader/server.node");
 
-  const alias: Record<string, string> = { [serverNode]: serverEdge };
+  // Which RSC transport the bundle renders through. The transformed modules in
+  // dist/server import the esm transport by ABSOLUTE path (their register*
+  // calls), so re-transporting the whole baked graph is one alias entry: both
+  // esm server entries collapse onto the chosen flight server. The register*
+  // signatures are identical across the two transports (same flight core);
+  // what changes is reference RESOLUTION — open import(moduleBaseURL + id) on
+  // esm vs the baked closed client manifest on webpack.
+  const transport = userOptions.build.edge.transport;
+  const flightServerEntry =
+    transport === "webpack"
+      ? projectRequire.resolve("react-server-loader/webpack/server.edge")
+      : serverEdge;
+
+  const alias: Record<string, string> = {
+    [serverNode]: flightServerEntry,
+    ...(transport === "webpack" ? { [serverEdge]: flightServerEntry } : {}),
+  };
   for (const subpath of DEFAULT_CONFIG.EDGE.reactServerSubpaths) {
     const target = reactServerExportTarget(reactDir, subpath);
     if (!target) {
@@ -450,10 +475,16 @@ export async function buildEdgeBundle(opts: {
     );
   }
 
+  // The flight render's second argument is the transport's resolution input:
+  // esm takes the module base path (open import), webpack takes the baked
+  // client manifest (closed map). Both are top-level consts in the entry.
+  const flightArg =
+    transport === "webpack" ? clientManifestExport : "MODULE_BASE_PATH";
+
   const entryPath = join(serverDir, `.vprs-${entryFileName}`);
   const entrySource = `import * as React from "react";
 import { createElement } from "react";
-import { renderToReadableStream } from ${JSON.stringify(serverEdge)};
+import { renderToReadableStream } from ${JSON.stringify(flightServerEntry)};
 import { resolvePageAndProps } from ${JSON.stringify(resolveHelper)};
 import { matchRoutes } from ${JSON.stringify(matchRouteHelper)};
 import { createElementWithReact } from ${JSON.stringify(elementHelper)};
@@ -503,6 +534,13 @@ export const ${clientBaseExport} = new URL(
  * resolution a fully self-contained deployment needs.
  */
 export const ${clientManifestExport} = ${JSON.stringify(bakedClientManifest)};
+
+/**
+ * Which RSC transport this bundle renders through ("esm" | "webpack") — baked
+ * so the serving handlers self-configure their decode side. A bundle and its
+ * handler cannot disagree.
+ */
+export const flightTransport = ${JSON.stringify(transport)};
 
 const routes = {
 ${routeLines.join("\n")}
@@ -567,7 +605,7 @@ export async function ${flightExport}(url, request) {
       HtmlComponent: React.Fragment,
       RootComponent: React.Fragment,
     }),
-    MODULE_BASE_PATH
+    ${flightArg}
   );
 }
 
@@ -598,11 +636,11 @@ export async function ${documentExport}(url, opts = {}) {
   };
   const full = renderToReadableStream(
     createElementWithReact(React, { ...base, HtmlComponent }),
-    MODULE_BASE_PATH
+    ${flightArg}
   );
   const headless = renderToReadableStream(
     createElementWithReact(React, { ...base, HtmlComponent: React.Fragment }),
-    MODULE_BASE_PATH
+    ${flightArg}
   );
   return { full, headless };
 }
