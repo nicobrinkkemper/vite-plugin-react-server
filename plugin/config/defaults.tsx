@@ -330,6 +330,11 @@ export const DEFAULT_CONFIG = {
     // Its exported location of the built client bundle, resolved from
     // import.meta.url at runtime (a deploy's root is not the build's root).
     clientBaseExport: "clientModuleBaseURL",
+    // Its exported webpack-shaped client manifest (hosted client-reference id
+    // -> { id, chunks, name }), derived from the client build's Vite manifest.
+    // This is the module-map the webpack transport renders against — the
+    // closed-registry model a fully self-contained bundle needs.
+    clientManifestExport: "clientManifest",
     // Server-module manifest keys to bake as action candidates (the sealed-gate
     // allowlist). Server actions live in `*.server.*` modules.
     actionKeyPattern: "\\.server\\.[cm]?[jt]sx?$",
