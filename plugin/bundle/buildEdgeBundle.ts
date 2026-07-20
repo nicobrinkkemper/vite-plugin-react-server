@@ -371,19 +371,27 @@ export async function buildEdgeBundle(opts: {
       ? projectRequire.resolve("react-server-loader/webpack/server.edge")
       : serverEdge;
 
-  // Stub the `node:` modules only dead disk-fallback branches reach (the baked
-  // entry always supplies its own resolver): even a lazy `import("node:path")`
-  // is a specifier bundlers resolve statically, and one is enough to fail a
-  // Workers build of an otherwise Node-free bundle. See nodeStub.ts.
+  // Webpack bakes only: stub the `node:` modules whose only reachable uses are
+  // dead disk-fallback branches (the baked entry always supplies its own
+  // resolver) — even a lazy `import("node:path")` is a specifier bundlers
+  // resolve statically, and one is enough to fail a Workers build of an
+  // otherwise Node-free bundle. See nodeStub.ts. The esm bake keeps them
+  // external: it is a Node bundle whose graph can carry modules that use
+  // node:path for real (the demo's action gate bakes the static file server,
+  // whose `extname` is live at request time).
   const nodeStub = join(
     dirname(fileURLToPath(import.meta.url)),
     "nodeStub.js"
   );
   const alias: Record<string, string> = {
     [serverNode]: flightServerEntry,
-    ...(transport === "webpack" ? { [serverEdge]: flightServerEntry } : {}),
-    "node:fs/promises": nodeStub,
-    "node:path": nodeStub,
+    ...(transport === "webpack"
+      ? {
+          [serverEdge]: flightServerEntry,
+          "node:fs/promises": nodeStub,
+          "node:path": nodeStub,
+        }
+      : {}),
   };
   for (const subpath of DEFAULT_CONFIG.EDGE.reactServerSubpaths) {
     const target = reactServerExportTarget(reactDir, subpath);

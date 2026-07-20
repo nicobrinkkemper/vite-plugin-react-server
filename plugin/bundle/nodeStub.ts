@@ -26,6 +26,13 @@ export const join = unreachable("node:path join");
 export const dirname = unreachable("node:path dirname");
 export const resolve = unreachable("node:path resolve");
 export const basename = unreachable("node:path basename");
+// The action gate's `.server.` filename pattern can bake vprs's own request
+// handler (the static file server) into a bundle that has actions; its names
+// are then referenced at link time even when nothing serves files through the
+// bake. (Its node:stream import is why that composition stays Node-bound —
+// this stub only covers path/fs.)
+export const extname = unreachable("node:path extname");
+export const normalize = unreachable("node:path normalize");
 // Referenced by isPathWithin (the action helper's disk-branch containment
 // guard). Rollup requires every referenced name to EXIST at link time, even on
 // branches it later tree-shakes away — so these must be exported. They still
