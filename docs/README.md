@@ -10,7 +10,7 @@ Read in order if you're new; each stands alone otherwise.
 - [Build Output](./build-output.md) — what the build produces, and how to serve it
 - [CSS Handling](./css-handling.md) — inline vs linked CSS, CSS modules
 - [Server Actions](./server-actions.md) — `"use server"`, form actions
-- [Edge / Single-Isolate](./edge.md) — flash-free SSR from one Web `fetch` handler, no workers and no `--conditions` (Cloudflare/Deno/Vercel/Bun)
+- [Edge / Single-Isolate](./edge.md) — flash-free SSR from one Web `fetch` handler, no workers and no `--conditions`; Node hosts on the default transport, Cloudflare Workers / Deno Deploy via the webpack transport's baked consumer
 - [Storybook](./storybook.md) — rendering RSC components in stories
 - [Examples](./examples.md) — static site, dynamic server, custom routing
 - [Troubleshooting](./troubleshooting.md) — common errors and fixes
