@@ -254,6 +254,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     typeof options.moduleBaseURL === "string"
       ? options.moduleBaseURL
       : DEFAULT_CONFIG.MODULE_BASE_URL;
+  // Whether the USER set moduleBaseURL, as opposed to the default filling in.
+  // resolveUserConfig needs the distinction: an explicit option outranks
+  // Vite's config.base, but the default must NOT — otherwise config.base is
+  // dead code in the precedence chain and a consumer who configures base the
+  // normal Vite way builds against "/" (the un-prefixed-bootstrap 404).
+  const moduleBaseURLExplicit = typeof options.moduleBaseURL === "string";
 
   const moduleRootPath =
     typeof options.moduleRootPath === "string"
@@ -869,6 +875,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       moduleBase,
       moduleBasePath,
       moduleBaseURL,
+      moduleBaseURLExplicit,
       moduleRootPath,
       publicOrigin,
       build: build,

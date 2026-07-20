@@ -114,10 +114,19 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
         typeof vitePrefix === "string" ? vitePrefix : vitePrefix[0];
       
       const envBaseUrl = getEnvValue("BASE_URL", primaryPrefix);
+      // Same base precedence as resolveUserConfig (see the comment there):
+      // env override > explicit moduleBaseURL option > Vite's config.base >
+      // the "/" default — and the winner is written back into userOptions so
+      // the workers and the edge bake agree.
       const effectiveModuleBaseURL =
         envBaseUrl != null && envBaseUrl !== ""
           ? envBaseUrl
+          : userOptions.moduleBaseURLExplicit
+          ? userOptions.moduleBaseURL
+          : typeof config.base === "string" && config.base !== ""
+          ? config.base
           : userOptions.moduleBaseURL;
+      userOptions.moduleBaseURL = effectiveModuleBaseURL;
 
       const envPublicOrigin = getEnvValue("PUBLIC_ORIGIN", primaryPrefix);
       const effectivePublicOrigin =
