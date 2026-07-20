@@ -4,6 +4,12 @@ import {
 } from "react-server-loader/transformer";
 import { pluginRoot } from "../root.js";
 import { proc } from "../proc.js";
+import {
+  PAGE_EXPORT_NAME,
+  PROPS_EXPORT_NAME,
+  LAYOUT_EXPORT_NAME,
+  RSC_OUTPUT_PATH,
+} from "./routeExportNames.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
 // Directive patterns - matching the logic in findDirectiveMatches.ts
@@ -153,14 +159,14 @@ export const DEFAULT_CONFIG = {
   PROPS: "props.ts",
   CLIENT_ENTRY: undefined,
   SERVER_ENTRY: undefined,
-  PAGE_EXPORT_NAME: "Page",
-  PROPS_EXPORT_NAME: "props",
+  PAGE_EXPORT_NAME,
+  PROPS_EXPORT_NAME,
   HTML_EXPORT_NAME: "Html",
   ROOT_EXPORT_NAME: "Root",
   // A `route.tsx` nested layout exports its component under this name (renders
   // `{children}` — the RSC-native `<Outlet/>`). Distinct from Page (leaf) and
   // Root (the #root shell): a segment can have both a Layout and a Page.
-  LAYOUT_EXPORT_NAME: "Layout",
+  LAYOUT_EXPORT_NAME,
   HTML_WORKER_PATH: `worker/html/html-worker.${
     process.env["NODE_ENV"] === "production" ? "production" : "development"
   }.js`,
@@ -206,7 +212,7 @@ export const DEFAULT_CONFIG = {
     assetsDir: "assets",
     hash: "hash",
     preserveModulesRoot: false,
-    rscOutputPath: "index.rsc",
+    rscOutputPath: RSC_OUTPUT_PATH,
     htmlOutputPath: "index.html",
     extensionMap: {
       // Module patterns
@@ -343,6 +349,14 @@ export const DEFAULT_CONFIG = {
     // This is the module-map the webpack transport renders against — the
     // closed-registry model a fully self-contained bundle needs.
     clientManifestExport: "clientManifest",
+    // The baked CONSUMER bundle: client React plus every client-reference
+    // module, so decoding a flight to HTML needs no module loader and no
+    // filesystem. Emitted beside the producer, webpack transport only (the esm
+    // client transport has no module-map seam to bind a registry to).
+    consumerFileName: "consumer.js",
+    // Its exported flight -> HTML renderer, shaped like the runtime
+    // renderFlightToHtml minus the "how to find things" options.
+    consumerExport: "renderFlightToHtml",
     // Server-module manifest keys to bake as action candidates (the sealed-gate
     // allowlist). Server actions live in `*.server.*` modules.
     actionKeyPattern: "\\.server\\.[cm]?[jt]sx?$",

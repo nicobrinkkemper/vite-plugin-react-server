@@ -9,6 +9,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
 import { UNKNOWN_ROUTE_MARKER } from "../stream/unknownRoute.js";
 import { buildWebpackClientManifest } from "./clientManifest.js";
+import { buildConsumerBundle } from "./buildConsumerBundle.js";
 
 /** Resolve a package subpath's `react-server` export target to an absolute path. */
 function reactServerExportTarget(
@@ -370,9 +371,19 @@ export async function buildEdgeBundle(opts: {
       ? projectRequire.resolve("react-server-loader/webpack/server.edge")
       : serverEdge;
 
+  // Stub the `node:` modules only dead disk-fallback branches reach (the baked
+  // entry always supplies its own resolver): even a lazy `import("node:path")`
+  // is a specifier bundlers resolve statically, and one is enough to fail a
+  // Workers build of an otherwise Node-free bundle. See nodeStub.ts.
+  const nodeStub = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "nodeStub.js"
+  );
   const alias: Record<string, string> = {
     [serverNode]: flightServerEntry,
     ...(transport === "webpack" ? { [serverEdge]: flightServerEntry } : {}),
+    "node:fs/promises": nodeStub,
+    "node:path": nodeStub,
   };
   for (const subpath of DEFAULT_CONFIG.EDGE.reactServerSubpaths) {
     const target = reactServerExportTarget(reactDir, subpath);
@@ -712,6 +723,11 @@ export async function ${actionExport}(request, opts = {}) {
       },
     });
     logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
+    // The consumer half (client React + a closed client-module registry), so
+    // the pair composes on a runtime with no module loader. No-ops on the esm
+    // transport. Emitted only after the producer succeeds — a consumer with
+    // nothing to decode is dead weight.
+    await buildConsumerBundle({ userOptions, projectRoot, logger });
   } catch (error) {
     // The edge bundle is ADDITIVE and on by default — a bake failure must not
     // fail an otherwise-good build. Warn loudly and skip the artifact; the
