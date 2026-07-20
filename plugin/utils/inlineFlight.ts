@@ -9,8 +9,11 @@
  *  - build-time:   inlineFlightPayload (rewrites prerendered index.html files)
  *  - per-request:  createHtmlStreamWithInlineFlight (dynamic SSR)
  *
- * Node-side only (uses Buffer for base64); the browser only ever *reads* the
- * element, never builds it, so the dependency-free id lives in inlineFlightId.ts.
+ * Runtime-agnostic: base64 rides Buffer where it exists (Node — fastest for
+ * large payloads) and chunked btoa elsewhere (workerd/Deno have no Buffer, and
+ * the per-request edge handler builds the element there). The browser only
+ * ever *reads* the element, never builds it, so the dependency-free id lives
+ * in inlineFlightId.ts.
  */
 import {
   INLINE_FLIGHT_ID,
@@ -28,8 +31,21 @@ export { INLINE_FLIGHT_ID, INLINE_FLIGHT_LENGTH_ATTR };
  * `data-length` stamps how many characters the payload has, so the reader can
  * tell a whole element from a half-written one — see INLINE_FLIGHT_LENGTH_ATTR.
  */
+function bytesToBase64(bytes: Uint8Array): string {
+  const B = (globalThis as { Buffer?: typeof Buffer }).Buffer;
+  if (B?.from) return B.from(bytes).toString("base64");
+  // btoa takes a binary string; build it in slices — a single
+  // String.fromCharCode(...bytes) blows the argument limit on large payloads.
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
 export function buildInlineFlightScript(flight: Uint8Array): string {
-  const base64 = Buffer.from(flight).toString("base64");
+  const base64 = bytesToBase64(flight);
   return `<script type="text/x-component" id="${INLINE_FLIGHT_ID}" data-encoding="base64" ${INLINE_FLIGHT_LENGTH_ATTR}="${base64.length}">${base64}</script>`;
 }
 

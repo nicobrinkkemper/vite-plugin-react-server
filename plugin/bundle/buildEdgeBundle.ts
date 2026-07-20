@@ -537,11 +537,20 @@ export const ${bootstrapExport} = ${JSON.stringify(bakedBootstrapModules)};
  * runtime. The in-process HTML render imports client references from here, so it
  * must be a location that exists wherever the bundle is deployed — hence
  * import.meta.url, not a build-time absolute path or process.cwd().
+ *
+ * Guarded: on a runtime whose import.meta.url is not a usable absolute base
+ * (workerd rejects it at URL construction), this top-level export would crash
+ * the whole module at eval — and it only feeds the runtime-consumer path,
+ * which such a runtime never uses (the baked consumer carries its modules
+ * compiled in). "/" is the inert fallback.
  */
-export const ${clientBaseExport} = new URL(
-  ${JSON.stringify(relClientFromEdge + "/")},
-  import.meta.url
-).href;
+export const ${clientBaseExport} = (() => {
+  try {
+    return new URL(${JSON.stringify(relClientFromEdge + "/")}, import.meta.url).href;
+  } catch {
+    return "/";
+  }
+})();
 
 /**
  * The webpack-shaped client manifest: hosted client-reference id ->
