@@ -2,6 +2,7 @@ import type { RenderFlightToHtmlFn } from "./renderFlightToHtml.types.js";
 import { React, ReactDOMHtmlServerEdge } from "../vendor/vendor.client.js";
 import { ReactDOMClientEdge } from "../vendor/vendorEdge.client.js";
 import { assertNonReactServer } from "../config/getCondition.js";
+import { createPassthroughConsumerManifest } from "./webpackConsumerManifest.js";
 
 assertNonReactServer();
 
@@ -51,35 +52,13 @@ function getWebpackDecode(
             .href
         ),
     });
-    // Pass-through module map: outer key = the id the payload carries, inner
-    // key = the export name — both echoed into a {id, chunks, name} record.
-    // Chunks are just the module's own id: the payload's chunk closure names
-    // BROWSER-tree files (that's who preloads them), while this decode imports
-    // off the ssr tree (moduleBaseURL), where `import()` resolves the module's
-    // relative imports transitively — the closure would name files that don't
-    // exist here.
-    const moduleMap = new Proxy(
-      {},
-      {
-        get: (_outer, id: string | symbol) =>
-          typeof id !== "string"
-            ? undefined
-            : new Proxy(
-                {},
-                {
-                  get: (_inner, name: string | symbol) =>
-                    typeof name !== "string"
-                      ? undefined
-                      : { id, chunks: [id], name },
-                }
-              ),
-      }
-    );
-    const serverConsumerManifest = {
-      moduleMap,
-      serverModuleMap: null,
-      moduleLoading: null,
-    };
+    // Pass-through manifest (shared with the baked consumer — see
+    // webpackConsumerManifest.ts): the module's own id is its only chunk. The
+    // payload's chunk closure names BROWSER-tree files (that's who preloads
+    // them), while this decode imports off the ssr tree (moduleBaseURL), where
+    // `import()` resolves the module's relative imports transitively — the
+    // closure would name files that don't exist here.
+    const serverConsumerManifest = createPassthroughConsumerManifest();
     return ((stream) =>
       clientEdge.createFromReadableStream(stream, {
         serverConsumerManifest,

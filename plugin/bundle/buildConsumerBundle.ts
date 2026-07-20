@@ -2,8 +2,11 @@ import { build as viteBuild, type Logger } from "vite";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { hostedPath } from "./clientManifest.js";
 
 /**
  * Bake the CONSUMER half of the single-isolate edge render: decode a Flight
@@ -73,8 +76,7 @@ export async function buildConsumerBundle(opts: {
     : {};
 
   const moduleBasePath = userOptions.moduleBasePath ?? "";
-  const hosted = (file: string): string =>
-    moduleBasePath.replace(/\/$/, "") + "/" + file;
+  const hosted = (file: string): string => hostedPath(moduleBasePath, file);
 
   // Register each ssr module under EVERY hosted id it can be asked for.
   //
@@ -132,12 +134,19 @@ export async function buildConsumerBundle(opts: {
   const webpackRuntime = projectRequire.resolve(
     "react-server-loader/webpack/runtime"
   );
+  // The SAME pass-through manifest the runtime decode uses, bundled in — one
+  // implementation of the contract both sides must agree on.
+  const consumerManifestHelper = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../stream/webpackConsumerManifest.js"
+  );
 
   const entryPath = join(clientDir, `.vprs-${consumerFileName}`);
   const entrySource = `import * as React from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
 import { createFromReadableStream } from ${JSON.stringify(webpackClientEdge)};
 import { installWebpackGlobals } from ${JSON.stringify(webpackRuntime)};
+import { createPassthroughConsumerManifest } from ${JSON.stringify(consumerManifestHelper)};
 ${importLines.join("\n")}
 
 /**
@@ -165,24 +174,7 @@ installWebpackGlobals({
   },
 });
 
-// Pass-through module map: the payload's id is echoed back as its own chunk, so
-// the transport asks the registry for exactly the id it was given and never
-// composes a module path out of payload input.
-const moduleMap = new Proxy({}, {
-  get: (_outer, id) =>
-    typeof id !== "string"
-      ? undefined
-      : new Proxy({}, {
-          get: (_inner, name) =>
-            typeof name !== "string" ? undefined : { id, chunks: [id], name },
-        }),
-});
-
-const serverConsumerManifest = {
-  moduleMap,
-  serverModuleMap: null,
-  moduleLoading: null,
-};
+const serverConsumerManifest = createPassthroughConsumerManifest();
 
 /**
  * Decode a Flight stream and render it to an HTML stream, entirely in-process.
