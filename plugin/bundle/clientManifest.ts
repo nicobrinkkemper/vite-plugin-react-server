@@ -33,7 +33,7 @@ export type WebpackClientManifestEntry = {
 export type WebpackClientManifest = Record<string, WebpackClientManifestEntry>;
 
 /** `moduleBasePath`-prefix a built file the same way the moduleID policy does. */
-function hostedPath(moduleBasePath: string, file: string): string {
+export function hostedPath(moduleBasePath: string, file: string): string {
   const base = moduleBasePath.replace(/\/$/, "");
   return base + "/" + file;
 }
