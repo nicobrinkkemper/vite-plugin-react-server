@@ -86,10 +86,17 @@ export function vitePluginVendorAlias(): Plugin {
       if (source === "react-server-dom-esm/client.browser") return;
 
       // Server/static entries: mark external so the runner/bundler uses native
-      // import() rather than eval(). The resolved path points into the vendored
-      // copy (reachable via symlink in dev, directly in build).
+      // import() rather than eval() — but external under the BARE rsl subpath,
+      // not the resolved vendored file. The resolved path is machine-absolute
+      // and used to be stamped into every emitted dist/server module (each
+      // client-reference proxy imported registerClientReference from
+      // /home/<user>/.../react-server-loader/vendor/...), binding the artifact
+      // to the build machine. rsl ≥ 19.2.17 exports every one of these files
+      // as a package subpath (./server.node, ./static.node, …), so the bare id
+      // names the IDENTICAL file and Node resolves it from whatever
+      // node_modules the deploy has.
       if (isServerEntry(source)) {
-        return { id: resolveVendored(source), external: true };
+        return { id: bareRslSpecifier(source), external: true };
       }
 
       return resolveVendored(source);
@@ -147,4 +154,18 @@ function resolveVendored(source: string): string {
   if (file) return join(transportPkgDir, file);
   const subpath = source.replace("react-server-dom-esm", "");
   return join(transportPkgDir, subpath || "index.js");
+}
+
+/**
+ * The published rsl subpath naming the same vendored file `resolveVendored`
+ * would return — `react-server-dom-esm/server` and `server.node` both resolve
+ * to server.node.js, whose export is `react-server-loader/server.node`. Built
+ * from the same subpathMap so the two can never disagree.
+ */
+function bareRslSpecifier(source: string): string {
+  const file = subpathMap[source];
+  const sub = file
+    ? file.replace(/\.js$/, "")
+    : source.replace("react-server-dom-esm", "").replace(/^\//, "").replace(/\.js$/, "") || "index";
+  return `react-server-loader/${sub}`;
 }

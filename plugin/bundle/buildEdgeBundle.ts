@@ -384,9 +384,14 @@ export async function buildEdgeBundle(opts: {
     "nodeStub.js"
   );
   const alias: Record<string, string> = {
+    // dist/server modules import the transport by its BARE rsl subpath (the
+    // vendor alias externalizes it that way, keeping artifacts relocatable);
+    // the resolved-path keys stay for dists built by older versions.
+    "react-server-loader/server.node": flightServerEntry,
     [serverNode]: flightServerEntry,
     ...(transport === "webpack"
       ? {
+          "react-server-loader/server.edge": flightServerEntry,
           [serverEdge]: flightServerEntry,
           "node:fs/promises": nodeStub,
           "node:path": nodeStub,
