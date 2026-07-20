@@ -85,18 +85,26 @@ export function vitePluginVendorAlias(): Plugin {
       if (!source.startsWith("react-server-dom-esm")) return;
       if (source === "react-server-dom-esm/client.browser") return;
 
-      // Server/static entries: mark external so the runner/bundler uses native
-      // import() rather than eval() — but external under the BARE rsl subpath,
-      // not the resolved vendored file. The resolved path is machine-absolute
-      // and used to be stamped into every emitted dist/server module (each
-      // client-reference proxy imported registerClientReference from
-      // /home/<user>/.../react-server-loader/vendor/...), binding the artifact
-      // to the build machine. rsl ≥ 19.2.17 exports every one of these files
-      // as a package subpath (./server.node, ./static.node, …), so the bare id
-      // names the IDENTICAL file and Node resolves it from whatever
-      // node_modules the deploy has.
+      // Server/static entries: mark external under the BARE canonical
+      // specifier, so the emitted artifact carries
+      // `import ... from "react-server-dom-esm/server.node"` — no
+      // machine-absolute path binding dist to the build machine (it used to
+      // stamp /home/<user>/.../react-server-loader/vendor/... into every
+      // client-reference proxy). Resolution at runtime is already provided
+      // for every consumer of dist/server: plain Node resolves through the
+      // node_modules/react-server-dom-esm symlink this plugin maintains
+      // (ensureVendoredPackageLinked — the vendored dir is a complete package
+      // with its own exports map), and the RSC worker's loader hook maps the
+      // bare ids directly.
+      //
+      // Two spellings deliberately NOT used: the resolved absolute path (the
+      // machine binding), and bare `react-server-loader/*` — dist can host a
+      // PARTIAL rsl copy under its own node_modules (the node_modules-shipped
+      // client-reference feature), and that shadow intercepts bare rsl
+      // resolution with an incomplete package. `react-server-dom-esm` is
+      // never hosted, so it has no shadow.
       if (isServerEntry(source)) {
-        return { id: bareRslSpecifier(source), external: true };
+        return { id: canonicalTransportSpecifier(source), external: true };
       }
 
       return resolveVendored(source);
@@ -157,15 +165,14 @@ function resolveVendored(source: string): string {
 }
 
 /**
- * The published rsl subpath naming the same vendored file `resolveVendored`
- * would return — `react-server-dom-esm/server` and `server.node` both resolve
- * to server.node.js, whose export is `react-server-loader/server.node`. Built
- * from the same subpathMap so the two can never disagree.
+ * The canonical bare form of a transport specifier — the vendored file's name
+ * minus `.js`, under the package name (`react-server-dom-esm/server` and
+ * `/server.node` both canonicalize to `react-server-dom-esm/server.node`).
+ * Derived from the same subpathMap as the vendored resolution so the two can
+ * never disagree; the vendored package.json exports every one of these.
  */
-function bareRslSpecifier(source: string): string {
+function canonicalTransportSpecifier(source: string): string {
   const file = subpathMap[source];
-  const sub = file
-    ? file.replace(/\.js$/, "")
-    : source.replace("react-server-dom-esm", "").replace(/^\//, "").replace(/\.js$/, "") || "index";
-  return `react-server-loader/${sub}`;
+  if (file) return `react-server-dom-esm/${file.replace(/\.js$/, "")}`;
+  return source;
 }
