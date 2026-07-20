@@ -21,6 +21,7 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { REACT_CONDITION, type ReactCondition } from "./getCondition.js";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
+import { effectiveModuleBaseURL } from "./effectiveModuleBaseURL.js";
 import {
   mergeClientPackagesNoExternal,
   mergeClientPackagesOptimizeDepsExclude,
@@ -345,7 +346,6 @@ export const resolveUserConfig: ResolveUserConfigFn =
     // Get environment variables (env vars take precedence over config)
     const primaryPrefix =
       typeof vitePrefix === "string" ? vitePrefix : vitePrefix[0];
-    const envBaseUrl = getEnvValue("BASE_URL", primaryPrefix);
 
     const envPublicOrigin = getEnvValue("PUBLIC_ORIGIN", primaryPrefix);
     const effectivePublicOrigin =
@@ -470,22 +470,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
       typeof config.server?.host === "string"
         ? config.server?.host
         : "localhost";
-    // Base precedence: the env var is the deploy-time override; an EXPLICIT
-    // moduleBaseURL option is plugin-specific intent; only then Vite's own
-    // config.base — the way every other plugin's consumer sets a base — fills
-    // in, ahead of the "/" default. The old chain put effectiveModuleBaseURL
-    // (which is never nullish — the option default-fills to "/") before
-    // config.base, making config.base dead code: a consumer configuring base
-    // the normal Vite way built against "/", and the SSG emitted the bootstrap
-    // module URL un-prefixed while every other asset carried the base.
-    const base =
-      envBaseUrl != null && envBaseUrl !== ""
-        ? envBaseUrl
-        : userOptions.moduleBaseURLExplicit
-        ? userOptions.moduleBaseURL
-        : typeof config.base === "string" && config.base !== ""
-        ? config.base
-        : userOptions.moduleBaseURL;
+    const base = effectiveModuleBaseURL(userOptions, config.base, primaryPrefix);
     // Write the winner back so every reader that takes userOptions directly —
     // the RSC/html workers, the edge bake, the SSG — agrees with the configs
     // resolved here. userOptions is mutated during config resolution by

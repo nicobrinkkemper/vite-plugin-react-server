@@ -5,6 +5,7 @@ type OutputOptions = Rollup.OutputOptions;
 import { join } from "node:path";
 import { createLogger } from "vite";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
+import { effectiveModuleBaseURL } from "../config/effectiveModuleBaseURL.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { REACT_CONDITION, type ReactCondition } from "../config/getCondition.js";
 
@@ -113,20 +114,14 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
       const primaryPrefix =
         typeof vitePrefix === "string" ? vitePrefix : vitePrefix[0];
       
-      const envBaseUrl = getEnvValue("BASE_URL", primaryPrefix);
-      // Same base precedence as resolveUserConfig (see the comment there):
-      // env override > explicit moduleBaseURL option > Vite's config.base >
-      // the "/" default — and the winner is written back into userOptions so
-      // the workers and the edge bake agree.
-      const effectiveModuleBaseURL =
-        envBaseUrl != null && envBaseUrl !== ""
-          ? envBaseUrl
-          : userOptions.moduleBaseURLExplicit
-          ? userOptions.moduleBaseURL
-          : typeof config.base === "string" && config.base !== ""
-          ? config.base
-          : userOptions.moduleBaseURL;
-      userOptions.moduleBaseURL = effectiveModuleBaseURL;
+      // The winner is written back into userOptions so the workers and the
+      // edge bake agree.
+      const resolvedModuleBaseURL = effectiveModuleBaseURL(
+        userOptions,
+        config.base,
+        primaryPrefix
+      );
+      userOptions.moduleBaseURL = resolvedModuleBaseURL;
 
       const envPublicOrigin = getEnvValue("PUBLIC_ORIGIN", primaryPrefix);
       const effectivePublicOrigin =
@@ -134,7 +129,7 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
 
       // Set process.env values to ensure they're available for server-side code
       if (!getEnvValue("BASE_URL", primaryPrefix)) {
-        setEnvValue("BASE_URL", effectiveModuleBaseURL, primaryPrefix);
+        setEnvValue("BASE_URL", resolvedModuleBaseURL, primaryPrefix);
       }
       if (!getEnvValue("PUBLIC_ORIGIN", primaryPrefix)) {
         setEnvValue("PUBLIC_ORIGIN", effectivePublicOrigin, primaryPrefix);

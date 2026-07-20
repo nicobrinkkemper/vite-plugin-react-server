@@ -32,6 +32,7 @@ export interface PruneUnclaimedEntryHtmlOptions {
     static?: string;
     htmlOutputPath?: string;
   };
+  projectRoot?: string;
   /**
    * The routes SSG rendered (the resolved `build.pages`, i.e. `urlMap` keys).
    */
@@ -56,7 +57,12 @@ export async function pruneUnclaimedEntryHtml(
   // Same rule the writer uses, so "claimed" means exactly "SSG wrote here".
   if (pages.some((page) => routeToOutputDir(page) === "")) return null;
 
+  // Anchor a relative outDir to the project root, not the process CWD — same
+  // rule as fileWriter, or the prune would look in (and delete from) a
+  // different tree than the one the writer wrote when the build is launched
+  // outside the project root.
   const entryHtml = resolve(
+    options.projectRoot ?? ".",
     build.outDir ?? "dist",
     build.static ?? "static",
     build.htmlOutputPath ?? "index.html"

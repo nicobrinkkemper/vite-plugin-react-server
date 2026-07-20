@@ -50,6 +50,7 @@ import { pruneUnclaimedEntryHtml } from "./pruneUnclaimedEntryHtml.js";
 import { temporaryReferences } from "./temporaryReferences.server.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
 import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
+import { effectiveModuleBaseURL } from "../config/effectiveModuleBaseURL.js";
 
 import { processCssFilesForPages } from "./processCssFilesForPages.js";
 import { createWorkerStartupMetrics } from "../metrics/createWorkerStartupMetrics.js";
@@ -119,6 +120,15 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
     },
     async configResolved(config) {
       resolvedConfig = config;
+      // Re-apply the base chain to THIS instance's copy: every sub-plugin
+      // resolves its own userOptions at factory time, so the winner another
+      // instance's config hook wrote back never reaches this object — and this
+      // is the copy serialized into the html worker and read by the edge bake.
+      userOptions.moduleBaseURL = effectiveModuleBaseURL(
+        userOptions,
+        config.base,
+        envPrefixFromConfig(config)
+      );
       if (!logger) {
         logger = config.customLogger ?? createLogger();
       }
@@ -546,6 +556,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         // runs the SAME call at the same point (both build modes identical).
         await pruneUnclaimedEntryHtml({
           build: userOptions.build,
+          projectRoot: userOptions.projectRoot,
           pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
           logger,
           verbose: userOptions.verbose,
@@ -557,6 +568,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         // in both build modes (runs before build.ssg.end so consumers see it).
         await maybeInlineFlight({
           build: userOptions.build,
+          projectRoot: userOptions.projectRoot,
           logger,
           verbose: userOptions.verbose,
         });

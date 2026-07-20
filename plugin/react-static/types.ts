@@ -23,6 +23,7 @@ export type FileWriterOptions = Pick<
   | "worker"
   | "onEvent"
   | "logger"
+  | "projectRoot"
 >;
 
 export type FileWriterFn = (

@@ -45,6 +45,7 @@ import { shouldCausePanic } from "../error/panicThresholdHandler.js";
 import { configurePreviewServer } from "./configurePreviewServer.js";
 import { assertNonReactServer, REACT_CONDITION } from "../config/getCondition.js";
 import { envPrefixFromConfig } from "../config/envPrefixFromConfig.js";
+import { effectiveModuleBaseURL } from "../config/effectiveModuleBaseURL.js";
 import { createWorkerStartupMetrics } from "../metrics/createWorkerStartupMetrics.js";
 import { processCssFilesForPages } from "./processCssFilesForPages.js";
 import { createBuildLoader } from "./createBuildLoader.client.js";
@@ -135,6 +136,15 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
       timing.configResolved = performance.now();
       logger = config.customLogger || createLogger();
       resolvedConfig = config;
+      // Re-apply the base chain to THIS instance's copy: every sub-plugin
+      // resolves its own userOptions at factory time, so the winner another
+      // instance's config hook wrote back never reaches this object — and this
+      // is the copy serialized into the rsc worker.
+      userOptions.moduleBaseURL = effectiveModuleBaseURL(
+        userOptions,
+        config.base,
+        envPrefixFromConfig(config)
+      );
 
       // Perform auto-discovery to populate autoDiscoveredFiles
       const autoDiscoverResult = await resolveAutoDiscover({
@@ -794,6 +804,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         // runs the SAME call at the same point (both build modes identical).
         await pruneUnclaimedEntryHtml({
           build: userOptions.build,
+          projectRoot: userOptions.projectRoot,
           pages: Array.from(autoDiscoveredFiles?.urlMap.keys() ?? []),
           logger,
           verbose: userOptions.verbose,
@@ -805,6 +816,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         // in both build modes (runs before build.ssg.end so consumers see it).
         await maybeInlineFlight({
           build: userOptions.build,
+          projectRoot: userOptions.projectRoot,
           logger,
           verbose: userOptions.verbose,
         });

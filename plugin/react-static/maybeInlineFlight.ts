@@ -27,6 +27,7 @@ export interface MaybeInlineFlightOptions {
     htmlOutputPath?: string;
     rscOutputPath?: string;
   };
+  projectRoot?: string;
   logger?: Logger;
   verbose?: boolean;
 }
@@ -39,7 +40,11 @@ export async function maybeInlineFlight(
 ): Promise<number | null> {
   if (!options.build?.inlineFlight) return null;
 
+  // Anchor a relative outDir to the project root, not the process CWD — same
+  // rule as fileWriter, or the two would read/write different trees when the
+  // build is launched outside the project root.
   const staticDir = resolve(
+    options.projectRoot ?? ".",
     options.build.outDir ?? "dist",
     options.build.static ?? "static"
   );
