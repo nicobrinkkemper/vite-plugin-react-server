@@ -9,7 +9,7 @@
  * 3. Handles file path construction
  * 4. Provides a clean interface for file operations
  */
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createWriteStream, mkdirSync } from "node:fs";
 import { Transform, PassThrough } from "node:stream";
 
@@ -110,7 +110,16 @@ export const fileWriter: FileWriterFn = function _fileWriter(
     (stream as any).pipe && typeof (stream as any).pipe === "function";
 
   const routePath = routeToOutputDir(options.route);
-  const baseDir = join(options.build.outDir, options.build.static);
+  // Anchor a relative outDir to the project root, not the process CWD: the
+  // writer runs inside the html worker, whose CWD is wherever the build was
+  // launched from. With CWD ≠ projectRoot (monorepos, test runners) the SSG
+  // pages landed in a stray <cwd>/<outDir> tree while the Vite-piped assets
+  // went to the real outDir.
+  const baseDir = resolve(
+    options.projectRoot ?? ".",
+    options.build.outDir,
+    options.build.static
+  );
   const outputPath = join(
     baseDir,
     routePath,
