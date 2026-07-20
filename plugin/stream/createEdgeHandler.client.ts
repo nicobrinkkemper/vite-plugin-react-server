@@ -2,7 +2,6 @@ import type {
   CreateEdgeHandlerFn,
   EdgeFetchHandler,
 } from "./createEdgeHandler.types.js";
-import { renderFlightToHtml } from "./renderFlightToHtml.client.js";
 import { injectInlineFlightIntoHtml } from "../utils/inlineFlight.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 import { isUnknownRoute } from "./unknownRoute.js";
@@ -69,11 +68,26 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     verbose,
     flightTransport = "esm",
     clientManifest,
+    renderFlightToHtml,
   } = options;
 
   if (!render && !renderDocument) {
     throw new Error(
       "[createEdgeHandler] one of `render` or `renderDocument` is required"
+    );
+  }
+
+  // No default renderer HERE, deliberately: even a dynamic import of vprs's own
+  // renderer is statically visible to bundlers, so it would drag the Node
+  // vendor layer (createRequire on react-dom) into every Worker bundle that can
+  // reach this module. The Node-facing entries inject the built-in
+  // (`/edge`, and the `/stream` barrel's wrapper); the web entry (`/edge/web`)
+  // requires the baked consumer's renderer instead.
+  if (!renderFlightToHtml) {
+    throw new Error(
+      "[createEdgeHandler] `renderFlightToHtml` is required: pass the baked " +
+        "consumer bundle's renderer (dist/server-edge/consumer.js), or vprs's " +
+        "own from 'vite-plugin-react-server/stream' on Node"
     );
   }
 
