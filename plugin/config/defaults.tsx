@@ -3,6 +3,7 @@ import {
   DEFAULT_LOADER_CONFIG as RSL_LOADER_DEFAULTS,
 } from "react-server-loader/transformer";
 import { pluginRoot } from "../root.js";
+import { proc } from "../proc.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
 // Directive patterns - matching the logic in findDirectiveMatches.ts
@@ -70,9 +71,7 @@ export const IS_SERVER = CONDITION === "react-server";
 export const IS_CLIENT = CONDITION === "react-client";
 // Note: This should be replaced with configEnv.command === "build" in functions that receive configEnv
 // This is kept for backward compatibility but should not be used in new code
-export const IS_BUILD =
-  (globalThis as { process?: NodeJS.Process }).process?.argv?.includes("build") ??
-  false;
+export const IS_BUILD = proc?.argv?.includes("build") ?? false;
 export const IS_SERVE = !IS_BUILD; // dont have to check for dev since it's the default
 
 // Helper to normalize directive strings

@@ -1,6 +1,8 @@
 // Note: do not import Node-only modules here (e.g., 'node:worker_threads').
 // This file is consumed in both server and client plugin contexts.
 
+import { proc } from "../proc.js";
+
 /**
  * The two React resolution conditions vprs cares about. Named so call sites can
  * reference REACT_CONDITION.server / .client instead of the bare string
@@ -22,7 +24,7 @@ export type ReactCondition =
  * is two).
  */
 const tokenizeNodeOptions = (): string[] => {
-  const nodeOptions = (globalThis as { process?: NodeJS.Process }).process?.env?.["NODE_OPTIONS"] || "";
+  const nodeOptions = proc?.env?.["NODE_OPTIONS"] || "";
   if (!nodeOptions.trim()) {
     return [];
   }
@@ -117,9 +119,7 @@ export const getAllConditions = (): string[] => {
   const { conditions: envConditions } = parseNodeArgs(nodeOptionsTokens);
 
   // Parse command-line arguments
-  const { conditions: cliConditions } = parseNodeArgs(
-    (globalThis as { process?: NodeJS.Process }).process?.execArgv ?? []
-  );
+  const { conditions: cliConditions } = parseNodeArgs(proc?.execArgv ?? []);
 
   // Combine all conditions
   return [...envConditions, ...cliConditions];
@@ -147,8 +147,8 @@ export const warnIfAmbiguousReactConditions = (): void => {
   const unique = detectReactConditionAmbiguity();
   if (unique.includes("react-server") && unique.includes("react-client")) {
     didWarnAmbiguousConditions = true;
-    const nodeOptions = (globalThis as { process?: NodeJS.Process }).process?.env?.["NODE_OPTIONS"] || "";
-    const argv = ((globalThis as { process?: NodeJS.Process }).process?.execArgv ?? []).join(" ");
+    const nodeOptions = proc?.env?.["NODE_OPTIONS"] || "";
+    const argv = (proc?.execArgv ?? []).join(" ");
     const msg =
       `Both react-server and react-client conditions detected in NODE_OPTIONS/execArgv. ` +
       `This can lead to ambiguous resolution. Found: [${unique.join(", ")}]\n` +
@@ -156,7 +156,7 @@ export const warnIfAmbiguousReactConditions = (): void => {
       `Tip: set exactly one condition or let the plugin manage worker conditions.`;
     // Use process.emitWarning to avoid throwing
     try {
-      (globalThis as { process?: NodeJS.Process }).process?.emitWarning?.(msg, {
+      proc?.emitWarning?.(msg, {
         code: "VPRS_CONDITION_AMBIGUITY",
         detail: "vite-plugin-react-server detected conflicting conditions",
       } as any);
