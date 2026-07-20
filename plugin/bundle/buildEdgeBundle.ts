@@ -383,15 +383,19 @@ export async function buildEdgeBundle(opts: {
     dirname(fileURLToPath(import.meta.url)),
     "nodeStub.js"
   );
+  // The transport master switch. dist/server modules import the transport by
+  // its BARE canonical specifier (react-server-dom-esm/server.node — the
+  // vendor alias externalizes it that way, keeping artifacts free of
+  // machine-absolute paths), so the bare keys re-transport the whole baked
+  // graph; the resolved-path keys cover dists built by older vprs versions
+  // that stamped the absolute vendored path.
   const alias: Record<string, string> = {
-    // dist/server modules import the transport by its BARE rsl subpath (the
-    // vendor alias externalizes it that way, keeping artifacts relocatable);
-    // the resolved-path keys stay for dists built by older versions.
-    "react-server-loader/server.node": flightServerEntry,
+    "react-server-dom-esm/server.node": flightServerEntry,
+    "react-server-dom-esm/server": flightServerEntry,
     [serverNode]: flightServerEntry,
     ...(transport === "webpack"
       ? {
-          "react-server-loader/server.edge": flightServerEntry,
+          "react-server-dom-esm/server.edge": flightServerEntry,
           [serverEdge]: flightServerEntry,
           "node:fs/promises": nodeStub,
           "node:path": nodeStub,
