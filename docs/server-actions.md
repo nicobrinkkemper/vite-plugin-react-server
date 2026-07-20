@@ -25,7 +25,7 @@ export async function getTodos() {
 Use the props file to wire server actions into your page:
 
 ```ts
-// src/pages/props.ts
+// src/routes/todos/props.ts   (fileRouter("src/routes") — see Routing)
 import { addTodo, getTodos } from "../../actions/todos.server.js";
 
 export const props = async () => {
@@ -37,7 +37,7 @@ export type Props = Awaited<ReturnType<typeof props>>;
 ```
 
 ```tsx
-// src/pages/page.tsx
+// src/routes/todos/page.tsx
 import { TodoList } from "../../components/TodoList.client.js";
 import type { Props } from "./props.js";
 
@@ -48,7 +48,7 @@ export const Page = (props: Props) => <TodoList {...props} />;
 // src/components/TodoList.client.tsx
 "use client";
 import { useState } from "react";
-import type { Props } from "../pages/props.js";
+import type { Props } from "../routes/todos/props.js";
 
 export function TodoList({ todos: initial, addTodo, getTodos }: Props) {
   const [todos, setTodos] = useState(initial);
@@ -106,14 +106,43 @@ registerServerReference(addTodo, "/src/actions/todos.server.ts", "addTodo");
 
 ## Hosting
 
-To run server actions in production, you need to host the server modules:
+Actions can be dispatched in three ways; the first is what the official demo
+runs and the right default:
+
+**1. The baked gate, worker-free, no `--conditions` (primary).** `build.edge`
+bakes a sealed action gate into `dist/server-edge/render.js` as
+`handleRouteAction`. A plain Node process dispatches through it:
 
 ```bash
 npm run build
-node --conditions react-server dist/server/index.js
+NODE_ENV=production node server.js   # plain node — no --conditions
 ```
 
-Server actions work in both the client environment's `rsc-worker` and the server environment's main thread. See [Build Output](./build-output.md) and [Examples](./examples.md) for server setup details.
+```ts
+// server.js
+import { createRequestHandler, toNodeListener } from "vite-plugin-react-server/request-handler";
+import * as bundle from "./dist/server-edge/render.js";
+
+const app = createRequestHandler({
+  staticDir: "dist/static",
+  action: bundle.handleRouteAction,   // the baked sealed gate
+});
+```
+
+> ⚠️ In this no-`--conditions` process, never statically import (or re-export)
+> your built `*.server.*` modules — they import the react-server transport at
+> load, which asserts the condition and crashes the server at startup. The
+> baked gate owns them; dispatch through `handleRouteAction`. See
+> [Edge / Single-Isolate](./edge.md) for the full note.
+
+**2. A `--conditions react-server` main thread.** Host `dist/server` directly
+under the condition and use the sealed `handleServerAction` helper below.
+
+**3. The dev/worker path.** In dev and in worker-based prod serving, the
+client environment's `rsc-worker` dispatches actions; nothing to wire.
+
+See [Build Output](./build-output.md) and [Edge / Single-Isolate](./edge.md)
+for server setup details.
 
 ## Security
 
@@ -124,7 +153,18 @@ through the ESM transport, which on its own resolves a reference by the path the
 id encodes with only a prefix check, no allowlist, so the boundary has to be
 enforced one level up.
 
-**`handleServerAction` seals automatically — you do not pass anything extra.** In
+The baked `handleRouteAction` gate (hosting mode 1) is sealed the same way —
+its allowlist is enumerated at build time and compiled in, so nothing below
+needs configuring there. The rest of this section describes the on-disk
+helper for hosting mode 2.
+
+**`handleServerAction` seals automatically — you do not pass anything extra.**
+This is the `--conditions react-server` variant of the condition-split
+`vite-plugin-react-server/helpers` export; under the default condition the
+same import resolves to the worker-delegating variant, which requires a
+worker and takes none of these options — use the baked gate there instead. A
+Web-standard `(Request) => Response` sibling, `handleServerActionRequest`, is
+what the baked gate itself wraps. In
 production it reads the build's server manifest from
 `<serverRoot>/.vite/manifest.json` and resolves the id through a sealed allowlist:
 an id the build never emitted is rejected before any import, and the importer is

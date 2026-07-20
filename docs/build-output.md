@@ -13,8 +13,6 @@ dist/
 │   ├── assets/                # Hashed JS/CSS bundles
 │   └── .vite/manifest.json
 ├── client/                    # Client components built for Node
-│   ├── page/
-│   │   └── page.js
 │   └── components/
 │       └── Counter.client-CnBCzH8H.js
 └── server/                    # Server components (react-server condition)
@@ -25,6 +23,12 @@ dist/
     └── components/
         └── Counter.client-CnBCzH8H.js
 ```
+
+`dist/client/` holds **only** client components and their dependencies — the
+page server component lives in `dist/server/` alone (the renderer imports it
+from there; `dist/client/` exists to resolve client references). With the
+[file router](./routing.md), page modules mirror the routes directory instead:
+`dist/server/routes/page.js`, `dist/server/routes/about/page.js`, and so on.
 
 ## Understanding the Three Builds
 
@@ -78,7 +82,7 @@ Understanding the build pipeline helps explain why all three directories are nee
       f. write index.html + index.rsc to dist/static/
 ```
 
-The dual-stream architecture (step c + e) is why the plugin produces both `.html` and `.rsc` files. The RSC payload is reused for client-side navigation — when a user clicks a link, the browser fetches the `.rsc` file instead of a full page reload.
+The dual-stream architecture (step c + e) is why the plugin produces both `.html` and `.rsc` files. With `build.inlineFlight: true`, each page's initial flight is additionally inlined into its `index.html` (`<script id="vprs-flight">`), so the first paint hydrates in place with no `/index.rsc` round-trip; the `.rsc` files then serve later client-side navigations — when a user clicks a link, the browser fetches the next route's `.rsc` instead of a full page reload. [`startClient`](./routing.md) is the client entry that boots all of this in the browser.
 
 ## Consistent Hashing
 
@@ -94,41 +98,34 @@ This ensures module references are consistent between client and server. When th
 
 ## Using the ESM Modules in a Server
 
-The build output is designed to be consumed by any Node.js HTTP server. Here's an Express example:
+The build output is designed to be consumed by a Node.js HTTP server — but not
+by hand-rolling one. `createRequestHandler` serves the static output with the
+MIME types and traversal guard a file server has to get right, and dispatches
+`"use server"` actions through the **sealed** production reference gate (an
+allowlist baked from the build — never `import()` a module named by the
+request):
 
 ```ts
 // server.ts
-import express from "express";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import { createServer } from "node:http";
+import {
+  createRequestHandler,
+  toNodeListener,
+} from "vite-plugin-react-server/request-handler";
+import * as bundle from "./dist/server-edge/render.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const app = express();
-
-// Serve static files (pre-rendered HTML + assets)
-app.use(express.static(join(__dirname, "dist/static")));
-
-// Handle RSC requests
-app.get("*.rsc", (req, res) => {
-  res.setHeader("Content-Type", "text/x-component");
-  res.sendFile(join(__dirname, "dist/static", req.path));
+const app = createRequestHandler({
+  staticDir: "dist/static",             // prerendered HTML, .rsc, assets
+  action: bundle.handleRouteAction,     // sealed action gate, baked at build
 });
 
-// Handle server actions (POST requests to module paths)
-app.post("/src/*", async (req, res) => {
-  const modulePath = join(__dirname, "dist/server", req.path);
-  const mod = await import(modulePath);
-  const [, exportName] = req.url.split("#");
-  const result = await mod[exportName](...req.body);
-  // Stream RSC response back
-  res.setHeader("Content-Type", "text/x-component");
-  // ... stream the result
-});
-
-app.listen(3000);
+createServer(toNodeListener(app)).listen(3000);
 ```
 
-For a real-world example, see the [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official) demo.
+For the complete pattern — including per-request rendering of dynamic routes —
+see the [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
+demo's `start.tsx` and the [vprs-starter](https://github.com/nicobrinkkemper/vprs-starter)'s
+`server/handler.mjs`.
 
 ## Where it runs: static anywhere, dynamic on Node
 
@@ -156,23 +153,24 @@ The *single-isolate* shape is the [edge bundle](./edge.md) (`build.edge`, on by
 default): a baked `dist/server-edge/render.js` in which server React is inlined
 at build time, so the render needs **no** `worker_threads` and **no**
 `--conditions` flag — one process, one Web `fetch` handler, flash-free streaming
-SSR included. One precision matters here: "edge" refers to the single-isolate
-*shape*, not to a V8-isolate runtime. The render still imports the built client
-chunks and manifest off disk, so it deploys to Node-flavored serverless
-functions (Vercel/Netlify Functions, a small Node server) rather than to literal
-isolate runtimes like Cloudflare Workers.
+SSR included. Which runtimes it reaches is a property of the **transport**
+(`build.edge.transport`): the default esm transport resolves client chunks off
+disk, so it runs on Node-compatible hosts (Node servers, Bun, Vercel/Netlify
+Node functions); the webpack transport additionally bakes a **consumer** bundle
+(`dist/server-edge/consumer.js` — client React plus every client module behind
+a closed registry), and that pair resolves no modules at request time, so it
+also runs on filesystem-less runtimes (Cloudflare Workers, Deno Deploy) via
+`vite-plugin-react-server/edge/web`. See [Edge / Single-Isolate](./edge.md).
 
-The runtime RSC-payload and server-action helpers are likewise implemented on
-Node primitives today. A *static* build has no server runtime and therefore no
-callable surface, so this only applies once you stand up a dynamic server.
+A *static* build has no server runtime and therefore no callable surface, so
+all of this only applies once you stand up a dynamic server.
 
 **The pattern for an edge-network deployment is hybrid:** serve `dist/static/`
 from the edge/CDN (instant, global, no runtime) and put dynamic SSR or server
-actions on a Node origin or serverless function behind it — worker-based or
-single-isolate, your pick. If SSR inside a literal V8-isolate runtime is a hard
-requirement, `@vitejs/plugin-rsc` reaches it in-process today (via Vite's
-environment API and Cloudflare's child-environment workers) and is the better
-fit.
+actions on a function behind it — worker-based, single-isolate on Node, or the
+webpack pair on a Worker, your pick. One constraint on mixing: prerendered
+`.rsc`/inline-flight snapshots are esm-encoded, so a webpack-transport deploy
+serves every route through the edge bundles rather than the page snapshots.
 
 ## Stream Types
 
@@ -226,13 +224,19 @@ build also emits:
 ```
 dist/
 └── server-edge/
-    └── render.js      # baked Flight producer, React inlined (server condition)
+    ├── render.js      # baked Flight producer, server React inlined
+    └── consumer.js    # webpack transport only: flight → HTML half, client React inlined
 ```
 
 This is **additive** — the three directories above are untouched. `render.js`
-exports `renderRouteToFlight(url)` and runs in a single isolate with no
-`worker_threads` and no runtime `--conditions`, for edge runtimes. Pair it with
-`createEdgeHandler` to get a Web `fetch` handler. See [Edge / Single-Isolate](./edge.md).
+exports `renderRouteToDocument(url)` (the full flash-free document pair the
+handlers drive), `renderRouteToFlight(url)` (the headless `.rsc` producer),
+`handleRouteAction` (the baked sealed action gate), and its own baked wiring
+(`bootstrapModules`, `clientManifest`, `flightTransport`, …) — so
+`createEdgeRequestHandler(bundle)` needs nothing else on Node. With
+`build.edge.transport: "webpack"`, `consumer.js` exports `renderFlightToHtml`
+with every client module compiled in; passing it makes the pair
+filesystem-free. See [Edge / Single-Isolate](./edge.md).
 
 ## Environment Variables
 
@@ -242,6 +246,8 @@ The plugin sets these automatically if not provided:
 - `VITE_DEV` / `VITE_PROD` — boolean flags
 - `VITE_SSR` — true during SSR builds
 - `VITE_PUBLIC_ORIGIN` — base URL for assets
-- `VITE_BASE_URL` — application base URL
+- `VITE_BASE_URL` — application base URL. Mirrored from Vite's resolved `base`
+  (or the `moduleBaseURL` option); an explicitly exported `VITE_BASE_URL`
+  outranks both, as the deploy-time override.
 
 Access them in server components via `process.env`.
