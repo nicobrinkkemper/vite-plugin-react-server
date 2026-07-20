@@ -394,6 +394,12 @@ export type ResolvedUserOptions = {
   moduleBase: string;
   moduleBasePath: string;
   moduleBaseURL: string;
+  /**
+   * Whether the user set moduleBaseURL explicitly (vs the "/" default).
+   * Decides whether Vite's config.base may fill the base in — an explicit
+   * option outranks it, the default must not.
+   */
+  moduleBaseURLExplicit: boolean;
   moduleRootPath: string;
   publicOrigin: string;
   pageExportName: string;

@@ -346,10 +346,6 @@ export const resolveUserConfig: ResolveUserConfigFn =
     const primaryPrefix =
       typeof vitePrefix === "string" ? vitePrefix : vitePrefix[0];
     const envBaseUrl = getEnvValue("BASE_URL", primaryPrefix);
-    const effectiveModuleBaseURL =
-      envBaseUrl != null && envBaseUrl !== ""
-        ? envBaseUrl
-        : userOptions.moduleBaseURL;
 
     const envPublicOrigin = getEnvValue("PUBLIC_ORIGIN", primaryPrefix);
     const effectivePublicOrigin =
@@ -474,8 +470,27 @@ export const resolveUserConfig: ResolveUserConfigFn =
       typeof config.server?.host === "string"
         ? config.server?.host
         : "localhost";
+    // Base precedence: the env var is the deploy-time override; an EXPLICIT
+    // moduleBaseURL option is plugin-specific intent; only then Vite's own
+    // config.base — the way every other plugin's consumer sets a base — fills
+    // in, ahead of the "/" default. The old chain put effectiveModuleBaseURL
+    // (which is never nullish — the option default-fills to "/") before
+    // config.base, making config.base dead code: a consumer configuring base
+    // the normal Vite way built against "/", and the SSG emitted the bootstrap
+    // module URL un-prefixed while every other asset carried the base.
     const base =
-      effectiveModuleBaseURL ?? config.base ?? DEFAULT_CONFIG.MODULE_BASE_URL;
+      envBaseUrl != null && envBaseUrl !== ""
+        ? envBaseUrl
+        : userOptions.moduleBaseURLExplicit
+        ? userOptions.moduleBaseURL
+        : typeof config.base === "string" && config.base !== ""
+        ? config.base
+        : userOptions.moduleBaseURL;
+    // Write the winner back so every reader that takes userOptions directly —
+    // the RSC/html workers, the edge bake, the SSG — agrees with the configs
+    // resolved here. userOptions is mutated during config resolution by
+    // design (moduleID and loader already are).
+    userOptions.moduleBaseURL = base;
     if (configEnv.command === "serve" && !configEnv.isPreview) {
       // In dev mode, use empty publicOrigin so the client uses window.location.origin.
       // This avoids hardcoding a port that may change if the configured port is taken.
