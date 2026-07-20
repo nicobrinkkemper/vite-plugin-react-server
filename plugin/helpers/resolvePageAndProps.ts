@@ -1,4 +1,12 @@
-import { DEFAULT_CONFIG } from "../config/defaults.js";
+// Names come from the dependency-free leaf, NOT defaults.js: this module rides
+// into baked edge bundles, and importing DEFAULT_CONFIG evaluates the whole
+// config layer (rsl transformer, root probes) at module init there.
+import {
+  PAGE_EXPORT_NAME,
+  PROPS_EXPORT_NAME,
+  LAYOUT_EXPORT_NAME,
+  RSC_OUTPUT_PATH,
+} from "../config/routeExportNames.js";
 import { toError } from "../error/toError.js";
 import type {
   CreateHandlerOptions,
@@ -36,7 +44,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           handlerOptions.route ?? "",
           handlerOptions.moduleBaseURL ?? "/",
           handlerOptions?.build?.rscOutputPath ??
-            DEFAULT_CONFIG.BUILD.rscOutputPath
+            RSC_OUTPUT_PATH
         );
 
       if (handlerOptions.verbose) {
@@ -52,7 +60,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       // slash, so `/profile/42.rsc` resolves `{ id: "42" }`, not `"42.rsc"`.
       const rscSuffix =
         handlerOptions.build?.rscOutputPath ??
-        DEFAULT_CONFIG.BUILD.rscOutputPath;
+        RSC_OUTPUT_PATH;
       const params =
         handlerOptions.params ??
         (handlerOptions.routePatterns?.length
@@ -66,7 +74,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
         exportName:
-          handlerOptions.pageExportName ?? DEFAULT_CONFIG.PAGE_EXPORT_NAME,
+          handlerOptions.pageExportName ?? PAGE_EXPORT_NAME,
         loader: handlerOptions.loader,
       });
 
@@ -81,7 +89,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         ctx: loaderCtx,
         id: handlerOptions.propsPath || handlerOptions.pagePath,
         exportName:
-          handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+          handlerOptions.propsExportName ?? PROPS_EXPORT_NAME,
         loader: async (idWithExport?: string) => {
           if (handlerOptions.verbose) {
             handlerOptions.logger?.info(
@@ -91,7 +99,7 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           
           // Parse the id to extract the path and export name if using # syntax
           let propsId = handlerOptions.propsPath || handlerOptions.pagePath;
-          let propsExportName = handlerOptions.propsExportName ?? DEFAULT_CONFIG.PROPS_EXPORT_NAME;
+          let propsExportName = handlerOptions.propsExportName ?? PROPS_EXPORT_NAME;
           
           if (idWithExport && idWithExport.includes('#')) {
             const [id, exportName] = idWithExport.split('#');
@@ -261,10 +269,10 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
           loader: handlerOptions.loader,
           layoutExportName:
             handlerOptions.layoutExportName ??
-            DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
+            LAYOUT_EXPORT_NAME,
           propsExportName:
             handlerOptions.propsExportName ??
-            DEFAULT_CONFIG.PROPS_EXPORT_NAME,
+            PROPS_EXPORT_NAME,
           verbose: handlerOptions.verbose,
           logger: handlerOptions.logger,
         });
