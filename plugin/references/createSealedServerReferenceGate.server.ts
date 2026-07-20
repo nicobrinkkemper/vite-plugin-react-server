@@ -1,4 +1,7 @@
-import { join } from "node:path";
+// node:path loads lazily inside the disk-import fallback ONLY: a top-level
+// import would crash module EVALUATION on a filesystem-less runtime, even
+// though a baked bundle (which always supplies loadModule) never takes that
+// branch. Top-level imports are load-bearing whether or not the code runs.
 import {
   createReferenceGate,
   type ReferenceGate,
@@ -73,7 +76,12 @@ export function createSealedServerReferenceGate({
     const file = entry.file;
     const load = loadModule
       ? () => loadModule(key, file)
-      : () => import(join(serverRoot, file)) as Promise<Record<string, unknown>>;
+      : async (): Promise<Record<string, unknown>> => {
+          const { join } = await import("node:path");
+          return import(join(serverRoot, file)) as Promise<
+            Record<string, unknown>
+          >;
+        };
     // The directive transform bakes a BARE manifest-key id (`<srcKey>#<export>`);
     // a base-prefixed transport sends `<base><srcKey>#<export>`. Register both
     // shapes so resolution is an exact-key lookup either way. This does not widen

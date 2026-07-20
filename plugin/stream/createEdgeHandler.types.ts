@@ -1,4 +1,5 @@
 import type { Logger } from "vite";
+import type { RenderFlightToHtmlFn } from "./renderFlightToHtml.types.js";
 
 /**
  * A Web `fetch` handler: the standard edge-runtime entrypoint shape
@@ -58,6 +59,29 @@ export type CreateEdgeHandlerOptions = {
   bootstrapModules?: string[];
   /** Inline bootstrap script content (react-dom bootstrapScriptContent). */
   bootstrapScriptContent?: string;
+  /**
+   * Which transport the flight producer encodes with. Baked bundles export it
+   * (`flightTransport`) and `createEdgeRequestHandler` forwards it — set it
+   * manually only when driving the producer yourself. @default "esm"
+   */
+  flightTransport?: "esm" | "webpack";
+  /**
+   * The baked webpack client manifest (bundle export `clientManifest`), used
+   * by the webpack decode path.
+   */
+  clientManifest?: Record<string, { id: string; chunks: string[]; name: string }>;
+  /**
+   * The flight -> HTML renderer. Defaults to vprs's own, which is loaded on
+   * first render (never at import) because it pulls `react-dom/server` in
+   * through a Node module resolver.
+   *
+   * Pass the baked consumer bundle's `renderFlightToHtml` to skip that path
+   * entirely: it carries client React and a closed client-module registry, so
+   * nothing resolves a module at request time and the handler composes on a
+   * runtime with no `node:` at all. `createEdgeRequestHandler` wires it up
+   * automatically when the bundle exports one.
+   */
+  renderFlightToHtml?: RenderFlightToHtmlFn;
   /** Nonce forwarded to the HTML renderer (CSP). */
   nonce?: string;
   /**

@@ -60,6 +60,10 @@
       "types": "./dist/plugin/edge/index.d.ts",
       "default": "./dist/plugin/edge/index.js"
     },
+    "./edge/web": {
+      "types": "./dist/plugin/edge/web.d.ts",
+      "default": "./dist/plugin/edge/web.js"
+    },
     "./stream": {
       "react-server": "./dist/plugin/stream/index.server.js",
       "default": "./dist/plugin/stream/index.client.js"
@@ -366,7 +370,8 @@
     "precoverage": "npm run build",
     "coverage": "npm run test:coverage",
     "test:dev:both": "bash scripts/test-dev-both-modes.sh",
-    "build:docs-site": "cd docs-site && NODE_OPTIONS='--conditions react-server' ../node_modules/.bin/vite build"
+    "build:docs-site": "cd docs-site && NODE_OPTIONS='--conditions react-server' ../node_modules/.bin/vite build",
+    "prepack": "rm -rf dist && tsc -p tsconfig.json"
   },
   "keywords": [
     "vite",
@@ -436,7 +441,7 @@
   "dependencies": {
     "acorn": "^8.16.0",
     "picocolors": "^1.1.1",
-    "react-server-loader": "^19.2.16 || 0.0.0-experimental-c0c39a6b-20260709.1",
+    "react-server-loader": "^19.2.17 || 0.0.0-experimental-172742b4-20260716",
     "tsx": "^4.21.0",
     "vitefu": "^1.1.3"
   }

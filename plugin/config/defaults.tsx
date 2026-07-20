@@ -3,6 +3,13 @@ import {
   DEFAULT_LOADER_CONFIG as RSL_LOADER_DEFAULTS,
 } from "react-server-loader/transformer";
 import { pluginRoot } from "../root.js";
+import { proc } from "../proc.js";
+import {
+  PAGE_EXPORT_NAME,
+  PROPS_EXPORT_NAME,
+  LAYOUT_EXPORT_NAME,
+  RSC_OUTPUT_PATH,
+} from "./routeExportNames.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { getCondition } from "./getCondition.js";
 // Directive patterns - matching the logic in findDirectiveMatches.ts
@@ -70,7 +77,7 @@ export const IS_SERVER = CONDITION === "react-server";
 export const IS_CLIENT = CONDITION === "react-client";
 // Note: This should be replaced with configEnv.command === "build" in functions that receive configEnv
 // This is kept for backward compatibility but should not be used in new code
-export const IS_BUILD = process.argv.includes("build");
+export const IS_BUILD = proc?.argv?.includes("build") ?? false;
 export const IS_SERVE = !IS_BUILD; // dont have to check for dev since it's the default
 
 // Helper to normalize directive strings
@@ -152,14 +159,14 @@ export const DEFAULT_CONFIG = {
   PROPS: "props.ts",
   CLIENT_ENTRY: undefined,
   SERVER_ENTRY: undefined,
-  PAGE_EXPORT_NAME: "Page",
-  PROPS_EXPORT_NAME: "props",
+  PAGE_EXPORT_NAME,
+  PROPS_EXPORT_NAME,
   HTML_EXPORT_NAME: "Html",
   ROOT_EXPORT_NAME: "Root",
   // A `route.tsx` nested layout exports its component under this name (renders
   // `{children}` — the RSC-native `<Outlet/>`). Distinct from Page (leaf) and
   // Root (the #root shell): a segment can have both a Layout and a Page.
-  LAYOUT_EXPORT_NAME: "Layout",
+  LAYOUT_EXPORT_NAME,
   HTML_WORKER_PATH: `worker/html/html-worker.${
     process.env["NODE_ENV"] === "production" ? "production" : "development"
   }.js`,
@@ -205,7 +212,7 @@ export const DEFAULT_CONFIG = {
     assetsDir: "assets",
     hash: "hash",
     preserveModulesRoot: false,
-    rscOutputPath: "index.rsc",
+    rscOutputPath: RSC_OUTPUT_PATH,
     htmlOutputPath: "index.html",
     extensionMap: {
       // Module patterns
@@ -236,7 +243,14 @@ export const DEFAULT_CONFIG = {
     // which will be done in createHandlerOptions.server.ts and createHandlerOptions.client.ts
     useRscWorker: !IS_SERVER && IS_BUILD,
     useHtmlWorker: IS_SERVER && IS_BUILD,
-    edge: { enabled: true, outDir: "server-edge", minify: true },
+    edge: {
+      enabled: true,
+      outDir: "server-edge",
+      minify: true,
+      // The esm transport stays the default until the webpack path has parity
+      // e2e; "webpack" opts the baked bundle into closed module-map resolution.
+      transport: "esm" as const,
+    },
   },
   DEV: {
     // these defaults rely on process.argv
@@ -330,6 +344,19 @@ export const DEFAULT_CONFIG = {
     // Its exported location of the built client bundle, resolved from
     // import.meta.url at runtime (a deploy's root is not the build's root).
     clientBaseExport: "clientModuleBaseURL",
+    // Its exported webpack-shaped client manifest (hosted client-reference id
+    // -> { id, chunks, name }), derived from the client build's Vite manifest.
+    // This is the module-map the webpack transport renders against — the
+    // closed-registry model a fully self-contained bundle needs.
+    clientManifestExport: "clientManifest",
+    // The baked CONSUMER bundle: client React plus every client-reference
+    // module, so decoding a flight to HTML needs no module loader and no
+    // filesystem. Emitted beside the producer, webpack transport only (the esm
+    // client transport has no module-map seam to bind a registry to).
+    consumerFileName: "consumer.js",
+    // Its exported flight -> HTML renderer, shaped like the runtime
+    // renderFlightToHtml minus the "how to find things" options.
+    consumerExport: "renderFlightToHtml",
     // Server-module manifest keys to bake as action candidates (the sealed-gate
     // allowlist). Server actions live in `*.server.*` modules.
     actionKeyPattern: "\\.server\\.[cm]?[jt]sx?$",

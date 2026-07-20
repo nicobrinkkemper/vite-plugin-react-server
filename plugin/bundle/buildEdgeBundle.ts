@@ -8,6 +8,8 @@ import { patternProbeUrl } from "../router/matchRoute.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.js";
 import { UNKNOWN_ROUTE_MARKER } from "../stream/unknownRoute.js";
+import { buildWebpackClientManifest } from "./clientManifest.js";
+import { buildConsumerBundle } from "./buildConsumerBundle.js";
 
 /** Resolve a package subpath's `react-server` export target to an absolute path. */
 function reactServerExportTarget(
@@ -164,6 +166,38 @@ export async function buildEdgeBundle(opts: {
   const clientDir = join(outRoot, userOptions.build.client);
   const relClientFromEdge =
     relative(edgeDir, clientDir).split(sep).join("/") || ".";
+
+  // The webpack-shaped client manifest (hosted id -> {id, chunks, name}),
+  // baked and exported so no runtime ever reads `.vite/manifest.json` (same
+  // reasoning as the baked bootstrapModules above).
+  //
+  // The `chunks` arrays are what the BROWSER preloads, so they must name
+  // browser-servable files: derive from the STATIC build's manifest (the
+  // browser tree). The SSR decode ignores them — it imports only the module's
+  // own hosted id off dist/client, whose relative imports Node resolves
+  // transitively. The two trees share the hosted id itself (same hash
+  // policy), which is what keys the payload either way. Fall back to the
+  // client (ssr) manifest only when no static build exists.
+  let bakedClientManifest: Record<string, unknown> = {};
+  const clientManifestPath = join(clientDir, ".vite/manifest.json");
+  const manifestSourcePath = existsSync(staticManifestPath)
+    ? staticManifestPath
+    : clientManifestPath;
+  if (existsSync(manifestSourcePath)) {
+    bakedClientManifest = buildWebpackClientManifest(
+      JSON.parse(readFileSync(manifestSourcePath, "utf8")),
+      userOptions.moduleBasePath ?? ""
+    );
+    const count = Object.keys(bakedClientManifest).length;
+    if (count > 0) {
+      logger.info(`${tag} baking webpack client manifest over ${count} module(s)`);
+    }
+  } else {
+    logger.warn(
+      `${tag} no manifest at ${manifestSourcePath}; the baked ` +
+        `${DEFAULT_CONFIG.EDGE.clientManifestExport} export will be empty`
+    );
+  }
 
   // Enumerate every prerendered route. Post-build, build.pages already lists
   // all URLs (the SSG just rendered them) and every page module is in
@@ -324,7 +358,41 @@ export async function buildEdgeBundle(opts: {
   const serverEdge = projectRequire.resolve("react-server-loader/server.edge");
   const serverNode = projectRequire.resolve("react-server-loader/server.node");
 
-  const alias: Record<string, string> = { [serverNode]: serverEdge };
+  // Which RSC transport the bundle renders through. The transformed modules in
+  // dist/server import the esm transport by ABSOLUTE path (their register*
+  // calls), so re-transporting the whole baked graph is one alias entry: both
+  // esm server entries collapse onto the chosen flight server. The register*
+  // signatures are identical across the two transports (same flight core);
+  // what changes is reference RESOLUTION — open import(moduleBaseURL + id) on
+  // esm vs the baked closed client manifest on webpack.
+  const transport = userOptions.build.edge.transport;
+  const flightServerEntry =
+    transport === "webpack"
+      ? projectRequire.resolve("react-server-loader/webpack/server.edge")
+      : serverEdge;
+
+  // Webpack bakes only: stub the `node:` modules whose only reachable uses are
+  // dead disk-fallback branches (the baked entry always supplies its own
+  // resolver) — even a lazy `import("node:path")` is a specifier bundlers
+  // resolve statically, and one is enough to fail a Workers build of an
+  // otherwise Node-free bundle. See nodeStub.ts. The esm bake keeps them
+  // external: it is a Node bundle whose graph can carry modules that use
+  // node:path for real (the demo's action gate bakes the static file server,
+  // whose `extname` is live at request time).
+  const nodeStub = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "nodeStub.js"
+  );
+  const alias: Record<string, string> = {
+    [serverNode]: flightServerEntry,
+    ...(transport === "webpack"
+      ? {
+          [serverEdge]: flightServerEntry,
+          "node:fs/promises": nodeStub,
+          "node:path": nodeStub,
+        }
+      : {}),
+  };
   for (const subpath of DEFAULT_CONFIG.EDGE.reactServerSubpaths) {
     const target = reactServerExportTarget(reactDir, subpath);
     if (!target) {
@@ -352,6 +420,7 @@ export async function buildEdgeBundle(opts: {
     actionExport,
     bootstrapExport,
     clientBaseExport,
+    clientManifestExport,
   } = DEFAULT_CONFIG.EDGE;
   const pageExport = userOptions.pageExportName ?? "Page";
   const propsExport = userOptions.propsExportName ?? "props";
@@ -425,10 +494,16 @@ export async function buildEdgeBundle(opts: {
     );
   }
 
+  // The flight render's second argument is the transport's resolution input:
+  // esm takes the module base path (open import), webpack takes the baked
+  // client manifest (closed map). Both are top-level consts in the entry.
+  const flightArg =
+    transport === "webpack" ? clientManifestExport : "MODULE_BASE_PATH";
+
   const entryPath = join(serverDir, `.vprs-${entryFileName}`);
   const entrySource = `import * as React from "react";
 import { createElement } from "react";
-import { renderToReadableStream } from ${JSON.stringify(serverEdge)};
+import { renderToReadableStream } from ${JSON.stringify(flightServerEntry)};
 import { resolvePageAndProps } from ${JSON.stringify(resolveHelper)};
 import { matchRoutes } from ${JSON.stringify(matchRouteHelper)};
 import { createElementWithReact } from ${JSON.stringify(elementHelper)};
@@ -467,6 +542,24 @@ export const ${clientBaseExport} = new URL(
   ${JSON.stringify(relClientFromEdge + "/")},
   import.meta.url
 ).href;
+
+/**
+ * The webpack-shaped client manifest: hosted client-reference id ->
+ * { id, chunks, name }, derived from the client build's Vite manifest at bake
+ * time. Chunks list the module's own file plus its transitive import closure
+ * (all as hosted paths), so a consumer can preload before the sync require.
+ * This is the module map for rendering this build's flight through the
+ * webpack transport (react-server-loader/webpack/*) — the closed-registry
+ * resolution a fully self-contained deployment needs.
+ */
+export const ${clientManifestExport} = ${JSON.stringify(bakedClientManifest)};
+
+/**
+ * Which RSC transport this bundle renders through ("esm" | "webpack") — baked
+ * so the serving handlers self-configure their decode side. A bundle and its
+ * handler cannot disagree.
+ */
+export const flightTransport = ${JSON.stringify(transport)};
 
 const routes = {
 ${routeLines.join("\n")}
@@ -531,7 +624,7 @@ export async function ${flightExport}(url, request) {
       HtmlComponent: React.Fragment,
       RootComponent: React.Fragment,
     }),
-    MODULE_BASE_PATH
+    ${flightArg}
   );
 }
 
@@ -562,11 +655,11 @@ export async function ${documentExport}(url, opts = {}) {
   };
   const full = renderToReadableStream(
     createElementWithReact(React, { ...base, HtmlComponent }),
-    MODULE_BASE_PATH
+    ${flightArg}
   );
   const headless = renderToReadableStream(
     createElementWithReact(React, { ...base, HtmlComponent: React.Fragment }),
-    MODULE_BASE_PATH
+    ${flightArg}
   );
   return { full, headless };
 }
@@ -638,6 +731,11 @@ export async function ${actionExport}(request, opts = {}) {
       },
     });
     logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
+    // The consumer half (client React + a closed client-module registry), so
+    // the pair composes on a runtime with no module loader. No-ops on the esm
+    // transport. Emitted only after the producer succeeds — a consumer with
+    // nothing to decode is dead weight.
+    await buildConsumerBundle({ userOptions, projectRoot, logger });
   } catch (error) {
     // The edge bundle is ADDITIVE and on by default — a bake failure must not
     // fail an otherwise-good build. Warn loudly and skip the artifact; the

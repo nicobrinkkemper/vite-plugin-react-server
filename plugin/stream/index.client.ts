@@ -22,10 +22,21 @@ export * from "./createFromReadableStream.client.js";
 // to an HTML ReadableStream in one process (no worker). The in-process twin of
 // plugin/worker/html, for edge / single-isolate builds.
 export * from "./renderFlightToHtml.client.js";
+import { renderFlightToHtml } from "./renderFlightToHtml.client.js";
+import { createEdgeHandler as coreCreateEdgeHandler } from "./createEdgeHandler.client.js";
+import type { CreateEdgeHandlerFn } from "./createEdgeHandler.types.js";
 
 // Edge fetch handler: compose the baked flight producer + renderFlightToHtml
-// into a Web `(Request) => Response` handler for edge runtimes.
-export * from "./createEdgeHandler.client.js";
+// into a Web `(Request) => Response` handler for edge runtimes. The core
+// requires a `renderFlightToHtml`; this barrel already carries vprs's own (the
+// static export above), so defaulting it here adds no reach the barrel didn't
+// have — and keeps `createEdgeHandler(...)` zero-config, as before. Web
+// bundles compose the core with a baked consumer via "/edge/web" instead.
+export const createEdgeHandler: CreateEdgeHandlerFn = (options) =>
+  coreCreateEdgeHandler({
+    ...options,
+    renderFlightToHtml: options.renderFlightToHtml ?? renderFlightToHtml,
+  });
 export type {
   CreateEdgeHandlerOptions,
   CreateEdgeHandlerFn,

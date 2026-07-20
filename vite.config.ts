@@ -127,6 +127,14 @@ export default defineConfig({
         // Public "./edge" entry. Condition-neutral by design — one target serves
         // both conditions, see plugin/edge/index.ts.
         "plugin/edge/index": resolve(__dirname, "plugin/edge/index.ts"),
+        // Public "./edge/web" entry: the same factories without the built-in
+        // Node renderer in the graph, so a Worker bundle stays free of
+        // `node:module`. See plugin/edge/web.ts.
+        "plugin/edge/web": resolve(__dirname, "plugin/edge/web.ts"),
+        // Not public and imported by nothing: referenced BY PATH at bake time
+        // (buildEdgeBundle aliases node:fs/promises + node:path onto it), so it
+        // must be an entry to be emitted at all.
+        "plugin/bundle/nodeStub": resolve(__dirname, "plugin/bundle/nodeStub.ts"),
       },
       formats: ["es"],
     },

@@ -13,11 +13,22 @@ runtime `--conditions`. You get flash-free streaming SSR from one Web `fetch`
 handler.
 
 One naming precision: "edge" here refers to the single-isolate *shape*, not to a
-literal V8-isolate runtime. Rendering a page with client islands imports the
-built client chunks off disk (see `moduleBaseURL` below), so the natural homes
-are Node-flavored serverless functions and single-process servers. A runtime
-with no filesystem, such as Cloudflare Workers, only fits when nothing in the
-render needs a disk import.
+literal V8-isolate runtime. Which runtimes the handler reaches is a property of
+the **transport** the render path uses, picked at build time
+(`build.edge.transport`):
+
+- **`"esm"`** (the default) resolves client islands with
+  `import(moduleBaseURL + id)` off disk and react-dom through the Node module
+  resolver at request time. Its homes are **Node-compatible hosts**: Node
+  servers, Bun, Vercel/Netlify Node functions.
+- **`"webpack"`** resolves references through a closed module map instead, and
+  the bake additionally emits a baked **consumer**
+  (`dist/server-edge/consumer.js`): client React plus every client-reference
+  module behind a closed registry. That pair composes to a bundle with **no
+  `node:` imports and no `process` dependency** — what a filesystem-less
+  runtime (Cloudflare Workers, Deno Deploy) requires. Serve it through
+  `vite-plugin-react-server/edge/web` — see
+  [Workers / Deno](#workers--deno-the-baked-consumer-and-edgeweb) below.
 
 It is **additive**: the normal `dist/server` / `dist/static` output is untouched.
 Dev is unaffected.
@@ -90,10 +101,11 @@ failure is a warning, never a build failure).
 | `edge: false`            | opt out — no `dist/server-edge` artifact |
 | `edge: { … }`            | emit, with overrides (presence means enabled) |
 
-| option    | default        | meaning |
-| --------- | -------------- | ------- |
-| `outDir`  | `"server-edge"`| output dir, under `build.dir` |
-| `minify`  | `true`         | minify the bundle. It bakes React in, so it is large; edge platforms cap bundle size. Set `false` for readable output. |
+| option      | default        | meaning |
+| ----------- | -------------- | ------- |
+| `outDir`    | `"server-edge"`| output dir, under `build.dir` |
+| `minify`    | `true`         | minify the bundle. It bakes React in, so it is large; edge platforms cap bundle size. Set `false` for readable output. |
+| `transport` | `"esm"`        | which RSC transport the baked render path uses. `"webpack"` additionally emits the baked consumer (`consumer.js`) for filesystem-less runtimes. Transports don't mix: prerendered `.rsc`/inline-flight snapshots are esm-encoded, so a webpack deploy serves **every** route through the edge bundle and drops the page snapshots from what it hosts. |
 
 ## Serve it: `createEdgeRequestHandler`
 
@@ -105,7 +117,7 @@ import { createEdgeRequestHandler } from "vite-plugin-react-server/edge";
 
 export const handler = createEdgeRequestHandler(bundle);
 
-export default { fetch: handler };   // Bun / Deno / Cloudflare / serverless
+export default { fetch: handler };   // Node server, Bun, a Node serverless function
 ```
 
 That is the whole thing: a Web `(Request) => Response` serving the flash-free
@@ -121,6 +133,12 @@ platforms this handler exists to serve.
 `vite-plugin-react-server/edge` is condition-neutral: it resolves to the same
 module with or without `--conditions react-server`, so it is safe to import from
 code that a react-server-condition build also loads.
+
+This entry injects vprs's own flight → HTML renderer as the default — which
+resolves react-dom through the Node module resolver, and is exactly what keeps
+`createEdgeRequestHandler(bundle)` zero-config on Node. Bundling for a Worker,
+use `/edge/web` instead (next section): same factories, no Node renderer in the
+module graph.
 
 ### Options
 
@@ -157,7 +175,49 @@ const app = createRequestHandler({
 createServer(toNodeListener(app)).listen(8787);
 ```
 
-## The pieces underneath: `createEdgeHandler`
+## Workers / Deno: the baked consumer and `/edge/web`
+
+With `build.edge.transport: "webpack"`, the bake emits **two** bundles:
+
+- `dist/server-edge/render.js` — the producer, as above, rendering through the
+  webpack transport's closed client manifest.
+- `dist/server-edge/consumer.js` — the flight → HTML half: client React,
+  `react-dom/server.edge`, the webpack flight client, and **every
+  client-reference module compiled in** behind a closed registry. It exports
+  `renderFlightToHtml` with the runtime renderer's contract minus the options
+  that describe how to *find* things (`moduleBaseURL`, `clientManifest`,
+  `flightTransport`) — the bundle already contains them.
+
+Compose them through the `/edge/web` entry:
+
+```ts
+import * as bundle from "./dist/server-edge/render.js";
+import { renderFlightToHtml } from "./dist/server-edge/consumer.js";
+import { createEdgeRequestHandler } from "vite-plugin-react-server/edge/web";
+
+export default { fetch: createEdgeRequestHandler(bundle, { renderFlightToHtml }) };
+```
+
+That whole request path — producer, consumer, handler — bundles for a Worker
+with **zero `node:` import specifiers and zero `require`**, and runs with no
+`process` global at all.
+
+`/edge/web` exists because the difference from `/edge` is the module **graph**,
+not behavior: `/edge` can reach vprs's built-in Node renderer, and even an
+unreached dynamic import is a specifier every bundler resolves — so a Worker
+build from that entry drags `node:module` in. `/edge/web` cannot reach it,
+which is why `renderFlightToHtml` is **required** there (checked at creation,
+so a handler that cannot render fails at compose time, not first request).
+Like `/edge`, it is condition-neutral.
+
+Two constraints to know:
+
+- **Transports don't mix.** Prerendered `.rsc` snapshots and inline-flight
+  payloads are esm-encoded; a webpack-transport client cannot decode them. A
+  webpack deploy serves every route through the edge bundle and does not host
+  the page snapshots (assets and chunks are still the CDN's to serve).
+- The consumer bakes **client React in**, so it is a second large artifact —
+  the same size trade as the producer, for the same reason.
 
 `createEdgeRequestHandler` is built on `createEdgeHandler`, which composes the
 producer and the HTML render into a standard Web `(Request) => Response` handler.
@@ -173,7 +233,7 @@ const handler = createEdgeHandler({
   bootstrapModules: ["/client-abc123.js"],  // your client entry (for hydration)
 });
 
-export default { fetch: handler };          // Bun / Deno / serverless function
+export default { fetch: handler };          // Node server, Bun, a Node serverless function
 ```
 
 The handler **streams** (responds when the HTML shell is ready), returns **404**
@@ -323,8 +383,10 @@ import "./start.js";
 
 ## When to use it
 
-- **Use it** for edge runtimes, or any single-process deploy where you want
-  flash-free streaming SSR without `worker_threads` or a `--conditions` flag.
+- **Use it** for any single-process deploy where you want flash-free streaming
+  SSR without `worker_threads` or a `--conditions` flag — the default transport
+  on Node-compatible hosts, the webpack transport (+ baked consumer) on
+  Cloudflare Workers / Deno Deploy.
 - **Stick with the default** worker-based build for Node servers that already
   run under `--conditions react-server`, or for purely static (SSG) hosting —
   the edge bundle is an extra artifact you do not need there.
@@ -340,9 +402,9 @@ import "./start.js";
 - `createEdgeHandler` / `renderFlightToHtml` are client-condition exports (they
   run client React); import them from `vite-plugin-react-server/stream` **without**
   the `react-server` condition. Only the baked `render.js` is server React.
-  `vite-plugin-react-server/edge` has no such caveat — it resolves to one module
-  under either condition and defers the client-React import until a render, so
-  importing it from a react-server build is safe.
+  `vite-plugin-react-server/edge` and `/edge/web` have no such caveat — each
+  resolves to one module under either condition and defers any client-React
+  import until a render, so importing them from a react-server build is safe.
 - The baked action gate (`handleRouteAction`) enumerates `*.server.*` modules as
   the allowlist — a `"use server"` action must live in such a module (the common
   convention). Inline `"use server"` in a non-`.server.` file is not baked.

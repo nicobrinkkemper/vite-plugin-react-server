@@ -42,6 +42,22 @@ export type EdgeBundleExports = {
   bootstrapModules?: string[];
   /** `clientModuleBaseURL`: the built client bundle, resolved from import.meta.url. */
   clientModuleBaseURL?: string;
+  /**
+   * `clientManifest`: the webpack-shaped client manifest (hosted
+   * client-reference id -> `{ id, chunks, name }`), derived from the client
+   * build's Vite manifest at bake time. The module map for rendering this
+   * build's flight through the webpack transport
+   * (`react-server-loader/webpack/*`) — closed-registry resolution for a
+   * fully self-contained deployment.
+   */
+  clientManifest?: Record<string, { id: string; chunks: string[]; name: string }>;
+  /**
+   * `flightTransport`: which RSC transport the bundle was baked with
+   * (`build.edge.transport`). The handlers pick their decode side from this,
+   * so a bundle and its server cannot disagree. Absent on pre-transport-flag
+   * bundles — treated as `"esm"`.
+   */
+  flightTransport?: "esm" | "webpack";
 };
 
 /**

@@ -7,13 +7,7 @@ import type {
   EdgeRenderHook,
 } from "./createEdgeRequestHandler.types.js";
 
-/**
- * Mirrors DEFAULT_CONFIG.BUILD.rscOutputPath, deliberately NOT imported from it:
- * this module has to stay loadable on a Web runtime, and the defaults module
- * reaches for the transformer and the plugin root — Node-only, and no business
- * being dragged into a Worker bundle for the sake of one string.
- */
-const DEFAULT_RSC_OUTPUT_PATH = "index.rsc";
+import { RSC_OUTPUT_PATH as DEFAULT_RSC_OUTPUT_PATH } from "../config/routeExportNames.js";
 
 /**
  * Sentinel for "this bundle has no route here" coming back out of
@@ -112,6 +106,20 @@ export function createEdgeRenderHook(
           // knows its entry. An explicit option still wins.
           moduleBaseURL: options.moduleBaseURL ?? bundle.clientModuleBaseURL ?? "/",
           bootstrapModules: options.bootstrapModules ?? bundle.bootstrapModules,
+          // The bundle knows which transport it was baked with; the decode side
+          // and the browser must follow. The inline hint is how the (transport-
+          // agnostic) client entry learns to consume a webpack-encoded payload.
+          flightTransport: bundle.flightTransport ?? "esm",
+          clientManifest: bundle.clientManifest,
+          bootstrapScriptContent:
+            [
+              options.bootstrapScriptContent,
+              bundle.flightTransport === "webpack"
+                ? 'self.__vprsFlightTransport="webpack";'
+                : undefined,
+            ]
+              .filter(Boolean)
+              .join("") || undefined,
           getURL: (request) => routeOf(new URL(request.url).pathname, rscOutputPath),
           onNotFound: () => NOT_HANDLED,
         })
@@ -169,6 +177,22 @@ export function createEdgeRenderHook(
  * render, so the page hydrates in place with no `.rsc` round-trip), the headless
  * flight on a client navigation, and `"use server"` actions through the bundle's
  * baked gate. No `worker_threads`, no runtime `--conditions`.
+ *
+ * On the webpack transport the build also emits a baked CONSUMER bundle beside
+ * the producer. Pass its renderer and the request path resolves no modules at
+ * all — client React and every client island are compiled in, so the pair runs
+ * on a runtime with no `node:` and no filesystem:
+ *
+ * ```js
+ * import * as bundle from "../dist/server-edge/render.js";
+ * import { renderFlightToHtml } from "../dist/server-edge/consumer.js";
+ *
+ * export const handler = createEdgeRequestHandler(bundle, { renderFlightToHtml });
+ * ```
+ *
+ * Omit it and the handler loads vprs's own renderer on first render instead,
+ * which resolves `react-dom/server` through a Node module resolver — correct on
+ * Node, unavailable on a Worker.
  *
  * Nothing here touches a filesystem or knows a platform: assets and any
  * prerendered snapshots are the host's to serve (a CDN already does it better).
