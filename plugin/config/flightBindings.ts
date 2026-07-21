@@ -59,16 +59,22 @@ const targetConfigs: Record<FlightTarget, Partial<FlightConfig>> = {
   webpack: {
     rsc: {
       client: {
+        // Explicit per-environment variants, matching the esm bindings above.
+        // The bare "react-server-dom-webpack/client" relies on resolve
+        // conditions, and the client ENVIRONMENT of the --app build resolves
+        // with node-flavored conditions — so the browser bundle pulled the
+        // Node cjs build ("Module util has been externalized" on every build)
+        // instead of client.browser.
         browser: {
-          production: "react-server-dom-webpack/client",
-          development: "react-server-dom-webpack/client",
-          test: "react-server-dom-webpack/client",
+          production: "react-server-dom-webpack/client.browser",
+          development: "react-server-dom-webpack/client.browser",
+          test: "react-server-dom-webpack/client.browser",
           exports: baseConfig.rsc.client.browser.exports
         },
         node: {
-          production: "react-server-dom-webpack/client",
-          development: "react-server-dom-webpack/client",
-          test: "react-server-dom-webpack/client",
+          production: "react-server-dom-webpack/client.node",
+          development: "react-server-dom-webpack/client.node",
+          test: "react-server-dom-webpack/client.node",
           exports: baseConfig.rsc.client.node.exports
         }
       },
