@@ -240,10 +240,12 @@ export async function ${consumerExport}(options) {
     const detail = divergent
       ? ` (${divergent} module(s) registered under both tree spellings)`
       : "";
-    logger.info(
-      `${tag} baked consumer bundle over ${idByFile.size} client module(s)${detail} → ` +
-        `${join(edgeDir, consumerFileName)}`
-    );
+    if (userOptions.verbose) {
+      logger.info(
+        `${tag} baked consumer bundle over ${idByFile.size} client module(s)${detail} → ` +
+          `${join(edgeDir, consumerFileName)}`
+      );
+    }
   } catch (error) {
     // Additive, like the producer bake: a failure here leaves the runtime
     // consumer in place rather than failing an otherwise-good build.

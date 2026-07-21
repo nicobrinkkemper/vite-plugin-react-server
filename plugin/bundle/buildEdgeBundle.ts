@@ -750,7 +750,9 @@ export async function ${actionExport}(request, opts = {}) {
         },
       },
     });
-    logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
+    if (userOptions.verbose) {
+      logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
+    }
     // The consumer half (client React + a closed client-module registry), so
     // the pair composes on a runtime with no module loader. No-ops on the esm
     // transport. Emitted only after the producer succeeds — a consumer with
