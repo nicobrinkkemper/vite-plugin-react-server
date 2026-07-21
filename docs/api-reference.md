@@ -40,7 +40,7 @@ export const config = {
 | `htmlTimeout` | `number` | Timeout in milliseconds for HTML generation operations | `15000` |
 | `htmlWorkerStartupTimeout` | `number` | Timeout in milliseconds for HTML worker startup | `5000` |
 | `rscWorkerStartupTimeout` | `number` | Timeout in milliseconds for RSC worker startup | `5000` |
-| `onMetrics` | `(metrics: RenderMetrics) => void` | Callback for build metrics | - |
+| `onMetrics` | `OnMetrics` | Callback for build metrics (render, worker-startup, module-resolution, edge-bake, inline-flight and ssg-render metrics) | - |
 | `onEvent` | `(event: PluginEvent) => void` | Callback for plugin events | - |
 | `normalizer` | `InputNormalizer` | Custom input normalizer | - |
 | `moduleID` | `(id: string) => string` | Custom module ID transformer | - |
@@ -598,39 +598,73 @@ import { getCondition } from "vite-plugin-react-server/config";
 
 ## Metric Watcher
 
-The plugin includes a built-in metric watcher that monitors build performance and backpressure:
+`metricWatcher` renders the plugin's metrics stream as readable build output.
+It is **opt-in**: without an `onMetrics` callback the build prints only its raw
+summary lines. Wire the watcher in and those summaries are replaced by richer,
+per-route output:
 
 ```ts
 import { metricWatcher } from "vite-plugin-react-server/metrics";
 
-// Default configuration (enabled by default)
-const defaultWatcher = metricWatcher({
-  maxTime: 200,        // Warn if processing takes > 200ms
-  maxBackpressure: 0,  // Warn if any backpressure occurs
-});
-
-// Custom configuration
-const customWatcher = metricWatcher({
-  maxTime: 500,           // Warn if processing takes > 500ms
-  maxBackpressure: 5,     // Warn if > 5 backpressure occurrences
-  warnOnly: true,         // Only show warnings, not info messages
-});
-// or simply
 export const config = {
   moduleBase: "src",
-  onMetrics: metricWatcher()
-}
+  onMetrics: metricWatcher(),
+};
 ```
+
+A healthy static build then reads like this (a 300-page consumer build):
+
+```
+HTML-worker started in 154ms (initial route: /)
+cold module load 211ms (mainThread, first route: /10mmc/credits)
+— warm-up: 1 route in 317ms (cold module load paid here) —
+dist/static/10mmc/credits/index.{rsc,html} 20.4 kB+21.8 kB 317ms (modules 211ms + route 106ms)
+— batch 1: 8 routes in 150ms wall (sum 1.11s, 7.4× parallel) —
+…
+rendered 300 pages in 5.51s (54.4 pages/s)
+inlined flight into 300 page(s) in 350ms
+baked edge producer in 796ms → dist/server-edge
+```
+
+Reading it: the first route renders solo as a **warm-up** and pays the one-time
+cold module load; every later batch renders full-width against the warm graph,
+and its overview line shows wall time vs summed per-route time (the parallel
+factor). Each route gets one consolidated line — the flight (`.rsc`) and the
+document (`.html`) share a clock and complete together (the html render
+consumes the flight as it streams); a `(+Nms html)` suffix appears only when
+the document genuinely trailed the flight. A `(modules X + route Y)` split
+separates a route's own module-load cost from its render time.
+
+Warnings are reserved for anomalies: renders slower than `maxTime` after
+cold-start attribution, stream backpressure past `maxBackpressure`, and module
+resolutions that were all cache-hit waiting.
 
 ### Metric Watcher Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `maxTime` | `number` | `200` | Maximum processing time in milliseconds before warning |
-| `maxBackpressure` | `number` | `0` | Maximum backpressure occurrences before warning |
-| `warnOnly` | `boolean` | `false` | Only show warnings, suppress info messages |
-| `warn` | `function` | `console.warn` | Custom warning function |
-| `info` | `function` | `console.info` | Custom info function |
+| `maxTime` | `number` | `200` | Slow-render / slow-resolution warning threshold (ms) |
+| `maxBackpressure` | `number` | `1` | Backpressure occurrences tolerated before warning |
+| `warnOnly` | `boolean` | `false` | Only warnings — suppress all info output |
+| `warn` | `function` | `console.warn` | Custom warning sink |
+| `info` | `function` | `console.info` | Custom info sink |
+
+### Metric types
+
+`onMetrics` receives a union (see `OnMetrics` in the exported types); a custom
+callback can switch on `metrics.type`:
+
+| `type` | When | Notable fields |
+|--------|------|----------------|
+| `"rsc-full"` / `"rsc-headless"` / `"html"` | per route render | `processingTime`, `fileSize`, `streamMetrics`, `batch` |
+| `"worker-startup"` | once per worker | `workerType`, `startupTime` |
+| `"module-resolution"` | per route load phase | `resolutionTime`, `resolveStartAt`, `moduleRunAt`, `moduleRunTime` |
+| `"ssg-render"` | once per build | `pages`, `failed`, `renderTime` |
+| `"inline-flight"` | after the post-write inline pass | `pages`, `inlineTime` |
+| `"edge-bake"` | per edge-bake half | `kind` (`producer`/`consumer`), `outputPath`, `bakeTime` |
+
+The watcher ignores metric types it doesn't know, so a newer plugin with an
+older consumer-pinned watcher degrades gracefully.
 
 ### Backpressure Monitoring
 
