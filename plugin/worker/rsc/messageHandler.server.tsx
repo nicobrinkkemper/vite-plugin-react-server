@@ -1459,7 +1459,8 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
         return;
       }
       default: {
-        logger.info(`Unknown message: ${msg.type}`);
+        // Unexpected input, not progress narration: always visible, as a warn.
+        logger.warn(`[rsc-worker] unknown message type: ${msg.type}`);
         return;
       }
     }

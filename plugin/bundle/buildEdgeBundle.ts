@@ -131,7 +131,7 @@ export async function buildEdgeBundle(opts: {
         });
       }
     }
-    if (bakedGlobalCss.length) {
+    if (bakedGlobalCss.length && userOptions.verbose) {
       logger.info(
         `${tag} baking ${bakedGlobalCss.length} stylesheet(s) into the document producer's default globalCss`
       );
@@ -144,7 +144,9 @@ export async function buildEdgeBundle(opts: {
       ?.file;
     if (entryFile) {
       bakedBootstrapModules = [withBase(entryFile)];
-      logger.info(`${tag} baking client entry ${entryFile} as bootstrapModules`);
+      if (userOptions.verbose) {
+        logger.info(`${tag} baking client entry ${entryFile} as bootstrapModules`);
+      }
     } else {
       // Not fatal: a consumer can still pass bootstrapModules explicitly. But
       // without one the document renders and never hydrates, which looks like a
@@ -189,7 +191,7 @@ export async function buildEdgeBundle(opts: {
       userOptions.moduleBasePath ?? ""
     );
     const count = Object.keys(bakedClientManifest).length;
-    if (count > 0) {
+    if (count > 0 && userOptions.verbose) {
       logger.info(`${tag} baking webpack client manifest over ${count} module(s)`);
     }
   } else {
@@ -495,7 +497,7 @@ export async function buildEdgeBundle(opts: {
   const actionManifestLines = actionEntries.map(
     (a) => `  ${JSON.stringify(a.key)}: { file: ${JSON.stringify(a.file)} },`
   );
-  if (actionEntries.length > 0) {
+  if (actionEntries.length > 0 && userOptions.verbose) {
     logger.info(
       `${tag} baking server-action gate over ${actionEntries.length} module(s): ${actionEntries
         .map((a) => a.key)
@@ -748,7 +750,9 @@ export async function ${actionExport}(request, opts = {}) {
         },
       },
     });
-    logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
+    if (userOptions.verbose) {
+      logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
+    }
     // The consumer half (client React + a closed client-module registry), so
     // the pair composes on a runtime with no module loader. No-ops on the esm
     // transport. Emitted only after the producer succeeds — a consumer with
