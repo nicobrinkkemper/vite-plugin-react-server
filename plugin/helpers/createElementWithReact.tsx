@@ -132,8 +132,14 @@ export const createElementWithReact: CreateElementWithReactFN =
         logger?.info(`[createElementWithReact] Returning Root only`);
       }
       return (
+        // Deliberately NO key here. This element is the flight root the client
+        // router swaps on navigation; keying it by route tells React to unmount
+        // and remount the ENTIRE page tree on every client nav — CSS animations
+        // restart, client-component state dies, no DOM is ever preserved.
+        // Unkeyed, React reconciles the old and new trees and structure that
+        // matches across routes (headers, logos, nav) is updated in place. A
+        // page that WANTS a clean remount can key its own subtree.
         <RootComponent
-          key={route}
           as={React.Fragment}
           cssFiles={cssFiles}
           pageProps={pageProps}

@@ -21,6 +21,7 @@ export type {
 export {
   RouterProvider,
   useLocation,
+  useOptionalRouter,
   useParams,
   useRouter,
 } from "./router-react.js";
