@@ -34,6 +34,7 @@ async function renderSingleRoute(
   renderPage: RenderPageFn,
   manifest: Manifest,
   failedRoutes: Map<string, unknown>,
+  batch?: { index: number; size: number },
 ): Promise<{ route: string; results: RenderPageResult[]; error?: Error }> {
   const { autoDiscoveredFiles, cssFilesByPage, ...options } = handlerOptions;
   const { page, props, root, html, layouts } = autoDiscoveredFiles.urlMap?.get(route) || {};
@@ -86,8 +87,9 @@ async function renderSingleRoute(
         }
       }
 
-      // Handle metrics collection on file.write.done
-      emitFileWriteMetrics(event, route, routeResults, options);
+      // Handle metrics collection on file.write.done; the batch tag lets the
+      // watcher show which routes rendered concurrently.
+      emitFileWriteMetrics(event, route, routeResults, { ...options, batch });
     };
 
     const routeHandlerOptions = {
@@ -202,15 +204,24 @@ export const renderPagesBatched: RenderPagesFn = (
 
   return (async function* _renderPagesBatched(): AsyncGenerator<RenderPagesResult, RenderPagesResult, unknown> {
     const routeArray = Array.from(routes);
-    const batches = chunk(routeArray, batchSize);
-    
+    // The first route renders SOLO as a warm-up. On a cold module graph a
+    // full-width first batch gains nothing from parallelism — every route in
+    // it serializes on the same one-time module load, so N routes all report
+    // the whole cold-load wall time and the real rendering only starts after
+    // it anyway. One route pays the cold load once; every batch after renders
+    // against a warm graph at full width.
+    const batches =
+      routeArray.length > 1
+        ? [[routeArray[0]], ...chunk(routeArray.slice(1), batchSize)]
+        : chunk(routeArray, batchSize);
+
     if (options.verbose) {
       options.logger?.info(
-        `[renderPagesBatched] Rendering ${routeArray.length} pages in ${batches.length} batches of ${batchSize}`
+        `[renderPagesBatched] Rendering ${routeArray.length} pages: 1 warm-up + ${batches.length - 1} batches of ${batchSize}`
       );
     }
 
-    for (const batch of batches) {
+    for (const [batchIndex, batch] of batches.entries()) {
       // Check for abort signal
       if (options.signal?.aborted) {
         const abortResult: RenderPagesResult = {
@@ -226,8 +237,11 @@ export const renderPagesBatched: RenderPagesFn = (
       }
 
       // Render all pages in this batch concurrently
-      const batchPromises = batch.map(route => 
-        renderSingleRoute(route, handlerOptions, renderPage, manifest, failedRoutes)
+      const batchPromises = batch.map(route =>
+        renderSingleRoute(route, handlerOptions, renderPage, manifest, failedRoutes, {
+          index: batchIndex,
+          size: batch.length,
+        })
       );
 
       const batchResults = await Promise.all(batchPromises);

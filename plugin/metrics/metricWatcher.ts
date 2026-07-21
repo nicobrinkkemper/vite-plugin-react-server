@@ -44,6 +44,19 @@ let startedLogging = false;
 // Track logged worker startups to prevent duplicates
 const loggedWorkerStartups = new Set<string>();
 
+// Per-batch accumulation (parallel static generation): routes that rendered
+// concurrently, their union wall window and summed spans. Flushed as one
+// overview line when every route of the batch has reported its html metric,
+// so the stream shows what actually ran in parallel and what it bought.
+type BatchWindow = {
+  size: number;
+  routes: Set<string>;
+  minStartAt: number;
+  maxEndAt: number;
+  sumSpans: number;
+};
+const batchWindows = new Map<number, BatchWindow>();
+
 export function metricWatcher({
   maxTime = 200,
   maxBackpressure = 1,
@@ -107,6 +120,41 @@ export function metricWatcher({
       pageMetrics.metrics.rscHeadless = metrics as RenderMetrics;
     } else if (metrics.type === "html") {
       pageMetrics.metrics.html = metrics as RenderMetrics;
+      const html = metrics as RenderMetrics;
+      const batch = html.batch;
+      const startAt = html.streamMetrics.startAt;
+      if (batch && startAt != null && !warnOnly) {
+        let win = batchWindows.get(batch.index);
+        if (!win) {
+          win = {
+            size: batch.size,
+            routes: new Set(),
+            minStartAt: Infinity,
+            maxEndAt: -Infinity,
+            sumSpans: 0,
+          };
+          batchWindows.set(batch.index, win);
+        }
+        if (!win.routes.has(route)) {
+          win.routes.add(route);
+          win.minStartAt = Math.min(win.minStartAt, startAt);
+          win.maxEndAt = Math.max(win.maxEndAt, startAt + html.processingTime);
+          win.sumSpans += html.processingTime;
+        }
+        if (win.routes.size >= win.size) {
+          const wall = win.maxEndAt - win.minStartAt;
+          const speedup = wall > 0 ? win.sumSpans / wall : 1;
+          const label =
+            batch.index === 0 && win.size === 1
+              ? `warm-up: 1 route in ${formatTime(wall)} (cold module load paid here)`
+              : `batch ${batch.index}: ${win.size} routes in ${formatTime(wall)} wall` +
+                (win.size > 1
+                  ? ` (sum ${formatTime(win.sumSpans)}, ${speedup.toFixed(1)}× parallel)`
+                  : "");
+          info(`[2m— ${label} —[0m`);
+          batchWindows.delete(batch.index);
+        }
+      }
     } else if (metrics.type === "worker-startup") {
       // Store worker startup metrics separately
       pageMetrics.workerStartupMetrics.push(metrics as WorkerStartupMetrics);

@@ -21,6 +21,7 @@ export type StreamMetrics = {
 
 export type CreateRenderMetricsFn = <T extends "html" | "rsc-headless" | "rsc-full">(metrics: {
   route: string;
+  batch?: { index: number; size: number };
   type: T;
   fromMainThread: boolean;
   fromRscWorker: boolean;
@@ -39,6 +40,12 @@ export type CreateRenderMetricsFn = <T extends "html" | "rsc-headless" | "rsc-fu
 
 export type BaseRenderMetrics = {
   route: string;
+  /**
+   * Which render batch this route belonged to (parallel static generation).
+   * index 0 is the warm-up route that pays the cold module load solo; size is
+   * the ACTUAL number of routes in the batch. Absent in sequential mode.
+   */
+  batch?: { index: number; size: number };
   fromMainThread: boolean;
   fromRscWorker: boolean;
   fromHtmlWorker: boolean;

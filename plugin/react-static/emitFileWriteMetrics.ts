@@ -18,7 +18,7 @@ export function emitFileWriteMetrics(
   event: any,
   route: string,
   routeResults: Map<string, RenderPageResult>,
-  options: { onMetrics?: (metrics: any) => void }
+  options: { onMetrics?: (metrics: any) => void; batch?: { index: number; size: number } }
 ): void {
   if (event.type !== "file.write.done" || event.data.route !== route) {
     return;
@@ -42,6 +42,7 @@ export function emitFileWriteMetrics(
     const htmlSpan = spanSince(routeResult.metrics.html.streamMetrics);
     const htmlMetrics = createRenderMetrics({
       route: route,
+      batch: options.batch,
       type: routeResult.metrics.html.type,
       fromMainThread: routeResult.metrics.html.fromMainThread,
       fromRscWorker: routeResult.metrics.html.fromRscWorker,
@@ -73,6 +74,7 @@ export function emitFileWriteMetrics(
       const rscFullSpan = spanSince(routeResult.metrics.rscFull.streamMetrics);
       const rscFullMetrics = createRenderMetrics({
         route: route,
+      batch: options.batch,
         type: routeResult.metrics.rscFull.type,
         fromMainThread: routeResult.metrics.rscFull.fromMainThread,
         fromRscWorker: routeResult.metrics.rscFull.fromRscWorker,
@@ -101,6 +103,7 @@ export function emitFileWriteMetrics(
     const rscSpan = spanSince(routeResult.metrics.rscHeadless.streamMetrics);
     const rscMetrics = createRenderMetrics({
       route: route,
+      batch: options.batch,
       type: routeResult.metrics.rscHeadless.type,
       fromMainThread: routeResult.metrics.rscHeadless.fromMainThread,
       fromRscWorker: routeResult.metrics.rscHeadless.fromRscWorker,

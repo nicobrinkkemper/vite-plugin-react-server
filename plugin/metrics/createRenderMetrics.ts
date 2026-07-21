@@ -4,6 +4,7 @@ import type { BaseRenderMetrics, CreateRenderMetricsFn, RenderMetrics } from "./
 
 export const createRenderMetrics: CreateRenderMetricsFn = function _createRenderMetrics({
   route,
+  batch,
   type,
   fromMainThread = isMainThread,
   fromRscWorker = false,
@@ -21,6 +22,7 @@ export const createRenderMetrics: CreateRenderMetricsFn = function _createRender
 }) {
   const base = {
     route,
+    batch,
     fromMainThread,
     fromRscWorker,
     fromHtmlWorker,
