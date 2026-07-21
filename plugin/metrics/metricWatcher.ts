@@ -364,6 +364,21 @@ export function metricWatcher({
       // means the html genuinely trailed the flight.
       const tailSuffix =
         htmlTail >= 2 ? ` [2m(+${formatTime(htmlTail)} html)[0m` : "";
+      // A route's span contains its module-load time — the warm-up route pays
+      // the shared graph (the big one), and every route pays its own
+      // page/props modules on first use. Split it out so the render time is
+      // comparable across lines (317ms total reads as modules 211ms + route
+      // 106ms, not as a slow route).
+      const modulesInSpan = pageMetrics.moduleResolutionMetrics.reduce(
+        (total, m) => total + (m.moduleRunTime ?? 0),
+        0
+      );
+      const spanSuffix =
+        modulesInSpan >= 5
+          ? ` [2m(modules ${formatTime(modulesInSpan)} + route ${formatTime(
+              Math.max(0, htmlMetrics.processingTime - modulesInSpan)
+            )})[0m`
+          : "";
       if (canMerge) {
         const isRootRoute = htmlMetrics.route === "/";
         const baseDirDisplay = `[2m${htmlMetrics.baseDir}[0m`;
@@ -375,6 +390,7 @@ export function metricWatcher({
           `${baseDirDisplay}${routeDisplay}[36m/${pairName}[0m ` +
             `[1m${formatFileSize(rscMetrics.fileSize!)}+${formatFileSize(htmlMetrics.fileSize!)}[0m ` +
             `[90m${formatTime(htmlMetrics.processingTime)}[0m` +
+            spanSuffix +
             tailSuffix
         );
       } else {
@@ -382,7 +398,7 @@ export function metricWatcher({
         const rscOutput = formatFileOutput(rscMetrics);
         const htmlOutput = formatFileOutput(htmlMetrics);
         if (typeof rscOutput === "string") info(rscOutput);
-        if (typeof htmlOutput === "string") info(htmlOutput + tailSuffix);
+        if (typeof htmlOutput === "string") info(htmlOutput + spanSuffix + tailSuffix);
       }
 
       // Clean up
