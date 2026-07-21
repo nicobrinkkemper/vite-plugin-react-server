@@ -43,20 +43,22 @@ const reactLoaderMessageHandler = (msg: InitializedReactLoaderMessage) => {
 try {
   // Check if we're in build mode - if so, skip loader registration since files are already built
   const isBuildMode = workerData.configEnv?.command === "build"
-  
+  const verbose = workerData.userOptions?.verbose || false;
 
-  
-  if (isBuildMode) {
-    logger.info("Build mode detected - skipping loader registration since files are already built");
-  } else {
-    logger.info("Development/test mode detected - registering loaders for source file processing");
+
+  if (verbose) {
+    if (isBuildMode) {
+      logger.info("[rsc-worker] build mode - skipping loader registration, files are already built");
+    } else {
+      logger.info("[rsc-worker] development/test mode - registering loaders for source file processing");
+    }
   }
 
   // Create channels for each loader
   const reactLoaderChannel = new MessageChannel();
   const cssLoaderChannel = new MessageChannel();
   const envLoaderChannel = new MessageChannel();
-  
+
   // Increase max listeners to prevent warnings during development
   setMaxListenersOnPort(reactLoaderChannel.port1, 500);
   setMaxListenersOnPort(reactLoaderChannel.port2, 500);
@@ -125,41 +127,44 @@ try {
   }
 
   const root = workerData.userOptions?.projectRoot || workerData.resolvedConfig?.root || process.cwd();
-
   const reactLoaderPath =
     "file://" +
     (workerData.userOptions.reactLoaderPath
       ? resolve(
-          root,
-          workerData.userOptions.reactLoaderPath
-        )
+        root,
+        workerData.userOptions.reactLoaderPath
+      )
       : resolve(
-          root,
-          DEFAULT_CONFIG.REACT_LOADER_PATH
-        ));
-  logger.info(`Using reactLoaderPath: ${reactLoaderPath}`);
+        root,
+        DEFAULT_CONFIG.REACT_LOADER_PATH
+      ));
+  
+  if (verbose) {
+    logger.info(`[rsc-worker] using reactLoaderPath: ${reactLoaderPath}`);
+  }
+
   const cssLoaderPath =
     "file://" +
     (workerData.userOptions.cssLoaderPath
       ? resolve(
-          root,
-          workerData.userOptions.cssLoaderPath
-        )
-      : resolve(  
-          root,
-          DEFAULT_CONFIG.CSS_LOADER_PATH
-        ));
+        root,
+        workerData.userOptions.cssLoaderPath
+      )
+      : resolve(
+        root,
+        DEFAULT_CONFIG.CSS_LOADER_PATH
+      ));
   const envLoaderPath =
     "file://" +
     (workerData.userOptions.envLoaderPath
       ? resolve(
-          root,
-          workerData.userOptions.envLoaderPath
-        )
+        root,
+        workerData.userOptions.envLoaderPath
+      )
       : resolve(
-          root,
-          DEFAULT_CONFIG.ENV_LOADER_PATH
-        ));
+        root,
+        DEFAULT_CONFIG.ENV_LOADER_PATH
+      ));
 
   // Serve mode only: register the loaders and the tsx hook.
   //
@@ -281,7 +286,9 @@ try {
 
     // Handle HMR port message errors
     hmrPort.on("messageerror", (error: Error) => {
-      logger.error("HMR port message serialization failed.", { error });
+      if (verbose) {
+        logger.error("HMR port message serialization failed.", { error });
+      }
       if (parentPort) {
         parentPort.postMessage({
           type: "ERROR",
