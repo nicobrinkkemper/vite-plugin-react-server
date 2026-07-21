@@ -95,11 +95,22 @@ export const resolveUrlOption: ResolvePageAndPropsOptionsFn = async function _re
         if (typeof result === "string") {
           return { type: "success", [configName]: result } as any;
         }
+        if (result === undefined && configName === "props") {
+          // Props are optional by contract — fileRouter types `props` as
+          // `(url) => string | undefined`, and a route directory may carry a
+          // page.tsx with no sibling props file. Treating undefined as an
+          // error here silently DROPPED the route from the build worklist;
+          // it must resolve to "no props" and render with empty props.
+          return { type: "success", props: undefined } as any;
+        }
         if (result instanceof Promise) {
           try {
             const promiseResult = await result;
             if (typeof promiseResult === "string") {
               return { type: "success", [configName]: promiseResult } as any;
+            }
+            if (promiseResult === undefined && configName === "props") {
+              return { type: "success", props: undefined } as any;
             }
           } catch (error) {
             return { type: "error", error: error as Error };

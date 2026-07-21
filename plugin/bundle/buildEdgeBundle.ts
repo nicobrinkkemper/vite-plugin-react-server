@@ -262,13 +262,16 @@ export async function buildEdgeBundle(opts: {
     const pageSrc = routeSource(userOptions.Page, resolveUrl);
     const propsSrc = routeSource(userOptions.props, resolveUrl);
     const pageAbs = resolveBuilt(pageSrc);
-    const propsAbs = resolveBuilt(propsSrc);
-    if (
-      typeof pageSrc !== "string" ||
-      typeof propsSrc !== "string" ||
-      !pageAbs ||
-      !propsAbs
-    ) {
+    // Props are optional by contract: a route may have a page.tsx with no
+    // sibling props file (fileRouter returns undefined). Only a MISSING page
+    // disqualifies the route; a props-less route bakes without a props module
+    // and renders with empty props — the same rule as the static build.
+    const propsAbs =
+      typeof propsSrc === "string" ? resolveBuilt(propsSrc) : undefined;
+    if (typeof pageSrc !== "string" || !pageAbs) {
+      return null;
+    }
+    if (typeof propsSrc === "string" && !propsAbs) {
       return null;
     }
     // Bake this route's `route.tsx` layout chain: each layer's component (and
@@ -276,10 +279,10 @@ export async function buildEdgeBundle(opts: {
     // src path, and a `layouts: [{ component, props }]` array is emitted so the
     // edge folds the nested tree via resolveLayoutChain. A layer whose built
     // module can't be resolved is skipped (the page still renders).
-    const moduleParts = [
-      `${JSON.stringify(pageSrc)}: ${nsFor(pageAbs)}`,
-      `${JSON.stringify(propsSrc)}: ${nsFor(propsAbs)}`,
-    ];
+    const moduleParts = [`${JSON.stringify(pageSrc)}: ${nsFor(pageAbs)}`];
+    if (typeof propsSrc === "string" && propsAbs) {
+      moduleParts.push(`${JSON.stringify(propsSrc)}: ${nsFor(propsAbs)}`);
+    }
     const layoutParts: string[] = [];
     for (const layer of userOptions.layoutsResolver?.(resolveUrl) ?? []) {
       const compAbs =
@@ -310,9 +313,13 @@ export async function buildEdgeBundle(opts: {
     const layoutsField = layoutParts.length
       ? `, layouts: [${layoutParts.join(", ")}]`
       : "";
+    const propsPathField =
+      typeof propsSrc === "string"
+        ? `, propsPath: ${JSON.stringify(propsSrc)}`
+        : "";
     return `  ${JSON.stringify(key)}: { pagePath: ${JSON.stringify(
       pageSrc
-    )}, propsPath: ${JSON.stringify(propsSrc)}, modules: { ${moduleParts.join(
+    )}${propsPathField}, modules: { ${moduleParts.join(
       ", "
     )} }${layoutsField} },`;
   };
