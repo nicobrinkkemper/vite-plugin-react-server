@@ -65,6 +65,7 @@ export async function buildEdgeBundle(opts: {
   if (!userOptions.build.edge.enabled) return;
 
   const tag = "[build.edge]";
+  const bakeStart = performance.now();
   const outRoot = join(projectRoot, userOptions.build.outDir);
   const serverDir = join(outRoot, userOptions.build.server);
   const edgeDir = join(
@@ -753,6 +754,16 @@ export async function ${actionExport}(request, opts = {}) {
     if (userOptions.verbose) {
       logger.info(`${tag} baked single-isolate rsc bundle → ${edgeDir}`);
     }
+    // The summary the raw log no longer prints by default: route it through
+    // onMetrics so a metricWatcher consumer still sees what got baked where.
+    userOptions.onMetrics?.({
+      route: "*",
+      type: "edge-bake",
+      kind: "producer",
+      outputPath: edgeDir,
+      bakeTime: performance.now() - bakeStart,
+      description: "single-isolate rsc bundle",
+    });
     // The consumer half (client React + a closed client-module registry), so
     // the pair composes on a runtime with no module loader. No-ops on the esm
     // transport. Emitted only after the producer succeeds — a consumer with

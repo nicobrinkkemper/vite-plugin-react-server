@@ -32,6 +32,7 @@ import { createMainThreadHandlers } from "../stream/createMainThreadHandlers.js"
 import { createRscToHtmlStream } from "./rscToHtmlStream.server.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
+import { createModuleResolutionMetrics } from "../metrics/createModuleResolutionMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createHeadlessStreamState, trackHeadlessStreamError, hasHeadlessStreamError } from "../helpers/headlessStreamState.js";
 
@@ -81,7 +82,13 @@ export const renderPage: RenderPageFn = async function* renderPage(
       );
     }
 
-    // Resolve components and props using the proper helper
+    // Resolve components and props using the proper helper. The whole load
+    // phase is timed and emitted as a module-resolution metric: on the first
+    // (cold) batch this is where routes spend their time — module code
+    // compiling and executing on the main thread — and without the metric the
+    // watcher attributes all of it to "render".
+    const resolveStartAt = Date.now();
+    const resolveStart = performance.now();
     let PageComponent: any = null;
     let RootComponent: any = null;
     let HtmlComponent: any = null;
@@ -200,6 +207,22 @@ export const renderPage: RenderPageFn = async function* renderPage(
     if (!HtmlComponent) {
       const { Html: DefaultHtml } = await import("../components/html.js");
       HtmlComponent = DefaultHtml as any;
+    }
+
+    if (handlerOptions.onMetrics) {
+      const resolutionTime = performance.now() - resolveStart;
+      handlerOptions.onMetrics(
+        createModuleResolutionMetrics({
+          route: handlerOptions.route,
+          workerType: "mainThread",
+          resolutionTime,
+          resolveStartAt,
+          // Main-thread loads have no cache/wait split: the load IS the run.
+          moduleRunAt: resolveStartAt,
+          moduleRunTime: resolutionTime,
+          description: `Module resolution for route ${handlerOptions.route}`,
+        })
+      );
     }
 
     // Ensure we have all required components
@@ -443,8 +466,16 @@ export const renderPage: RenderPageFn = async function* renderPage(
     // Create stream wrappers for file writing - simplified like client side
     const rscStreamWrapper = {
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-        const streamMetrics = createStreamMetrics();
-        streamMetrics.startTime = performance.now();
+        // Seed the span from the ORIGINAL metrics created at renderPage entry
+        // — the same origin the html span counts from. Both indexes then share
+        // one clock: the .rsc span reads "flight ready at X", the .html span
+        // "document done at Y", and Y ≥ X structurally because the html render
+        // consumes the flight. A pipe-time stamp here measured only the file
+        // flush (1-7ms) and made the pair look unrelated.
+        const streamMetrics = createStreamMetrics({
+          startTime: rscHeadlessMetrics.streamMetrics.startTime,
+          startAt: rscHeadlessMetrics.streamMetrics.startAt,
+        });
 
         // Use the headless RSC stream directly for the .rsc file
         const rscFileStream = headlessRscHandler.rscStream;

@@ -11,6 +11,7 @@ export const createStreamMetrics: CreateStreamMetricsFn =
         errorCount: metrics.errorCount ?? 0,
         duration: metrics.duration ?? 0,
         startTime: metrics.startTime ?? performance.now(),
+        startAt: metrics.startAt ?? Date.now(),
       };
     }
     return {
@@ -20,5 +21,6 @@ export const createStreamMetrics: CreateStreamMetricsFn =
       errorCount: 0,
       duration: 0,
       startTime: performance.now(),
+      startAt: Date.now(),
     };
   };

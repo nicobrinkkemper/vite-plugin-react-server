@@ -10,15 +10,25 @@
  * differed in the name of the results Map). This is the full path only; the
  * skip-branch in renderPages emits html-only metrics by design and is left as-is.
  */
+import { relative } from "node:path";
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
+
+// Display spelling for the watcher's file lines: relative to the process CWD,
+// like Vite's own output file list ("dist/static/…"). The event's own paths
+// stay absolute — they are filesystem data, this is presentation. Falls back
+// to the absolute path when the output isn't under the CWD.
+function displayBaseDir(dir: string): string {
+  const rel = relative(process.cwd(), dir);
+  return rel && !rel.startsWith("..") ? rel : dir;
+}
 import type { RenderPageResult } from "../types.js";
 
 export function emitFileWriteMetrics(
   event: any,
   route: string,
   routeResults: Map<string, RenderPageResult>,
-  options: { onMetrics?: (metrics: any) => void }
+  options: { onMetrics?: (metrics: any) => void; batch?: { index: number; size: number } }
 ): void {
   if (event.type !== "file.write.done" || event.data.route !== route) {
     return;
@@ -29,29 +39,37 @@ export function emitFileWriteMetrics(
     return;
   }
 
+  // Cross-thread span: the stream's startTime is performance.now() in the
+  // thread that STAMPED it (often a worker), while this function runs on the
+  // main thread — different performance timeOrigins, so subtracting them
+  // inflates every first-batch span by the worker's spawn offset. Prefer the
+  // wall-clock startAt when the producer stamped one.
+  const spanSince = (sm: { startTime: number; startAt?: number }): number =>
+    sm.startAt != null ? Date.now() - sm.startAt : performance.now() - sm.startTime;
+
   if (event.data.fileType === "html") {
     const endTime = performance.now();
+    const htmlSpan = spanSince(routeResult.metrics.html.streamMetrics);
     const htmlMetrics = createRenderMetrics({
       route: route,
+      batch: options.batch,
       type: routeResult.metrics.html.type,
       fromMainThread: routeResult.metrics.html.fromMainThread,
       fromRscWorker: routeResult.metrics.html.fromRscWorker,
       fromHtmlWorker: routeResult.metrics.html.fromHtmlWorker,
       fileSize: event.data.content.length,
       chunks: event.data.chunks || 0,
-      processingTime: endTime - routeResult.metrics.html.streamMetrics.startTime,
-      chunkRate:
-        (event.data.chunks || 0) /
-        ((endTime - routeResult.metrics.html.streamMetrics.startTime) / 1000),
+      processingTime: htmlSpan,
+      chunkRate: (event.data.chunks || 0) / (htmlSpan / 1000),
       fileName: event.data.fileName,
       outputPath: event.data.path,
-      baseDir: event.data.baseDir,
+      baseDir: displayBaseDir(event.data.baseDir),
       routePath: event.data.routePath,
       streamMetrics: createStreamMetrics({
         ...routeResult.metrics.html.streamMetrics,
         chunks: event.data.chunks || 0,
         bytes: event.data.content.length,
-        duration: endTime - routeResult.metrics.html.streamMetrics.startTime,
+        duration: htmlSpan,
         endTime: endTime,
       }),
     });
@@ -63,28 +81,25 @@ export function emitFileWriteMetrics(
     // Also emit RSC Full metrics if available (may be missing on errors)
     if (routeResult.metrics?.rscFull) {
       const rscFullEndTime = performance.now();
+      const rscFullSpan = spanSince(routeResult.metrics.rscFull.streamMetrics);
       const rscFullMetrics = createRenderMetrics({
         route: route,
+      batch: options.batch,
         type: routeResult.metrics.rscFull.type,
         fromMainThread: routeResult.metrics.rscFull.fromMainThread,
         fromRscWorker: routeResult.metrics.rscFull.fromRscWorker,
         fromHtmlWorker: routeResult.metrics.rscFull.fromHtmlWorker,
-        processingTime:
-          rscFullEndTime - routeResult.metrics.rscFull.streamMetrics.startTime,
+        processingTime: rscFullSpan,
         chunks: routeResult.metrics.rscFull.streamMetrics.chunks,
         chunkRate:
-          routeResult.metrics.rscFull.streamMetrics.chunks /
-          ((rscFullEndTime -
-            routeResult.metrics.rscFull.streamMetrics.startTime) /
-            1000),
+          routeResult.metrics.rscFull.streamMetrics.chunks / (rscFullSpan / 1000),
         fileName: event.data.fileName,
         outputPath: event.data.path,
-        baseDir: event.data.baseDir,
+        baseDir: displayBaseDir(event.data.baseDir),
         routePath: event.data.routePath,
         streamMetrics: createStreamMetrics({
           ...routeResult.metrics.rscFull.streamMetrics,
-          duration:
-            rscFullEndTime - routeResult.metrics.rscFull.streamMetrics.startTime,
+          duration: rscFullSpan,
           endTime: rscFullEndTime,
         }),
       });
@@ -95,30 +110,27 @@ export function emitFileWriteMetrics(
     }
   } else if (event.data.fileType === "rsc") {
     const rscEndTime = performance.now();
+    const rscSpan = spanSince(routeResult.metrics.rscHeadless.streamMetrics);
     const rscMetrics = createRenderMetrics({
       route: route,
+      batch: options.batch,
       type: routeResult.metrics.rscHeadless.type,
       fromMainThread: routeResult.metrics.rscHeadless.fromMainThread,
       fromRscWorker: routeResult.metrics.rscHeadless.fromRscWorker,
       fromHtmlWorker: routeResult.metrics.rscHeadless.fromHtmlWorker,
       fileSize: event.data.content.length,
       chunks: event.data.chunks || 0,
-      processingTime:
-        rscEndTime - routeResult.metrics.rscHeadless.streamMetrics.startTime,
-      chunkRate:
-        (event.data.chunks || 0) /
-        ((rscEndTime - routeResult.metrics.rscHeadless.streamMetrics.startTime) /
-          1000),
+      processingTime: rscSpan,
+      chunkRate: (event.data.chunks || 0) / (rscSpan / 1000),
       fileName: event.data.fileName,
       outputPath: event.data.path,
-      baseDir: event.data.baseDir,
+      baseDir: displayBaseDir(event.data.baseDir),
       routePath: event.data.routePath,
       streamMetrics: createStreamMetrics({
         ...routeResult.metrics.rscHeadless.streamMetrics,
         chunks: event.data.chunks || 0,
         bytes: event.data.content.length,
-        duration:
-          rscEndTime - routeResult.metrics.rscHeadless.streamMetrics.startTime,
+        duration: rscSpan,
         endTime: rscEndTime,
       }),
     });

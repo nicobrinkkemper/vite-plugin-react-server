@@ -17,6 +17,7 @@
  */
 import { resolve } from "node:path";
 import type { Logger } from "vite";
+import type { InlineFlightMetrics } from "../metrics/types.js";
 import { inlineFlightPayload } from "./inlineFlightPayload.js";
 
 export interface MaybeInlineFlightOptions {
@@ -28,6 +29,7 @@ export interface MaybeInlineFlightOptions {
     rscOutputPath?: string;
   };
   projectRoot?: string;
+  onMetrics?: (metrics: InlineFlightMetrics) => void;
   logger?: Logger;
   verbose?: boolean;
 }
@@ -49,6 +51,7 @@ export async function maybeInlineFlight(
     options.build.static ?? "static"
   );
 
+  const inlineStart = performance.now();
   const count = await inlineFlightPayload({
     staticDir,
     htmlFileName: options.build.htmlOutputPath,
@@ -57,6 +60,18 @@ export async function maybeInlineFlight(
     verbose: options.verbose,
   });
 
-  options.logger?.info(`[vprs] inlined flight payload into ${count} page(s)`);
+  // The metric replaces the raw log line for onMetrics consumers (their
+  // watcher renders it, with timing); without onMetrics the line stays.
+  if (options.onMetrics) {
+    options.onMetrics({
+      route: "*",
+      type: "inline-flight",
+      pages: count,
+      inlineTime: performance.now() - inlineStart,
+      description: "post-write inline-flight pass",
+    });
+  } else {
+    options.logger?.info(`[vprs] inlined flight payload into ${count} page(s)`);
+  }
   return count;
 }

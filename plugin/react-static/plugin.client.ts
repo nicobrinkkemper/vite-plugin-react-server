@@ -780,9 +780,22 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           performance.now() - (timing.renderStart || timing.start)
         );
 
-        closeBundleContext.info(
-          `Rendered ${finalResult.completedRoutes.size} pages in ${duration}ms`
-        );
+        // The watcher renders this (with rate + failures) for onMetrics
+        // consumers; the raw line stays for consumers without a watcher.
+        if (userOptions.onMetrics) {
+          userOptions.onMetrics({
+            route: "*",
+            type: "ssg-render",
+            pages: finalResult.completedRoutes.size,
+            failed: finalResult.failedRoutes?.size ?? 0,
+            renderTime: duration,
+            description: "static render pass",
+          });
+        } else {
+          closeBundleContext.info(
+            `Rendered ${finalResult.completedRoutes.size} pages in ${duration}ms`
+          );
+        }
 
         if (process.env["NODE_ENV"] !== "production") {
           closeBundleContext.warn(
@@ -817,6 +830,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         await maybeInlineFlight({
           build: userOptions.build,
           projectRoot: userOptions.projectRoot,
+          onMetrics: userOptions.onMetrics,
           logger,
           verbose: userOptions.verbose,
         });

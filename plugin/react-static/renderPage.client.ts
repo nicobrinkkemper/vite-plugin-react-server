@@ -425,8 +425,12 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     // Create stream wrappers for file writing
     const rscStreamWrapper = {
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-        const streamMetrics = createStreamMetrics();
-        streamMetrics.startTime = performance.now();
+        // Seed from the entry-stamped metrics — same origin as the html span
+        // (see renderPage.server: both indexes share one clock, html ≥ rsc).
+        const streamMetrics = createStreamMetrics({
+          startTime: rscHeadlessMetrics.streamMetrics.startTime,
+          startAt: rscHeadlessMetrics.streamMetrics.startAt,
+        });
 
         // Use the headless RSC stream directly for the .rsc file
         const rscFileStream = headlessRscStream.rscStream;

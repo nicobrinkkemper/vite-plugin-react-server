@@ -5,6 +5,9 @@ export function createModuleResolutionMetrics({
   route,
   workerType,
   resolutionTime,
+  resolveStartAt,
+  moduleRunAt,
+  moduleRunTime,
   fromMainThread = isMainThread,
   fromRscWorker = false,
   fromHtmlWorker = false,
@@ -14,6 +17,9 @@ export function createModuleResolutionMetrics({
   route: string;
   workerType: "rsc" | "html" | "mainThread";
   resolutionTime: number;
+  resolveStartAt?: number;
+  moduleRunAt?: number;
+  moduleRunTime?: number;
   fromMainThread?: boolean;
   fromRscWorker?: boolean;
   fromHtmlWorker?: boolean;
@@ -25,6 +31,9 @@ export function createModuleResolutionMetrics({
     type: "module-resolution",
     workerType,
     resolutionTime,
+    resolveStartAt,
+    moduleRunAt,
+    moduleRunTime,
     fromMainThread,
     fromRscWorker,
     fromHtmlWorker,

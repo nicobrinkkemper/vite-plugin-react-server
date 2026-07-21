@@ -243,6 +243,13 @@ async function loadComponentsWithCache(options: {
   layoutExportName?: string;
   rscOutputPath?: string;  // Transport suffix, for stripping when matching params
   request?: Request;  // Rebuilt from serializedRequest; threaded into loader ctx
+  /**
+   * Written, not read, by this function: `moduleRunAt` is stamped (wall-clock,
+   * once) right before the FIRST actual load call — the moment module code
+   * runs, as opposed to cache hits. The caller folds it into the
+   * module-resolution metric so a cold first batch is attributable.
+   */
+  marks?: { moduleRunAt?: number };
 }) {
   const {
     pagePath,
@@ -264,6 +271,7 @@ async function loadComponentsWithCache(options: {
     layoutExportName = DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
     rscOutputPath = DEFAULT_CONFIG.BUILD.rscOutputPath,
     request,
+    marks,
   } = options;
 
   // Nested layouts: resolved once per request (independent of the page-cache
@@ -361,6 +369,7 @@ async function loadComponentsWithCache(options: {
       
       // Reload page and props
       try {
+        if (marks) marks.moduleRunAt ??= Date.now();
         const pageAndPropsResult = await resolvePageAndProps({
           pagePath,
           propsPath,
@@ -445,6 +454,7 @@ async function loadComponentsWithCache(options: {
         );
       }
       try {
+        if (marks) marks.moduleRunAt ??= Date.now();
         const pageAndPropsResult = await resolvePageAndProps({
           pagePath,
           propsPath,
@@ -497,6 +507,7 @@ async function loadComponentsWithCache(options: {
       ? matchRoutes(routePatterns, normalizePathForMatch(url, rscOutputPath))
           ?.params ?? {}
       : {};
+    if (marks) marks.moduleRunAt ??= Date.now();
     layoutChain = await resolveLayoutChain({
       layouts,
       url: normalizedUrl,
@@ -532,6 +543,7 @@ async function loadComponentsWithCache(options: {
           );
         }
       }
+      if (marks) marks.moduleRunAt ??= Date.now();
       const rootResult = await resolveComponent({
         componentPath: rootPath,
         exportName: rootExportName,
@@ -616,6 +628,7 @@ async function loadComponentsWithCache(options: {
       if (verbose) {
         logger?.info(`[rsc-worker] Component not cached, calling resolveComponent with path: ${htmlPath}, exportName: ${htmlExportName}`);
       }
+      if (marks) marks.moduleRunAt ??= Date.now();
       const htmlResult = await resolveComponent({
         componentPath: htmlPath,
         exportName: htmlExportName,
@@ -756,8 +769,13 @@ export async function messageHandler(
         const rscStream = (msg as any).rscStream || new PassThrough();
         activeRenders.set(currentStreamId, rscStream);
 
-        // Start measuring module resolution time from first module load
+        // Start measuring module resolution time from first module load.
+        // performance.now() for the duration; Date.now() for the cross-thread
+        // absolute timestamps the metric carries (each thread has its own
+        // performance timeOrigin).
         const moduleResolutionStartTime = performance.now();
+        const moduleResolveStartAt = Date.now();
+        const loadMarks: { moduleRunAt?: number } = {};
 
         // Load modules (page, props, and components together) - same as server environment
         const projectRoot = msg.options.projectRoot || userOptions.projectRoot || workerData.userOptions?.projectRoot || process.cwd();
@@ -860,6 +878,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
                 return undefined;
               }
             })(),
+            marks: loadMarks,
           });
 
         if (verbose) {
@@ -880,6 +899,11 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             route: msg.options.route,
             workerType: "rsc",
             resolutionTime: moduleResolutionTime,
+            resolveStartAt: moduleResolveStartAt,
+            moduleRunAt: loadMarks.moduleRunAt,
+            moduleRunTime: loadMarks.moduleRunAt
+              ? Date.now() - loadMarks.moduleRunAt
+              : 0,
             fromMainThread: false,
             fromRscWorker: true,
             fromHtmlWorker: false,
