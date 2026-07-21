@@ -40,8 +40,8 @@ export const Root = ({ cssFiles, Page, pageProps, ...props }) => (
 
 ```ts
 css: {
-  inlineCss: true,            // enable inlining (default: true)
-  inlineThreshold: 4096,      // files < 4KB are inlined
+  inlineCss: true,            // inline small files (default: enabled; only `false` disables)
+  inlineThreshold: 4096,      // files up to 4096 bytes are inlined (default)
   inlinePatterns: [],          // RegExp[] — always inline matching files
   linkPatterns: [],            // RegExp[] — always link matching files
 }
@@ -62,7 +62,7 @@ Each entry in `cssFiles` is either:
 { as: "style", type: "text/css", id: string, children: string }
 
 // Linked (large file)
-{ as: "link", id: string, rel: "stylesheet", href: string }
+{ as: "link", id: string, rel: "stylesheet", href: string, precedence: "high" }
 ```
 
 ## CSS Modules

@@ -26,7 +26,7 @@ an implementation detail, not a knob you tune.
 | Kind | Vite plugin | Vite plugin (official) | Framework | Framework (+ RSC extension) |
 | Imposes routing / app structure | No — file-based router is opt-in (since v3) | No | Yes (file-based pages router) | Yes (file-based) |
 | React target | Stable 19.2+ (default) or experimental | Stable, canary, or experimental (your choice) | React 19 | React 19 |
-| RSC transport | `react-server-dom-esm`, via `react-server-loader` | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
+| RSC transport | `react-server-dom-esm`, via `react-server-loader` (edge bake can select a vendored webpack transport) | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
 | Build output | `static/` + `client/` + `server/` portable ESM | app bundle via multi-environment build | framework-managed | framework-managed |
 | Host anywhere (static / Express / Hono) | Yes, you wire the server | Yes | Via the framework's server | Via vike-server |
 | Node `--conditions react-server` | Optional; works either way (see [below](#the-react-server-condition-is-optional)) | Used internally | Managed | Managed |
@@ -161,17 +161,22 @@ scope on purpose:
 - **No framework conveniences.** No auth, i18n, head/meta management, image
   optimization, or plugin ecosystem. vprs transforms RSC boundaries, runs the
   workers, and emits ESM; the rest of the app is yours.
-- **No webpack/RSC-bundler transport.** vprs renders through the ESM transport
-  (`react-server-dom-esm`, supplied by `react-server-loader`). If your pipeline
-  needs the webpack transport, use `@vitejs/plugin-rsc`.
+- **No pluggable transport.** vprs renders through the transports
+  `react-server-loader` vendors: the ESM transport (`react-server-dom-esm`)
+  everywhere, plus a vendored webpack transport that only the
+  [edge bake](./edge.md) can select (`build.edge.transport: "webpack"`). If
+  your pipeline needs to bring its own transport build, use
+  `@vitejs/plugin-rsc`.
 - **No deployment/hosting layer.** The build emits ESM and a static directory;
   wiring them into a host (static CDN, Express, Hono, serverless) is up to you.
   The static output runs anywhere (including the edge). Dynamic SSR has two
   shapes: the default worker-based build (Node, `worker_threads`) and the
   [single-isolate edge bundle](./edge.md), which needs no workers and no
-  `--conditions` flag — but its render still imports built modules off disk, so
-  it targets Node-flavored serverless functions, not literal V8-isolate edge
-  runtimes. See
+  `--conditions` flag. How far that bundle reaches is set by its transport
+  (`build.edge.transport`): the default `"esm"` render imports built modules
+  off disk, so it targets Node-compatible hosts; `"webpack"` bakes a closed
+  module map plus a consumer bundle with no `node:` imports, which is what
+  filesystem-less runtimes (Cloudflare Workers, Deno Deploy) require. See
   [Build Output → Where it runs](./build-output.md#where-it-runs-static-anywhere-dynamic-on-node).
 - **Two React trains, not any React build.** vprs pins React through
   `react-server-loader`, which ships a stable train and an experimental train;
