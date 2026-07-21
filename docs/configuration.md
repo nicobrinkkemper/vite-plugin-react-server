@@ -213,13 +213,15 @@ export default defineConfig({
 
 ## Metric Watcher
 
+Opt-in build output: wire `metricWatcher` into `onMetrics` and the build prints
+per-route lines, batch overviews and cold-start attribution instead of the raw
+summaries. See [API Reference → Metric Watcher](./api-reference.md#metric-watcher)
+for the output format and options.
+
 ```ts
 import { metricWatcher } from "vite-plugin-react-server/metrics";
 
 vitePluginReactServer({
-  onMetrics: metricWatcher({
-    maxTime: 200,          // warn if > 200ms
-    maxBackpressure: 0,    // warn on any backpressure
-  }),
+  onMetrics: metricWatcher(),
 });
 ```
