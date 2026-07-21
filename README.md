@@ -103,10 +103,10 @@ export const Page = ({ title }: { title: string }) => (
 export const props = () => ({ title: "Hello from the server" });
 ```
 
-A route is a `page.tsx` with a sibling `props.ts`: add
-`src/routes/about/page.tsx` and `src/routes/about/props.ts` the same way and
-`/about` exists — prerendered, and reachable client-side through `Link`
-without a page reload.
+Add `src/routes/about/page.tsx` the same way and `/about` exists —
+prerendered, and reachable client-side through `Link` without a page reload.
+A sibling `props.ts` is optional: add one when the page needs
+server-computed props.
 
 ```tsx
 // src/client.tsx — the whole client entry: hydration + client-side navigation
