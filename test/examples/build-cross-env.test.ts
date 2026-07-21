@@ -95,14 +95,17 @@ describe("Plugin build test (Cross-Environment)", () => {
           expect(metric.chunkRate).toBeGreaterThan(0);
         }
       } else {
-        // worker-startup and module-resolution metrics
+        // worker-startup, module-resolution and edge-bake metrics
         expect(metric.type).toMatch(
-          /worker-startup|module-resolution|rsc-full/
+          /worker-startup|module-resolution|rsc-full|edge-bake/
         );
         if ("startupTime" in metric) {
           expect(metric.startupTime).toBeGreaterThan(0);
         } else if ("resolutionTime" in metric) {
           expect(metric.resolutionTime).toBeGreaterThan(0);
+        } else if ("bakeTime" in metric) {
+          expect(metric.bakeTime).toBeGreaterThan(0);
+          expect(metric.outputPath).toBeDefined();
         }
       }
 

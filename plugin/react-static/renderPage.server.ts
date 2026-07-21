@@ -32,6 +32,7 @@ import { createMainThreadHandlers } from "../stream/createMainThreadHandlers.js"
 import { createRscToHtmlStream } from "./rscToHtmlStream.server.js";
 import { resolveComponent } from "../helpers/resolveComponent.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
+import { createModuleResolutionMetrics } from "../metrics/createModuleResolutionMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createHeadlessStreamState, trackHeadlessStreamError, hasHeadlessStreamError } from "../helpers/headlessStreamState.js";
 
@@ -81,7 +82,13 @@ export const renderPage: RenderPageFn = async function* renderPage(
       );
     }
 
-    // Resolve components and props using the proper helper
+    // Resolve components and props using the proper helper. The whole load
+    // phase is timed and emitted as a module-resolution metric: on the first
+    // (cold) batch this is where routes spend their time — module code
+    // compiling and executing on the main thread — and without the metric the
+    // watcher attributes all of it to "render".
+    const resolveStartAt = Date.now();
+    const resolveStart = performance.now();
     let PageComponent: any = null;
     let RootComponent: any = null;
     let HtmlComponent: any = null;
@@ -200,6 +207,22 @@ export const renderPage: RenderPageFn = async function* renderPage(
     if (!HtmlComponent) {
       const { Html: DefaultHtml } = await import("../components/html.js");
       HtmlComponent = DefaultHtml as any;
+    }
+
+    if (handlerOptions.onMetrics) {
+      const resolutionTime = performance.now() - resolveStart;
+      handlerOptions.onMetrics(
+        createModuleResolutionMetrics({
+          route: handlerOptions.route,
+          workerType: "mainThread",
+          resolutionTime,
+          resolveStartAt,
+          // Main-thread loads have no cache/wait split: the load IS the run.
+          moduleRunAt: resolveStartAt,
+          moduleRunTime: resolutionTime,
+          description: `Module resolution for route ${handlerOptions.route}`,
+        })
+      );
     }
 
     // Ensure we have all required components

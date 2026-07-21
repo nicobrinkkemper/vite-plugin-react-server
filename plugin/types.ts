@@ -48,6 +48,7 @@ import type {
   StreamMetrics,
   WorkerStartupMetrics,
   ModuleResolutionMetrics,
+  EdgeBakeMetrics,
 } from "./metrics/types.js";
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
@@ -65,6 +66,7 @@ export type OnMetrics = (
     | RenderMetrics<"rsc-full" | "rsc-headless" | "html">
     | WorkerStartupMetrics
     | ModuleResolutionMetrics
+    | EdgeBakeMetrics
 ) => void;
 
 export type MessageHandler<

@@ -2,6 +2,7 @@ import type {
   RenderMetrics,
   WorkerStartupMetrics,
   ModuleResolutionMetrics,
+  EdgeBakeMetrics,
 } from "./types.js";
 import { isMainThread } from "node:worker_threads";
 
@@ -60,8 +61,26 @@ export function metricWatcher({
     return () => {};
   }
   return (
-    metrics: RenderMetrics | WorkerStartupMetrics | ModuleResolutionMetrics
+    metrics:
+      | RenderMetrics
+      | WorkerStartupMetrics
+      | ModuleResolutionMetrics
+      | EdgeBakeMetrics
   ) => {
+    // Standalone summary, not tied to a route's render pipeline.
+    if (metrics.type === "edge-bake") {
+      if (!warnOnly) {
+        const bake = metrics as EdgeBakeMetrics;
+        const what =
+          bake.kind === "producer"
+            ? "edge producer"
+            : `edge consumer (${bake.moduleCount ?? "?"} client module(s))`;
+        info(
+          `\x1b[35mbaked ${what} in\x1b[0m ${formatTime(bake.bakeTime)} → ${bake.outputPath}`
+        );
+      }
+      return;
+    }
     if (!startedLogging) {
       startedLogging = true;
       info("_______ vite-plugin-react-server ______");
@@ -114,17 +133,41 @@ export function metricWatcher({
         metrics as ModuleResolutionMetrics
       );
 
-      // Display module resolution metric as standalone entry
+      // Display module resolution metric as standalone entry. When the worker
+      // reported the resolve-start/module-run split, say WHICH part was slow:
+      // on a cold first batch most of the span is module code actually
+      // executing (or waiting on another route's in-flight cold load), not
+      // per-route resolution work.
       if (metrics.type === "module-resolution" && "resolutionTime" in metrics && metrics.resolutionTime > maxTime) {
-        const moduleResolutionMetric = metrics as ModuleResolutionMetrics;
-        const resolutionTime = formatTime(
-          moduleResolutionMetric.resolutionTime
-        );
-        warn(
-          `${moduleResolutionMetric.workerType} worker took ${resolutionTime} for route ${route}`
-        );
+        const m = metrics as ModuleResolutionMetrics;
+        const resolutionTime = formatTime(m.resolutionTime);
+        if (m.moduleRunAt != null && m.resolveStartAt != null) {
+          const resolvePart = formatTime(m.moduleRunAt - m.resolveStartAt);
+          const runPart = formatTime(m.moduleRunTime ?? 0);
+          warn(
+            `${m.workerType} worker took ${resolutionTime} for route ${route} ` +
+              `(resolve ${resolvePart}, module execution ${runPart} — cold load)`
+          );
+        } else if (m.resolveStartAt != null) {
+          warn(
+            `${m.workerType} worker took ${resolutionTime} for route ${route} ` +
+              `(all cache hits — time spent waiting, likely on another route's cold load)`
+          );
+        } else {
+          warn(
+            `${m.workerType} worker took ${resolutionTime} for route ${route}`
+          );
+        }
       }
       return; // Don't process module resolution metrics for rendering checks
+    } else if (
+      metrics.type !== "rsc-full" &&
+      metrics.type !== "rsc-headless" &&
+      metrics.type !== "html"
+    ) {
+      // A metric type this watcher predates: ignore it rather than casting it
+      // to RenderMetrics and crashing on fields it doesn't have.
+      return;
     }
 
     // Only process RenderMetrics from here on
@@ -150,11 +193,23 @@ export function metricWatcher({
         0
       );
 
-    // Subtract worker startup and module resolution time from processing time for the first page
-    const actualProcessingTime =
+    // Cold-start attribution for the first batch. processingTime spans the
+    // whole request, which on a cold worker includes startup and module
+    // loading; the old blind subtraction went NEGATIVE when those spans
+    // overlapped each other (concurrent first-batch routes all report the
+    // same waited-on cold load), so first-batch numbers were nonsense. Use
+    // the module-run split where the worker reported it: only the actual
+    // execution portion is subtracted per route, and never below zero.
+    const totalModuleRunTime = pageMetrics.moduleResolutionMetrics.reduce(
+      (total, resolution) => total + (resolution.moduleRunTime ?? resolution.resolutionTime),
+      0
+    );
+    const actualProcessingTime = Math.max(
+      0,
       renderMetrics.processingTime -
-      totalWorkerStartupTime -
-      totalModuleResolutionTime;
+        totalWorkerStartupTime -
+        totalModuleRunTime
+    );
 
     if (actualProcessingTime > maxTime) {
       const startupTimeMsg =
@@ -163,11 +218,11 @@ export function metricWatcher({
           : "";
       const resolutionTimeMsg =
         totalModuleResolutionTime > 0
-          ? ` (module resolution: ${formatTime(totalModuleResolutionTime)})`
+          ? ` (module resolution: ${formatTime(totalModuleResolutionTime)}, of which execution ${formatTime(totalModuleRunTime)})`
           : "";
 
       warn(
-        `It took ${actualProcessingTime}ms to render ${route} (${renderMetrics.type})${startupTimeMsg}${resolutionTimeMsg}`
+        `It took ${formatTime(actualProcessingTime)} to render ${route} (${renderMetrics.type})${startupTimeMsg}${resolutionTimeMsg}`
       );
     }
 

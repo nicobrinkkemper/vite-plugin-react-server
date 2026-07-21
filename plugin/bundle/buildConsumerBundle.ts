@@ -40,6 +40,7 @@ export async function buildConsumerBundle(opts: {
 }): Promise<void> {
   const { userOptions, projectRoot, logger } = opts;
   const tag = "[build.edge]";
+  const bakeStart = performance.now();
 
   // The esm transport has no module-map seam to bind a registry to; leave those
   // builds on the runtime consumer rather than emitting something that can't work.
@@ -246,6 +247,15 @@ export async function ${consumerExport}(options) {
           `${join(edgeDir, consumerFileName)}`
       );
     }
+    userOptions.onMetrics?.({
+      route: "*",
+      type: "edge-bake",
+      kind: "consumer",
+      outputPath: join(edgeDir, consumerFileName),
+      moduleCount: idByFile.size,
+      bakeTime: performance.now() - bakeStart,
+      description: `consumer bundle over ${idByFile.size} client module(s)${detail}`,
+    });
   } catch (error) {
     // Additive, like the producer bake: a failure here leaves the runtime
     // consumer in place rather than failing an otherwise-good build.

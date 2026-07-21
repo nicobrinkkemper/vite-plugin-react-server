@@ -89,6 +89,10 @@ describe("Metrics Collection", () => {
       } else if (metric.type === "module-resolution") {
         expect(metric.resolutionTime).toBeGreaterThan(0);
         expect(metric.workerType).toBeDefined();
+      } else if (metric.type === "edge-bake") {
+        expect(metric.kind === "producer" || metric.kind === "consumer").toBe(true);
+        expect(metric.outputPath).toBeDefined();
+        expect(metric.bakeTime).toBeGreaterThan(0);
       } else {
         throw new Error(`Unexpected metric type: ${metric.type}`);
       }
