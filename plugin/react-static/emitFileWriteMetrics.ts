@@ -10,8 +10,18 @@
  * differed in the name of the results Map). This is the full path only; the
  * skip-branch in renderPages emits html-only metrics by design and is left as-is.
  */
+import { relative } from "node:path";
 import { createRenderMetrics } from "../metrics/createRenderMetrics.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
+
+// Display spelling for the watcher's file lines: relative to the process CWD,
+// like Vite's own output file list ("dist/static/…"). The event's own paths
+// stay absolute — they are filesystem data, this is presentation. Falls back
+// to the absolute path when the output isn't under the CWD.
+function displayBaseDir(dir: string): string {
+  const rel = relative(process.cwd(), dir);
+  return rel && !rel.startsWith("..") ? rel : dir;
+}
 import type { RenderPageResult } from "../types.js";
 
 export function emitFileWriteMetrics(
@@ -53,7 +63,7 @@ export function emitFileWriteMetrics(
       chunkRate: (event.data.chunks || 0) / (htmlSpan / 1000),
       fileName: event.data.fileName,
       outputPath: event.data.path,
-      baseDir: event.data.baseDir,
+      baseDir: displayBaseDir(event.data.baseDir),
       routePath: event.data.routePath,
       streamMetrics: createStreamMetrics({
         ...routeResult.metrics.html.streamMetrics,
@@ -85,7 +95,7 @@ export function emitFileWriteMetrics(
           routeResult.metrics.rscFull.streamMetrics.chunks / (rscFullSpan / 1000),
         fileName: event.data.fileName,
         outputPath: event.data.path,
-        baseDir: event.data.baseDir,
+        baseDir: displayBaseDir(event.data.baseDir),
         routePath: event.data.routePath,
         streamMetrics: createStreamMetrics({
           ...routeResult.metrics.rscFull.streamMetrics,
@@ -114,7 +124,7 @@ export function emitFileWriteMetrics(
       chunkRate: (event.data.chunks || 0) / (rscSpan / 1000),
       fileName: event.data.fileName,
       outputPath: event.data.path,
-      baseDir: event.data.baseDir,
+      baseDir: displayBaseDir(event.data.baseDir),
       routePath: event.data.routePath,
       streamMetrics: createStreamMetrics({
         ...routeResult.metrics.rscHeadless.streamMetrics,

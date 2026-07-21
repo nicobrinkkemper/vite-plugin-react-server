@@ -181,21 +181,27 @@ export function metricWatcher({
         metrics as ModuleResolutionMetrics
       );
 
-      // Display module resolution metric as standalone entry. When the worker
-      // reported the resolve-start/module-run split, say WHICH part was slow:
-      // on a cold first batch most of the span is module code actually
-      // executing (or waiting on another route's in-flight cold load), not
-      // per-route resolution work.
+      // Display module resolution metric as standalone entry. The
+      // resolve-start/module-run split decides the LEVEL, not just the text:
+      // a span where module code actually ran is the expected once-per-build
+      // cold load (the warm-up route pays it) — informative, like the
+      // worker-startup line, not a problem. warn() is reserved for the
+      // anomalies: a slow span that was ALL cache-hit waiting (with the
+      // warm-up in place that shouldn't happen), or a slow load the worker
+      // couldn't attribute.
       if (metrics.type === "module-resolution" && "resolutionTime" in metrics && metrics.resolutionTime > maxTime) {
         const m = metrics as ModuleResolutionMetrics;
         const resolutionTime = formatTime(m.resolutionTime);
         if (m.moduleRunAt != null && m.resolveStartAt != null) {
-          const resolvePart = formatTime(m.moduleRunAt - m.resolveStartAt);
-          const runPart = formatTime(m.moduleRunTime ?? 0);
-          warn(
-            `${m.workerType} worker took ${resolutionTime} for route ${route} ` +
-              `(resolve ${resolvePart}, module execution ${runPart} — cold load)`
-          );
+          if (!warnOnly) {
+            const resolvePart = m.moduleRunAt - m.resolveStartAt;
+            const resolveMsg =
+              resolvePart >= 1 ? `resolve ${formatTime(resolvePart)}, ` : "";
+            info(
+              `[35mcold module load[0m ${formatTime(m.moduleRunTime ?? 0)} ` +
+                `(${resolveMsg}${m.workerType}, first route: ${route})`
+            );
+          }
         } else if (m.resolveStartAt != null) {
           warn(
             `${m.workerType} worker took ${resolutionTime} for route ${route} ` +
