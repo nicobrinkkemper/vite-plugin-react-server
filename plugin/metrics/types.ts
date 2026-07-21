@@ -162,6 +162,20 @@ export type InlineFlightMetrics = {
   description?: string;
 };
 
+/**
+ * The whole static render pass: how many routes rendered (and failed) and the
+ * wall time. Replaces the raw "Rendered N pages in Xms" line for onMetrics
+ * consumers.
+ */
+export type SsgRenderMetrics = {
+  route: "*";
+  type: "ssg-render";
+  pages: number;
+  failed: number;
+  renderTime: number;
+  description?: string;
+};
+
 export type CreateStreamMetricsFn = (
   metrics?: Partial<StreamMetrics>
 ) => StreamMetrics;

@@ -96,6 +96,9 @@ describe("Metrics Collection", () => {
       } else if (metric.type === "inline-flight") {
         expect(metric.pages).toBeGreaterThanOrEqual(0);
         expect(metric.inlineTime).toBeGreaterThanOrEqual(0);
+      } else if (metric.type === "ssg-render") {
+        expect(metric.pages).toBeGreaterThanOrEqual(0);
+        expect(metric.renderTime).toBeGreaterThanOrEqual(0);
       } else {
         throw new Error(`Unexpected metric type: ${metric.type}`);
       }

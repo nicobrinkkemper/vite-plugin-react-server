@@ -4,6 +4,7 @@ import type {
   ModuleResolutionMetrics,
   EdgeBakeMetrics,
   InlineFlightMetrics,
+  SsgRenderMetrics,
 } from "./types.js";
 import { isMainThread } from "node:worker_threads";
 
@@ -81,7 +82,21 @@ export function metricWatcher({
       | ModuleResolutionMetrics
       | EdgeBakeMetrics
       | InlineFlightMetrics
+      | SsgRenderMetrics
   ) => {
+    if (metrics.type === "ssg-render") {
+      if (!warnOnly) {
+        const m = metrics as SsgRenderMetrics;
+        const rate =
+          m.renderTime > 0 ? (m.pages / (m.renderTime / 1000)).toFixed(1) : "?";
+        const failedMsg = m.failed > 0 ? ` \x1b[31m(${m.failed} failed)\x1b[0m` : "";
+        info(
+          `\x1b[35mrendered\x1b[0m ${m.pages} pages in ${formatTime(m.renderTime)} ` +
+            `\x1b[2m(${rate} pages/s)\x1b[0m${failedMsg}`
+        );
+      }
+      return;
+    }
     if (metrics.type === "inline-flight") {
       if (!warnOnly) {
         const m = metrics as InlineFlightMetrics;
@@ -322,22 +337,52 @@ export function metricWatcher({
         return `${coloredPath} \x1b[1m${fileSize}\x1b[0m \x1b[90m${processingTime}\x1b[0m`;
       };
 
-      // Show the pair in dependency order: the flight (.rsc) feeds the html
-      // render, and both spans count from the same render start. They are
-      // PIPELINED, not sequential — the html render consumes the flight as it
-      // streams — so the html line reports how far it trailed the flight's
-      // completion, which is the html-specific cost. A negative tail would
-      // mean the spans lost their shared origin; omit rather than mislead.
-      const rscOutput = formatFileOutput(rscMetrics);
-      const htmlOutput = formatFileOutput(htmlMetrics);
-      if (typeof rscOutput === "string") info(rscOutput);
-      if (typeof htmlOutput === "string") {
-        const htmlTail = htmlMetrics.processingTime - rscMetrics.processingTime;
-        const phases =
-          htmlTail >= 0
-            ? ` [2m(flight ${formatTime(rscMetrics.processingTime)} → +${formatTime(htmlTail)} html)[0m`
-            : "";
-        info(htmlOutput + phases);
+      // One line per route: the flight (.rsc) feeds the html render — both
+      // spans count from the same render start and are PIPELINED (the html
+      // render consumes the flight as it streams), so the pair reads as one
+      // event: total span + how far the html trailed the flight.
+      //
+      // The tail is computed from the two write-done stamps, which are BOTH
+      // taken on the main thread with performance.now() — µs resolution, one
+      // clock. The processingTime difference is Date.now()-based (cross-
+      // thread anchoring) and quantizes to whole ms, which made every tail
+      // read exactly 0 or 1ms.
+      const stem = (name?: string) => name?.replace(/\.[^.]+$/, "");
+      const canMerge =
+        htmlMetrics.fileSize &&
+        rscMetrics.fileSize &&
+        stem(htmlMetrics.fileName) === stem(rscMetrics.fileName);
+      const htmlEnd = htmlMetrics.streamMetrics.endTime;
+      const rscEnd = rscMetrics.streamMetrics.endTime;
+      const htmlTail =
+        htmlEnd != null && rscEnd != null
+          ? Math.max(0, htmlEnd - rscEnd)
+          : Math.max(0, htmlMetrics.processingTime - rscMetrics.processingTime);
+      // Below ~2ms the "tail" is write-scheduling noise (the two file writes
+      // race in Promise.all and complete together) — showing 0μs/1ms suggests
+      // precision that isn't there. No suffix = completed together; a suffix
+      // means the html genuinely trailed the flight.
+      const tailSuffix =
+        htmlTail >= 2 ? ` [2m(+${formatTime(htmlTail)} html)[0m` : "";
+      if (canMerge) {
+        const isRootRoute = htmlMetrics.route === "/";
+        const baseDirDisplay = `[2m${htmlMetrics.baseDir}[0m`;
+        const routeDisplay = isRootRoute
+          ? ""
+          : `[33m/${htmlMetrics.routePath}[0m`;
+        const pairName = `${stem(htmlMetrics.fileName)}.{rsc,html}`;
+        info(
+          `${baseDirDisplay}${routeDisplay}[36m/${pairName}[0m ` +
+            `[1m${formatFileSize(rscMetrics.fileSize!)}+${formatFileSize(htmlMetrics.fileSize!)}[0m ` +
+            `[90m${formatTime(htmlMetrics.processingTime)}[0m` +
+            tailSuffix
+        );
+      } else {
+        // Different stems (custom output names) — keep the two-line form.
+        const rscOutput = formatFileOutput(rscMetrics);
+        const htmlOutput = formatFileOutput(htmlMetrics);
+        if (typeof rscOutput === "string") info(rscOutput);
+        if (typeof htmlOutput === "string") info(htmlOutput + tailSuffix);
       }
 
       // Clean up

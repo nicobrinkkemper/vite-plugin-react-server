@@ -50,6 +50,7 @@ import type {
   ModuleResolutionMetrics,
   EdgeBakeMetrics,
   InlineFlightMetrics,
+  SsgRenderMetrics,
 } from "./metrics/types.js";
 import type { HtmlWorkerOutputMessage } from "./worker/html/types.js";
 import type { RscChunkOutputMessage } from "./worker/rsc/types.js";
@@ -69,6 +70,7 @@ export type OnMetrics = (
     | ModuleResolutionMetrics
     | EdgeBakeMetrics
     | InlineFlightMetrics
+    | SsgRenderMetrics
 ) => void;
 
 export type MessageHandler<
