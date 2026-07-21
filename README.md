@@ -60,24 +60,75 @@ upgrading from 1.x, see the
 
 ## Minimal Example
 
+File-based routes, server-computed props, and a one-call client entry — the
+same wiring the [starter](https://github.com/nicobrinkkemper/vprs-starter)
+deploys. One prerequisite: the project must be ESM (`"type": "module"` in
+`package.json`).
+
 ```ts
 // vite.config.ts
 import { defineConfig } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
+import { fileRouter } from "vite-plugin-react-server/router";
+
+// Scans src/routes/** for page.tsx (+ sibling props.ts) and derives the
+// route table and the prerender worklist.
+const router = fileRouter("src/routes");
 
 export default defineConfig({
   plugins: vitePluginReactServer({
     moduleBase: "src",
-    Page: "src/page.tsx",
-    build: { pages: ["/"] },
+    Page: router.Page,
+    props: router.props,
+    routePatterns: router.routePatterns,
+    build: { pages: router.build.pages },
   }),
 });
 ```
 
 ```tsx
-// src/page.tsx
-export const Page = ({ url }: { url: string }) => <div>Hello from {url}</div>;
+// src/routes/page.tsx — a server component, served at "/"
+import { Link } from "vite-plugin-react-server/router/client";
+
+export const Page = ({ title }: { title: string }) => (
+  <main>
+    <h1>{title}</h1>
+    <Link to="/about">About</Link>
+  </main>
+);
 ```
+
+```ts
+// src/routes/props.ts — runs on the server; its result is the Page's props
+export const props = () => ({ title: "Hello from the server" });
+```
+
+A route is a `page.tsx` with a sibling `props.ts`: add
+`src/routes/about/page.tsx` and `src/routes/about/props.ts` the same way and
+`/about` exists — prerendered, and reachable client-side through `Link`
+without a page reload.
+
+```tsx
+// src/client.tsx — the whole client entry: hydration + client-side navigation
+"use client";
+import { startClient } from "vite-plugin-react-server/router/client";
+
+startClient({
+  moduleBaseURL: import.meta.env.BASE_URL,
+  publicOrigin: import.meta.env.PUBLIC_ORIGIN,
+});
+```
+
+```html
+<!-- index.html -->
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/client.tsx"></script>
+</body>
+```
+
+Routing is opt-in: skip `fileRouter` and map URLs to files yourself with
+a `Page: (url) => string` mapping — see [Routing](./docs/routing.md).
 
 ```bash
 # Dev server
