@@ -16,7 +16,7 @@ The unit/integration suite alone is not sufficient — the plugin can pass its o
 cd ~/code/vite-plugin-react-server
 
 # 1a. Full plugin suite — both halves must be green.
-npm test                 # runs test:client and test:server in sequence
+npm test                 # test:both — the suite in the client env, then again under --conditions react-server
 
 # 1b. Build the package.
 npm run build
@@ -48,16 +48,8 @@ done
 # 1d. Playwright e2e (runs against bidoof-template per playwright.config.ts).
 npx playwright test test/e2e/hmr.spec.ts
 
-# All 9 tests should pass:
-# - page content is visible
-# - server component RSC refetch (preserves client state)
-# - server component updates todos page
-# - useRscHmr listener is active
-# - import.meta.hot preserved in library build
-# - CSS HMR preserves client state
-# - client component does not trigger RSC refetch
-# - server action works
-# - todo toggle persists
+# Every test in the spec must pass (10 as of 3.3.0): page render, RSC refetch
+# vs Fast Refresh routing, CSS HMR, server actions, client-state persistence.
 ```
 
 **If any of 1a–1d fails, do not publish.** File an issue and bisect to the introducing commit. A regression that is already on `main` but not yet released is still a release-blocker — it ships to consumers the moment you `npm publish`.
@@ -92,10 +84,13 @@ npm publish   # requires 2FA (human step)
 ```
 
 This tag step is manual and has been missed before (v3.1.7 shipped untagged and
-needed backfilling; v3.1.9 nearly did). `prepublishOnly` runs `verify:tag`, which
+needed backfilling; v3.1.9 nearly did). `prepublishOnly` runs `verify:tag`, then
+`build`, then `verify:package` (publint + entrypoint checks). `verify:tag`
 refuses to publish unless `v<version>` exists and points at `HEAD` — a forgotten
 tag now fails the publish instead of shipping. For a deliberate untagged publish,
-set `VPRS_SKIP_TAG_CHECK=1`.
+set `VPRS_SKIP_TAG_CHECK=1`. After `prepublishOnly`, npm's `prepack` step
+rebuilds `dist` with plain `tsc` (`rm -rf dist && tsc -p tsconfig.json`), so the
+tarball's `dist` is the tsc output.
 
 For pre-releases, hand-edit the version (e.g. `3.2.0-alpha.0`), tag it the same
 way, then `npm publish --tag alpha`.
@@ -185,7 +180,7 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 - [ ] `bidoof-template` linked via `file:../vite-plugin-react-server` — `npm run build:preview` AND dev server (`vite`) both succeed; home page returns 200 with content
 - [ ] `mmc` linked via `file:../vite-plugin-react-server` — `npm run build` succeeds; dev server starts cleanly
 - [ ] Both demo repos restored to their committed `package.json`/`package-lock.json` afterwards
-- [ ] `npx playwright test test/e2e/hmr.spec.ts` — 9/9 pass
+- [ ] `npx playwright test test/e2e/hmr.spec.ts` — all pass
 - [ ] `npm run version:<type>` — commit `package.json` + `package-lock.json`, PR, merge
 - [ ] `git tag -a v<version> -m "v<version>" && git push origin v<version>` — on merged `main`
 - [ ] `npm publish` (2FA — human step; `verify:tag` blocks an untagged publish)

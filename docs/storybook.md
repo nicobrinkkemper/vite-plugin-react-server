@@ -1,65 +1,66 @@
 # Storybook
 
-vprs ships a Storybook preset so your RSC app's components build and render in
-Storybook with one line.
+vprs ships a Storybook preset (`vite-plugin-react-server/storybook`) for the
+`@storybook/react-vite` framework:
 
 ```ts
 // .storybook/main.ts
-import type { StorybookConfig } from "@storybook/react-vite";
-
-const config: StorybookConfig = {
-  stories: ["../src/**/*.stories.@(ts|tsx)"],
+export default {
   framework: { name: "@storybook/react-vite", options: {} },
   addons: ["vite-plugin-react-server/storybook"],
 };
-
-export default config;
 ```
 
-Requires vprs ≥ 1.9.0. Use the `@storybook/react-vite` framework.
+## Default: the plugin stays active, RSC works
 
-## Why it's needed
+By default the preset keeps the vprs plugin in Storybook's builder config. The
+RSC dev server runs inside Storybook and Server Components stream for real —
+the `.rsc` routes are served, so a story can render the live app via
+`createReactFetcher`. No launch flag is needed: the plugin sets the
+`react-server` condition per-environment and the RSC worker sets it for
+itself, so plain `storybook dev` is enough.
 
-A vprs app can't be bundled by Storybook out of the box. The Vite plugin assumes
-RSC entry points (`Page`/`props`/`Html`) and intercepts `/`, so Storybook has to
-strip it — but stripping it also removes the resolver for the bare
-`react-server-dom-esm/client.browser` import that vprs's RSC-client utilities
-emit (`react-server-dom-esm` is vendored inside vprs, not a standalone npm
-package). Without help, the bare import is unresolvable and the Storybook build
-fails. The preset re-creates exactly the configuration you'd otherwise hand-roll
-in `viteFinal`.
+In this mode the preset changes one thing: it silences the
+`MODULE_LEVEL_DIRECTIVE` warning Rollup emits for every `"use client"` /
+`"use server"` file when bundling UI libraries (Chakra, Ark, MUI, …). It
+preserves any `onwarn` you've configured.
 
-## What the preset does
+## Opt-out: `rsc: false` for a client-only build
 
-- **Strips** the `vite-plugin-react-server` plugin from Storybook's builder config.
-- **Resolves** `react-server-dom-esm/client.browser` to the ESM build shipped by
-  the `react-server-loader` dependency at `react-server-loader/client.browser`.
-- **Externalizes** `virtual:react-server/hmr` (only the stripped plugin provides it).
-- **Silences** the `MODULE_LEVEL_DIRECTIVE` warning Rollup emits for every
-  `"use client"` / `"use server"` file when bundling UI libraries (Chakra, Ark,
-  MUI, …). It preserves any `onwarn` you've configured.
+```ts
+// .storybook/main.ts
+export default {
+  framework: { name: "@storybook/react-vite", options: {} },
+  addons: [{ name: "vite-plugin-react-server/storybook", options: { rsc: false } }],
+};
+```
+
+This is the lighter, no-RSC-worker build for projects that only story client
+components. The preset strips every `vite-plugin-react-server` plugin from the
+builder config and re-adds the shims the stripped plugin would otherwise have
+provided:
+
+- **Resolves** `react-server-dom-esm/client.browser` to the ESM build shipped
+  by the `react-server-loader` dependency at
+  `react-server-loader/client.browser` (`react-server-dom-esm` is vendored
+  inside `react-server-loader`, not a standalone npm package — without the
+  shim the bare import is unresolvable).
+- **Stubs** `virtual:react-server/hmr` with a browser-safe no-op module that
+  mirrors the real virtual's export shape (`RSC_HMR_EVENT`, `useRscHmr`,
+  `setupRscHmr`). The real provider lives in the stripped dev-server plugin;
+  stories don't talk to a vprs dev server, so a no-op is the correct
+  semantics. It is a resolve+load stub, not a Rollup `external` — a
+  `virtual:` URL left external would fail to fetch in the browser.
+- **Drops** `react-server-dom-esm` entries from `optimizeDeps.include`.
+
+The directive-warning silencing applies in this mode too.
 
 ## What it does not do
 
-- It does **not** render React Server Components via the RSC wire protocol.
-  Write stories for the **client** components your app composes — the preset
-  makes the build resolve, it isn't a server-render shim.
-- It does **not** configure your UI library's theme. Add your provider as a
-  decorator in `.storybook/preview`:
-
-```tsx
-// .storybook/preview.tsx
-import type { Preview } from "@storybook/react-vite";
-import { MyThemeProvider } from "../src/theme";
-
-const preview: Preview = {
-  decorators: [(Story) => <MyThemeProvider><Story /></MyThemeProvider>],
-};
-
-export default preview;
-```
+The preset does not configure your UI library's theme — add your provider as a
+decorator in `.storybook/preview` as you would in any Storybook project.
 
 ## Related
 
-- [Third-party `"use client"` packages](../README.md#third-party-use-client-packages)
+- [Third-party `"use client"` packages](./configuration.md#third-party-use-client-packages)
   — how vprs detects UI libraries that ship directives.

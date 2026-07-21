@@ -29,14 +29,16 @@ npm view react-server-loader@experimental peerDependencies
 npm install react@<that-exact-version> react-dom@<that-exact-version>
 ```
 
-`react-server-loader` is a regular **dependency** whose range admits both
-trains (`^19.2.10 || >=0.0.0-0 <0.0.1`), so every package manager installs it
-for you — the stable train by default, no extra step (yarn included).
+`react-server-loader` is a regular **dependency** whose range admits the
+stable train plus the exact experimental build this release was verified
+against (`^19.2.17 || 0.0.0-experimental-172742b4-20260716`), so every package
+manager installs it for you — the stable train by default, no extra step (yarn
+included).
 
 To run the experimental train, install all three React packages at the
-`@experimental` tag. The loader's range also admits experimental, so npm
-collapses to a single copy alongside your experimental React — no `overrides`,
-no duplicate in the tree:
+`@experimental` tag. The loader's range also admits that experimental build, so
+npm collapses to a single copy alongside your experimental React — no
+`overrides`, no duplicate in the tree:
 
 ```bash
 npm install react@experimental react-dom@experimental react-server-loader@experimental
@@ -86,8 +88,8 @@ The plugin consumes a vendored build of `react-server-dom-esm` from the
 
 1. The transport ships inside `react-server-loader` (`node_modules/react-server-loader/vendor/react-server-dom-esm/`); a single `transportDir` helper resolves it via the package.
 2. A Vite alias plugin resolves all `react-server-dom-esm/*` imports to that copy.
-3. In dev mode, a `node_modules/react-server-dom-esm` symlink is auto-created (via `configResolved`) so Vite's module runner and the RSC worker resolve the bare specifier natively.
-4. Server-side entries are marked external during builds and resolved at runtime via `createRequire`.
+3. A `node_modules/react-server-dom-esm` symlink is auto-created (via `configResolved`, on every Vite startup) so Vite's module runner and the RSC worker resolve the bare specifier natively.
+4. Server-side entries are marked external during builds under the bare specifier and resolved at runtime through that symlink (or the RSC worker's loader hook).
 
 ### Runtime Usage Outside Vite
 
