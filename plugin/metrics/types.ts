@@ -148,6 +148,20 @@ export type EdgeBakeMetrics = {
   description?: string;
 };
 
+/**
+ * The post-write inline-flight pass (flight payload injected into each
+ * prerendered html). Emitted so the pass is measurable — the streamable
+ * inline variant under design changes this cost, and defaulting it needs
+ * numbers from real builds.
+ */
+export type InlineFlightMetrics = {
+  route: "*";
+  type: "inline-flight";
+  pages: number;
+  inlineTime: number;
+  description?: string;
+};
+
 export type CreateStreamMetricsFn = (
   metrics?: Partial<StreamMetrics>
 ) => StreamMetrics;

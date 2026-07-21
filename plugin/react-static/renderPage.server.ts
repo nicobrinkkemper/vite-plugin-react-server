@@ -466,8 +466,16 @@ export const renderPage: RenderPageFn = async function* renderPage(
     // Create stream wrappers for file writing - simplified like client side
     const rscStreamWrapper = {
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-        const streamMetrics = createStreamMetrics();
-        streamMetrics.startTime = performance.now();
+        // Seed the span from the ORIGINAL metrics created at renderPage entry
+        // — the same origin the html span counts from. Both indexes then share
+        // one clock: the .rsc span reads "flight ready at X", the .html span
+        // "document done at Y", and Y ≥ X structurally because the html render
+        // consumes the flight. A pipe-time stamp here measured only the file
+        // flush (1-7ms) and made the pair look unrelated.
+        const streamMetrics = createStreamMetrics({
+          startTime: rscHeadlessMetrics.streamMetrics.startTime,
+          startAt: rscHeadlessMetrics.streamMetrics.startAt,
+        });
 
         // Use the headless RSC stream directly for the .rsc file
         const rscFileStream = headlessRscHandler.rscStream;

@@ -3,6 +3,7 @@ import type {
   WorkerStartupMetrics,
   ModuleResolutionMetrics,
   EdgeBakeMetrics,
+  InlineFlightMetrics,
 } from "./types.js";
 import { isMainThread } from "node:worker_threads";
 
@@ -79,7 +80,17 @@ export function metricWatcher({
       | WorkerStartupMetrics
       | ModuleResolutionMetrics
       | EdgeBakeMetrics
+      | InlineFlightMetrics
   ) => {
+    if (metrics.type === "inline-flight") {
+      if (!warnOnly) {
+        const m = metrics as InlineFlightMetrics;
+        info(
+          `\x1b[35minlined flight into\x1b[0m ${m.pages} page(s) in ${formatTime(m.inlineTime)}`
+        );
+      }
+      return;
+    }
     // Standalone summary, not tied to a route's render pipeline.
     if (metrics.type === "edge-bake") {
       if (!warnOnly) {
@@ -311,12 +322,23 @@ export function metricWatcher({
         return `${coloredPath} \x1b[1m${fileSize}\x1b[0m \x1b[90m${processingTime}\x1b[0m`;
       };
 
-      // Show HTML and RSC files
-      const htmlOutput = formatFileOutput(htmlMetrics);
+      // Show the pair in dependency order: the flight (.rsc) feeds the html
+      // render, and both spans count from the same render start. They are
+      // PIPELINED, not sequential — the html render consumes the flight as it
+      // streams — so the html line reports how far it trailed the flight's
+      // completion, which is the html-specific cost. A negative tail would
+      // mean the spans lost their shared origin; omit rather than mislead.
       const rscOutput = formatFileOutput(rscMetrics);
-
-      if (typeof htmlOutput === "string") info(htmlOutput);
+      const htmlOutput = formatFileOutput(htmlMetrics);
       if (typeof rscOutput === "string") info(rscOutput);
+      if (typeof htmlOutput === "string") {
+        const htmlTail = htmlMetrics.processingTime - rscMetrics.processingTime;
+        const phases =
+          htmlTail >= 0
+            ? ` [2m(flight ${formatTime(rscMetrics.processingTime)} → +${formatTime(htmlTail)} html)[0m`
+            : "";
+        info(htmlOutput + phases);
+      }
 
       // Clean up
       pageMetricsMap.delete(route);

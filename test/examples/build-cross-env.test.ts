@@ -97,7 +97,7 @@ describe("Plugin build test (Cross-Environment)", () => {
       } else {
         // worker-startup, module-resolution and edge-bake metrics
         expect(metric.type).toMatch(
-          /worker-startup|module-resolution|rsc-full|edge-bake/
+          /worker-startup|module-resolution|rsc-full|edge-bake|inline-flight/
         );
         if ("startupTime" in metric) {
           expect(metric.startupTime).toBeGreaterThan(0);

@@ -569,6 +569,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         await maybeInlineFlight({
           build: userOptions.build,
           projectRoot: userOptions.projectRoot,
+          onMetrics: userOptions.onMetrics,
           logger,
           verbose: userOptions.verbose,
         });
