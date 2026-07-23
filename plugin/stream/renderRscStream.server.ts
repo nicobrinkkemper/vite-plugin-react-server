@@ -5,7 +5,7 @@ import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createReactElement } from "../helpers/createRscRenderHelpers.server.js";
 import { checkReactVersion } from "../utils/checkReactVersion.js";
 import { assertRendererElementParity } from "../utils/assertRendererElementParity.js";
-import { ReactDOMServer, getVendoredRendererMode } from "../vendor/vendor.server.js";
+import { resolveFlightRenderer } from "./flightRenderer.server.js";
 import type { StreamHandlers } from "../worker/types.js";
 
 
@@ -82,20 +82,19 @@ export function renderRscStream(
     
     checkReactVersion();
 
-    // Touch the renderer BEFORE the parity check: the vendored module loads
-    // lazily on first property access, and the check needs its resolved
-    // dev/prod mode.
-    const renderToPipeableStream = ReactDOMServer.renderToPipeableStream;
+    // Resolving the renderer touches the vendored module BEFORE the parity
+    // check: it loads lazily on first property access, and the check needs
+    // its resolved dev/prod mode.
+    const renderer = resolveFlightRenderer(options);
     assertRendererElementParity(
       reactElement,
-      getVendoredRendererMode(),
+      renderer.getLoadedMode(),
       `renderRscStream:${route}`
     );
 
     // Render React to stream - let it flow naturally like the RSC worker
-    const reactStream = renderToPipeableStream(
+    const reactStream = renderer.render(
       reactElement,
-      options.moduleBasePath || "",
       {
         ...options.serverPipeableStreamOptions,
         onError: (error: unknown) => {

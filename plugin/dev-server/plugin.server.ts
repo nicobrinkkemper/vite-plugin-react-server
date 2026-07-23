@@ -3,7 +3,7 @@ import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
-import { emptyAutoDiscoveredFiles, isClientModuleFile } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags } from "./devPluginShared.js";
 
 /**
  * Dev server plugin for server environment.
@@ -27,6 +27,14 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
   const hmrPlugin = {
     name: "vite-plugin-react-server:server-hmr",
     apply: "serve" as const,
+    // transport:"webpack": stamp the dev document with the flight-transport
+    // hint so the browser picks the webpack flight client (dev/prod parity
+    // with the baked pair's documents). No-op on esm. Lives on this plugin
+    // (not the server-environment one) because the html transform runs
+    // outside the server environment filter.
+    transformIndexHtml() {
+      return devFlightTransportTags(userOptions);
+    },
     // Server-level handleHotUpdate — sends custom WS event to client
     // Vite 6 Environment API: hotUpdate runs per-environment.
     // Prevent server/ssr environments from triggering page reload for client components.

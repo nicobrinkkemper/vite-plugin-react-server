@@ -1,5 +1,6 @@
 import { createElementWithReact } from "../helpers/createElementWithReact.js";
-import { React, ReactDOMServer, getVendoredRendererMode } from "../vendor/vendor.server.js";
+import { React } from "../vendor/vendor.server.js";
+import { resolveFlightRenderer } from "./flightRenderer.server.js";
 import { assertRendererElementParity } from "../utils/assertRendererElementParity.js";
 import { assertReactServer } from "../config/getCondition.js";
 import { handleError } from "../error/handleError.js";
@@ -251,21 +252,17 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           );
         }
 
-        // Touch the renderer BEFORE the parity check: the vendored module
-        // loads lazily on first property access, and the check needs its
-        // resolved dev/prod mode.
-        const renderToPipeableStream = ReactDOMServer.renderToPipeableStream;
+        // Resolving the renderer touches the vendored module BEFORE the
+        // parity check: it loads lazily on first property access, and the
+        // check needs its resolved dev/prod mode.
+        const renderer = resolveFlightRenderer(handlerOptions);
         assertRendererElementParity(
           element,
-          getVendoredRendererMode(),
+          renderer.getLoadedMode(),
           `createRscStream:${route}`
         );
 
-        result = renderToPipeableStream(
-          element,
-          handlerOptions.moduleBasePath || "",
-          pipeableStreamOptions
-        );
+        result = renderer.render(element, pipeableStreamOptions);
       } catch (rawError) {
         const error = augmentClientReferenceError(rawError);
         if (verbose) {

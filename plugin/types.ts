@@ -399,10 +399,12 @@ export type ResolvedUserOptions = {
   projectRoot: string;
   /**
    * The deploy's RSC flight flavor. "esm" (default) — today's behavior.
-   * "webpack" — the static snapshots are re-rendered through the baked pair
+   * "webpack" — every artifact renders once, in that flavor: the esm SSG
+   * pass is skipped and the static snapshots render through the baked pair
    * after the edge bake, so every surface (CDN snapshots, per-request
    * handler, browser client) carries ONE flavor and routes may be served
-   * from either without cross-flavor decode failures.
+   * from either without cross-flavor decode failures. The dev server renders
+   * webpack flight too — dev and prod parity, no caveats.
    */
   transport: "esm" | "webpack";
   moduleBase: string;
@@ -710,10 +712,12 @@ export interface StreamPluginOptions<
 > {
   projectRoot?: string; // defaults to process.cwd()
   /**
-   * The deploy's RSC flight flavor. Default "esm". With "webpack" the
-   * prerendered snapshots are re-rendered through the baked pair (requires
-   * build.edge with transport "webpack", which this option defaults for
-   * you), giving one flavor across CDN + per-request + browser.
+   * The deploy's RSC flight flavor. Default "esm". With "webpack" every
+   * artifact renders once in the webpack flavor: the prerendered snapshots
+   * render through the baked pair (requires build.edge with transport
+   * "webpack", which this option defaults for you) and the dev server
+   * serves webpack flight — one flavor across dev + CDN + per-request +
+   * browser.
    */
   transport?: "esm" | "webpack";
   moduleBase: string; // defaults to 'src'
@@ -1065,6 +1069,13 @@ export type CreateHandlerOptions<
 > & {
   id?: string;
   /**
+   * The deploy's RSC flight flavor (see {@link ResolvedUserOptions.transport}).
+   * The server flight-render sites read it to pick the renderer pair: esm
+   * renders against `moduleBasePath`, webpack against a client manifest.
+   * Optional so hand-built handler options stay valid; absent means "esm".
+   */
+  transport?: "esm" | "webpack";
+  /**
    * Params parsed from the request url against the matched route pattern
    * (`/profile/123` → `{ id: "123" }`). Passed to a loader as
    * `props(url, { params, request })`. When absent, vprs derives it from
@@ -1340,7 +1351,7 @@ export type EdgeBuildConfig = {
    * fetched .rsc of the other flavor cannot be decoded). Either serve every
    * route through the edge bundle and drop the snapshots from serving (the
    * prepare-vercel pattern), or set the TOP-LEVEL `transport: "webpack"` —
-   * which defaults this field and re-renders the snapshots through the baked
+   * which defaults this field and renders the snapshots through the baked
    * pair, so both surfaces agree and any route may be served from either.
    * @default "esm" (or the top-level `transport` when set)
    */

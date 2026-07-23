@@ -251,6 +251,22 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             // optimize lazily. optimizeDeps is a no-op in build, so the real
             // index.html build entry is unaffected.
             entries: userConfig.optimizeDeps?.entries ?? [],
+            // transport:"webpack" (dev): the browser reaches the webpack
+            // flight client through a lazy import chain (createReactFetcher →
+            // rsl runtime → vendored CJS client), so on a cold cache Vite
+            // only discovers those deps mid-session — the re-optimize reload
+            // leaves a transient second React copy and one-off "Invalid hook
+            // call" errors on first load. Pre-declare them so the first
+            // optimizer pass bundles (and dedupes react across) the chain.
+            include: [
+              ...(userConfig.optimizeDeps?.include ?? []),
+              ...(consumer === "client" && userOptions.transport === "webpack"
+                ? [
+                    "react-server-loader/webpack/runtime",
+                    "react-server-loader/webpack/client",
+                  ]
+                : []),
+            ],
           },
           resolve: {
             ...userConfig.resolve,

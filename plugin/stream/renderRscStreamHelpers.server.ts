@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
 import type { CreateHandlerOptions } from "../types.js";
-import { ReactDOMServer } from "../vendor/vendor.server.js";
+import { resolveFlightRenderer } from "./flightRenderer.server.js";
 import type { StreamHandlers } from "../worker/types.js";
 import type { RenderToPipeableStreamOptions } from "react-server-dom-esm/server.node";
 
@@ -50,9 +50,8 @@ export function createReactStream(
     logger?.info(`[createReactStream:${route}] Creating React stream for element`);
   }
 
-  const { pipe } = ReactDOMServer.renderToPipeableStream(
+  const { pipe } = resolveFlightRenderer(options).render(
     element,
-    options.moduleBasePath || "",
     streamOptions
   );
 
