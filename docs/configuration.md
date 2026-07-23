@@ -242,6 +242,18 @@ pass, then the freeze through the pair), and dev currently stays on the esm
 transport regardless of this option — a dev/prod parity note that goes away
 when dev-side webpack resolution lands.
 
+The option is a plain value, so per-mode policy is ordinary JavaScript:
+
+```ts
+vitePluginReactServer({
+  transport: process.env.NODE_ENV === "production" ? "webpack" : "esm",
+});
+```
+
+Dev and production are separate sessions — each is internally coherent — so
+choosing a flavor per mode is safe in a way per-route mixing within one
+deploy never is.
+
 ## Metric Watcher
 
 Opt-in build output: wire `metricWatcher` into `onMetrics` and the build prints
