@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { transportPkgDir } from "./transportDir.js";
+import { transportPkgDir, transportRoot } from "./transportDir.js";
 import {
   createLazyVendorModule,
   reactPairedMode,
@@ -43,6 +43,40 @@ if (!hasReactServerCondition()) {
 
 /** dev/prod variant the vendored RSC renderer resolved to (null until first use). */
 export const getVendoredRendererMode = lazyServer.getLoadedMode;
+
+// The webpack-flavored server renderer, for transport:"webpack". Same lazy
+// discipline as the esm module above (the vendored CJS branches on NODE_ENV
+// at require time). Resolved through react-server-loader's own exports map
+// ("./webpack/server" → the vendored react-server-dom-webpack server.node),
+// via a require anchored at the rsl package so self-name resolution works
+// whether rsl is a real install, hoisted, or symlinked. Its
+// renderToPipeableStream takes (element, clientManifest, options) — a client
+// manifest where the esm renderer takes moduleBasePath.
+const rslRequire = createRequire(join(transportRoot, "package.json"));
+
+const lazyWebpackServer = createLazyVendorModule(
+  () =>
+    rslRequire("react-server-loader/webpack/server") as WebpackServerModule,
+  reactPairedMode,
+  () => vendoredTransportModeFromCache("react-server-dom-webpack-server.node")
+);
+
+type WebpackServerModule = {
+  renderToPipeableStream: (
+    element: unknown,
+    clientManifest: unknown,
+    options?: unknown
+  ) => { pipe: <T>(destination: T) => T; abort: (reason?: unknown) => void };
+  registerClientReference: (...args: unknown[]) => unknown;
+  registerServerReference: (...args: unknown[]) => unknown;
+  decodeReply: (...args: unknown[]) => unknown;
+  decodeAction: (...args: unknown[]) => unknown;
+};
+
+export const ReactDOMServerWebpack = lazyWebpackServer.proxy;
+
+/** dev/prod variant the webpack renderer resolved to (null until first use). */
+export const getVendoredWebpackRendererMode = lazyWebpackServer.getLoadedMode;
 
 // React still comes from the consumer's project. ALSO LAZY: under
 // --conditions react-server the consumer react's CJS entry branches on

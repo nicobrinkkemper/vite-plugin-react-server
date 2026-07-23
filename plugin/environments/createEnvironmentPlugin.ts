@@ -251,6 +251,22 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             // optimize lazily. optimizeDeps is a no-op in build, so the real
             // index.html build entry is unaffected.
             entries: userConfig.optimizeDeps?.entries ?? [],
+            // transport:"webpack" (dev): the browser reaches the webpack
+            // flight client through a lazy import chain (createReactFetcher →
+            // rsl runtime → vendored CJS client), so on a cold cache Vite
+            // only discovers those deps mid-session — the re-optimize reload
+            // leaves a transient second React copy and one-off "Invalid hook
+            // call" errors on first load. Pre-declare them so the first
+            // optimizer pass bundles (and dedupes react across) the chain.
+            include: [
+              ...(userConfig.optimizeDeps?.include ?? []),
+              ...(consumer === "client" && userOptions.transport === "webpack"
+                ? [
+                    "react-server-loader/webpack/runtime",
+                    "react-server-loader/webpack/client",
+                  ]
+                : []),
+            ],
           },
           resolve: {
             ...userConfig.resolve,
@@ -403,6 +419,31 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
               projectRoot: userOptions.projectRoot,
               logger,
             });
+            // Step 6: transport:"webpack" — re-render the prerendered
+            // snapshots through the pair just baked, so the static surface
+            // carries the same flight flavor as the per-request path (one
+            // deploy may then serve any route from CDN or function).
+            if (
+              userOptions.transport === "webpack" &&
+              userOptions.build.edge.enabled &&
+              userOptions.build.edge.transport === "webpack"
+            ) {
+              const rawPages = userOptions.build.pages;
+              const routes: string[] = Array.isArray(rawPages)
+                ? rawPages
+                : typeof rawPages === "function"
+                ? await (rawPages as () => Promise<string[]> | string[])()
+                : await rawPages;
+              const { freezeStaticSnapshots } = await import(
+                "../bundle/freezeStaticSnapshots.js"
+              );
+              await freezeStaticSnapshots({
+                userOptions,
+                projectRoot: userOptions.projectRoot,
+                routes,
+                logger,
+              });
+            }
           },
         },
       };

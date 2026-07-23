@@ -2,7 +2,7 @@ import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { emptyAutoDiscoveredFiles, isClientModuleFile } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags } from "./devPluginShared.js";
 import type { ConfigEnv } from "vite";
 
 
@@ -39,7 +39,13 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
     // that should work regardless of environment filtering
     config(_config, viteConfigEnv) {
       configEnv = viteConfigEnv;
-  
+
+    },
+    // transport:"webpack": stamp the dev document with the flight-transport
+    // hint so the browser picks the webpack flight client (dev/prod parity
+    // with the baked pair's documents). No-op on esm.
+    transformIndexHtml() {
+      return devFlightTransportTags(userOptions);
     },
     configureServer(server) {      
       // Log that plugin is being configured

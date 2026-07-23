@@ -157,11 +157,30 @@ export const createTransformerPlugin = (
         // CRITICAL: Re-resolve options with runtime mode to get correct importServerPath
         // This ensures test mode uses react-server-dom-esm/server.node instead of server
         // Force re-resolve to avoid cached moduleID functions from different build contexts
+        //
+        // transport:"webpack" swaps the registration import IN DEV ONLY: dev
+        // evaluates the transformed modules live, so the emitted register*
+        // import must come from the webpack server entry for the references
+        // to be webpack-shaped ($$id "path#name"). Builds keep the bare esm
+        // specifier — dist artifacts stay transport-agnostic and the edge
+        // bake re-transports the whole graph with one alias (buildEdgeBundle).
+        const devTransportLoader =
+          config.command === "serve" && userOptions.transport === "webpack"
+            ? {
+                importServerPath:
+                  userOptions.loader?.importServerPath ??
+                  "react-server-loader/webpack/server",
+                importClientPath:
+                  userOptions.loader?.importClientPath ??
+                  "react-server-loader/webpack/server",
+              }
+            : {};
         const runtimeOptionsResult = resolveOptions({
           ...userOptions,
           loader: {
             ...userOptions.loader,
             mode: mode,
+            ...devTransportLoader,
           },
         }, true); // Force resolve to bypass cache
         if (runtimeOptionsResult.type === "success") {

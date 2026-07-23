@@ -5,9 +5,9 @@ import type { HandleRscRenderFn } from "./types.js";
 import { createLogger } from "vite";
 import {
   React,
-  ReactDOMServer,
   type RenderToPipeableStreamOptions,
 } from "../../vendor/vendor.server.js";
+import { resolveFlightRenderer } from "../../stream/flightRenderer.server.js";
 import { createElementWithReact } from "../../helpers/createElementWithReact.js";
 import { checkReactVersion } from "../../utils/checkReactVersion.js";
 /**
@@ -79,6 +79,16 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
       globalCss: handlerOptions["globalCss"] || new Map(),
       manifest: handlerOptions["manifest"] || {},
       ...handlerOptions,
+      // The per-message handler options don't carry the plugin-level
+      // transport config — default the renderer flavor (and the manifest
+      // base it derives dev URLs from) from the worker's serialized user
+      // options, or a transport:"webpack" dev worker would silently render
+      // esm flight against a webpack-hydrated document. Placed after the
+      // spread: an absent key must not shadow the worker-level value.
+      transport:
+        handlerOptions["transport"] ?? workerData.userOptions.transport,
+      moduleBaseURL:
+        handlerOptions["moduleBaseURL"] ?? workerData.userOptions.moduleBaseURL,
     };
     if (reuseHeadlessStreamId && headlessStreamElements) {
       const reusableData = headlessStreamElements.get(reuseHeadlessStreamId);
@@ -276,9 +286,8 @@ export const handleRscRender: HandleRscRenderFn = function _handleRscRender(
     }
 
     checkReactVersion();
-    const { pipe } = ReactDOMServer.renderToPipeableStream(
+    const { pipe } = resolveFlightRenderer(finalHandlerOptions).render(
       element,
-      finalHandlerOptions.moduleBasePath,
       serverPipeableStreamOptions
     );
 

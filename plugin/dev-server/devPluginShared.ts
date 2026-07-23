@@ -52,3 +52,32 @@ export function isClientModuleFile(file: string): boolean {
     return false;
   }
 }
+
+/**
+ * The dev document's transport hint, shared by both dev plugins.
+ *
+ * With transport:"webpack" the dev server produces webpack-flavored flight,
+ * and the (transport-agnostic) client entry picks its flight client off
+ * `self.__vprsFlightTransport` — the same inline hint the baked pair's
+ * documents carry (see createEdgeRequestHandler). Vite serves the dev
+ * document itself, so the hint rides in via transformIndexHtml; a classic
+ * inline script in <head> runs during parse, strictly before any module —
+ * the client entry can never read the flag too early.
+ *
+ * Returns undefined on the default esm transport: no tag, byte-for-byte
+ * today's document.
+ */
+export function devFlightTransportTags(
+  userOptions: Pick<import("../types.js").ResolvedUserOptions, "transport">
+):
+  | { tag: string; children: string; injectTo: "head-prepend" }[]
+  | undefined {
+  if (userOptions.transport !== "webpack") return undefined;
+  return [
+    {
+      tag: "script",
+      children: 'self.__vprsFlightTransport="webpack";',
+      injectTo: "head-prepend",
+    },
+  ];
+}

@@ -211,6 +211,51 @@ export default defineConfig({
 });
 ```
 
+## Transport
+
+The deploy's RSC flight flavor. Default `"esm"` — module references are URLs
+the browser imports directly; the best DX for static sites with no
+per-request rendering.
+
+```ts
+vitePluginReactServer({
+  transport: "webpack",
+});
+```
+
+With `"webpack"` the whole deploy carries one flavor, and every artifact
+renders once, in that flavor: the option defaults the edge bake to the
+webpack pair, and the enumerated routes' `index.html`/`index.rsc` snapshots
+render **through that pair** — the same producer + consumer a deployed
+handler runs — instead of through the esm SSG pass. One deploy may then
+serve any route from the CDN or the per-request handler interchangeably; the
+browser client, the inline flight, and the fetched `.rsc` payloads all
+agree. Build events and metrics are unchanged: the pair render owns the same
+`build.ssg.*`/`file.write` events and `ssg-render` summary the esm pass
+emits.
+
+The dev server follows the option too: with `"webpack"` it renders
+webpack-flavored flight and the browser decodes it live — dev and production
+run the same transport, no parity caveats.
+
+Do not hand-mix flavors instead: an esm-hydrated document cannot decode a
+webpack `.rsc` (and vice versa), so serving both to one client breaks
+navigation between them. Per-surface splits are fine only when a single
+surface actually serves a given deploy — which is exactly what this option
+exists to make unnecessary.
+
+The option is a plain value, so per-mode policy is ordinary JavaScript:
+
+```ts
+vitePluginReactServer({
+  transport: process.env.NODE_ENV === "production" ? "webpack" : "esm",
+});
+```
+
+Dev and production are separate sessions — each is internally coherent — so
+choosing a flavor per mode is safe in a way per-route mixing within one
+deploy never is.
+
 ## Metric Watcher
 
 Opt-in build output: wire `metricWatcher` into `onMetrics` and the build prints

@@ -397,6 +397,16 @@ export type PanicThreshold = "none" | "critical_errors" | "all_errors";
 export type ResolvedUserOptions = {
   // Core required properties
   projectRoot: string;
+  /**
+   * The deploy's RSC flight flavor. "esm" (default) — today's behavior.
+   * "webpack" — every artifact renders once, in that flavor: the esm SSG
+   * pass is skipped and the static snapshots render through the baked pair
+   * after the edge bake, so every surface (CDN snapshots, per-request
+   * handler, browser client) carries ONE flavor and routes may be served
+   * from either without cross-flavor decode failures. The dev server renders
+   * webpack flight too — dev and prod parity, no caveats.
+   */
+  transport: "esm" | "webpack";
   moduleBase: string;
   moduleBasePath: string;
   moduleBaseURL: string;
@@ -701,6 +711,15 @@ export interface StreamPluginOptions<
   Interface extends ViteReactServerComponentsPlugin = DefaultInterface
 > {
   projectRoot?: string; // defaults to process.cwd()
+  /**
+   * The deploy's RSC flight flavor. Default "esm". With "webpack" every
+   * artifact renders once in the webpack flavor: the prerendered snapshots
+   * render through the baked pair (requires build.edge with transport
+   * "webpack", which this option defaults for you) and the dev server
+   * serves webpack flight — one flavor across dev + CDN + per-request +
+   * browser.
+   */
+  transport?: "esm" | "webpack";
   moduleBase: string; // defaults to 'src'
   moduleBasePath?: string; // defaults to ''
   moduleBaseURL?: string; // defaults to '/'
@@ -1050,6 +1069,13 @@ export type CreateHandlerOptions<
 > & {
   id?: string;
   /**
+   * The deploy's RSC flight flavor (see {@link ResolvedUserOptions.transport}).
+   * The server flight-render sites read it to pick the renderer pair: esm
+   * renders against `moduleBasePath`, webpack against a client manifest.
+   * Optional so hand-built handler options stay valid; absent means "esm".
+   */
+  transport?: "esm" | "webpack";
+  /**
    * Params parsed from the request url against the matched route pattern
    * (`/profile/123` → `{ id: "123" }`). Passed to a loader as
    * `props(url, { params, request })`. When absent, vprs derives it from
@@ -1320,13 +1346,14 @@ export type EdgeBuildConfig = {
    * its handler cannot disagree.
    *
    * Do NOT mix transports across one deploy's routes: prerendered snapshots
-   * (SSG html / inlined flight / .rsc files) are esm-encoded, so serving them
-   * next to webpack-encoded dynamic routes breaks client-side navigation
-   * BETWEEN the two flavors (the browser picks its flight client per
-   * document, but a fetched .rsc of the other flavor cannot be decoded).
-   * With "webpack", serve every route through the edge bundle and drop the
-   * prerendered snapshots from serving (the prepare-vercel pattern).
-   * @default "esm"
+   * are esm-encoded by default, so serving them next to webpack-encoded
+   * dynamic routes breaks client-side navigation BETWEEN the two flavors (a
+   * fetched .rsc of the other flavor cannot be decoded). Either serve every
+   * route through the edge bundle and drop the snapshots from serving (the
+   * prepare-vercel pattern), or set the TOP-LEVEL `transport: "webpack"` —
+   * which defaults this field and renders the snapshots through the baked
+   * pair, so both surfaces agree and any route may be served from either.
+   * @default "esm" (or the top-level `transport` when set)
    */
   transport?: "esm" | "webpack";
 };

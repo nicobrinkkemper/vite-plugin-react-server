@@ -40,6 +40,7 @@ export const config = {
 | `htmlTimeout` | `number` | Timeout in milliseconds for HTML generation operations | `15000` |
 | `htmlWorkerStartupTimeout` | `number` | Timeout in milliseconds for HTML worker startup | `5000` |
 | `rscWorkerStartupTimeout` | `number` | Timeout in milliseconds for RSC worker startup | `5000` |
+| `transport` | `"esm" \| "webpack"` | The deploy's flight flavor; `"webpack"` renders the static snapshots through the baked pair and the dev server serves webpack flight, so every surface agrees (see [Configuration → Transport](./configuration.md#transport)) | `"esm"` |
 | `onMetrics` | `OnMetrics` | Callback for build metrics (render, worker-startup, module-resolution, edge-bake, inline-flight and ssg-render metrics) | - |
 | `onEvent` | `(event: PluginEvent) => void` | Callback for plugin events | - |
 | `normalizer` | `InputNormalizer` | Custom input normalizer | - |
