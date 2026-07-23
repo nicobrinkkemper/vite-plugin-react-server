@@ -877,6 +877,26 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   // Return resolved options
   try {
+    // transport:"webpack" contracts the whole build around the baked pair:
+    // the esm SSG pass is skipped and the freeze IS the SSG backend. A config
+    // that disables the bake (or pins it to esm) would silently produce no
+    // snapshots at all — refuse it at config time instead.
+    if (options.transport === "webpack" && !build.edge.enabled) {
+      throw new Error(
+        '[vite-plugin-react-server] transport:"webpack" requires the edge ' +
+          "bake (build.edge) — the static snapshots render through the baked " +
+          'pair. Remove `build.edge: false` or use transport:"esm".'
+      );
+    }
+    if (options.transport === "webpack" && build.edge.transport !== "webpack") {
+      throw new Error(
+        '[vite-plugin-react-server] transport:"webpack" conflicts with ' +
+          `build.edge.transport:"${build.edge.transport}" — one deploy ` +
+          "carries one flight flavor. Drop the edge override (the global " +
+          "transport already defaults it) or align the two."
+      );
+    }
+
     const userOptions: ResolvedUserOptions = {
       projectRoot,
       transport: options.transport ?? "esm",

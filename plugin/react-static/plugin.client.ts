@@ -342,6 +342,18 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
         return;
       }
 
+      // transport:"webpack" — every artifact renders once, in its flavor.
+      // The esm SSG pass is skipped entirely; freezeStaticSnapshots renders
+      // the snapshots through the baked pair after the edge bake and owns the
+      // SSG contract (build.ssg.* events, file writes, ssg-render metric,
+      // prune) from there.
+      if (userOptions.transport === "webpack") {
+        logger?.info(
+          "[react-static-client] transport:webpack — snapshots render through the baked pair, skipping the esm SSG pass"
+        );
+        return;
+      }
+
       // Defer static generation to run after ALL environments complete their builds.
       // This is necessary because we need the server manifest (from server env's writeBundle)
       // to resolve function-based component paths like Root: (url) => 'src/CustomRoot.tsx'.

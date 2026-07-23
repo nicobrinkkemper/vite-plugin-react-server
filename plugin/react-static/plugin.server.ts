@@ -364,6 +364,18 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
           return;
         }
 
+        // transport:"webpack" — every artifact renders once, in its flavor.
+        // The esm SSG pass is skipped entirely; freezeStaticSnapshots renders
+        // the snapshots through the baked pair after the edge bake and owns
+        // the SSG contract (build.ssg.* events, file writes, ssg-render
+        // metric, prune) from there.
+        if (userOptions.transport === "webpack") {
+          logger?.info(
+            "[plugin.server] transport:webpack — snapshots render through the baked pair, skipping the esm SSG pass"
+          );
+          return;
+        }
+
         const serializedUserOptions = serializedOptions(
           userOptions,
           autoDiscoveredFiles!
