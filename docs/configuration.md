@@ -211,6 +211,37 @@ export default defineConfig({
 });
 ```
 
+## Transport
+
+The deploy's RSC flight flavor. Default `"esm"` — module references are URLs
+the browser imports directly; the best DX for static sites with no
+per-request rendering.
+
+```ts
+vitePluginReactServer({
+  transport: "webpack",
+});
+```
+
+With `"webpack"` the whole deploy carries one flavor: the option defaults the
+edge bake to the webpack pair, and after the bake every enumerated route's
+`index.html`/`index.rsc` is re-rendered **through that pair** — the same
+producer + consumer a deployed handler runs — replacing the esm snapshots.
+One deploy may then serve any route from the CDN or the per-request handler
+interchangeably; the browser client, the inline flight, and the fetched
+`.rsc` payloads all agree.
+
+Do not hand-mix flavors instead: an esm-hydrated document cannot decode a
+webpack `.rsc` (and vice versa), so serving both to one client breaks
+navigation between them. Per-surface splits are fine only when a single
+surface actually serves a given deploy — which is exactly what this option
+exists to make unnecessary.
+
+Costs to know about: the enumerated routes render twice (the regular SSG
+pass, then the freeze through the pair), and dev currently stays on the esm
+transport regardless of this option — a dev/prod parity note that goes away
+when dev-side webpack resolution lands.
+
 ## Metric Watcher
 
 Opt-in build output: wire `metricWatcher` into `onMetrics` and the build prints

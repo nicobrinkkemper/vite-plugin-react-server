@@ -770,7 +770,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         enabled: edge === false ? false : true,
         outDir: obj.outDir ?? DEFAULT_CONFIG.BUILD.edge.outDir,
         minify: obj.minify ?? DEFAULT_CONFIG.BUILD.edge.minify,
-        transport: obj.transport ?? DEFAULT_CONFIG.BUILD.edge.transport,
+        // The global transport defaults the bake's flavor: transport:"webpack"
+        // needs a webpack pair to freeze snapshots through. An explicit
+        // edge.transport still wins.
+        transport:
+          obj.transport ??
+          (options.transport === "webpack"
+            ? "webpack"
+            : DEFAULT_CONFIG.BUILD.edge.transport),
       };
     })(),
   } satisfies ResolvedUserOptions["build"];
@@ -872,6 +879,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   try {
     const userOptions: ResolvedUserOptions = {
       projectRoot,
+      transport: options.transport ?? "esm",
       moduleBase,
       moduleBasePath,
       moduleBaseURL,
