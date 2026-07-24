@@ -124,7 +124,7 @@ createServer(toNodeListener(app)).listen(3000);
 
 For the complete pattern — including per-request rendering of dynamic routes —
 see the [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
-demo's `start.tsx` and the vprs-starter's
+demo's `start.tsx` and the [vprs-starter](https://github.com/nicobrinkkemper/vprs-starter)'s
 `server/handler.mjs`.
 
 ## Where it runs: static anywhere, dynamic on Node
