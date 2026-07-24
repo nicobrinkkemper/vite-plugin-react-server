@@ -332,11 +332,14 @@ async function loadComponentsWithCache(options: {
         );
       }
 
-      if (propsPath && !resolvedPageProps) {
+      if (!resolvedPageProps) {
         // Props are intentionally NOT cached across requests — see comment
         // above. Drop any pre-existing cache entry from older versions, then
-        // fall through to the separate-load path below.
-        const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
+        // fall through to the separate-load path below. No propsPath gate:
+        // props may live in the page module itself (resolvePageAndProps falls
+        // back to pagePath), and gating on propsPath dropped those on every
+        // cached-Page render — first dev render had props, refresh lost them.
+        const propsId = `${propsPath || pagePath}#${propsExportName}@${normalizedUrl}`;
         if (hasCachedComponent(propsId)) {
           clearCachedComponent(propsId);
         }
@@ -360,8 +363,8 @@ async function loadComponentsWithCache(options: {
       }
       
       // Also clear props cache if page is invalidated
-      if (propsPath && isPageInvalidated) {
-        const propsId = `${propsPath}#${propsExportName}@${normalizedUrl}`;
+      if (isPageInvalidated) {
+        const propsId = `${propsPath || pagePath}#${propsExportName}@${normalizedUrl}`;
         if (hasCachedComponent(propsId)) {
           clearCachedComponent(propsId);
         }
@@ -446,8 +449,10 @@ async function loadComponentsWithCache(options: {
       }
     }
     
-    // If Page was cached but props for this URL weren't, load props separately
-    if (needToLoadProps && propsPath) {
+    // If Page was cached but props for this URL weren't, load props separately.
+    // Runs with propsPath undefined too: resolvePageAndProps then reads the
+    // props export off the page module.
+    if (needToLoadProps) {
       if (verbose) {
         logger?.info(
           `[rsc-worker] Loading props separately for URL: ${url} (Page was cached)`
