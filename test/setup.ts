@@ -649,12 +649,13 @@ export async function setupTestProjectPropsVariations(testDir: string) {
     resolve(testDir, "src", "page", "page.tsx"),
     `import React from "react";
 export function props(){
-    return import.meta.env;
+    return {...import.meta.env, propsMarker: "in-page-props-loaded"};
 }
 export function Page(propsEnv) {
 return (
   <div>
     <h1>Home Page</h1>
+    <p>Marker: {propsEnv.propsMarker}</p>
     <p>Base URL: {propsEnv.BASE_URL}</p>
     <p>Public: {propsEnv.PUBLIC_ORIGIN}</p>
     <p>Mode: {import.meta.env.MODE}</p>
@@ -691,6 +692,28 @@ return (
     <p>SSR: {import.meta.env.SSR}</p>
     <p>URL: {import.meta.env.BASE_URL}</p>
     <p>Public Origin: {import.meta.env.PUBLIC_ORIGIN}</p>
+  </div>
+);
+}`
+  );
+  // Third pattern: props in a sibling props file (propsPath set), alongside
+  // the in-page-props and no-props routes above, so one server covers the
+  // mixed per-route shapes a fileRouter project can produce.
+  await mkdir(resolve(testDir, "src/page3"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src", "page3", "props.ts"),
+    `export function props() {
+  return { title: "Page3", propsMarker: "sibling-props-loaded" };
+}`
+  );
+  await writeFile(
+    resolve(testDir, "src", "page3", "page.tsx"),
+    `import React from "react";
+export function Page({ title, propsMarker }) {
+return (
+  <div>
+    <h1>{title + " Page"}</h1>
+    <p>Marker: {propsMarker}</p>
   </div>
 );
 }`

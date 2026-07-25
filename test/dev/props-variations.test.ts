@@ -12,8 +12,10 @@ let server,
   port = 3103,
   pageURL,
   pageURL2,
+  pageURL3,
   response: RSCStreamResponse,
-  response2: RSCStreamResponse;
+  response2: RSCStreamResponse,
+  response3: RSCStreamResponse;
 const testDir = resolve(__dirname, "../fixtures/props-variations.test");
 
 // Capture every error/warn log the plugin emits during this test's lifecycle.
@@ -50,12 +52,18 @@ describe("RSC Server", () => {
           ...testUserOptions,
           projectRoot: testDir,
           Page: (id) =>
-            !id.includes('page2')
-              ? join("src", "page", "page.tsx")
-              : join("src", "page2", "page.tsx"),
-          props: undefined, // no props
+            id.includes('page3')
+              ? join("src", "page3", "page.tsx")
+              : id.includes('page2')
+                ? join("src", "page2", "page.tsx")
+                : join("src", "page", "page.tsx"),
+          // Mixed per-route props shapes, like a fileRouter project:
+          // "/" keeps its props loader in page.tsx (propsPath undefined),
+          // "/page2" has no props at all, "/page3" uses a sibling props file.
+          props: (id) =>
+            id.includes('page3') ? join("src", "page3", "props.ts") : undefined,
           build: {
-            pages: ["/", "/page2"],
+            pages: ["/", "/page2", "/page3"],
           },
         }),
       ],
@@ -72,8 +80,10 @@ describe("RSC Server", () => {
     }
     pageURL = `http://localhost:${port}/index.rsc`;
     pageURL2 = `http://localhost:${port}/page2/index.rsc`;
+    pageURL3 = `http://localhost:${port}/page3/index.rsc`;
     response = await handleRSCStream(pageURL);
     response2 = await handleRSCStream(pageURL2);
+    response3 = await handleRSCStream(pageURL3);
   });
 
   afterAll(async () => {
@@ -138,6 +148,43 @@ describe("RSC Server", () => {
     // Verify the response contains page content
     expect(response2.result).toContain("Home Page for");
     // Server environment shows undefined values as $undefined in RSC stream, which is expected
+  });
+
+  it("should handle props from a sibling props file", async () => {
+    expect(response3.ok).toBe(true);
+    expect(response3.statusCode).toBe(200);
+    expect(response3.result).toContain("Page3 Page");
+    expect(response3.result).toContain("sibling-props-loaded");
+  });
+
+  // The cached-Page re-render tests below re-request each route after its
+  // Page component is already cached in the rsc worker. Props are resolved
+  // on a separate path in that case, and the in-page pattern regressed there
+  // once (#289): first dev render had props, every refresh lost them. A
+  // single fetch per route cannot catch that class of bug.
+
+  it("in-page props survive a cached-Page re-render (refresh)", async () => {
+    expect(response.result).toContain("in-page-props-loaded");
+    const refreshed = await handleRSCStream(pageURL);
+    expect(refreshed.ok).toBe(true);
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.result).toContain("Home Page");
+    expect(refreshed.result).toContain("in-page-props-loaded");
+  });
+
+  it("sibling-file props survive a cached-Page re-render (refresh)", async () => {
+    const refreshed = await handleRSCStream(pageURL3);
+    expect(refreshed.ok).toBe(true);
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.result).toContain("Page3 Page");
+    expect(refreshed.result).toContain("sibling-props-loaded");
+  });
+
+  it("no-props route stays clean on a cached-Page re-render (refresh)", async () => {
+    const refreshed = await handleRSCStream(pageURL2);
+    expect(refreshed.ok).toBe(true);
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.result).toContain("Home Page for");
   });
 
   it("does not emit RSC render error logs for the sub-route request (bd-w4t regression)", () => {
