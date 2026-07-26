@@ -38,9 +38,15 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
     // Server-level handleHotUpdate — sends custom WS event to client
     // Vite 6 Environment API: hotUpdate runs per-environment.
     // Prevent server/ssr environments from triggering page reload for client components.
-    hotUpdate(ctx: any) {
+    hotUpdate(this: any, ctx: any) {
       const { file, server } = ctx;
-      const envName = ctx.environment?.name ?? 'unknown';
+      // The environment lives on the HOOK CONTEXT (`this.environment`), not on
+      // the options bag — on Vite 8 `ctx.environment` is undefined, so reading
+      // only ctx left every call as 'unknown': the client branch (which pushes
+      // the server-component-update event to the browser) never ran, and dev:rsc
+      // edits to page/route.tsx were suppressed without a refetch push.
+      const envName =
+        this?.environment?.name ?? ctx.environment?.name ?? 'unknown';
 
       const moduleBase = userOptions.moduleBase || "src";
       const projectRoot = userOptions.projectRoot || server?.config?.root || '';
