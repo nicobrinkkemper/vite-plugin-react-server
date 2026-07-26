@@ -247,10 +247,28 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             // dev that resolves to the static `index.html`, which an RSC dev
             // server never serves, so the scan fails and logs (per re-optimize)
             // "failed to resolve rolldownOptions.input value: index.html".
-            // An explicit empty entries list skips the html crawl; deps still
-            // optimize lazily. optimizeDeps is a no-op in build, so the real
-            // index.html build entry is unaffected.
-            entries: userConfig.optimizeDeps?.entries ?? [],
+            // An explicit entries list skips the html crawl. For the BROWSER
+            // environment, an EMPTY list means nothing is scanned up front and
+            // every dep (react, react/jsx-dev-runtime, the router/client
+            // barrel) is discovered lazily on the first request — each
+            // mid-session optimize pass forces a reload and leaves a transient
+            // second React copy (one-off "Invalid hook call" / null-dispatcher
+            // errors on a cold cache). Hand the scanner the auto-discovered
+            // client modules instead so the first optimizer pass sees the real
+            // browser graph. Server/ssr environments keep the empty list.
+            // optimizeDeps is a no-op in build, so the real index.html build
+            // entry is unaffected.
+            entries:
+              userConfig.optimizeDeps?.entries ??
+              (consumer === "client" && envConfig.name === "client"
+                ? Object.values(
+                    autoDiscoveredFiles.clientInputs ?? {}
+                  ).flatMap((v) =>
+                    typeof v === "string" && /\.[cm]?[jt]sx?$/.test(v)
+                      ? [v.replace(/^\/+/, "")]
+                      : []
+                  )
+                : []),
             // transport:"webpack" (dev): the browser reaches the webpack
             // flight client through a lazy import chain (createReactFetcher →
             // rsl runtime → vendored CJS client), so on a cold cache Vite
