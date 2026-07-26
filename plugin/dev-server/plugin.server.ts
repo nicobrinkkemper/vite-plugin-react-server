@@ -101,10 +101,11 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       // Server components are handled by the RSC refetch event sent above
       // Invalidate the server module so next RSC request gets fresh content
       if (envName === 'server') {
-        const mod = ctx.environment?.moduleGraph?.getModulesByFile(file);
+        const environment = this?.environment ?? ctx.environment;
+        const mod = environment?.moduleGraph?.getModulesByFile(file);
         if (mod) {
           for (const m of mod) {
-            ctx.environment.moduleGraph.invalidateModule(m);
+            environment.moduleGraph.invalidateModule(m);
           }
         }
       }
