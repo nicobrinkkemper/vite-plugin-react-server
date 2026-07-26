@@ -62,15 +62,18 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         resolvedConfig: server.config,
       });
     },
-    hotUpdate(ctx: any) {
+    hotUpdate(this: any, ctx: any) {
       const { file, server } = ctx;
-      const envName = ctx.environment?.name ?? 'unknown';
-      
-      // Run worker invalidation once per change. Real fs-watch tags the call
-      // with the 'client' environment, but a manually-triggered or Vite-8
-      // "global" hotUpdate can arrive with no environment ('unknown') — handle
-      // both, or the RSC worker never hears about the edit. Multiple calls for
-      // the same change are deduped by `isProcessingHmr` below.
+      // The environment lives on the hook context (`this.environment`); on
+      // Vite 8 `ctx.environment` is undefined. Keep both fallbacks.
+      const envName =
+        this?.environment?.name ?? ctx.environment?.name ?? 'unknown';
+
+      // Run worker invalidation once per change, from the client-environment
+      // call. A manually-triggered hotUpdate can still arrive with no
+      // environment ('unknown') — handle both, or the RSC worker never hears
+      // about the edit. Multiple calls for the same change are deduped by
+      // `isProcessingHmr` below.
       if (envName !== 'client' && envName !== 'unknown') return;
       
       // Prevent recursive HMR updates
