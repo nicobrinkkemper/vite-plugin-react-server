@@ -915,3 +915,49 @@ export function ClientErrorComponent({ throwError }: { throwError: boolean }) {
 }`
   );
 }
+
+/**
+ * Fixture for the silent-SSG-hang regression: a "use client" component that
+ * throws ONLY during the server-side HTML shell render (client components DO
+ * render server-side for the shell; the flight pass never executes them, and
+ * the browser has `window`). The build must surface this error according to
+ * panicThreshold — never hang, never emit a degraded document with exit 0.
+ */
+export async function setupShellHookErrorTestProject(testDir: string) {
+  await setupIndexHTML(testDir);
+
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/page/page.tsx"),
+    `import React from "react";
+import { ShellThrow } from "../components/ShellThrow.client.js";
+
+export function Page() {
+  return (
+    <div>
+      <h1>Shell hook error test</h1>
+      <ShellThrow />
+    </div>
+  );
+}`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/props.ts"),
+    `export const props = (url: string) => ({ url });`
+  );
+
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
+  await writeFile(
+    resolve(testDir, "src/components/ShellThrow.client.tsx"),
+    `"use client";
+import React from "react";
+
+export function ShellThrow() {
+  if (typeof window === "undefined") {
+    throw new Error("ShellThrow: rendered outside the browser");
+  }
+  return <div data-testid="shell-throw">browser only</div>;
+}`
+  );
+}

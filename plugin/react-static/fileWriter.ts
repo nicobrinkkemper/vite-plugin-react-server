@@ -246,6 +246,38 @@ export const fileWriter: FileWriterFn = function _fileWriter(
     contentCollector.on('error', handleError);
     writeStream.on('error', handleError);
 
+    // A render error can destroy the source BEFORE this writer subscribes (the
+    // HTML handler destroys its PassThrough from React's onError, and its own
+    // local 'error' listener marks the event handled) — the 'error' above then
+    // never fires for us, pipe() on the dead stream produces neither data nor
+    // end, and this promise would wait forever (the silent SSG hang on a shell
+    // render error). Same for a destroy that wins the race later: 'close'
+    // without a completed read means the content never fully arrived.
+    const src = sourceStream as NodeJS.ReadableStream & {
+      destroyed?: boolean;
+      errored?: Error | null;
+      readableEnded?: boolean;
+    };
+    if (src.destroyed) {
+      handleError(
+        src.errored ??
+          new Error(
+            `[fileWriter] ${fileType} source stream for route ${options.route} was destroyed before writing started (a render error upstream?)`
+          )
+      );
+      return;
+    }
+    sourceStream.on("close", () => {
+      if (src.readableEnded === false) {
+        handleError(
+          src.errored ??
+            new Error(
+              `[fileWriter] ${fileType} source stream for route ${options.route} closed before it ended (a render error upstream?)`
+            )
+        );
+      }
+    });
+
     // Handle successful completion
     writeStream.on("finish", () => {
       if (signal) {

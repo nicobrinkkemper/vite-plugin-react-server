@@ -124,7 +124,8 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
     }
 
     // Create the stream once and pipe directly with onData
-    const { pipe } = ReactDOMServer.renderToPipeableStream(result.children, {
+    let rendererAborted = false;
+    const { pipe, abort } = ReactDOMServer.renderToPipeableStream(result.children, {
       ...mergedPipeableStreamOptions,
       onShellReady() {
         if (verbose) {
@@ -179,11 +180,39 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
         }
 
         handlers.onError(route, error, errorInfo);
-        if(handlers.onError) {
-          handlers.onError(route, error, errorInfo);
-        }
         if(mergedPipeableStreamOptions?.onError) {
           mergedPipeableStreamOptions.onError(error, errorInfo);
+        }
+      },
+      // A SHELL error (thrown outside every Suspense boundary) means React
+      // never pipes: onShellReady/onAllReady don't fire and the Writable's
+      // `final` never runs — the END message never goes out. React also calls
+      // onError for shell errors, and the main thread destroys its stream on
+      // the resulting ERROR message, so the channel does terminate; this
+      // handler exists to say WHY nothing was piped (always, not just in
+      // verbose) and to forward the shell-error hook a consumer configured.
+      onShellError(error: unknown) {
+        logger.error(
+          `[html-worker:${route}] HTML shell render failed (nothing was piped): ${error}`
+        );
+        if (mergedPipeableStreamOptions?.onShellError) {
+          mergedPipeableStreamOptions.onShellError(error);
+        }
+        // Stop the orphaned render: with the shell failed nothing will ever
+        // pipe, but React's work loop keeps running the request (Suspense
+        // retries included) and a retry that throws with the request dead has
+        // nowhere to report — it escapes the worker as an uncaught exception
+        // and lands on the parent's Worker 'error' channel. Deferred so this
+        // handler unwinds first; guarded because abort() reports via onError.
+        if (!rendererAborted) {
+          rendererAborted = true;
+          setImmediate(() => {
+            try {
+              abort();
+            } catch {
+              // Already settled — nothing left to stop.
+            }
+          });
         }
       },
     });
@@ -211,7 +240,10 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
       },
     });
 
-    // Pipe the React stream directly to our writable
+    // Pipe the React stream directly to our writable. (Deliberately NOT moved
+    // into onShellReady: delaying the pipe breaks the suspended-render drain
+    // flow the backpressure test guards. A failed shell writing nothing is
+    // handled by onShellError + the ERROR-message destroy on the main thread.)
     pipe(customWritable);
 
     // Set up RSC stream error handling

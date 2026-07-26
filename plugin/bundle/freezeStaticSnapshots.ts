@@ -57,8 +57,21 @@ export async function freezeStaticSnapshots(opts: {
   const consumer = await import(
     pathToFileURL(join(edgeDir, "consumer.js")).href
   );
+  // Collect render-time errors per route. The freeze only checks the response
+  // STATUS, but the status commits on the first chunk — a component that
+  // throws mid-stream (e.g. a router hook rendered in the HTML shell outside
+  // its provider) degrades that subtree while the stream completes fine, and
+  // the freeze would write a shell-only document with exit 0: a silent bad
+  // deploy. React reports those through onError; route it through handleError
+  // so the default production threshold ("all_errors") fails the build naming
+  // the route and the component error, while a relaxed panicThreshold keeps
+  // the degrade-and-continue behavior — loudly.
+  const renderErrors: unknown[] = [];
   const handler = createEdgeRequestHandler(bundle, {
     renderFlightToHtml: consumer.renderFlightToHtml,
+    onError: (error: unknown) => {
+      renderErrors.push(error);
+    },
   });
 
   // The SSG pass's event contract, emitted the same way the react-static
@@ -103,11 +116,27 @@ export async function freezeStaticSnapshots(opts: {
   };
 
   for (const route of routes) {
+    const errorsBefore = renderErrors.length;
     const htmlRes = await handler(new Request(new URL(route, ORIGIN)));
     if (htmlRes.status !== 200 || !htmlRes.body) {
       throw new Error(
         `[transport:webpack] freezing ${route} html failed (${htmlRes.status})`
       );
+    }
+    // The document render is fully buffered before the Response returns (the
+    // handler awaits the HTML text), so every onError for this route has fired
+    // by now — check BEFORE writing so a degraded document is never emitted.
+    if (renderErrors.length > errorsBefore) {
+      const panicError = handleError({
+        error: renderErrors[errorsBefore],
+        logger,
+        panicThreshold: userOptions.panicThreshold,
+        log: true,
+        context: `[transport:webpack] freezing ${route}: the HTML shell render errored — the document would be missing that subtree`,
+      });
+      if (panicError != null) {
+        throw panicError;
+      }
     }
     await fileWriter(
       Readable.fromWeb(htmlRes.body as import("node:stream/web").ReadableStream),
