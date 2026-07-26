@@ -136,6 +136,20 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // Return stashed options if available
   const stashedOptions = getStashedUserOptions(envId);
   if (stashedOptions && !forceResolve) {
+    // The stash is written at plugin-creation time, BEFORE
+    // clientPackagesDiscoveryPlugin's async `config` hook merges auto-detected
+    // packages into the shared raw options object. Re-sync the field on the
+    // stashed object in place (preserving the shared reference) so the
+    // noExternal / optimizeDeps merges in resolveUserConfig see the discovered
+    // list. Without this, a server component importing a "use client" package
+    // (vprs's own router/client barrel included) is externalized in dev and
+    // evaluated under react-server: React.createContext is not a function.
+    if (
+      options.clientPackages !== undefined &&
+      stashedOptions.clientPackages !== options.clientPackages
+    ) {
+      stashedOptions.clientPackages = options.clientPackages;
+    }
     return {
       type: "success",
       userOptions: stashedOptions as never,
