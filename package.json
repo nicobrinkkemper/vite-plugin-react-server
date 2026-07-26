@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-react-server",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
   "main": "./dist/index.js",
