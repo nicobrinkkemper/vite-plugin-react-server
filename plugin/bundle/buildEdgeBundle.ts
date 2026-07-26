@@ -365,8 +365,23 @@ export async function buildEdgeBundle(opts: {
   // to the consumer project (the same react the build used).
   const projectRequire = createRequire(join(projectRoot, "package.json"));
   const reactDir = dirname(projectRequire.resolve("react/package.json"));
-  const serverEdge = projectRequire.resolve("react-server-loader/server.edge");
-  const serverNode = projectRequire.resolve("react-server-loader/server.node");
+  // react-server-loader is vprs's OWN dependency, not the consumer's. A
+  // registry install hoists it into the consumer's node_modules so the
+  // consumer-rooted resolve finds it, but a `file:`-linked vprs (the
+  // releasing-doc verification flow) keeps its deps in its own node_modules —
+  // npm does not install a link's transitive deps into the consumer. Resolve
+  // from the consumer first (keeps the hoisted copy authoritative), fall back
+  // to vprs's own installation.
+  const selfRequire = createRequire(import.meta.url);
+  const resolveRsl = (id: string): string => {
+    try {
+      return projectRequire.resolve(id);
+    } catch {
+      return selfRequire.resolve(id);
+    }
+  };
+  const serverEdge = resolveRsl("react-server-loader/server.edge");
+  const serverNode = resolveRsl("react-server-loader/server.node");
 
   // Which RSC transport the bundle renders through. The transformed modules in
   // dist/server import the esm transport by ABSOLUTE path (their register*
@@ -378,7 +393,7 @@ export async function buildEdgeBundle(opts: {
   const transport = userOptions.build.edge.transport;
   const flightServerEntry =
     transport === "webpack"
-      ? projectRequire.resolve("react-server-loader/webpack/server.edge")
+      ? resolveRsl("react-server-loader/webpack/server.edge")
       : serverEdge;
 
   // Webpack bakes only: stub the `node:` modules whose only reachable uses are
