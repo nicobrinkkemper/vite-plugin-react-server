@@ -63,6 +63,15 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
 
   // Create the HTML output stream
   const htmlStream = new PassThrough();
+  // A render error destroys this stream (the ERROR message below) — and that
+  // can happen BEFORE the consumer subscribes, e.g. a shell error that fires
+  // while the build is still wiring the fileWriter. destroy(err) emits 'error';
+  // with zero listeners Node treats it as an uncaught exception and kills the
+  // process ("Unhandled 'error' event on PassThrough"), even though the error
+  // is already reported through the onError/handleError channels. This local
+  // listener only absorbs the crash — consumers that subscribed still get the
+  // same event.
+  htmlStream.on("error", () => {});
 
   // Flow control state for HTML output stream backpressure handling
   let isStreamEnded = false;
@@ -324,7 +333,37 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // Note: Process-level cleanup is handled by worker shutdown protocol
 
   return {
-    pipe: (destination: any) => htmlStream.pipe(destination),
+    pipe: (destination: any) => {
+      // A render error destroys htmlStream (the worker's ERROR message) — and
+      // that can happen BEFORE the consumer pipes. Piping a dead PassThrough
+      // emits neither data nor end, so a fileWriter waiting on the pipeline
+      // sits until an outer abort timer fires and the REAL component error is
+      // replaced by a generic timeout. Propagate instead: destroy the
+      // destination with the render error (Node emits it on nextTick, after
+      // the caller's synchronously-attached listeners are in place) and
+      // forward any later error the same way — pipe() itself never forwards
+      // errors downstream. Same treatment as the client-side handler.
+      const propagate = (error: unknown) => {
+        const err =
+          error instanceof Error
+            ? error
+            : new Error(String(error ?? `HTML render failed for ${route}`));
+        const dest = destination as NodeJS.WritableStream & {
+          destroy?: (e?: Error) => void;
+        };
+        dest.on?.("error", () => {});
+        if (typeof dest.destroy === "function") dest.destroy(err);
+        else dest.emit?.("error", err);
+      };
+      if (htmlStream.destroyed) {
+        propagate(
+          htmlStream.errored ?? new Error(`HTML render failed for ${route}`)
+        );
+        return destination;
+      }
+      htmlStream.on("error", propagate);
+      return htmlStream.pipe(destination);
+    },
       abort: () => {
     controlPort1.postMessage({ type: "ABORT", reason: "Stream aborted" });
     htmlStream.end();
