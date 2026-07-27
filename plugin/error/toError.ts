@@ -1,4 +1,6 @@
 // React types are imported from vendor system at runtime
+import { PANIC_SYMBOL } from "./shouldPanic.js";
+
 type ErrorInfo = {
   componentStack?: string;
 };
@@ -31,6 +33,14 @@ export function toError(error: unknown, errorInfo?: ErrorInfo): Error {
       } else {
         // If no stack trace available, capture one at this point
         // Error.captureStackTrace(err, toError);
+      }
+      // Rehydrate the panic classification: serializeError carries it as the
+      // plain `isPanic` field because the Symbol key does not survive
+      // postMessage's structured clone. Panic decided in the worker stays
+      // panic on the main thread instead of being re-derived from
+      // panicThreshold downstream.
+      if ((error as { isPanic?: boolean }).isPanic === true) {
+        (err as unknown as Record<symbol, boolean>)[PANIC_SYMBOL] = true;
       }
       return err;
     }
