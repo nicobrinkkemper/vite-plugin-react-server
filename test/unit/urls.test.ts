@@ -157,4 +157,42 @@ describe('URL utilities', () => {
       expect(result.moduleBaseURL).toBe('http://localhost:5173/');
     });
   });
-}); 
+
+  describe('createPageURL in a browser (origin-split regression)', () => {
+    // The bug this pins: a baked PUBLIC_ORIGIN resolved module/rsc URLs onto
+    // an ABSOLUTE origin. Served from any other origin (port collision,
+    // 127.0.0.1 vs localhost, a preview deploy), the document's scripts and
+    // the flight-loaded chunks came from different origins — two module
+    // graphs, TWO REACTS, and hydration died with a null dispatcher instead
+    // of any visible error. In a browser the document's own origin must win;
+    // the baked origin remains for metadata URLs (createAbsoluteURL) and for
+    // non-browser contexts (covered by the block above, which runs without a
+    // window).
+    const fakeWindow = {
+      location: { origin: 'http://127.0.0.1:4174' },
+    };
+
+    it('resolves moduleBaseURL and indexRSC on the SERVING origin, not the baked one', () => {
+      (globalThis as { window?: unknown }).window = fakeWindow;
+      try {
+        const pageURL = createPageURL('/', 'http://localhost:4173');
+        const result = pageURL('/todos/');
+        expect(result.moduleBaseURL).toBe('http://127.0.0.1:4174/');
+        expect(result.indexRSC).toBe('http://127.0.0.1:4174/todos/index.rsc');
+      } finally {
+        delete (globalThis as { window?: unknown }).window;
+      }
+    });
+
+    it('keeps an explicitly absolute moduleBaseURL verbatim (CDN escape hatch)', () => {
+      (globalThis as { window?: unknown }).window = fakeWindow;
+      try {
+        const pageURL = createPageURL('https://cdn.example.com/assets/', 'http://localhost:4173');
+        const result = pageURL('/todos/');
+        expect(result.moduleBaseURL).toBe('https://cdn.example.com/assets/');
+      } finally {
+        delete (globalThis as { window?: unknown }).window;
+      }
+    });
+  });
+});

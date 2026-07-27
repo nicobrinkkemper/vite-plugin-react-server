@@ -224,16 +224,31 @@ export const parseURL = (
   | { type: "success"; url: URL; error?: never; base?: never }
   | { type: "error"; url: string; base: string; error: Error } => {
   try {
-    // If base is empty or not a valid absolute URL, use window.location.origin as fallback (browser only)
+    // In a BROWSER the document's own origin always wins over the baked
+    // PUBLIC_ORIGIN. These URLs name same-origin assets of the page being
+    // served — client-component chunks, index.rsc, the action endpoint — and
+    // resolving them against a baked origin splits them off the document the
+    // moment the app is served from anywhere else (a different port,
+    // 127.0.0.1 vs localhost, a preview deploy): the page's scripts come from
+    // origin A, the flight-loaded chunks from origin B, two module graphs
+    // bundle TWO REACTS, and hydration dies with a null dispatcher deep in a
+    // client component — no 404, no warning. PUBLIC_ORIGIN is for absolute
+    // URLs in metadata (canonical, og:image — see createAbsoluteURL), not for
+    // module loading. An explicitly absolute `url` (a CDN moduleBaseURL the
+    // consumer passed on purpose) still passes through below.
     let effectiveBase = base;
-    if (!effectiveBase || effectiveBase === "/" || !isAbsoluteURL(effectiveBase)) {
-      if (typeof window !== "undefined" && window.location) {
-        effectiveBase = window.location.origin;
-      } else if (!effectiveBase) {
-        effectiveBase = "http://localhost"; // Fallback for non-browser environments
-      }
+    if (typeof window !== "undefined" && window.location) {
+      effectiveBase = window.location.origin;
+    } else if (
+      (!effectiveBase || effectiveBase === "/" || !isAbsoluteURL(effectiveBase)) &&
+      !effectiveBase
+    ) {
+      // Non-browser with an EMPTY base only: neutral placeholder. An invalid
+      // non-empty base deliberately keeps its value so `new URL` throws and
+      // the caller's relative-URL fallback applies (pre-existing contract).
+      effectiveBase = "http://localhost";
     }
-    
+
     // If url is already absolute, use it directly
     if (isAbsoluteURL(url)) {
       return {
@@ -241,7 +256,7 @@ export const parseURL = (
         url: new URL(url),
       };
     }
-    
+
     return {
       type: "success",
       url: new URL(url, effectiveBase),
