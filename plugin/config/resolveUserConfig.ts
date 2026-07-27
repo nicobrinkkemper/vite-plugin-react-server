@@ -358,12 +358,24 @@ export const resolveUserConfig: ResolveUserConfigFn =
     // (`VITE_PUBLIC_ORIGIN` by default). Setting the bare variable does
     // NOTHING — silently: the build succeeds with the value unbaked, and the
     // first sign is whatever downstream behavior depended on it. Say so at
-    // build time instead of letting it be discovered by absence.
+    // build time instead of letting it be discovered by absence — but ONLY
+    // when the value truly went nowhere: a consumer that reads the bare var
+    // itself and supplies it another way (`base: process.env.BASE_URL` in the
+    // Vite config, or the `publicOrigin` plugin option) has a working setup
+    // and must not be nagged.
     if (configEnv.command === "build" && primaryPrefix !== "") {
+      const bareWentNowhere: Record<"PUBLIC_ORIGIN" | "BASE_URL", boolean> = {
+        // publicOrigin resolves to "" when nothing supplied it — falsy check,
+        // not null: a bare env value with an empty effective origin means the
+        // value went nowhere.
+        PUBLIC_ORIGIN: !effectivePublicOrigin,
+        BASE_URL: config.base == null && !userOptions.moduleBaseURLExplicit,
+      };
       for (const key of ["PUBLIC_ORIGIN", "BASE_URL"] as const) {
         if (
           process.env[key] != null &&
           getEnvValue(key, primaryPrefix) == null &&
+          bareWentNowhere[key] &&
           !warnedUnprefixedEnv.has(key)
         ) {
           warnedUnprefixedEnv.add(key);
