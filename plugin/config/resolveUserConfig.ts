@@ -30,6 +30,9 @@ import { createRollupLikeHash } from "./createRollupLikeHash.js";
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
+// Once per process, not once per environment pass (resolveUserConfig runs for
+// each of client/ssr/server).
+const warnedUnprefixedEnv = new Set<string>();
 export type ResolveUserConfigProps = {
   condition: ReactCondition;
   config: UserConfig;
@@ -350,6 +353,29 @@ export const resolveUserConfig: ResolveUserConfigFn =
     const envPublicOrigin = getEnvValue("PUBLIC_ORIGIN", primaryPrefix);
     const effectivePublicOrigin =
       envPublicOrigin != null ? envPublicOrigin : userOptions.publicOrigin;
+
+    // Quality-of-life: the plugin reads these via the Vite env PREFIX
+    // (`VITE_PUBLIC_ORIGIN` by default). Setting the bare variable does
+    // NOTHING — silently: the build succeeds with the value unbaked, and the
+    // first sign is whatever downstream behavior depended on it. Say so at
+    // build time instead of letting it be discovered by absence.
+    if (configEnv.command === "build" && primaryPrefix !== "") {
+      for (const key of ["PUBLIC_ORIGIN", "BASE_URL"] as const) {
+        if (
+          process.env[key] != null &&
+          getEnvValue(key, primaryPrefix) == null &&
+          !warnedUnprefixedEnv.has(key)
+        ) {
+          warnedUnprefixedEnv.add(key);
+          const logger = config.customLogger ?? createLogger();
+          logger.warn(
+            `[vite-plugin-react-server] ${key} is set in the environment but the ` +
+              `plugin reads ${primaryPrefix}${key} — the unprefixed value is ignored. ` +
+              `Set ${primaryPrefix}${key} (or pass the option in the plugin config).`
+          );
+        }
+      }
+    }
 
     // Single source of truth for the build/runtime mode.
     //
