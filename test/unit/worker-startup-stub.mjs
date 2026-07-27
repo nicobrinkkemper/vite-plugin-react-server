@@ -13,13 +13,34 @@ import { parentPort, workerData } from "node:worker_threads";
 
 const busyMs = Number(workerData?.stubBusyMs ?? 0);
 const silent = workerData?.stubSilent === true;
+// Boot-shim shape (see plugin/worker/bootWorker.ts): a BOOTING message up
+// front, then alternating busy chunks and heartbeats — the timing profile of
+// a heavy import graph loading under contention while the shim signals
+// liveness. The test sets total busy time PAST the startup timeout; only the
+// message-driven watchdog re-arm (and a parent that doesn't let a BOOTING
+// message consume its READY listener) carries it to READY.
+const bootChunks = Number(workerData?.stubBootChunks ?? 0);
+const bootChunkMs = Number(workerData?.stubBootChunkMs ?? 200);
 
-if (busyMs > 0) {
-  const end = Date.now() + busyMs;
+const block = (ms) => {
+  const end = Date.now() + ms;
   // Busy-block the worker thread, exactly like a synchronous module evaluation.
   while (Date.now() < end) {
     /* spin */
   }
+};
+
+if (bootChunks > 0) {
+  const id = workerData?.id ?? "worker/rsc";
+  parentPort?.postMessage({ type: "BOOTING", id });
+  for (let i = 0; i < bootChunks; i++) {
+    block(bootChunkMs);
+    parentPort?.postMessage({ type: "BOOTING", id });
+  }
+}
+
+if (busyMs > 0) {
+  block(busyMs);
 }
 
 if (silent) {
