@@ -276,8 +276,26 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             // leaves a transient second React copy and one-off "Invalid hook
             // call" errors on first load. Pre-declare them so the first
             // optimizer pass bundles (and dedupes react across) the chain.
+            //
+            // The same lazy-discovery gap applies to vprs's OWN browser-facing
+            // subpaths when nothing in the app's SCANNED client code imports
+            // them statically: an app whose client components are reached only
+            // as flight client references (no static barrel import in the
+            // client entry) pulls router/client and /utils through runtime
+            // resolution the scanner can't see, so a cold cache re-optimizes
+            // mid-session — and that reload aborts the in-flight initial
+            // flight fetch ("hydrateOrRender: initial payload failed ...
+            // Failed to fetch"). Pre-declare them for the browser env; an app
+            // that never requests them just carries a bundled-but-unfetched
+            // dep, which is free.
             include: [
               ...(userConfig.optimizeDeps?.include ?? []),
+              ...(consumer === "client"
+                ? [
+                    "vite-plugin-react-server/router/client",
+                    "vite-plugin-react-server/utils",
+                  ]
+                : []),
               ...(consumer === "client" && userOptions.transport === "webpack"
                 ? [
                     "react-server-loader/webpack/runtime",

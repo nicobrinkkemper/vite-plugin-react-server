@@ -4,9 +4,9 @@
  * 
  * This script starts bidoof-template's dev:rsc server on port 3200.
  */
-import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnViteDev, stopViteDev } from './devServer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -17,14 +17,15 @@ const bidoofDir = join(__dirname, '../../../bidoof-template');
 async function main() {
   console.log('Starting bidoof-template dev server for e2e tests...');
   console.log('Directory:', bidoofDir);
-  
-  // Start vite directly with proper env vars (npm script chain mangles port args)
-  const proc = spawn('npx', ['vite', '--port', '3200', '--strictPort'], {
-    cwd: bidoofDir,
+
+  // spawnViteDev launches vite's real JS entry directly (no npx, no shell), so
+  // the signal forwarding below reaches the actual dev-server process instead
+  // of a wrapper shell that may orphan it (the leaked-spec-server class).
+  const proc = spawnViteDev({
+    dir: bidoofDir,
+    port: 3200,
     stdio: 'inherit',
-    shell: true,
     env: {
-      ...process.env,
       NODE_OPTIONS: '--conditions react-server',
       NODE_ENV: 'development',
       BASE_URL: '/',
@@ -34,21 +35,17 @@ async function main() {
       CHOKIDAR_INTERVAL: '500',
     },
   });
-  
+
   proc.on('error', (err) => {
     console.error('Failed to start server:', err);
     process.exit(1);
   });
-  
-  process.on('SIGINT', () => {
-    proc.kill('SIGINT');
-    process.exit(0);
-  });
-  
-  process.on('SIGTERM', () => {
-    proc.kill('SIGTERM');
-    process.exit(0);
-  });
+
+  const shutdown = () => {
+    void stopViteDev(proc).then(() => process.exit(0));
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
 main().catch((err) => {

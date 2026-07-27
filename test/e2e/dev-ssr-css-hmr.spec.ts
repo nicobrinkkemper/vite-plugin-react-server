@@ -21,10 +21,11 @@
  * Same self-contained-server pattern as dev-ssr-server-actions.spec.ts.
  */
 import { test, expect } from "@playwright/test";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const bidoofDir = join(__dirname, "../../../bidoof-template");
@@ -38,29 +39,14 @@ const BASE_URL = `http://localhost:${PORT}`;
 let server: ChildProcess | undefined;
 let originalCss: string | undefined;
 
-async function waitForServer(url: string, timeoutMs = 30_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.status < 500) return;
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
-}
-
 test.beforeAll(async () => {
   originalCss = await readFile(cssFile, "utf-8");
 
   // dev:ssr-equivalent: NO --conditions react-server in NODE_OPTIONS.
-  server = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], {
-    cwd: bidoofDir,
-    shell: true,
+  server = spawnViteDev({
+    dir: bidoofDir,
+    port: PORT,
     env: {
-      ...process.env,
       NODE_OPTIONS: "",
       NODE_ENV: "development",
       BASE_URL: "/",
@@ -72,7 +58,6 @@ test.beforeAll(async () => {
       CHOKIDAR_USEPOLLING: "true",
       CHOKIDAR_INTERVAL: "500",
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout?.on("data", (d) => process.stdout.write(`[dev:ssr-css] ${d}`));
   server.stderr?.on("data", (d) => process.stderr.write(`[dev:ssr-css] ${d}`));
@@ -94,28 +79,7 @@ test.afterAll(async () => {
   if (originalCss !== undefined) {
     await writeFile(cssFile, originalCss);
   }
-  // `server.killed` only tracks "did kill() get called", not "did the
-  // process actually exit". A SIGTERM that lands while the vite child
-  // is mid-request, mid-restart, or stuck in worker spawn never reaches
-  // the handler; the 2s budget expires; the afterAll returns; and the
-  // vite child is now an orphan that survives the playwright run. On a
-  // single test pass that's one stray process; iterating builds up.
-  //
-  // Wait for the actual `exit` event before resolving. After the SIGTERM
-  // grace runs out, escalate to SIGKILL and wait again — the kernel
-  // can't ignore SIGKILL, so the second wait is guaranteed to land.
-  if (server && server.exitCode === null && server.signalCode === null) {
-    await new Promise<void>((resolve) => {
-      const onExit = () => resolve();
-      server!.once("exit", onExit);
-      server!.kill("SIGTERM");
-      setTimeout(() => {
-        if (server && server.exitCode === null && server.signalCode === null) {
-          server.kill("SIGKILL");
-        }
-      }, 2000);
-    });
-  }
+  await stopViteDev(server);
 });
 
 // bd-5rk regression: in dev:ssr the SSR worker imports compiled CSS modules
