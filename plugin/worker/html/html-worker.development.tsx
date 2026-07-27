@@ -1,15 +1,7 @@
-import { parentPort } from "node:worker_threads";
-import { messageHandler } from "./messageHandler.client.js";
-import type { ReadyMessage } from "../types.js";
+// Thin boot shim — see bootWorker: posts BOOTING immediately and heartbeats
+// while the heavy implementation graph loads, so the parent's startup
+// inactivity watchdog only fires on genuine silence, not on a CPU-starved
+// import evaluation. The implementation posts READY itself, as before.
+import { bootWorker } from "../bootWorker.js";
 
-
-// Signal ready with environment
-parentPort?.postMessage({
-  type: "READY",
-  id: "worker/html",
-  env: process.env["NODE_ENV"],
-  pid: process.pid,
-} satisfies ReadyMessage);
-
-// Handle MessagePort requests for HTML streaming
-parentPort?.on("message", messageHandler);
+await bootWorker("worker/html", () => import("./html-worker.development.impl.js"));

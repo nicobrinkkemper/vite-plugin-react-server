@@ -16,6 +16,12 @@ export const createMessageHandler: CreateMessageHandlerFn = function _createMess
       case "READY":
         if(verbose) logger.info("[react-client] Worker is ready");
         break;
+      // Startup liveness beat from the worker's boot shim (bootWorker.ts).
+      // Consumed by createWorker's inactivity watchdog; by the time this
+      // handler is attached the worker is READY, but a final beat can land
+      // in the handover window — it carries no payload, ignore it quietly.
+      case "BOOTING" as never:
+        break;
       case "ERROR": {
         handlers.onError(message.id, message.error);
         break;
