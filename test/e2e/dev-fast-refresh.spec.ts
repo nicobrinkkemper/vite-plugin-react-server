@@ -23,10 +23,11 @@
  * full-reload and the state-preservation assertions fail.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const bidoofDir = join(__dirname, "../../../bidoof-template");
@@ -34,20 +35,6 @@ const counterFile = join(bidoofDir, "src/components/Counter.client.tsx");
 const pageFile = join(bidoofDir, "src/page/page.tsx");
 
 const CONDITION_RE = /Condition mismatch|wrong condition|under the wrong|loaded under/i;
-
-async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.status < 500) return;
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
-}
 
 /** Collect condition-guard warnings + uncaught page errors for an assertion. */
 function watchIssues(page: Page): string[] {
@@ -79,15 +66,10 @@ function defineSuite(mode: Mode, port: number) {
     test.beforeAll(async () => {
       origCounter = await readFile(counterFile, "utf-8");
       origPage = await readFile(pageFile, "utf-8");
-      server = spawn("npx", ["vite", "--port", String(port), "--strictPort"], {
-        cwd: bidoofDir,
-        shell: true,
-        // Own process group so afterAll can kill the whole tree (shell -> npx
-        // -> vite -> esbuild); killing just the parent orphans vite and leaks
-        // the port to the next run.
-        detached: true,
+      server = spawnViteDev({
+        dir: bidoofDir,
+        port,
         env: {
-          ...process.env,
           // dev:rsc carries the global react-server condition; dev:ssr does not.
           NODE_OPTIONS: mode === "rsc" ? "--conditions react-server" : "",
           NODE_ENV: "development",
@@ -98,7 +80,6 @@ function defineSuite(mode: Mode, port: number) {
           CHOKIDAR_USEPOLLING: "true",
           CHOKIDAR_INTERVAL: "500",
         },
-        stdio: ["ignore", "pipe", "pipe"],
       });
       server.stdout?.on("data", (d) => {
         serverLog += d;
@@ -122,29 +103,7 @@ function defineSuite(mode: Mode, port: number) {
     test.afterAll(async () => {
       await writeFile(counterFile, origCounter).catch(() => {});
       await writeFile(pageFile, origPage).catch(() => {});
-      // Kill the whole process group (negative pid), wait for the real exit,
-      // escalate to SIGKILL — so vite/esbuild children don't orphan + hold the
-      // port for the next run.
-      const pid = server?.pid;
-      if (pid && server && server.exitCode === null && server.signalCode === null) {
-        await new Promise<void>((resolve) => {
-          server!.once("exit", () => resolve());
-          try {
-            process.kill(-pid, "SIGTERM");
-          } catch {
-            server!.kill("SIGTERM");
-          }
-          setTimeout(() => {
-            if (server && server.exitCode === null && server.signalCode === null) {
-              try {
-                process.kill(-pid, "SIGKILL");
-              } catch {
-                server.kill("SIGKILL");
-              }
-            }
-          }, 2000);
-        });
-      }
+      await stopViteDev(server);
     });
 
     test("first paint renders without condition errors", async ({ page }) => {

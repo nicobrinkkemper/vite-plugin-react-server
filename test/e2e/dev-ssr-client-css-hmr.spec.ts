@@ -39,10 +39,11 @@
  * try/finally so a failure can't leave the fixture dirty.
  */
 import { test, expect } from "@playwright/test";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const bidoofDir = join(__dirname, "../../../bidoof-template");
@@ -53,19 +54,6 @@ const clientCssFile = join(bidoofDir, "src/css/counterStyles.module.css");
 const PORT = 33810;
 const BASE_URL = `http://localhost:${PORT}`;
 
-async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.status < 500) return;
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
-}
 
 // Serial single-worker suite: spawn exactly one dev:ssr server for both tests.
 test.describe("dev:ssr CSS-module HMR", () => {
@@ -74,15 +62,10 @@ test.describe("dev:ssr CSS-module HMR", () => {
   let server: ChildProcess | undefined;
 
   test.beforeAll(async () => {
-    server = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], {
-      cwd: bidoofDir,
-      shell: true,
-      // Own process group so afterAll can kill the whole tree (shell -> npx
-      // -> vite -> esbuild); killing just the parent orphans vite and leaks
-      // the port to the next run.
-      detached: true,
+    server = spawnViteDev({
+      dir: bidoofDir,
+      port: PORT,
       env: {
-        ...process.env,
         // dev:ssr is the client-first mode: NO react-server condition.
         NODE_OPTIONS: "",
         NODE_ENV: "development",
@@ -94,7 +77,6 @@ test.describe("dev:ssr CSS-module HMR", () => {
         CHOKIDAR_USEPOLLING: "true",
         CHOKIDAR_INTERVAL: "500",
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
     server.stdout?.on("data", (d) => process.stdout.write(`[dev:ssr-css] ${d}`));
     server.stderr?.on("data", (d) => process.stderr.write(`[dev:ssr-css] ${d}`));
@@ -102,29 +84,7 @@ test.describe("dev:ssr CSS-module HMR", () => {
   }, 90_000);
 
   test.afterAll(async () => {
-    // Kill the whole process group (negative pid), wait for the real exit,
-    // escalate to SIGKILL — so vite/esbuild children don't orphan + hold the
-    // port for the next run.
-    const pid = server?.pid;
-    if (pid && server && server.exitCode === null && server.signalCode === null) {
-      await new Promise<void>((resolve) => {
-        server!.once("exit", () => resolve());
-        try {
-          process.kill(-pid, "SIGTERM");
-        } catch {
-          server!.kill("SIGTERM");
-        }
-        setTimeout(() => {
-          if (server && server.exitCode === null && server.signalCode === null) {
-            try {
-              process.kill(-pid, "SIGKILL");
-            } catch {
-              server.kill("SIGKILL");
-            }
-          }
-        }, 2000);
-      });
-    }
+    await stopViteDev(server);
   });
 
   // CONTROL — the working path. A SERVER-component CSS module edit must
