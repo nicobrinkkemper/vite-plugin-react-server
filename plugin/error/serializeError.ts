@@ -1,4 +1,4 @@
-import { PANIC_SYMBOL } from "./shouldPanic.js";
+import { PANIC_SYMBOL, isPanic } from "./shouldPanic.js";
 
 export function serializeError(error: unknown): {
   message?: string;
@@ -7,6 +7,13 @@ export function serializeError(error: unknown): {
   environment?: string;
   cause?: unknown;
   breadcrumbs?: string[];
+  /**
+   * The panic flag as a PLAIN field: the real flag lives on a Symbol key,
+   * which (a) the old string-key read here never found and (b) postMessage's
+   * structured clone drops anyway. This field is what actually crosses the
+   * worker boundary; toError re-applies the Symbol on rehydration.
+   */
+  isPanic?: boolean;
   [PANIC_SYMBOL]?: boolean;
 } {
   if (error instanceof Error) {
@@ -18,8 +25,8 @@ export function serializeError(error: unknown): {
       cause: cause,
       breadcrumbs:
         (error as Error & { breadcrumbs: string[] })["breadcrumbs"] ?? [],
-      [PANIC_SYMBOL]:
-        (error as Error & { PANIC_SYMBOL: boolean })["PANIC_SYMBOL"] ?? false,
+      isPanic: isPanic(error),
+      [PANIC_SYMBOL]: isPanic(error),
       ...rest,
     };
   }
@@ -29,6 +36,7 @@ export function serializeError(error: unknown): {
       stack: undefined,
       name: "Unknown React Stream Error",
       breadcrumbs: [],
+      isPanic: false,
       [PANIC_SYMBOL]: false,
     };
   }
@@ -45,7 +53,8 @@ export function serializeError(error: unknown): {
       stack: stack,
       name: name,
       breadcrumbs: [],
-      [PANIC_SYMBOL]: false,
+      isPanic: isPanic(error),
+      [PANIC_SYMBOL]: isPanic(error),
       ...rest,
     };
   }
