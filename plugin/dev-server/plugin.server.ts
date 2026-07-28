@@ -68,11 +68,20 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
         // in the CLIENT module graph (the browser fetches it directly and Vite
         // injects it as a <style>), so Vite's native CSS HMR already updates it
         // in place — no reload, no <link> cache-bust. Detect that case by the
-        // presence of client-environment modules for this file and hand the
-        // update back to Vite. Suppressing it here (the `return []` below) is
-        // what previously left client-graph CSS edits stuck until a manual
+        // presence of client-graph IMPORTERS and hand the update back to
+        // Vite. Node presence alone is not enough: a server-only stylesheet
+        // rendered as <link> also gets a client-graph node from the browser's
+        // fetch of that URL, but with no importers Vite can only full-reload —
+        // that css must stay on the RSC refetch + cache-bust path below.
+        // Suppressing genuinely client-owned css here (the `return []` below)
+        // is what previously left client-graph CSS edits stuck until a manual
         // refresh: the RSC <link> cache-bust never matches a Vite <style>.
-        if (isCssFile && (ctx.modules?.length ?? 0) > 0) {
+        if (
+          isCssFile &&
+          (ctx.modules ?? []).some(
+            (m: { importers?: Set<unknown> }) => (m.importers?.size ?? 0) > 0,
+          )
+        ) {
           return; // let Vite's native client CSS HMR apply the update
         }
 

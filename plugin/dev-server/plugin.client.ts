@@ -104,16 +104,25 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // in the CLIENT module graph (the browser fetches it directly and Vite
       // injects it as a <style>), so Vite's native CSS HMR already updates it
       // in place — no reload, no <link> cache-bust. Detect that case by the
-      // presence of client-environment modules for this file and hand the
-      // update back to Vite by returning undefined. This is the dev:ssr
-      // counterpart to the #96 fix in plugin.server.ts: that fix only takes
-      // effect on the dev:rsc main thread (createPluginOrchestrator.server.js
-      // -> plugin.server.ts). dev:ssr loads plugin.client.ts instead, so
-      // without this branch client-graph CSS falls into the `return []`
-      // suppression below and Vite's native CSS HMR never fires — leaving the
-      // edit stuck until a manual refresh.
-      const isClientGraphCss = isCssFile && (ctx.modules?.length ?? 0) > 0;
+      // presence of client-graph IMPORTERS and hand the update back to Vite
+      // by returning undefined. Node presence alone is NOT the signal: a
+      // server-only stylesheet rendered as <link href="/src/….css"> also gets
+      // a client-graph node the moment the browser fetches that URL — but no
+      // importers, so Vite's "native handling" for it is a full reload while
+      // the RSC worker keeps the stale css-module proxy (old class-name
+      // hashes) until a server restart. This is the dev:ssr counterpart to
+      // the #96 fix in plugin.server.ts: that fix only takes effect on the
+      // dev:rsc main thread; dev:ssr loads plugin.client.ts instead.
+      const isClientGraphCss =
+        isCssFile &&
+        (ctx.modules ?? []).some(
+          (m: { importers?: Set<unknown> }) => (m.importers?.size ?? 0) > 0,
+        );
       if (isClientGraphCss) {
+        // Vite owns the visible update, but the RSC worker still holds the
+        // css-module JS proxy — drop it so the next server render agrees
+        // with the new stylesheet's class-name hashes.
+        hmrHandler?.sendHmrUpdate(file);
         return; // let Vite's native client CSS HMR apply the update
       }
 

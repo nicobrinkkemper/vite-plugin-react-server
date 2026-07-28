@@ -110,4 +110,41 @@ describe("CSS module handling in dev", () => {
     expect(afterBody).toContain("rgb(0, 0, 255)");
     expect(afterBody).not.toMatch(/color:\s*red/);
   }, 20000);
+
+  it("re-renders flight with class names matching the served CSS after an edit", async () => {
+    // The browser fetches a server-rendered stylesheet as a plain <link>
+    // request, which registers an importer-LESS node for the file in the
+    // client module graph. That node must not be mistaken for client-owned
+    // CSS: when it was, the css edit was handed to Vite (whose only move for
+    // an importer-less sheet is a full reload) and the rsc worker never
+    // dropped its css-module proxy — so the flight kept serving the OLD
+    // class-name hashes against the NEW stylesheet until a server restart.
+    await fetch(`http://localhost:${port}/src/page/test.module.css?direct`);
+    const flightBefore = await (
+      await fetch(`http://localhost:${port}/`, {
+        headers: { Accept: "text/x-component" },
+      })
+    ).text();
+    expect(flightBefore).toMatch(/_test_/);
+
+    await writeFile(
+      cssPath,
+      `.test {color: rgb(7, 7, 7); padding: 9px}\n.shared {background: white}`
+    );
+    await sleep(1500);
+
+    const flightAfter = await (
+      await fetch(`http://localhost:${port}/`, {
+        headers: { Accept: "text/x-component" },
+      })
+    ).text();
+    const classAfter = flightAfter.match(/_test_[a-zA-Z0-9_-]+/)?.[0];
+    const cssAfter = await (
+      await fetch(`http://localhost:${port}/src/page/test.module.css?direct`)
+    ).text();
+    // Content edits move the css-modules hash; the flight must move with
+    // it. A mismatch is the stale-until-restart symptom.
+    expect(classAfter).toBeTruthy();
+    expect(cssAfter).toContain(classAfter!);
+  }, 20000);
 });
