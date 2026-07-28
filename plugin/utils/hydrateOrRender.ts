@@ -44,13 +44,37 @@ export function hydrateOrRender(
   getInitialNode: () => ReactNode | PromiseLike<ReactNode>,
   options: HydrateOrRenderOptions = {}
 ): void {
+  // A document being NAVIGATED AWAY FROM (a reload interrupting a reload, a
+  // link clicked mid-load) has its in-flight module imports and fetches
+  // aborted by the browser — those rejections land here, but they describe a
+  // document that is already being discarded, not a hydration failure on the
+  // page the user ends up on (which loads fine). Track departure via
+  // `pagehide` and say so plainly instead of raising an error; the browser's
+  // own "Loading failed for the module…" reports are not ours to suppress.
+  // Registered lazily so this module stays import-safe outside the browser.
+  let departing = false;
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => (departing = true), {
+      once: true,
+    });
+  }
   const onError =
     options.onError ??
-    ((error: unknown) =>
+    ((error: unknown) => {
+      if (departing) {
+        console.info(
+          "[vprs] hydrateOrRender: load aborted — the page was reloaded or " +
+            "navigated away before hydration finished"
+        );
+        return;
+      }
       console.error(
-        "[vprs] hydrateOrRender: initial payload failed; staying static",
+        "[vprs] hydrateOrRender: could not load the initial payload — leaving " +
+          "the server-rendered HTML as-is (no hydration; links fall back to " +
+          "full-page navigation)",
         error
-      ));
+      );
+    });
 
   // Resolve the node and import react-dom/client concurrently; mount only once
   // BOTH are ready. Promise.all consumes both, so a rejection on either path
