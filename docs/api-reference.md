@@ -219,8 +219,7 @@ Configuration for CSS handling:
 
 ```typescript
 interface CssConfig {
-  inlineCss?: boolean; // Default: false
-  purgeCss?: boolean; // Default: false
+  inlineCss?: boolean; // Default: undefined = auto (inline files <= inlineThreshold); false disables inlining
   inlineThreshold?: number; // Default: 4096 (4KB)
   inlinePatterns?: RegExp[];
   linkPatterns?: RegExp[];

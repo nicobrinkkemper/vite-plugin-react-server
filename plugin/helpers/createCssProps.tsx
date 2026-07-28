@@ -10,7 +10,6 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
  * - path is a string
  * - css is an object with the following properties:
  *   - inlineCss: boolean
- *   - purgeCss: boolean
  *   - inlineThreshold: number
  *   - inlinePatterns: RegExp[]
  *   - linkPatterns: RegExp[]

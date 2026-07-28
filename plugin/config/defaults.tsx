@@ -263,8 +263,11 @@ export const DEFAULT_CONFIG = {
     // this is because the rsc-worker is used to stream rsc during development
   },
   CSS: {
+    // undefined = AUTO: inline when the file is at or under inlineThreshold,
+    // link otherwise (inlinePatterns/linkPatterns override per file). `false`
+    // disables inlining entirely. There is no `true` force — set
+    // inlineThreshold: 0 to size-gate nothing, or use inlinePatterns.
     inlineCss: undefined,
-    purgeCss: false,
     inlineThreshold: 4096, // 4KB
     inlinePatterns: [] as RegExp[], // Always inline CSS modules
     linkPatterns: [] as RegExp[], // Always link node_modules CSS

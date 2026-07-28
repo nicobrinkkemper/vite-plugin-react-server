@@ -316,9 +316,11 @@ export const createTransformerPlugin = (
 
           // Robustly determine whether this module is a client reference by a
           // top-of-file `"use client"` DIRECTIVE (not by the `.client.`
-          // filename). `detectClientModule` parses with Rollup's JSX-aware
-          // `this.parse` and reuses `analyzeDirectives` internally; if the
-          // parse fails it falls back to the parser-free char-scanner. We
+          // filename). `detectClientModule` parses with rsl's acorn-based
+          // `rslParse` (passed as parseFn — NOT the bundler's `this.parse`,
+          // whose parser is JS-only under Vite 8/rolldown) and reuses
+          // `analyzeDirectives` internally; if the parse fails it falls back
+          // to the parser-free char-scanner. We
           // pass `source` only (no `moduleId`) so the filename pattern is
           // skipped here — that path is handled downstream in
           // `createModuleID` via the same helper.

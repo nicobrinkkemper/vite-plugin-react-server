@@ -13,7 +13,7 @@ import { RouterProvider, useLocation } from "./router-react.js";
 // The supplied client entry: assembles createRouter + RouterProvider +
 // createReactFetcher + hydration + HMR so a consumer's client.tsx is one line:
 //
-//   import { startClient } from "vite-plugin-react-server/router";
+//   import { startClient } from "vite-plugin-react-server/router/client";
 //   startClient({ patterns: ROUTES });
 //
 // Only pages that use client nav ship this; a pure-static page needs no entry.
