@@ -42,8 +42,7 @@ are tolerated above it.
 
 If the build warns that a file *looks* like a client module but has no directive,
 that is this: the filename does not mark a component, so add `"use client"` to
-the top of the file. (Naming it `.client.tsx` and omitting the directive used to
-work here, and worked nowhere else — which is why it no longer does.)
+the top of the file.
 
 Import with the `.js` extension regardless: `import { Counter } from "./Counter.js"`.
 

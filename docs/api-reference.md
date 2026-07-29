@@ -110,7 +110,7 @@ export const config = {
 |--------|------|-------------|---------|
 | `cssPattern` | `RegExp \| string` | Pattern to match CSS files | `/\.css$/` |
 | `cssModulePattern` | `RegExp \| string` | Pattern to match CSS module files | `/\.css\.js$/` |
-| `clientPattern` | `RegExp \| string` | Which filenames *look* like client modules. Since 19.2.15 this no longer classifies anything — a first-party file matching it but carrying no `"use client"` directive gets a build **warning** telling you to add one. A filename is not a portable signal: name-classified files work under this plugin and silently become server modules under every other React toolchain. | `/(^\|[\/.])client\.[cm]?[jt]sx?$/` |
+| `clientPattern` | `RegExp \| string` | Filenames that follow the client-module naming convention (`*.client.tsx`). Only the `"use client"` directive makes a module a client module; this pattern is a lint — a matching first-party file without the directive gets a build warning to add one. | `/(^\|[\/.])client\.[cm]?[jt]sx?$/` |
 | `serverPattern` | `RegExp \| string` | Pattern to match server function files | `/\.server\.(js\|ts\|jsx\|tsx)$/` |
 | `htmlPattern` | `RegExp \| string` | Pattern to match HTML files | `/\.html$/` |
 | `jsonPattern` | `RegExp \| string` | Pattern to match JSON files | `/\.json$/` |
@@ -415,7 +415,11 @@ const AUTO_DISCOVER = {
 
 A file is a client module when its source starts with a top-of-file `"use client"` directive. That is the only mechanism.
 
-`clientPattern` no longer classifies anything. It says which filenames *look* like client modules, and a first-party file that matches it but carries no directive gets a build **warning** telling you to add one. The name was never a portable signal — a module marked client by its filename works here and silently becomes a server module under every other React toolchain — so it is a hint to the author, not an input to the build.
+`clientPattern` is a lint, not a classifier: a first-party file whose name
+matches but has no directive gets a build warning to add one. The warning
+exists because filename conventions don't travel — every React toolchain honors
+the directive, none honor a name — so a file relying on its name alone would
+render as a server module anywhere else.
 
 ### Extension Mapping
 
