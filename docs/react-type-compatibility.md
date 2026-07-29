@@ -63,21 +63,25 @@ for why the versions line up the way they do.
 > shipped in stable React, and 2.0 moved the transport out to
 > `react-server-loader`.
 
-## Looking ahead: `react-server-dom-esm` on npm
+## Why the transport is vendored, not installed from npm
 
-`react-server-loader` vendors the `react-server-dom-esm` transport because, to
-date, that package has never been published to npm — installing it directly
-gives an empty `0.0.1` placeholder, so downstream tools have had to build and
-bundle it from React source for each release.
+`react-server-loader` vendors both flight transports: `react-server-dom-esm`,
+which has never been published to npm (the name there is an empty `0.0.1`
+placeholder), and `react-server-dom-webpack`, which *is* published. That second
+half is the tell — this is not a workaround for a missing package. Other RSC
+integrations make the same call (Vite's own `@vitejs/plugin-rsc` vendors the
+webpack transport too), because a flight transport binds to the internals of
+one exact React build. Shipping a copy pinned to the React it was built against
+is the only way to guarantee the pair agree; an npm install with a floating
+range cannot.
 
-There's an open proposal to change that:
-[react/react#36768](https://github.com/react/react/pull/36768) would publish
-`react-server-dom-esm` to npm. It's still under review and not guaranteed to
-land. *If* it ships and a future vprs release adopts it, the transport could be
-installed straight from React's own published package and `react-server-loader`
-would no longer be the dependency that carries it. Nothing changes until then —
-`react-server-loader` is installed for you as described above. Follow the PR if
-you want to track where this goes.
+Publishing `react-server-dom-esm` was proposed upstream
+([facebook/react#36768](https://github.com/facebook/react/pull/36768)) and
+rejected. The esm transport also ships without the reference-manifest layer the
+webpack variant gets from its bundler, so any loader adopting it has to own
+that layer anyway — `react-server-loader` does. Vendoring is the design, not a
+stopgap: to move React versions, bump `react-server-loader` together with the
+matching `react` / `react-dom` as described above.
 
 ## ESM Transport
 
