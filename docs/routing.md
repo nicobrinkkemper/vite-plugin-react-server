@@ -23,17 +23,27 @@ codegen step.
 
 ## The convention
 
-Under `routes.dir`, a directory's path **is** its URL. Three filenames are
+Under `routes.dir`, a directory's path **is** its URL. These filenames are
 meaningful:
 
 | file | role |
 | --- | --- |
 | `page.tsx` | the page rendered at this URL |
+| `index.tsx` | alternate name for the page (`page.tsx` wins when both exist) |
 | `props.ts` | this segment's **loader** — its return value is the page's props |
 | `route.tsx` | a **layout** wrapping this segment's page and every descendant |
+| `error.tsx` | a client **error boundary** for this segment and every descendant |
+| `loading.tsx` | a **Suspense fallback** for this segment and every descendant |
+| `head.ts` | this segment's **head/meta contribution**, merged root→leaf |
 
 A directory named `$name` is a **dynamic param**. A directory named just `$` is a
-**catch-all**.
+**catch-all**. A directory named `(group)` is **pathless**: it organizes files
+(and can hold a shared `route.tsx` / `error.tsx`) without adding a URL segment —
+two pages collapsing onto one URL is a scan-time error, not a silent override.
+
+`index.tsx` is matched as jsx/tsx only, deliberately: `index.ts` is the
+conventional barrel filename, and a re-export barrel inside the routes tree must
+never become a route.
 
 ```
 src/routes/
@@ -80,6 +90,84 @@ export const Layout = ({ section, children }: { section?: string; children?: Rea
 
 So `/greet/ada` composes as **root layout › greet layout › page**, each layer
 with its own props. That is the whole nesting model.
+
+Within one segment the wrap order is `Layout → ErrorBoundary →
+Suspense(Loading) → children` — a segment's boundary catches its children, not
+its own layout. None of these files requires the others; a segment can
+contribute just a `loading.tsx` or just a `head.ts`.
+
+## Error and loading boundaries
+
+`error.tsx` is a `"use client"` module exporting the boundary. Wrap a fallback
+with `createErrorBoundary` and it catches render errors in the segment's
+subtree — including errors a server component threw into the flight stream:
+
+```tsx
+// src/routes/error.tsx
+"use client";
+import { createErrorBoundary } from "vite-plugin-react-server/router/client";
+
+export const ErrorBoundary = createErrorBoundary(({ error, reset }) => (
+  <div role="alert">
+    <p>{error.message}</p>
+    <button onClick={reset}>Retry</button>
+  </div>
+));
+```
+
+`loading.tsx` exports `Loading` — the Suspense fallback shown while a nested
+loader streams:
+
+```tsx
+// src/routes/greet/$name/loading.tsx
+export const Loading = () => <p>Loading greeting…</p>;
+```
+
+## Per-route head and meta
+
+`head.ts` exports `head`: a static object, or a function receiving
+`{ url, params, data }` where `data` is the segment's resolved loader result.
+Contributions merge root→leaf — the deepest title wins, and a meta entry keyed
+by `name`/`property` overrides an ancestor's same-key entry:
+
+```ts
+// src/routes/head.ts
+export const head = {
+  title: "My site",
+  meta: [{ name: "description", content: "…" }],
+};
+
+// src/routes/greet/$name/head.ts
+import type { RouteHeadExport } from "vite-plugin-react-server/router";
+export const head: RouteHeadExport = ({ data }) => ({
+  title: `Greeting ${data.name}`,
+});
+```
+
+The merged tags render as react-dom hoistables, so they land in the document
+`<head>` on every render path — dev, static prerender, and edge.
+
+## Redirect and notFound from a loader
+
+A loader ends the render early by throwing:
+
+```ts
+// src/routes/old/props.ts
+import { redirect } from "vite-plugin-react-server/router";
+export const props = () => redirect("/new-home");        // 302 by default
+
+// or, for a gated route:
+import { notFound } from "vite-plugin-react-server/router";
+export const props = (_url, { request }) => {
+  if (!isAuthorized(request)) throw notFound();
+  return loadSecrets();
+};
+```
+
+Per-request renders (dev, Node, edge) answer with the 3xx or a 404; client
+navigation follows the redirect transparently and the router fixes the address
+bar. The static prerender can't answer a redirect, so it **skips the page with
+a warning** — don't enumerate redirecting routes in `staticPaths`.
 
 ## Static, dynamic, or both
 

@@ -19,6 +19,10 @@ import { join, resolve } from "node:path";
 import { pluginRoot } from "../root.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { resolveRoutesOption } from "../router/fileRouter.js";
+
+// Once-per-process guard for the loose-Page/props → `routes` nudge below
+// (resolveOptions runs per environment; the tip should print once).
+let routesNudgeShown = false;
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
@@ -193,6 +197,20 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         patterns: { pagePattern, propsPattern },
       })
     : undefined;
+  // Soft nudge (not a break): the loose Page/props/routePatterns remain the
+  // low-level escape hatch, but `routes` is the preferred surface — one field
+  // that derives all of them plus the prerender worklist. Only nudge when NO
+  // routes table is configured (explicit Page/props alongside routes is a
+  // deliberate override and stays quiet).
+  if (!options.routes && (options.Page || options.props) && !routesNudgeShown) {
+    routesNudgeShown = true;
+    console.info(
+      "[vite-plugin-react-server] Tip: the `routes` option (a file-routed " +
+        "tree or a custom router table) derives Page/props/routePatterns/" +
+        "build.pages from one field — see the routing docs. Explicit " +
+        "Page/props keep working as the low-level escape hatch."
+    );
+  }
   const effectivePage = options.Page ?? routerTable?.Page;
   const effectiveProps = options.props ?? routerTable?.props;
   const effectiveRoutePatterns =
