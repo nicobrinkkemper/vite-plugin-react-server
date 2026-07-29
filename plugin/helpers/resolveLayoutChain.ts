@@ -146,7 +146,9 @@ export async function resolveLayoutChain(
       let head: RouteHeadContribution | undefined;
       if (layer.head) {
         try {
-          const headModule = await loader(layer.head);
+          // `#export` id form like every other module load — bare ids trip
+          // loaders that split on "#" and inspect the export name.
+          const headModule = await loader(`${layer.head}#${HEAD_EXPORT_NAME}`);
           let value = headModule?.[HEAD_EXPORT_NAME] as RouteHeadExport | undefined;
           if (typeof value === "function") {
             const out = value({ url, params: ctx.params ?? {}, data: props });

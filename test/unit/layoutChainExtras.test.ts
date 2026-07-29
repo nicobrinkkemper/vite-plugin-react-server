@@ -20,7 +20,7 @@ describe("resolveLayoutChain — boundaries + head", () => {
     "routes/route.tsx#Layout": { Layout: RootLayout },
     "routes/error.tsx#ErrorBoundary": { ErrorBoundary: Boundary },
     "routes/loading.tsx#Loading": { Loading: Spinner },
-    "routes/head.ts": {
+    "routes/head.ts#head": {
       head: ({ data }: { data: Record<string, unknown> }) => ({
         title: `t-${data.name}`,
       }),

@@ -300,8 +300,14 @@ export const renderPagesBatched: RenderPagesFn = (
             options.logger?.warn(`[renderPagesBatched] Non-panic error for route ${route}: ${error.message}`);
           }
         } else {
-          completedRoutes.add(route);
-          
+          // Only count the route as completed when something actually
+          // rendered — a loader redirect()/notFound() skip leaves pageResults
+          // without a success/skip entry and must not inflate the summary.
+          const rendered = pageResults.some(
+            (r) => r.type === "success" || r.type === "skip"
+          );
+          if (rendered) completedRoutes.add(route);
+
           for (const result of pageResults) {
             if (result.type === "success" || result.type === "skip") {
               results.set(route, result);
