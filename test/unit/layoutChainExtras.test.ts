@@ -123,33 +123,59 @@ describe("createElementWithReact — boundary/suspense/head fold", () => {
     expect(leaf.type).toBe(Page);
   });
 
-  it("renders merged head tags beside the leaf (leaf title wins)", () => {
+  const HEAD_CHAIN = [
+    {
+      Component: RootLayout,
+      props: {},
+      head: {
+        title: "root",
+        meta: [{ name: "description", content: "d" }],
+      },
+    },
+    { props: {}, head: { title: "leaf" } },
+  ];
+
+  const composeWith = (HtmlComponent: unknown) => {
     const el = createElementWithReact(React as never, {
       PageComponent: Page as never,
-      HtmlComponent: React.Fragment as never,
+      HtmlComponent: HtmlComponent as never,
       RootComponent: React.Fragment as never,
       pageProps: {} as never,
-      layoutChain: [
-        {
-          Component: RootLayout,
-          props: {},
-          head: {
-            title: "root",
-            meta: [{ name: "description", content: "d" }],
-          },
-        },
-        { props: {}, head: { title: "leaf" } },
-      ],
+      layoutChain: HEAD_CHAIN,
     } as never) as React.ReactElement;
+    // Headless branch returns <ComposedPage {...pageProps}/>; the document
+    // branch returns <Html … Page={ComposedPage}/> — invoke either.
+    const props = el.props as { Page?: (p: unknown) => React.ReactElement };
+    if (props.Page) return props.Page({});
+    return (el.type as (p: unknown) => React.ReactElement)(el.props);
+  };
 
-    const Composed = el.type as (p: unknown) => React.ReactElement;
-    const tree = Composed(el.props);
-
-    // Layer 2 has no Component/boundaries — the fragment with head tags +
-    // page is directly under the root layout.
+  it("headless render ships head as an inert data template, no hoistables", () => {
+    const tree = composeWith(React.Fragment);
     expect(tree.type).toBe(RootLayout);
     const frag = tree.props.children as React.ReactElement;
     expect(frag.type).toBe(React.Fragment);
+    const children = React.Children.toArray(
+      frag.props.children,
+    ) as React.ReactElement[];
+    // No raw hoistables in the hydration flight: re-inserted instead of
+    // adopted when hydration suspends on a client chunk (dup title + #418).
+    expect(children.some((c) => c.type === "title")).toBe(false);
+    expect(children.some((c) => c.type === "meta")).toBe(false);
+    const template = children.find((c) => c.type === "template");
+    expect(template).toBeDefined();
+    const payload = JSON.parse(template!.props["data-vprs-head"]);
+    expect(payload.title).toBe("leaf");
+    expect(payload.meta).toEqual([{ name: "description", content: "d" }]);
+    expect(children.some((c) => c.type === Page)).toBe(true);
+  });
+
+  it("document render gets the raw hoistables plus the data template", () => {
+    const HtmlDoc = ({ Page: P }: { Page: (p: unknown) => React.ReactElement }) =>
+      P({});
+    const tree = composeWith(HtmlDoc);
+    expect(tree.type).toBe(RootLayout);
+    const frag = tree.props.children as React.ReactElement;
     const children = React.Children.toArray(
       frag.props.children,
     ) as React.ReactElement[];
@@ -157,6 +183,7 @@ describe("createElementWithReact — boundary/suspense/head fold", () => {
     expect(title?.props.children).toBe("leaf");
     const meta = children.find((c) => c.type === "meta");
     expect(meta?.props.content).toBe("d");
+    expect(children.some((c) => c.type === "template")).toBe(true);
     expect(children.some((c) => c.type === Page)).toBe(true);
   });
 });

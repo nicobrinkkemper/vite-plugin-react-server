@@ -144,8 +144,14 @@ export const head: RouteHeadExport = ({ data }) => ({
 });
 ```
 
-The merged tags render as react-dom hoistables, so they land in the document
-`<head>` on every render path — dev, static prerender, and edge.
+The merged contribution is delivered per surface: document renders (static
+prerender, the edge document) emit real `<title>`/`<meta>`/`<link>` tags into
+the page `<head>` for crawlers, while the hydration/navigation flight carries
+the same data inertly and the client router applies `title` and keyed `meta`
+after hydration and on every navigation. (Raw head tags deliberately don't
+ride the flight: React re-inserts instead of adopting them when hydration
+suspends on a client component, duplicating tags and throwing hydration
+error #418.) `links` and unkeyed meta are document-only.
 
 ## Redirect and notFound from a loader
 

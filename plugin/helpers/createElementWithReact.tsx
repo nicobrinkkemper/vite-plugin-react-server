@@ -84,13 +84,31 @@ export const createElementWithReact: CreateElementWithReactFN =
       );
     }
 
+    // Whether this compose renders the full HTML document (static snapshot /
+    // edge document) or a headless tree (the hydration + client-nav flight).
+    const isDocumentRender =
+      HtmlComponent != null && HtmlComponent !== React.Fragment;
+
     // Nested layouts: fold the root→leaf segment chain around the leaf page so
     // `<L0 {...p0}><L1 {...p1}><Page {...leafProps}/>…` renders as one tree.
     // Each segment wraps as Layout → ErrorBoundary → Suspense(Loading) →
     // children (Next's layout/error/loading nesting order), so a segment's
-    // boundary catches its children but not its own layout. The chain's merged
-    // `head.ts` contribution renders beside the leaf as react-dom hoistable
-    // tags (title/meta/link land in the document <head> on every render path).
+    // boundary catches its children but not its own layout.
+    //
+    // The chain's merged `head.ts` contribution is delivered two ways:
+    // - DOCUMENT renders get raw hoistable tags — react-dom hoists them into
+    //   the snapshot's <head> and out of the #root markup, so hydration never
+    //   sees them.
+    // - Every render (document and headless alike) gets an inert
+    //   `<template data-vprs-head>` carrying the merged head as JSON; the
+    //   client router reads it after hydration and after each navigation and
+    //   applies title/meta imperatively. Hoistables must NOT ride the
+    //   headless flight: when hydration suspends on a client-reference chunk
+    //   React re-inserts them instead of adopting the server copies —
+    //   duplicated <title>/<meta> plus hydration error #418, on both React
+    //   trains. The template renders identically on both sides, so the #root
+    //   markup stays hydration-consistent.
+    //
     // The composed component takes the leaf's props (Root/Html render it as
     // `<Page {...pageProps}/>`); each layer closes over its own resolved props.
     // No layers → the leaf page passes through unchanged, so every branch below
@@ -103,20 +121,40 @@ export const createElementWithReact: CreateElementWithReactFN =
             const Suspense = (React as unknown as { Suspense?: unknown })
               .Suspense;
             const head = mergeHead(layoutChain.map((l) => l.head));
-            const headTags = [
-              head.title !== undefined
-                ? create("title", { key: "head-title" }, head.title)
-                : null,
-              ...(head.meta ?? []).map((m, i) =>
-                create("meta", { key: `head-meta-${i}`, ...m })
-              ),
-              ...(head.links ?? []).map((l, i) =>
-                create("link", { key: `head-link-${i}`, ...l })
-              ),
-            ].filter(Boolean);
-            const leaf = headTags.length
-              ? create(React.Fragment, null, ...headTags, create(PageComponent, leafProps))
-              : create(PageComponent, leafProps);
+            const hasHead =
+              head.title !== undefined ||
+              (head.meta?.length ?? 0) > 0 ||
+              (head.links?.length ?? 0) > 0;
+            const headTags =
+              isDocumentRender && hasHead
+                ? [
+                    head.title !== undefined
+                      ? create("title", { key: "head-title" }, head.title)
+                      : null,
+                    ...(head.meta ?? []).map((m, i) =>
+                      create("meta", { key: `head-meta-${i}`, ...m })
+                    ),
+                    ...(head.links ?? []).map((l, i) =>
+                      create("link", { key: `head-link-${i}`, ...l })
+                    ),
+                  ].filter(Boolean)
+                : [];
+            const headData = hasHead
+              ? create("template", {
+                  key: "head-data",
+                  "data-vprs-head": JSON.stringify(head),
+                })
+              : null;
+            const leaf =
+              headTags.length || headData
+                ? create(
+                    React.Fragment,
+                    null,
+                    ...headTags,
+                    headData,
+                    create(PageComponent, leafProps)
+                  )
+                : create(PageComponent, leafProps);
             return layoutChain.reduceRight((child, layer) => {
               let node = child;
               if (layer.Loading && Suspense) {
