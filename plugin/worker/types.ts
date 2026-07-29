@@ -171,6 +171,13 @@ export type StreamHandlers<
   getWritable?: () => NodeJS.WritableStream;
   onHmrUpdate: (id: string, routes?: string[]) => void;
   onShutdown?: (id: string) => void;
+  /**
+   * Post an error THROUGH the data port (ordered ahead of onEnd's null),
+   * so the receiver is guaranteed to see it before end-of-stream. Used for
+   * loader control-flow signals, which the control port's ERROR message can
+   * lose to the cross-port ordering race.
+   */
+  onDataError?: (id: string, error: unknown) => void;
   onCssFile?: (id: string, code: string) => void;
   onCleanup?: (id: string) => void;
   onShellReady?: (id: string) => void;

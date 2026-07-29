@@ -6,6 +6,7 @@ import { createRscWorkerLoader } from "./createRscWorkerLoader.js";
 import { handleRscRender } from "./handleRscRender.server.js";
 import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
 import { describeProps } from "../../helpers/describeProps.js";
+import { isLoaderSignal } from "../../router/loaderSignals.js";
 import type {
   RscWorkerInputMessage,
   ComponentsResolvedMessage,
@@ -423,6 +424,11 @@ async function loadComponentsWithCache(options: {
           const pageError = pageAndPropsResult.error ?? new Error(
             `[rsc-worker] Failed to load page module from ${pagePath}`,
           );
+          // Loader control flow (redirect()/notFound()): throw the signal
+          // untouched. handleError would panic-mark it (killing the worker
+          // under critical_errors) or dedup-wrap repeats, stripping the
+          // marker fields the request pipeline translates on.
+          if (isLoaderSignal(pageError)) throw pageError;
           const panicError = handleError({
             error: pageError,
             logger,
@@ -434,6 +440,8 @@ async function loadComponentsWithCache(options: {
           throw panicError ?? pageError;
         }
       } catch (error) {
+        // Loader signals pass through untouched (see above).
+        if (isLoaderSignal(error)) throw error;
         // resolvePageAndProps threw. Route through handleError for dedup +
         // panic handling, then re-throw so the outer worker catch propagates
         // to the main thread.
@@ -1494,8 +1502,15 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
       }
     }
   } catch (error) {
+    const workerError = toError(error);
     // Just communicate the error directly - let the main thread handle panic threshold logic
-    effectiveHandlers.onError("worker/rsc", toError(error));
+    effectiveHandlers.onError("worker/rsc", workerError);
+    // A loader redirect()/notFound() must reach the receiver BEFORE the
+    // end-of-stream null, or the response commits as an empty 200 first.
+    // The control-port ERROR above races the data port; this copy is ordered.
+    if (isLoaderSignal(workerError)) {
+      effectiveHandlers.onDataError?.("worker/rsc", workerError);
+    }
     // Signal end-of-stream so the main thread's response completes. Without
     // this, a fatal failure before any data flowed (e.g. a page/root
     // module-load throw from loadComponentsWithCache) leaves the response

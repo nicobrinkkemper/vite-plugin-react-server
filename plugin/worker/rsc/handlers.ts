@@ -57,6 +57,17 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
         });
       }
     },
+    onDataError: (id, error) => {
+      // Ordered delivery: rides the same port as data chunks and the null
+      // end-signal, so it always precedes onEnd's null at the receiver.
+      if (fromWorker) {
+        try {
+          fromWorker.postMessage({ type: "ERROR", id, error: serializeError(error) });
+        } catch {
+          // Port may be closed, ignore
+        }
+      }
+    },
     onEnd: (id) => {
       // Mirror HTML worker pattern: send null through fromWorker, then END through toWorker
       if (fromWorker) {

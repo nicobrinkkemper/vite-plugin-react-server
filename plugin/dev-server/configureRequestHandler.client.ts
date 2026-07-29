@@ -342,6 +342,26 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
             },
             onHmrUpdate: () => {
             },
+            // Loader control flow surfaced by the worker (redirect()/
+            // notFound() thrown in a loader): answer the flight request
+            // before any bytes stream. The redirect points at the TARGET's
+            // flight — the browser follows transparently and the client
+            // router fixes the address bar from `response.redirected`.
+            onError: (_id, error) => {
+              if (res.headersSent) return;
+              if (isRedirect(error)) {
+                res.statusCode = error.status;
+                res.setHeader(
+                  "location",
+                  (error.to === "/" ? "" : error.to.replace(/\/$/, "")) +
+                    "/index.rsc"
+                );
+                res.end();
+              } else if (isNotFound(error)) {
+                res.statusCode = 404;
+                res.end("Not Found");
+              }
+            },
             // Always log shell errors. Without this an RSC render failure in
             // the worker would surface only via `verbose: true`, leaving the
             // user with a half-streamed RSC response and no explanation.
