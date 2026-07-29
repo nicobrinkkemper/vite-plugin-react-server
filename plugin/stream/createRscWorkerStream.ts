@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import type { SerializeableRenderToPipeableStreamOptions } from "../worker/rsc/types.js";
 import { toError } from "../error/toError.js";
 import { createMessageChannels } from "./createMessageChannels.js";
+import type { RouteLayer } from "../router/scanRoutes.js";
 
 /**
  * RSC-specific options for worker stream
@@ -30,7 +31,7 @@ export interface RscWorkerStreamOptions {
   rootPath?: string;
   htmlPath?: string;
   /** Nested-layout chain (`route.tsx` layer paths) for the matched route. */
-  layouts?: { component: string; props?: string }[];
+  layouts?: RouteLayer[];
   layoutExportName?: string;
 }
 

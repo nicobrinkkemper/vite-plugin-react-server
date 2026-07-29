@@ -7,6 +7,7 @@ import type {
   ResolvedUserOptions,
 } from "../../types.js";
 import { resolveUrlOption } from "../resolveUrlOption.js";
+import type { RouteLayer } from "../../router/scanRoutes.js";
 import type { Logger } from "vite";
 import type { Manifest } from "vite";
 
@@ -116,7 +117,7 @@ export async function resolveBuildPages({
       page: string;
       root?: string;
       html?: string;
-      layouts?: { component: string; props?: string }[];
+      layouts?: RouteLayer[];
     }
   >();
   const routeMap = new Map<string, string[]>();
@@ -196,20 +197,30 @@ export async function resolveBuildPages({
       }
     }
 
-    // Nested layouts: resolve this route's `route.tsx` chain to (manifest-mapped)
-    // module paths, stored alongside page/props so the static prerender can fold
-    // the tree. Normalized + manifest-resolved exactly like page/props.
+    // Nested layouts: resolve this route's segment-layer chain to
+    // (manifest-mapped) module paths, stored alongside page/props so the static
+    // prerender can fold the tree. Normalized + manifest-resolved exactly like
+    // page/props. A layer field may be absent (e.g. boundaries without a
+    // `route.tsx`); a layer survives if ANY of its modules resolved.
+    const mapLayerPath = (src: string | undefined): string | undefined => {
+      if (!src) return undefined;
+      const resolved = resolvePathWithManifest(
+        userOptions.normalizer(src)[1],
+        manifest
+      );
+      return typeof resolved === "string" && resolved.length > 0
+        ? resolved
+        : undefined;
+    };
     const layouts = (userOptions.layoutsResolver?.(page) ?? [])
       .map((l) => ({
-        component: resolvePathWithManifest(
-          userOptions.normalizer(l.component)[1],
-          manifest
-        ),
-        props: l.props
-          ? resolvePathWithManifest(userOptions.normalizer(l.props)[1], manifest)
-          : undefined,
+        component: mapLayerPath(l.component),
+        props: mapLayerPath(l.props),
+        error: mapLayerPath(l.error),
+        loading: mapLayerPath(l.loading),
+        head: mapLayerPath(l.head),
       }))
-      .filter((l) => typeof l.component === "string" && l.component.length > 0);
+      .filter((l) => l.component || l.error || l.loading || l.head);
 
     if (!userOptions.props) {
       urlMap.set(page, {

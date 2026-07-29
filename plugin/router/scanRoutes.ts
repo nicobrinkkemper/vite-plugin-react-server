@@ -1,12 +1,26 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-/** One layer of a route's nested-layout chain (a `route.tsx` + its loader). */
+/** One layer of a route's nested-layout chain (a segment's wrapping files). */
 export type RouteLayer = {
-  /** A `route.tsx` layout component wrapping this segment and its children. */
-  component: string;
+  /**
+   * A `route.tsx` layout component wrapping this segment and its children.
+   * Absent when the segment contributes only boundaries/head (an `error.tsx`,
+   * `loading.tsx` or `head.ts` without a layout).
+   */
+  component?: string;
   /** The segment's `props.ts` loader — shared by the layout and its page. */
   props?: string;
+  /**
+   * An `error.tsx` client boundary for this segment and its children. The file
+   * must be a `"use client"` module exporting the boundary (wrap a fallback
+   * with `createErrorBoundary` from the router client runtime).
+   */
+  error?: string;
+  /** A `loading.tsx` Suspense fallback for this segment and its children. */
+  loading?: string;
+  /** A `head.ts` head/meta contribution, merged root→leaf (leaf wins). */
+  head?: string;
 };
 
 // One route entry, shaped to feed vprs's existing `urlMap`
@@ -22,10 +36,10 @@ export type RouteEntry = {
   /** True when the pattern has a `$` segment (can't be a fixed prerender). */
   dynamic: boolean;
   /**
-   * Ordered root→leaf chain of `route.tsx` layouts wrapping this page. Each
-   * `route.tsx` in an ancestor (or this page's own) segment adds a layer; the
-   * page composes as `<L0><L1>...<Page/>...</L1></L0>`. Empty for an unwrapped
-   * page.
+   * Ordered root→leaf chain of segment layers wrapping this page. Each segment
+   * with a `route.tsx` layout (or an `error.tsx` / `loading.tsx` / `head.ts`)
+   * adds a layer; the page composes as `<L0><L1>...<Page/>...</L1></L0>`.
+   * Empty for an unwrapped page.
    */
   layouts: RouteLayer[];
 };
@@ -34,22 +48,39 @@ export type RouteEntry = {
 // the plugin passes the resolved `autoDiscover.pagePattern` / `propsPattern`
 // (see resolveRoutesOption) so the scanner and the rest of the build share one
 // source of truth — a custom autoDiscover pattern is honored, no divergence.
-// `route.tsx` layouts are router-specific (no autoDiscover equivalent).
+// The remaining conventions are router-specific (no autoDiscover equivalent).
 export type ScanPatterns = {
   pagePattern?: RegExp;
   propsPattern?: RegExp;
   layoutPattern?: RegExp;
+  indexPattern?: RegExp;
+  errorPattern?: RegExp;
+  loadingPattern?: RegExp;
+  headPattern?: RegExp;
 };
 
 const DEFAULT_PAGE = /^page\.(t|j)sx?$/;
 const DEFAULT_PROPS = /^props\.(t|j)sx?$/;
 const DEFAULT_LAYOUT = /^route\.(t|j)sx?$/;
+// `index.tsx` is an alternate leaf-page name (TanStack-style; `page.tsx` wins
+// when both exist). Deliberately jsx/tsx-ONLY: `index.ts` is the conventional
+// barrel filename, and matching it would turn every re-export barrel inside the
+// routes tree into a route.
+const DEFAULT_INDEX = /^index\.(t|j)sx$/;
+const DEFAULT_ERROR = /^error\.(t|j)sx$/;
+const DEFAULT_LOADING = /^loading\.(t|j)sx$/;
+const DEFAULT_HEAD = /^head\.(t|j)s$/;
+
+/** A `(group)` directory: shares its layers with children, adds no URL segment. */
+const isPathlessGroup = (name: string) =>
+  name.startsWith("(") && name.endsWith(")") && name.length > 2;
 
 // Convention: every page file under `routesDir` defines a route; its directory
-// path (relative to routesDir) is the URL, with `$name` segments as params and a
-// bare `$` directory as a catch-all. A sibling props file is the segment's
-// loader. A `route.tsx` in a segment is a LAYOUT that wraps that segment's page
-// and every descendant, sharing the segment's props.
+// path (relative to routesDir) is the URL, with `$name` segments as params, a
+// bare `$` directory as a catch-all, and `(group)` directories contributing no
+// URL segment (pathless grouping). A `route.tsx` in a segment is a LAYOUT that
+// wraps that segment's page and every descendant, sharing the segment's props;
+// `error.tsx` / `loading.tsx` / `head.ts` ride the same layer.
 export function scanRoutes(
   routesDir: string,
   patterns: ScanPatterns = {},
@@ -57,30 +88,56 @@ export function scanRoutes(
   const pagePattern = patterns.pagePattern ?? DEFAULT_PAGE;
   const propsPattern = patterns.propsPattern ?? DEFAULT_PROPS;
   const layoutPattern = patterns.layoutPattern ?? DEFAULT_LAYOUT;
+  const indexPattern = patterns.indexPattern ?? DEFAULT_INDEX;
+  const errorPattern = patterns.errorPattern ?? DEFAULT_ERROR;
+  const loadingPattern = patterns.loadingPattern ?? DEFAULT_LOADING;
+  const headPattern = patterns.headPattern ?? DEFAULT_HEAD;
 
-  const findProps = (names: string[], dir: string): string | undefined => {
-    const n = names.find((name) => propsPattern.test(name));
+  const find = (names: string[], dir: string, p: RegExp): string | undefined => {
+    const n = names.find((name) => p.test(name));
     return n ? join(dir, n) : undefined;
   };
+
+  // Pathless groups can collapse distinct directories onto one URL pattern
+  // ("(a)/page.tsx" and "(b)/page.tsx" are both "/"). Fail loudly — a silent
+  // last-wins would serve one and drop the other.
+  const seen = new Map<string, string>();
 
   const walk = (dir: string, layouts: RouteLayer[]): RouteEntry[] => {
     const out: RouteEntry[] = [];
     const names = readdirSync(dir).sort();
-    const segProps = findProps(names, dir);
-    // A `route.tsx` here wraps this segment's page and all descendants, sharing
-    // this segment's loader — extend the chain for children and this page.
-    const layoutName = names.find((name) => layoutPattern.test(name));
-    const chain = layoutName
-      ? [...layouts, { component: join(dir, layoutName), props: segProps }]
-      : layouts;
+    const segProps = find(names, dir, propsPattern);
+    // Any wrapping file here (layout / error boundary / loading fallback /
+    // head contribution) adds a layer for this segment's page and all
+    // descendants, sharing this segment's loader.
+    const component = find(names, dir, layoutPattern);
+    const error = find(names, dir, errorPattern);
+    const loading = find(names, dir, loadingPattern);
+    const head = find(names, dir, headPattern);
+    const chain =
+      component || error || loading || head
+        ? [...layouts, { component, props: segProps, error, loading, head }]
+        : layouts;
+    // Leaf page: `page.tsx` (canonical) or `index.tsx` (alternate; page wins).
+    const pageName =
+      names.find((name) => pagePattern.test(name)) ??
+      names.find((name) => indexPattern.test(name));
     for (const name of names) {
       const abs = join(dir, name);
       if (statSync(abs).isDirectory()) {
         out.push(...walk(abs, chain));
-      } else if (pagePattern.test(name)) {
+      } else if (name === pageName) {
         const rel = relative(routesDir, dir);
-        const parts = rel === "" ? [] : rel.split(sep);
+        const rawParts = rel === "" ? [] : rel.split(sep);
+        const parts = rawParts.filter((p) => !isPathlessGroup(p));
         const pattern = parts.length ? "/" + parts.join("/") : "/";
+        const prior = seen.get(pattern);
+        if (prior) {
+          throw new Error(
+            `scanRoutes: routes "${prior}" and "${abs}" both resolve to "${pattern}" — pathless (group) segments must not collapse two pages onto one URL`,
+          );
+        }
+        seen.set(pattern, abs);
         out.push({
           pattern,
           page: abs,

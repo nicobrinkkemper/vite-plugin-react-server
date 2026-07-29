@@ -14,6 +14,7 @@ import { getNodeEnv } from "../config/getNodeEnv.js";
 import { isReactServerCondition } from "../config/getCondition.js";
 import { setupGlobalErrorHandler, cleanupGlobalErrorHandler } from "../error/setupGlobalErrorHandler.js";
 import { pipeToResponse } from "../helpers/pipeToResponse.js";
+import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 
 /**
  * Configures the worker request handler.
@@ -366,6 +367,26 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         });
         // Response is now being streamed - no need to wait for timeout
       } catch (error) {
+        // Loader control flow (redirect()/notFound() thrown in the RSC
+        // worker's loader; toError rehydrates the markers across the worker
+        // boundary): answer the request, don't report an error. The redirect
+        // points at the TARGET's flight — the browser follows transparently
+        // and the client router fixes the address bar.
+        if (!res.headersSent && isRedirect(error)) {
+          res.statusCode = error.status;
+          res.setHeader(
+            "location",
+            (error.to === "/" ? "" : error.to.replace(/\/$/, "")) +
+              "/index.rsc"
+          );
+          res.end();
+          return;
+        }
+        if (!res.headersSent && isNotFound(error)) {
+          res.statusCode = 404;
+          res.end("Not Found");
+          return;
+        }
         // Always log: misconfigured apps would otherwise return an empty 500
         // and leave the user staring at a hung tab without any console output.
         const panicError = handleError({

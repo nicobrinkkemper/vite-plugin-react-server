@@ -16,5 +16,11 @@ export const PAGE_EXPORT_NAME = "Page";
 export const PROPS_EXPORT_NAME = "props";
 /** Export name a `route.tsx` layout publishes its component under. */
 export const LAYOUT_EXPORT_NAME = "Layout";
+/** Export name an `error.tsx` publishes its client boundary under. */
+export const ERROR_EXPORT_NAME = "ErrorBoundary";
+/** Export name a `loading.tsx` publishes its Suspense fallback under. */
+export const LOADING_EXPORT_NAME = "Loading";
+/** Export name a `head.ts` publishes its head contribution under. */
+export const HEAD_EXPORT_NAME = "head";
 /** Filename the client router fetches a route's flight from. */
 export const RSC_OUTPUT_PATH = "index.rsc";

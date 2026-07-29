@@ -5,6 +5,7 @@ import type {
 import { injectInlineFlightIntoHtml } from "../utils/inlineFlight.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 import { isUnknownRoute } from "./unknownRoute.js";
+import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 
 assertNonReactServer();
 
@@ -122,6 +123,15 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
         flights = await renderDocument(url, { request });
       } catch (error) {
         if (isUnknownRoute(error)) return notFound(url, request);
+        // Loader control flow: a redirect() answers with the 3xx itself; a
+        // notFound() answers like an unknown route.
+        if (isRedirect(error)) {
+          return new Response(null, {
+            status: error.status,
+            headers: { location: error.to },
+          });
+        }
+        if (isNotFound(error)) return notFound(url, request);
         onError?.(error);
         throw error;
       }
@@ -155,6 +165,13 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       // The producer is a closed manifest over `build.pages`; an unknown url is
       // a 404, not a 500. Everything else is a real failure — surface it.
       if (isUnknownRoute(error)) return notFound(url, request);
+      if (isRedirect(error)) {
+        return new Response(null, {
+          status: error.status,
+          headers: { location: error.to },
+        });
+      }
+      if (isNotFound(error)) return notFound(url, request);
       onError?.(error);
       throw error;
     }

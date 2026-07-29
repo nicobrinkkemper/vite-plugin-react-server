@@ -1,5 +1,6 @@
 import type { CreateHandlerOptions } from "../types.js";
 import type { ResolvedLayoutLayer } from "./resolveLayoutChain.js";
+import { mergeHead } from "../router/head.js";
 
 export type CreateElementWithReactOptions = Pick<
   CreateHandlerOptions,
@@ -83,8 +84,13 @@ export const createElementWithReact: CreateElementWithReactFN =
       );
     }
 
-    // Nested layouts: fold the root→leaf `route.tsx` chain around the leaf page
-    // so `<L0 {...p0}><L1 {...p1}><Page {...leafProps}/>…` renders as one tree.
+    // Nested layouts: fold the root→leaf segment chain around the leaf page so
+    // `<L0 {...p0}><L1 {...p1}><Page {...leafProps}/>…` renders as one tree.
+    // Each segment wraps as Layout → ErrorBoundary → Suspense(Loading) →
+    // children (Next's layout/error/loading nesting order), so a segment's
+    // boundary catches its children but not its own layout. The chain's merged
+    // `head.ts` contribution renders beside the leaf as react-dom hoistable
+    // tags (title/meta/link land in the document <head> on every render path).
     // The composed component takes the leaf's props (Root/Html render it as
     // `<Page {...pageProps}/>`); each layer closes over its own resolved props.
     // No layers → the leaf page passes through unchanged, so every branch below
@@ -94,10 +100,40 @@ export const createElementWithReact: CreateElementWithReactFN =
         ? function ComposedPage(leafProps: Record<string, unknown>) {
             const create = (React as unknown as { createElement: Function })
               .createElement;
-            return layoutChain.reduceRight(
-              (child, layer) => create(layer.Component, layer.props, child),
-              create(PageComponent, leafProps)
-            );
+            const Suspense = (React as unknown as { Suspense?: unknown })
+              .Suspense;
+            const head = mergeHead(layoutChain.map((l) => l.head));
+            const headTags = [
+              head.title !== undefined
+                ? create("title", { key: "head-title" }, head.title)
+                : null,
+              ...(head.meta ?? []).map((m, i) =>
+                create("meta", { key: `head-meta-${i}`, ...m })
+              ),
+              ...(head.links ?? []).map((l, i) =>
+                create("link", { key: `head-link-${i}`, ...l })
+              ),
+            ].filter(Boolean);
+            const leaf = headTags.length
+              ? create(React.Fragment, null, ...headTags, create(PageComponent, leafProps))
+              : create(PageComponent, leafProps);
+            return layoutChain.reduceRight((child, layer) => {
+              let node = child;
+              if (layer.Loading && Suspense) {
+                node = create(
+                  Suspense,
+                  { fallback: create(layer.Loading, null) },
+                  node
+                );
+              }
+              if (layer.ErrorBoundary) {
+                node = create(layer.ErrorBoundary, null, node);
+              }
+              if (layer.Component) {
+                node = create(layer.Component, layer.props, node);
+              }
+              return node;
+            }, leaf);
           }
         : PageComponent;
 

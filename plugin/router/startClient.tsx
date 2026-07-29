@@ -85,12 +85,33 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
     wrap,
   } = opts;
 
+  // A loader redirect() answers a flight fetch with a 3xx to the TARGET's
+  // flight; fetch follows it transparently, so the content is already right —
+  // only the address bar still shows the source url. Detect the follow and
+  // re-navigate (replace) to the final route so history matches the content.
+  // Deferred assignment: the fetcher closure exists before the router does.
+  let followRedirect: (response: Response) => void = () => {};
   const fetchFlight = (url: string): Promise<ReactNode> =>
     Promise.resolve(
-      createReactFetcher({ url, moduleBaseURL, publicOrigin }),
+      createReactFetcher({
+        url,
+        moduleBaseURL,
+        publicOrigin,
+        onResponse: (response) => followRedirect(response),
+      }),
     ) as Promise<ReactNode>;
 
   const router = createRouter<ReactNode>({ fetchFlight, isDynamic, dynamicTtlMs });
+  followRedirect = (response) => {
+    if (!response.redirected || !response.ok) return;
+    let finalRoute = new URL(response.url).pathname;
+    if (finalRoute.endsWith("/index.rsc")) {
+      finalRoute = finalRoute.slice(0, -"/index.rsc".length) || "/";
+    }
+    if (finalRoute !== router.getState().url) {
+      router.navigate(finalRoute, { replace: true });
+    }
+  };
 
   const root = document.getElementById(rootId);
   if (!root) throw new Error(`startClient: #${rootId} element not found`);
