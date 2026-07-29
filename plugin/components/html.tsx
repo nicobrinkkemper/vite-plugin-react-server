@@ -13,6 +13,10 @@ export const Html: HtmlComponentType<any, any, any, any> = ({
 }: HtmlProps) => (
   <html>
     <head>
+      {/* Without an explicit charset a browser may parse the UTF-8 snapshot
+          as windows-1252 — any non-ASCII text ("·", "—") then mismatches the
+          client render and hydration fails with React #418. */}
+      <meta charSet="utf-8" />
       <Css cssFiles={globalCss} />
     </head>
     <body>
