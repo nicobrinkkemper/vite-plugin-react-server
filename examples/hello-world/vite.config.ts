@@ -4,10 +4,10 @@ import { StreamPluginOptions, vitePluginReactServer } from "vite-plugin-react-se
 export default defineConfig({
   plugins: [vitePluginReactServer({
     moduleBase: "src",
-    Page: "src/page.tsx",
-    props: "src/props.ts",
+    // File-based routing: scan `moduleBase` itself — src/page.tsx (+ sibling
+    // props.ts) becomes "/", and the prerender worklist derives from the tree.
+    routes: {},
     build: {
-      pages: ["/"],
       // The single-isolate edge bundle is ON by default; the object form just
       // tunes it. Here: keep dist/server-edge/render.js unminified for learning
       // (minify defaults to true for real edge deploys). `edge: false` opts out.

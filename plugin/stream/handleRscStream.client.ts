@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { join } from "node:path";
 import { toError } from "../error/toError.js";
 import { logError } from "../error/logError.js";
+import { isLoaderSignal } from "../router/loaderSignals.js";
 
 /**
  * Client-side RSC stream handler using unified stream management
@@ -22,7 +23,7 @@ import { logError } from "../error/logError.js";
  * @returns A ReadableStream that yields RSC chunks
  */
 export const handleRscStream: HandleRscStreamFn<"client"> =
-  function _handleWorkerRscStream({ options }) {
+  function _handleWorkerRscStream({ options, handlers }) {
     // Generate a unique request id to avoid conflicts with concurrent requests
     const requestId =
       options.id ??
@@ -108,6 +109,16 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           }
           break;
         case "ERROR": {
+          const err = toError(message.error, message.errorInfo);
+          // A loader redirect()/notFound() is control flow the caller must
+          // answer (3xx/404 on the response), not a render failure to log.
+          // Hand it to the caller's onError and end the (still-empty) data
+          // stream so the pipe completes.
+          if (isLoaderSignal(err)) {
+            handlers?.onError?.(message.id ?? requestId, err);
+            if (!dataEndedReceived) endDataStream();
+            break;
+          }
           // Always log: this is an RSC render error from the worker. Without
           // this log the failure surfaces only as an in-band RSC error frame
           // on the client, with nothing on the dev console.
@@ -117,7 +128,6 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           // boundary (serializeError → toError), so dev:ssr can surface the same
           // detail as dev:rsc (the main-thread runner). Previously only the
           // message was logged, so worker render failures looked stackless.
-          const err = toError(message.error, message.errorInfo);
           err.message = `[client] RSC render error for ${message.id}: ${err.message}`;
           logError(err, options.logger);
           break;
@@ -143,6 +153,16 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
         // Signal that the stream is complete so React can finish consuming
         endDataStream();
       } else if (data && data.type === 'ERROR') {
+        // A loader redirect()/notFound() arrives on the DATA port so it is
+        // ordered ahead of the null end-signal (the control-port ERROR copy
+        // can lose that race and find the response already committed).
+        // Answer via the caller's onError; the following null ends the
+        // stream normally.
+        const dataErr = toError(data.error);
+        if (isLoaderSignal(dataErr)) {
+          handlers?.onError?.(data.id ?? requestId, dataErr);
+          return;
+        }
         // Stream error via data port
         if (options.verbose) {
           options.logger?.error(

@@ -3,4 +3,4 @@
 // hydration + HMR. `patterns` lets useParams() resolve for the current url.
 import { startClient } from "vite-plugin-react-server/router/client";
 
-startClient({ patterns: ["/", "/greet/$name"] });
+startClient({ patterns: ["/", "/about", "/old", "/greet/$name"] });

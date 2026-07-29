@@ -33,6 +33,9 @@ vprs 1.x required `react@experimental` and bundled the transport in-repo. For
 - **No API changes** to the plugin itself: your `vite.config`, page files, and
   directives are unchanged.
 
+There are no 3.x migration notes: v3's additions (the file router's `routes`
+field, the edge bundle) are additive, and a working 2.x config runs unchanged.
+
 ## Create a Page
 
 ```tsx
@@ -268,20 +271,15 @@ vitePluginReactServer({
 })
 ```
 
-## HMR Setup
+## HMR
 
-For automatic RSC refetching when server components change:
-
-```tsx
-// Client entry
-import { createReactFetcher, setupRscHmr } from "vite-plugin-react-server/utils";
-
-const { initialContent, refetch } = createReactFetcher({ callServer });
-
-if (import.meta.hot) {
-  setupRscHmr(import.meta.hot, refetch);
-}
-```
+Nothing to set up: `startClient` (the one-line client entry from
+[Routing](./routing.md#client-side-navigation)) wires RSC HMR along with
+hydration and the client router — a server-component edit refetches the
+current route's flight automatically. Assembling the client entry by hand
+instead? `useRscHmr` from `vite-plugin-react-server/utils` is the same hook
+`startClient` uses, and `setupRscHmr()` is the non-React form (call it once in
+your entry; it refetches the current page's flight on server-component edits).
 
 ## Next Steps
 

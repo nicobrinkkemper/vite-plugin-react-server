@@ -5,6 +5,8 @@ import type {
 } from "../worker/rsc/types.js";
 import { createModuleResolutionMetrics } from "../metrics/createModuleResolutionMetrics.js";
 import { performance } from "node:perf_hooks";
+import { toError } from "../error/toError.js";
+import { isLoaderSignal } from "../router/loaderSignals.js";
 
 export interface ResolveComponentsOptions {
   route: string;
@@ -117,13 +119,16 @@ export async function resolveComponents(
         ) {
           clearTimeout(timeout);
           worker.off("message", messageHandler);
-          reject(
-            new Error(
-              `Component resolution failed: ${
-                message.error?.message || "Unknown error"
-              }`
-            )
-          );
+          // Rehydrate the worker's serialized error instead of flattening it
+          // to a message string: a loader redirect()/notFound() carries plain
+          // marker fields that must survive to the request pipeline (and the
+          // panic flag rides the same way). Only a non-signal error gets the
+          // context prefix.
+          const rehydrated = toError(message.error ?? "Unknown error");
+          if (!isLoaderSignal(rehydrated)) {
+            rehydrated.message = `Component resolution failed: ${rehydrated.message}`;
+          }
+          reject(rehydrated);
         }
       };
 

@@ -9,6 +9,7 @@ import {
 } from "../utils/index.client.js";
 import { createRouter, type Router } from "./createRouter.js";
 import { RouterProvider, useLocation } from "./router-react.js";
+import { applyRouteHead } from "./applyRouteHead.js";
 
 // The supplied client entry: assembles createRouter + RouterProvider +
 // createReactFetcher + hydration + HMR so a consumer's client.tsx is one line:
@@ -36,13 +37,24 @@ export type StartClientOptions = {
 function RouteView({
   router,
   initialNode,
+  rootId,
 }: {
   router: Router<ReactNode>;
   initialNode: ReactNode;
+  rootId: string;
 }) {
   const location = useLocation();
   const [node, setNode] = React.useState<ReactNode>(initialNode);
   const shown = React.useRef<string>(router.getState().url);
+
+  // The matched route's head.ts contribution rides the tree as an inert
+  // template (hoistables can't ride the hydration flight — see
+  // createElementWithReact). Apply it after every commit so hydration and
+  // each navigation both sync document.title / keyed meta.
+  React.useEffect(() => {
+    const rootEl = document.getElementById(rootId);
+    if (rootEl) applyRouteHead(rootEl);
+  });
 
   React.useEffect(() => {
     if (location === shown.current) return;
@@ -85,12 +97,33 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
     wrap,
   } = opts;
 
+  // A loader redirect() answers a flight fetch with a 3xx to the TARGET's
+  // flight; fetch follows it transparently, so the content is already right —
+  // only the address bar still shows the source url. Detect the follow and
+  // re-navigate (replace) to the final route so history matches the content.
+  // Deferred assignment: the fetcher closure exists before the router does.
+  let followRedirect: (response: Response) => void = () => {};
   const fetchFlight = (url: string): Promise<ReactNode> =>
     Promise.resolve(
-      createReactFetcher({ url, moduleBaseURL, publicOrigin }),
+      createReactFetcher({
+        url,
+        moduleBaseURL,
+        publicOrigin,
+        onResponse: (response) => followRedirect(response),
+      }),
     ) as Promise<ReactNode>;
 
   const router = createRouter<ReactNode>({ fetchFlight, isDynamic, dynamicTtlMs });
+  followRedirect = (response) => {
+    if (!response.redirected || !response.ok) return;
+    let finalRoute = new URL(response.url).pathname;
+    if (finalRoute.endsWith("/index.rsc")) {
+      finalRoute = finalRoute.slice(0, -"/index.rsc".length) || "/";
+    }
+    if (finalRoute !== router.getState().url) {
+      router.navigate(finalRoute, { replace: true });
+    }
+  };
 
   const root = document.getElementById(rootId);
   if (!root) throw new Error(`startClient: #${rootId} element not found`);
@@ -101,7 +134,7 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
     const initialNode = await router.flight(router.getState().url);
     const tree = (
       <RouterProvider router={router} patterns={patterns}>
-        <RouteView router={router} initialNode={initialNode} />
+        <RouteView router={router} initialNode={initialNode} rootId={rootId} />
       </RouterProvider>
     );
     return wrap ? wrap(tree) : tree;

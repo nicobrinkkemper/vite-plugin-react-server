@@ -21,6 +21,7 @@ import {
 } from "./resolveLayoutChain.js";
 import { routeToURL } from "../utils/routeToURL.js";
 import { matchRoutes, normalizePathForMatch } from "../router/matchRoute.js";
+import { isLoaderSignal } from "../router/loaderSignals.js";
 import type { RouteLayer } from "../router/scanRoutes.js";
 
 /**
@@ -239,6 +240,10 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
             pageProps = await pageProps;
           }
         } catch (error) {
+          // A redirect()/notFound() signal is control flow, not a failed
+          // loader — let it reach the outer catch so the request pipeline
+          // can translate it (3xx / 404) instead of rendering empty props.
+          if (isLoaderSignal(error)) throw error;
           if (handlerOptions.verbose) {
             handlerOptions.logger?.error(
               `[resolvePageAndProps] Error calling props function: ${error}`

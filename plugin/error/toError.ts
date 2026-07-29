@@ -42,6 +42,22 @@ export function toError(error: unknown, errorInfo?: ErrorInfo): Error {
       if ((error as { isPanic?: boolean }).isPanic === true) {
         (err as unknown as Record<symbol, boolean>)[PANIC_SYMBOL] = true;
       }
+      // Rehydrate loader control-flow signals (redirect/notFound) the same
+      // way: serializeError spreads their plain marker fields onto the
+      // envelope, and the fresh Error built here must carry them onward or a
+      // redirect decided in the worker degrades to a plain error on the main
+      // thread.
+      const src = error as Record<string, unknown>;
+      if (src["$$vprsRedirect"] === true) {
+        Object.assign(err, {
+          $$vprsRedirect: true,
+          to: src["to"],
+          status: src["status"],
+        });
+      }
+      if (src["$$vprsNotFound"] === true) {
+        Object.assign(err, { $$vprsNotFound: true });
+      }
       return err;
     }
     

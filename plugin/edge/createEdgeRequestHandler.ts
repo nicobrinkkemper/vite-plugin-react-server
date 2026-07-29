@@ -1,5 +1,6 @@
 import type { EdgeFetchHandler } from "../stream/createEdgeHandler.types.js";
 import { isUnknownRoute } from "../stream/unknownRoute.js";
+import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 import { matchRoutes } from "../router/matchRoute.js";
 import type {
   CreateEdgeRequestHandlerOptions,
@@ -150,6 +151,20 @@ export function createEdgeRenderHook(
         });
       } catch (error) {
         if (isUnknownRoute(error)) return null;
+        // A loader redirect on the flight path points at the TARGET's flight,
+        // so the browser's transparent follow yields a decodable payload and
+        // the client router fixes the address bar from `response.redirected`.
+        if (isRedirect(error)) {
+          const flightTarget =
+            (error.to === "/" ? "" : error.to.replace(/\/$/, "")) +
+            "/" +
+            rscOutputPath;
+          return new Response(null, {
+            status: error.status,
+            headers: { location: flightTarget },
+          });
+        }
+        if (isNotFound(error)) return null;
         throw error;
       }
     }

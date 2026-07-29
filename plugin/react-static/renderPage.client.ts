@@ -46,6 +46,7 @@ import type { RenderMetrics } from "../metrics/types.js";
 import { routeToURL } from "../utils/routeToURL.js";
 import type { RenderPageFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
+import { isLoaderSignal } from "../router/loaderSignals.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
 import { createRscStream } from "../stream/createRscStream.client.js";
@@ -91,7 +92,22 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     // Handle route.error events by storing result for later yielding
     if (event.type === "route.error" && !hasYielded) {
       hasYielded = true;
-      
+
+      // Loader control flow (redirect()/notFound()): pass the signal up as
+      // this route's error so the page loop skips the page — not a panic,
+      // not a client-only skip shell.
+      if (isLoaderSignal(event.data.error)) {
+        errorResult = {
+          type: "error",
+          error: event.data.error,
+          metrics: {
+            rscHeadless: { duration: 0, chunks: 0, bytes: 0 },
+            html: { duration: 0, chunks: 0, bytes: 0 },
+          },
+        };
+        return;
+      }
+
       // Check if this should cause a panic
       const panicError = handleError({
         error: event.data.error,
@@ -259,10 +275,26 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       });
     } catch (componentResolutionError) {
       // Handle component resolution failures gracefully
-      const error = componentResolutionError instanceof Error 
-        ? componentResolutionError 
+      const error = componentResolutionError instanceof Error
+        ? componentResolutionError
         : new Error(String(componentResolutionError));
-      
+
+      // A loader redirect()/notFound() is control flow, not a failure: yield
+      // it as this route's error so the page loop skips the page (no files,
+      // no panic, no client-only fallback shell).
+      if (isLoaderSignal(error)) {
+        yield {
+          type: "error",
+          error,
+          metrics: {
+            rscFull: rscFullMetrics,
+            rscHeadless: rscHeadlessMetrics,
+            html: htmlMetrics,
+          },
+        };
+        return;
+      }
+
       // Check if this component resolution error should cause a panic based on panicThreshold
       const panicError = handleError({
         error,

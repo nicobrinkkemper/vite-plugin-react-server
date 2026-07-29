@@ -100,6 +100,7 @@ export function createReactFetcher({
     Accept: "text/x-component",
   },
   signal,
+  onResponse,
 }: {
   url?: string;
   moduleBaseURL?: string;
@@ -115,6 +116,12 @@ export function createReactFetcher({
    * the consumer is about to replace it anyway.
    */
   signal?: AbortSignal;
+  /**
+   * Observe the network response before decoding (never called for an inlined
+   * payload). The router uses this to detect a followed loader redirect
+   * (`response.redirected`) and fix the address bar.
+   */
+  onResponse?: (response: Response) => void;
 } = {}): PromiseLike<React.ReactNode> {
   const parsedURL = createPageURL(
     moduleBaseURL,
@@ -181,6 +188,20 @@ export function createReactFetcher({
       headers: headers,
       signal,
     });
+    if (onResponse) {
+      // Observe without gating the decode; an observer throw is not a
+      // flight error, and a rejected fetch is reported through decode anyway.
+      responsePromise.then(
+        (response) => {
+          try {
+            onResponse(response);
+          } catch {
+            /* observer-only */
+          }
+        },
+        () => {}
+      );
+    }
     return flightClient().then(({ createFromFetch }) =>
       createFromFetch(responsePromise, decodeOptions)
     );

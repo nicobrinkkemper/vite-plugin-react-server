@@ -8,6 +8,7 @@
 import type { RenderPagesResult, RenderPageResult } from "../types.js";
 import type { RenderPagesFn, RenderPageFn, RenderPagesHandlerOptions } from "./types.js";
 import { handleError } from "../error/handleError.js";
+import { isLoaderSignal, isRedirect } from "../router/loaderSignals.js";
 import { fileWriter } from "./fileWriter.js";
 import type { Manifest } from "vite";
 import { emitFileWriteMetrics } from "./emitFileWriteMetrics.js";
@@ -51,8 +52,11 @@ async function renderSingleRoute(
     // Nested layouts: manifest-resolve each built layer so the RSC worker folds
     // the chain into the flight (mirrors page/props resolution above).
     const resolvedLayouts = layouts?.map((l) => ({
-      component: resolvePathWithManifest(l.component, manifest),
+      component: l.component ? resolvePathWithManifest(l.component, manifest) : undefined,
       props: l.props ? resolvePathWithManifest(l.props, manifest) : undefined,
+      error: l.error ? resolvePathWithManifest(l.error, manifest) : undefined,
+      loading: l.loading ? resolvePathWithManifest(l.loading, manifest) : undefined,
+      head: l.head ? resolvePathWithManifest(l.head, manifest) : undefined,
     }));
 
     // Store results for metrics tracking
@@ -68,6 +72,18 @@ async function renderSingleRoute(
 
       // Handle route.error events
       if (event.type === "route.error") {
+        // Loader control flow (redirect()/notFound()) at prerender: the page
+        // is skipped by the render loop; don't count it as a failed route.
+        if (isLoaderSignal(event.data.error)) {
+          options.logger?.warn(
+            `[renderPagesBatched] route ${event.data.route} signalled ${
+              isRedirect(event.data.error)
+                ? `redirect -> ${(event.data.error as { to?: string }).to}`
+                : "notFound"
+            } during prerender; page skipped`
+          );
+          return;
+        }
         const detectedPanicError = handleError({
           error: event.data.error,
           logger: options.logger,
@@ -116,6 +132,17 @@ async function renderSingleRoute(
       results.push(result);
       
       if (result.type === "error" && result.error) {
+        // A loader redirect()/notFound() at prerender is control flow the
+        // static build cannot answer — skip the page loudly, don't fail it.
+        if (isLoaderSignal(result.error)) {
+          const err = result.error as Error & { to?: string };
+          options.logger?.warn(
+            `[renderPagesBatched] route ${route} signalled ${
+              isRedirect(err) ? `redirect -> ${err.to}` : "notFound"
+            } during prerender; page skipped`
+          );
+          continue;
+        }
         routeError = result.error instanceof Error ? result.error : new Error(String(result.error));
       }
       
@@ -273,8 +300,14 @@ export const renderPagesBatched: RenderPagesFn = (
             options.logger?.warn(`[renderPagesBatched] Non-panic error for route ${route}: ${error.message}`);
           }
         } else {
-          completedRoutes.add(route);
-          
+          // Only count the route as completed when something actually
+          // rendered — a loader redirect()/notFound() skip leaves pageResults
+          // without a success/skip entry and must not inflate the summary.
+          const rendered = pageResults.some(
+            (r) => r.type === "success" || r.type === "skip"
+          );
+          if (rendered) completedRoutes.add(route);
+
           for (const result of pageResults) {
             if (result.type === "success" || result.type === "skip") {
               results.set(route, result);

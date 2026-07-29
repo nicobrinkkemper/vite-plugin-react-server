@@ -14,6 +14,7 @@ import type { RenderPagesResult, RenderPageResult } from "../types.js";
 import type { RenderPagesFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
 import { shouldCausePanic } from "../error/panicThresholdHandler.js";
+import { isLoaderSignal, isRedirect } from "../router/loaderSignals.js";
 import { fileWriter } from "./fileWriter.js";
 
 import type { Manifest } from "vite";
@@ -120,8 +121,11 @@ export const renderPages: RenderPagesFn = (
         // Nested layouts: manifest-resolve each layer's built module (mirroring
         // page/props) so the renderer can load + fold the chain.
         const resolvedLayouts = layouts?.map((l) => ({
-          component: resolvePathWithManifest(l.component, manifest),
+          component: l.component ? resolvePathWithManifest(l.component, manifest) : undefined,
           props: l.props ? resolvePathWithManifest(l.props, manifest) : undefined,
+          error: l.error ? resolvePathWithManifest(l.error, manifest) : undefined,
+          loading: l.loading ? resolvePathWithManifest(l.loading, manifest) : undefined,
+          head: l.head ? resolvePathWithManifest(l.head, manifest) : undefined,
         }));
 
         if (options.verbose) {
@@ -166,6 +170,18 @@ export const renderPages: RenderPagesFn = (
 
           // Handle route.error events here in renderPages
           if (event.type === "route.error") {
+            // Loader control flow (redirect()/notFound()) at prerender: the
+            // page is skipped by the render loop; not a failed route.
+            if (isLoaderSignal(event.data.error)) {
+              options.logger?.warn(
+                `[renderPages] route ${event.data.route} signalled ${
+                  isRedirect(event.data.error)
+                    ? `redirect -> ${(event.data.error as { to?: string }).to}`
+                    : "notFound"
+                } during prerender; page skipped`
+              );
+              return;
+            }
             // Make panic decision in the main thread based on panicThreshold
             const detectedPanicError = handleError({
               error: event.data.error,
@@ -346,6 +362,19 @@ export const renderPages: RenderPagesFn = (
           }
 
           if (result.type === "error") {
+            // A loader redirect()/notFound() at prerender is control flow the
+            // static build cannot answer — skip the page loudly instead of
+            // failing the build. Don't enumerate such a route in
+            // getStaticPaths; it renders per-request (dev/Node/edge).
+            if (isLoaderSignal(result.error)) {
+              const err = result.error as Error & { to?: string };
+              options.logger?.warn(
+                `[renderPages] route ${route} signalled ${
+                  isRedirect(err) ? `redirect -> ${err.to}` : "notFound"
+                } during prerender; page skipped`
+              );
+              continue;
+            }
             if (options.verbose) {
               options.logger?.error(
                 `[renderPages] Error for route ${route}: ${result.error}`

@@ -14,13 +14,13 @@ Read in order if you're new; each stands alone otherwise.
 - [Storybook](./storybook.md) — rendering RSC components in stories
 - [Examples](./examples.md) — static site, dynamic server, custom routing
 - [Troubleshooting](./troubleshooting.md) — common errors and fixes
+- [React Compatibility](./react-type-compatibility.md) — supported React versions, the vendored transport, and the type system
 - [API Reference](./api-reference.md) — exports, types, components, defaults
 - [Comparison](./comparison.md) — how vprs differs from Next.js, Waku, and `@vitejs/plugin-rsc`
 
 ## Maintenance
 
 - [Releasing](./releasing.md) — version bumps, publishing, demo updates
-- [React Compatibility](./react-type-compatibility.md) — the vendored ESM transport and the type system
 
 ## Internals (contributors)
 

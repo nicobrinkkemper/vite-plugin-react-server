@@ -150,9 +150,14 @@ export function createSerializableHandlerOptions(
   if (typeof layoutExportName === 'string') result.layoutExportName = layoutExportName;
   if (Array.isArray(layouts) && layouts.length) {
     // RouteLayer entries are plain string paths — structured-clone safe.
+    // Carry every layer field (layout, props, error/loading boundaries,
+    // head); dropping one here silently strips the feature in the worker.
     result.layouts = layouts.map((l) => ({
-      component: l.component,
+      ...(l.component ? { component: l.component } : {}),
       ...(l.props ? { props: l.props } : {}),
+      ...(l.error ? { error: l.error } : {}),
+      ...(l.loading ? { loading: l.loading } : {}),
+      ...(l.head ? { head: l.head } : {}),
     }));
   }
   if (typeof projectRoot === 'string') result.projectRoot = projectRoot;
