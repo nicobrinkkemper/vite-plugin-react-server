@@ -58,6 +58,10 @@ export const config = {
 | `static` | `string` | Static output directory | `"static"` |
 | `hash` | `string` | Hash for client files | `"hash"` |
 | `preserveModulesRoot` | `boolean` | When `true`, preserves the `moduleBase` directory (e.g. `src/`) in output paths. When `false`, strips it from output paths. | `false` |
+| `renderMode` | `"parallel" \| "sequential"` | How SSG renders pages: concurrent batches, or one at a time (less memory, deterministic order) | `"parallel"` |
+| `batchSize` | `number` | Pages rendered concurrently when `renderMode` is `"parallel"` | `8` |
+| `inlineFlight` | `boolean` | Inline each prerendered route's flight payload into its `index.html` (non-executable `<script id="vprs-flight">`), so first paint hydrates with no `index.rsc` round-trip. Runs at the post-SSG point in both build modes. See [Build Output](./build-output.md). | `false` |
+| `edge` | `boolean \| EdgeBuildConfig` | Single-isolate edge bundle (see [`build.edge`](#buildedge) below) | `true` |
 | `assetsDir` | `string` | Assets directory | `"assets"` |
 | `api` | `string` | API output directory | `"api"` |
 | `outDir` | `string` | Output directory | `"dist"` |
@@ -164,11 +168,16 @@ type RootProps = {
 
 ### CssContent
 
-CSS content can be either inline (string) or linked (object with href):
+A value in `cssFiles` / `globalCss` maps — props for one `<style>` or `<link>`
+tag, exactly as the `Css` component renders it (see
+[CSS Handling](./css-handling.md)):
 
 ```typescript
-type CssContent<InlineCSS extends boolean = boolean> = 
-  InlineCSS extends true ? string : { href: string };
+type CssContent =
+  // inline: rendered as <style type="text/css">{children}</style>
+  | { as: "style"; type: "text/css"; children?: React.ReactNode }
+  // linked: rendered as <link rel="stylesheet" href … /> (react-dom hoistable)
+  | { as: "link"; rel: string; href: string; precedence?: string };
 ```
 
 ## Build Configuration
@@ -203,8 +212,15 @@ Single-isolate edge bundle (additive; **ON by default**). See [Edge / Single-Iso
 //   false           → opt out
 //   { … }           → emit, with overrides
 interface EdgeBuildConfig {
-  outDir?: string;  // Default: "server-edge" (under build.outDir)
-  minify?: boolean; // Default: true — edge runtimes cap bundle size
+  outDir?: string;    // Default: "server-edge" (under build.outDir)
+  minify?: boolean;   // Default: true — edge runtimes cap bundle size
+  // Which RSC transport the baked bundle renders through. "esm" resolves
+  // client references via import(moduleBaseURL + id) at request time;
+  // "webpack" resolves them through the baked client manifest (closed module
+  // map — the fully self-contained deployment model). Defaults from the
+  // top-level `transport` option when set. Don't mix flavors across one
+  // deploy's routes — see [Edge / Single-Isolate](./edge.md).
+  transport?: "esm" | "webpack"; // Default: "esm"
 }
 ```
 
@@ -246,75 +262,29 @@ This option is useful when you want to maintain your source directory structure 
 
 ### PluginEvent
 
-Events emitted during build processes:
+`onEvent` receives every plugin event; switch on `event.type`. Each event
+carries a `data` payload (full shapes in `plugin/types.ts`):
 
-```typescript
-type PluginEvent = 
-  | { type: 'build:start'; data: { target: string } }
-  | { type: 'build:end'; data: { target: string; duration: number } }
-  | { type: 'page:build:start'; data: { url: string; target: string } }
-  | { type: 'page:build:end'; data: { url: string; target: string; duration: number } }
-  | { type: 'error'; data: { message: string; stack?: string } }
-  | { type: 'warning'; data: { message: string } };
-```
+| `type` | When | Notable `data` fields |
+|--------|------|----------------------|
+| `"file.write"` | a prerendered file starts writing | `path`, `fileType` (`"html"`/`"rsc"`), `route`, `stream` |
+| `"file.write.done"` | that write completed | `route`, `fileType`, `path`, `content`, `chunks` |
+| `"route.error"` | a route render failed | `route`, `error`, `isPanic`, `panicThreshold` |
+| `"route.shellError"` | the HTML shell failed | `route`, `error` |
+| `"route.shellReady"` / `"route.allReady"` | streaming milestones per route | `route` |
+| `"route.postpone"` | React postponed a route | `route`, `reason` |
+| `"props.load"` | a route's loader resolved | `route` |
+| `"css.process"` | CSS was processed for a route | route/css details |
+| `"build.start"` | a build began | — |
+| `"build.writeBundle.server"` / `".client"` / `".static"` | an environment's bundle was written | bundle details |
+| `"build.ssg.start"` / `"build.ssg.end"` | the SSG pass began / finished | — |
 
-### BuildMetrics
+### Metrics
 
-Metrics collected during builds:
-
-```typescript
-interface BuildMetrics {
-  buildTime: number;
-  htmlSize: number;
-  rscSize: number;
-  cssSize: number;
-  jsSize: number;
-  pageCount: number;
-  errorCount: number;
-  warningCount: number;
-}
-```
-
-## Worker Messages
-
-### WorkerMessage
-
-Messages sent between main thread and workers:
-
-```typescript
-type WorkerMessage = 
-  | { type: 'render'; data: RenderRequest }
-  | { type: 'result'; data: RenderResult }
-  | { type: 'error'; data: { message: string; stack?: string } }
-  | { type: 'ready'; data: {} };
-```
-
-### RenderRequest
-
-Request structure for rendering:
-
-```typescript
-interface RenderRequest {
-  url: string;
-  pageProps?: any;
-  moduleBaseURL: string;
-  cssFiles: CssFile[];
-  globalCss: CssFile[];
-}
-```
-
-### RenderResult
-
-Result structure from rendering:
-
-```typescript
-interface RenderResult {
-  html: string;
-  rsc: string;
-  css: string;
-  duration: number;
-}
-```
+`onMetrics` receives a discriminated union of render, worker-startup,
+module-resolution, ssg-render, inline-flight and edge-bake metrics — see the
+[Metric types](#metric-types) table under Metric Watcher for the full list of
+`metrics.type` values and their fields.
 
 ## Type Definitions
 
@@ -339,24 +309,10 @@ type CssComponentType = (props: CssProps) => React.ReactNode;
 ### Environment Detection
 
 ```typescript
-// Check current execution context
-function getCondition(): string | null;
+import { getCondition } from "vite-plugin-react-server/config";
 
-// Environment-specific configurations
-const RSC_LOADER = {
-  development: {
-    importServerPath: "react-server-dom-esm/server.node",
-    importClientPath: "react-server-dom-esm/server.node",
-    registerClientReferenceName: "registerClientReference",
-    registerServerReferenceName: "registerServerReference"
-  },
-  production: {
-    importServerPath: "react-server-dom-esm/server",
-    importClientPath: "react-server-dom-esm/server",
-    registerClientReferenceName: "registerClientReference",
-    registerServerReferenceName: "registerServerReference"
-  }
-};
+// "react-server" when the process runs under that condition, else null.
+function getCondition(): string | null;
 ```
 
 ## Directive Patterns
@@ -584,7 +540,7 @@ import type {
   RootProps,
   BuildConfig,
   PluginEvent,
-  BuildMetrics
+  OnMetrics
 } from "vite-plugin-react-server/types";
 ```
 

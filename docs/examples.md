@@ -28,36 +28,41 @@ Build and deploy `dist/static/`.
 - [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official) — starter template
 - [mmc](https://github.com/nicobrinkkemper/mmc) — 284 pages
 
-## Dynamic Server (Express)
+## Dynamic Server (Node / Express)
 
-Use the build output as ESM modules in an Express server:
+Don't hand-roll the server: `createRequestHandler` serves the prerendered
+output with the MIME types and traversal guard a file server has to get right,
+dispatches `"use server"` actions through the sealed baked gate, and renders
+dynamic routes per request through the edge bundle's render hook — see
+[Build Output](./build-output.md#using-the-esm-modules-in-a-server):
 
 ```ts
-// server.ts
+// server.ts — plain Node, no framework needed
+import { createServer } from "node:http";
+import {
+  createRequestHandler,
+  toNodeListener,
+} from "vite-plugin-react-server/request-handler";
+import { createEdgeRenderHook } from "vite-plugin-react-server/edge";
+import * as bundle from "./dist/server-edge/render.js";
+
+const handler = createRequestHandler({
+  staticDir: "dist/static",              // prerendered HTML, .rsc, assets
+  render: createEdgeRenderHook(bundle),  // per-request dynamic routes
+  action: bundle.handleRouteAction,      // sealed action gate, baked at build
+});
+
+createServer(toNodeListener(handler)).listen(3000);
+```
+
+Under Express the same handler mounts as middleware — Express only adds
+whatever else your app needs around it:
+
+```ts
 import express from "express";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-
-// Static pages (pre-rendered)
-app.use(express.static(join(__dirname, "dist/static")));
-
-// RSC endpoint
-app.get("*.rsc", (req, res) => {
-  res.setHeader("Content-Type", "text/x-component");
-  res.sendFile(join(__dirname, "dist/static", req.path));
-});
-
-// Dynamic route — render on request using server modules
-app.get("/user/:id", async (req, res) => {
-  const { Page } = await import("./dist/server/pages/user/page.js");
-  const props = { userId: req.params.id };
-  // Use createRscStream / createHtmlStream to render
-  // ...
-});
-
+app.use(toNodeListener(handler));
 app.listen(3000);
 ```
 

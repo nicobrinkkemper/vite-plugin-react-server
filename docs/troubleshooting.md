@@ -8,8 +8,8 @@
 
 ```json
 {
-  "react": "^19.0.0",
-  "react-dom": "^19.0.0",
+  "react": "^19.2.7",
+  "react-dom": "^19.2.7",
   "@types/react": "^19.0.9",
   "@types/react-dom": "^19.0.3"
 }
@@ -208,7 +208,7 @@ This is an upstream Rolldown limitation, not vprs-specific. Workarounds:
 
 ## Checklist for New Projects
 
-- [ ] React packages have matching versions (19+)
+- [ ] React packages have matching versions (19.2+)
 - [ ] Client components have `"use client"` directive
 - [ ] Server actions have `"use server"` directive
 - [ ] Imports use `.js` extensions

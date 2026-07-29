@@ -31,9 +31,10 @@ npm install react@<that-exact-version> react-dom@<that-exact-version>
 
 `react-server-loader` is a regular **dependency** whose range admits the
 stable train plus the exact experimental build this release was verified
-against (`^19.2.17 || 0.0.0-experimental-172742b4-20260716`), so every package
-manager installs it for you — the stable train by default, no extra step (yarn
-included).
+against — check `dependencies["react-server-loader"]` in vprs's
+[`package.json`](https://github.com/nicobrinkkemper/vite-plugin-react-server/blob/main/package.json)
+for the current range. Every package manager installs it for you — the stable
+train by default, no extra step (yarn included).
 
 To run the experimental train, install all three React packages at the
 `@experimental` tag. The loader's range also admits that experimental build, so
