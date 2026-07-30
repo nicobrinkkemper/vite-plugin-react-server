@@ -105,7 +105,7 @@ failure is a warning, never a build failure).
 | ----------- | -------------- | ------- |
 | `outDir`    | `"server-edge"`| output dir, under `build.dir` |
 | `minify`    | `true`         | minify the bundle. It bakes React in, so it is large; edge platforms cap bundle size. Set `false` for readable output. |
-| `transport` | `"esm"`        | which RSC transport the baked render path uses. `"webpack"` additionally emits the baked consumer (`consumer.js`) for filesystem-less runtimes. Transports don't mix: prerendered `.rsc`/inline-flight snapshots are esm-encoded, so a webpack deploy serves **every** route through the edge bundle and drops the page snapshots from what it hosts. |
+| `transport` | `"esm"` (or the top-level [`transport`](./configuration.md#transport) when set) | which RSC transport the baked render path uses. `"webpack"` additionally emits the baked consumer (`consumer.js`) for filesystem-less runtimes. Transports don't mix within one deploy: prefer setting the top-level `transport`, which renders the page snapshots through the baked pair too, so snapshots and per-request routes carry one flavor. Overriding only this field leaves the snapshots esm-encoded; that split serves **every** route through the edge bundle and drops the page snapshots from what it hosts. |
 
 ## Serve it: `createEdgeRequestHandler`
 
@@ -212,9 +212,12 @@ Like `/edge`, it is condition-neutral.
 
 Two constraints to know:
 
-- **Transports don't mix.** Prerendered `.rsc` snapshots and inline-flight
-  payloads are esm-encoded; a webpack-transport client cannot decode them. A
-  webpack deploy serves every route through the edge bundle and does not host
+- **Transports don't mix.** A webpack-transport client cannot decode
+  esm-encoded `.rsc` snapshots or inline-flight payloads. With the top-level
+  [`transport: "webpack"`](./configuration.md#transport) the snapshots render
+  webpack-encoded too, so this never splits. With only
+  `build.edge.transport: "webpack"` set, the snapshots stay esm-encoded and
+  the deploy serves every route through the edge bundle rather than hosting
   the page snapshots (assets and chunks are still the CDN's to serve).
 - The consumer bakes **client React in**, so it is a second large artifact —
   the same size trade as the producer, for the same reason.

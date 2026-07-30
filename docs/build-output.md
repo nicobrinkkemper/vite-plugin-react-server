@@ -1,5 +1,11 @@
 # Build Output
 
+This page is the contract between the build and everything that serves it.
+Every way of deploying a vprs app (a static host, a server you own, an edge
+function) is a consumer of the output described here, not a separate build
+mode. The [deploy recipes](./README.md#three-ways-to-ship) all read from this
+page.
+
 Running `vite build --app` produces three directories (prefix
 `NODE_OPTIONS='--conditions react-server'` if you want the optional
 main-thread render — the output is identical either way):
@@ -55,7 +61,7 @@ Here's how Vite's build environments map to output directories:
 
 A self-contained static site. Every route in `build.pages` gets an `index.html` (full page) and `index.rsc` (RSC payload for client-side navigation). Deploy to GitHub Pages, Netlify, S3, or any static host.
 
-This directory is generated *after* the other two builds complete, using `dist/server/` for server components and `dist/client/` for client components.
+The directory itself is Vite's ordinary browser build: hashed JS/CSS bundles plus Vite's own `index.html`, a build *input* (it keys the client bootstrap in the manifest and is the dev entry) that Vite emits into the output on every build. Static generation then enriches the directory after the other two builds complete: it renders each route through `dist/server/` and `dist/client/` and writes the prerendered `index.html` + `index.rsc` in, overwriting the Vite template when a page claims `/`. When no page claims `/`, the bare template is pruned instead of shipped. It is a build intermediate, and left in place it would shadow a per-request route on hosts that serve files before rewrites.
 
 ### `dist/client/` — client components for Node
 
@@ -171,9 +177,16 @@ all of this only applies once you stand up a dynamic server.
 **The pattern for an edge-network deployment is hybrid:** serve `dist/static/`
 from the edge/CDN (instant, global, no runtime) and put dynamic SSR or server
 actions on a function behind it — worker-based, single-isolate on Node, or the
-webpack pair on a Worker, your pick. One constraint on mixing: prerendered
-`.rsc`/inline-flight snapshots are esm-encoded, so a webpack-transport deploy
-serves every route through the edge bundles rather than the page snapshots.
+webpack pair on a Worker, your pick. One constraint on mixing: snapshots and
+dynamic routes must carry the same flight flavor. The top-level
+[`transport` option](./configuration.md#transport) guarantees that: with
+`transport: "webpack"` the snapshots themselves render through the baked
+pair, so any route may be served from CDN snapshot or per-request alike.
+Only when the flavor is overridden at the edge level alone
+(`build.edge.transport: "webpack"` without the top-level option) do
+esm-encoded snapshots sit next to webpack-encoded dynamic routes; in that
+split, serve every route through the edge bundles rather than the page
+snapshots.
 
 ## Stream Types
 
@@ -189,24 +202,22 @@ Both streams include detailed stack traces in development mode.
 
 ## Build Modes
 
-### Single-step (recommended)
+### One command
 
 ```bash
 vite build --app
 ```
 
-Builds all three environments in sequence automatically. Prefixing
-`NODE_OPTIONS='--conditions react-server'` is an optional variant — the main
-thread renders RSC directly instead of a worker; a bit faster, better stack
-traces, same output.
+Builds all three environments in sequence, runs static generation, and bakes
+the edge bundle. The plugin supplies Vite's `builder` config, so plain
+`vite build` performs the same full app build; `--app` (Vite's alias for
+`builder: {}`) is explicit rather than required. There is no
+per-environment CLI decomposition: `vite build --ssr` also resolves to the
+full app build, not a partial one.
 
-### Multi-step (for debugging)
-
-```bash
-vite build                                                    # static
-vite build --ssr                                              # client
-NODE_OPTIONS='--conditions react-server' vite build --ssr     # server
-```
+Prefixing `NODE_OPTIONS='--conditions react-server'` is an optional variant:
+the main thread renders RSC directly instead of a worker; a bit faster,
+better stack traces, same output.
 
 ### Parallel Rendering
 
@@ -243,6 +254,26 @@ handlers drive), `renderRouteToFlight(url)` (the headless `.rsc` producer),
 `build.edge.transport: "webpack"`, `consumer.js` exports `renderFlightToHtml`
 with every client module compiled in; passing it makes the pair
 filesystem-free. See [Edge / Single-Isolate](./edge.md).
+
+## Turning outputs off
+
+The build has one optional artifact: the edge bundle. Everything else is
+either the deployment itself or an input the static generation step needs.
+
+- **`dist/server-edge/`: pass `build.edge: false`.** The bake is on by
+  default; a fully static deployment never calls it, so switching it off
+  drops the artifact and the bundling pass that produces it.
+- **`dist/client/` and `dist/server/` cannot be skipped.** They are not
+  alternative deployments but the modules static generation imports to
+  render `dist/static/` (see the pipeline above). Keep them out of the
+  deploy instead: upload `dist/static/` only.
+- **`.rsc` payloads ride along with every prerendered page.** They are what
+  client-side navigation fetches, so there is no knob to suppress them.
+  `build.inlineFlight` (default `false`) additionally inlines each route's
+  flight into its `index.html`; it adds to the snapshot rather than replacing
+  the `.rsc` files.
+- **`build.edge.minify: false`** emits the edge bundle readable for
+  inspection instead of minified; the artifact is otherwise identical.
 
 ## Environment Variables
 
