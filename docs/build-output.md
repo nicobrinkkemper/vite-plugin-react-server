@@ -202,24 +202,22 @@ Both streams include detailed stack traces in development mode.
 
 ## Build Modes
 
-### Single-step (recommended)
+### One command
 
 ```bash
 vite build --app
 ```
 
-Builds all three environments in sequence automatically. Prefixing
-`NODE_OPTIONS='--conditions react-server'` is an optional variant — the main
-thread renders RSC directly instead of a worker; a bit faster, better stack
-traces, same output.
+Builds all three environments in sequence, runs static generation, and bakes
+the edge bundle. The plugin supplies Vite's `builder` config, so plain
+`vite build` performs the same full app build — `--app` (Vite's alias for
+`builder: {}`) is explicit rather than required. There is no
+per-environment CLI decomposition: `vite build --ssr` also resolves to the
+full app build, not a partial one.
 
-### Multi-step (for debugging)
-
-```bash
-vite build                                                    # static
-vite build --ssr                                              # client
-NODE_OPTIONS='--conditions react-server' vite build --ssr     # server
-```
+Prefixing `NODE_OPTIONS='--conditions react-server'` is an optional variant —
+the main thread renders RSC directly instead of a worker; a bit faster,
+better stack traces, same output.
 
 ### Parallel Rendering
 
