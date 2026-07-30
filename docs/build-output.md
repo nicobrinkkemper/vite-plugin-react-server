@@ -177,9 +177,16 @@ all of this only applies once you stand up a dynamic server.
 **The pattern for an edge-network deployment is hybrid:** serve `dist/static/`
 from the edge/CDN (instant, global, no runtime) and put dynamic SSR or server
 actions on a function behind it — worker-based, single-isolate on Node, or the
-webpack pair on a Worker, your pick. One constraint on mixing: prerendered
-`.rsc`/inline-flight snapshots are esm-encoded, so a webpack-transport deploy
-serves every route through the edge bundles rather than the page snapshots.
+webpack pair on a Worker, your pick. One constraint on mixing: snapshots and
+dynamic routes must carry the same flight flavor. The top-level
+[`transport` option](./configuration.md#transport) guarantees that — with
+`transport: "webpack"` the snapshots themselves render through the baked
+pair, so any route may be served from CDN snapshot or per-request alike.
+Only when the flavor is overridden at the edge level alone
+(`build.edge.transport: "webpack"` without the top-level option) do
+esm-encoded snapshots sit next to webpack-encoded dynamic routes; in that
+split, serve every route through the edge bundles rather than the page
+snapshots.
 
 ## Stream Types
 
