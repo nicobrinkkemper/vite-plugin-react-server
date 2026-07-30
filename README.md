@@ -175,9 +175,16 @@ See [Getting Started](./docs/getting-started.md#what-makes-it-a-client-component
 
 ## Third-party client-component packages
 
-Component libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion are **client-only** — their components rely on React context/state and must run inside a client boundary, the same constraint they carry under Next.js's App Router. Use them within a `"use client"` component (commonly a small provider wrapper); they can't be imported directly into a server component. This isn't a vprs limitation — e.g. [Chakra's own Next.js App Router guide](https://v2.chakra-ui.com/getting-started/nextjs-app-guide) requires wrapping `ChakraProvider` in a `'use client'` component.
+Component libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion ship per-file `"use client"` directives in their compiled output. vprs detects these packages and preserves the directives, so the server build turns each directive module into a client reference instead of executing it under the `react-server` condition (which would throw on `createContext`/`useState`).
 
-vprs auto-detects these so they're treated correctly at build start: any package with `react` in its `peerDependencies` is classified as a client package (using [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu)). Two escape hatches if needed:
+Two rules govern using them:
+
+- **The package must be reachable from the client graph.** The client build only emits (hosts) package modules that some first-party `"use client"` module imports; a client reference recorded by the server build dangles at render time (`ERR_MODULE_NOT_FOUND`) if nothing client-side pulls the package in. With such an importer in place, server components can import the package's components directly.
+- **Providers need a `"use client"` wrapper.** Props crossing the server→client boundary must be serializable, and a provider's value typically isn't (`ChakraProvider` takes a system object full of functions). This is an RSC constraint, not a vprs one: [Chakra's App Router guide](https://chakra-ui.com/docs/get-started/frameworks/next-app) ships that wrapper as its CLI-generated `provider.tsx` snippet.
+
+In practice the provider wrapper satisfies both rules at once: it is the client-side importer that gets the package hosted.
+
+Detection is automatic at build start: any package with `react` in its `peerDependencies` is classified as a client package (using [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu)). Two escape hatches if needed:
 
 ```ts
 vitePluginReactServer({

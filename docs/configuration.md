@@ -175,9 +175,9 @@ for builds.
 
 ## Third-party `"use client"` packages
 
-Libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion ship per-file `"use client"` directives in their compiled output. vprs picks them up automatically so they can be imported directly in server components — same as Next.js's App Router.
+Libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion ship per-file `"use client"` directives in their compiled output. vprs picks them up automatically: the server build converts each directive module into a client reference instead of executing it under the `react-server` condition, so server components can import the package's components directly — provided the package is also reachable from the client graph. The client build only hosts package modules that some first-party `"use client"` module imports (commonly the provider wrapper); a reference with no client-side importer dangles at SSG render (`ERR_MODULE_NOT_FOUND`). See the README's "Third-party client-component packages" section for the usage rules.
 
-Detection runs once at config-time via [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu): any package with `react` in `peerDependencies` is added to the bundle's `noExternal` list, has its directives preserved through esbuild's pre-bundle (`optimizeDeps.exclude`), and gets each `"use client"` module emitted as its own client chunk so the html-worker can resolve client references at SSG render time.
+Detection runs once at config-time via [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu): any package with `react` in `peerDependencies` is added to the bundle's `noExternal` list and has its directives preserved through esbuild's pre-bundle (`optimizeDeps.exclude`); client-graph-reachable `"use client"` modules are emitted as their own client chunks so the html-worker can resolve client references at SSG render time.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
