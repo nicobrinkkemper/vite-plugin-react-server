@@ -1,5 +1,11 @@
 # Build Output
 
+This page is the contract between the build and everything that serves it.
+Every way of deploying a vprs app — a static host, a server you own, an edge
+function — is a consumer of the output described here, not a separate build
+mode. The [deploy recipes](./README.md#three-ways-to-ship) all read from this
+page.
+
 Running `vite build --app` produces three directories (prefix
 `NODE_OPTIONS='--conditions react-server'` if you want the optional
 main-thread render — the output is identical either way):

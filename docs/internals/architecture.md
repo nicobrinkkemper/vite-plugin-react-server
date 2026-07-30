@@ -158,3 +158,23 @@ What can cross worker boundaries:
 | RegExp patterns | Functions (closures) |
 
 This is why path-based resolution works in both modes, but `components.*` only works with `react-server` on the main thread.
+
+## Building on the contract
+
+The user-facing surface stops deliberately short of a framework: the plugin
+emits the [build output](../build-output.md) and hands you the serving. That
+same contract is enough to build a meta-framework on — a router with its own
+conventions, a CMS-backed page factory, a deploy pipeline — because everything
+downstream of the build consumes documented artifacts, not plugin internals.
+
+[mmc](https://github.com/nicobrinkkemper/mmc) is the living example: a small
+meta-framework grown alongside vprs, 284 prerendered pages with per-theme
+layouts and generated props. It started life as a create-react-app project,
+which also makes it the proof of the migration path: CRA to Vite to RSC
+without a framework rewrite.
+
+If you're building on the contract, reach out early —
+[open an issue](https://github.com/nicobrinkkemper/vite-plugin-react-server/issues)
+rather than building in isolation. The plugin is under active development:
+PRs get reviewed, and an idea that needs a seam the plugin doesn't expose yet
+is exactly the input we want.
