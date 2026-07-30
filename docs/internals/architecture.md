@@ -124,7 +124,7 @@ Auto-discovery decides which files become build inputs. Runtime classification (
 detectClientModule({ source, moduleId, parseFn? }): boolean
 ```
 
-The transformer passes rsl's acorn-based `parse` (from `react-server-loader`) as `parseFn` for AST-aware directive analysis — deliberately not the bundler's `this.parse`, which is Rollup (acorn) on Vite 6/7 but Oxc on Vite 8 with a different AST shape. The other call sites omit it and fall back to the parser-free char-scanner in `sourceHasTopLevelClientDirective.ts`. Both paths agree on every well-authored case.
+The transformer passes rsl's acorn-based `parse` (from `react-server-loader`) as `parseFn` for AST-aware directive analysis, not the bundler's `this.parse`, which is Rollup (acorn) on Vite 6/7 but Oxc on Vite 8 with a different AST shape. The other call sites omit it and fall back to the parser-free char-scanner in `sourceHasTopLevelClientDirective.ts`. Both paths agree on every well-authored case.
 
 The filename half — `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` — matches the dotted-suffix convention (`Foo.client.tsx`) and the standalone basename (`client.tsx`/`.ts`/etc.). The leading-`(^|[\/.])` anchor keeps it strict: `clientUtils.ts` is NOT matched.
 
@@ -161,10 +161,10 @@ This is why path-based resolution works in both modes, but `components.*` only w
 
 ## Building on the contract
 
-The user-facing surface stops deliberately short of a framework: the plugin
+The user-facing surface stops short of a framework on purpose: the plugin
 emits the [build output](../build-output.md) and hands you the serving. That
-same contract is enough to build a meta-framework on — a router with its own
-conventions, a CMS-backed page factory, a deploy pipeline — because everything
+same contract is enough to build a meta-framework on (a router with its own
+conventions, a CMS-backed page factory, a deploy pipeline) because everything
 downstream of the build consumes documented artifacts, not plugin internals.
 
 [mmc](https://github.com/nicobrinkkemper/mmc) is the living example: a small
@@ -173,8 +173,8 @@ layouts and generated props. It started life as a create-react-app project,
 which also makes it the proof of the migration path: CRA to Vite to RSC
 without a framework rewrite.
 
-If you're building on the contract, reach out early —
-[open an issue](https://github.com/nicobrinkkemper/vite-plugin-react-server/issues)
-rather than building in isolation. The plugin is under active development:
+If you're building on the contract, reach out early.
+[Open an issue](https://github.com/nicobrinkkemper/vite-plugin-react-server/issues)
+rather than building in isolation: the plugin is under active development,
 PRs get reviewed, and an idea that needs a seam the plugin doesn't expose yet
-is exactly the input we want.
+is the input we want.

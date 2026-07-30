@@ -14,26 +14,25 @@ guides below are organized around the three ways people actually ship.
 
 One build, three deploy shapes. Pick the one that matches what you're building.
 
-**1. A content site on dumb hosting** — GitHub Pages, FTP, S3, any CDN.
+**1. A content site on dumb hosting** (GitHub Pages, FTP, S3, any CDN).
 `dist/static/` is the whole deployment: prerendered HTML, `.rsc` payloads
-for client-side navigation, hashed assets.
-No runtime, nothing to operate — and `build.edge: false` skips the server
-bundle this shape never uses.
+for client-side navigation, hashed assets. No runtime to operate, and
+`build.edge: false` skips the server bundle this shape never uses.
 [Getting Started → Deploy](./getting-started.md#deploy-to-github-pages) ·
 [Examples → Static Site](./examples.md#static-site-github-pages) ·
 [Build Output → Turning outputs off](./build-output.md#turning-outputs-off)
 
-**2. RSC inside a server you own** — plain Node, Express, a serverless
-function. `createRequestHandler` serves the static output correctly,
+**2. RSC inside a server you own** (plain Node, Express, a serverless
+function). `createRequestHandler` serves the static output correctly,
 dispatches `"use server"` [actions](./server-actions.md) through the sealed
 baked gate, and renders dynamic routes per request through the
-[single-isolate edge bundle](./edge.md) — flash-free streaming SSR from one
-Web `fetch` handler, no workers and no `--conditions`; Cloudflare Workers /
-Deno Deploy via the webpack transport's baked consumer.
+[single-isolate edge bundle](./edge.md): flash-free streaming SSR from one
+Web `fetch` handler, no workers and no `--conditions`. Cloudflare Workers
+and Deno Deploy work via the webpack transport's baked consumer.
 [Build Output → Using the ESM modules in a server](./build-output.md#using-the-esm-modules-in-a-server) ·
 [Examples → Dynamic Server](./examples.md#dynamic-server-node--express)
 
-**3. Mixed rendering from one build** — prerender the content routes, render
+**3. Mixed rendering from one build.** Prerender the content routes, render
 the per-request ones dynamically, and ship both as one deploy with client-side
 navigation across the boundary.
 [Build Output → Where it runs](./build-output.md#where-it-runs-static-anywhere-dynamic-on-node) ·

@@ -105,7 +105,7 @@ failure is a warning, never a build failure).
 | ----------- | -------------- | ------- |
 | `outDir`    | `"server-edge"`| output dir, under `build.dir` |
 | `minify`    | `true`         | minify the bundle. It bakes React in, so it is large; edge platforms cap bundle size. Set `false` for readable output. |
-| `transport` | `"esm"` (or the top-level [`transport`](./configuration.md#transport) when set) | which RSC transport the baked render path uses. `"webpack"` additionally emits the baked consumer (`consumer.js`) for filesystem-less runtimes. Transports don't mix within one deploy: prefer setting the top-level `transport`, which renders the page snapshots through the baked pair too, so snapshots and per-request routes carry one flavor. Overriding only this field leaves the snapshots esm-encoded — that split serves **every** route through the edge bundle and drops the page snapshots from what it hosts. |
+| `transport` | `"esm"` (or the top-level [`transport`](./configuration.md#transport) when set) | which RSC transport the baked render path uses. `"webpack"` additionally emits the baked consumer (`consumer.js`) for filesystem-less runtimes. Transports don't mix within one deploy: prefer setting the top-level `transport`, which renders the page snapshots through the baked pair too, so snapshots and per-request routes carry one flavor. Overriding only this field leaves the snapshots esm-encoded; that split serves **every** route through the edge bundle and drops the page snapshots from what it hosts. |
 
 ## Serve it: `createEdgeRequestHandler`
 
