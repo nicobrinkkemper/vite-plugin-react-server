@@ -78,5 +78,6 @@ intent, not necessarily what ships today.
 ## Links
 
 - [GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
+- [Starter (vprs-starter)](https://github.com/nicobrinkkemper/vprs-starter) — minimal template; one build deploying to Vercel with CDN snapshots and a per-request route
 - [Official Demo (bidoof-template)](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
 - [Production Example (mmc)](https://github.com/nicobrinkkemper/mmc)
