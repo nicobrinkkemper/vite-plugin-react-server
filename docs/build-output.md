@@ -61,7 +61,7 @@ Here's how Vite's build environments map to output directories:
 
 A self-contained static site. Every route in `build.pages` gets an `index.html` (full page) and `index.rsc` (RSC payload for client-side navigation). Deploy to GitHub Pages, Netlify, S3, or any static host.
 
-This directory is generated *after* the other two builds complete, using `dist/server/` for server components and `dist/client/` for client components.
+The directory itself is Vite's ordinary browser build: hashed JS/CSS bundles plus Vite's own `index.html` — a build *input* (it keys the client bootstrap in the manifest and is the dev entry), which Vite emits into the output on every build. Static generation then enriches the directory after the other two builds complete: it renders each route through `dist/server/` and `dist/client/` and writes the prerendered `index.html` + `index.rsc` in, overwriting the Vite template when a page claims `/`. When no page claims `/`, the bare template is pruned instead of shipped — it is a build intermediate, and left in place it would shadow a per-request route on hosts that serve files before rewrites.
 
 ### `dist/client/` — client components for Node
 
