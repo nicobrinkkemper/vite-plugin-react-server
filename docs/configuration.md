@@ -269,6 +269,11 @@ Dev and production are separate sessions — each is internally coherent — so
 choosing a flavor per mode is safe in a way per-route mixing within one
 deploy never is.
 
+The [vprs-starter](https://github.com/nicobrinkkemper/vprs-starter) is the
+living example: one `transport: "webpack"` line, and its Vercel deploy serves
+`/about` from CDN snapshots while `/` renders per request — with client-side
+navigation across that boundary, which is precisely what one flavor buys.
+
 ## Metric Watcher
 
 Opt-in build output: wire `metricWatcher` into `onMetrics` and the build prints

@@ -60,8 +60,10 @@ upgrading from 1.x, see the
 
 ## Minimal Example
 
-File-based routes, server-computed props, and a one-call client entry. One
-prerequisite: the project must be ESM (`"type": "module"` in `package.json`).
+File-based routes, server-computed props, and a one-call client entry — the
+same wiring the [starter](https://github.com/nicobrinkkemper/vprs-starter)
+deploys. One prerequisite: the project must be ESM (`"type": "module"` in
+`package.json`).
 
 ```ts
 // vite.config.ts
