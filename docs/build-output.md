@@ -250,6 +250,26 @@ handlers drive), `renderRouteToFlight(url)` (the headless `.rsc` producer),
 with every client module compiled in; passing it makes the pair
 filesystem-free. See [Edge / Single-Isolate](./edge.md).
 
+## Turning outputs off
+
+The build has one optional artifact: the edge bundle. Everything else is
+either the deployment itself or an input the static generation step needs.
+
+- **`dist/server-edge/` — pass `build.edge: false`.** The bake is on by
+  default; a fully static deployment never calls it, so switching it off
+  drops the artifact and the bundling pass that produces it.
+- **`dist/client/` and `dist/server/` cannot be skipped.** They are not
+  alternative deployments but the modules static generation imports to
+  render `dist/static/` (see the pipeline above). Keep them out of the
+  deploy instead: upload `dist/static/` only.
+- **`.rsc` payloads ride along with every prerendered page** — they are what
+  client-side navigation fetches, so there is no knob to suppress them.
+  `build.inlineFlight` (default `false`) additionally inlines each route's
+  flight into its `index.html`; it adds to the snapshot rather than replacing
+  the `.rsc` files.
+- **`build.edge.minify: false`** emits the edge bundle readable for
+  inspection instead of minified; the artifact is otherwise identical.
+
 ## Environment Variables
 
 The plugin sets these automatically if not provided:

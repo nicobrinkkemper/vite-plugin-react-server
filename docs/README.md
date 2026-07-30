@@ -15,11 +15,13 @@ guides below are organized around the three ways people actually ship.
 One build, three deploy shapes. Pick the one that matches what you're building.
 
 **1. A content site on dumb hosting** — GitHub Pages, FTP, S3, any CDN.
-`dist/static/` is the whole deployment: prerendered HTML with each route's
-flight inlined, `.rsc` payloads for client-side navigation, hashed assets.
-No runtime, nothing to operate.
+`dist/static/` is the whole deployment: prerendered HTML, `.rsc` payloads
+for client-side navigation, hashed assets.
+No runtime, nothing to operate — and `build.edge: false` skips the server
+bundle this shape never uses.
 [Getting Started → Deploy](./getting-started.md#deploy-to-github-pages) ·
-[Examples → Static Site](./examples.md#static-site-github-pages)
+[Examples → Static Site](./examples.md#static-site-github-pages) ·
+[Build Output → Turning outputs off](./build-output.md#turning-outputs-off)
 
 **2. RSC inside a server you own** — plain Node, Express, a serverless
 function. `createRequestHandler` serves the static output correctly,
