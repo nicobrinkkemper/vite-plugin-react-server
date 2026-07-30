@@ -285,30 +285,32 @@ export async function buildEdgeBundle(opts: {
     }
     const layoutParts: string[] = [];
     for (const layer of userOptions.layoutsResolver?.(resolveUrl) ?? []) {
-      const compAbs =
-        typeof layer.component === "string"
-          ? resolveBuilt(layer.component)
-          : undefined;
-      if (!compAbs) {
-        logger.warn(
-          `${tag} could not resolve built layout ${String(
-            layer.component
-          )} for route ${key}; skipping that layer`
-        );
-        continue;
+      // Bake every module the layer carries (layout component, shared props,
+      // error/loading boundaries, head). A field whose built module can't be
+      // resolved is dropped with a warning; the layer survives if any field
+      // resolved (a boundaries-only layer has no component at all).
+      const fieldParts: string[] = [];
+      for (const [field, src] of [
+        ["component", layer.component],
+        ["props", layer.props],
+        ["error", layer.error],
+        ["loading", layer.loading],
+        ["head", layer.head],
+      ] as const) {
+        if (typeof src !== "string") continue;
+        const abs = resolveBuilt(src);
+        if (!abs) {
+          logger.warn(
+            `${tag} could not resolve built ${field} module ${src} for route ${key}; dropping that field`
+          );
+          continue;
+        }
+        moduleParts.push(`${JSON.stringify(src)}: ${nsFor(abs)}`);
+        fieldParts.push(`${field}: ${JSON.stringify(src)}`);
       }
-      moduleParts.push(`${JSON.stringify(layer.component)}: ${nsFor(compAbs)}`);
-      let propsField = "";
-      const layerPropsAbs = layer.props ? resolveBuilt(layer.props) : undefined;
-      if (layer.props && layerPropsAbs) {
-        moduleParts.push(
-          `${JSON.stringify(layer.props)}: ${nsFor(layerPropsAbs)}`
-        );
-        propsField = `, props: ${JSON.stringify(layer.props)}`;
+      if (fieldParts.length) {
+        layoutParts.push(`{ ${fieldParts.join(", ")} }`);
       }
-      layoutParts.push(
-        `{ component: ${JSON.stringify(layer.component)}${propsField} }`
-      );
     }
     const layoutsField = layoutParts.length
       ? `, layouts: [${layoutParts.join(", ")}]`
@@ -365,8 +367,23 @@ export async function buildEdgeBundle(opts: {
   // to the consumer project (the same react the build used).
   const projectRequire = createRequire(join(projectRoot, "package.json"));
   const reactDir = dirname(projectRequire.resolve("react/package.json"));
-  const serverEdge = projectRequire.resolve("react-server-loader/server.edge");
-  const serverNode = projectRequire.resolve("react-server-loader/server.node");
+  // react-server-loader is vprs's OWN dependency, not the consumer's. A
+  // registry install hoists it into the consumer's node_modules so the
+  // consumer-rooted resolve finds it, but a `file:`-linked vprs (the
+  // releasing-doc verification flow) keeps its deps in its own node_modules —
+  // npm does not install a link's transitive deps into the consumer. Resolve
+  // from the consumer first (keeps the hoisted copy authoritative), fall back
+  // to vprs's own installation.
+  const selfRequire = createRequire(import.meta.url);
+  const resolveRsl = (id: string): string => {
+    try {
+      return projectRequire.resolve(id);
+    } catch {
+      return selfRequire.resolve(id);
+    }
+  };
+  const serverEdge = resolveRsl("react-server-loader/server.edge");
+  const serverNode = resolveRsl("react-server-loader/server.node");
 
   // Which RSC transport the bundle renders through. The transformed modules in
   // dist/server import the esm transport by ABSOLUTE path (their register*
@@ -378,7 +395,7 @@ export async function buildEdgeBundle(opts: {
   const transport = userOptions.build.edge.transport;
   const flightServerEntry =
     transport === "webpack"
-      ? projectRequire.resolve("react-server-loader/webpack/server.edge")
+      ? resolveRsl("react-server-loader/webpack/server.edge")
       : serverEdge;
 
   // Webpack bakes only: stub the `node:` modules whose only reachable uses are

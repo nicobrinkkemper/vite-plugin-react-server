@@ -469,7 +469,12 @@ Current condition: ${currentCondition}, Reverse condition: ${reverseCondition}`
             } satisfies CreateWorkerSuccess);
           }
         };
-        worker.once("message", messageHandler);
+        // `on`, not `once`: the boot shim posts BOOTING heartbeats before
+        // READY (they re-arm the inactivity watchdog above), and a `once`
+        // listener would be consumed by the first heartbeat — READY would
+        // then never resolve the startup. The handler self-removes on READY;
+        // exitHandler removes it on exit.
+        worker.on("message", messageHandler);
         worker.once("exit", exitHandler);
         worker.on("error", (err: Error) => {
           // Remove worker from registry on error

@@ -84,4 +84,25 @@ describe.skipIf(!RUN)("worker startup watchdog", () => {
       expect(String(r.error?.message)).toMatch(/timeout/i);
     }
   }, 15000);
+
+  it("a boot-shim worker heartbeating through a load LONGER than the timeout still starts", async () => {
+    // The real flake shape: the worker entry's heavy import graph evaluates
+    // past the startup window under CPU contention. The boot shim
+    // (bootWorker.ts) posts BOOTING between load stages; each message must
+    // re-arm the watchdog AND must not consume the parent's READY listener
+    // (a `once` listener is eaten by the first heartbeat — the regression
+    // this test pins). 4×400ms busy chunks with heartbeats between, against
+    // a 600ms startup timeout: total load 1600ms > 600ms, but no silent gap
+    // exceeds the window.
+    const r = await spawnStub({
+      stubBootChunks: 4,
+      stubBootChunkMs: 400,
+      userOptions: { rscWorkerStartupTimeout: 600 },
+    });
+    try {
+      expect(r.type).toBe("success");
+    } finally {
+      await terminate([r as never]);
+    }
+  }, 15000);
 });

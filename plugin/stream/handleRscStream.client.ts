@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { join } from "node:path";
 import { toError } from "../error/toError.js";
 import { logError } from "../error/logError.js";
+import { isLoaderSignal } from "../router/loaderSignals.js";
 
 /**
  * Client-side RSC stream handler using unified stream management
@@ -22,7 +23,7 @@ import { logError } from "../error/logError.js";
  * @returns A ReadableStream that yields RSC chunks
  */
 export const handleRscStream: HandleRscStreamFn<"client"> =
-  function _handleWorkerRscStream({ options }) {
+  function _handleWorkerRscStream({ options, handlers }) {
     // Generate a unique request id to avoid conflicts with concurrent requests
     const requestId =
       options.id ??
@@ -49,6 +50,21 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
     // controlPort1 too early would silently drop those messages, which is
     // exactly the cross-condition leak bd-6pi was hunting.
     let controlEndedReceived = false;
+    // The data port's `null` signal is the only ordered end-of-stream
+    // authority: it queues behind every data chunk on the same port. RSC_END
+    // arrives on the control port, and cross-port delivery order is NOT
+    // guaranteed — under load it can be processed while data chunks (notably
+    // the in-band `$E` error frame after a render failure) are still queued
+    // on the data port. Ending the stream from RSC_END truncated the response
+    // to the leading `:N<timeOrigin>` chunk — a silent 200, the exact
+    // swallowed-error case rsc-stream-error-surface guards against. RSC_END
+    // therefore only ends the stream as a delayed fallback for a worker that
+    // died before posting `null`.
+    let dataEndedReceived = false;
+    const endDataStream = () => {
+      dataEndedReceived = true;
+      rscStream.end();
+    };
     const cleanupPorts = () => {
       try {
         dataPort1.removeListener("message", dataMessageHandler);
@@ -80,11 +96,29 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           if (options.verbose) {
             options.logger?.info(`[client] RSC render ended for ${message.id}`);
           }
-          // Now it's safe to end the stream
           controlEndedReceived = true;
-          rscStream.end();
+          // Do not end the data stream here — see the dataEndedReceived note
+          // above. Fall back to ending only if the data port's `null` never
+          // arrives (worker died between chunks and its onEnd).
+          if (!dataEndedReceived) {
+            setTimeout(() => {
+              if (!dataEndedReceived) {
+                endDataStream();
+              }
+            }, 100).unref?.();
+          }
           break;
         case "ERROR": {
+          const err = toError(message.error, message.errorInfo);
+          // A loader redirect()/notFound() is control flow the caller must
+          // answer (3xx/404 on the response), not a render failure to log.
+          // Hand it to the caller's onError and end the (still-empty) data
+          // stream so the pipe completes.
+          if (isLoaderSignal(err)) {
+            handlers?.onError?.(message.id ?? requestId, err);
+            if (!dataEndedReceived) endDataStream();
+            break;
+          }
           // Always log: this is an RSC render error from the worker. Without
           // this log the failure surfaces only as an in-band RSC error frame
           // on the client, with nothing on the dev console.
@@ -94,7 +128,6 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           // boundary (serializeError → toError), so dev:ssr can surface the same
           // detail as dev:rsc (the main-thread runner). Previously only the
           // message was logged, so worker render failures looked stackless.
-          const err = toError(message.error, message.errorInfo);
           err.message = `[client] RSC render error for ${message.id}: ${err.message}`;
           logError(err, options.logger);
           break;
@@ -118,8 +151,18 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           options.logger?.info(`[client] Received end signal via dataPort - completing stream`);
         }
         // Signal that the stream is complete so React can finish consuming
-        rscStream.end();
+        endDataStream();
       } else if (data && data.type === 'ERROR') {
+        // A loader redirect()/notFound() arrives on the DATA port so it is
+        // ordered ahead of the null end-signal (the control-port ERROR copy
+        // can lose that race and find the response already committed).
+        // Answer via the caller's onError; the following null ends the
+        // stream normally.
+        const dataErr = toError(data.error);
+        if (isLoaderSignal(dataErr)) {
+          handlers?.onError?.(data.id ?? requestId, dataErr);
+          return;
+        }
         // Stream error via data port
         if (options.verbose) {
           options.logger?.error(
@@ -134,8 +177,12 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
             `[client] Received RSC chunk via dataPort: ${data.length} bytes`
           );
         }
-        // Write the Uint8Array directly without conversion - keep it as raw bytes
-        rscStream.write(data);
+        // Write the Uint8Array directly without conversion - keep it as raw bytes.
+        // A chunk can still arrive after the RSC_END fallback ended the stream;
+        // dropping it beats ERR_STREAM_WRITE_AFTER_END tearing down the response.
+        if (!rscStream.writableEnded) {
+          rscStream.write(data);
+        }
       } else {
         // Unknown data format - log and ignore
         if (options.verbose) {

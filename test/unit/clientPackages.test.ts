@@ -6,6 +6,7 @@ import {
   discoverClientPackages,
 } from "../../plugin/clientPackages/index.js";
 import { clientPackagesDiscoveryPlugin } from "../../plugin/clientPackages/plugin.js";
+import { resolveOptions } from "../../plugin/config/resolveOptions.js";
 import type { Plugin } from "vite";
 
 describe("clientPackages/buildClientPackagesPattern", () => {
@@ -181,6 +182,47 @@ describe("clientPackages/clientPackagesDiscoveryPlugin", () => {
     await plugin.config({}, { command: "serve" });
     expect(userOptions.clientPackages).toEqual(
       expect.arrayContaining(["@user/pkg"])
+    );
+  });
+});
+
+describe("clientPackages × resolveOptions stash ordering", () => {
+  // Plugin factories call resolveOptions() at CREATION time (when the user's
+  // vite.config evaluates the plugin), which resolves and stashes a userOptions
+  // copy. clientPackagesDiscoveryPlugin's merge runs later, in its async
+  // `config` hook, mutating the shared RAW options object — the stash predates
+  // it. A later resolveOptions() call (createEnvironmentPlugin's config hook)
+  // returns the stash, so without re-syncing, the discovered list never reaches
+  // resolveUserConfig's noExternal merge: the server environment externalizes
+  // "use client" packages (vprs's own router/client barrel included) and dev
+  // crashes with "React.createContext is not a function" in the RSC worker.
+  it("a stashed resolve picks up clientPackages merged into the raw options after the stash was written", async () => {
+    const raw: { clientPackages?: readonly string[] } = {};
+
+    // 1. Creation-time resolve — stashes a copy with no clientPackages.
+    const first = resolveOptions(raw as never);
+    expect(first.type).toBe("success");
+    if (first.type !== "success") return;
+
+    // 2. Discovery's config hook merges into the shared raw object.
+    const plugin = clientPackagesDiscoveryPlugin(
+      Object.assign(raw, { clientPackages: ["@my-org/internal-ui"] })
+    ) as Plugin & {
+      config: (config: unknown, env: { command: string }) => Promise<unknown>;
+    };
+    await plugin.config({}, { command: "serve" });
+    expect(raw.clientPackages).toEqual(
+      expect.arrayContaining(["@my-org/internal-ui"])
+    );
+
+    // 3. A later resolve of the SAME raw object returns the stashed copy —
+    //    which must now carry the merged list, on the same shared reference.
+    const second = resolveOptions(raw as never);
+    expect(second.type).toBe("success");
+    if (second.type !== "success") return;
+    expect(second.userOptions).toBe(first.userOptions);
+    expect(second.userOptions.clientPackages).toEqual(
+      expect.arrayContaining(["@my-org/internal-ui"])
     );
   });
 });

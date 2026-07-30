@@ -136,8 +136,19 @@ export const Page = () => <div>Updated Content</div>;`
       "Updated Content"
     );
 
-    console.log('Captured events:', events.map(e => ({ type: e.type, event: e.event })));
     expect(afterContent).toContain("Updated Content");
+
+    // The browser only refetches on receipt of this custom event (useRscHmr) —
+    // server-side invalidation alone is a false pass where every open tab keeps
+    // showing pre-edit content until a manual reload. Regression guard: on
+    // Vite 8 the environment moved off the hotUpdate options bag onto the hook
+    // context, which silenced this push under the react-server orchestrator.
+    const updateEvents = events.filter(
+      (e) =>
+        e.type === "custom" &&
+        e.event === "vite-plugin-react-server:server-component-update"
+    );
+    expect(updateEvents.length).toBeGreaterThan(0);
   }, 15000);
 
   it("should return updated content after file change", async () => {

@@ -79,6 +79,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
     }
 
     // Create the React HTML stream using ReactDOMServer.renderToPipeableStream
+    let rendererAborted = false;
     const { pipe, abort } = ReactDOMServer.renderToPipeableStream(reactElements, {
       bootstrapModules:
         clientPipeableStreamOptions?.bootstrapModules || [],
@@ -102,7 +103,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
             `[createRenderToPipeableStreamHandler.client:${route}] React rendering error: ${error instanceof Error ? error.message : String(error)}`
           );
         }
-        
+
         // Destroy the HTML stream with the error to prevent hanging
         if (verbose) {
           logger?.info(
@@ -110,6 +111,23 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           );
         }
         htmlStream.destroy(error instanceof Error ? error : new Error(String(error)));
+
+        // The output is dead, so stop React's render too: its work loop keeps
+        // running the orphaned request otherwise (Suspense retries included),
+        // and a retry that throws after the destination is gone has nowhere to
+        // report — it escapes as an UNCAUGHT exception from React's internal
+        // scheduler. Deferred so the current onError pass unwinds first, and
+        // guarded because abort() itself reports through onError.
+        if (!rendererAborted) {
+          rendererAborted = true;
+          setImmediate(() => {
+            try {
+              abort();
+            } catch {
+              // Already settled — nothing left to stop.
+            }
+          });
+        }
         
         // Handle error according to panic threshold
         const panicError = handleError({
@@ -137,6 +155,19 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
               error: error,
             },
           });
+        }
+      },
+      // A SHELL error (thrown outside every Suspense boundary) also reaches
+      // onError above, which destroys htmlStream and routes the panic logic.
+      // This handler must still EXIST: without it React treats the shell error
+      // as unhandled and re-throws it asynchronously from its work loop — an
+      // uncaught exception escaping the whole pipeline even when the build
+      // handled the error.
+      onShellError(error: unknown) {
+        if (verbose) {
+          logger?.error(
+            `[createRenderToPipeableStreamHandler.client:${route}] HTML shell render failed (nothing was piped): ${error instanceof Error ? error.message : String(error)}`
+          );
         }
       },
     });
@@ -196,7 +227,35 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
     return {
       type: "client" as const,
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
-        // Pipe our PassThrough stream to the destination
+        // A React render error destroys htmlStream (see onError above) — and it
+        // can win the race against the consumer subscribing. Piping a dead
+        // PassThrough emits neither data nor end, so a fileWriter waiting on
+        // the pipeline would hang forever with the render error swallowed (the
+        // silent SSG hang on a shell render error). Propagate instead: destroy
+        // the destination with the render error — Node emits it on nextTick,
+        // after the caller's synchronously-attached 'error' listeners are in
+        // place — and forward any later error the same way (pipe() itself
+        // never forwards errors downstream).
+        const propagate = (error: unknown) => {
+          const err =
+            error instanceof Error
+              ? error
+              : new Error(String(error ?? `HTML render failed for ${route}`));
+          const dest = destination as NodeJS.WritableStream & {
+            destroy?: (e?: Error) => void;
+          };
+          // Absorb the crash if the caller has not subscribed yet (an 'error'
+          // event with zero listeners is an uncaught exception); listeners the
+          // caller does attach still receive the event.
+          dest.on?.("error", () => {});
+          if (typeof dest.destroy === "function") dest.destroy(err);
+          else dest.emit?.("error", err);
+        };
+        if (htmlStream.destroyed) {
+          propagate(htmlStream.errored ?? new Error(`HTML render failed for ${route}`));
+          return destination;
+        }
+        htmlStream.on("error", propagate);
         htmlStream.pipe(destination);
         return destination;
       },

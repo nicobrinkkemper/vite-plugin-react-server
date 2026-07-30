@@ -55,11 +55,17 @@ export default defineConfig({
       batchSize: 8,                    // pages per batch in parallel mode
       rscOutputPath: "index.rsc",
       htmlOutputPath: "index.html",
+      // Inline each prerendered route's flight into its index.html so first
+      // paint hydrates with no index.rsc round-trip. See docs/build-output.md.
+      inlineFlight: false,
 
       // Optional — single-isolate edge bundle (additive; ON by default).
-      // `boolean | { outDir?, minify? }`. See docs/edge.md.
+      // `boolean | { outDir?, minify?, transport? }`. See docs/edge.md.
       //   edge: false             — opt out
       //   edge: { minify: false } — keep on, tune a default
+      //   transport: "esm" (default, import-at-request-time client refs) or
+      //   "webpack" (baked client manifest — the self-contained deploy model);
+      //   defaults from the top-level `transport` option when set.
       edge: true,
     },
 
@@ -154,11 +160,18 @@ Both produce identical output. The RSC worker is skipped in `dev:rsc` mode by de
   "scripts": {
     "dev": "vite",
     "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
-    "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
+    "build": "vite build --app",
     "preview": "vite preview"
   }
 }
 ```
+
+`--conditions react-server` is optional everywhere, never required: with it the
+main thread renders RSC directly (a bit faster, better stack traces); without
+it a worker thread carries the react-server condition and the output is
+identical. `dev:rsc` above is that optional variant for dev; add
+`NODE_OPTIONS='--conditions react-server'` to `build` too if you want the same
+for builds.
 
 ## Third-party `"use client"` packages
 

@@ -69,19 +69,13 @@ deploys. One prerequisite: the project must be ESM (`"type": "module"` in
 // vite.config.ts
 import { defineConfig } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
-import { fileRouter } from "vite-plugin-react-server/router";
-
-// Scans src/routes/** for page.tsx (+ sibling props.ts) and derives the
-// route table and the prerender worklist.
-const router = fileRouter("src/routes");
 
 export default defineConfig({
   plugins: vitePluginReactServer({
     moduleBase: "src",
-    Page: router.Page,
-    props: router.props,
-    routePatterns: router.routePatterns,
-    build: { pages: router.build.pages },
+    // Scans src/routes/** for page.tsx (+ sibling props.ts) and derives the
+    // route table and the prerender worklist.
+    routes: { dir: "routes" },
   }),
 });
 ```
@@ -127,7 +121,7 @@ startClient({
 </body>
 ```
 
-Routing is opt-in: skip `fileRouter` and map URLs to files yourself with
+Routing is opt-in: skip `routes` and map URLs to files yourself with
 a `Page: (url) => string` mapping — see [Routing](./docs/routing.md).
 
 ```bash
@@ -177,7 +171,7 @@ Name a file `Counter.client.tsx` if you like the reminder — but the name carri
 no meaning, and a file named that way *without* the directive gets a build
 warning telling you to add one.
 
-See [Getting Started](./docs/getting-started.md#the-client-filename-is-optional).
+See [Getting Started](./docs/getting-started.md#what-makes-it-a-client-component).
 
 ## Third-party client-component packages
 

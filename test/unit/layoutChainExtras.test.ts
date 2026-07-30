@@ -1,0 +1,189 @@
+import React from "react";
+import { describe, expect, it } from "vitest";
+import { resolveLayoutChain } from "../../plugin/helpers/resolveLayoutChain.js";
+import { createElementWithReact } from "../../plugin/helpers/createElementWithReact.js";
+import { redirect } from "../../plugin/router/loaderSignals.js";
+import type { RouteLayer } from "../../plugin/router/scanRoutes.js";
+
+// A loader keyed by the `${path}#${export}` id resolvePage/resolveProps
+// request; bare ids (head modules) resolve without the suffix.
+const makeLoader =
+  (modules: Record<string, unknown>) => async (id: string) =>
+    (modules[id] ?? {}) as Record<string, unknown>;
+
+const RootLayout = ({ children }: { children?: unknown }) => children;
+const Boundary = ({ children }: { children?: unknown }) => children;
+const Spinner = () => null;
+
+describe("resolveLayoutChain — boundaries + head", () => {
+  const loader = makeLoader({
+    "routes/route.tsx#Layout": { Layout: RootLayout },
+    "routes/error.tsx#ErrorBoundary": { ErrorBoundary: Boundary },
+    "routes/loading.tsx#Loading": { Loading: Spinner },
+    "routes/head.ts#head": {
+      head: ({ data }: { data: Record<string, unknown> }) => ({
+        title: `t-${data.name}`,
+      }),
+    },
+    "routes/props.ts#props": { props: () => ({ name: "x" }) },
+    "routes/redirecting-props.ts#props": {
+      props: () => redirect("/login"),
+    },
+  });
+
+  it("loads error/loading/head onto the layer", async () => {
+    const layouts: RouteLayer[] = [
+      {
+        component: "routes/route.tsx",
+        props: "routes/props.ts",
+        error: "routes/error.tsx",
+        loading: "routes/loading.tsx",
+        head: "routes/head.ts",
+      },
+    ];
+    const chain = await resolveLayoutChain({
+      layouts,
+      url: "/",
+      ctx: { params: {} },
+      loader,
+      layoutExportName: "Layout",
+      propsExportName: "props",
+    });
+    expect(chain).toHaveLength(1);
+    expect(chain[0].Component).toBe(RootLayout);
+    expect(chain[0].ErrorBoundary).toBe(Boundary);
+    expect(chain[0].Loading).toBe(Spinner);
+    // Functional head evaluated with the segment's resolved loader data.
+    expect(chain[0].head).toEqual({ title: "t-x" });
+  });
+
+  it("keeps a boundaries-only layer (no route.tsx)", async () => {
+    const chain = await resolveLayoutChain({
+      layouts: [{ loading: "routes/loading.tsx" }],
+      url: "/",
+      ctx: { params: {} },
+      loader,
+      layoutExportName: "Layout",
+      propsExportName: "props",
+    });
+    expect(chain).toHaveLength(1);
+    expect(chain[0].Component).toBeUndefined();
+    expect(chain[0].Loading).toBe(Spinner);
+  });
+
+  it("propagates a redirect() thrown by a layout loader", async () => {
+    await expect(
+      resolveLayoutChain({
+        layouts: [
+          {
+            component: "routes/route.tsx",
+            props: "routes/redirecting-props.ts",
+          },
+        ],
+        url: "/",
+        ctx: { params: {} },
+        loader,
+        layoutExportName: "Layout",
+        propsExportName: "props",
+      }),
+    ).rejects.toMatchObject({ to: "/login", status: 302 });
+  });
+});
+
+describe("createElementWithReact — boundary/suspense/head fold", () => {
+  const Page = (props: Record<string, unknown>) =>
+    React.createElement("main", props);
+
+  it("wraps each segment Layout → ErrorBoundary → Suspense(Loading)", () => {
+    const el = createElementWithReact(React as never, {
+      PageComponent: Page as never,
+      HtmlComponent: React.Fragment as never,
+      RootComponent: React.Fragment as never,
+      pageProps: {} as never,
+      layoutChain: [
+        {
+          Component: RootLayout,
+          props: {},
+          ErrorBoundary: Boundary,
+          Loading: Spinner,
+        },
+      ],
+    } as never) as React.ReactElement;
+
+    const Composed = el.type as (p: unknown) => React.ReactElement;
+    const tree = Composed(el.props);
+
+    expect(tree.type).toBe(RootLayout);
+    const boundary = tree.props.children as React.ReactElement;
+    expect(boundary.type).toBe(Boundary);
+    const suspense = boundary.props.children as React.ReactElement;
+    expect(suspense.type).toBe(React.Suspense);
+    expect((suspense.props.fallback as React.ReactElement).type).toBe(Spinner);
+    const leaf = suspense.props.children as React.ReactElement;
+    expect(leaf.type).toBe(Page);
+  });
+
+  const HEAD_CHAIN = [
+    {
+      Component: RootLayout,
+      props: {},
+      head: {
+        title: "root",
+        meta: [{ name: "description", content: "d" }],
+      },
+    },
+    { props: {}, head: { title: "leaf" } },
+  ];
+
+  const composeWith = (HtmlComponent: unknown) => {
+    const el = createElementWithReact(React as never, {
+      PageComponent: Page as never,
+      HtmlComponent: HtmlComponent as never,
+      RootComponent: React.Fragment as never,
+      pageProps: {} as never,
+      layoutChain: HEAD_CHAIN,
+    } as never) as React.ReactElement;
+    // Headless branch returns <ComposedPage {...pageProps}/>; the document
+    // branch returns <Html … Page={ComposedPage}/> — invoke either.
+    const props = el.props as { Page?: (p: unknown) => React.ReactElement };
+    if (props.Page) return props.Page({});
+    return (el.type as (p: unknown) => React.ReactElement)(el.props);
+  };
+
+  it("headless render ships head as an inert data template, no hoistables", () => {
+    const tree = composeWith(React.Fragment);
+    expect(tree.type).toBe(RootLayout);
+    const frag = tree.props.children as React.ReactElement;
+    expect(frag.type).toBe(React.Fragment);
+    const children = React.Children.toArray(
+      frag.props.children,
+    ) as React.ReactElement[];
+    // No raw hoistables in the hydration flight: re-inserted instead of
+    // adopted when hydration suspends on a client chunk (dup title + #418).
+    expect(children.some((c) => c.type === "title")).toBe(false);
+    expect(children.some((c) => c.type === "meta")).toBe(false);
+    const template = children.find((c) => c.type === "template");
+    expect(template).toBeDefined();
+    const payload = JSON.parse(template!.props["data-vprs-head"]);
+    expect(payload.title).toBe("leaf");
+    expect(payload.meta).toEqual([{ name: "description", content: "d" }]);
+    expect(children.some((c) => c.type === Page)).toBe(true);
+  });
+
+  it("document render gets the raw hoistables plus the data template", () => {
+    const HtmlDoc = ({ Page: P }: { Page: (p: unknown) => React.ReactElement }) =>
+      P({});
+    const tree = composeWith(HtmlDoc);
+    expect(tree.type).toBe(RootLayout);
+    const frag = tree.props.children as React.ReactElement;
+    const children = React.Children.toArray(
+      frag.props.children,
+    ) as React.ReactElement[];
+    const title = children.find((c) => c.type === "title");
+    expect(title?.props.children).toBe("leaf");
+    const meta = children.find((c) => c.type === "meta");
+    expect(meta?.props.content).toBe("d");
+    expect(children.some((c) => c.type === "template")).toBe(true);
+    expect(children.some((c) => c.type === Page)).toBe(true);
+  });
+});

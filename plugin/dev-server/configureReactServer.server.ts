@@ -15,6 +15,7 @@ import { handleError } from "../error/handleError.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
+import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({
@@ -444,6 +445,26 @@ export const configureReactServer: ConfigureReactServerFn =
             }
             pageProps = {};
           } else {
+            // Loader control flow: answer the flight request itself instead of
+            // degrading to an empty-props render. A redirect points at the
+            // TARGET's flight so the browser's transparent follow yields a
+            // decodable payload (the client router fixes the address bar from
+            // `response.redirected`); a notFound is a plain 404.
+            if (isRedirect(propsResult.error)) {
+              const to = propsResult.error.to;
+              res.statusCode = propsResult.error.status;
+              res.setHeader(
+                "location",
+                (to === "/" ? "" : to.replace(/\/$/, "")) + "/index.rsc"
+              );
+              res.end();
+              return;
+            }
+            if (isNotFound(propsResult.error)) {
+              res.statusCode = 404;
+              res.end("Not Found");
+              return;
+            }
             if (verbose) {
               logger.warn(`[configureReactServer] Failed to load props for route ${info.route}: ${propsResult.error}`);
             }

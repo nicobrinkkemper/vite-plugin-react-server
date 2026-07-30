@@ -18,9 +18,10 @@
  * one stays on the dev:rsc path for the existing HMR/navigation specs.
  */
 import { test, expect } from "@playwright/test";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 import { DatabaseSync } from "node:sqlite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,37 +65,21 @@ function readTodos(): { id: number; title: string }[] {
   }
 }
 
-async function waitForServer(url: string, timeoutMs = 30_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.status < 500) return;
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
-}
-
 test.beforeAll(async () => {
   // dev:ssr-equivalent: NO --conditions react-server in NODE_OPTIONS.
   // The plugin runs in client-mode and spawns the RSC worker with the
   // condition flipped — that worker is the one that previously cached
   // props across requests and silently dropped action effects.
-  server = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], {
-    cwd: bidoofDir,
-    shell: true,
+  server = spawnViteDev({
+    dir: bidoofDir,
+    port: PORT,
     env: {
-      ...process.env,
       NODE_OPTIONS: "",
       NODE_ENV: "development",
       BASE_URL: "/",
       PUBLIC_ORIGIN: BASE_URL,
       FORCE_COLOR: "1",
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout?.on("data", (d) => process.stdout.write(`[dev:ssr] ${d}`));
   server.stderr?.on("data", (d) => process.stderr.write(`[dev:ssr] ${d}`));
@@ -106,22 +91,7 @@ test.beforeAll(async () => {
 }, 90_000);
 
 test.afterAll(async () => {
-  // See dev-ssr-css-hmr.spec.ts for the rationale. `server.killed` only
-  // tracks "did kill() get called"; rely on the `exit` event with a
-  // SIGKILL escalation so a stuck vite child can't outlive the test
-  // suite and orphan into the agent session.
-  if (server && server.exitCode === null && server.signalCode === null) {
-    await new Promise<void>((resolve) => {
-      const onExit = () => resolve();
-      server!.once("exit", onExit);
-      server!.kill("SIGTERM");
-      setTimeout(() => {
-        if (server && server.exitCode === null && server.signalCode === null) {
-          server.kill("SIGKILL");
-        }
-      }, 2000);
-    });
-  }
+  await stopViteDev(server);
 });
 
 test.describe("server actions persist under dev:ssr (bd-5xu)", () => {

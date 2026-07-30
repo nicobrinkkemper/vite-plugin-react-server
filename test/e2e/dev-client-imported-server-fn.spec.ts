@@ -17,26 +17,13 @@
  * server-function probe (vite-plugin-react-server-demo-official#97).
  */
 import { test, expect } from "@playwright/test";
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const bidoofDir = join(__dirname, "../../../bidoof-template");
-
-async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.status < 500) return;
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
-}
 
 const MODES = [
   { label: "dev:ssr (client-first)", condition: "", basePort: 33000 },
@@ -50,18 +37,16 @@ for (const mode of MODES) {
     let server: ChildProcess | undefined;
 
     test.beforeAll(async () => {
-      server = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], {
-        cwd: bidoofDir,
-        shell: true,
+      server = spawnViteDev({
+        dir: bidoofDir,
+        port: PORT,
         env: {
-          ...process.env,
           NODE_OPTIONS: mode.condition,
           NODE_ENV: "development",
           BASE_URL: "/",
           PUBLIC_ORIGIN: BASE_URL,
           FORCE_COLOR: "1",
         },
-        stdio: ["ignore", "pipe", "pipe"],
       });
       server.stdout?.on("data", (d) => process.stdout.write(`[${mode.label}] ${d}`));
       server.stderr?.on("data", (d) => process.stderr.write(`[${mode.label}] ${d}`));
@@ -69,17 +54,7 @@ for (const mode of MODES) {
     }, 90_000);
 
     test.afterAll(async () => {
-      if (server && server.exitCode === null && server.signalCode === null) {
-        await new Promise<void>((resolve) => {
-          server!.once("exit", () => resolve());
-          server!.kill("SIGTERM");
-          setTimeout(() => {
-            if (server && server.exitCode === null && server.signalCode === null) {
-              server.kill("SIGKILL");
-            }
-          }, 2000);
-        });
-      }
+      await stopViteDev(server);
     });
 
     test("imports a server function directly and calls it (no bare-specifier error)", async ({

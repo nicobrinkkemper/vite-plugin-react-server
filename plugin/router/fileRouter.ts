@@ -81,8 +81,11 @@ export function fileRouter(
         page: toRel(r.page),
         props: r.props ? toRel(r.props) : undefined,
         layouts: r.layouts.map((l) => ({
-          component: toRel(l.component),
+          component: l.component ? toRel(l.component) : undefined,
           props: l.props ? toRel(l.props) : undefined,
+          error: l.error ? toRel(l.error) : undefined,
+          loading: l.loading ? toRel(l.loading) : undefined,
+          head: l.head ? toRel(l.head) : undefined,
         })),
       }))
     : scanned;

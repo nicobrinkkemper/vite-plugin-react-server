@@ -93,12 +93,12 @@ Server actions are excluded entirely.
 
 ## Client-Module Classification
 
-The transformer never re-implements directive detection. It calls `detectClientModule({ source, moduleId, parseFn: this.parse })` from `plugin/loader/directives/detectClientModule.ts` — the single source of truth shared with the dev-server file watcher, the worker react-loader, build auto-discover, and the configurable `loader.*` defaults. The `parseFn` argument lets the transformer use Rollup's AST; the other call sites fall through to the parser-free `sourceHasTopLevelClientDirective` scanner. Both paths agree on every well-authored case.
+The transformer never re-implements directive detection. It calls `detectClientModule({ source, moduleId, parseFn })` from `react-server-loader/directives` (vprs's own `./directives` subpath is only a back-compat re-export of that module) — the single source of truth shared with the dev-server file watcher, the worker react-loader, build auto-discover, and the configurable `loader.*` defaults. The `parseFn` argument lets the transformer supply rsl's acorn-based parser; the other call sites fall through to the parser-free `sourceHasTopLevelClientDirective` scanner. Both paths agree on every well-authored case.
 
 The filename half of the classifier:
 
 ```ts
-// plugin/loader/directives/detectClientModule.ts:23
+// react-server-loader: directives/detectClientModule.ts
 const CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/;
 ```
 

@@ -1445,7 +1445,7 @@ export type ResolvedBuildPages = {
       root?: string;
       html?: string;
       /** Resolved `route.tsx` layer module paths (root→leaf), for nested layouts. */
-      layouts?: { component: string; props?: string }[];
+      layouts?: RouteLayer[];
     }
   >;
   errors: unknown[];

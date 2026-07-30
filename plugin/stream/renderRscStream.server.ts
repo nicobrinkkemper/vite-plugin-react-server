@@ -120,20 +120,15 @@ export function renderRscStream(
             });
           }
           
-          // CRITICAL: Don't let the error propagate further - this prevents uncaught exceptions
-          // The error has been handled by our error handler, so we don't need to re-throw it
-          
-          // Ensure stream is ended when error occurs to prevent hanging (like RSC worker does)
-          // Use setImmediate to ensure the error handler completes before ending the stream
-          setImmediate(() => {
-            if (!rscStream.destroyed) {
-              rscStream.end();
-            }
-            // Also abort the React stream to ensure it stops producing data
-            if (reactStream && typeof reactStream.abort === 'function') {
-              reactStream.abort();
-            }
-          });
+          // Do NOT force-end the stream here (same fix as the RSC worker's
+          // handleRscRender): React's flight renderer emits the error in-band
+          // (the `$E` error frame) and closes the destination itself once the
+          // request settles. Ending/aborting from onError races that flush —
+          // under load the manual end can win and truncate the stream, dropping
+          // the `$E` frame, so the consumer sees a silent truncated payload
+          // instead of a surfaced error. Let React own stream completion; the
+          // stream error handlers and the outer catch remain the hang safety
+          // net.
         },
         onPostpone: (reason: string) => {
           if (verbose) {

@@ -8,8 +8,8 @@
 
 ```json
 {
-  "react": "^19.0.0",
-  "react-dom": "^19.0.0",
+  "react": "^19.2.7",
+  "react-dom": "^19.2.7",
   "@types/react": "^19.0.9",
   "@types/react-dom": "^19.0.3"
 }
@@ -42,8 +42,7 @@ are tolerated above it.
 
 If the build warns that a file *looks* like a client module but has no directive,
 that is this: the filename does not mark a component, so add `"use client"` to
-the top of the file. (Naming it `.client.tsx` and omitting the directive used to
-work here, and worked nowhere else — which is why it no longer does.)
+the top of the file.
 
 Import with the `.js` extension regardless: `import { Counter } from "./Counter.js"`.
 
@@ -83,6 +82,24 @@ Keep every transitive dependency on that same React with npm overrides:
 ```
 
 `$react` means "the version my own dependencies declare", so all deps dedupe onto your React. Mixing channels (experimental transport on stable React, or vice versa) crashes on internals skew — the exact peer pin exists to stop that.
+
+## Static Snapshot Hydration Throws #418 on `<title>` (Stable React)
+
+**Symptoms:** Every cold load of a prerendered (frozen) page logs `Minified React error #418` with args `text,` — and afterwards the document has **two** `<title>` elements. The same page served per-request (dev, `npm run edge`, a server) hydrates clean.
+
+**This is a stable-React hydration bug against frozen snapshots, and it's cosmetic.** React 19.2.x stable fails to adopt the snapshot's hoistable `<title>` during hydration: it reports the mismatch and inserts its own title next to the server one. The page still hydrates and islands work. Removing the `<title>` removes the error, but the right fix is the experimental channel — the adoption bug is already fixed there (same install recipe as the preload section above). Verified against 3.4.6 snapshots: stable errors on every load, the experimental train is clean.
+
+## Mojibake on Static Hosts (Missing `charset`)
+
+**Symptoms:** On some static hosts, non-ASCII text in a prerendered page (`…`, `—`, curly quotes) renders as `â€¦`-style garbage. The same build looks fine on GH Pages or Vercel.
+
+A snapshot contains exactly the head your app renders — nothing injects a charset for you. When the file server also omits `charset=utf-8` from `Content-Type` (GH Pages and Vercel send it; bare servers often don't), the browser falls back to Latin-1. Declare it in the app:
+
+```tsx
+<meta charSet="utf-8" />
+```
+
+React hoists it to first-in-head with charset precedence, so the snapshot is self-describing on any host.
 
 ## `"use server"` Not Working
 
@@ -191,7 +208,7 @@ This is an upstream Rolldown limitation, not vprs-specific. Workarounds:
 
 ## Checklist for New Projects
 
-- [ ] React packages have matching versions (19+)
+- [ ] React packages have matching versions (19.2+)
 - [ ] Client components have `"use client"` directive
 - [ ] Server actions have `"use server"` directive
 - [ ] Imports use `.js` extensions

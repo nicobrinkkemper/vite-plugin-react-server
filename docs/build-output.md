@@ -1,6 +1,8 @@
 # Build Output
 
-Running `NODE_OPTIONS='--conditions react-server' vite build --app` produces three directories:
+Running `vite build --app` produces three directories (prefix
+`NODE_OPTIONS='--conditions react-server'` if you want the optional
+main-thread render — the output is identical either way):
 
 ```
 dist/
@@ -124,7 +126,8 @@ createServer(toNodeListener(app)).listen(3000);
 
 For the complete pattern — including per-request rendering of dynamic routes —
 see the [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
-demo's `start.tsx` and the [vprs-starter](https://github.com/nicobrinkkemper/vprs-starter)'s
+demo's `start.tsx` and the
+[vprs-starter](https://github.com/nicobrinkkemper/vprs-starter)'s
 `server/handler.mjs`.
 
 ## Where it runs: static anywhere, dynamic on Node
@@ -189,10 +192,13 @@ Both streams include detailed stack traces in development mode.
 ### Single-step (recommended)
 
 ```bash
-NODE_OPTIONS='--conditions react-server' vite build --app
+vite build --app
 ```
 
-Builds all three environments in sequence automatically.
+Builds all three environments in sequence automatically. Prefixing
+`NODE_OPTIONS='--conditions react-server'` is an optional variant — the main
+thread renders RSC directly instead of a worker; a bit faster, better stack
+traces, same output.
 
 ### Multi-step (for debugging)
 

@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import type { SerializeableRenderToPipeableStreamOptions } from "../worker/rsc/types.js";
 import { toError } from "../error/toError.js";
 import { createMessageChannels } from "./createMessageChannels.js";
+import type { RouteLayer } from "../router/scanRoutes.js";
 
 /**
  * RSC-specific options for worker stream
@@ -30,7 +31,7 @@ export interface RscWorkerStreamOptions {
   rootPath?: string;
   htmlPath?: string;
   /** Nested-layout chain (`route.tsx` layer paths) for the matched route. */
-  layouts?: { component: string; props?: string }[];
+  layouts?: RouteLayer[];
   layoutExportName?: string;
 }
 
@@ -79,17 +80,26 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
     highWaterMark: 64 * 1024 // 64KB buffer
   });
   
+  // The data port's `null` signal is the only ordered end-of-stream authority
+  // (it queues behind every chunk on the same port). RSC_END arrives on the
+  // control port, and cross-port delivery order is NOT guaranteed — ending
+  // from RSC_END can truncate chunks still queued on the data port (notably
+  // the in-band `$E` frame after a render failure). RSC_END only ends the
+  // stream as a delayed fallback for a worker that died before posting `null`.
+  let dataEndedReceived = false;
+
   // Data port - ONLY for raw RSC stream data
   (dataPort1 as any).onmessage = (event: any) => {
     const data = event.data;
-    
+
     if (data === null) {
       // End of stream
       if (verbose) {
         logger?.info(`[createRscWorkerStream] End of RSC stream via dataPort`);
       }
+      dataEndedReceived = true;
       rscStream.end();
-      
+
       // Note: We don't close ports here - let the stream consumer manage port lifecycle
       // This ensures ReactDOMClient.createFromNodeStream() can fully consume the stream
     } else {
@@ -97,7 +107,9 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
       if (verbose) {
         logger?.info(`[createRscWorkerStream] Writing raw RSC data to stream: ${data.length} bytes`);
       }
-      rscStream.write(data);
+      if (!rscStream.writableEnded) {
+        rscStream.write(data);
+      }
     }
   };
   
@@ -114,7 +126,14 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
         if (verbose) {
           logger?.info(`[createRscWorkerStream] RSC stream ended by control message`);
         }
-        rscStream.end();
+        // See the dataEndedReceived note above: only a fallback end.
+        if (!dataEndedReceived) {
+          setTimeout(() => {
+            if (!dataEndedReceived) {
+              rscStream.end();
+            }
+          }, 100).unref?.();
+        }
         break;
       case 'ERROR':
         if (verbose) {
