@@ -465,11 +465,15 @@ export const resolveUserConfig: ResolveUserConfigFn =
     //      aware `resolve.noExternal`) makes Rollup inline these packages
     //      into the server bundle, where our transform converts each
     //      `"use client"` module to a `registerClientReference` stub.
-    //   3. Each `"use client"` module emits as a chunk under
+    //   3. `"use client"` modules reachable from the client graph (via a
+    //      first-party client importer) emit as chunks under
     //      `dist/client/node_modules/<pkg>/...` thanks to Vite's natural
     //      preserved-modules handling — those paths match the moduleIDs
     //      we generate in `createTransformerPlugin`, so the html-worker
-    //      can resolve client refs at SSG-render time.
+    //      can resolve client refs at SSG-render time. A reference whose
+    //      package has no client-side importer dangles at render
+    //      (ERR_MODULE_NOT_FOUND); see createDirectiveClientAutoDiscover
+    //      for the router-barrel special case.
     const clientPackages: readonly string[] =
       (userOptions as { clientPackages?: readonly string[] }).clientPackages ??
       [];
