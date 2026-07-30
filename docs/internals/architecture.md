@@ -124,7 +124,7 @@ Auto-discovery decides which files become build inputs. Runtime classification (
 detectClientModule({ source, moduleId, parseFn? }): boolean
 ```
 
-The transformer passes Rollup's `this.parse` for AST-aware directive analysis. The other call sites omit it and fall back to the parser-free char-scanner in `sourceHasTopLevelClientDirective.ts`. Both paths agree on every well-authored case.
+The transformer passes rsl's acorn-based `parse` (from `react-server-loader`) as `parseFn` for AST-aware directive analysis — deliberately not the bundler's `this.parse`, which is Rollup (acorn) on Vite 6/7 but Oxc on Vite 8 with a different AST shape. The other call sites omit it and fall back to the parser-free char-scanner in `sourceHasTopLevelClientDirective.ts`. Both paths agree on every well-authored case.
 
 The filename half — `CLIENT_FILENAME_PATTERN = /(^|[\/.])client\.[cm]?[jt]sx?$/` — matches the dotted-suffix convention (`Foo.client.tsx`) and the standalone basename (`client.tsx`/`.ts`/etc.). The leading-`(^|[\/.])` anchor keeps it strict: `clientUtils.ts` is NOT matched.
 
