@@ -1,0 +1,39 @@
+name: vite-compat
+
+# The peer range claims Vite 6, 7, and 8, but the main gate only ever runs
+# against the lockfile's Vite. This matrix runs the same full suite against
+# the older majors so the claim stays verified. Manual + pre-release, not
+# per-PR: dispatch it from the Actions tab, or let the release tag trigger it.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    name: vite ${{ matrix.vite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        vite: [6, 7]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Swap in vite ${{ matrix.vite }}
+        run: |
+          npm install --no-save vite@${{ matrix.vite }}
+          node -p "'resolved vite: ' + require('vite/package.json').version"
+
+      - name: Run full test suite
+        run: npm run test-all
