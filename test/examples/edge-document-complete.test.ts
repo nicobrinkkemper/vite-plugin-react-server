@@ -41,7 +41,8 @@ async function setupFixture() {
   // HTML on first paint, with no client fetch.
   await writeFile(
     join(testDir, "src/routes/page.tsx"),
-    `import styles from "./styles.module.css";\n` +
+    `import React from "react";\n` +
+      `import styles from "./styles.module.css";\n` +
       `export const Page = ({ region }: { region: string }) => (\n` +
       // Single expression → one text node, so SSR doesn't split it with a
       // comment marker (which would defeat a substring assertion).

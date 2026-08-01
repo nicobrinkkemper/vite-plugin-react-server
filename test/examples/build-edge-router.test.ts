@@ -25,7 +25,8 @@ async function setupFixture() {
   // edge bundle must thread via ROUTE_PATTERNS.
   await writeFile(
     join(testDir, "src/routes/profile/$id/page.tsx"),
-    `export const Page = ({ label }: { label: string }) => <div id="root">edge {label}</div>;`
+    `import React from "react";
+export const Page = ({ label }: { label: string }) => <div id="root">edge {label}</div>;`
   );
   await writeFile(
     join(testDir, "src/routes/profile/$id/props.ts"),
@@ -37,7 +38,8 @@ async function setupFixture() {
   await mkdir(join(testDir, "src/routes/secret/$id"), { recursive: true });
   await writeFile(
     join(testDir, "src/routes/secret/$id/page.tsx"),
-    `export const Page = ({ who }: { who: string }) => <div id="root">{who}</div>;`
+    `import React from "react";
+export const Page = ({ who }: { who: string }) => <div id="root">{who}</div>;`
   );
   await writeFile(
     join(testDir, "src/routes/secret/$id/props.ts"),
@@ -62,7 +64,8 @@ export function Widget() {
   );
   await writeFile(
     join(testDir, "src/routes/widget/page.tsx"),
-    `import { Widget } from "../../Widget.client.js";
+    `import React from "react";
+import { Widget } from "../../Widget.client.js";
 export const Page = () => <Widget />;`
   );
   await writeFile(

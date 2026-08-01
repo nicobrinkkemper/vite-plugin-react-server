@@ -2,7 +2,7 @@ import type { UserConfig, BuildEnvironmentOptions, Rollup } from "vite";
 import type { ResolvedUserOptions, AutoDiscoveredFiles } from "../types.js";
 // Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
 type OutputOptions = Rollup.OutputOptions;
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { createLogger } from "vite";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
 import { effectiveModuleBaseURL } from "../config/effectiveModuleBaseURL.js";
@@ -154,11 +154,16 @@ export const resolveEnvironmentConfig: ResolveEnvironmentConfigFn =
         inputs = autoDiscoveredFiles.serverInputs;
       }
 
-      // Normalize inputs for this environment (following resolveUserConfig pattern)
+      // Normalize inputs for this environment (following resolveUserConfig
+      // pattern). Anchored to the root: Rollup (Vite 6/7) resolves relative
+      // entries against the process cwd, Rolldown (Vite 8) against root.
+      const inputRoot = resolve(config.root ?? userOptions.projectRoot);
       const normalizedInputs = Object.fromEntries(
         Object.entries(inputs).map(([key, value]) => [
           key,
-          value.slice(Number(value.startsWith("/"))),
+          isAbsolute(value)
+            ? value
+            : resolve(inputRoot, value.replace(/^\/+/, "")),
         ])
       );
 
