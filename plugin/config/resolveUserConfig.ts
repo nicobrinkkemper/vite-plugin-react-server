@@ -10,7 +10,7 @@ import type {
   ResolvedUserOptions,
   AutoDiscoveredFiles,
 } from "../types.js";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 // Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
 import type { Rollup } from "vite";
@@ -644,6 +644,9 @@ export const resolveUserConfig: ResolveUserConfigFn =
             ...config.build?.rollupOptions,
             // Use HTML + client entries for non-SSR client builds (static)
             // and pure client module entries for SSR client builds.
+            // Anchored to the root: Rollup (Vite 6/7) resolves relative
+            // entries against the process cwd, Rolldown (Vite 8) against
+            // root.
             input: Object.fromEntries(
               Object.entries(
                 ssr
@@ -651,7 +654,9 @@ export const resolveUserConfig: ResolveUserConfigFn =
                   : autoDiscoveredFiles.staticInputs
               ).map(([key, value]) => [
                 key,
-                value.slice(Number(value.startsWith("/"))),
+                isAbsolute(value)
+                  ? value
+                  : resolve(effectiveProjectRoot, value.replace(/^\/+/, "")),
               ])
             ),
             output: newOutput,
@@ -774,7 +779,19 @@ export const resolveUserConfig: ResolveUserConfigFn =
               : true,
           rollupOptions: {
             ...config.build?.rollupOptions,
-            input: autoDiscoveredFiles.serverInputs,
+            // Anchored to the root: Rollup (Vite 6/7) resolves relative
+            // entries against the process cwd, Rolldown (Vite 8) against
+            // root.
+            input: Object.fromEntries(
+              Object.entries(autoDiscoveredFiles.serverInputs).map(
+                ([key, value]) => [
+                  key,
+                  isAbsolute(value)
+                    ? value
+                    : resolve(effectiveProjectRoot, value.replace(/^\/+/, "")),
+                ]
+              )
+            ),
             preserveEntrySignatures:
               config.build?.rollupOptions?.preserveEntrySignatures ?? "strict",
             // Externalize core React deps for the server bundle
