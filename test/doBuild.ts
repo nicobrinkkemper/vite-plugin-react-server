@@ -1,4 +1,4 @@
-import { createBuilder } from "vite";
+import { createBuilder, type PluginOption } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
 import type {
   PluginEvent,
@@ -11,9 +11,14 @@ import { inspect } from "node:util";
  * Builds the project with the test config and given options and returns the events
  * Handles changing to the test directory and restoring the original working directory
  * @param optionOverrides - Optional overrides for the options
+ * @param siblingPlugins - Plugins registered BEFORE vprs, the position consumer
+ *   configs give companions like @vitejs/plugin-react
  * @returns The events from the build
  */
-export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
+export async function doBuild(
+  optionOverrides: Partial<StreamPluginOptions>,
+  siblingPlugins: PluginOption[] = []
+) {
   const events: PluginEvent[] = [];
   const metrics: any[] = [];
   
@@ -60,7 +65,7 @@ export async function doBuild(optionOverrides: Partial<StreamPluginOptions>) {
     // Use the Environment API with createBuilder to get full control
     // The environment configuration is now handled by the createEnvironmentPlugin
     const builder = await createBuilder({
-      plugins: vitePluginReactServer(options),
+      plugins: [...siblingPlugins, vitePluginReactServer(options)],
       mode: "test",
       root: options.projectRoot,
     });
