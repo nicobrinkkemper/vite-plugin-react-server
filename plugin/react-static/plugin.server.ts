@@ -210,14 +210,44 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             
             if (isVirtual && !isDynamicImportHelper) {
               keysToDelete.push(key);
-              if (userOptions.verbose) {
-                logger?.info(`[plugin.server] Filtered out virtual file: ${chunk.fileName || key} (moduleId: ${chunk.facadeModuleId || chunk.moduleIds?.[0]})`);
-              }
             }
           }
         }
-        // Delete after iteration to avoid modifying while iterating
-        for (const key of keysToDelete) {
+        // A virtual chunk another emitted chunk imports is load-bearing:
+        // rolldown emits its shared runtime helpers (__exportAll etc.) as
+        // _virtual/_rolldown/runtime.js and rewrites importers to that path,
+        // so deleting it leaves dangling imports that only surface at SSG /
+        // consumer import time (ERR_MODULE_NOT_FOUND). Keep every candidate
+        // a surviving chunk still references; iterate so helper→helper
+        // chains resolve.
+        const deletable = new Set(keysToDelete);
+        let changed = true;
+        while (changed) {
+          changed = false;
+          const referenced = new Set<string>();
+          for (const [key, chunk] of Object.entries(bundle)) {
+            if (deletable.has(key) || chunk.type !== "chunk") continue;
+            for (const dep of [...chunk.imports, ...chunk.dynamicImports]) {
+              referenced.add(dep);
+            }
+          }
+          for (const key of [...deletable]) {
+            const fileName = bundle[key]?.fileName ?? key;
+            if (referenced.has(fileName) || referenced.has(key)) {
+              deletable.delete(key);
+              changed = true;
+            }
+          }
+        }
+        for (const key of deletable) {
+          if (userOptions.verbose) {
+            const chunk = bundle[key];
+            const moduleId =
+              chunk?.type === "chunk"
+                ? chunk.facadeModuleId || chunk.moduleIds?.[0]
+                : undefined;
+            logger?.info(`[plugin.server] Filtered out virtual file: ${bundle[key]?.fileName || key} (moduleId: ${moduleId})`);
+          }
           delete bundle[key];
         }
       }
