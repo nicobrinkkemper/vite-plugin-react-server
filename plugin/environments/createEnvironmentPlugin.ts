@@ -43,6 +43,43 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
     name: "vite:plugin-react-server/environments",
     enforce: "pre",
 
+    generateBundle: {
+      // "pre" so this runs BEFORE vite:css-post's generateBundle, and it
+      // lives HERE (not in the react-static plugins) because the orchestrator
+      // registers this plugin under both react conditions — the server
+      // environment builds either way. On rolldown-vite the server env never
+      // carries emitted css assets, but a bare css entry
+      // (autoDiscover.cssEntry) whose stylesheet references assets above
+      // build.assetsInlineLimit gets a pure-css placeholder chunk with a
+      // populated viteMetadata.importedAssets — css-post's bookkeeping then
+      // writes that metadata onto bundle[getFileName(referenceId)], which
+      // does not exist here, and the whole build dies on
+      // `undefined.viteMetadata`. Emptying importedAssets steers css-post
+      // onto its safe path (css-post itself removes the entry's own file
+      // from importedCss, leaving it empty): skip the transfer, delete the
+      // placeholder — the same server output Vite 6/Rollup produced. Those
+      // assets are never emitted into the server outDir, so nothing true is
+      // lost. importedCss must stay: vite:manifest serializes it as the
+      // entry's css list, which is how css files get delivered to documents.
+      order: "pre",
+      handler(_options, bundle) {
+        if (this.environment.name !== "server") return;
+        for (const chunk of Object.values(bundle)) {
+          if (
+            chunk.type === "chunk" &&
+            chunk.isEntry &&
+            chunk.facadeModuleId &&
+            /\.(css|less|sass|scss|styl|stylus|pcss|postcss)(\?.*)?$/.test(
+              chunk.facadeModuleId
+            ) &&
+            chunk.viteMetadata
+          ) {
+            chunk.viteMetadata.importedAssets.clear();
+          }
+        }
+      },
+    },
+
     async config(config: UserConfig, configEnv) {
       // Resolve plugin options
       const resolvedOptionsResult = resolveOptions(options);
