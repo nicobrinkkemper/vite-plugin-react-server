@@ -28,6 +28,21 @@ import {
 } from "../clientPackages/index.js";
 import { createRollupLikeHash } from "./createRollupLikeHash.js";
 
+// rolldown-vite materializes a sibling plugin's build.rollupOptions
+// contribution (e.g. @vitejs/plugin-react's onwarn wrapper) as a real
+// rolldownOptions key, leaving rollupOptions a getter over it. Spreading
+// config.build into an environment build config copies that stale key
+// WITHOUT our inputs, and vite's `rolldownOptions ??= rollupOptions` compat
+// then lets it outrank the rollupOptions we write — every environment falls
+// back to the default index.html entry. Spread this after ...config.build to
+// drop the alias; the sibling's settings still arrive via the rollupOptions
+// getter spread. The key is absent from vite 6/7's BuildEnvironmentOptions
+// type, so it's spread from a type-erased object rather than written
+// literally — same runtime effect, typechecks on every supported vite major.
+const dropStaleRolldownAlias = {
+  rolldownOptions: undefined,
+} as Record<string, undefined>;
+
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
 // Once per process, not once per environment pass (resolveUserConfig runs for
@@ -632,16 +647,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         // client build options
         build: {
           ...config.build,
-          // rolldown-vite materializes a sibling plugin's build.rollupOptions
-          // contribution (e.g. @vitejs/plugin-react's onwarn wrapper) as a
-          // real rolldownOptions key, leaving rollupOptions a getter over it.
-          // The spread above copies that stale key WITHOUT our inputs, and
-          // vite's `rolldownOptions ??= rollupOptions` compat then lets it
-          // outrank the rollupOptions we write below — every environment
-          // falls back to the default index.html entry. Drop the alias key;
-          // the sibling's settings still arrive via the rollupOptions getter
-          // spread below.
-          rolldownOptions: undefined,
+          ...dropStaleRolldownAlias,
           modulePreload: config.build?.modulePreload ?? false,
           emptyOutDir: config.build?.emptyOutDir ?? true,
           outDir:
@@ -767,10 +773,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
         // server build options
         build: {
           ...config.build,
-          // Same stale-alias hazard as the client branch: drop any
-          // rolldownOptions the spread copied so the rollupOptions written
-          // below stays authoritative under rolldown-vite's `??=` compat.
-          rolldownOptions: undefined,
+          ...dropStaleRolldownAlias,
           modulePreload: config.build?.modulePreload ?? false,
           emptyOutDir: config.build?.emptyOutDir ?? true,
           outDir:
