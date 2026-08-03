@@ -1,21 +1,19 @@
 # CSS Handling
 
-The plugin collects CSS from your component imports and passes it as props to your components.
-
-## How It Works
-
-1. CSS files imported by components are collected during build
-2. Each file is processed by `createCssProps` — either inlined as `<style>` or linked as `<link>`
-3. Processed CSS is passed as `cssFiles` (per-page) and `globalCss` (site-wide) to your `Html` and `Root` components
+The plugin collects CSS from your component imports and hands it to your
+document as ready-to-render tag props. What the build emits and how each file
+ends up inlined or linked is part of the
+[build output contract](./build-output.md#css-in-the-output). This page covers
+the CSS-specific pieces: rendering, configuration, and filtering.
 
 ## Rendering CSS
 
-Use the `Css` component:
+Your `Html` and `Root` components receive the `globalCss` (site-wide) and
+`cssFiles` (per-page) maps. Render them with the `Css` component:
 
 ```tsx
 import { Css } from "vite-plugin-react-server/components";
 
-// In your Html component
 export const Html = ({ Root, cssFiles, globalCss, pageProps, Page }: HtmlProps) => (
   <html>
     <head>
@@ -27,7 +25,6 @@ export const Html = ({ Root, cssFiles, globalCss, pageProps, Page }: HtmlProps) 
   </html>
 );
 
-// In your Root component
 export const Root = ({ cssFiles, Page, pageProps, ...props }) => (
   <div {...props}>
     <Page {...pageProps} />
@@ -40,29 +37,11 @@ export const Root = ({ cssFiles, Page, pageProps, ...props }) => (
 
 ```ts
 css: {
-  inlineCss: true,            // inline small files (default: enabled; only `false` disables)
-  inlineThreshold: 4096,      // files up to 4096 bytes are inlined (default)
-  inlinePatterns: [],          // RegExp[] — always inline matching files
-  linkPatterns: [],            // RegExp[] — always link matching files
+  inlineCss: undefined,   // auto; `false` disables inlining
+  inlineThreshold: 4096,  // inline files up to this many bytes (0 = inline all)
+  inlinePatterns: [],     // RegExp[], always inline matching files
+  linkPatterns: [],       // RegExp[], always link matching files
 }
-```
-
-Force all CSS inline:
-
-```ts
-css: { inlineCss: true, inlineThreshold: 0 }
-```
-
-## CssContent Type
-
-Each entry in `cssFiles` is either:
-
-```ts
-// Inlined (small file)
-{ as: "style", type: "text/css", id: string, children: string }
-
-// Linked (large file)
-{ as: "link", id: string, rel: "stylesheet", href: string, precedence: "high" }
 ```
 
 ## CSS Modules
@@ -75,27 +54,14 @@ import styles from "./page.module.css";
 export const Page = () => <div className={styles.container}>Hello</div>;
 ```
 
-## Development vs Production
-
-- **Dev**: CSS collected from Vite's module graph on each request. Full HMR support.
-- **Build**: CSS collected at build time, processed once, inlined or linked per configuration.
-
 ## Filtering CSS
 
-You can filter the `cssFiles` map in your Root component:
+The maps are plain data, so a Root can drop entries before rendering:
 
 ```tsx
-export const Root = ({ cssFiles, Page, pageProps, ...props }) => {
-  const filtered = new Map(
-    [...cssFiles].filter(([key]) => !key.includes(".dark"))
-  );
-  return (
-    <div {...props}>
-      <Page {...pageProps} />
-      <Css cssFiles={filtered} />
-    </div>
-  );
-};
+const filtered = new Map(
+  [...cssFiles].filter(([key]) => !key.includes(".dark"))
+);
 ```
 
 ## Helper Imports

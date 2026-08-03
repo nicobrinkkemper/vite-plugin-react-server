@@ -224,5 +224,5 @@ export function createReactFetcher(options) {
 ## Related Docs
 
 - [Worker System](./workers.md)
-- [Core Concepts](../core-concepts.md) - dev:rsc vs dev:ssr modes
-- [Advanced Topics](../advanced-topics.md) - HMR message types
+- [Architecture](./architecture.md#dev-mode-architecture) - dev:rsc vs dev:ssr modes
+- [Advanced Topics](./advanced-topics.md) - HMR message types

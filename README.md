@@ -29,41 +29,59 @@ context, client hydration a react-client one). Running the main thread under
 react-server is an optional optimization — a bit faster, better stack traces —
 never a requirement.
 
+## Quick start
+
+The fastest path is the
+[starter](https://github.com/nicobrinkkemper/vprs-starter): a minimal app
+(file-based routes, one-call client entry, an interactive hero) whose single
+`vite build --app` serves a static CDN, a local per-request server, and Vercel.
+
+```bash
+git clone https://github.com/nicobrinkkemper/vprs-starter my-app
+cd my-app && npm install
+npm run dev      # vite dev server
+npm run build    # → dist/static (+ dist/client, dist/server, dist/server-edge)
+npm run preview  # serve the prerendered dist/static
+npm run edge     # render every route per request on :4401
+```
+
+`dist/static/` deploys to any static host as-is. The checked-in `api/`,
+`vercel.json`, and `scripts/prepare-vercel.mjs` ship the same build to Vercel
+with per-request routes; all three are deletable if you don't need Vercel
+(retarget the `edge` script from `build:vercel` to plain `build` first).
+
 ## Install
+
+Starting from scratch instead:
 
 ```bash
 npm install -D vite-plugin-react-server react react-dom
 ```
 
-vprs runs on **stable React 19.2+** out of the box — and on experimental React
-too. Everything locked to a React version (the `react-server-dom-esm` transport
-that ships on both the server and your browser bundle, the directive engine, the
-Node loader) lives in the
+vprs runs on **stable React 19.2+** out of the box, and on experimental React
+too. Everything locked to a React version (the RSC transport on both the server
+and your browser bundle, the directive engine, the Node loader) lives in the
 [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-dependency, whose versions track React the way `@types/react` does. You don't
-build or manage a transport — you pick a React track and install the matching
-`react-server-loader`. The command above is all you need for stable.
-
-To run the experimental train instead, install the three together; the
-`react-server-loader` range collapses them to one copy, so no `overrides` are
-needed:
+dependency, whose versions track React the way `@types/react` does. Pick a
+React track, install the matching `react-server-loader`; the command above is
+all you need for stable. For the experimental train (which the starter pins),
+install the three together; the `react-server-loader` range collapses them to
+one copy, no `overrides` needed:
 
 ```bash
 npm install react@experimental react-dom@experimental react-server-loader@experimental
 ```
 
-Experimental buys the newest RSC features ahead of stable — for instance it
-already fixes the cosmetic `as="stylesheet"` CSS-preload warning that stable
-React 19.2.x logs. See [React Compatibility](./docs/react-type-compatibility.md);
-upgrading from 1.x, see the
-[migration notes](./docs/getting-started.md#upgrading-from-1x).
+Experimental buys the newest RSC features ahead of stable, for instance the fix
+for the cosmetic `as="stylesheet"` CSS-preload warning that stable React 19.2.x
+logs. See [React Compatibility](./docs/react-type-compatibility.md); upgrading
+from 1.x, see the [migration notes](./docs/getting-started.md#upgrading-from-1x).
 
 ## Minimal Example
 
-File-based routes, server-computed props, and a one-call client entry — the
-same wiring the [starter](https://github.com/nicobrinkkemper/vprs-starter)
-deploys. One prerequisite: the project must be ESM (`"type": "module"` in
-`package.json`).
+The same wiring the starter deploys, built up from scratch: file-based routes,
+server-computed props, and a one-call client entry. One prerequisite: the
+project must be ESM (`"type": "module"` in `package.json`).
 
 ```ts
 // vite.config.ts
@@ -125,13 +143,10 @@ Routing is opt-in: skip `routes` and map URLs to files yourself with
 a `Page: (url) => string` mapping — see [Routing](./docs/routing.md).
 
 ```bash
-# Dev server
-npx vite
+npx vite              # dev server
+npx vite build --app  # build: static site + server/client ESM
 
-# Build (static site + server/client ESM)
-npx vite build --app
-
-# Same build, react-server main thread — optional: a bit faster, better stack traces
+# Optional react-server main thread: a bit faster, better stack traces
 NODE_OPTIONS='--conditions react-server' vite build --app
 ```
 

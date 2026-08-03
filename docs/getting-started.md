@@ -1,6 +1,32 @@
 # Getting Started
 
-## Install
+## Start from the starter
+
+The fastest path: clone
+[vprs-starter](https://github.com/nicobrinkkemper/vprs-starter), a minimal app
+with file-based routes, a one-call client entry, and a per-route choice between
+CDN snapshots and per-request rendering.
+
+```bash
+git clone https://github.com/nicobrinkkemper/vprs-starter
+cd vprs-starter
+npm install
+npm run dev      # vite dev server
+npm run build    # → dist/static (+ dist/client, dist/server, dist/server-edge)
+npm run preview  # serve the prerendered dist/static
+npm run edge     # render every route per request on :4401
+```
+
+One build serves a static CDN, Vercel, or a local server. The Vercel-specific
+files (`api/`, `vercel.json`, `scripts/prepare-vercel.mjs`) are deletable
+(retarget the `edge` script from `build:vercel` to plain `build` first); the
+rest is host-agnostic. The starter pins the experimental React train (`react`,
+`react-dom`, `react-server-loader` on the same React snapshot); the
+from-scratch path below uses stable React.
+
+## Start from scratch
+
+### Install
 
 ```bash
 npm install -D vite-plugin-react-server react react-dom
@@ -16,27 +42,7 @@ install all three at `@experimental` — `react@experimental`,
 dedupes to a single copy. See
 [React Compatibility](./react-type-compatibility.md).
 
-## Upgrading from 1.x
-
-vprs 1.x required `react@experimental` and bundled the transport in-repo. For
-2.0:
-
-- **Switch to stable React:** `npm install react@^19.2.7 react-dom@^19.2.7`
-  (experimental still works, but is no longer required).
-- **The transport moved.** `react-server-dom-esm` now ships inside the
-  `react-server-loader` dependency. If you imported the transport through vprs's
-  `vite-plugin-react-server/react-server-dom-esm/*` self-export, import it from
-  [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-  instead (e.g. `react-server-loader/server`, `/client`). Bare
-  `react-server-dom-esm/*` imports inside a vprs app keep working — the plugin
-  resolves them.
-- **No API changes** to the plugin itself: your `vite.config`, page files, and
-  directives are unchanged.
-
-There are no 3.x migration notes: v3's additions (the file router's `routes`
-field, the edge bundle) are additive, and a working 2.x config runs unchanged.
-
-## Create a Page
+### Create a Page
 
 ```tsx
 // src/page.tsx
@@ -53,7 +59,7 @@ export const Page = ({ title }: { title: string }) => (
 export const props = { title: "Home Page" };
 ```
 
-## Configure Vite
+### Configure Vite
 
 ```ts
 // vite.config.ts
@@ -70,7 +76,7 @@ export default defineConfig({
 });
 ```
 
-## Development Server
+### Development Server
 
 ```json
 {
@@ -97,7 +103,7 @@ npm run dev
 # Open http://localhost:5173
 ```
 
-## Build
+### Build
 
 ```bash
 npm run build
@@ -111,10 +117,11 @@ dist/
 │   ├── index.html
 │   └── index.rsc
 ├── client/       # Client ESM modules
-└── server/       # Server ESM modules
+├── server/       # Server ESM modules
+└── server-edge/  # Single-isolate edge bundle (on by default; build.edge: false to skip)
 ```
 
-## Deploy to GitHub Pages
+### Deploy to GitHub Pages
 
 The `dist/static/` folder is a complete static site. Deploy it anywhere.
 
@@ -154,7 +161,7 @@ export default defineConfig({
 });
 ```
 
-## Add More Pages
+### Add More Pages
 
 ```ts
 // vite.config.ts
@@ -180,7 +187,7 @@ src/pages/
     └── props.ts
 ```
 
-## Add Client Components
+### Add Client Components
 
 ```tsx
 // src/components/Counter.client.tsx
@@ -205,7 +212,7 @@ export const Page = () => (
 );
 ```
 
-### What makes it a client component
+#### What makes it a client component
 
 The `"use client"` directive, and only that — the same rule as every other React
 setup. The `.client.tsx` name above is a convention for human readers; it carries
@@ -233,7 +240,7 @@ import { Counter } from "./components/Counter.js";
 // ...renders <Counter /> as a client reference
 ```
 
-### Client entry
+#### Client entry
 
 Most projects have an `index.html` with something like:
 
@@ -243,7 +250,7 @@ Most projects have an `index.html` with something like:
 
 vprs leaves that file to Vite's normal entry-point discovery — you do **not** need to set `clientEntry`, even though the file may carry a `"use client"` directive. The `clientEntry` option still exists for advanced cases that don't go through `index.html`.
 
-## Add an HTML Shell
+### Add an HTML Shell
 
 ```tsx
 // src/Html.tsx
@@ -271,7 +278,7 @@ vitePluginReactServer({
 })
 ```
 
-## HMR
+### HMR
 
 Nothing to set up: `startClient` (the one-line client entry from
 [Routing](./routing.md#client-side-navigation)) wires RSC HMR along with
@@ -280,6 +287,26 @@ current route's flight automatically. Assembling the client entry by hand
 instead? `useRscHmr` from `vite-plugin-react-server/utils` is the same hook
 `startClient` uses, and `setupRscHmr()` is the non-React form (call it once in
 your entry; it refetches the current page's flight on server-component edits).
+
+## Upgrading from 1.x
+
+vprs 1.x required `react@experimental` and bundled the transport in-repo. For
+2.0:
+
+- **Switch to stable React:** `npm install react@^19.2.7 react-dom@^19.2.7`
+  (experimental still works, but is no longer required).
+- **The transport moved.** `react-server-dom-esm` now ships inside the
+  `react-server-loader` dependency. If you imported the transport through vprs's
+  `vite-plugin-react-server/react-server-dom-esm/*` self-export, import it from
+  [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+  instead (e.g. `react-server-loader/server`, `/client`). Bare
+  `react-server-dom-esm/*` imports inside a vprs app keep working — the plugin
+  resolves them.
+- **No API changes** to the plugin itself: your `vite.config`, page files, and
+  directives are unchanged.
+
+There are no 3.x migration notes: v3's additions (the file router's `routes`
+field, the edge bundle) are additive, and a working 2.x config runs unchanged.
 
 ## Next Steps
 
