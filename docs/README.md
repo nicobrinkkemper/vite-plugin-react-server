@@ -7,6 +7,7 @@ guides below are organized around the three ways people actually ship.
 
 ## Start here
 
+- [Starter (vprs-starter)](https://github.com/nicobrinkkemper/vprs-starter) — minimal app to clone: one build shipping CDN snapshots plus a per-request Vercel route (shape 3 below)
 - [Getting Started](./getting-started.md) — install, first page, dev server, build, deploy
 - [Build Output](./build-output.md) — the contract: what the build emits and how it is meant to be consumed
 
@@ -78,6 +79,5 @@ intent, not necessarily what ships today.
 ## Links
 
 - [GitHub Repository](https://github.com/nicobrinkkemper/vite-plugin-react-server)
-- [Starter (vprs-starter)](https://github.com/nicobrinkkemper/vprs-starter) — minimal template; one build deploying to Vercel with CDN snapshots and a per-request route
 - [Official Demo (bidoof-template)](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official)
 - [Production Example (mmc)](https://github.com/nicobrinkkemper/mmc)

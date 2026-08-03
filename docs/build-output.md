@@ -104,6 +104,27 @@ dist/static/components/Link.client-CnBCzH8H.js
 
 This ensures module references are consistent between client and server. When the server component tree references a client component by module ID, that ID resolves correctly in both the browser (`dist/static/`) and Node (`dist/client/`).
 
+## CSS in the Output
+
+Stylesheets ride the same pipeline as the JS: the client build emits every
+imported CSS file as a hashed asset in `dist/static/assets/`. Static
+generation then collects, per page, the CSS its chunks import and passes it
+to your `Html` and `Root` components as two maps of ready-to-render tag
+props: `cssFiles` (per-page) and `globalCss` (site-wide). Each entry is one
+of:
+
+- **Inlined** — `{ as: "style", type: "text/css", id, children }`, the file's
+  content shipped inside the document. A file is inlined when it is at or
+  under `css.inlineThreshold` (default 4096 bytes); `inlineThreshold: 0`
+  inlines everything, `css.inlineCss: false` disables inlining, and
+  `css.inlinePatterns` / `css.linkPatterns` override per file.
+- **Linked** — `{ as: "link", rel: "stylesheet", id, href, precedence: "high" }`,
+  a react-dom hoistable pointing at the hashed asset.
+
+In dev the same props are collected from Vite's module graph on each request
+(full HMR); at build time they are collected once from the bundle. Rendering
+them is the document's job — see [CSS Handling](./css-handling.md).
+
 ## Using the ESM Modules in a Server
 
 The build output is designed to be consumed by a Node.js HTTP server — but not
