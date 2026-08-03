@@ -288,26 +288,6 @@ instead? `useRscHmr` from `vite-plugin-react-server/utils` is the same hook
 `startClient` uses, and `setupRscHmr()` is the non-React form (call it once in
 your entry; it refetches the current page's flight on server-component edits).
 
-## Upgrading from 1.x
-
-vprs 1.x required `react@experimental` and bundled the transport in-repo. For
-2.0:
-
-- **Switch to stable React:** `npm install react@^19.2.7 react-dom@^19.2.7`
-  (experimental still works, but is no longer required).
-- **The transport moved.** `react-server-dom-esm` now ships inside the
-  `react-server-loader` dependency. If you imported the transport through vprs's
-  `vite-plugin-react-server/react-server-dom-esm/*` self-export, import it from
-  [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-  instead (e.g. `react-server-loader/server`, `/client`). Bare
-  `react-server-dom-esm/*` imports inside a vprs app keep working — the plugin
-  resolves them.
-- **No API changes** to the plugin itself: your `vite.config`, page files, and
-  directives are unchanged.
-
-There are no 3.x migration notes: v3's additions (the file router's `routes`
-field, the edge bundle) are additive, and a working 2.x config runs unchanged.
-
 ## Next Steps
 
 - [Routing](./routing.md) — point `routes: { dir }` at a folder and the file tree becomes your URL tree: dynamic params, per-segment loaders, nested layouts, and client-side `Link` navigation

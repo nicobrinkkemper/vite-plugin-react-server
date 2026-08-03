@@ -74,8 +74,7 @@ npm install react@experimental react-dom@experimental react-server-loader@experi
 
 Experimental buys the newest RSC features ahead of stable, for instance the fix
 for the cosmetic `as="stylesheet"` CSS-preload warning that stable React 19.2.x
-logs. See [React Compatibility](./docs/react-type-compatibility.md); upgrading
-from 1.x, see the [migration notes](./docs/getting-started.md#upgrading-from-1x).
+logs. See [React Compatibility](./docs/react-type-compatibility.md).
 
 ## Minimal Example
 
