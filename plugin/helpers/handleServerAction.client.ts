@@ -38,9 +38,30 @@ export function handleServerActionError(error: unknown, res: ServerResponse, log
 }
 
 /**
- * Client-side server action handler that delegates to worker
+ * `handleServerAction` means ONE thing across the package: the sealed HTTP
+ * handler that EXECUTES actions, which only exists under the react-server
+ * condition (execution needs the react-server React build). This is the
+ * default-condition binding of the name: it throws with setup guidance
+ * instead of silently resolving to different behavior with a different
+ * signature.
  */
-export async function handleServerAction(
+export async function handleServerAction(): Promise<never> {
+  throw new Error(
+    "handleServerAction executes server actions and requires the react-server " +
+      "condition — run the process that imports it with --conditions " +
+      "react-server (or route action requests to the process that has it). " +
+      "From a non-react-server process, forward the request to your RSC " +
+      "worker with delegateServerActionToWorker instead."
+  );
+}
+
+/**
+ * Forward a server-action request to a react-server worker thread and stream
+ * its RSC response back. Non-react-server counterpart to the sealed
+ * `handleServerAction`: this process cannot execute actions itself (wrong
+ * React condition), so it delegates to the worker that can.
+ */
+export async function delegateServerActionToWorker(
   req: IncomingMessage,
   res: ServerResponse,
   options: ServerActionHandlerOptions & { worker?: Worker }
@@ -128,7 +149,7 @@ export async function handleServerActionWithViteServer(
     worker?: Worker;
   }
 ): Promise<void> {
-  return handleServerAction(req, res, {
+  return delegateServerActionToWorker(req, res, {
     projectRoot: handlerOptions.projectRoot,
     verbose: handlerOptions.verbose,
     logger: server.config.customLogger || server.config.logger,
