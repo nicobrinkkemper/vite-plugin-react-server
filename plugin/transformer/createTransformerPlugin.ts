@@ -458,7 +458,9 @@ export const createTransformerPlugin = (
           //    also keeps server-only code out of the SSR bundle.
           if (!isServerEnvironment) {
             const serverAnalysis = await analyzeModule(code, {
-              loader: { parse: (src: string) => this.parse(src) as Program },
+              loader: {
+                parse: (src: string) => rslParse(src).ast as unknown as Program,
+              },
             });
             if (
               serverAnalysis.type === "success" &&
