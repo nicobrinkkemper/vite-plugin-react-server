@@ -159,10 +159,11 @@ needs configuring there. The rest of this section describes the on-disk
 helper for hosting mode 2.
 
 **`handleServerAction` seals automatically — you do not pass anything extra.**
-This is the `--conditions react-server` variant of the condition-split
-`vite-plugin-react-server/helpers` export; under the default condition the
-same import resolves to the worker-delegating variant, which requires a
-worker and takes none of these options — use the baked gate there instead. A
+It exists under `--conditions react-server` only: executing an action needs
+the react-server React build, so under the default condition the same import
+throws with setup guidance instead of executing anything. A process without
+the condition forwards the request to its RSC worker with
+`delegateServerActionToWorker` (same subpath), or uses the baked gate. A
 Web-standard `(Request) => Response` sibling, `handleServerActionRequest`, is
 what the baked gate itself wraps. In
 production it reads the build's server manifest from
