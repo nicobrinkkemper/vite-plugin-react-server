@@ -1,0 +1,133 @@
+# Runner spec — explicit `runner: "main" | "isolated" | "edge"` (draft)
+
+Status: DRAFT for review. First deliverable of the runner-abstraction epic,
+in the mold of the router parity spec.
+
+## Problem
+
+The execution paradigm is inferred, not declared. The package exports map
+splits the plugin API on the process condition (`.` → `index.server.js`
+under `react-server`, `index.client.js` otherwise), `getCondition()` reads
+the same signal at runtime, and the two orchestrator faces differ only in an
+`OrchestratorStrategy` (`defaultEnvironment: "server" | "client"` plus which
+`.server`/`.client` dev-server and static plugins they pull). The paradigm a
+consumer runs is therefore the *reverse image of their `--conditions` flag* —
+a fact about how the process was launched, smeared across every script:
+
+- mmc: `dev:rsc`, `build`, `build:gh` each restate
+  `NODE_OPTIONS='--conditions react-server'`.
+- bidoof-template: `env:dev-server`, `build`, `build:server` likewise.
+- geitje dashboard: `dev:rsc`, `build` likewise.
+
+Same paradigm, declared zero times; launch flag repeated per script; and the
+`env.server` / `env.client` script split (build vs build:preview) exists only
+to re-select the inferred side.
+
+## The flag
+
+```ts
+vitePluginReactServer({ runner: "main" | "isolated" | "edge", ... })
+```
+
+One declaration names the choice. Two roles must not be conflated:
+
+- **DISPATCH** (which orchestrator/pipeline/plugins run): the runner flag
+  **replaces** the condition here. The exports-map API split and
+  `getCondition()`-driven selection retire as dispatch mechanisms.
+- **RESOLUTION** (which module graph `react-server` code resolves through):
+  the runner **never** replaces the condition here. Each runner instead
+  *names* who owns resolution — Node's resolver, or Vite's Environment API.
+
+Both topologies stay valid. The runner is not a canonicalization; it is the
+name of a deliberate choice (see `vprs_runner_and_design_philosophy`).
+
+## Paradigm matrix
+
+| | `main` | `isolated` | `edge` |
+|---|---|---|---|
+| Where react-server executes | main thread | `worker_threads` rsc-worker | single isolate |
+| react-server resolution owner | **Node's own resolver via `--conditions react-server`** (kept, declared once, knowingly) | Vite Environment API: per-environment `resolve.conditions` on the server env | build-time bake: React resolved per-env at bundle time, nothing resolved at runtime |
+| react-in-config (React usable in `vite.config.ts`) | **yes** — the only runner that can; config executes in plain Node, outside any Vite environment, so only the process flag reaches it | no | no |
+| Render pipeline | in-process render | worker protocol (`RSC_CHUNK`/`RSC_END`), html-worker for SSG | baked pair (`dist/server-edge/render.js`), Web streams end-to-end |
+| Streams | Node streams | Node streams over the worker bridge | Web streams only, no `node:*` |
+| Dev shape | `vite` under the process flag (today's `dev:rsc`) | plain `vite` — the rsc-worker carries the condition internally (today's client-first dev) | plain `vite` + baked-pair preview |
+| Prod shape | host `dist/server` under the flag (`handleServerAction` sealed helper) | worker-based serving | `handleRouteAction` baked gate, no `--conditions` process |
+| Action dispatch | sealed executor in-process | delegate to worker | baked sealed gate |
+| Stack traces / debugging | best (one thread, one graph) | split across bridge | bundled |
+| React copies | one, process-wide | per side of the bridge | baked per-env |
+
+## What a runner owns (OrchestratorStrategy, grown up)
+
+`OrchestratorStrategy` today is the two-way proto-runner:
+
+```ts
+interface OrchestratorStrategy {
+  defaultEnvironment: "server" | "client";
+  devServerPlugin: (userOptions) => Plugin | Plugin[];
+  staticPlugin: (userOptions) => Plugin;
+}
+```
+
+The runner is this record made explicit, selected by the flag instead of by
+which conditional export the consumer's process happened to load, and
+extended to own what the strategy currently leaves implicit:
+
+1. `defaultEnvironment` and the transformer's environment set (unchanged).
+2. The dev-server and SSG plugin variants (unchanged in role).
+3. **Per-environment `resolve.conditions`** on the environments it creates —
+   the piece that lets `isolated`/`edge` drop the process flag entirely.
+4. The render transport (in-process / worker bridge / baked pair) and the
+   action-dispatch surface it implies.
+
+`createPluginOrchestratorImpl` stays the shared body (plugin order, the
+shared-`userOptions`-reference invariant, environment wiring). Three runner
+records replace the two condition-selected faces; `main` is the strategy the
+`react-server` face is today, `isolated` is the client-first face with the
+worker path named, `edge` is the baked pair promoted from `build.edge`
+add-on to first-class paradigm.
+
+## Migration
+
+- Exports map: `.` stops condition-splitting the *API*. The public entry is
+  one module; the runner flag picks the orchestrator. (Internal
+  `.server`/`.client` module pairs remain an implementation layout, and the
+  `main` runner's *runtime* still resolves `react-server` through the
+  process flag — resolution, not dispatch.)
+- `getCondition()` demotes from paradigm oracle to what it is: a helper that
+  reports the process condition where the `main` runner genuinely needs it.
+- No compat shim for the old inference: this rides the new major
+  (over-indexing backward compat is explicitly out of scope). A missing
+  `runner` errors with the three options and a one-line description each.
+
+## Consumer code deleted
+
+- mmc: `NODE_OPTIONS='--conditions react-server'` leaves `dev:rsc`, `build`,
+  `build:gh` (isolated/edge), or collapses to the single declared `main`
+  runner + one flag stated once and knowingly.
+- bidoof-template: same for `env:dev-server`, `build`, `build:server`; the
+  `env:*` server/client script split collapses into the declared runner.
+- geitje dashboard: same for `dev:rsc`, `build`.
+- Generally: the build vs build:preview divergence stops being encoded in
+  which flag a script exports; it is the same runner either way.
+
+## Non-goals
+
+- Retiring `--conditions react-server` for the `main` runner. It is the
+  React-official documented mechanism, and the only resolution path that
+  reaches `vite.config.ts` (plain Node, deps externalized — the Environment
+  API cannot resolve config-time imports). Deleting it deletes
+  react-in-config.
+- Declaring a winner between topologies. `main` optimizes debuggability and
+  react-in-config; `isolated` optimizes isolation without launch flags;
+  `edge` optimizes portability. The flag names the trade, the docs state it.
+
+## Open questions for review
+
+1. Flag name and default: `runner` with **no default** (error asks the
+   consumer to choose) vs defaulting to `isolated` (the no-launch-flag path)?
+2. Does `edge` fold `build.edge` entirely (edge runner = the only way to get
+   the baked pair), or does `build.edge` survive as an artifact knob on the
+   other runners?
+3. Worker-transport surface: does `isolated` expose the delegator
+   (`delegateServerActionToWorker`) as its documented action path, or hide
+   dispatch behind the runner entirely?
