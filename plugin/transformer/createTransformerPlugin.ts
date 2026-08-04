@@ -457,9 +457,9 @@ export const createTransformerPlugin = (
           //    emit a render-safe stub that only throws if wrongly invoked. This
           //    also keeps server-only code out of the SSR bundle.
           if (!isServerEnvironment) {
-            const serverAnalysis = await analyzeModule(code, {
-              loader: { parse: (src: string) => this.parse(src) as Program },
-            });
+            // No injected parser: analyzeModule defaults to rsl's own parse,
+            // the one version-stable grammar every analysis path shares.
+            const serverAnalysis = await analyzeModule(code);
             if (
               serverAnalysis.type === "success" &&
               serverAnalysis.directiveInfo?.fileLevel?.type === "server"

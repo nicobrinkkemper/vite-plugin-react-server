@@ -605,6 +605,73 @@ export function Page(props: any) {
   );
 }
 
+// Client component importing a "use server" module: the build must replace the
+// module with createServerReference proxies in the browser environment and a
+// render-safe stub in SSR — never bundle the server body.
+export async function setupServerReferenceProxyProject(testDir: string) {
+  await setupIndexHTML(testDir);
+  await mkdir(resolve(testDir, "src/actions"), { recursive: true });
+  await mkdir(resolve(testDir, "src/components"), { recursive: true });
+  await mkdir(resolve(testDir, "src/page"), { recursive: true });
+
+  // Directive-only filename ON PURPOSE (no `.server.` suffix): the suffix
+  // route is handled by serverReferenceClientPlugin; only a directive-only
+  // name exercises the transformer's own analysis path. The string literal is
+  // the canary: it must never appear in a client or static chunk.
+  await writeFile(
+    resolve(testDir, "src/actions/todoActions.ts"),
+    `"use server";
+export async function addItem(title: string): Promise<{ ok: boolean; tag: string }> {
+  return { ok: !!title, tag: "server-only-body-marker" };
+}
+`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/components/AddButton.tsx"),
+    `"use client";
+import React from "react";
+import { addItem } from "../actions/todoActions.js";
+
+export function AddButton() {
+  const [ok, setOk] = React.useState(false);
+  return (
+    <button
+      data-testid="add"
+      onClick={async () => {
+        const res = await addItem("hello");
+        setOk(res.ok);
+      }}
+    >
+      {ok ? "added" : "add"}
+    </button>
+  );
+}
+`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/page.tsx"),
+    `import React from "react";
+import { AddButton } from "../components/AddButton.js";
+
+export function Page() {
+  return (
+    <div>
+      <h1>Server Reference Proxy Test</h1>
+      <AddButton />
+    </div>
+  );
+}
+`
+  );
+
+  await writeFile(
+    resolve(testDir, "src/page/props.ts"),
+    `export const props = (url: string) => ({ url });`
+  );
+}
+
 export async function setupTestProjectEnv(testDir: string) {
   await setupIndexHTML(testDir);
   await setupPageTSX2(testDir);
