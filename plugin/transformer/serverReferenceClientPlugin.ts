@@ -1,6 +1,6 @@
 import type { ConfigEnv } from "vite";
-import { transformWithEsbuild } from "vite";
 import { readFile } from "node:fs/promises";
+import { transformTsSource } from "../loader/transformTsSource.js";
 import type { Program } from "acorn";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
@@ -97,9 +97,11 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
       // Rollup parser (this.parse) is JS-only. esbuild preserves the top-level
       // "use server" directive and the export names, which is all we need.
       const isTsx = /\.[tj]sx$/.test(realPath);
-      const { code: js } = await transformWithEsbuild(src, realPath, {
-        loader: isTsx ? "tsx" : "ts",
-      });
+      const { code: js } = await transformTsSource(
+        src,
+        realPath,
+        isTsx ? "tsx" : "ts",
+      );
       const analysis = await analyzeModule(js, {
         loader: { parse: (s: string) => rslParse(s).ast as unknown as Program },
       });
