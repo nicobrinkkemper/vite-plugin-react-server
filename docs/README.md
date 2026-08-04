@@ -73,8 +73,6 @@ Specs for work that is in progress or was reasoned through once. They describe
 intent, not necessarily what ships today.
 
 - [Router v2 parity spec](./internals/router-v2-parity.md)
-- [Dev caching investigation](./internals/DEV_CACHING_ISSUE.md)
-- [Message ports analysis](./internals/MESSAGE_PORTS_ANALYSIS.md)
 
 ## Links
 

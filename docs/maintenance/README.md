@@ -9,7 +9,7 @@ Run the full suite with `npm test` (unit) and the e2e specs under `test/e2e/`. T
 ## Documentation Index
 
 Filenames are in backticks so markdown doesn't italicize the `_` in names like
-`DEV_CACHING_ISSUE.md` / `MESSAGE_PORTS_ANALYSIS.md`.
+`ERROR_HANDLING.md`.
 
 | File | Description |
 |------|-------------|
@@ -19,10 +19,8 @@ Filenames are in backticks so markdown doesn't italicize the `_` in names like
 | [`advanced-topics.md`](../internals/advanced-topics.md) | Custom workers, message system, extending the plugin |
 | [`module-resolution-escape-hatches.md`](../internals/module-resolution-escape-hatches.md) | Module-resolution escape hatches |
 | [`router-v2-parity.md`](../internals/router-v2-parity.md) | Router v2 parity spec and conventions |
-| [`MESSAGE_PORTS_ANALYSIS.md`](../internals/MESSAGE_PORTS_ANALYSIS.md) | Worker communication architecture |
 | [`COMMON_ISSUES.md`](../internals/COMMON_ISSUES.md) | Frequently encountered problems and solutions |
 | [`DEBUGGING.md`](../internals/DEBUGGING.md) | Debugging techniques and tools |
-| [`DEV_CACHING_ISSUE.md`](../internals/DEV_CACHING_ISSUE.md) | Dev mode caching issue (resolved) |
 | [`ERROR_HANDLING.md`](../internals/ERROR_HANDLING.md) | Error handling patterns and recovery |
 | [`TESTING.md`](../internals/TESTING.md) | Test infrastructure and commands |
 
