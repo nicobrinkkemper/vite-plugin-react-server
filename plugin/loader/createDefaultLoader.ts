@@ -2,8 +2,8 @@ import type { LoaderContext } from "../types.js";
 import type { RawSourceMap } from "source-map";
 import type { LoadFnOutput, LoadHookContext } from "node:module";
 import type { LoadHook } from "node:module";
-import { transformWithEsbuild } from "vite";
 import { readFile } from "node:fs/promises";
+import { transformTsSource } from "./transformTsSource.js";
 
 export type LoaderResult = {
   source: string;
@@ -20,15 +20,11 @@ export type Loader = {
 
 
 const defaultNextLoad: Parameters<LoadHook>[2] = async (url) => {
-  const result = await transformWithEsbuild(await readFile(url, "utf-8"), url, {
-    loader: "tsx",
-    format: "esm",
-    sourcemap: "external",
-  });
+  const result = await transformTsSource(await readFile(url, "utf-8"), url, "tsx");
   return {
     source: result["code"],
     format: "module",
-    map: result.map,
+    map: result.map as RawSourceMap,
   };
 };
 
@@ -59,15 +55,11 @@ export function createDefaultLoader(
   const defaultSourceNextLoad: Parameters<LoadHook>[2] =
     typeof defaultSource === "string"
       ? async (url = defaultId) => {
-          const result = await transformWithEsbuild(defaultSource, url, {
-            loader: "tsx",
-            format: "esm",
-            sourcemap: "external",
-          });
+          const result = await transformTsSource(defaultSource, url, "tsx");
           return {
             source: result["code"],
             format: "module",
-            map: result.map,
+            map: result.map as RawSourceMap,
           };
         }
       : defaultNextLoad;
