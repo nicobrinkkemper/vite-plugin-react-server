@@ -1,14 +1,9 @@
 import type { ConfigEnv } from "vite";
 import { readFile } from "node:fs/promises";
 import { transformTsSource } from "../loader/transformTsSource.js";
-import type { Program } from "acorn";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { analyzeModule } from "react-server-loader/directives";
-// Version-independent acorn parse: the bundler's `this.parse` is Oxc on Vite 8
-// (different AST shape) but Rollup/acorn on 6/7. rsl's parser matches the
-// JS-only Rollup behavior we already relied on here.
-import { parse as rslParse } from "react-server-loader";
 import type { VitePluginFn } from "../types.js";
 
 // Virtual id prefix for the client-side server-reference proxy. The real
@@ -93,18 +88,17 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
       const realPath = id.slice(PREFIX.length).split("?")[0];
       const src = await readFile(realPath, "utf8");
 
-      // Strip TS types before analysis — we read the raw .server source, and the
-      // Rollup parser (this.parse) is JS-only. esbuild preserves the top-level
-      // "use server" directive and the export names, which is all we need.
+      // Strip TS types before analysis — we read the raw .server source. The
+      // transform preserves the top-level "use server" directive and the
+      // export names, which is all analyzeModule needs; no parser is injected,
+      // so analysis runs on rsl's own version-stable parse.
       const isTsx = /\.[tj]sx$/.test(realPath);
       const { code: js } = await transformTsSource(
         src,
         realPath,
         isTsx ? "tsx" : "ts",
       );
-      const analysis = await analyzeModule(js, {
-        loader: { parse: (s: string) => rslParse(s).ast as unknown as Program },
-      });
+      const analysis = await analyzeModule(js);
       if (
         analysis.type !== "success" ||
         analysis.directiveInfo?.fileLevel?.type !== "server"
