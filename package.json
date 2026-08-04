@@ -441,7 +441,7 @@
   "dependencies": {
     "acorn": "^8.16.0",
     "picocolors": "^1.1.1",
-    "react-server-loader": "^19.2.18 || 0.0.0-experimental-172742b4-20260716.1",
+    "react-server-loader": "^19.2.19 || 0.0.0-experimental-7dfc7ccd-20260803",
     "tsx": "^4.21.0",
     "vitefu": "^1.1.3"
   }
