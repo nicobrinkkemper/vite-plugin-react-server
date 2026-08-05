@@ -798,11 +798,18 @@ export async function ${actionExport}(request, opts = {}) {
     // fail an otherwise-good build. Warn loudly and skip the artifact; the
     // worker-based dist/server build stands on its own. Opt out with
     // `build.edge: false` if the bake is not wanted.
+    const message = error instanceof Error ? error.message : String(error);
+    // node:fs/promises and node:path are aliased to the throw-only nodeStub in
+    // the bake, so a USER module importing them surfaces as a missing export
+    // from the stub — name the real constraint instead of the stub internals.
+    const stubHint = message.includes("nodeStub")
+      ? " A module in the bake imports node:fs/promises or node:path; the " +
+        "baked bundle has no filesystem. Read files at build time instead " +
+        "(import.meta.glob, optionally with ?raw) or set build.edge:false."
+      : "";
     logger.warn(
       `${tag} skipped — edge bundle bake failed (the main build is unaffected; ` +
-        `set build.edge:false to silence): ${
-          error instanceof Error ? error.message : String(error)
-        }`
+        `set build.edge:false to silence): ${message}${stubHint}`
     );
   } finally {
     rmSync(entryPath, { force: true });

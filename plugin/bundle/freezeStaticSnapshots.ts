@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
@@ -50,10 +51,21 @@ export async function freezeStaticSnapshots(opts: {
   const rscName =
     userOptions.build.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath;
 
+  // This pass renders THROUGH the baked pair, so a bake that failed upstream
+  // (warned and skipped, additive contract) must fail here naming that cause,
+  // not as the ERR_MODULE_NOT_FOUND a blind import would produce.
+  const producerPath = join(edgeDir, DEFAULT_CONFIG.EDGE.entryFileName);
+  if (!existsSync(producerPath)) {
+    throw new Error(
+      `[transport:webpack] SSG renders through the baked edge pair, but ` +
+        `${producerPath} is missing — the edge bake failed or was disabled ` +
+        `(see the earlier [build.edge] warning for the cause). Fix the bake ` +
+        `failure, or set build.pages to [] to skip SSG.`
+    );
+  }
+
   const { createEdgeRequestHandler } = await import("../edge/index.js");
-  const bundle = await import(
-    pathToFileURL(join(edgeDir, DEFAULT_CONFIG.EDGE.entryFileName)).href
-  );
+  const bundle = await import(pathToFileURL(producerPath).href);
   const consumer = await import(
     pathToFileURL(join(edgeDir, "consumer.js")).href
   );
