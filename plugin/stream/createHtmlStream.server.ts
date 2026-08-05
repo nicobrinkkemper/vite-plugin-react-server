@@ -46,6 +46,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
     logger = createLogger(),
     onError,
     panicThreshold,
+    htmlTimeout,
   } = options;
 
   if (verbose) {
@@ -322,6 +323,12 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // Let React manage the MessagePort lifecycle to prevent "Connection closed" errors
   const cleanup = () => {
     try {
+      // Every termination path (natural end, worker ERROR, abort, deadline)
+      // funnels through here — disarming the deadline here means an
+      // intentional abort can't be followed by a misleading timeout error.
+      // (`deadline` is declared below; message/abort callbacks only run
+      // after the synchronous body finished initializing it.)
+      if (deadline) clearTimeout(deadline);
       dataPort1.removeListener('message', dataMessageHandler);
       controlPort1.removeListener('message', controlMessageHandler);
       // Don't close ports - let React finish consuming and close naturally
@@ -331,6 +338,35 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   };
 
   // Note: Process-level cleanup is handled by worker shutdown protocol
+
+  // Whole-render deadline. A wedged worker render — canonically a client
+  // reference whose dynamic import never settles — sends neither output nor
+  // an ERROR message, so the stream would keep its consumer (the SSG
+  // fileWriter, a request handler) waiting forever. Destroying with a named
+  // error rides the same propagation path as worker-reported render errors.
+  const deadline =
+    typeof htmlTimeout === "number" && htmlTimeout > 0
+      ? setTimeout(() => {
+          // Completion is an OUTPUT property: the worker's null end-message
+          // calls htmlStream.end(). isStreamEnded would be the wrong guard —
+          // it marks the RSC INPUT fully delivered, which is exactly the
+          // state the canonical wedge is in when it hangs.
+          if (htmlStream.writableEnded || htmlStream.destroyed) return;
+          htmlStream.destroy(
+            new Error(
+              `[createHtmlStream:${route}] HTML render did not complete within ${htmlTimeout}ms — ` +
+                `the html worker sent neither output nor an error. A client-reference ` +
+                `module that fails to load at render time can wedge the render this way; ` +
+                `check that the client build output is resolvable from the render.`
+            )
+          );
+          cleanup();
+        }, htmlTimeout)
+      : undefined;
+  deadline?.unref?.();
+  htmlStream.on("close", () => {
+    if (deadline) clearTimeout(deadline);
+  });
 
   return {
     pipe: (destination: any) => {

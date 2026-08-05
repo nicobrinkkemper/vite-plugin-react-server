@@ -50,6 +50,7 @@ export const createRscToHtmlStream: RscToHtmlStreamFn = function _createRscToHtm
     build,
     onMetrics: options.onMetrics,
     onError: options.onError,
+    htmlTimeout: options.htmlTimeout,
   });
 
   // Handle abort signal
