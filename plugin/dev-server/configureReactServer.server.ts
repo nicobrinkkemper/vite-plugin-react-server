@@ -16,6 +16,7 @@ import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { mergeConfig, type ResolvedConfig } from "vite";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
+import { RSC_OUTPUT_PATH } from "../config/routeExportNames.js";
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({
@@ -425,7 +426,11 @@ export const configureReactServer: ConfigureReactServerFn =
             verbose,
             logger,
             build: {
-              rscOutputPath: userHandlerOptions.build?.rscOutputPath || ".rsc",
+              // The REAL default ("index.rsc"), not ".rsc": stripping only
+              // ".rsc" leaves a phantom "index" segment on suffixed urls and
+              // param matching resolves the wrong route.
+              rscOutputPath:
+                userHandlerOptions.build?.rscOutputPath || RSC_OUTPUT_PATH,
             },
           });
 

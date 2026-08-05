@@ -1,5 +1,10 @@
 import { join, relative, resolve, sep } from "node:path";
-import { fillPattern, matchRoutes } from "./matchRoute.js";
+import {
+  fillPattern,
+  matchRoutes,
+  normalizePathForMatch,
+} from "./matchRoute.js";
+import { RSC_OUTPUT_PATH } from "../config/routeExportNames.js";
 import {
   type RouteEntry,
   type RouteLayer,
@@ -61,6 +66,13 @@ export function fileRouter(
     root?: string;
     /** page/props/layout matchers; the plugin passes the resolved autoDiscover ones. */
     patterns?: ScanPatterns;
+    /**
+     * Transport suffix to strip before matching (`build.rscOutputPath`). The
+     * dev server resolves suffixed urls (`/a/b/index.rsc`) through the same
+     * router functions as folder urls; without stripping, the suffix reads as
+     * an extra path segment and a catch-all (or `$param`) swallows it.
+     */
+    rscOutputPath?: string;
   } = {},
 ): FileRouterConfig {
   // `root` decouples "where to scan" from "what path to emit": scan
@@ -91,9 +103,11 @@ export function fileRouter(
     : scanned;
   const patterns = routes.map((r) => r.pattern);
   const byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
+  const rscOutputPath = opts.rscOutputPath ?? RSC_OUTPUT_PATH;
+  const forMatch = (url: string) => normalizePathForMatch(url, rscOutputPath);
 
   const matched = (url: string): RouteEntry => {
-    const m = matchRoutes(patterns, url);
+    const m = matchRoutes(patterns, forMatch(url));
     if (!m) throw new Error(`fileRouter: no route matches "${url}"`);
     return byPattern.get(m.pattern)!;
   };
@@ -128,7 +142,7 @@ export function fileRouter(
     build: { pages },
     routes,
     routePatterns: patterns,
-    getParams: (url) => matchRoutes(patterns, url)?.params ?? {},
+    getParams: (url) => matchRoutes(patterns, forMatch(url))?.params ?? {},
     layouts: (url) => matched(url).layouts,
   };
 }
@@ -172,6 +186,8 @@ export function resolveRoutesOption(
     projectRoot: string;
     /** Resolved autoDiscover page/props matchers so the scanner shares them. */
     patterns?: ScanPatterns;
+    /** Transport suffix stripped before matching (`build.rscOutputPath`). */
+    rscOutputPath?: string;
   },
 ): FileRouterConfig {
   // A pre-built router table has a `Page` resolver; a declarative config
@@ -181,5 +197,6 @@ export function resolveRoutesOption(
     patterns: opts.patterns,
     staticPaths: routes.staticPaths,
     root: opts.projectRoot,
+    rscOutputPath: opts.rscOutputPath,
   });
 }
