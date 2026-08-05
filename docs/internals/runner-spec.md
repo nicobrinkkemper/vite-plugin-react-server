@@ -86,6 +86,24 @@ records replace the two condition-selected faces; `main` is the strategy the
 worker path named, `edge` is the baked pair promoted from `build.edge`
 add-on to first-class paradigm.
 
+## Dev/prod boundary
+
+The runner is consumed at config/build time only; nothing in `dist/` reads
+it. Prod is a thin host over the emitted artifacts and manifest (plain Node
+over `dist/server`, the worker consumer, or the baked pair) with no vprs
+import, so dev concerns cannot cross a dependency edge that does not exist.
+
+- The dev/build split lives inside the runner record (`devServerPlugin` vs
+  `staticPlugin`); consumers never branch on mode.
+- Each runner uses the same render transport in dev and prod (in-process,
+  worker bridge, baked pair). Dev-only machinery (HMR, the module runner)
+  wraps that transport and dies with the dev server process.
+- Prod action dispatch goes through sealed references baked into the
+  manifest; dev's permissive dispatch surface is structurally absent from
+  the artifacts.
+- The one deliberate dev→prod crossing is `main`'s process flag: resolution,
+  declared once.
+
 ## Migration
 
 - Exports map: `.` stops condition-splitting the *API*. The public entry is
@@ -121,13 +139,24 @@ add-on to first-class paradigm.
   react-in-config; `isolated` optimizes isolation without launch flags;
   `edge` optimizes portability. The flag names the trade, the docs state it.
 
-## Open questions for review
+## Resolutions (proposed, for review)
 
-1. Flag name and default: `runner` with **no default** (error asks the
-   consumer to choose) vs defaulting to `isolated` (the no-launch-flag path)?
-2. Does `edge` fold `build.edge` entirely (edge runner = the only way to get
-   the baked pair), or does `build.edge` survive as an artifact knob on the
-   other runners?
-3. Worker-transport surface: does `isolated` expose the delegator
-   (`delegateServerActionToWorker`) as its documented action path, or hide
-   dispatch behind the runner entirely?
+1. **Flag default: none — a missing `runner` errors**, listing the three
+   options with a one-line description each. A default is inference with
+   better branding: it silently canonicalizes one topology, which Non-goals
+   refuses, and it hides the exact choice this spec exists to surface. The
+   error message doubles as the paradigm's elevator pitch; templates ship
+   with `runner` already set, so first-run DX is a template concern, not a
+   default.
+2. **`build.edge` survives as an artifact knob on the other runners.**
+   Runner and edge artifact are different axes: the runner is process
+   topology, `build.edge` is an emitted output. A `main` setup that debugs
+   in-process but deploys the baked pair needs both from one config. The
+   `edge` runner is the paradigm where the baked pair also serves dev and
+   prod, not the only gate to producing it.
+3. **The runner owns action dispatch; the delegator stays an advanced
+   export.** Consumer action code is identical under all three runners —
+   that identity is what makes `runner` one abstraction instead of three
+   products sharing a config file. `delegateServerActionToWorker` remains
+   exported and documented as the instrumentation/interception point for
+   the worker bridge, not the primary path.
