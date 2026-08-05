@@ -11,13 +11,16 @@ export default defineConfig({
       : ["node", "import"],
     // `react-server-dom-esm` is not a direct dependency — it ships vendored
     // inside `react-server-loader`, and at runtime the plugin resolves it from
-    // there. Tests that import it in-process (e.g. createReactFetcher) otherwise
-    // depend on it being hoisted to top-level node_modules, which is not
-    // guaranteed. Point the one browser subpath they use at the vendored copy,
-    // the same place the plugin resolves it. (Only this condition-free subpath is
-    // aliased; aliasing the whole package would bypass its conditional exports.)
+    // there. Tests that import it in-process (e.g. createReactFetcher, or the
+    // worker's messageHandler) otherwise depend on it being hoisted to
+    // top-level node_modules, which is not guaranteed. Point the subpaths they
+    // use at the vendored copy, the same place the plugin resolves it. (Only
+    // these subpaths are aliased, each pinned to the file its react-server
+    // resolution would pick; aliasing the whole package would bypass its
+    // conditional exports.)
     alias: {
       "react-server-dom-esm/client.browser": join(transportPkgDir, "client.browser.js"),
+      "react-server-dom-esm/server": join(transportPkgDir, "server.node.js"),
     },
   },
   ssr: {
