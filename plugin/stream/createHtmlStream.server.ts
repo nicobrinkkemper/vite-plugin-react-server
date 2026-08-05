@@ -323,6 +323,12 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // Let React manage the MessagePort lifecycle to prevent "Connection closed" errors
   const cleanup = () => {
     try {
+      // Every termination path (natural end, worker ERROR, abort, deadline)
+      // funnels through here — disarming the deadline here means an
+      // intentional abort can't be followed by a misleading timeout error.
+      // (`deadline` is declared below; message/abort callbacks only run
+      // after the synchronous body finished initializing it.)
+      if (deadline) clearTimeout(deadline);
       dataPort1.removeListener('message', dataMessageHandler);
       controlPort1.removeListener('message', controlMessageHandler);
       // Don't close ports - let React finish consuming and close naturally
@@ -341,7 +347,11 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   const deadline =
     typeof htmlTimeout === "number" && htmlTimeout > 0
       ? setTimeout(() => {
-          if (isStreamEnded || htmlStream.destroyed) return;
+          // Completion is an OUTPUT property: the worker's null end-message
+          // calls htmlStream.end(). isStreamEnded would be the wrong guard —
+          // it marks the RSC INPUT fully delivered, which is exactly the
+          // state the canonical wedge is in when it hangs.
+          if (htmlStream.writableEnded || htmlStream.destroyed) return;
           htmlStream.destroy(
             new Error(
               `[createHtmlStream:${route}] HTML render did not complete within ${htmlTimeout}ms — ` +
