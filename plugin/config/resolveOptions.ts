@@ -849,7 +849,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       (effectiveBuildPages && (Array.isArray(effectiveBuildPages) || typeof effectiveBuildPages === 'function')) ? true : DEFAULT_CONFIG.BUILD.useHtmlWorker,
     renderMode: options.build?.renderMode ?? "parallel",
     batchSize: options.build?.batchSize ?? 8,
-    inlineFlight: options.build?.inlineFlight ?? false,
+    // Mode value: false = no inlining, "blob" = buffered single-script inline
+    // (`true` is the boolean alias for "blob").
+    inlineFlight: options.build?.inlineFlight ? ("blob" as const) : false,
     edge: (() => {
       // `build.edge`: boolean | EdgeBuildConfig, default ON. `false` disables;
       // `true`/omitted enables with defaults; an object enables + overrides.
