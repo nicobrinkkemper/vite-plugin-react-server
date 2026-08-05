@@ -222,6 +222,87 @@ async function loadDefaultHtml({
 }
 
 /**
+ * Load a single component (Root/Html) through the worker cache: serve the
+ * cached identity unless the module was HMR-invalidated, otherwise clear the
+ * stale entry, resolve fresh, and re-cache. A resolve failure must never
+ * degrade silently to a fragment — it routes through handleError (dedup +
+ * panicThreshold) and throws so the outer worker catch propagates it to the
+ * main thread.
+ */
+async function loadCachedComponent({
+  componentPath,
+  exportName,
+  kind,
+  loader,
+  verbose,
+  logger,
+  panicThreshold,
+  marks,
+}: {
+  componentPath: string;
+  exportName: string;
+  kind: "Root" | "Html";
+  loader: any;
+  verbose?: boolean;
+  logger?: any;
+  panicThreshold?: PanicThreshold;
+  marks?: { moduleRunAt?: number };
+}) {
+  const id = `${componentPath}#${exportName}`;
+  const invalidated = isModuleInvalidated(componentPath);
+
+  if (hasCachedComponent(id) && !invalidated) {
+    if (verbose) {
+      logger?.info(
+        `[rsc-worker] Using cached ${kind} component from: ${componentPath}`
+      );
+    }
+    return getCachedComponent(id);
+  }
+
+  if (invalidated && hasCachedComponent(id)) {
+    clearCachedComponent(id);
+    if (verbose) {
+      logger?.info(
+        `[rsc-worker] Cleared invalidated ${kind} component cache: ${componentPath}`
+      );
+    }
+  }
+
+  if (marks) marks.moduleRunAt ??= Date.now();
+  const result = await resolveComponent({
+    componentPath,
+    exportName,
+    loader,
+  });
+
+  if (result.type === "success") {
+    cacheComponent(id, result.component);
+    if (verbose) {
+      logger?.info(
+        `[rsc-worker] Loaded and cached ${kind} component from: ${componentPath}`
+      );
+    }
+    return result.component;
+  }
+
+  const componentError =
+    result.error ??
+    new Error(
+      `[rsc-worker] Failed to load ${kind} component from ${componentPath}`
+    );
+  const panicError = handleError({
+    error: componentError,
+    logger,
+    panicThreshold,
+    critical: true,
+    context: `rsc-worker: load ${kind} from ${componentPath}`,
+    log: true,
+  });
+  throw panicError ?? componentError;
+}
+
+/**
  * Helper function to load components with caching
  */
 export async function loadComponentsWithCache(options: {
@@ -535,64 +616,16 @@ export async function loadComponentsWithCache(options: {
 
   // Load Root component
   if (rootPath) {
-    const rootId = `${rootPath}#${rootExportName}`;
-    // CRITICAL: Check if module is invalidated before using cache
-    // This ensures file changes are picked up immediately
-    const isRootInvalidated = isModuleInvalidated(rootPath);
-    if (hasCachedComponent(rootId) && !isRootInvalidated) {
-      RootComponent = getCachedComponent(rootId);
-      if (verbose) {
-        logger?.info(
-          `[rsc-worker] Using cached Root component from: ${rootPath}`
-        );
-      }
-    } else {
-      // Clear cache if invalidated
-      if (isRootInvalidated && hasCachedComponent(rootId)) {
-        clearCachedComponent(rootId);
-        if (verbose) {
-          logger?.info(
-            `[rsc-worker] Cleared invalidated Root component cache: ${rootPath}`
-          );
-        }
-      }
-      if (marks) marks.moduleRunAt ??= Date.now();
-      const rootResult = await resolveComponent({
-        componentPath: rootPath,
-        exportName: rootExportName,
-        loader,
-      });
-
-      if (rootResult.type === "success") {
-        RootComponent = rootResult.component;
-        cacheComponent(rootId, RootComponent);
-        if (verbose) {
-          logger?.info(
-            `[rsc-worker] Loaded and cached Root component from: ${rootPath}`
-          );
-          logger?.info(
-            `[rsc-worker] Root component type: ${typeof RootComponent}, isSymbol: ${typeof RootComponent === 'symbol'}, keys: ${RootComponent ? Object.keys(RootComponent) : 'null'}`
-          );
-        }
-      } else {
-        // Root module failed to resolve. Previously fell back to React.Fragment
-        // under !verbose — same silent-failure pattern as the Page path. Route
-        // through handleError for dedup + panic handling, then re-throw so
-        // the outer worker catch propagates to the main thread's customLogger.
-        const rootError = rootResult.error ?? new Error(
-          `[rsc-worker] Failed to load Root component from ${rootPath}`,
-        );
-        const panicError = handleError({
-          error: rootError,
-          logger,
-          panicThreshold,
-          critical: true,
-          context: `rsc-worker: load Root from ${rootPath}`,
-          log: true,
-        });
-        throw panicError ?? rootError;
-      }
-    }
+    RootComponent = await loadCachedComponent({
+      componentPath: rootPath,
+      exportName: rootExportName,
+      kind: "Root",
+      loader,
+      verbose,
+      logger,
+      panicThreshold,
+      marks,
+    });
   } else {
     // No rootPath provided - use built-in default Root component. Imported
     // lazily here (matching the Html path below) so the static import graph
@@ -615,68 +648,16 @@ export async function loadComponentsWithCache(options: {
       logger?.info(`[rsc-worker] Using headless Html component (empty string)`);
     }
   } else if (htmlPath) {
-    if (verbose) {
-      logger?.info(`[rsc-worker] Attempting to load custom Html component from: ${htmlPath}`);
-    }
-    const htmlId = `${htmlPath}#${htmlExportName}`;
-    // CRITICAL: Check if module is invalidated before using cache
-    const isHtmlInvalidated = isModuleInvalidated(htmlPath);
-    if (hasCachedComponent(htmlId) && !isHtmlInvalidated) {
-      HtmlComponent = getCachedComponent(htmlId);
-      if (verbose) {
-        logger?.info(
-          `[rsc-worker] Using cached Html component from: ${htmlPath}`
-        );
-      }
-    } else {
-      // Clear cache if invalidated
-      if (isHtmlInvalidated && hasCachedComponent(htmlId)) {
-        clearCachedComponent(htmlId);
-        if (verbose) {
-          logger?.info(
-            `[rsc-worker] Cleared invalidated Html component cache: ${htmlPath}`
-          );
-        }
-      }
-      if (verbose) {
-        logger?.info(`[rsc-worker] Component not cached, calling resolveComponent with path: ${htmlPath}, exportName: ${htmlExportName}`);
-      }
-      if (marks) marks.moduleRunAt ??= Date.now();
-      const htmlResult = await resolveComponent({
-        componentPath: htmlPath,
-        exportName: htmlExportName,
-        loader,
-      });
-
-      if (htmlResult.type === "success") {
-        HtmlComponent = htmlResult.component;
-        cacheComponent(htmlId, HtmlComponent);
-        if (verbose) {
-          logger?.info(
-            `[rsc-worker] Loaded and cached Html component from: ${htmlPath}`
-          );
-        }
-      } else {
-        // The document wrapper failed to load. Falling back to React.Fragment
-        // here renders every route as an <html>-less fragment — a silent
-        // degrade that hides the real load error (the fileWriter's
-        // degraded-document guard then reports the symptom, not the cause).
-        // Mirror the Root path: route through handleError for dedup + panic
-        // handling, then re-throw so the outer worker catch propagates it.
-        const htmlError = htmlResult.error ?? new Error(
-          `[rsc-worker] Failed to load Html component from ${htmlPath}`,
-        );
-        const panicError = handleError({
-          error: htmlError,
-          logger,
-          panicThreshold,
-          critical: true,
-          context: `rsc-worker: load Html from ${htmlPath}`,
-          log: true,
-        });
-        throw panicError ?? htmlError;
-      }
-    }
+    HtmlComponent = await loadCachedComponent({
+      componentPath: htmlPath,
+      exportName: htmlExportName,
+      kind: "Html",
+      loader,
+      verbose,
+      logger,
+      panicThreshold,
+      marks,
+    });
   } else {
     // No html configured (undefined) — use the built-in document wrapper.
     if (verbose) {
