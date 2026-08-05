@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
@@ -50,13 +51,28 @@ export async function freezeStaticSnapshots(opts: {
   const rscName =
     userOptions.build.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath;
 
+  // This pass renders THROUGH the baked pair, so a bake that failed or was
+  // partially skipped upstream (warn-and-continue, additive contract) must
+  // fail here naming that cause, not as the ERR_MODULE_NOT_FOUND a blind
+  // import would produce. BOTH halves are required: buildConsumerBundle has
+  // warn-and-return skip paths that leave a producer without a consumer.
+  const producerPath = join(edgeDir, DEFAULT_CONFIG.EDGE.entryFileName);
+  const consumerPath = join(edgeDir, "consumer.js");
+  const missing = [producerPath, consumerPath].filter((p) => !existsSync(p));
+  if (missing.length > 0) {
+    throw new Error(
+      `[transport:webpack] SSG renders through the baked edge pair, but ` +
+        `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} ` +
+        `missing — the edge bake failed or was partially skipped (see the ` +
+        `earlier [build.edge] warning for the cause; a skipped consumer bake ` +
+        `leaves per-request serving intact but the SSG freeze cannot run). ` +
+        `Fix the bake, or set build.pages to [] to skip SSG.`
+    );
+  }
+
   const { createEdgeRequestHandler } = await import("../edge/index.js");
-  const bundle = await import(
-    pathToFileURL(join(edgeDir, DEFAULT_CONFIG.EDGE.entryFileName)).href
-  );
-  const consumer = await import(
-    pathToFileURL(join(edgeDir, "consumer.js")).href
-  );
+  const bundle = await import(pathToFileURL(producerPath).href);
+  const consumer = await import(pathToFileURL(consumerPath).href);
   // Collect render-time errors per route. The freeze only checks the response
   // STATUS, but the status commits on the first chunk — a component that
   // throws mid-stream (e.g. a router hook rendered in the HTML shell outside
