@@ -61,7 +61,8 @@ export type ScanPatterns = {
 
 const DEFAULT_PAGE = /^page\.(t|j)sx?$/;
 const DEFAULT_PROPS = /^props\.(t|j)sx?$/;
-const DEFAULT_LAYOUT = /^route\.(t|j)sx?$/;
+/** Default `route.tsx` layout-file matcher; shared with the unwired-layouts warning. */
+export const DEFAULT_LAYOUT = /^route\.(t|j)sx?$/;
 // `index.tsx` is an alternate leaf-page name (TanStack-style; `page.tsx` wins
 // when both exist). Deliberately jsx/tsx-ONLY: `index.ts` is the conventional
 // barrel filename, and matching it would turn every re-export barrel inside the
