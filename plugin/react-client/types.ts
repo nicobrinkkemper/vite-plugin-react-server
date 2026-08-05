@@ -8,11 +8,7 @@ import type {
 } from "../../types.js";
 import type { MessageChannel, Worker } from "node:worker_threads";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type {
-  RscChunkOutputMessage,
-  RscWorkerOutputMessage,
-} from "../worker/rsc/types.js";
-import type { StreamHandlers } from "../worker/types.js";
+import type { RscChunkOutputMessage } from "../worker/rsc/types.js";
 import type { PassThrough } from "node:stream";
 
 export type RestartWorkerFn = (props: {
@@ -60,12 +56,6 @@ export type CreateWorkerStreamFn = (props: {
 
 
 // Removed GenerateWorkerStreamFn - using CreateWorkerStreamFn from helpers instead
-
-export type CreateMessageHandlerFn = (props: {
-  handlers: StreamHandlers;
-  logger: Logger;
-  verbose?: boolean;
-}) => (message: RscWorkerOutputMessage | undefined) => void;
 
 export type ConfigureWorkerRequestHandlerFn = (props: {
   server: ViteDevServer;
