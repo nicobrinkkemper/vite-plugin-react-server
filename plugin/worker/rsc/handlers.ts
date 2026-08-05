@@ -151,6 +151,3 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
     },
   };
 }
-
-// Default handlers for backward compatibility
-export const handlers = createHandlers();
