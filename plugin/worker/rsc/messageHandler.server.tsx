@@ -224,7 +224,7 @@ async function loadDefaultHtml({
 /**
  * Helper function to load components with caching
  */
-async function loadComponentsWithCache(options: {
+export async function loadComponentsWithCache(options: {
   pagePath?: string;
   propsPath?: string;
   rootPath?: string;
