@@ -90,14 +90,20 @@ add-on to first-class paradigm.
 
 The runner is consumed at config/build time only; nothing in `dist/` reads
 it. Prod is a thin host over the emitted artifacts and manifest (plain Node
-over `dist/server`, the worker consumer, or the baked pair) with no vprs
-import, so dev concerns cannot cross a dependency edge that does not exist.
+over `dist/server`, the worker consumer, or the baked pair). The host does
+import vprs runtime helpers (the request handler, the sealed action gate),
+but as VENDORED copies inside `dist/server/node_modules` — prod never
+resolves the installed package, so dev concerns cannot reach it through a
+dependency edge.
 
 - The dev/build split lives inside the runner record (`devServerPlugin` vs
   `staticPlugin`); consumers never branch on mode.
 - Each runner uses the same render transport in dev and prod (in-process,
-  worker bridge, baked pair). Dev-only machinery (HMR, the module runner)
-  wraps that transport and dies with the dev server process.
+  worker bridge, baked pair) FOR ITS OWN SERVING PATH. Dev-only machinery
+  (HMR, the module runner) wraps that transport and dies with the dev server
+  process. A `build.edge` artifact emitted from a `main`/`isolated` config
+  sits outside this invariant: it is an additional output, and deploying it
+  is choosing the edge paradigm's transport for that deployment.
 - Prod action dispatch goes through sealed references baked into the
   manifest; dev's permissive dispatch surface is structurally absent from
   the artifacts.
