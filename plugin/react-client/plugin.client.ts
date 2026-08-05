@@ -12,6 +12,7 @@ import type {
 import { resolveOptions } from "../config/resolveOptions.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
+import { deriveImplicitSsr } from "../config/deriveImplicitSsr.js";
 import { handleError } from "../error/handleError.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
@@ -62,14 +63,13 @@ export const reactClientPlugin: VitePluginFn = function _reactClientPlugin(
       
       
       
-      if(typeof config?.build?.ssr === "boolean" || typeof config?.build?.ssr === "string") {
-        implicitSsr = Boolean(config?.build?.ssr);
-        
-      } else if(implicitSsr === undefined) {
-        implicitSsr = configEnv.isSsrBuild;
-      }
-      
-      
+      implicitSsr = deriveImplicitSsr({
+        buildSsr: config?.build?.ssr,
+        isSsrBuild: configEnv.isSsrBuild,
+        previous: implicitSsr,
+      });
+
+
       const logger = config.customLogger || createLogger();
       const autoDiscoverResult = await resolveAutoDiscover({
         config,
