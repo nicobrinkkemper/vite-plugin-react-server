@@ -23,6 +23,8 @@ import { resolveRoutesOption } from "../router/fileRouter.js";
 // Once-per-process guard for the loose-Page/props → `routes` nudge below
 // (resolveOptions runs per environment; the tip should print once).
 let routesNudgeShown = false;
+// Once-per-process guard for the unwired-layouts warning below.
+let layoutsWarningShown = false;
 import { resolveDirectiveMatcher } from "./resolveDirectiveMatcher.js";
 import { resolveAllowedDirectives } from "./resolveAllowedDirectives.js";
 import { resolveRegExp } from "./resolveRegExp.js";
@@ -32,8 +34,40 @@ import { createLogger, type Logger } from "vite";
 import { getCondition } from "./getCondition.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./stashedOptionsState.js";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { createRollupLikeHash } from "./createRollupLikeHash.js";
+import { DEFAULT_LAYOUT } from "../router/scanRoutes.js";
+
+// Capped scan for a `route.tsx` layout file under the module tree, used only by
+// the unwired-layouts warning — a miss must stay cheap, so depth and entry
+// count are bounded and dot-dirs / node_modules are skipped.
+function findLayoutFile(
+  dir: string,
+  depth = 6,
+  budget = { entries: 400 }
+): string | null {
+  if (depth < 0 || budget.entries <= 0) return null;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (--budget.entries <= 0) return null;
+    if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+    if (entry.isFile() && DEFAULT_LAYOUT.test(entry.name)) {
+      return join(dir, entry.name);
+    }
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+    const found = findLayoutFile(join(dir, entry.name), depth - 1, budget);
+    if (found) return found;
+  }
+  return null;
+}
 
 export type ResolveOptionsReturn =
   | {
@@ -247,6 +281,29 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   // Nested layouts: the router table's per-url `route.tsx` chain resolver.
   // Threaded like Page/props so the renderer folds the nested tree.
   const effectiveLayouts = options.layouts ?? routerTable?.layouts;
+  // Silent footgun: `route.tsx` layouts on disk with no layouts resolver just
+  // render every page unwrapped, with nothing else signalling why. The
+  // `routes` option wires the resolver itself; the manual path (spreading a
+  // fileRouter table but omitting `.layouts`) is where this bites. Detection
+  // is on-disk so a hand-rolled config pointing Page at a routes tree is
+  // caught too.
+  if (
+    !effectiveLayouts &&
+    (effectivePage || effectiveProps) &&
+    !layoutsWarningShown
+  ) {
+    const layoutFile = findLayoutFile(resolve(projectRoot, moduleBase));
+    if (layoutFile) {
+      layoutsWarningShown = true;
+      console.warn(
+        `[vite-plugin-react-server] ${layoutFile} looks like a route.tsx ` +
+          "layout, but no `layouts` resolver is configured — pages will " +
+          "render without their layouts. Use `routes: { dir }` (wires " +
+          "layouts automatically) or pass `layouts` from your " +
+          "fileRouter(...) table."
+      );
+    }
+  }
 
   // Build options
   const preserveModulesRoot =
