@@ -46,6 +46,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
     logger = createLogger(),
     onError,
     panicThreshold,
+    htmlTimeout,
   } = options;
 
   if (verbose) {
@@ -331,6 +332,31 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   };
 
   // Note: Process-level cleanup is handled by worker shutdown protocol
+
+  // Whole-render deadline. A wedged worker render — canonically a client
+  // reference whose dynamic import never settles — sends neither output nor
+  // an ERROR message, so the stream would keep its consumer (the SSG
+  // fileWriter, a request handler) waiting forever. Destroying with a named
+  // error rides the same propagation path as worker-reported render errors.
+  const deadline =
+    typeof htmlTimeout === "number" && htmlTimeout > 0
+      ? setTimeout(() => {
+          if (isStreamEnded || htmlStream.destroyed) return;
+          htmlStream.destroy(
+            new Error(
+              `[createHtmlStream:${route}] HTML render did not complete within ${htmlTimeout}ms — ` +
+                `the html worker sent neither output nor an error. A client-reference ` +
+                `module that fails to load at render time can wedge the render this way; ` +
+                `check that the client build output is resolvable from the render.`
+            )
+          );
+          cleanup();
+        }, htmlTimeout)
+      : undefined;
+  deadline?.unref?.();
+  htmlStream.on("close", () => {
+    if (deadline) clearTimeout(deadline);
+  });
 
   return {
     pipe: (destination: any) => {
