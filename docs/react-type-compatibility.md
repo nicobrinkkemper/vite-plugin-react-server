@@ -2,19 +2,18 @@
 
 ## Supported Versions
 
-As of **2.0**, the plugin runs on **stable React 19.2+**. The RSC server APIs it
-depends on (`prerenderToNodeStream` and the `react-server` transport exports)
-graduated out of the experimental channel, so an experimental build is no longer
-required. The `react-server-dom-esm` transport is provided by the
-[`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-dependency, whose peer range pins the exact React build the transport was vendored
-against.
+The plugin runs on **stable React 19.2+**. The RSC server APIs it depends on
+(`prerenderToNodeStream` and the `react-server` transport exports) are part of
+stable React. The RSC transport itself is an implementation detail, supplied by
+the [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
+dependency, whose peer range pins the exact React build the transport was
+vendored against.
 
 | React Version | Support | Notes |
 |---------------|---------|-------|
 | React 19.2+ stable | ✅ Supported | The default. `react-server-loader`'s stable train vendors a transport built against this line; install plain `react` / `react-dom` and the peer ranges line up. |
 | `react@experimental` (any `0.0.0-experimental-*` prerelease) | ✅ Supported | Still works for the newest RSC features. Use `react-server-loader@experimental`, which pins the exact experimental React it was built against. |
-| React 19.0 / 19.1 stable | ⚠️ Untested | Predates the prerender/transport graduation vprs 2.0 targets; upgrade to 19.2+. |
+| React 19.0 / 19.1 stable | ⚠️ Untested | Missing the stable prerender/transport APIs vprs depends on; upgrade to 19.2+. |
 | React 18 stable | ❌ Not supported | Missing RSC APIs |
 
 ```bash
@@ -45,11 +44,11 @@ npm collapses to a single copy alongside your experimental React — no
 npm install react@experimental react-dom@experimental react-server-loader@experimental
 ```
 
-One practical reason to run experimental today: stable React 19.2.x emits its
+One practical reason to run experimental: stable React 19.2.x emits its
 CSS preload hint as an invalid `as="stylesheet"`, so browsers ignore the
-preload — styles still load, just not preloaded (see
-[troubleshooting](./troubleshooting.md)). The experimental channel already
-carries the fix, and it reaches stable when React ships it.
+preload; styles still load, just not preloaded (see
+[troubleshooting](./troubleshooting.md)). The experimental channel carries
+the fix.
 
 **React peer**: `react` / `react-dom` at `^19.2.7 || >=0.0.0-0 <0.0.1` (admits
 both trains). The transport binds to a single React build's internals and
@@ -57,12 +56,6 @@ throws on a mismatch, so keep `react`, `react-dom`, and `react-server-loader`
 on the same train. See
 [`react-server-loader`'s versioning](https://www.npmjs.com/package/react-server-loader)
 for why the versions line up the way they do.
-
-> **History.** vprs 1.x required `react@experimental` and bundled the transport
-> in-repo under `oss-experimental/`, because the RSC server internals it read
-> only existed on the experimental channel at the time. Those APIs have since
-> shipped in stable React, and 2.0 moved the transport out to
-> `react-server-loader`.
 
 ## Why the transport is vendored, not installed from npm
 
@@ -106,7 +99,7 @@ node --import vite-plugin-react-server/register ./your-script.mjs
 
 ### Updating the Transport
 
-The transport is built and vendored by [`react-server-loader`](https://github.com/nicobrinkkemper/react-server-loader). To move to a newer React, bump the `react-server-loader` dependency (and the matching `react` / `react-dom`) — vprs no longer builds the transport itself.
+The transport is built and vendored by [`react-server-loader`](https://github.com/nicobrinkkemper/react-server-loader). To move to a newer React, bump the `react-server-loader` dependency together with the matching `react` / `react-dom`.
 
 ## Type System
 
