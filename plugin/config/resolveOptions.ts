@@ -229,6 +229,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         moduleBase,
         projectRoot,
         patterns: { pagePattern, propsPattern },
+        rscOutputPath:
+          options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath,
       })
     : undefined;
   // Soft nudge (not a break): the loose Page/props/routePatterns remain the

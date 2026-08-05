@@ -86,16 +86,22 @@ export function matchRoute<P extends string>(
   return p.length === u.length ? (params as RouteParams<P>) : null;
 }
 
-/** Per-segment specificity: literal beats param beats catch-all. */
+/** Per-segment specificity: literal beats param beats pattern-end beats catch-all. */
 function score(pattern: string): number[] {
-  return segs(pattern).map((s) => (s === "$" ? 0 : s.startsWith("$") ? 1 : 2));
+  return segs(pattern).map((s) => (s === "$" ? 0 : s.startsWith("$") ? 2 : 3));
 }
 
-/** Compare two specificity vectors left-to-right; more-specific sorts first. */
+/**
+ * Compare two specificity vectors left-to-right; more-specific sorts first.
+ * A missing segment — the pattern ENDS here — ranks 1: above a catch-all
+ * (`/a/` must beat `/a/$`, or an empty splat steals the index route from its
+ * sibling) but below params and literals (a longer concrete pattern still wins
+ * its shared prefix).
+ */
 function moreSpecific(a: number[], b: number[]): number {
   const n = Math.max(a.length, b.length);
   for (let i = 0; i < n; i++) {
-    const d = (b[i] ?? -1) - (a[i] ?? -1);
+    const d = (b[i] ?? 1) - (a[i] ?? 1);
     if (d) return d;
   }
   return 0;

@@ -79,6 +79,38 @@ describe("matchRoutes (specificity ordering)", () => {
     expect(matchRoutes(patterns, "/nope/x")).toBeNull();
   });
 
+  // The mission-control dashboard's route tree: an index route, a param
+  // sibling, and a docs catch-all under the same prefix. An empty splat must
+  // NOT steal the index route (the catch-all matches "/bot/" with _splat: ""),
+  // and the param sibling keeps its urls.
+  it("prefers the index route over a sibling catch-all's empty splat", () => {
+    const tree = ["/", "/$key/", "/$key/$id/", "/$key/$"] as const;
+    expect(matchRoutes(tree, "/bot")).toEqual({
+      pattern: "/$key/",
+      params: { key: "bot" },
+    });
+    expect(matchRoutes(tree, "/bot/xaq5")).toEqual({
+      pattern: "/$key/$id/",
+      params: { key: "bot", id: "xaq5" },
+    });
+    expect(matchRoutes(tree, "/bot/docs/readme")).toEqual({
+      pattern: "/$key/$",
+      params: { key: "bot", _splat: "docs/readme" },
+    });
+  });
+
+  it("prefers a literal index over its own catch-all's empty splat", () => {
+    const tree = ["/files/", "/files/$"] as const;
+    expect(matchRoutes(tree, "/files")).toEqual({
+      pattern: "/files/",
+      params: {},
+    });
+    expect(matchRoutes(tree, "/files/a")).toEqual({
+      pattern: "/files/$",
+      params: { _splat: "a" },
+    });
+  });
+
   // A malformed %-escape in an attacker-controlled url must not throw a URIError
   // (matched on the request thread, incl. the edge handler outside a try).
   it("does not throw on a malformed percent-encoded segment", () => {

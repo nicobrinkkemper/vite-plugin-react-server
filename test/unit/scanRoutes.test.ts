@@ -19,6 +19,7 @@ describe("scanRoutes", () => {
         "/profile/$id",
         "/profile/me",
         "/blog/$category/$slug",
+        "/files",
         "/files/$",
       ]),
     );
