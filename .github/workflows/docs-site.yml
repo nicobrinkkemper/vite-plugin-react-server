@@ -30,9 +30,13 @@ permissions:
   pages: write
   id-token: write
 
+# Queue rather than cancel: cancelling an in-progress Pages DEPLOYMENT
+# strands it server-side, and the next deploy-pages then waits behind the
+# phantom until its 10-minute timeout (the 3.8.0-merge failure). Superseded
+# queued runs are cheap; a killed deployment is not.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
