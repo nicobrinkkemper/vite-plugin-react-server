@@ -136,54 +136,54 @@ describe("interleaveFlightIntoHtmlStream", () => {
     expect(out.lastIndexOf("</script>")).toBeLessThan(out.lastIndexOf(TRAILER));
   });
 
-  it("reassembles multi-byte text split across INPUT chunk boundaries", async () => {
-    // Input-side splits are inherently safe (bytes pass through unmodified);
-    // this pins the pass-through. The emit-side splice hazard is the next test.
-    const text = `<html><head></head><body>${"héllo wörld ✓ ".repeat(20)}`;
-    const bytes = encoder.encode(text);
-    const splitAt = 41; // inside a multi-byte sequence for this content
-    expect(bytes[splitAt] & 0b11000000).toBe(0b10000000); // proves mid-char split
+  it("never splices a script INSIDE a producer chunk (the mid-tag regression)", async () => {
+    // The real-browser failure this guards: a flight chunk pending while a
+    // big HTML chunk flushes must NOT be spliced into the middle of it (the
+    // old byte-offset holdback once landed a script inside a bootstrap
+    // script's src attribute). Scripts may appear only at producer chunk
+    // boundaries or the final </body> position.
+    const chunk1 = `<html><head></head><body><div>${"x".repeat(200)}</div>`;
+    const chunk2 = `<link href="/index-abc123.js"><script src="/index-abc123.js" async></script>`;
     const out = decodeAll(
       await collect(
         interleaveFlightIntoHtmlStream({
-          htmlStream: streamOf([
-            bytes.subarray(0, splitAt),
-            bytes.subarray(splitAt),
-            TRAILER,
-          ]),
+          htmlStream: streamOf([chunk1, chunk2, TRAILER], 12),
+          // Pending BEFORE chunk2 flushes — the old design spliced into it.
+          flightStream: streamOf(["F"], 3),
+        })
+      )
+    );
+    expect(stripScripts(out)).toBe(chunk1 + chunk2 + TRAILER);
+    // Every injected script sits at a chunk boundary or the trailer seam.
+    const boundaries = new Set([
+      chunk1.length,
+      chunk1.length + chunk2.length, // == trailer seam here
+    ]);
+    const stripped = stripScripts(out);
+    let cursor = 0;
+    for (const m of out.matchAll(SCRIPT_RE)) {
+      const at = m.index!;
+      // Position of this script in ORIGINAL (stripped) coordinates.
+      const before = stripScripts(out.slice(0, at));
+      expect(boundaries.has(before.length)).toBe(true);
+      cursor = at;
+    }
+    expect(cursor).toBeGreaterThan(0); // scripts were actually injected
+    void stripped;
+  });
+
+  it("reassembles multi-byte text intact (whole-chunk pass-through)", async () => {
+    const text = `<html><head></head><body>${"héllo wörld ✓ ".repeat(20)}`;
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([text, TRAILER]),
           flightStream: streamOf(["flight"]),
         })
       )
     );
     expect(stripScripts(out)).toBe(text + TRAILER);
-    expect(out.includes("�")).toBe(false);
-  });
-
-  it("snaps a mid-character EMIT boundary before splicing a pending script", async () => {
-    // The real hazard: a flight chunk is PENDING when an HTML chunk flushes,
-    // and the holdback boundary (merged.length - 32) falls inside a character
-    // — the script would be spliced mid-character without the UTF-8 snap.
-    // 3-byte characters after a 12-byte prefix make the boundary offset
-    // (3K - 32, so ≡ 1 mod 3) land mid-character for EVERY run length K.
-    const chunk1 = `<html><body>${"✓".repeat(40)}`;
-    const boundary = encoder.encode(chunk1).byteLength - 32;
-    expect((boundary - "<html><body>".length) % 3).not.toBe(0); // mid-char by construction
-    const rest = `<div>after the splice point</div>`;
-    const out = decodeAll(
-      await collect(
-        interleaveFlightIntoHtmlStream({
-          // Flight arrives BEFORE the first HTML chunk (3ms vs 12ms), so it is
-          // pending at chunk1's flush and injects exactly at the boundary.
-          htmlStream: streamOf([chunk1, rest, TRAILER], 12),
-          flightStream: streamOf(["F"], 3),
-        })
-      )
-    );
-    // The script really was interleaved at the first flush (mid-document),
-    // not appended at the end — otherwise this test proves nothing.
-    expect(out.indexOf("<script>")).toBeLessThan(out.indexOf(rest));
-    expect(out.includes("�")).toBe(false);
-    expect(stripScripts(out)).toBe(chunk1 + rest + TRAILER);
+    expect(out.includes("\ufffd")).toBe(false);
   });
 
   it("appends scripts at the end when the document has no </body> trailer", async () => {
@@ -359,7 +359,11 @@ describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
     expect(out.lastIndexOf("</script>")).toBeLessThan(out.lastIndexOf(TRAILER));
   });
 
-  it("survives one-byte-at-a-time HTML delivery (multi-byte chars included)", async () => {
+  it("one-byte-at-a-time delivery still reassembles bytes exactly (empty flight)", async () => {
+    // Byte-sized chunks violate the producer contract for SCRIPT placement
+    // (boundaries split tokens), so no mid-stream scripts here — but the
+    // held-window plumbing must still pass every byte through unmangled and
+    // find the trailer at the end.
     const doc = `<html><head></head><body>héllo ✓ wörld${TRAILER}`;
     const bytes = encoder.encode(doc);
     const oneByteChunks = Array.from({ length: bytes.length }, (_, i) =>
@@ -369,13 +373,14 @@ describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
       await collect(
         interleaveFlightIntoHtmlStream({
           htmlStream: streamOf(oneByteChunks),
-          flightStream: streamOf(["f"]),
+          flightStream: streamOf([]),
         })
       )
     );
     expect(stripScripts(out)).toBe(doc);
-    expect(out.includes("�")).toBe(false);
+    expect(out.includes("\ufffd")).toBe(false);
     expect(out.endsWith(TRAILER)).toBe(true);
+    expect(extractPushes(out)).toEqual([null]);
   });
 
   it("no flight and no body: bare fragment passes through with just the sentinel", async () => {

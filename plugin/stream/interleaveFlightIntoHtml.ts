@@ -14,17 +14,18 @@
  * this must run on workerd/Deno/Vercel Edge as-is.
  *
  * Ordering guarantees:
+ *  - HTML chunks pass through WHOLE: a script is only injected BETWEEN two
+ *    producer chunks (or at the final `</body>` boundary) — never inside one.
+ *    PRODUCER CONTRACT: chunk boundaries must not split an HTML token;
+ *    React's renderer flushes at element boundaries and satisfies this. A
+ *    producer that splits tags across chunks (e.g. byte-sized rechunking)
+ *    voids the placement guarantee;
  *  - no flight script is emitted until the `<body` open tag has been emitted
  *    (a headless fragment without one gets its scripts appended at the end);
  *  - flight chunks are emitted in flight order;
- *  - the document's closing `</body></html>` trailer is held back and
- *    re-emitted after the last flight script, so every script parses inside
- *    `<body>`.
- *
- * Byte-level care: the trailer search runs on bytes (no decode — a decode
- * boundary could split a multi-byte character), and the holdback boundary is
- * moved back to a UTF-8 character start so a script is never spliced
- * mid-character into the byte stream.
+ *  - the document's closing `</body></html>` trailer is held back (a whole-
+ *    chunk window) and re-emitted after the last flight script, so every
+ *    script parses inside `<body>`.
  *
  * Contract limits (byte matching is structure-blind by design):
  *  - a literal `<body` in head-side content (a comment, a code sample) opens
@@ -102,25 +103,15 @@ function lastIndexOfBodyClose(bytes: Uint8Array): number {
   return -1;
 }
 
-/** Whether "<body" occurs in `bytes` before index `end`. */
-function hasBodyOpenBefore(bytes: Uint8Array, end: number): boolean {
-  outer: for (let i = 0; i + BODY_OPEN.byteLength <= end; i++) {
+/** Whether "<body" occurs anywhere in `bytes`. */
+function hasBodyOpen(bytes: Uint8Array): boolean {
+  outer: for (let i = 0; i + BODY_OPEN.byteLength <= bytes.byteLength; i++) {
     for (let j = 0; j < BODY_OPEN.byteLength; j++) {
       if (bytes[i + j] !== BODY_OPEN[j]) continue outer;
     }
     return true;
   }
   return false;
-}
-
-/**
- * Largest index <= `end` that starts a UTF-8 character (i.e. is not a
- * continuation byte), so a split at it never severs a multi-byte character.
- */
-function utf8SafeBoundary(bytes: Uint8Array, end: number): number {
-  let i = end;
-  while (i > 0 && (bytes[i] & 0b11000000) === 0b10000000) i--;
-  return i;
 }
 
 export function interleaveFlightIntoHtmlStream({
@@ -173,33 +164,63 @@ export function interleaveFlightIntoHtmlStream({
 
       try {
         const reader = htmlStream.getReader();
-        let tail: Uint8Array = new Uint8Array(0);
+        // HTML chunks pass through WHOLE, in order — a script is only ever
+        // injected BETWEEN two producer chunks (or before the trailer), never
+        // inside one. React's renderer flushes at element boundaries, so a
+        // between-chunks position can't land inside a tag, attribute, or
+        // text run. (Slicing chunks to hold back the trailer — the previous
+        // design — put splice points at arbitrary byte offsets and mangled
+        // markup: a flight script once landed inside a bootstrap script's
+        // src attribute.)
+        //
+        // The trailer still needs holding back: keep a queue of the most
+        // recent chunks totalling at least TRAILER_HOLDBACK bytes, emitting
+        // older chunks whole as the window advances.
+        const held: Uint8Array[] = [];
+        let heldBytes = 0;
+        // "<body" detection runs on emitted chunks with a small overlap carry
+        // so a tag split across chunks is still seen (one flush late at
+        // worst, which only delays scripts — never misplaces them).
+        let carry: Uint8Array = new Uint8Array(0);
+        const emitWhole = (chunk: Uint8Array) => {
+          if (bodyOpen) flushFlight(); // between-chunks injection point
+          controller.enqueue(chunk);
+          if (!bodyOpen) {
+            const scan = concatBytes(carry, chunk);
+            if (hasBodyOpen(scan)) bodyOpen = true;
+            carry = scan.subarray(
+              Math.max(0, scan.byteLength - (BODY_OPEN.byteLength - 1))
+            );
+          }
+        };
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           if (!value?.byteLength) continue;
-          const merged = concatBytes(tail, value);
-          const emitEnd = utf8SafeBoundary(
-            merged,
-            Math.max(0, merged.byteLength - TRAILER_HOLDBACK)
-          );
-          if (emitEnd > 0) {
-            controller.enqueue(merged.subarray(0, emitEnd));
-            // A "<body" spanning the emit boundary is caught next round (its
-            // bytes stay in the tail) — the flag just sets one flush late.
-            if (!bodyOpen && hasBodyOpenBefore(merged, emitEnd)) {
-              bodyOpen = true;
-            }
-            flushFlight();
+          held.push(value);
+          heldBytes += value.byteLength;
+          while (
+            held.length > 1 &&
+            heldBytes - held[0].byteLength >= TRAILER_HOLDBACK
+          ) {
+            const out = held.shift()!;
+            heldBytes -= out.byteLength;
+            emitWhole(out);
           }
-          tail = merged.subarray(emitEnd);
         }
 
-        // HTML is complete: split the held-back tail into content + trailer.
+        // HTML is complete: split the held window into content + trailer.
+        // The split point is the last "</body>" — a tag boundary, so the
+        // final injection position is exactly where the blob splice goes.
+        let tail: Uint8Array = new Uint8Array(0);
+        for (const chunk of held) tail = concatBytes(tail, chunk);
         const trailerIdx = lastIndexOfBodyClose(tail);
         const content = trailerIdx === -1 ? tail : tail.subarray(0, trailerIdx);
         const trailer = trailerIdx === -1 ? null : tail.subarray(trailerIdx);
-        if (content.byteLength > 0) controller.enqueue(content);
+        if (content.byteLength > 0) {
+          if (bodyOpen) flushFlight();
+          controller.enqueue(content);
+        }
         bodyOpen = true;
         flushFlight();
 
