@@ -496,7 +496,11 @@ export type ResolvedUserOptions = {
   loader?:
     | (Required<Omit<LoaderConfig, "logger">> & { logger?: Logger })
     | undefined;
-  build: Omit<Required<BuildConfig>, "edge"> & { edge: ResolvedEdgeConfig };
+  // inlineFlight resolves the boolean alias away: `true` normalizes to "blob".
+  build: Omit<Required<BuildConfig>, "edge" | "inlineFlight"> & {
+    edge: ResolvedEdgeConfig;
+    inlineFlight: false | "blob";
+  };
   dev: Required<DevConfig>;
   css: RootOptions<boolean>;
   components?: StreamPluginOptions["components"]; // Direct component overrides (optional)
@@ -1290,15 +1294,21 @@ export type BuildConfig = {
    */
   batchSize?: number;
   /**
-   * Inline each prerendered route's flight payload into its own `index.html`
-   * (a non-executable `<script id="vprs-flight">`), so the browser has the
-   * initial RSC payload at load and hydrates in place with no `index.rsc`
-   * round-trip or flash. The plugin runs this itself at the post-SSG point in
-   * BOTH build modes (client-first and server-first), so the outcome is
-   * identical regardless of `--conditions react-server`. Idempotent.
+   * How each prerendered route's flight payload is delivered with its HTML:
+   * - `false`: not inlined — the client fetches `index.rsc` separately.
+   * - `"blob"`: inline the whole payload into the route's `index.html` as one
+   *   non-executable `<script id="vprs-flight">`, so the browser has the
+   *   initial RSC payload at load and hydrates in place with no `index.rsc`
+   *   round-trip or flash. Best for static/CDN targets: the file is buffered
+   *   by construction, and the client reads a single script.
+   * - `true`: boolean alias for `"blob"`.
+   *
+   * The plugin runs the inlining itself at the post-SSG point in BOTH build
+   * modes (client-first and server-first), so the outcome is identical
+   * regardless of `--conditions react-server`. Idempotent.
    * @default false
    */
-  inlineFlight?: boolean;
+  inlineFlight?: boolean | "blob";
   /**
    * Single-isolate edge build. Emits an additional baked rsc bundle to
    * `build.edge.outDir` (default `server-edge`): the server graph with React

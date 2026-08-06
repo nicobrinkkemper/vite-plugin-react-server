@@ -22,7 +22,7 @@ import { inlineFlightPayload } from "./inlineFlightPayload.js";
 
 export interface MaybeInlineFlightOptions {
   build: {
-    inlineFlight?: boolean;
+    inlineFlight?: boolean | "blob";
     outDir?: string;
     static?: string;
     htmlOutputPath?: string;
