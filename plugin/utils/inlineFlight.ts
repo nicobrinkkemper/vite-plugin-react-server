@@ -31,7 +31,7 @@ export { INLINE_FLIGHT_ID, INLINE_FLIGHT_LENGTH_ATTR };
  * `data-length` stamps how many characters the payload has, so the reader can
  * tell a whole element from a half-written one — see INLINE_FLIGHT_LENGTH_ATTR.
  */
-function bytesToBase64(bytes: Uint8Array): string {
+export function bytesToBase64(bytes: Uint8Array): string {
   const B = (globalThis as { Buffer?: typeof Buffer }).Buffer;
   if (B?.from) return B.from(bytes).toString("base64");
   // btoa takes a binary string; build it in slices — a single
