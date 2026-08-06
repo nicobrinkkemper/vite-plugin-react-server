@@ -30,13 +30,15 @@ permissions:
   pages: write
   id-token: write
 
-# Queue rather than cancel: cancelling an in-progress Pages DEPLOYMENT
-# strands it server-side, and the next deploy-pages then waits behind the
-# phantom until its 10-minute timeout (the 3.8.0-merge failure). Superseded
-# queued runs are cheap; a killed deployment is not.
+# Per-ref groups: PR builds never queue behind (or cancel) a production
+# deployment — only same-branch runs contend. On main, queue rather than
+# cancel: cancelling an in-progress Pages DEPLOYMENT strands it server-side,
+# and the next deploy-pages then waits behind the phantom until its 10-minute
+# timeout (the 3.8.0-merge failure). PR refs may cancel their own superseded
+# builds — nothing deploys there.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build:
