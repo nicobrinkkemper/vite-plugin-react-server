@@ -118,6 +118,15 @@ describe.skipIf(!createEdgeHandler)("edge document — complete render contract"
     expect(existsSync(join(testDir, "dist/server-edge/render.js"))).toBe(true);
   });
 
+  it("bakes the resolved inlineFlight mode (this fixture: true -> \"blob\")", async () => {
+    // The other resolved value of the config path: inlineFlight: true
+    // normalizes to "blob" and the bake must carry that, not the raw input.
+    const bundle = await import(
+      pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+    );
+    expect(bundle.inlineFlight).toBe("blob");
+  });
+
   it("renders the request's geo into the server HTML (no client fetch)", () => {
     // The loader read x-geo-region off the request during the edge render, so
     // the value is in the first-paint HTML — not fetched by the client after.

@@ -95,7 +95,9 @@ export type CreateEdgeHandlerOptions = {
    *   `</body>`. Simplest client; TTFB = full render.
    * - `"stream"`: pass the HTML through as it renders and interleave the
    *   flight as executable push-script chunks (see
-   *   interleaveFlightIntoHtml). TTFB = shell flush, bounded memory,
+   *   interleaveFlightIntoHtml). TTFB = shell flush, no whole-document
+   *   buffering (consumer backpressure is not propagated — see the
+   *   transform's contract limits),
    *   progressive Suspense — pair with a client on `takeStreamedFlight`
    *   (createReactFetcher does this automatically).
    *

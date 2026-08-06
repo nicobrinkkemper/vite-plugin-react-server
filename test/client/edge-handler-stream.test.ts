@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as streamApi from "vite-plugin-react-server/stream";
+import { createEdgeRequestHandler } from "vite-plugin-react-server/edge";
 import { INLINE_FLIGHT_STREAM_GLOBAL } from "../../plugin/utils/inlineFlightId.js";
 
 // createEdgeHandler is client-only (default condition) — same guard the other
@@ -141,5 +142,60 @@ describe.skipIf(!createEdgeHandler)("createEdgeHandler inlineFlight modes", () =
     expect(html.indexOf('id="vprs-flight"')).toBeLessThan(
       html.lastIndexOf(TRAILER)
     );
+  });
+});
+
+// The CONFIG path: `build.inlineFlight: "stream"` reaches the handler through
+// the bake's `inlineFlight` export, forwarded by createEdgeRequestHandler —
+// the consumer never re-states the mode. The bake-side half (the export
+// existing and carrying the resolved value) is asserted in the example build
+// tests; this proves the forwarding half with a fake bundle.
+describe.skipIf(!createEdgeHandler)("createEdgeRequestHandler inlineFlight forwarding", () => {
+  const fakeBundle = (inlineFlight?: false | "blob" | "stream") =>
+    ({
+      renderRouteToDocument: async () => ({
+        full: timedStream([{ text: "f", afterMs: 0 }]),
+        headless: timedStream([{ text: "payload", afterMs: 10 }]),
+      }),
+      ...(inlineFlight !== undefined ? { inlineFlight } : {}),
+    }) as never;
+
+  const renderFlightToHtml = fakeRenderer([
+    { text: SHELL, afterMs: 0 },
+    { text: TRAILER, afterMs: 20 },
+  ]);
+
+  it('bundle inlineFlight: "stream" streams the document with NO handler-side option', async () => {
+    const handler = createEdgeRequestHandler(fakeBundle("stream"), {
+      renderFlightToHtml,
+    });
+    const html = await (
+      await handler(new Request("http://edge.test/page/"))
+    ).text();
+    expect(html.includes(INLINE_FLIGHT_STREAM_GLOBAL)).toBe(true);
+    expect(html.includes('id="vprs-flight"')).toBe(false);
+  });
+
+  it("an explicit handler option beats the baked mode", async () => {
+    const handler = createEdgeRequestHandler(fakeBundle("stream"), {
+      renderFlightToHtml,
+      inlineFlight: "blob",
+    });
+    const html = await (
+      await handler(new Request("http://edge.test/page/"))
+    ).text();
+    expect(html.includes('id="vprs-flight"')).toBe(true);
+    expect(html.includes(INLINE_FLIGHT_STREAM_GLOBAL)).toBe(false);
+  });
+
+  it("a pre-mode bundle (no inlineFlight export) keeps the blob default", async () => {
+    const handler = createEdgeRequestHandler(fakeBundle(undefined), {
+      renderFlightToHtml,
+    });
+    const html = await (
+      await handler(new Request("http://edge.test/page/"))
+    ).text();
+    expect(html.includes('id="vprs-flight"')).toBe(true);
+    expect(html.includes(INLINE_FLIGHT_STREAM_GLOBAL)).toBe(false);
   });
 });

@@ -110,6 +110,17 @@ describe.skipIf(!renderFlightToHtml)(
       expect(existsSync(join(testDir, "dist/server/page/page.js"))).toBe(true);
     });
 
+    it("bakes the resolved inlineFlight mode (this fixture: off)", async () => {
+      // The bake half of the `build.inlineFlight` config path:
+      // createEdgeRequestHandler forwards this export, so it must exist and
+      // carry the RESOLVED mode (this fixture sets no inlineFlight).
+      const bundle = await import(
+        pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+      );
+      expect("inlineFlight" in bundle).toBe(true);
+      expect(bundle.inlineFlight).toBe(false);
+    });
+
     it("renders the baked bundle to HTML in one process via renderFlightToHtml", async () => {
       const { renderRouteToFlight } = await import(
         pathToFileURL(join(testDir, "dist/server-edge/render.js")).href

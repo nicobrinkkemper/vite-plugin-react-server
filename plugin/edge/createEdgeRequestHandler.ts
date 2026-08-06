@@ -112,6 +112,14 @@ export function createEdgeRenderHook(
           // agnostic) client entry learns to consume a webpack-encoded payload.
           flightTransport: bundle.flightTransport ?? "esm",
           clientManifest: bundle.clientManifest,
+          // The bake carries the build's resolved inlineFlight mode, so
+          // `build.inlineFlight: "stream"` streams the document branch with no
+          // handler-side restatement. An explicit option still wins; anything
+          // that isn't "stream" (false/"blob"/absent on pre-mode bundles)
+          // keeps the buffered-splice default.
+          inlineFlight:
+            options.inlineFlight ??
+            (bundle.inlineFlight === "stream" ? "stream" : undefined),
           bootstrapScriptContent:
             [
               options.bootstrapScriptContent,

@@ -1304,7 +1304,9 @@ export type BuildConfig = {
    * - `"stream"`: interleave the payload into the HTML **as it streams** —
    *   executable push-script chunks between React's flushes (see
    *   interleaveFlightIntoHtml). Best for dynamic/edge targets: TTFB is the
-   *   shell flush and memory stays bounded. Per-request delivery only — a
+   *   shell flush and the server never buffers the whole document (though
+   *   consumer backpressure is not propagated to the render — see the
+   *   transform's contract limits). Per-request delivery only — a
    *   PRERENDERED page has no streamed form, so the post-SSG inliner skips
    *   and prerendered routes fall back to fetching `index.rsc` (use `"blob"`
    *   for static targets).

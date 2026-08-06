@@ -606,6 +606,14 @@ export const ${clientManifestExport} = ${JSON.stringify(bakedClientManifest)};
  */
 export const flightTransport = ${JSON.stringify(transport)};
 
+/**
+ * The build's resolved \`inlineFlight\` mode (false | "blob" | "stream") —
+ * baked for the same reason as flightTransport: createEdgeRequestHandler
+ * forwards it, so \`build.inlineFlight: "stream"\` streams the document
+ * branch without the consumer re-stating the mode at the handler.
+ */
+export const inlineFlight = ${JSON.stringify(userOptions.build.inlineFlight)};
+
 const routes = {
 ${routeLines.join("\n")}
 };

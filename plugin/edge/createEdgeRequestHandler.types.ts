@@ -58,6 +58,13 @@ export type EdgeBundleExports = {
    * bundles — treated as `"esm"`.
    */
   flightTransport?: "esm" | "webpack";
+  /**
+   * `inlineFlight`: the build's resolved delivery mode (`build.inlineFlight`),
+   * baked so `"stream"` reaches the document handler without the consumer
+   * re-stating it. Absent on pre-mode bundles — treated as the buffered
+   * `"blob"` default.
+   */
+  inlineFlight?: false | "blob" | "stream";
 };
 
 /**

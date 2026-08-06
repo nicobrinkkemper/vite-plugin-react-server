@@ -5,8 +5,10 @@
  * transform passes HTML through as it arrives and injects each flight chunk as
  * an executable `<script>(self.__vprsFlightChunks||=[]).push("<base64>")
  * </script>` at the next safe point, closing with a `push(null)` sentinel.
- * TTFB is the shell flush, memory stays bounded, and Suspense reveals
- * progressively.
+ * TTFB is the shell flush, the server never holds the whole document or
+ * payload, and Suspense reveals progressively. (Not fully backpressured:
+ * a consumer slower than the producers queues chunks in the stream
+ * controller — see the contract limits below.)
  *
  * Web-standard by construction (ReadableStream + TextEncoder only, no node:*):
  * this must run on workerd/Deno/Vercel Edge as-is.
