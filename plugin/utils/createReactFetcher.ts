@@ -2,6 +2,7 @@ import type React from "react";
 import { createCallServer } from "./createCallServer.js";
 import { env } from "#env";
 import { createPageURL } from "./urls.js";
+import { takeStreamedFlight } from "./streamedFlight.js";
 import {
   INLINE_FLIGHT_ID,
   INLINE_FLIGHT_LENGTH_ATTR,
@@ -207,18 +208,41 @@ export function createReactFetcher({
     );
   };
 
+  const fromStreamed = (
+    stream: ReadableStream<Uint8Array>
+  ): PromiseLike<React.ReactNode> =>
+    flightClient().then(({ createFromReadableStream }) =>
+      createFromReadableStream(stream, decodeOptions)
+    );
+
+  // Streamed delivery (`inlineFlight: "stream"`) or the network, in that
+  // order — checked only when there is no blob payload, since a document
+  // carries at most one delivery shape.
+  const fromStreamedOrNetwork = (): PromiseLike<React.ReactNode> => {
+    const streamed = takeStreamedFlight();
+    if (streamed && "getReader" in streamed) return fromStreamed(streamed);
+    if (streamed) {
+      // Deferred: the parser hadn't reached any chunk script yet.
+      return Promise.resolve(streamed).then((stream) =>
+        stream ? fromStreamed(stream) : fromNetwork()
+      );
+    }
+    return fromNetwork();
+  };
+
   const inlineFlight = takeInlineFlight();
   let content: PromiseLike<React.ReactNode>;
   if (inlineFlight instanceof Uint8Array) {
     content = fromInline(inlineFlight);
   } else if (inlineFlight) {
     // Deferred to DOMContentLoaded: the payload was still being parsed. If it
-    // turns out to be empty after all, fall back to the network.
+    // turns out to be empty after all, fall back to the streamed shape or the
+    // network.
     content = Promise.resolve(inlineFlight).then((bytes) =>
-      bytes ? fromInline(bytes) : fromNetwork()
+      bytes ? fromInline(bytes) : fromStreamedOrNetwork()
     );
   } else {
-    content = fromNetwork();
+    content = fromStreamedOrNetwork();
   }
   if (!signal) {
     return content;
