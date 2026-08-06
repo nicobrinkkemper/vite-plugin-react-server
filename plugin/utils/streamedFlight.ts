@@ -15,6 +15,11 @@
  * bytes may already be consumed, so a silent network restart is not possible;
  * the decode failure surfaces to the caller's error path instead.
  *
+ * No backpressure toward the parser: chunks are enqueued as their scripts
+ * execute, so if flight delivery outruns the decoder the queued bytes sit in
+ * the stream controller (same non-propagation the server-side transform
+ * documents). Bounded in practice by the payload size, not by the reader.
+ *
  * The parser race (a cached client entry running before any chunk script has
  * executed) is handled like the blob's short-read: if the global is absent
  * while the document is still loading, wait for `DOMContentLoaded` — by then
