@@ -190,4 +190,172 @@ describe("interleaveFlightIntoHtmlStream", () => {
       )
     ).rejects.toBe(boom);
   });
+
+  it("propagates a FLIGHT stream error to the consumer", async () => {
+    const boom = new Error("flight producer failed");
+    const flightStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode("partial"));
+        controller.error(boom);
+      },
+    });
+    await expect(
+      collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([SHELL, TRAILER], 10),
+          flightStream,
+        })
+      )
+    ).rejects.toBe(boom);
+  });
+});
+
+describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
+  it("empty flight still closes the protocol: sentinel only, trailer last", async () => {
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([SHELL, TRAILER]),
+          flightStream: streamOf([]),
+        })
+      )
+    );
+    expect(extractPushes(out)).toEqual([null]);
+    expect(stripScripts(out)).toBe(SHELL + TRAILER);
+    expect(out.endsWith(TRAILER)).toBe(true);
+  });
+
+  it("empty HTML still delivers the flight: scripts + sentinel, no phantom trailer", async () => {
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([]),
+          flightStream: streamOf(["only-flight"]),
+        })
+      )
+    );
+    expect(extractPushes(out)).toEqual([btoa("only-flight"), null]);
+    expect(stripScripts(out)).toBe("");
+  });
+
+  it("round-trips arbitrary binary flight bytes (all 256 values, large chunk)", async () => {
+    const bytes = new Uint8Array(256 * 512);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = i % 256;
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([SHELL, TRAILER]),
+          flightStream: streamOf([bytes]),
+        })
+      )
+    );
+    const pushes = extractPushes(out);
+    expect(pushes).toHaveLength(2);
+    const decoded = atob(pushes[0]!);
+    expect(decoded.length).toBe(bytes.length);
+    for (let i = 0; i < bytes.length; i += 4097) {
+      expect(decoded.charCodeAt(i)).toBe(bytes[i]);
+    }
+  });
+
+  it("preserves flight order across many interleaved chunks with jittered timing", async () => {
+    const flightChunks = Array.from({ length: 30 }, (_, i) => `chunk-${i}`);
+    const htmlMiddle = Array.from({ length: 30 }, (_, i) => `<p>row ${i}</p>`);
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          // Different pump cadences so the two sides genuinely interleave.
+          htmlStream: streamOf([SHELL, ...htmlMiddle, TRAILER], 2),
+          flightStream: streamOf(flightChunks, 3),
+        })
+      )
+    );
+    const pushes = extractPushes(out);
+    expect(pushes.slice(0, -1).map((p) => atob(p!))).toEqual(flightChunks);
+    expect(pushes[pushes.length - 1]).toBeNull();
+    expect(stripScripts(out)).toBe(SHELL + htmlMiddle.join("") + TRAILER);
+  });
+
+  it("holds scripts while <body is split across HTML chunks", async () => {
+    const headFiller = `<html><head>${"m".repeat(80)}</head>`;
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf(
+            [`${headFiller}<bo`, `dy><div>content</div>`, TRAILER],
+            5
+          ),
+          // Flight ready immediately — must still wait for the body-open bytes.
+          flightStream: streamOf(["early"]),
+        })
+      )
+    );
+    expect(stripScripts(out)).toBe(
+      `${headFiller}<body><div>content</div>${TRAILER}`
+    );
+    expect(out.indexOf("<script>")).toBeGreaterThan(out.indexOf("<body"));
+  });
+
+  it("matches a <body tag that carries attributes", async () => {
+    const doc = `<html><head></head><body class="app" data-x="1"><main>y</main>`;
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([doc + "x".repeat(40), TRAILER]),
+          flightStream: streamOf(["f"]),
+        })
+      )
+    );
+    expect(out.indexOf("<script>")).toBeGreaterThan(out.indexOf("<body"));
+    expect(out.endsWith(TRAILER)).toBe(true);
+  });
+
+  it("ignores a literal </body> in mid-document content; only the final trailer moves", async () => {
+    const decoy = `<div><!-- literally </body> in a comment --></div>`;
+    const middle = decoy + "z".repeat(100); // push the decoy out of the tail window
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([SHELL + middle + TRAILER]),
+          flightStream: streamOf(["f"]),
+        })
+      )
+    );
+    expect(stripScripts(out)).toBe(SHELL + middle + TRAILER);
+    // Scripts land after the decoy, before the real trailer.
+    expect(out.indexOf("<script>")).toBeGreaterThan(out.indexOf(decoy));
+    expect(out.lastIndexOf("</script>")).toBeLessThan(out.lastIndexOf(TRAILER));
+  });
+
+  it("survives one-byte-at-a-time HTML delivery (multi-byte chars included)", async () => {
+    const doc = `<html><head></head><body>héllo ✓ wörld${TRAILER}`;
+    const bytes = encoder.encode(doc);
+    const oneByteChunks = Array.from({ length: bytes.length }, (_, i) =>
+      bytes.subarray(i, i + 1)
+    );
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf(oneByteChunks),
+          flightStream: streamOf(["f"]),
+        })
+      )
+    );
+    expect(stripScripts(out)).toBe(doc);
+    expect(out.includes("�")).toBe(false);
+    expect(out.endsWith(TRAILER)).toBe(true);
+  });
+
+  it("no flight and no body: bare fragment passes through with just the sentinel", async () => {
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf(["<div>plain</div>"]),
+          flightStream: streamOf([]),
+        })
+      )
+    );
+    expect(extractPushes(out)).toEqual([null]);
+    expect(stripScripts(out)).toBe("<div>plain</div>");
+  });
 });
