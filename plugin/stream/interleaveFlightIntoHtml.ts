@@ -23,6 +23,26 @@
  * boundary could split a multi-byte character), and the holdback boundary is
  * moved back to a UTF-8 character start so a script is never spliced
  * mid-character into the byte stream.
+ *
+ * Contract limits (byte matching is structure-blind by design):
+ *  - a literal `<body` in head-side content (a comment, a code sample) opens
+ *    the flight gate early, and a literal `</body>` inside the final holdback
+ *    window reads as the trailer — such documents get their scripts
+ *    mis-placed (they still parse and execute);
+ *  - bytes appended after `</html>` by an upstream transform (beyond the
+ *    holdback window) scroll the real trailer out of reach and scripts
+ *    append at the very end instead;
+ *  - the trailer is held until the flight stream ENDS: bound a stallable
+ *    producer upstream (htmlTimeout / request signal) — this transform
+ *    imposes no deadline of its own;
+ *  - pumps are push-based: a consumer slower than the producers queues in
+ *    the stream controller rather than pausing the render;
+ *  - matching assumes an ASCII-compatible (UTF-8) document.
+ *
+ * The chunk scripts are EXECUTABLE (unlike the blob's inert
+ * `text/x-component` element): under a `script-src` nonce policy pass
+ * `nonce`, or every chunk is blocked and the payload never reaches the
+ * reader.
  */
 import { bytesToBase64 } from "../utils/inlineFlight.js";
 import { INLINE_FLIGHT_STREAM_GLOBAL } from "../utils/inlineFlightId.js";
@@ -35,15 +55,29 @@ const BODY_OPEN = new Uint8Array([0x3c, 0x62, 0x6f, 0x64, 0x79]); // "<body"
 // Enough to hold "</body></html>" plus stray trailing whitespace.
 const TRAILER_HOLDBACK = 32;
 
-function chunkScript(base64: string): Uint8Array {
+// Nonce values are token-like by spec (base64ish); refuse anything that could
+// break out of the attribute.
+const SAFE_NONCE_RE = /^[\w+/=-]+$/;
+
+function scriptOpen(nonce?: string): string {
+  if (!nonce) return "<script>";
+  if (!SAFE_NONCE_RE.test(nonce)) {
+    throw new Error(
+      "interleaveFlightIntoHtmlStream: nonce contains characters outside the CSP nonce alphabet"
+    );
+  }
+  return `<script nonce="${nonce}">`;
+}
+
+function chunkScript(base64: string, nonce?: string): Uint8Array {
   return encoder.encode(
-    `<script>(self.${INLINE_FLIGHT_STREAM_GLOBAL}||=[]).push("${base64}")</script>`
+    `${scriptOpen(nonce)}(self.${INLINE_FLIGHT_STREAM_GLOBAL}||=[]).push("${base64}")</script>`
   );
 }
 
-function doneScript(): Uint8Array {
+function doneScript(nonce?: string): Uint8Array {
   return encoder.encode(
-    `<script>(self.${INLINE_FLIGHT_STREAM_GLOBAL}||=[]).push(null)</script>`
+    `${scriptOpen(nonce)}(self.${INLINE_FLIGHT_STREAM_GLOBAL}||=[]).push(null)</script>`
   );
 }
 
@@ -90,9 +124,12 @@ function utf8SafeBoundary(bytes: Uint8Array, end: number): number {
 export function interleaveFlightIntoHtmlStream({
   htmlStream,
   flightStream,
+  nonce,
 }: {
   htmlStream: ReadableStream<Uint8Array>;
   flightStream: ReadableStream<Uint8Array>;
+  /** CSP script-src nonce stamped on every injected script. */
+  nonce?: string;
 }): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -113,7 +150,7 @@ export function interleaveFlightIntoHtmlStream({
       const flushFlight = () => {
         if (!bodyOpen || failed) return;
         while (pendingFlight.length > 0) {
-          controller.enqueue(chunkScript(pendingFlight.shift()!));
+          controller.enqueue(chunkScript(pendingFlight.shift()!, nonce));
         }
       };
 
@@ -169,7 +206,7 @@ export function interleaveFlightIntoHtmlStream({
         await flightPump;
         if (failed) return;
         flushFlight();
-        controller.enqueue(doneScript());
+        controller.enqueue(doneScript(nonce));
         if (trailer) controller.enqueue(trailer);
         controller.close();
       } catch (error) {

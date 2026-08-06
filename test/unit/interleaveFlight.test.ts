@@ -136,9 +136,9 @@ describe("interleaveFlightIntoHtmlStream", () => {
     expect(out.lastIndexOf("</script>")).toBeLessThan(out.lastIndexOf(TRAILER));
   });
 
-  it("never splices a script mid-character (multi-byte text at the holdback boundary)", async () => {
-    // Multi-byte characters positioned so the 32-byte holdback boundary lands
-    // inside one of them; chunk boundaries also split a character in half.
+  it("reassembles multi-byte text split across INPUT chunk boundaries", async () => {
+    // Input-side splits are inherently safe (bytes pass through unmodified);
+    // this pins the pass-through. The emit-side splice hazard is the next test.
     const text = `<html><head></head><body>${"héllo wörld ✓ ".repeat(20)}`;
     const bytes = encoder.encode(text);
     const splitAt = 41; // inside a multi-byte sequence for this content
@@ -156,7 +156,34 @@ describe("interleaveFlightIntoHtmlStream", () => {
       )
     );
     expect(stripScripts(out)).toBe(text + TRAILER);
-    expect(out.includes("�")).toBe(false); // no replacement characters
+    expect(out.includes("�")).toBe(false);
+  });
+
+  it("snaps a mid-character EMIT boundary before splicing a pending script", async () => {
+    // The real hazard: a flight chunk is PENDING when an HTML chunk flushes,
+    // and the holdback boundary (merged.length - 32) falls inside a character
+    // — the script would be spliced mid-character without the UTF-8 snap.
+    // 3-byte characters after a 12-byte prefix make the boundary offset
+    // (3K - 32, so ≡ 1 mod 3) land mid-character for EVERY run length K.
+    const chunk1 = `<html><body>${"✓".repeat(40)}`;
+    const boundary = encoder.encode(chunk1).byteLength - 32;
+    expect((boundary - "<html><body>".length) % 3).not.toBe(0); // mid-char by construction
+    const rest = `<div>after the splice point</div>`;
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          // Flight arrives BEFORE the first HTML chunk (3ms vs 12ms), so it is
+          // pending at chunk1's flush and injects exactly at the boundary.
+          htmlStream: streamOf([chunk1, rest, TRAILER], 12),
+          flightStream: streamOf(["F"], 3),
+        })
+      )
+    );
+    // The script really was interleaved at the first flush (mid-document),
+    // not appended at the end — otherwise this test proves nothing.
+    expect(out.indexOf("<script>")).toBeLessThan(out.indexOf(rest));
+    expect(out.includes("�")).toBe(false);
+    expect(stripScripts(out)).toBe(chunk1 + rest + TRAILER);
   });
 
   it("appends scripts at the end when the document has no </body> trailer", async () => {
@@ -253,9 +280,14 @@ describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
     expect(pushes).toHaveLength(2);
     const decoded = atob(pushes[0]!);
     expect(decoded.length).toBe(bytes.length);
-    for (let i = 0; i < bytes.length; i += 4097) {
-      expect(decoded.charCodeAt(i)).toBe(bytes[i]);
+    let mismatch = -1;
+    for (let i = 0; i < bytes.length; i++) {
+      if (decoded.charCodeAt(i) !== bytes[i]) {
+        mismatch = i;
+        break;
+      }
     }
+    expect(mismatch).toBe(-1); // byte-exact, full compare
   });
 
   it("preserves flight order across many interleaved chunks with jittered timing", async () => {
@@ -357,5 +389,31 @@ describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
     );
     expect(extractPushes(out)).toEqual([null]);
     expect(stripScripts(out)).toBe("<div>plain</div>");
+  });
+
+  it("stamps the CSP nonce on every injected script (chunks and sentinel)", async () => {
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([SHELL, TRAILER]),
+          flightStream: streamOf(["a", "b"]),
+          nonce: "r4nd0m+Base64=",
+        })
+      )
+    );
+    const opens = out.match(/<script[^>]*>/g) ?? [];
+    expect(opens).toHaveLength(3); // two chunks + sentinel
+    for (const open of opens) {
+      expect(open).toBe(`<script nonce="r4nd0m+Base64=">`);
+    }
+  });
+
+  it("rejects a nonce that could break out of the attribute", async () => {
+    const stream = interleaveFlightIntoHtmlStream({
+      htmlStream: streamOf([SHELL, TRAILER]),
+      flightStream: streamOf(["a"]),
+      nonce: `"><script>alert(1)</script>`,
+    });
+    await expect(collect(stream)).rejects.toThrow(/nonce/);
   });
 });
