@@ -82,8 +82,27 @@ export type CreateEdgeHandlerOptions = {
    * automatically when the bundle exports one.
    */
   renderFlightToHtml?: RenderFlightToHtmlFn;
-  /** Nonce forwarded to the HTML renderer (CSP). */
+  /** Nonce forwarded to the HTML renderer (CSP). Under `inlineFlight:
+   *  "stream"` it is also stamped on every interleaved flight script —
+   *  those are executable, so a script-src nonce policy blocks them
+   *  without it. */
   nonce?: string;
+  /**
+   * How the `renderDocument` branch delivers the headless flight with the
+   * document:
+   * - `"blob"` (default): buffer the rendered HTML and the whole flight,
+   *   splice one non-executable `<script id="vprs-flight">` before
+   *   `</body>`. Simplest client; TTFB = full render.
+   * - `"stream"`: pass the HTML through as it renders and interleave the
+   *   flight as executable push-script chunks (see
+   *   interleaveFlightIntoHtml). TTFB = shell flush, bounded memory,
+   *   progressive Suspense — pair with a client on `takeStreamedFlight`
+   *   (createReactFetcher does this automatically).
+   *
+   * Ignored on the `render` branch (no flight is inlined there at all).
+   * @default "blob"
+   */
+  inlineFlight?: "blob" | "stream";
   /**
    * Map an incoming `Request` to the route url the producer was baked with
    * (a `build.pages` entry). @default `req => new URL(req.url).pathname`

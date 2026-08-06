@@ -22,7 +22,7 @@ import { inlineFlightPayload } from "./inlineFlightPayload.js";
 
 export interface MaybeInlineFlightOptions {
   build: {
-    inlineFlight?: boolean | "blob";
+    inlineFlight?: boolean | "blob" | "stream";
     outDir?: string;
     static?: string;
     htmlOutputPath?: string;
@@ -35,12 +35,24 @@ export interface MaybeInlineFlightOptions {
 }
 
 /**
- * Returns the number of pages inlined, or null when the option is disabled.
+ * Returns the number of pages inlined, or null when the option is disabled
+ * (or has no static form).
  */
 export async function maybeInlineFlight(
   options: MaybeInlineFlightOptions
 ): Promise<number | null> {
   if (!options.build?.inlineFlight) return null;
+  if (options.build.inlineFlight === "stream") {
+    // Streamed delivery is per-request only: a prerendered file has no
+    // "as it renders" — say so once and leave the pages un-inlined (the
+    // client falls back to fetching index.rsc for prerendered routes).
+    options.logger?.warn(
+      `[vite-plugin-react-server] inlineFlight: "stream" has no static form — ` +
+        `prerendered pages are not inlined (the client fetches index.rsc). ` +
+        `Use "blob" for static/CDN targets.`
+    );
+    return null;
+  }
 
   // Anchor a relative outDir to the project root, not the process CWD — same
   // rule as fileWriter, or the two would read/write different trees when the

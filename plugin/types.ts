@@ -499,7 +499,7 @@ export type ResolvedUserOptions = {
   // inlineFlight resolves the boolean alias away: `true` normalizes to "blob".
   build: Omit<Required<BuildConfig>, "edge" | "inlineFlight"> & {
     edge: ResolvedEdgeConfig;
-    inlineFlight: false | "blob";
+    inlineFlight: false | "blob" | "stream";
   };
   dev: Required<DevConfig>;
   css: RootOptions<boolean>;
@@ -1294,21 +1294,28 @@ export type BuildConfig = {
    */
   batchSize?: number;
   /**
-   * How each prerendered route's flight payload is delivered with its HTML:
+   * How each route's flight payload is delivered with its HTML:
    * - `false`: not inlined — the client fetches `index.rsc` separately.
    * - `"blob"`: inline the whole payload into the route's `index.html` as one
    *   non-executable `<script id="vprs-flight">`, so the browser has the
    *   initial RSC payload at load and hydrates in place with no `index.rsc`
    *   round-trip or flash. Best for static/CDN targets: the file is buffered
    *   by construction, and the client reads a single script.
+   * - `"stream"`: interleave the payload into the HTML **as it streams** —
+   *   executable push-script chunks between React's flushes (see
+   *   interleaveFlightIntoHtml). Best for dynamic/edge targets: TTFB is the
+   *   shell flush and memory stays bounded. Per-request delivery only — a
+   *   PRERENDERED page has no streamed form, so the post-SSG inliner skips
+   *   and prerendered routes fall back to fetching `index.rsc` (use `"blob"`
+   *   for static targets).
    * - `true`: boolean alias for `"blob"`.
    *
-   * The plugin runs the inlining itself at the post-SSG point in BOTH build
-   * modes (client-first and server-first), so the outcome is identical
-   * regardless of `--conditions react-server`. Idempotent.
+   * For `"blob"`, the plugin runs the inlining itself at the post-SSG point in
+   * BOTH build modes (client-first and server-first), so the outcome is
+   * identical regardless of `--conditions react-server`. Idempotent.
    * @default false
    */
-  inlineFlight?: boolean | "blob";
+  inlineFlight?: boolean | "blob" | "stream";
   /**
    * Single-isolate edge build. Emits an additional baked rsc bundle to
    * `build.edge.outDir` (default `server-edge`): the server graph with React
