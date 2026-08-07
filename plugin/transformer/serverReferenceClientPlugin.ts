@@ -115,6 +115,9 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
       const hostedId = moduleID ? moduleID(normalizedPath, src, false) : normalizedPath;
 
       if (this.environment?.name === "client") {
+        // esm createServerReference is transport-safe: the callable only
+        // delegates to callServer, where the transport chooser lives (see
+        // createTransformerPlugin's proxy emission for the full rationale).
         return [
           `import { createServerReference } from "react-server-dom-esm/client.browser";`,
           `import { createCallServer } from "vite-plugin-react-server/utils";`,

@@ -469,6 +469,12 @@ export const createTransformerPlugin = (
               ).map((e) => e.exportName);
               if (exportNames.length > 0) {
                 if (this.environment?.name === "client") {
+                  // The esm createServerReference is transport-safe here: its
+                  // callable only delegates to callServer(id, args), and every
+                  // flavor-sensitive step (encodeReply, response decode) lives
+                  // in createCallServer's transport chooser. Emitting the
+                  // webpack client instead would read module-loading globals
+                  // at eval time — an install-order footgun for no behavior.
                   const proxy = [
                     `import { createServerReference } from "react-server-dom-esm/client.browser";`,
                     `import { createCallServer } from "vite-plugin-react-server/utils";`,
