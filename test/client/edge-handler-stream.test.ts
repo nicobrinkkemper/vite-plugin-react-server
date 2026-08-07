@@ -18,14 +18,17 @@ const TRAILER = `</body></html>`;
 
 function timedStream(
   parts: Array<{ text: string; afterMs: number }>,
-  onDone?: () => void
+  onDone?: () => void,
+  onChunk?: (index: number, at: number) => void
 ): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const t0 = Date.now();
-      for (const { text, afterMs } of parts) {
+      for (let i = 0; i < parts.length; i++) {
+        const { text, afterMs } = parts[i];
         const wait = t0 + afterMs - Date.now();
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+        onChunk?.(i, Date.now());
         controller.enqueue(encoder.encode(text));
       }
       onDone?.();
@@ -44,8 +47,10 @@ function fakeRenderer(parts: Array<{ text: string; afterMs: number }>) {
 }
 
 describe.skipIf(!createEdgeHandler)("createEdgeHandler inlineFlight modes", () => {
-  it('"stream": first bytes flush before the flight finishes; chunks interleave; trailer last', async () => {
+  it('"stream": shell TTFB before the next HTML chunk; flight interleaves; trailer last', async () => {
     let headlessDoneAt = 0;
+    let shellProducedAt = 0;
+    let secondHtmlProducedAt = 0;
     const handler = createEdgeHandler!({
       renderDocument: async () => ({
         full: timedStream([{ text: "full-flight", afterMs: 0 }]),
@@ -60,10 +65,24 @@ describe.skipIf(!createEdgeHandler)("createEdgeHandler inlineFlight modes", () =
           }
         ),
       }),
-      renderFlightToHtml: fakeRenderer([
-        { text: SHELL, afterMs: 0 },
-        { text: `<p>late html</p>${TRAILER}`, afterMs: 60 },
-      ]),
+      // 30 bytes of late HTML + trailer — under the old 32-byte whole-chunk
+      // holdback this pinned the shell until the HTML stream completed,
+      // defeating TTFB = shell flush. The response must become readable
+      // before this second producer chunk is even produced.
+      renderFlightToHtml: (async () =>
+        timedStream(
+          [
+            { text: SHELL, afterMs: 0 },
+            { text: `<p>late html</p>${TRAILER}`, afterMs: 60 },
+          ],
+          undefined,
+          (index, at) => {
+            if (index === 0) shellProducedAt = at;
+            if (index === 1) secondHtmlProducedAt = at;
+          }
+        )) as unknown as NonNullable<
+        Parameters<NonNullable<typeof createEdgeHandler>>[0]["renderFlightToHtml"]
+      >,
       inlineFlight: "stream",
     });
 
@@ -75,8 +94,15 @@ describe.skipIf(!createEdgeHandler)("createEdgeHandler inlineFlight modes", () =
     const firstAt = Date.now();
     expect(first.done).toBe(false);
     const firstText = decoder.decode(first.value);
-    // The shell flushed on its own — before the headless flight completed.
+    // The shell flushed on its own — before the second HTML chunk AND before
+    // the headless flight completed. (Asserting only vs. flight-done at 120ms
+    // used to pass while the shell was still stuck behind a 32-byte holdback
+    // waiting for the 60ms late chunk.)
     expect(firstText.startsWith("<html>")).toBe(true);
+    expect(shellProducedAt).toBeGreaterThan(0);
+    expect(secondHtmlProducedAt === 0 || firstAt < secondHtmlProducedAt).toBe(
+      true
+    );
     expect(headlessDoneAt === 0 || firstAt < headlessDoneAt).toBe(true);
 
     let rest = firstText;

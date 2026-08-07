@@ -328,6 +328,72 @@ describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
     expect(out.indexOf("<script>")).toBeGreaterThan(out.indexOf("<body"));
   });
 
+  it("emits the shell before a small trailer chunk arrives (TTFB ≠ HTML-done)", async () => {
+    let secondHtmlAt = 0;
+    const htmlStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(encoder.encode(SHELL));
+        await new Promise((r) => setTimeout(r, 40));
+        secondHtmlAt = Date.now();
+        // Smaller than the old 32-byte holdback — must not pin the shell.
+        controller.enqueue(encoder.encode(`<p>x</p>${TRAILER}`));
+        controller.close();
+      },
+    });
+    const reader = interleaveFlightIntoHtmlStream({
+      htmlStream,
+      flightStream: streamOf(["f"]),
+    }).getReader();
+    const first = await reader.read();
+    const firstAt = Date.now();
+    expect(first.done).toBe(false);
+    expect(decoder.decode(first.value).startsWith("<html>")).toBe(true);
+    expect(secondHtmlAt === 0 || firstAt < secondHtmlAt).toBe(true);
+    // Drain so the stream can finish cleanly.
+    while (!(await reader.read()).done) {
+      /* drain */
+    }
+  });
+
+  it("flushes pending flight as soon as the shell opens <body>, without waiting for more HTML", async () => {
+    let releaseTrailer!: () => void;
+    const trailerGate = new Promise<void>((r) => {
+      releaseTrailer = r;
+    });
+    const htmlStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(encoder.encode(SHELL));
+        await trailerGate;
+        controller.enqueue(encoder.encode(TRAILER));
+        controller.close();
+      },
+    });
+    const reader = interleaveFlightIntoHtmlStream({
+      htmlStream,
+      // Ready before any HTML — must flush right after the shell opens <body>.
+      flightStream: streamOf(["early-flight"]),
+    }).getReader();
+
+    let buf = "";
+    const deadline = Date.now() + 2000;
+    while (!buf.includes(INLINE_FLIGHT_STREAM_GLOBAL)) {
+      if (Date.now() > deadline) {
+        throw new Error(
+          "pending flight never flushed after shell opened <body>"
+        );
+      }
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) buf += decoder.decode(value);
+    }
+    expect(buf.includes(INLINE_FLIGHT_STREAM_GLOBAL)).toBe(true);
+    expect(buf.includes(TRAILER)).toBe(false);
+    releaseTrailer();
+    while (!(await reader.read()).done) {
+      /* drain */
+    }
+  });
+
   it("matches a <body tag that carries attributes", async () => {
     const doc = `<html><head></head><body class="app" data-x="1"><main>y</main>`;
     const out = decodeAll(
@@ -344,7 +410,11 @@ describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
 
   it("ignores a literal </body> in mid-document content; only the final trailer moves", async () => {
     const decoy = `<div><!-- literally </body> in a comment --></div>`;
-    const middle = decoy + "z".repeat(100); // push the decoy out of the tail window
+    // Single producer chunk: lastIndexOfBodyClose picks the real trailer.
+    // (A mid-document </body> in its own earlier chunk starts the trailer
+    // hold early — known contract limit; scripts still land before the last
+    // </body> at finalization.)
+    const middle = decoy + "z".repeat(100);
     const out = decodeAll(
       await collect(
         interleaveFlightIntoHtmlStream({
