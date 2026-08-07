@@ -55,6 +55,13 @@ describe("extractHeadTagsFromFlight", () => {
     expect(extractHeadTagsFromFlight("")).toEqual([]);
   });
 
+  it("accepts dev-mode element tuples (owner/stack fields appended)", () => {
+    const dev = `0:["$","html",null,{"children":[["$","head",null,{"children":[["$","title",null,{"children":"Dev Title"},"$1","$8",1]]},"$1","$7",1],["$","body",null,{"children":"$c"},"$1","$b",1]]},"$1","$6",1]`;
+    const tags = extractHeadTagsFromFlight(dev);
+    expect(tags.map((t) => t.tag)).toEqual(["title"]);
+    expect(tags[0].children).toBe("Dev Title");
+  });
+
   it("skips non-JSON rows without throwing", () => {
     const noisy = "2:T5,hello\n" + PAYLOAD;
     expect(extractHeadTagsFromFlight(noisy).length).toBe(5);

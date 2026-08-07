@@ -16,7 +16,9 @@ import type { HtmlTagDescriptor } from "vite";
  * treated as absent — the caller falls back to serving index.html unchanged.
  */
 
-type FlightElement = [string, string, unknown, Record<string, unknown>];
+/** ["$", type, key, props, ...devFields] — dev payloads append owner/stack/
+ *  validated entries, so an element tuple is AT LEAST 4 long, not exactly. */
+type FlightElement = [string, string, unknown, Record<string, unknown>, ...unknown[]];
 
 const HEAD_TAGS = new Set(["title", "meta", "link", "style"]);
 
@@ -30,7 +32,7 @@ const ATTR_NAME: Record<string, string> = {
 function isElement(node: unknown): node is FlightElement {
   return (
     Array.isArray(node) &&
-    node.length === 4 &&
+    node.length >= 4 &&
     node[0] === "$" &&
     typeof node[1] === "string" &&
     node[3] !== null &&

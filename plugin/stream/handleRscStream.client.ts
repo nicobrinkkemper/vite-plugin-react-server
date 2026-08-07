@@ -61,6 +61,9 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
     // therefore only ends the stream as a delayed fallback for a worker that
     // died before posting `null`.
     let dataEndedReceived = false;
+    // Timestamp of the last data-port chunk; the RSC_END fallback treats
+    // recent flow as proof of a live worker and re-arms instead of ending.
+    let lastChunkAt = 0;
     const endDataStream = () => {
       dataEndedReceived = true;
       rscStream.end();
@@ -99,13 +102,26 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           controlEndedReceived = true;
           // Do not end the data stream here — see the dataEndedReceived note
           // above. Fall back to ending only if the data port's `null` never
-          // arrives (worker died between chunks and its onEnd).
+          // arrives (worker died between chunks and its onEnd). The fallback
+          // must not fire while data is still ARRIVING: a flooded data queue
+          // (dev debug rows are many small chunks) lets this one control
+          // message jump ahead across ports, and a fixed short timer then
+          // truncates the payload right before its final model rows. Live
+          // chunk flow proves the worker is alive, so re-arm until the data
+          // queue goes quiet.
           if (!dataEndedReceived) {
-            setTimeout(() => {
-              if (!dataEndedReceived) {
+            const FALLBACK_QUIET_MS = 500;
+            const armEndFallback = () => {
+              setTimeout(() => {
+                if (dataEndedReceived) return;
+                if (Date.now() - lastChunkAt < FALLBACK_QUIET_MS) {
+                  armEndFallback();
+                  return;
+                }
                 endDataStream();
-              }
-            }, 100).unref?.();
+              }, FALLBACK_QUIET_MS).unref?.();
+            };
+            armEndFallback();
           }
           break;
         case "ERROR": {
@@ -171,6 +187,7 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
         }
         rscStream.destroy(new Error(data.error));
       } else if (Buffer.isBuffer(data) || data instanceof Uint8Array) {
+        lastChunkAt = Date.now();
         // RSC chunk data - pass through without mutation
         if (options.verbose) {
           options.logger?.info(

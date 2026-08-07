@@ -5,6 +5,7 @@ import { testUserOptions } from "../test-config";
 import { setupIndexHTML } from "../setup.js";
 import { mkdir, rm, writeFile, symlink } from "node:fs/promises";
 import { resolve, join } from "node:path";
+import { getCondition } from "../../plugin/config/getCondition.js";
 
 /**
  * The dev shell serves the DOCUMENT component's head: the served index.html
@@ -18,6 +19,11 @@ import { resolve, join } from "node:path";
  * shell), so the assertions poll until the merge appears.
  */
 
+// Stage 1 registers the provider in the worker-based dev flow only; dev:rsc
+// (react-server condition on the main thread) serves the plain shell, so this
+// e2e runs on the client leg.
+const clientLeg = getCondition() !== "react-server" ? describe : describe.skip;
+
 let server: ViteDevServer;
 const port = 3139;
 const testDir = resolve(__dirname, "../fixtures/dev-shell-head-merge.test");
@@ -28,7 +34,7 @@ async function fetchShell(): Promise<string> {
   return res.text();
 }
 
-describe("dev shell head-merge", () => {
+clientLeg("dev shell head-merge", () => {
   beforeAll(async () => {
     await rm(testDir, { recursive: true, force: true });
     await setupIndexHTML(testDir);
@@ -84,7 +90,6 @@ export const Html: HtmlComponentType = ({
           ...testUserOptions,
           projectRoot: testDir,
           moduleBase: "src",
-          verbose: true,
           Page: () => `src/page/page.tsx`,
           props: () => `src/page/props.ts`,
           Html: "src/Html.tsx",
