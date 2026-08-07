@@ -130,21 +130,9 @@ export function createReactFetcher({
     env.DEV
   )(url, indexRSC);
 
-  // COMPOSITION CONTRACT with the stock esm transport: the flight client
-  // builds client-reference specifiers as `moduleBaseURL + id` (a plain
-  // concat, upstream React code), and vprs's moduleID system emits ids with a
-  // LEADING slash. A base ending in "/" therefore composes "//…" — the same
-  // file under a DIFFERENT URL, so the browser instantiates shared chunks
-  // (React included) twice and hooks crash with a null dispatcher. Production
-  // hosts that 301-normalize "//" mask this; plain servers surface it. This
-  // is the one place vprs hands the base to the transport: strip the trailing
-  // slash so every config shape ("/", "/app/", absolute origins) composes to
-  // a single slash. The same base feeds action-response decodes through
-  // callServer, which keeps those references coherent too.
-  const flightBaseURL = parsedURL.moduleBaseURL.replace(/\/+$/, "");
   const decodeOptions = {
-    callServer: createCallServer(flightBaseURL),
-    moduleBaseURL: flightBaseURL,
+    callServer: createCallServer(parsedURL.moduleBaseURL),
+    moduleBaseURL: parsedURL.moduleBaseURL,
   };
 
   // Prefer the inlined initial-route payload (zero network round-trip) when
