@@ -726,6 +726,16 @@ export interface StreamPluginOptions<
   transport?: "esm" | "webpack";
   moduleBase: string; // defaults to 'src'
   moduleBasePath?: string; // defaults to ''
+  /**
+   * Where the built client bundle is served, for resolving client-reference
+   * modules in the browser. Composition contract: the stock esm transport
+   * builds specifiers as `moduleBaseURL + id` and vprs ids carry a LEADING
+   * slash, so the base is handed to the flight client WITHOUT a trailing
+   * slash (createReactFetcher strips it) — any shape ("/", "/app/", a full
+   * origin) composes to single-slash URLs. Double-slash URLs would load
+   * shared chunks under two identities and crash hooks.
+   * @default "/"
+   */
   moduleBaseURL?: string; // defaults to '/'
   moduleRootPath?: string; // defaults to client's dist folder
   publicOrigin?: string; // defaults to window.location.origin in client & http://localhost:port in development

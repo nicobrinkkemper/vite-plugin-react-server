@@ -66,14 +66,15 @@ async function setupFixture() {
   );
   // The canonical supplied client entry — assembles initial-payload
   // consumption (blob OR streamed, via createReactFetcher) + hydration.
-  // moduleBaseURL is "" (not "/"): the browser transport string-concatenates
-  // base + id, and "/" + "/routes/x.js" makes a "//routes/x.js" URL — same
-  // bytes served, DIFFERENT module identity, so shared chunks (React!) load
-  // twice and hooks crash. Tracked as the base+id join normalization bead.
+  // moduleBaseURL "/" is the REGRESSION CASE for the composition contract:
+  // the transport concatenates base + id, and an unstripped "/" once made
+  // "//routes/x.js" URLs — same bytes, DIFFERENT module identity, two React
+  // copies, hook crash. createReactFetcher now strips the trailing slash at
+  // the transport boundary; this fixture proves "/" composes clean.
   await writeFile(
     join(testDir, "src/client.tsx"),
     `import { startClient } from "vite-plugin-react-server/router/client";\n` +
-      `startClient({ moduleBaseURL: "" });\n`
+      `startClient({ moduleBaseURL: "/" });\n`
   );
   await writeFile(
     join(testDir, "index.html"),
