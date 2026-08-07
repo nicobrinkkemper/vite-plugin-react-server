@@ -19,7 +19,11 @@ export type DevShellHeadProvider = {
   invalidate: () => void;
 };
 
-const providers = new WeakMap<ViteDevServer, DevShellHeadProvider>();
+// Keyed by the server's ResolvedConfig, NOT the server object: Vite hands
+// plugins proxied dev-server instances in several paths (restart wrappers,
+// environment contexts), and a proxy fails WeakMap identity while property
+// reads like `.config` pass through to the same underlying object.
+const providers = new WeakMap<object, DevShellHeadProvider>();
 
 const RENDER_TIMEOUT_MS = 5_000;
 
@@ -49,6 +53,14 @@ export function createDevShellHeadProvider(
         ])
           .then((payload) => {
             const tags = extractHeadTagsFromFlight(payload);
+            // An empty extraction is a failed render (error payload, head
+            // behind a reference row, worker raced) — do NOT cache it, so
+            // the next html request retries instead of pinning a bare shell.
+            if (tags.length === 0) {
+              throw new Error(
+                `no head elements found in the shell flight (${payload.length} bytes)`
+              );
+            }
             cache = tags;
             return tags;
           })
@@ -74,11 +86,11 @@ export function createDevShellHeadProvider(
     },
   };
 
-  providers.set(server, provider);
+  providers.set(server.config, provider);
   return provider;
 }
 
 export const getDevShellHeadProvider = (
   server: ViteDevServer | undefined
 ): DevShellHeadProvider | undefined =>
-  server ? providers.get(server) : undefined;
+  server?.config ? providers.get(server.config) : undefined;
