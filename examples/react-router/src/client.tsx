@@ -1,17 +1,19 @@
-import { use, useCallback, useState, useTransition } from "react";
-import { createRoot } from "react-dom/client";
-import { createReactFetcher } from "vite-plugin-react-server/utils";
+import { useCallback, useState, type ReactNode } from "react";
+import { createReactFetcher, hydrateOrRender } from "vite-plugin-react-server/utils";
 import { useRscHmr } from "virtual:react-server/hmr";
 
-const Shell = ({ data }: { data: React.Usable<React.ReactNode> }) => {
-  const [, startTransition] = useTransition();
-  const [stream, setStream] = useState<React.Usable<React.ReactNode>>(data);
-  const refetch = useCallback(() => {
-    startTransition(() => setStream(createReactFetcher()));
+const Shell = ({ initialNode }: { initialNode: ReactNode }) => {
+  const [node, setNode] = useState(initialNode);
+  const refetch = useCallback(async () => {
+    setNode(await createReactFetcher());
   }, []);
   useRscHmr(refetch);
-  return <>{use(stream)}</>;
+  return <>{node}</>;
 };
 
 const root = document.getElementById("root")!;
-createRoot(root).render(<Shell data={createReactFetcher()} />);
+// Resolve the flight fully, then mount — hydrateRoot adopts the prerendered
+// markup in place (createRoot would replace it and flash).
+hydrateOrRender(root, async () => (
+  <Shell initialNode={await createReactFetcher()} />
+));
