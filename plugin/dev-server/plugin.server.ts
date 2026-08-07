@@ -4,6 +4,8 @@ import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
 import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags } from "./devPluginShared.js";
+import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
+import { mergeDevShellHead } from "./devShellHead.js";
 
 /**
  * Dev server plugin for server environment.
@@ -32,8 +34,17 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
     // with the baked pair's documents). No-op on esm. Lives on this plugin
     // (not the server-environment one) because the html transform runs
     // outside the server environment filter.
-    transformIndexHtml() {
-      return devFlightTransportTags(userOptions);
+    async transformIndexHtml(html: string, ctx: { server?: ViteDevServer }) {
+      const transportTags = devFlightTransportTags(userOptions) ?? [];
+      // Dev-shell head-merge, when a provider is registered (the worker-based
+      // dev flow configures one; without it this is transport tags only —
+      // byte-for-byte the previous document).
+      const provider = getDevShellHeadProvider(ctx?.server);
+      if (!provider) {
+        return transportTags.length ? transportTags : undefined;
+      }
+      const merged = mergeDevShellHead(html, await provider.getTags());
+      return { html: merged.html, tags: [...transportTags, ...merged.tags] };
     },
     // Server-level handleHotUpdate — sends custom WS event to client
     // Vite 6 Environment API: hotUpdate runs per-environment.

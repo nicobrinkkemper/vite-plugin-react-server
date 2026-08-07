@@ -325,6 +325,8 @@ export async function loadComponentsWithCache(options: {
   layoutExportName?: string;
   rscOutputPath?: string;  // Transport suffix, for stripping when matching params
   request?: Request;  // Rebuilt from serializedRequest; threaded into loader ctx
+  /** Document-only render: Fragment page, no page/props/loader work. */
+  shell?: boolean;
   /**
    * Written, not read, by this function: `moduleRunAt` is stamped (wall-clock,
    * once) right before the FIRST actual load call — the moment module code
@@ -381,7 +383,13 @@ export async function loadComponentsWithCache(options: {
       `[loadComponentsWithCache] pagePath=${pagePath}, propsPath=${propsPath}, url=${url}`
     );
   }
-  if (pagePath) {
+  if (options.shell) {
+    // Shell render: the document wrapper with NO page — the dev-shell
+    // head-merge asks for the Html component's <head> and nothing route-
+    // specific. Skipping the page load entirely means no page module, no
+    // props, no loaders run.
+    PageComponent = React.Fragment;
+  } else if (pagePath) {
     if (verbose) {
       logger?.info(
         `[loadComponentsWithCache] Loading page and props for pagePath=${pagePath}`
@@ -832,6 +840,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
 
         const { PageComponent, pageProps, RootComponent, HtmlComponent, layoutChain } =
           await loadComponentsWithCache({
+            shell: msg.options.shell === true,
             pagePath: msg.options.pagePath,
             propsPath: msg.options.propsPath,
             rootPath: msg.options.rootPath,
