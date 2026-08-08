@@ -41,13 +41,18 @@ export function resolveFlightRenderer(options: {
     };
   }
   const renderToPipeableStream = ReactDOMServer.renderToPipeableStream;
+  // The esm renderer serializes each client reference as $$id minus this
+  // prefix (resolveClientReferenceMetadata slices it off, and startsWith
+  // guards the hosted root). Registration ids are canonically ROOTED, and the
+  // browser composes a trailing-slash-stripped moduleBaseURL with the
+  // serialized id — so the prefix must never consume the id's leading slash.
+  // Hand the renderer the prefix without its trailing slash ("/" → "",
+  // "/app/" → "/app"): every payload id then keeps its root, matching the
+  // join contract on the other end of the wire.
+  const hostedRoot = (options.moduleBasePath || "").replace(/\/+$/, "");
   return {
     render: (element, streamOptions) =>
-      renderToPipeableStream(
-        element as any,
-        options.moduleBasePath || "",
-        streamOptions as any
-      ),
+      renderToPipeableStream(element as any, hostedRoot, streamOptions as any),
     getLoadedMode: getVendoredRendererMode,
   };
 }

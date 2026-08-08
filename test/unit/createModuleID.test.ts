@@ -148,4 +148,34 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
       );
     });
   });
+
+  describe("join contract — bare moduleBasePath still roots client ids", () => {
+    const bareOptions = {
+      ...options,
+      moduleBasePath: "",
+    } satisfies Parameters<typeof createDefaultModuleID>[0];
+
+    it("build: bare moduleBasePath emits rooted client refs (bidoof migration)", () => {
+      const id = createDefaultModuleID(bareOptions, buildProd, "production")(
+        CLIENT_ID,
+        CLIENT_SOURCE
+      );
+      expect(id).toMatch(/^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/);
+    });
+
+    it("dev: bare moduleBasePath roots client refs without hashing", () => {
+      const id = createDefaultModuleID(bareOptions, serveDev, "development")(
+        CLIENT_ID,
+        CLIENT_SOURCE
+      );
+      expect(id).toMatch(/^\/src\/components\/Widget\.client/);
+    });
+
+    it("non-client ids stay bare under moduleBasePath ''", () => {
+      const id = createDefaultModuleID(bareOptions, serveDev, "development")(
+        "src/routes/page.tsx"
+      );
+      expect(id.startsWith("/")).toBe(false);
+    });
+  });
 });
