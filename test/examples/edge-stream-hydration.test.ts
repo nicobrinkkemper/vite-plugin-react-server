@@ -66,14 +66,14 @@ async function setupFixture() {
   );
   // The canonical supplied client entry — assembles initial-payload
   // consumption (blob OR streamed, via createReactFetcher) + hydration.
-  // moduleBaseURL is "" (not "/"): the browser transport string-concatenates
-  // base + id, and "/" + "/routes/x.js" makes a "//routes/x.js" URL — same
-  // bytes served, DIFFERENT module identity, so shared chunks (React!) load
-  // twice and hooks crash. Tracked as the base+id join normalization bead.
+  // moduleBaseURL "/" is the join-contract regression proof: ids are rooted
+  // and the fetcher strips the base's trailing slash, so "/" + "/routes/x.js"
+  // must compose ONE slash — a "//routes/x.js" URL is a second module
+  // identity, two React copies, and a hooks crash.
   await writeFile(
     join(testDir, "src/client.tsx"),
     `import { startClient } from "vite-plugin-react-server/router/client";\n` +
-      `startClient({ moduleBaseURL: "" });\n`
+      `startClient({ moduleBaseURL: "/" });\n`
   );
   await writeFile(
     join(testDir, "index.html"),
