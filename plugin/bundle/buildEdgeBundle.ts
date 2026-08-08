@@ -10,6 +10,10 @@ import { resolveModuleFromManifest } from "../helpers/resolveModuleFromManifest.
 import { UNKNOWN_ROUTE_MARKER } from "../stream/unknownRoute.js";
 import { buildWebpackClientManifest } from "./clientManifest.js";
 import { buildConsumerBundle } from "./buildConsumerBundle.js";
+import { hasDirectiveStatement } from "react-server-loader/directives";
+import { parse as rslParse } from "react-server-loader";
+import { transformTsSource } from "../loader/transformTsSource.js";
+import { readdirSync, statSync } from "node:fs";
 
 /** Resolve a package subpath's `react-server` export target to an absolute path. */
 function reactServerExportTarget(
@@ -504,17 +508,105 @@ export async function buildEdgeBundle(opts: {
   const rootNs = nsFor(rootComp.abs);
 
   // Enumerate server-action modules from the server manifest (the sealed-gate
-  // allowlist): keys matching the action pattern, baked so the gate resolves
-  // them without a disk import (and thus no `react-server` condition at runtime).
+  // allowlist), baked so the gate resolves them without a disk import (and
+  // thus no `react-server` condition at runtime).
+  //
+  // The DIRECTIVE is the source of truth for membership: a module is gated
+  // when its SOURCE carries a top-of-file `"use server"` — exactly the set the
+  // build REGISTERED as server references. Keying membership off the
+  // `.server.` FILENAME convention alone diverged the gate from the flight
+  // layer: a directive-marked module with any other name was registered,
+  // serialized into payloads, then rejected at the trust boundary at runtime
+  // ("Unknown server reference"). The filename pattern survives only as a
+  // fallback for manifest keys whose source is no longer readable; a name
+  // never gates what the directive didn't, and a directive-less module's
+  // exports carry no reference tag so gating one adds nothing.
   const actionKeyRe = new RegExp(DEFAULT_CONFIG.EDGE.actionKeyPattern);
+  // Mirrors the TRANSFORMER's own gate: strip TS/JSX with the running
+  // Vite's transform (raw TS does not parse under rsl's JS-only grammar),
+  // then scan for a REAL directive statement — module prologue or any
+  // function body, quoted strings and comments rejected. Answering from the
+  // same scanner the transform used is what keeps gate membership equal to
+  // what the build registered.
+  const isServerDirectiveSource = async (
+    srcAbs: string
+  ): Promise<boolean | null> => {
+    if (!existsSync(srcAbs)) return null; // unknowable — caller falls back
+    try {
+      const source = readFileSync(srcAbs, "utf8");
+      if (!source.includes("use server")) return false; // cheap pre-filter
+      const lang = /\.[cm]?tsx$|\.jsx$/.test(srcAbs) ? "tsx" : "ts";
+      const { code } = await transformTsSource(source, srcAbs, lang);
+      return hasDirectiveStatement(
+        rslParse(code).ast as never,
+        "use server"
+      );
+    } catch {
+      return null;
+    }
+  };
   const actionEntries: { key: string; file: string; ns: string }[] = [];
+  const gatedKeys = new Set<string>();
   for (const [key, entry] of Object.entries(
     manifest as Record<string, { file?: string } | undefined>
   )) {
-    if (!entry?.file || !actionKeyRe.test(key)) continue;
+    if (!entry?.file) continue;
     const abs = join(serverDir, entry.file);
     if (!existsSync(abs)) continue;
+    const byDirective = await isServerDirectiveSource(join(projectRoot, key));
+    const isAction = byDirective ?? actionKeyRe.test(key);
+    if (!isAction) continue;
     actionEntries.push({ key, file: entry.file, ns: nsFor(abs) });
+    gatedKeys.add(key);
+  }
+
+  // A `"use server"` module the server build never reached CANNOT be gated —
+  // nothing registered it, so its actions fail at runtime with an opaque
+  // "Unknown server reference". Say so at build time, naming each module and
+  // the fix (reach it from server code: a page, props, layout, or another
+  // action module). Bounded walk, same spirit as the unwired-layouts scan.
+  {
+    const moduleBaseDir = join(projectRoot, userOptions.moduleBase || "src");
+    const SKIP_DIRS = new Set(["node_modules", "dist", ".git", ".vite"]);
+    const SOURCE_RE = /\.[cm]?[jt]sx?$/;
+    const candidates: string[] = [];
+    const walk = (dir: string, depth: number): void => {
+      if (depth > 8 || candidates.length > 2000) return;
+      let names: string[];
+      try {
+        names = readdirSync(dir);
+      } catch {
+        return;
+      }
+      for (const name of names) {
+        if (name.startsWith(".") || SKIP_DIRS.has(name)) continue;
+        const abs = join(dir, name);
+        let st;
+        try {
+          st = statSync(abs);
+        } catch {
+          continue;
+        }
+        if (st.isDirectory()) walk(abs, depth + 1);
+        else if (SOURCE_RE.test(name)) candidates.push(abs);
+      }
+    };
+    walk(moduleBaseDir, 0);
+    const ungated: string[] = [];
+    for (const abs of candidates) {
+      const rel = relative(projectRoot, abs).split(sep).join("/");
+      if (gatedKeys.has(rel)) continue;
+      if ((await isServerDirectiveSource(abs)) === true) ungated.push(rel);
+    }
+    if (ungated.length > 0) {
+      logger.warn(
+        `${tag} ${ungated.length} "use server" module(s) are NOT in the sealed ` +
+          `action gate because the server build never reached them: ` +
+          `${ungated.join(", ")}. Import each from server code (a page, ` +
+          `props, layout, or another action module) — until then its actions ` +
+          `fail at runtime with 'Unknown server reference'.`
+      );
+    }
   }
   const actionDictLines = actionEntries.map(
     (a) => `  ${JSON.stringify(a.key)}: ${a.ns},`
