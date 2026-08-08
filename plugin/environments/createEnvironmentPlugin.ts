@@ -13,6 +13,7 @@ import { resolveUserConfig } from "../config/resolveUserConfig.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { handleError } from "../error/handleError.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
+import { wrapModuleID } from "../config/moduleIdContract.js";
 import { createLogger, version as viteVersion } from "vite";
 import { join } from "node:path";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
@@ -107,6 +108,10 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           configEnv,
           userOptions.loader?.mode
         );
+      } else {
+        // User-supplied moduleID still goes through the join contract so
+        // hosted client ids come out rooted regardless of what the fn returns.
+        userOptions.moduleID = wrapModuleID(userOptions.moduleID);
       }
       // Always override the moduleID function to ensure it has the forTransformer logic
       if (!userOptions.loader) {

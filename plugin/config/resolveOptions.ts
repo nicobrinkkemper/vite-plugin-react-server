@@ -37,6 +37,7 @@ import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./sta
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { createRollupLikeHash } from "./createRollupLikeHash.js";
 import { DEFAULT_LAYOUT } from "../router/scanRoutes.js";
+import { wrapModuleID } from "./moduleIdContract.js";
 
 // Capped scan for a `route.tsx` layout file under the module tree, used only by
 // the unwired-layouts warning — a miss must stay cheap, so depth and entry
@@ -960,7 +961,13 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         isClientComponentByCode,
         isClientComponentByName,
         parse: options?.loader?.parse ?? DEFAULT_LOADER_CONFIG.parse,
-        moduleID: options?.loader?.moduleID ?? options?.moduleID,
+        // Canonicalize client-reference ids at the resolved boundary so every
+        // moduleID source (user fn OR later createDefaultModuleID) feeds the
+        // same rooted join contract. See moduleIdContract.ts.
+        moduleID: (() => {
+          const fn = options?.loader?.moduleID ?? options?.moduleID;
+          return typeof fn === "function" ? wrapModuleID(fn) : fn;
+        })(),
       } as Required<LoaderConfig>)
     : undefined;
 
@@ -1021,7 +1028,10 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       Root: options.Root ?? DEFAULT_CONFIG.ROOT,
       components: options.components,
       normalizer: normalizer,
-      moduleID: options.moduleID, // if not provided, will be created when config hook is called
+      moduleID:
+        typeof options.moduleID === "function"
+          ? wrapModuleID(options.moduleID)
+          : options.moduleID, // if not provided, will be created when config hook is called
       pageExportName:
         options.pageExportName ?? (DEFAULT_CONFIG.PAGE_EXPORT_NAME as PageName),
       propsExportName:

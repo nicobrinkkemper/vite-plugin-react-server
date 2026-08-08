@@ -8,6 +8,7 @@ import type { ConfigEnv } from "vite";
 import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import { createRollupLikeHash } from "./createRollupLikeHash.js";
+import { wrapModuleID } from "./moduleIdContract.js";
 
 export type ModuleIDKey =
   | "modulePattern"
@@ -55,11 +56,10 @@ export const createDefaultModuleID = (
   const virtualPattern = autoDiscover?.virtualPattern ?? DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern;
   
   // A module is a client component (and therefore must get a hosted,
-  // `moduleBasePath`-prefixed moduleID) when the unified `detectClientModule`
-  // helper says so — filename `.client.[cm]?[jt]sx?$` OR a top-of-file
-  // `"use client"` directive. The `isClientByDirective` override fast-paths
-  // the build's transformer answer (computed with Rollup's JSX-aware
-  // `this.parse`), so we don't re-parse here.
+  // `moduleBasePath`-prefixed moduleID) when `detectClientModule` says so —
+  // directive-ONLY by rsl design (the filename is deliberately not a signal).
+  // The `isClientByDirective` override fast-paths the build's transformer
+  // answer (computed with a JSX-aware parse), so we don't re-parse here.
   //
   // This is what lets directive-only client modules (no `.client.` suffix,
   // e.g. node_modules libs that ship `"use client"`) be hosted in the static
@@ -156,7 +156,10 @@ export const createDefaultModuleID = (
   const serverDist = isBuild ? join(build?.outDir || "dist", build?.server || "server") : "";
   const buildDirs = isBuild ? [serverDist, ssrClientDist, staticClientDist] : [];
 
-  return (
+  // wrapModuleID roots hosted client-reference ids so the browser join
+  // `moduleBaseURL + id` stays coherent under every moduleBasePath shape
+  // (including the historical bare-id `""` configs). See moduleIdContract.ts.
+  return wrapModuleID((
     id: string,
     sourceContent?: string,
     isClientByDirective?: boolean
@@ -269,12 +272,8 @@ export const createDefaultModuleID = (
     // the client-reference id a phantom .js the dev module graph never has —
     // the import resolves to "<name>.client.js.tsx", which 404s on the second
     // HMR fetch and kills Fast Refresh after the first edit (bd-572). Keep the
-    // real .tsx id in dev.
-    const isClientComponent = isClientComponentId(
-      id,
-      sourceContent,
-      isClientByDirective
-    );
+    // real .tsx id in dev. Client-ness for hashing is re-derived inside `hash`
+    // (and again by the outer wrapModuleID for the join contract).
     if (isBuild) {
       id = replaceExtension(id, {
         build: { extensionMap: build.extensionMap },
@@ -291,19 +290,15 @@ export const createDefaultModuleID = (
       id = hash(id, false, sourceContent, isClientByDirective);
     }
     
-    // For client components, ensure no leading slash to allow proper relative resolution
-    // (isClientComponent already defined in Step 6)
-    if (isClientComponent && moduleBasePath === '') {
-      return id; // No leading slash for client components
-    }
-    
-    // Don't add leading slash for relative paths - this causes module resolution issues
+    // Bare `moduleBasePath: ""` historically returned unprefixed ids; the
+    // outer wrapModuleID roots client ids so the browser join stays coherent.
+    // Non-client ids stay verbatim (they never travel through that join).
     if (moduleBasePath === '') {
-      return id; // Return as-is without leading slash
+      return id;
     }
-    
+
     // id already has moduleBasePath from Step 5 — return as-is
     return id;
-  };
+  });
 };
 

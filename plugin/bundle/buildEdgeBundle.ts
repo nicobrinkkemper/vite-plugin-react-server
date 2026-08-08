@@ -534,7 +534,7 @@ export async function buildEdgeBundle(opts: {
   // esm takes the module base path (open import), webpack takes the baked
   // client manifest (closed map). Both are top-level consts in the entry.
   const flightArg =
-    transport === "webpack" ? clientManifestExport : "MODULE_BASE_PATH";
+    transport === "webpack" ? clientManifestExport : "FLIGHT_HOSTED_ROOT";
 
   const entryPath = join(serverDir, `.vprs-${entryFileName}`);
   const entrySource = `import * as React from "react";
@@ -553,6 +553,12 @@ const LAYOUT_EXPORT = ${JSON.stringify(layoutExport)};
 const MODULE_BASE = ${JSON.stringify(moduleBase)};
 const MODULE_BASE_PATH = ${JSON.stringify(moduleBasePath)};
 const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
+// The esm renderer serializes references as $$id minus this prefix; ids are
+// canonically rooted and the browser join strips the base's trailing slash,
+// so the prefix must never consume the id's leading slash (same rule as
+// resolveFlightRenderer). Baked separately from MODULE_BASE_PATH, which the
+// document/decode side still receives verbatim.
+const FLIGHT_HOSTED_ROOT = ${JSON.stringify(moduleBasePath.replace(/\/+$/, ""))};
 const ROUTE_PATTERNS = ${JSON.stringify(userOptions.routePatterns ?? [])};
 // Built stylesheets, baked from the static manifest, so the document producer
 // renders styled HTML on the edge with no per-app CSS wiring. Consumers can
