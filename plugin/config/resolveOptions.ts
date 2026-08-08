@@ -853,8 +853,14 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     renderMode: options.build?.renderMode ?? "parallel",
     batchSize: options.build?.batchSize ?? 8,
     // Mode value: false = no inlining, "blob" = buffered single-script inline
-    // (`true` is the boolean alias for "blob").
-    inlineFlight: options.build?.inlineFlight ? ("blob" as const) : false,
+    // (`true` is the boolean alias for "blob"), "stream" = per-request
+    // interleaved delivery (no static form — see maybeInlineFlight's skip).
+    inlineFlight:
+      options.build?.inlineFlight === "stream"
+        ? ("stream" as const)
+        : options.build?.inlineFlight
+          ? ("blob" as const)
+          : false,
     edge: (() => {
       // `build.edge`: boolean | EdgeBuildConfig, default ON. `false` disables;
       // `true`/omitted enables with defaults; an object enables + overrides.
