@@ -154,6 +154,9 @@ export type RscRenderOpt = WorkerMessage & {
     HtmlComponent?: any;
     // Pre-resolved props from main thread (for server actions support in dev:ssr)
     resolvedPageProps?: Record<string, unknown>;
+    // Document-only render (dev-shell head-merge): Fragment page, no
+    // page/props/loader work; the Html wrapper stays real.
+    shell?: boolean;
   };
 };
 

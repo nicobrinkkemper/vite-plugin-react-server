@@ -3,6 +3,8 @@ import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags } from "./devPluginShared.js";
+import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
+import { mergeDevShellHead } from "./devShellHead.js";
 import type { ConfigEnv } from "vite";
 
 
@@ -41,11 +43,19 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       configEnv = viteConfigEnv;
 
     },
-    // transport:"webpack": stamp the dev document with the flight-transport
-    // hint so the browser picks the webpack flight client (dev/prod parity
-    // with the baked pair's documents). No-op on esm.
-    transformIndexHtml() {
-      return devFlightTransportTags(userOptions);
+    // Two dev-document concerns ride this hook:
+    // - transport:"webpack": stamp the flight-transport hint (no-op on esm).
+    // - dev-shell head-merge: inject the document component's head so the dev
+    //   shell matches prod (lazy render + cache via the provider; on any
+    //   failure the provider resolves [] and the html is served unchanged).
+    async transformIndexHtml(html: string, ctx: { server?: import("vite").ViteDevServer }) {
+      const transportTags = devFlightTransportTags(userOptions) ?? [];
+      const provider = getDevShellHeadProvider(ctx?.server);
+      if (!provider) {
+        return transportTags.length ? transportTags : undefined;
+      }
+      const merged = mergeDevShellHead(html, await provider.getTags());
+      return { html: merged.html, tags: [...transportTags, ...merged.tags] };
     },
     configureServer(server) {      
       // Log that plugin is being configured
@@ -131,6 +141,12 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
 
       if (shouldInvalidateWorker && hmrHandler) {
         isProcessingHmr = true;
+
+        // The document head may have changed with any server-tree edit (the
+        // Html component is a server file); drop the dev-shell cache and let
+        // the NEXT html request re-render it lazily. Superset of "the Html
+        // module invalidated", chosen over module-graph tracking for stage 1.
+        getDevShellHeadProvider(server)?.invalidate();
 
         try {
           if (userOptions.verbose) {
