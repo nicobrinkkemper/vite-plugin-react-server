@@ -3,6 +3,7 @@ import type {
   EdgeFetchHandler,
 } from "./createEdgeHandler.types.js";
 import { injectInlineFlightIntoHtml } from "../utils/inlineFlight.js";
+import { interleaveFlightIntoHtmlStream } from "./interleaveFlightIntoHtml.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 import { isUnknownRoute } from "./unknownRoute.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
@@ -70,6 +71,7 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
     flightTransport = "esm",
     clientManifest,
     renderFlightToHtml,
+    inlineFlight = "blob",
   } = options;
 
   if (!render && !renderDocument) {
@@ -148,6 +150,19 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
         logger,
         verbose,
       });
+      // Streamed delivery: no buffering, no splice — HTML flushes as it
+      // renders and the headless flight rides along as push-script chunks
+      // (the client's takeStreamedFlight reassembles them).
+      if (inlineFlight === "stream") {
+        return new Response(
+          interleaveFlightIntoHtmlStream({
+            htmlStream,
+            flightStream: flights.headless,
+            nonce,
+          }),
+          { headers: htmlHeaders(url, request) }
+        );
+      }
       const [htmlString, headlessBytes] = await Promise.all([
         new Response(htmlStream).text(),
         collectBytes(flights.headless),

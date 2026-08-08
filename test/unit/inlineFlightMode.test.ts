@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { resolveOptions } from "../../plugin/config/resolveOptions.js";
 
 // forceResolve bypasses the per-env stash so each case resolves fresh.
-function resolveInlineFlight(inlineFlight: boolean | "blob" | undefined) {
+function resolveInlineFlight(inlineFlight: boolean | "blob" | "stream" | undefined) {
   const result = resolveOptions(
     inlineFlight === undefined ? {} : { build: { inlineFlight } },
     true
@@ -27,5 +27,11 @@ describe("build.inlineFlight resolves to a mode", () => {
 
   it("'blob' passes through", () => {
     expect(resolveInlineFlight("blob")).toBe("blob");
+  });
+});
+
+describe("build.inlineFlight 'stream' mode", () => {
+  it("'stream' passes through as the resolved mode", () => {
+    expect(resolveInlineFlight("stream")).toBe("stream");
   });
 });
