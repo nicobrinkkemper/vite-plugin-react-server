@@ -208,5 +208,42 @@ describe.skipIf(!createEdgeHandler || !browserAvailable)(
         await browser.close();
       }
     });
+
+    // The contract layer under the browser proof: the SERIALIZED reference-id
+    // shape. Under a rooted config every client reference in a payload must be
+    // a rooted single-slash path — the esm renderer serializes $$id minus the
+    // hosted-root prefix, and a trailing-slash prefix once consumed the id's
+    // leading slash HERE while every in-repo suite stayed green (the sibling
+    // gate caught it). Asserting the wire shape directly makes a future
+    // regression name the defective layer instead of surfacing as a distant
+    // hydration crash.
+    const expectRootedRefs = (payload: string, source: string) => {
+      const refs = [...payload.matchAll(/"(\/{0,2}[^"]*Counter\.client[^"]*)"/g)]
+        .map((m) => m[1])
+        .filter((s) => !s.includes("src/routes/")); // debug rows carry fs paths
+      expect(refs.length, `${source}: no Counter reference found`).toBeGreaterThan(0);
+      for (const ref of refs) {
+        expect(ref, `${source}: reference not rooted`).toMatch(/^\//);
+        expect(ref, `${source}: double-slash reference`).not.toMatch(/^\/\//);
+      }
+    };
+
+    it("serializes rooted single-slash reference ids (static payload + live response)", async () => {
+      // (a) The frozen/refetched payload on disk.
+      const staticPayload = readFileSync(
+        join(testDir, "dist/static/index.rsc"),
+        "utf8"
+      );
+      expectRootedRefs(staticPayload, "dist/static/index.rsc");
+
+      // (b) The per-request render through the baked pair — the serialization
+      // path action responses share, and the seam the static payload cannot
+      // cover.
+      const response = await fetch(`http://localhost:${PORT}/index.rsc`, {
+        headers: { accept: "text/x-component" },
+      });
+      expect(response.status).toBe(200);
+      expectRootedRefs(await response.text(), "live /index.rsc response");
+    });
   }
 );
