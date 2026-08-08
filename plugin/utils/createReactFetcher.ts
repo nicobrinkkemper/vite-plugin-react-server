@@ -1,5 +1,6 @@
 import type React from "react";
 import { createCallServer } from "./createCallServer.js";
+import { loadBrowserFlightClient } from "./flightClient.browser.js";
 import { env } from "#env";
 import { createPageURL } from "./urls.js";
 import { takeStreamedFlight } from "./streamedFlight.js";
@@ -149,18 +150,10 @@ export function createReactFetcher({
   };
 
   // Prefer the inlined initial-route payload (zero network round-trip) when
-  // present; otherwise fetch index.rsc. Either way the browser flight client is
-  // imported lazily so this module stays import-safe under the `react-server`
-  // condition (a static import of client.browser would drag react-dom/client
-  // into the server graph).
-  //
-  // WHICH flight client follows how the server encoded the payload. A
-  // webpack-transport bundle's document injects `self.__vprsFlightTransport`
-  // (see createEdgeRenderHook) and its payload carries baked-manifest ids —
-  // consumed through the webpack client over a chunk loader that `import()`s
-  // the served chunk URLs (the ids ARE the URLs; the map is closed, nothing is
-  // composed from payload input). Default: the esm client, unchanged.
-  type BrowserFlightClient = {
+  // present; otherwise fetch index.rsc. The client itself comes from the
+  // shared transport chooser (flightClient.browser.ts) — lazily, so this
+  // module stays import-safe under the `react-server` condition.
+  const flightClient = loadBrowserFlightClient as () => PromiseLike<{
     createFromReadableStream: (
       stream: ReadableStream<Uint8Array>,
       opts: typeof decodeOptions
@@ -169,19 +162,7 @@ export function createReactFetcher({
       response: Promise<Response>,
       opts: typeof decodeOptions
     ) => PromiseLike<React.ReactNode>;
-  };
-  const flightClient = (): PromiseLike<BrowserFlightClient> =>
-    (globalThis as { __vprsFlightTransport?: string }).__vprsFlightTransport ===
-    "webpack"
-      ? (import("react-server-loader/webpack/runtime").then(
-          ({ createWebpackClient }) =>
-            createWebpackClient({
-              load: (chunk: string) => import(/* @vite-ignore */ chunk),
-            })
-        ) as PromiseLike<BrowserFlightClient>)
-      : (import(
-          "react-server-dom-esm/client.browser"
-        ) as unknown as PromiseLike<BrowserFlightClient>);
+  }>;
 
   const fromInline = (bytes: Uint8Array): PromiseLike<React.ReactNode> =>
     flightClient().then(({ createFromReadableStream }) =>
