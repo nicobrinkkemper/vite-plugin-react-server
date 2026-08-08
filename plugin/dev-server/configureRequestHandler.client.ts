@@ -15,6 +15,7 @@ import { isReactServerCondition } from "../config/getCondition.js";
 import { setupGlobalErrorHandler, cleanupGlobalErrorHandler } from "../error/setupGlobalErrorHandler.js";
 import { pipeToResponse } from "../helpers/pipeToResponse.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
+import { createDevShellHeadProvider } from "./devShellHeadProvider.js";
 
 /**
  * Configures the worker request handler.
@@ -434,4 +435,101 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
     // attach handler to the server
     server.middlewares.use(handler);
     // port check, should be handled by strictPort
+
+    // Dev-shell head-merge: one full-document (Fragment-page) flight render
+    // through the SAME worker the route renders use; the head is read from
+    // the flight rows (devShellHeadFlight), so no client React and no html
+    // worker run in dev. The provider owns caching + the warn-once fallback;
+    // the transformIndexHtml hooks consume it via the server registry.
+    createDevShellHeadProvider(
+      server,
+      async () => {
+        const shellHandlerOptions = { ...handlerOptions, url: "/" };
+        const serialized = serializedOptions(
+          shellHandlerOptions,
+          autoDiscoveredFiles
+        );
+        if (!currentWorker) {
+          currentWorker = await restartWorker({
+            server,
+            autoDiscoveredFiles,
+            userOptions: serialized,
+            configEnv: configEnv,
+            hmrChannel,
+          });
+        }
+        if (!currentWorker) {
+          throw new Error("worker unavailable for the dev-shell render");
+        }
+        const routeFiles = await getRouteFiles(
+          "/",
+          autoDiscoveredFiles,
+          shellHandlerOptions,
+          logger
+        );
+        // htmlPath must never be "" here — "" means headless. Undefined falls
+        // back to the built-in document wrapper, same as the static build.
+        const htmlPath =
+          routeFiles.type === "error" ? undefined : routeFiles.html || undefined;
+        const stream = handleRscStream({
+          options: {
+            ...serialized,
+            worker: currentWorker,
+            // isHeadless keys off the id containing "headless" — this id must
+            // not, so the render keeps the real Html wrapper.
+            id: "__vprs-dev-shell__",
+            type: "INIT",
+            logger,
+            route: "/",
+            url: "/",
+            shell: true,
+            pagePath: "",
+            propsPath: undefined,
+            layouts: [],
+            serializedRequest: {
+              url: "http://localhost/",
+              method: "GET",
+              headers: {},
+            },
+            resolvedPageProps: undefined,
+            // The app Root is skipped: the shell wants the Html component's
+            // head only, and a Root may reach for request/props context that
+            // a Fragment-page render does not have.
+            rootPath: undefined,
+            htmlPath,
+            HtmlComponent: undefined,
+            RootComponent: undefined,
+            projectRoot: serialized.projectRoot || server.config.root,
+            build: {
+              ...(serialized.build || {}),
+              pages: [],
+            },
+            manifest: {},
+            cssFiles: new Map(),
+            globalCss: new Map(),
+            serverPipeableStreamOptions: serialized.serverPipeableStreamOptions,
+            clientPipeableStreamOptions: serialized.clientPipeableStreamOptions,
+          } as any,
+          handlers: {
+            onMetrics: () => {},
+            onHmrAccept: () => {},
+            onHmrUpdate: () => {},
+            onError: () => {},
+            onShellError: () => {},
+          },
+          ...shellHandlerOptions,
+        } as any);
+        const reader = stream.getReader();
+        const decoder = new TextDecoder();
+        let payload = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          payload += decoder.decode(value, { stream: true });
+        }
+        payload += decoder.decode();
+        return payload;
+      },
+      logger
+    );
   };
