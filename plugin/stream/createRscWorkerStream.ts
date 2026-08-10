@@ -84,8 +84,9 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
   // (it queues behind every chunk on the same port). RSC_END arrives on the
   // control port, and cross-port delivery order is NOT guaranteed — ending
   // from RSC_END can truncate chunks still queued on the data port (notably
-  // the in-band `$E` frame after a render failure). RSC_END only ends the
-  // stream as a delayed fallback for a worker that died before posting `null`.
+  // the in-band `$E` frame after a render failure). RSC_END never ends the
+  // stream; the only other terminal condition is worker death, which errors a
+  // stream whose `null` never arrived (see the exit handler below).
   let dataEndedReceived = false;
 
   // Data port - ONLY for raw RSC stream data
@@ -126,14 +127,7 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
         if (verbose) {
           logger?.info(`[createRscWorkerStream] RSC stream ended by control message`);
         }
-        // See the dataEndedReceived note above: only a fallback end.
-        if (!dataEndedReceived) {
-          setTimeout(() => {
-            if (!dataEndedReceived) {
-              rscStream.end();
-            }
-          }, 100).unref?.();
-        }
+        // See the dataEndedReceived note above: RSC_END never ends the stream.
         break;
       case 'ERROR':
         if (verbose) {
@@ -162,6 +156,25 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
         }
     }
   };
+
+  // Worker death is the only terminal condition besides the data port's
+  // `null`: a dead worker can never complete the stream, and ending it
+  // cleanly would serve a truncated payload as a success. Error it so the
+  // failure is visible to the consumer. The listener is removed when the
+  // stream closes — the worker outlives individual requests.
+  const workerExitHandler = (code: number) => {
+    if (!dataEndedReceived) {
+      rscStream.destroy(
+        new Error(
+          `[createRscWorkerStream] RSC worker exited (code ${code}) before ending the stream for ${route}`
+        )
+      );
+    }
+  };
+  (worker as any).once?.("exit", workerExitHandler);
+  rscStream.on("close", () => {
+    (worker as any).removeListener?.("exit", workerExitHandler);
+  });
 
   // Send the INIT message to the worker with both MessagePorts
   worker.postMessage({
