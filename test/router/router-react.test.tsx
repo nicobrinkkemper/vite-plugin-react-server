@@ -52,4 +52,43 @@ describe("RouterProvider + hooks", () => {
       root.unmount();
     });
   });
+
+  it("useNavigation reports the pending window between navigate and markShown", async () => {
+    const { useNavigation } = await import("../../plugin/router/router-react.js");
+    function NavProbe() {
+      const nav = useNavigation();
+      return (
+        <span>
+          {String(nav.pending)}|{nav.to ?? "none"}
+        </span>
+      );
+    }
+    const router = createRouter({ fetchFlight: async (u: string) => u });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RouterProvider router={router}>
+          <NavProbe />
+        </RouterProvider>,
+      );
+    });
+    expect(container.textContent).toBe("false|none");
+
+    await act(async () => {
+      router.navigate("/next");
+    });
+    expect(container.textContent).toBe("true|/next");
+
+    await act(async () => {
+      router.markShown("/next");
+    });
+    expect(container.textContent).toBe("false|none");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });

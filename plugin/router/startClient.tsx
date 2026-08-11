@@ -56,17 +56,35 @@ function RouteView({
     if (rootEl) applyRouteHead(rootEl);
   });
 
+  // After every commit, tell the router which url's content is actually on
+  // screen. The gap between this and the navigated url is the pending window
+  // `useNavigation()` / Link's data-pending report; the swap below closes it.
+  React.useEffect(() => {
+    router.markShown(shown.current);
+  });
+
   React.useEffect(() => {
     if (location === shown.current) return;
     let cancelled = false;
     const target = location;
-    Promise.resolve(router.flight(target)).then((next) => {
-      // Ignore a stale resolve (a newer navigation won the race).
-      if (!cancelled && router.getState().url === target) {
-        shown.current = target;
-        setNode(next);
-      }
-    });
+    Promise.resolve(router.flight(target)).then(
+      (next) => {
+        // Ignore a stale resolve (a newer navigation won the race).
+        if (!cancelled && router.getState().url === target) {
+          shown.current = target;
+          setNode(next);
+        }
+      },
+      () => {
+        // The flight failed — network error, or a host that has no such route
+        // answered HTML (a static-only deploy). Fall back to a full document
+        // load so the server's real response shows instead of the old view
+        // staying pending forever.
+        if (!cancelled && router.getState().url === target) {
+          window.location.assign(target);
+        }
+      },
+    );
     return () => {
       cancelled = true;
     };

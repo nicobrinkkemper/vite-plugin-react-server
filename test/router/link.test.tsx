@@ -106,4 +106,35 @@ describe("Link", () => {
     });
     expect(ev.defaultPrevented).toBe(false);
   });
+
+  it("announces data-pending/aria-busy only on the link whose target is loading", async () => {
+    const { router, ui } = withRouter(
+      <>
+        <Link to="/slow/">slow</Link>
+        <Link to="/other">other</Link>
+      </>,
+    );
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(ui);
+    });
+    const [slow, other] = Array.from(container.querySelectorAll("a"));
+
+    await act(async () => {
+      // navigate without markShown: the pending window is open
+      router.navigate("/slow");
+    });
+    // trailing-slash difference between `to` and the navigated url still matches
+    expect(slow?.getAttribute("data-pending")).toBe("true");
+    expect(slow?.getAttribute("aria-busy")).toBe("true");
+    expect(other?.hasAttribute("data-pending")).toBe(false);
+
+    await act(async () => {
+      router.markShown("/slow");
+    });
+    expect(slow?.hasAttribute("data-pending")).toBe(false);
+    expect(slow?.hasAttribute("aria-busy")).toBe(false);
+  });
 });

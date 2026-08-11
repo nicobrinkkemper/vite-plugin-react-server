@@ -16,7 +16,16 @@ type RouterContextValue = {
   router: Router<unknown>;
   location: string;
   params: Record<string, string>;
+  navigation: NavigationState;
 };
+
+/**
+ * The navigation-pending window: the router swaps resolve-then-set, so between
+ * a navigation and its content committing, the OLD view is still on screen.
+ * While that window is open `pending` is true and `to` names the target;
+ * otherwise `to` is null.
+ */
+export type NavigationState = { pending: boolean; to: string | null };
 
 const RouterContext = React.createContext<RouterContextValue | null>(null);
 
@@ -35,13 +44,15 @@ export function RouterProvider<T>({
     router.getState,
     router.getState,
   );
+  const pending = state.url !== state.shownUrl;
   const value = React.useMemo<RouterContextValue>(
     () => ({
       router: router as Router<unknown>,
       location: state.url,
       params: matchRoutes(patterns, state.url)?.params ?? {},
+      navigation: { pending, to: pending ? state.url : null },
     }),
-    [router, state.url, patterns],
+    [router, state.url, pending, patterns],
   );
   return (
     <RouterContext.Provider value={value}>{children}</RouterContext.Provider>
@@ -71,4 +82,12 @@ export function useOptionalRouter(): Router<unknown> | null {
 export const useLocation = () => useRouterContext().location;
 export function useParams<P extends string = string>(): RouteParams<P> {
   return useRouterContext().params as RouteParams<P>;
+}
+export const useNavigation = (): NavigationState =>
+  useRouterContext().navigation;
+
+/** Non-throwing useNavigation, for components (Link) that also render outside
+ *  a provider. */
+export function useOptionalNavigation(): NavigationState | null {
+  return React.useContext(RouterContext)?.navigation ?? null;
 }

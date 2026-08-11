@@ -88,4 +88,33 @@ describe("createRouter", () => {
     await r.flight("/static"); // still reused (no ttl)
     expect(fetchFlight).toHaveBeenCalledTimes(3);
   });
+
+  it("tracks the pending window: navigate opens it, markShown closes it", () => {
+    const r = createRouter({ fetchFlight: async (u) => u });
+    expect(r.getState().shownUrl).toBe(r.getState().url);
+
+    let notified = 0;
+    r.subscribe(() => notified++);
+
+    r.navigate("/next");
+    expect(r.getState()).toEqual({ url: "/next", shownUrl: "/" });
+    expect(notified).toBe(1);
+
+    r.markShown("/next");
+    expect(r.getState()).toEqual({ url: "/next", shownUrl: "/next" });
+    expect(notified).toBe(2);
+
+    // Marking the already-shown url again is a no-op (no extra notify).
+    r.markShown("/next");
+    expect(notified).toBe(2);
+  });
+
+  it("keeps the pending window open across a superseding navigation", () => {
+    const r = createRouter({ fetchFlight: async (u) => u });
+    r.navigate("/a");
+    r.navigate("/b");
+    expect(r.getState()).toEqual({ url: "/b", shownUrl: "/" });
+    r.markShown("/b");
+    expect(r.getState().shownUrl).toBe("/b");
+  });
 });
