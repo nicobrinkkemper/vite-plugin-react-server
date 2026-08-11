@@ -72,8 +72,16 @@ export class MessagePortReadable extends Readable {
     this.closeHandler = () => {
       this.closed = true;
       if (!this.ended) {
+        // The port closed before the data null arrived: a truncation (dead
+        // worker, torn-down channel), never a legitimate end. Ending cleanly
+        // here lets a consumer (e.g. the SSG writer) treat a partial payload
+        // as build success — error loudly instead.
         this.ended = true;
-        this.push(null);
+        this.destroy(
+          new Error(
+            "MessagePortReadable: port closed before end-of-stream (null) — stream truncated"
+          )
+        );
       }
     };
 
