@@ -105,7 +105,10 @@ React hoists it to first-in-head with charset precedence, so the snapshot is sel
 
 - File-level: must be first line
 - Function-level: must be first statement in function body
-- Server actions only work with a Node.js server, not static hosting
+- Server actions need a request handler — any Node server, or the baked edge
+  bundle's sealed gate (`handleRouteAction`, a Web-standard
+  `(Request) => Response`) on node-free runtimes. A purely static host has no
+  handler to execute them.
 
 ## Sourcemap Warning (Transformer Plugin)
 

@@ -103,7 +103,7 @@ export const config = {
 | `allowedDirectives` | `string[]` | List of allowed directive names | `["use server", "use client"]` |
 | `mode` | `"development" \| "production" \| "test"` | Loader mode | `"development"` |
 | `isServerFunctionCode` | `(code: string, moduleId?: string) => boolean` | Custom server function detection | - |
-| `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client-module detection (source + filename) | `detectClientModule` (filename `.client.*` or top-of-file `"use client"`) |
+| `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client-module detection (source + filename) | `detectClientModule` (top-of-file `"use client"` directive; the `.client.*` filename convention carries no meaning to detection) |
 | `isClientComponentByCode` | `(code: string) => boolean` | Custom client-module detection (source only) | `detectClientModule` |
 | `isClientComponentByName` | `(moduleId: string) => boolean` | Opt-in escape hatch for name-based client detection. The **default never classifies by name** — only a `"use client"` directive makes a client module. Supply your own predicate if you really want the filename to decide. | always `false` |
 | `getDirectiveType` | `(directive: string, moduleId?: string) => "client" \| "server" \| undefined` | Custom directive type detection | - |
