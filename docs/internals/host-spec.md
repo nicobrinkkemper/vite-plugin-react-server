@@ -75,6 +75,9 @@ dist/server/host-manifest.json
   "inlineThreshold": 10000,
   "bootstrapModules": ["/index-abc123.js"],
   "notFoundPage": "404/index.html",
+  "errorPage": "500/index.html",
+  "etags": { "index.html": "W/\"a1b2c3\"", "…": "…" },
+  "precompressed": ["br", "gzip"],
   "renderBundle": "../server-edge/render.js"
 }
 ```
@@ -93,16 +96,60 @@ per-request document and its prerendered sibling agree by construction.
 
 For `GET`/`HEAD` on `pathname`:
 
-1. Normalize (`.rsc` suffix detection, base strip, trailing slash).
+1. Normalize: base strip, `.rsc` suffix detection, trailing-slash
+   canonicalization (`/pokedex` → 308 → `/pokedex/`, matching what the
+   prerender emitted — one URL per page, not two).
 2. `pathname` in `prerendered` → serve the static file (delegate to the
    platform's static layer when `statics: "platform"`, below).
 3. Else match `routes`; a `dynamic` match → per-request render through the
    render bundle (full document, or headless flight for `.rsc`/Accept), with
-   the pattern's CSS. A loader `notFound()`/unknown name → the prerendered
-   404 page with status 404 — never a bare-text 404.
-4. No match → prerendered 404 page, status 404.
+   the pattern's CSS, under the request's abort signal and a render
+   deadline.
+4. Outcomes are kept distinct — this is a server, not a router with one
+   apology page:
+   - loader `notFound()` / no match → the prerendered 404 page, status 404;
+   - loader `redirect()` → the 3xx, passed through;
+   - render **failure** (thrown error, upstream fetch dead, deadline hit) →
+     status **500** with the error page, after `onError` — never disguised
+     as a 404, never a clean 200. When a prerendered copy of the same URL
+     exists, `degrade: "stale"` may serve it (marked with a response header)
+     instead of the error page — the old demo's `/todos` fallback, made an
+     explicit knob instead of an accident.
 
-`POST` with the action header → the baked sealed gate. Everything else → 405.
+`POST` with the action header → the baked sealed gate (its own 404/500
+separation follows the same rule). Everything else → 405 with `Allow`.
+
+## Prod-grade HTTP
+
+The reason to bless one host is that nobody hand-writes this layer — no
+consumer `start.tsx` ever grew conditional requests. All of it derives from
+the manifest at startup; none of it is computed per-request from disk:
+
+- **Conditional requests**: every static file gets an `ETag` from the build's
+  content hashes (recorded in the host manifest — no runtime hashing);
+  `If-None-Match` answers 304. Dynamic renders are uncacheable and say so.
+- **Cache profiles**: content-hashed assets → `immutable, max-age=1y`;
+  prerendered `index.html`/`index.rsc` → `no-cache` (revalidate, serve 304);
+  dynamic documents and flight → `no-store`. The `.rsc`/document split on
+  one URL sets `Vary: Accept`, so a shared cache never serves flight bytes
+  to a browser.
+- **Compression**: the build emits precompressed `.br`/`.gz` siblings for
+  compressible statics (build knob, default on); the host negotiates via
+  `Accept-Encoding` and never compresses at request time. Dynamic streams
+  pass through uncompressed by default (streaming first; platform
+  compression where available).
+- **Correct metadata everywhere**: `text/html; charset=utf-8` and friends
+  from one MIME table (the charset half of a real hydration bug this month),
+  `Content-Length` where known, honest `HEAD`, `X-Content-Type-Options:
+  nosniff`. Anything more opinionated (CSP, HSTS) is app policy — wrap the
+  handler.
+- **Timeouts and cancellation**: the request's `AbortSignal` reaches the
+  loader (already the loader contract); a `renderDeadlineMs` (default 30s)
+  turns a hung upstream into a 500, not a hung connection.
+- **Error page**: the manifest names it. If the app defines a `/500` route
+  it is prerendered and used; otherwise the build emits a minimal styled
+  fallback. Same rule as the 404: a miss or failure never produces a
+  bare-text body.
 
 ## One host, three runners
 
@@ -127,8 +174,10 @@ createHost({
   statics?: "serve" | "platform",   // default per runner (table above)
   onNotFound?: (url, request) => Response | null,  // null → prerendered 404
   onError?: (error, url) => void,   // default: console.error (never swallow)
-  cache?: (url) => HeadersInit,     // default: no-cache for dynamic/flight,
-                                    // immutable for hashed assets
+  degrade?: "error" | "stale",      // render failure: 500 page (default) or
+                                    // stale prerendered copy when one exists
+  renderDeadlineMs?: number,        // default 30_000 → 500, not a hung socket
+  cache?: (url) => HeadersInit,     // override the cache-profile defaults
   rewrite?: (url) => string | null, // escape hatch before matching
 })
 ```
@@ -189,7 +238,10 @@ knobs that remain.
    an edge function is paying compute to imitate a CDN; the platform serves
    statics and the handler answers only what needs compute. `"serve"` stays
    the Node default so `npm run demo` works with zero platform assumptions.
-3. **The prerendered 404 is the default not-found for every miss** — unknown
-   route, loader `notFound()`, failed dynamic render. Bare-text 404s from
-   the inner handlers are treated as a bug in the host layer, not a
-   consumer-visible behavior.
+3. **404 and 500 are different failures with different pages.** The
+   prerendered 404 answers misses (unknown route, loader `notFound()`); a
+   render failure answers 500 with the error page after `onError`, with
+   `degrade: "stale"` as the opt-in softer mode. Bare-text bodies from inner
+   handlers are a host-layer bug. Collapsing failures into one apology page
+   is what "just a 404" criticism rightly calls out — a prod-ready handler
+   keeps the distinction.
