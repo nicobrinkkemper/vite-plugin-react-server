@@ -212,18 +212,16 @@ Controls whether `moduleBase` (e.g. `src/`) appears in output paths:
 
 ## App Mode (`--app`)
 
-When using `vite build --app`, the plugin builds all environments in sequence. Add the `buildApp` hook to ensure correct ordering:
+`vite build --app` is the whole story — the plugin supplies its own
+`builder.buildApp`, which builds every environment in order and then runs the
+post-build steps (deferred static generation, the edge bake, the
+transport-webpack freeze). Do **not** define a `builder.buildApp` of your own:
+a config-level hook overrides the plugin's and silently skips those post-build
+steps.
 
 ```ts
 export default defineConfig({
   plugins: [vitePluginReactServer(options)],
-  builder: {
-    buildApp: async (builder) => {
-      for (const env of Object.values(builder.environments)) {
-        if (!env.isBuilt) await builder.build(env);
-      }
-    },
-  },
 });
 ```
 
