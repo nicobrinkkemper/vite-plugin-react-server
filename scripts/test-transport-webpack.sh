@@ -18,4 +18,5 @@ export VPRS_TEST_TRANSPORT=webpack
   test/dev/dev-transport-hint.test.ts \
   test/dev/server-actions.test.ts \
   test/dev/client-imports-server-action.test.ts \
-  test/dev/suspense-flight-roundtrip.test.ts
+  test/dev/suspense-flight-roundtrip.test.ts \
+  test/dev/hmr.test.ts
