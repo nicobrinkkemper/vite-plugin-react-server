@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdir, rm, writeFile, symlink, readFile, readdir } from "node:fs/promises";
+import { mkdir, rm, writeFile, symlink, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { builtinModules } from "node:module";
-import { init as lexerInit, parse as lexerParse } from "es-module-lexer";
+import { collectStaticBuiltinImports } from "./edge-bundle-guard.js";
 import * as streamApi from "vite-plugin-react-server/stream";
 import * as edgeApi from "vite-plugin-react-server/edge";
 import { doBuild } from "../doBuild.js";
@@ -108,30 +107,9 @@ describe.skipIf(!renderFlightToHtml)(
     });
 
     it("bakes no statically-evaluated node builtin imports (edge-runtime safe)", async () => {
-      // The single-isolate bundle must EVALUATE on a runtime with no node:*
-      // at all. Static imports of node builtins crash module evaluation there;
-      // dynamic import("node:...") is the sanctioned lazy-fallback shape (the
-      // disk-manifest fallback) and only evaluates if that path actually runs.
-      // es-module-lexer classifies the two exactly — no regex over strings.
-      await lexerInit;
-      const edgeDir = join(testDir, "dist/server-edge");
-      const files = (await readdir(edgeDir, { recursive: true })).filter((f) =>
-        f.endsWith(".js")
-      );
-      expect(files.length).toBeGreaterThan(0);
-      const isBuiltin = (spec: string) =>
-        spec.startsWith("node:") || builtinModules.includes(spec);
-      const offenders: string[] = [];
-      for (const f of files) {
-        const code = await readFile(join(edgeDir, f), "utf8");
-        const [imports] = lexerParse(code, f);
-        for (const imp of imports) {
-          if (!imp.n || !isBuiltin(imp.n)) continue;
-          if (imp.d > -1) continue; // dynamic import(): lazy, boot-safe
-          offenders.push(`${f}: ${imp.n}`);
-        }
-      }
-      expect(offenders).toEqual([]);
+      expect(
+        await collectStaticBuiltinImports(join(testDir, "dist/server-edge"))
+      ).toEqual([]);
     });
 
     it("keeps the default worker-based server build (additive)", () => {

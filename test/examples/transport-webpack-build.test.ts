@@ -6,6 +6,7 @@ import { ensureFixture, hashSetupFn } from "./fixture-cache.js";
 import { testUserOptions } from "../test-config.js";
 import { readFile as readFileFs, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
+import { collectStaticBuiltinImports } from "./edge-bundle-guard.js";
 
 /**
  * transport: "webpack" — the static snapshots must carry the webpack flight
@@ -90,6 +91,14 @@ describe("transport: webpack — snapshots frozen through the baked pair", () =>
       "utf-8"
     );
     expect(consumer.length).toBeGreaterThan(0);
+  });
+
+  it("bakes no statically-evaluated node builtin imports in either half", async () => {
+    // Producer AND consumer: the pair exists so the whole request path can
+    // compose on a runtime with no node:* at all (see buildConsumerBundle).
+    expect(
+      await collectStaticBuiltinImports(resolve(testDir, OUT_DIR, "server-edge"))
+    ).toEqual([]);
   });
 
   it("freezes webpack-flavored snapshots for every route", async () => {
