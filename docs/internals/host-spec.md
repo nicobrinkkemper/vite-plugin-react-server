@@ -1,0 +1,195 @@
+# Host spec — `createHost({ buildDir })` (draft)
+
+Status: DRAFT for review. Companion to the runner spec: that one declares the
+paradigm at build time; this one makes prod serving a one-liner over the
+artifacts the build already emits. Prod stays "a thin host over the emitted
+artifacts and manifest" — this spec makes the thin host something vprs hands
+you instead of something every consumer re-derives.
+
+## Problem
+
+The build emits everything a server needs, and then the consumer writes the
+server by hand anyway. The official demo's `start.tsx` is ~180 lines, and
+every load-bearing line re-states knowledge an artifact already holds:
+
+| hand-written in the consumer server | where the build already knows it |
+| --- | --- |
+| `/^\/pokedex\/[^/]+$/` — which URLs render dynamically | the router's route table (`routePatterns`, `staticPaths`) |
+| `existsSync(join(staticDir, route, "index.html"))` — prerendered or not | the prerender worklist that emitted `dist/static` |
+| `collectManifestCss(manifest, "src/css/pokemon.module.css")` + inline-threshold dance | the static manifest + the same `css.inlineThreshold` the build used |
+| `staticManifest["index.html"].file` — bootstrap module for hydration | the client build's manifest |
+| reading `dist/static/404/index.html` to answer `notFound()` | the prerendered 404 page |
+| `handleRouteAction(request, { projectRoot })` wiring | the baked sealed gate in `dist/server-edge/render.js` |
+| `pathToFileURL(join(buildDir, "client"))` as `moduleBaseURL` | the build laid out `dist/client` for exactly this |
+
+None of this is configuration — it is archaeology. The consumer can get every
+line subtly wrong (stale-port serving, bare-text 404s, missing charset-era
+bugs all shipped this way in real consumers), and no two consumers write the
+same server.
+
+Two well-known escapes exist and both are rejected:
+
+- **Become a framework**: own the server, the listener, the deploy story.
+  Rejected — it inverts ownership. vprs consumers mount vprs into *their*
+  server, never the reverse (see the router design boundary: escape hatches,
+  not core).
+- **Stay as-is**: every consumer copies the demo's `start.tsx` and drifts.
+  Rejected by the evidence above.
+
+## The API
+
+```ts
+import { createHost } from "vite-plugin-react-server/host";
+
+const handler = createHost({ buildDir: "./dist" });
+// (request: Request) => Promise<Response> — mount it anywhere:
+http.createServer(toNodeListener(handler));      // plain Node
+export default { fetch: handler };               // workerd / Bun / Deno
+export default handler;                          // Vercel function
+```
+
+`createHost` returns a Web-standard fetch handler and owns **routing between
+the artifacts**: static files for prerendered URLs, per-request render for
+dynamic ones, the action gate for `x-rsc-action` POSTs, the prerendered 404
+for everything else. It owns no listener, no port, no process — the consumer
+mounts it, wraps it, or composes middleware around it. `toNodeListener`
+remains the Node adapter it already is.
+
+## The host manifest
+
+Derivation needs a stable contract, not directory spelunking. The build emits
+one additional artifact:
+
+```
+dist/server/host-manifest.json
+{
+  "version": 1,
+  "base": "/",
+  "routes": [
+    { "pattern": "/pokedex/$name", "dynamic": true },
+    { "pattern": "/pokedex/gen/$gen", "dynamic": true },
+    { "pattern": "/", "dynamic": false }
+  ],
+  "prerendered": ["/", "/pokedex", "/pokedex/pikachu", "…"],
+  "cssByPattern": { "/pokedex/$name": ["assets/css/pokemon-xyz.css"] },
+  "inlineThreshold": 10000,
+  "bootstrapModules": ["/index-abc123.js"],
+  "notFoundPage": "404/index.html",
+  "renderBundle": "../server-edge/render.js"
+}
+```
+
+Everything in it is information the build holds at emit time; nothing is
+computed at runtime that the build already computed. The file is versioned so
+the host helper and the plugin can evolve independently — a host reading a
+manifest it doesn't understand fails loudly at startup, not per-request.
+
+`cssByPattern` retires the per-route `collectManifestCss` dance: the build
+walks each route's page module once and records the resolved CSS files; the
+host applies the same inline-vs-link threshold the static build used, so a
+per-request document and its prerendered sibling agree by construction.
+
+## Request algorithm
+
+For `GET`/`HEAD` on `pathname`:
+
+1. Normalize (`.rsc` suffix detection, base strip, trailing slash).
+2. `pathname` in `prerendered` → serve the static file (delegate to the
+   platform's static layer when `statics: "platform"`, below).
+3. Else match `routes`; a `dynamic` match → per-request render through the
+   render bundle (full document, or headless flight for `.rsc`/Accept), with
+   the pattern's CSS. A loader `notFound()`/unknown name → the prerendered
+   404 page with status 404 — never a bare-text 404.
+4. No match → prerendered 404 page, status 404.
+
+`POST` with the action header → the baked sealed gate. Everything else → 405.
+
+## One host, three runners
+
+The runner spec's paradigm matrix has a "prod shape" row; `createHost` is
+that row implemented once, flavored by what the runner baked:
+
+| | `main` | `isolated` | `edge` |
+| --- | --- | --- | --- |
+| render source | in-process render under the process flag | rsc-worker bridge | baked pair (`render.js`) |
+| host runtime needs | Node + `--conditions react-server` | Node, no flag | any fetch runtime, no `node:*` |
+| static serving | host serves `dist/static` | host serves | `statics: "platform"` default — the CDN/platform serves, handler answers only dynamic + actions |
+
+The consumer never states which flavor: the host manifest records what the
+build emitted, and `createHost` follows it. A mismatch (edge bundle absent,
+worker files missing) is a startup error naming the runner that would fix it.
+
+## Knobs
+
+```ts
+createHost({
+  buildDir: "./dist",
+  statics?: "serve" | "platform",   // default per runner (table above)
+  onNotFound?: (url, request) => Response | null,  // null → prerendered 404
+  onError?: (error, url) => void,   // default: console.error (never swallow)
+  cache?: (url) => HeadersInit,     // default: no-cache for dynamic/flight,
+                                    // immutable for hashed assets
+  rewrite?: (url) => string | null, // escape hatch before matching
+})
+```
+
+Small on purpose. Anything beyond this is composition: wrap the returned
+handler. Ejecting stays possible — `createRequestHandler`, `createEdgeHandler`,
+`collectManifestCss`, `toNodeListener` remain exported, and `createHost` is
+specified as expressible in terms of them (it is the blessed composition, not
+a private pipeline).
+
+## Worked example
+
+The official demo's production server, today (abridged from ~180 lines):
+
+```ts
+const pokemonCss = toCssMap(collectManifestCss(staticManifest, "src/css/pokemon.module.css"));
+const clientEntry = staticManifest["index.html"]?.file;
+// … 40 lines of manifest/css/bootstrap assembly …
+render: async (pathname, request) => {
+  const route = pathname.replace(/\/index\.rsc$|\.rsc$|\/$/, "");
+  if (!/^\/pokedex\/[^/]+$/.test(route)) return null;
+  if (fs.existsSync(path.join(staticDir, route.slice(1), "index.html"))) return null;
+  // … flight-vs-document branch, notFound dressing, error degrade …
+}
+```
+
+After:
+
+```ts
+import http from "node:http";
+import { createHost, toNodeListener } from "vite-plugin-react-server/host";
+
+http.createServer(toNodeListener(createHost({ buildDir: "../.." }))).listen(3000);
+```
+
+The deleted lines are the point: nothing in them was a decision. The
+decisions that DO exist (custom 404 behavior, cache policy, rewrites) are the
+knobs that remain.
+
+## Non-goals
+
+- Owning a listener, a port, a process manager, or a deploy target. The
+  handler is mountable; mounting is the consumer's.
+- Runtime configuration. The host manifest is a build artifact; changing
+  behavior means rebuilding or wrapping the handler. Nothing in `dist/`
+  reads `vite.config` at runtime.
+- Replacing the runner spec. The runner decides what gets baked; the host
+  follows the bake. They compose; neither implies the other.
+- Dev serving. The dev server already owns that surface; this is prod only.
+
+## Resolutions (proposed, for review)
+
+1. **Explicit `host-manifest.json` over directory inference.** Inference
+   (existsSync-per-request, glob-the-static-dir) works until base paths,
+   platform statics, or `.html`-suffixed prerenders make it lie. One emitted
+   file, versioned, is the contract; the build is the only writer.
+2. **`statics: "platform"` is the edge default.** Serving static files from
+   an edge function is paying compute to imitate a CDN; the platform serves
+   statics and the handler answers only what needs compute. `"serve"` stays
+   the Node default so `npm run demo` works with zero platform assumptions.
+3. **The prerendered 404 is the default not-found for every miss** — unknown
+   route, loader `notFound()`, failed dynamic render. Bare-text 404s from
+   the inner handlers are treated as a bug in the host layer, not a
+   consumer-visible behavior.
