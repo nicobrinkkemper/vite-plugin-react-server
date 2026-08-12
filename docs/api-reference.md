@@ -84,7 +84,7 @@ export const config = {
 
 | Option | Type | Description | Default |
 |--------|------|-------------|---------|
-| `inlineCss` | `boolean` | Disable inline CSS in HTML | `true` |
+| `inlineCss` | `boolean \| undefined` | `undefined` (default) = auto: inline a file when it is at or under `inlineThreshold` or matches `inlinePatterns`; `true` = always inline; `false` = always link | `undefined` |
 | `inlineThreshold` | `number` | Size threshold for inlining (bytes) | `4096` |
 | `inlinePatterns` | `RegExp[]` | Patterns for files to always inline | `[]` |
 | `linkPatterns` | `RegExp[]` | Patterns for files to always link | `[]` |
