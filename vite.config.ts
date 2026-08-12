@@ -236,9 +236,14 @@ export default defineConfig({
   // self-referential define (replace X with X) is a reliable, bundler-agnostic
   // shield that works under both esbuild and Vite 8's Oxc.
   // - import.meta.hot: consumers use useRscHmr in dev where hot IS defined.
-  // - import.meta.env.{BASE_URL,PUBLIC_ORIGIN,DEV,MODE}: read (dot access) by the
-  //   isomorphic env-URL helper (utils/envUrls) so absoluteURL/baseURL resolve
-  //   against the consumer's real BASE_URL / PUBLIC_ORIGIN, not "/".
+  // - import.meta.env.{BASE_URL,PUBLIC_ORIGIN,DEV,MODE,PROD}: read (dot
+  //   access) by the isomorphic env sources (utils/env.browser, utils/envUrls)
+  //   so every field resolves against the consumer's real environment. PROD
+  //   must be shielded like the rest: without it, vprs's own prod lib build
+  //   bakes PROD:true into the shipped env.browser artifact and a consumer's
+  //   dev build still reports PROD. SSR cannot be shielded this way — Vite
+  //   special-cases that key and replaces it before user define applies — so
+  //   env.browser hardcodes SSR:false instead.
   //   (utils/env.ts uses bracket access to stay out of this + Node-safe.)
   define: {
     "import.meta.hot": "import.meta.hot",
@@ -246,6 +251,7 @@ export default defineConfig({
     "import.meta.env.PUBLIC_ORIGIN": "import.meta.env.PUBLIC_ORIGIN",
     "import.meta.env.DEV": "import.meta.env.DEV",
     "import.meta.env.MODE": "import.meta.env.MODE",
+    "import.meta.env.PROD": "import.meta.env.PROD",
   },
   esbuild: {
     // Preserve import.meta expressions in utils files
