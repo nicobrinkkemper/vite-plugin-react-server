@@ -55,8 +55,11 @@ export default defineConfig({
       batchSize: 8,                    // pages per batch in parallel mode
       rscOutputPath: "index.rsc",
       htmlOutputPath: "index.html",
-      // Inline each prerendered route's flight into its index.html so first
-      // paint hydrates with no index.rsc round-trip. See docs/build-output.md.
+      // How the flight payload rides inside the HTML: "blob" (alias true)
+      // buffers it into each prerendered index.html — static/CDN targets;
+      // "stream" interleaves it into per-request document renders as they
+      // stream — dynamic/edge targets; false fetches .rsc instead.
+      // Build-time, per-target choice. See docs/build-output.md.
       inlineFlight: false,
 
       // Optional — single-isolate edge bundle (additive; ON by default).

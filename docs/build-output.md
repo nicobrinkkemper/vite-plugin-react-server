@@ -90,7 +90,13 @@ Understanding the build pipeline helps explain why all three directories are nee
       f. write index.html + index.rsc to dist/static/
 ```
 
-The dual-stream architecture (step c + e) is why the plugin produces both `.html` and `.rsc` files. With `build.inlineFlight: true`, each page's initial flight is additionally inlined into its `index.html` (`<script id="vprs-flight">`), so the first paint hydrates in place with no `/index.rsc` round-trip; the `.rsc` files then serve later client-side navigations — when a user clicks a link, the browser fetches the next route's `.rsc` instead of a full page reload. [`startClient`](./routing.md) is the client entry that boots all of this in the browser.
+The dual-stream architecture (step c + e) is why the plugin produces both `.html` and `.rsc` files. `build.inlineFlight` chooses how the flight payload rides inside the HTML instead of being fetched:
+
+- **`"blob"`** (alias `true`) — each prerendered page's initial flight is buffered and inlined into its `index.html` as one non-executable `<script id="vprs-flight">`, so the first paint hydrates in place with no `/index.rsc` round-trip. The file is buffered by construction (SSG writes a file anyway) and the client reads a single script — the fit for static/CDN targets.
+- **`"stream"`** — on per-request document renders (the edge handler's document mode), the flight is interleaved into the HTML **as it streams**: executable push-script chunks between React's flushes, no full-document buffering, TTFB is the shell flush — the fit for dynamic/edge targets. Prerendered pages have no streamed form, so under `"stream"` the post-SSG inliner skips and prerendered routes fetch `index.rsc`.
+- **`false`** (default) — no inlining; the client always fetches the flight.
+
+In every mode the `.rsc` files still serve later client-side navigations — when a user clicks a link, the browser fetches the next route's `.rsc` instead of a full page reload. [`startClient`](./routing.md) is the client entry that boots all of this in the browser.
 
 ## Consistent Hashing
 
@@ -290,9 +296,9 @@ either the deployment itself or an input the static generation step needs.
   deploy instead: upload `dist/static/` only.
 - **`.rsc` payloads ride along with every prerendered page.** They are what
   client-side navigation fetches, so there is no knob to suppress them.
-  `build.inlineFlight` (default `false`) additionally inlines each route's
-  flight into its `index.html`; it adds to the snapshot rather than replacing
-  the `.rsc` files.
+  `build.inlineFlight: "blob"` (default `false`) additionally inlines each
+  route's flight into its `index.html`; it adds to the snapshot rather than
+  replacing the `.rsc` files.
 - **`build.edge.minify: false`** emits the edge bundle readable for
   inspection instead of minified; the artifact is otherwise identical.
 
