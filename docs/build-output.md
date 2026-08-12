@@ -301,6 +301,15 @@ either the deployment itself or an input the static generation step needs.
   replacing the `.rsc` files.
 - **`build.edge.minify: false`** emits the edge bundle readable for
   inspection instead of minified; the artifact is otherwise identical.
+- **Vendored packages are self-describing ESM.** When client-package chunks
+  are vendored under `dist/**/node_modules/<pkg>/`, each vendored dir carries
+  its own `{"type":"module"}` package.json. This matters for serverless
+  deploys that ship only build output (`includeFiles: dist/**`): without it,
+  the nearest parent package.json governs, the function scope defaults to
+  CommonJS, named exports vanish and SSR degrades to a shell — while the same
+  build works locally where the project root's `type: module` applies. Node
+  22.12+ detects ESM from syntax and masks the difference; the stamped
+  package.json is what makes the chunks unambiguous everywhere.
 
 ## Environment Variables
 
