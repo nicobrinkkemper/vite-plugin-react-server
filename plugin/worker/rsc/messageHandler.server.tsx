@@ -933,8 +933,20 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
               projectRoot,
               (msg.options.layouts ?? []).map((l) => l.component),
             ])) || [];
+            // Dev delivers css as <link> regardless of the inline threshold.
+            // Inline <style> rides the flight as a React hoistable, and React
+            // dedupes style hoistables by identity WITHOUT updating the
+            // content of one already inserted — a css edit's HMR refetch
+            // silently drops the new styles forever. A <link> is
+            // URL-addressable, so useRscHmr's cache-bust path updates it in
+            // place. Prod/static keep the configured inline behavior: the
+            // snapshot is written once, nothing hot-updates it.
+            const devLinkCssUserOptions = {
+              ...cssFileUserOptions,
+              css: { ...cssFileUserOptions.css, inlineCss: false },
+            };
             for (const { id, code } of collected) {
-              addCssFileContent(id, code, cssFileUserOptions);
+              addCssFileContent(id, code, devLinkCssUserOptions);
             }
             if (verbose) {
               logger?.info(
