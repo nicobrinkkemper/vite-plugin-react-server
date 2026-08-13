@@ -78,7 +78,9 @@ dist/server/host-manifest.json
   "errorPage": "500/index.html",
   "etags": { "index.html": "W/\"a1b2c3\"", "…": "…" },
   "precompressed": ["br", "gzip"],
-  "renderBundle": "../server-edge/render.js"
+  "transport": "webpack",
+  "renderBundle": "../server-edge/render.js",
+  "consumerBundle": "../server-edge/consumer.js"
 }
 ```
 
@@ -91,6 +93,16 @@ manifest it doesn't understand fails loudly at startup, not per-request.
 walks each route's page module once and records the resolved CSS files; the
 host applies the same inline-vs-link threshold the static build used, so a
 per-request document and its prerendered sibling agree by construction.
+
+`transport` + `consumerBundle` make the flavor a followed fact instead of a
+wiring exercise. Under a webpack bake the host renders HTML through the baked
+consumer (the runtime esm consumer cannot resolve module-map reference rows —
+hand-wired servers hit this as a 500 with "Element type is invalid"), and it
+stamps the `self.__vprsFlightTransport` hint on every per-request document it
+serves (prerendered documents carry the hint from the freeze; a live document
+without it hydrates through the wrong decoder and dies with React #306). Both
+were rediscovered by hand in the official demo's server; under `createHost`
+neither is a consumer decision.
 
 ## Request algorithm
 
@@ -245,3 +257,13 @@ knobs that remain.
    handlers are a host-layer bug. Collapsing failures into one apology page
    is what "just a 404" criticism rightly calls out — a prod-ready handler
    keeps the distinction.
+4. **The host owns platform context.** Fetch runtimes hand the handler more
+   than a `Request` — workerd calls `fetch(request, env, ctx)`, and anything
+   binding-backed (a D1 database, KV, secrets) only exists on that `env`.
+   The baked bundles stay platform-blind, so today an action that needs a
+   binding has no seam to receive it. `createHost` is that seam: the
+   returned handler accepts the platform's extra arguments and threads them
+   as `ctx.platform` into action execution and loader context, the same way
+   `ctx.request` already travels. Node hosts simply have an empty
+   `platform`. The alternative — every consumer inventing a `globalThis`
+   stash — is a convention where this can be a contract.
