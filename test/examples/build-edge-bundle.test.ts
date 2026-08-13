@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile, symlink, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { collectStaticBuiltinImports } from "./edge-bundle-guard.js";
 import * as streamApi from "vite-plugin-react-server/stream";
 import * as edgeApi from "vite-plugin-react-server/edge";
 import { doBuild } from "../doBuild.js";
@@ -103,6 +104,12 @@ describe.skipIf(!renderFlightToHtml)(
 
     it("emits a baked rsc bundle to dist/server-edge", () => {
       expect(existsSync(join(testDir, "dist/server-edge/render.js"))).toBe(true);
+    });
+
+    it("bakes no statically-evaluated node builtin imports (edge-runtime safe)", async () => {
+      expect(
+        await collectStaticBuiltinImports(join(testDir, "dist/server-edge"))
+      ).toEqual([]);
     });
 
     it("keeps the default worker-based server build (additive)", () => {
