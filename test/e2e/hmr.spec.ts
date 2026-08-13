@@ -94,6 +94,15 @@ test.describe('HMR in bidoof-template', () => {
   });
 
   test('CSS change applies without page reload', async ({ page }) => {
+    // Pinned repro of a real bug (expected-fail until fixed): css this page
+    // delivers INLINE (at/under css.inlineThreshold) rides the flight as a
+    // React hoistable <style>, and React dedupes style hoistables by identity
+    // without updating the content of one already inserted — so the refetch
+    // that useRscHmr fires on a css edit silently drops the new styles. The
+    // server side is verified correct (a fresh flight carries the new rule);
+    // linked css works (refreshCssLinks mutates <link> outside React). When
+    // the fix lands this flips to unexpected-pass — remove the annotation.
+    test.fail();
     const cssFile = join(bidoofDir, 'src/css/pokedex.module.css');
     const originalContent = await readFile(cssFile, 'utf-8');
     try {
