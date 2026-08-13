@@ -280,7 +280,12 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
 
         // Note: Path normalization should be handled in the file naming functions
         environments[envConfig.name] = {
-          keepProcessEnv: envConfig.name === "server" ? true : false,
+          // Every env except the browser one produces a Node-run bundle: the
+          // "ssr" env's output (dist/client) is the in-process renderer, and
+          // dropping process.env there rewrites env.node's runtime reads to {}
+          // — every env getter silently falls back (BASE_URL "/"), un-prefixing
+          // renderer-derived URLs under subpath deploys.
+          keepProcessEnv: envConfig.name !== "client",
           define: userConfig.define,
           consumer: consumer,
           optimizeDeps: {

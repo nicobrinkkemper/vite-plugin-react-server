@@ -15,5 +15,11 @@ export const env = {
   DEV: import.meta.env.DEV,
   MODE: import.meta.env.MODE,
   PROD: import.meta.env.PROD,
-  SSR: import.meta.env.SSR,
+  // Hardcoded, not import.meta.env.SSR: Vite special-cases the SSR key and
+  // statically replaces it with the BUILDING environment's flag before any
+  // define (including the self-referential shield) can preserve it — vprs's
+  // own lib build would bake `true` into this browser-only module. This file
+  // only ever loads in a browser bundle, where SSR is false by definition;
+  // env.node is the `true` half of the pair.
+  SSR: false,
 } as ImportMetaEnv;
