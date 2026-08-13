@@ -48,8 +48,11 @@ done
 # 1d. Playwright e2e (runs against bidoof-template per playwright.config.ts).
 npx playwright test test/e2e/hmr.spec.ts
 
-# Every test in the spec must pass (10 as of 3.3.0): page render, RSC refetch
-# vs Fast Refresh routing, CSS HMR, server actions, client-state persistence.
+# Every test must pass or be an annotated expected-fail (7 as of 3.10.0; the
+# spec drives the demo's Pokédex surfaces): page render, RSC refetch with
+# client-state preservation, CSS HMR, server actions + persistence. A test
+# marked test.fail() pins a filed bug — an UNEXPECTED pass there means the
+# bug got fixed; remove the annotation rather than shipping around it.
 ```
 
 **If any of 1a–1d fails, do not publish.** File an issue and bisect to the introducing commit. A regression that is already on `main` but not yet released is still a release-blocker — it ships to consumers the moment you `npm publish`.

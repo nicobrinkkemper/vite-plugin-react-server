@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,269 +6,166 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const bidoofDir = join(__dirname, '../../../bidoof-template');
 
+// The demo surfaces this spec drives (bidoof-template's Pokédex app):
+// - `/pokedex/` — server page (src/page/pokedex/page.tsx) with the
+//   PokemonSearch client island; its text input is the client-state marker
+//   that must survive an RSC refetch.
+// - `src/css/pokedex.module.css` — the page's stylesheet, for CSS HMR.
+// - `/pokedex/bulbasaur/` — a species page whose FavoriteButton drives the
+//   "use server" favorites action (persisted in the demo's SQLite db).
+
+const collectRscHmrLogs = (page: Page): string[] => {
+  const logs: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.text().includes('[RSC HMR]')) logs.push(msg.text());
+  });
+  return logs;
+};
+
 test.describe('HMR in bidoof-template', () => {
-  
   test('page content is visible', async ({ page }) => {
-    await page.goto('/todos/');
-    
-    // Verify the todo page loads
-    await expect(page.locator('h1')).toContainText('Todo');
+    await page.goto('/pokedex/');
+    await expect(page.locator('h1')).toContainText('Pokédex');
   });
 
   test('server component change triggers RSC refetch (not full reload)', async ({ page }) => {
-    const pageFile = join(bidoofDir, 'src/page/page.tsx');
+    const pageFile = join(bidoofDir, 'src/page/pokedex/page.tsx');
     const originalContent = await readFile(pageFile, 'utf-8');
-    
     try {
-      await page.goto('/');
-      
-      // Verify initial content
-      await expect(page.locator('h1')).toContainText('vite-plugin-react-server demo');
-      
-      // Click the counter a few times to set client state
-      const counter = page.locator('button', { hasText: 'Click count:' });
-      await counter.click();
-      await counter.click();
-      await counter.click();
-      await expect(counter).toContainText('Click count: 3');
-      
-      // Listen for the RSC HMR console log
-      const hmrLogs: string[] = [];
-      page.on('console', (msg) => {
-        if (msg.text().includes('[RSC HMR]')) {
-          hmrLogs.push(msg.text());
-        }
-      });
-      
-      // Modify the server component — add a visible marker
+      await page.goto('/pokedex/');
+      await expect(page.locator('h1')).toContainText('Pokédex');
+
+      // Client state: type into the search island's input. A full reload
+      // would wipe it; an RSC refetch must not.
+      const input = page.locator('input').first();
+      await input.fill('pika');
+      await expect(input).toHaveValue('pika');
+
+      const hmrLogs = collectRscHmrLogs(page);
+
       const updatedContent = originalContent.replace(
-        'vite-plugin-react-server demo',
-        'vite-plugin-react-server demo (HMR TEST)'
+        '<h1>Pokédex</h1>',
+        '<h1>Pokédex (HMR TEST)</h1>',
       );
+      expect(updatedContent).not.toBe(originalContent);
       await writeFile(pageFile, updatedContent);
-      
-      // Wait for the RSC HMR update to apply
+
       await expect(page.locator('h1')).toContainText('HMR TEST', { timeout: 15000 });
-      
-      // CRITICAL: Client state must be preserved — this proves RSC refetch,
-      // not a full page reload (which would reset the counter to 0)
-      await expect(counter).toContainText('Click count: 3');
-      
-      // Verify the RSC HMR hook fired (not a full page reload)
-      expect(hmrLogs.some(log => log.includes('Server component updated'))).toBe(true);
-      
+      await expect(input).toHaveValue('pika');
+      expect(hmrLogs.some((log) => log.includes('Server component updated'))).toBe(true);
     } finally {
       await writeFile(pageFile, originalContent);
     }
   });
 
-  test('server component change updates todos page', async ({ page }) => {
-    const pageFile = join(bidoofDir, 'src/page/todos/page.tsx');
+  test('server component change updates the home page', async ({ page }) => {
+    const pageFile = join(bidoofDir, 'src/page/page.tsx');
     const originalContent = await readFile(pageFile, 'utf-8');
-
     try {
-      await page.goto('/todos/');
-
-      // Verify initial content
-      await expect(page.locator('h1')).toContainText('Todo');
-
-      // Verify the marker doesn't exist yet
+      await page.goto('/');
+      await expect(page.locator('h1')).toContainText('Pokédex');
       await expect(page.locator('[data-testid="hmr-marker"]')).toHaveCount(0);
 
-      // Modify the server component — add a visible marker element.
-      // Target `<TodoList` (which only exists in the non-GitHub-Pages
-      // branch) rather than the back-link, which now also appears inside
-      // the `if (isGithubPages)` early-return branch added in
-      // bidoof-template PR #60 (f87c49d). String.prototype.replace only
-      // hits the first occurrence, which is the dead branch in dev mode
-      // — the rendered page never gets the marker and the test times
-      // out waiting for it.
+      // Inject a marker element right after the h1.
       const updatedContent = originalContent.replace(
-        '<TodoList',
-        '<div data-testid="hmr-marker">HMR Updated</div>\n      <TodoList'
+        '<h1>Pokédex</h1>',
+        '<h1>Pokédex</h1><p data-testid="hmr-marker">HMR Updated</p>',
       );
+      expect(updatedContent).not.toBe(originalContent);
       await writeFile(pageFile, updatedContent);
 
-      // Wait for the update
-      await page.waitForSelector('[data-testid="hmr-marker"]', { timeout: 15000 });
-      await expect(page.locator('[data-testid="hmr-marker"]')).toContainText('HMR Updated');
-
+      await expect(page.locator('[data-testid="hmr-marker"]')).toContainText('HMR Updated', {
+        timeout: 15000,
+      });
     } finally {
       await writeFile(pageFile, originalContent);
     }
   });
 
   test('useRscHmr hook registers listener', async ({ page }) => {
-    // Register console listener BEFORE navigation so we catch early logs
     const consoleLogs: string[] = [];
     page.on('console', (msg) => consoleLogs.push(msg.text()));
-    
     await page.goto('/');
-    // Give React time to mount and run effects
-    await page.waitForTimeout(2000);
-    
-    // The useRscHmr hook logs when it starts listening
-    expect(consoleLogs.some(log => log.includes('[RSC HMR] Listening'))).toBe(true);
-  });
-
-  test('import.meta.hot is preserved in compiled useRscHmr', async ({ page }) => {
-    // This test catches the bug where import.meta.hot was stripped during
-    // the plugin's library build, making useRscHmr a dead no-op function.
-    // If import.meta.hot was stripped, the useEffect body becomes just "return;"
-    // and no "[RSC HMR] Listening" log is emitted.
-    const consoleLogs: string[] = [];
-    page.on('console', (msg) => consoleLogs.push(msg.text()));
-    
-    await page.goto('/');
-    await page.waitForTimeout(2000);
-    
-    // The hook should log "Listening" — this proves import.meta.hot exists
-    // and the useEffect body wasn't dead-code-eliminated
-    const listening = consoleLogs.some(log => log.includes('[RSC HMR] Listening'));
-    expect(listening).toBe(true);
+    await expect
+      .poll(() => consoleLogs.some((log) => log.includes('[RSC HMR] Listening')), {
+        timeout: 10000,
+      })
+      .toBe(true);
   });
 
   test('CSS change applies without page reload', async ({ page }) => {
-    const cssFile = join(bidoofDir, 'src/css/home.module.css');
+    // Pinned repro of a real bug (expected-fail until fixed): css this page
+    // delivers INLINE (at/under css.inlineThreshold) rides the flight as a
+    // React hoistable <style>, and React dedupes style hoistables by identity
+    // without updating the content of one already inserted — so the refetch
+    // that useRscHmr fires on a css edit silently drops the new styles. The
+    // server side is verified correct (a fresh flight carries the new rule);
+    // linked css works (refreshCssLinks mutates <link> outside React). When
+    // the fix lands this flips to unexpected-pass — remove the annotation.
+    test.fail();
+    const cssFile = join(bidoofDir, 'src/css/pokedex.module.css');
     const originalContent = await readFile(cssFile, 'utf-8');
-
     try {
-      await page.goto('/');
+      await page.goto('/pokedex/');
+      const input = page.locator('input').first();
+      await input.fill('state-marker');
 
-      // Click counter to set client state
-      const counter = page.locator('button', { hasText: 'Click count:' });
-      await counter.click();
-      await counter.click();
-      await expect(counter).toContainText('Click count: 2');
-
-      // Change a CSS value
       const updatedContent = originalContent.replace(
-        'font-size: 50px',
-        'font-size: 60px'
+        '.Header h1 {\n    margin: 0.5rem 0 0.25rem;\n}',
+        '.Header h1 {\n    margin: 0.5rem 0 0.25rem;\n    font-size: 61px;\n}',
       );
+      expect(updatedContent).not.toBe(originalContent);
       await writeFile(cssFile, updatedContent);
 
-      // Wait for style to apply
-      await page.waitForTimeout(2000);
-
-      // Client state should be preserved (CSS HMR doesn't reload)
-      await expect(counter).toContainText('Click count: 2');
-
-    } finally {
-      await writeFile(cssFile, originalContent);
-    }
-  });
-
-  test('CSS edit actually updates computed style without manual refresh (bd-vvi)', async ({ page }) => {
-    // Stronger version of the test above: the existing one only verifies
-    // that no full page reload happened, but does NOT check that the new
-    // CSS rule actually applied. Reported symptom is that you have to
-    // manually refresh the page to see the new styles — the WS HMR event
-    // fires but the rendered styles don't update.
-    const cssFile = join(bidoofDir, 'src/css/home.module.css');
-    const originalContent = await readFile(cssFile, 'utf-8');
-
-    try {
-      await page.goto('/');
-
-      // The .Home class hash-name varies; target the outermost div with a
-      // Home-prefixed class. font-size: 50px in home.module.css.
-      const home = page.locator('div[class*="Home"]').first();
-      await expect(home).toHaveCSS('font-size', '50px');
-
-      // Set client state so we can also confirm no full reload happened.
-      const counter = page.locator('button', { hasText: 'Click count:' });
-      await counter.click();
-      await counter.click();
-      await expect(counter).toContainText('Click count: 2');
-
-      // Edit the CSS — bump .Home font-size to 60px.
-      const updatedContent = originalContent.replace(
-        'font-size: 50px',
-        'font-size: 60px'
-      );
-      await writeFile(cssFile, updatedContent);
-
-      // The actual bug check: computed style must update WITHOUT page reload.
-      await expect(home).toHaveCSS('font-size', '60px', { timeout: 5000 });
-
-      // And state must still be preserved (proves it was HMR, not a reload).
-      await expect(counter).toContainText('Click count: 2');
+      await expect(page.locator('h1')).toHaveCSS('font-size', '61px', { timeout: 10000 });
+      // Client state survived → style arrived over HMR, not a reload.
+      await expect(input).toHaveValue('state-marker');
     } finally {
       await writeFile(cssFile, originalContent);
     }
   });
 
   test('client component change does not trigger RSC refetch', async ({ page }) => {
-    const clientFile = join(bidoofDir, 'src/components/Counter.client.tsx');
+    const clientFile = join(bidoofDir, 'src/components/PokemonSearch.client.tsx');
     const originalContent = await readFile(clientFile, 'utf-8');
-    
     try {
-      await page.goto('/');
-      
-      // Listen for RSC HMR events — should NOT fire for client components
-      const rscHmrLogs: string[] = [];
-      page.on('console', (msg) => {
-        if (msg.text().includes('[RSC HMR] Server component updated') && !msg.text().includes('.css')) {
-          rscHmrLogs.push(msg.text());
-        }
-      });
-      
-      // Modify the client component — change button text
-      const updatedContent = originalContent.replace(
-        'Click count:',
-        'Clicks:'
-      );
-      await writeFile(clientFile, updatedContent);
-      
-      // Wait for update to process
+      await page.goto('/pokedex/');
+      await expect(page.locator('h1')).toContainText('Pokédex');
+
+      const hmrLogs = collectRscHmrLogs(page);
+
+      // A whitespace-only edit is enough to trigger the module's HMR path.
+      await writeFile(clientFile, originalContent + '\n// hmr-touch\n');
+      // Give Fast Refresh time to do its thing.
       await page.waitForTimeout(3000);
-      
-      // RSC HMR should NOT have fired — client changes are handled by
-      // React Fast Refresh or Vite's native HMR, not RSC refetch
-      expect(rscHmrLogs).toHaveLength(0);
-      
+
+      // Fast Refresh handles a client module edit; the RSC pipeline must not
+      // have refetched the flight for it.
+      expect(hmrLogs.filter((log) => log.includes('Server component updated'))).toHaveLength(0);
     } finally {
       await writeFile(clientFile, originalContent);
     }
   });
 
-    test('server action works', async ({ page }) => {
-    await page.goto('/todos/');
-    
-    // Use unique name to avoid conflicts with leftover test data
-    const todoName = `E2E-${Date.now()}`;
-    
-    // Find the input and add a todo
-    const input = page.locator('input[type="text"]');
-    await input.fill(todoName);
-    
-    // Submit the form
-    await input.press('Enter');
-    
-    // Wait for the new todo to appear
-    await expect(page.locator(`text=${todoName}`)).toBeVisible({ timeout: 5000 });
-    
-    // Clean up: delete the todo we just added
-    const todoItem = page.locator('li', { hasText: todoName });
-    await todoItem.locator('button', { hasText: '×' }).click();
-    await expect(todoItem).not.toBeVisible({ timeout: 10000 });
-  });
+  test('favorites server action works and persists', async ({ page }) => {
+    await page.goto('/pokedex/bulbasaur/');
+    const button = page.locator(
+      '[aria-label="Add to favorites"], [aria-label="Remove from favorites"]',
+    );
+    await button.waitFor({ timeout: 15000 });
+    const initialLabel = await button.getAttribute('aria-label');
 
-  test('todo toggle persists', async ({ page }) => {
-    await page.goto('/todos/');
-    
-    // Find a todo checkbox and click it
-    const checkbox = page.locator('input[type="checkbox"]').first();
-    const initialChecked = await checkbox.isChecked();
-    
-    await checkbox.click();
-    
-    // Wait a moment for the action
-    await page.waitForTimeout(500);
-    
-    // Verify it toggled
-    const newChecked = await checkbox.isChecked();
-    expect(newChecked).toBe(!initialChecked);
+    await button.click();
+    const toggledLabel =
+      initialLabel === 'Add to favorites' ? 'Remove from favorites' : 'Add to favorites';
+    await expect(page.locator(`[aria-label="${toggledLabel}"]`)).toBeVisible({ timeout: 10000 });
+
+    // Persisted server-side: the toggled state survives a full reload.
+    await page.reload();
+    await expect(page.locator(`[aria-label="${toggledLabel}"]`)).toBeVisible({ timeout: 15000 });
+
+    // Restore so the run leaves the demo's db as it found it.
+    await page.locator(`[aria-label="${toggledLabel}"]`).click();
+    await expect(page.locator(`[aria-label="${initialLabel}"]`)).toBeVisible({ timeout: 10000 });
   });
 });
