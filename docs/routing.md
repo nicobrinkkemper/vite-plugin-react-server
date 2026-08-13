@@ -224,9 +224,30 @@ export function Nav() {
 }
 ```
 
+Navigation is resolve-then-set: the old view stays on screen while the target
+route's flight loads. During that window the clicked `Link` announces the
+transition — it carries `data-pending` and `aria-busy`, so pending UI is a CSS
+rule, not a render prop:
+
+```css
+a[data-pending] { opacity: 0.6; }
+/* or read the whole page as stale while anything is pending: */
+body:has(a[data-pending]) main { opacity: 0.6; }
+```
+
+The same window is available programmatically as `useNavigation()`, which
+returns `{ pending, to }` — `to` names the in-flight destination while
+`pending` is true, and is `null` otherwise. (`useOptionalNavigation()` is the
+non-throwing form for components that also render outside a provider, the way
+`Link` does.) If the target's flight cannot be fetched — a network failure, or
+a static host with no such route — the router falls back to a full document
+load, so the server's real response replaces the stale view instead of the
+navigation hanging.
+
 Also exported from `vite-plugin-react-server/router/client`: `useParams`,
-`useLocation`, `useRouter`, `RouterProvider`, and `createRouter` if you want to
-assemble it yourself instead of using `startClient`.
+`useLocation`, `useRouter`, `useNavigation`, `useOptionalNavigation`,
+`useOptionalRouter`, `RouterProvider`, `createFlightCache`, and `createRouter`
+if you want to assemble it yourself instead of using `startClient`.
 
 ## Typed routes (optional)
 
