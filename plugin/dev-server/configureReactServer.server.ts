@@ -360,10 +360,17 @@ export const configureReactServer: ConfigureReactServerFn =
         const serverEnv = server.environments['server'];
         const moduleGraphForCss = serverEnv?.moduleGraph ?? server.moduleGraph;
         
+        // Dev delivers css as <link> regardless of the inline threshold —
+        // same reasoning as the runner css bridge: an inline <style> is a
+        // React hoistable whose content never updates on the HMR refetch, so
+        // css edits would never visually apply. Links cache-bust in place.
         const cssFilesResult = await collectViteModuleGraphCss({
           moduleGraph: moduleGraphForCss,
           parentUrl: pagePath,
-          handlerOptions: handlerOptions,
+          handlerOptions: {
+            ...handlerOptions,
+            css: { ...handlerOptions.css, inlineCss: false },
+          },
         });
 
         if (verbose) {
