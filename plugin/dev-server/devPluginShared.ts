@@ -81,3 +81,32 @@ export function devFlightTransportTags(
     },
   ];
 }
+
+/**
+ * Split a css file's client-graph modules into the ones Vite's native css
+ * HMR can actually hot-swap: nodes with a JS importer other than the file
+ * itself (a "use client" component importing the stylesheet). A
+ * server-collected stylesheet served as <link> also gets client-graph nodes
+ * from the browser's fetch (the url node and its ?direct twin) with no such
+ * importer — letting those ride into propagation dead-ends Vite into a full
+ * page reload, wiping the client state the refetch + link cache-bust path
+ * exists to preserve. Returning ONLY the swappable modules from `hotUpdate`
+ * keeps both worlds: genuinely client-imported css hot-swaps in place, the
+ * link-delivered copy cache-busts via the kind:"css" event, and nothing
+ * dead-ends.
+ */
+// deno-lint-ignore no-explicit-any — callers hand Vite's EnvironmentModuleNode
+// (or the legacy ModuleNode) through an untyped hook ctx; the filter only
+// touches `importers` and must return the SAME nodes for Vite to propagate.
+export const clientOwnedCssModules = <M,>(
+  modules: M[] | undefined,
+  cssFile: string
+): M[] =>
+  (modules ?? []).filter((m) =>
+    [...(((m as { importers?: Set<unknown> }).importers ?? []) as Set<{ file?: string | null; id?: string | null }>)].some(
+      (imp) => {
+        const impFile = (imp?.file ?? imp?.id ?? "").split("?")[0];
+        return !!impFile && impFile !== cssFile;
+      }
+    )
+  );

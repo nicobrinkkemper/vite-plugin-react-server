@@ -3,7 +3,7 @@ import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 
@@ -87,14 +87,13 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
         // Suppressing genuinely client-owned css here (the `return []` below)
         // is what previously left client-graph CSS edits stuck until a manual
         // refresh: the RSC <link> cache-bust never matches a Vite <style>.
-        if (
-          isCssFile &&
-          (ctx.modules ?? []).some(
-            (m: { importers?: Set<unknown> }) => (m.importers?.size ?? 0) > 0,
-          )
-        ) {
-          return; // let Vite's native client CSS HMR apply the update
-        }
+        // Css: hand Vite ONLY the modules its native css HMR can hot-swap
+        // (client-JS-imported nodes); the link-fetch artifacts would
+        // dead-end propagation into a full reload. The kind:"css" event
+        // below cache-busts the <link> copy either way.
+        const clientOwnedCss = isCssFile
+          ? clientOwnedCssModules(ctx.modules, file)
+          : [];
 
         // CSS files that aren't imported via the client module graph (vprs's
         // <Css cssFiles={...}/> pattern collects them server-side) aren't
@@ -114,7 +113,8 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
           data: { file: normalizedFile, path: file, kind },
         });
 
-        return []; // Don't trigger client-side page reload
+        // Css keeps its hot-swappable modules; everything else suppresses.
+        return (isCssFile ? clientOwnedCss : []) as never[]; // no full-reload dead ends
       }
       
       // Server/SSR environments: suppress page reload for all source files
