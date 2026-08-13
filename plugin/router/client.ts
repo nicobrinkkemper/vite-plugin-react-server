@@ -21,10 +21,13 @@ export type {
 export {
   RouterProvider,
   useLocation,
+  useNavigation,
+  useOptionalNavigation,
   useOptionalRouter,
   useParams,
   useRouter,
 } from "./router-react.js";
+export type { NavigationState } from "./router-react.js";
 export { Link } from "./link.js";
 export type { LinkPrefetch, LinkProps } from "./link.js";
 export { createErrorBoundary } from "./errorBoundary.js";

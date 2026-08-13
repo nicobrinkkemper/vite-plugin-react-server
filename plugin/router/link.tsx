@@ -6,7 +6,7 @@ import type {
   MouseEvent as ReactMouseEvent,
 } from "react";
 import type { ToPath } from "./register.js";
-import { useOptionalRouter } from "./router-react.js";
+import { useOptionalNavigation, useOptionalRouter } from "./router-react.js";
 
 // Client-side <Link> over the nav primitive: intercepts plain internal clicks
 // to navigate without a reload, and warms the target's flight on hover/focus so
@@ -25,6 +25,8 @@ export type LinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
 };
 
 const INTENT_MS = 60;
+
+const stripSlash = (p: string) => p.replace(/\/+$/, "") || "/";
 
 const isModified = (e: ReactMouseEvent) =>
   e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
@@ -48,7 +50,15 @@ export function Link({
   // Optional: Link also renders during static prerender (no provider yet) and
   // as a plain <a> outside a router — it just doesn't intercept there.
   const router = useOptionalRouter();
+  const navigation = useOptionalNavigation();
   const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // While a navigation to THIS link's target is in flight (the old view is
+  // still on screen), the anchor announces it — style via a[data-pending],
+  // e.g. dim the outgoing page with body:has(a[data-pending]).
+  const pending =
+    navigation?.pending === true &&
+    stripSlash(navigation.to ?? "") === stripSlash(to);
 
   const canIntercept =
     router !== null && !isExternal(to) && (!target || target === "_self");
@@ -67,6 +77,8 @@ export function Link({
     <a
       href={to}
       target={target}
+      data-pending={pending || undefined}
+      aria-busy={pending || undefined}
       onClick={(e) => {
         onClick?.(e);
         if (e.defaultPrevented || !canIntercept || isModified(e)) return;

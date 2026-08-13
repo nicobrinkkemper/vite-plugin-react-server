@@ -4,7 +4,12 @@ import type { ToPath } from "./register.js";
 // Headless client router: history + a flight cache + a subscribe store. The
 // React bindings (<Router>, useLocation, useParams) are a thin layer over this
 // via useSyncExternalStore, so the navigation logic stays testable without React.
-export type RouterState = { url: string };
+//
+// `url` moves on navigate/popstate; `shownUrl` trails it, advanced by the view
+// (startClient's RouteView calls markShown) once the target's content has
+// actually been committed. The gap between the two IS the navigation-pending
+// window — the old view stays on screen while the next route's flight loads.
+export type RouterState = { url: string; shownUrl: string };
 
 export type CreateRouterOptions<T> = {
   /** Fetch the RSC flight for a url (e.g. createReactFetcher({ url })). */
@@ -21,6 +26,9 @@ export type Router<T> = {
   getState: () => RouterState;
   subscribe: (cb: () => void) => () => void;
   navigate: (to: ToPath, opts?: { replace?: boolean }) => void;
+  /** The view calls this after committing a url's content, closing the
+   *  pending window that `useNavigation()` reports. */
+  markShown: (url: string) => void;
   prefetch: (to: ToPath) => void;
   /** The (cached) flight for a url; reuses a warmed/in-flight fetch. */
   flight: (url: string) => Promise<T>;
@@ -34,17 +42,22 @@ const currentUrl = () =>
 export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
   const cache = opts.cache ?? createFlightCache<T>();
   const listeners = new Set<() => void>();
-  let state: RouterState = { url: currentUrl() };
+  const initialUrl = currentUrl();
+  let state: RouterState = { url: initialUrl, shownUrl: initialUrl };
 
   const ttlFor = (url: string) =>
     opts.isDynamic?.(url) ? (opts.dynamicTtlMs ?? 2000) : undefined;
   const flight = (url: string) =>
     cache.get(url, { fetcher: opts.fetchFlight, ttlMs: ttlFor(url) });
 
+  const notify = () => {
+    for (const l of listeners) l();
+  };
+
   const setUrl = (url: string) => {
     if (url === state.url) return;
-    state = { url };
-    for (const l of listeners) l();
+    state = { ...state, url };
+    notify();
   };
 
   const onPop = () => setUrl(currentUrl());
@@ -70,6 +83,11 @@ export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
         else history.pushState({ url: to }, "", to);
       }
       setUrl(to);
+    },
+    markShown: (url) => {
+      if (url === state.shownUrl) return;
+      state = { ...state, shownUrl: url };
+      notify();
     },
     prefetch: (to) => {
       cache.prefetch(to, { fetcher: opts.fetchFlight, ttlMs: ttlFor(to) });
