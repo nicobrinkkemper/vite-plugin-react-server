@@ -14,9 +14,18 @@ cd "$(dirname "$0")/.."
 
 export VPRS_TEST_TRANSPORT=webpack
 
-./scripts/test-both.sh \
-  test/dev/dev-transport-hint.test.ts \
-  test/dev/server-actions.test.ts \
-  test/dev/client-imports-server-action.test.ts \
-  test/dev/suspense-flight-roundtrip.test.ts \
+SUITES=(
+  test/dev/dev-transport-hint.test.ts
+  test/dev/server-actions.test.ts
+  test/dev/client-imports-server-action.test.ts
+  test/dev/suspense-flight-roundtrip.test.ts
   test/dev/hmr.test.ts
+)
+
+./scripts/test-both.sh "${SUITES[@]}"
+
+# Parity leg: the same suites under a subpath base. Transport must never be
+# a base-sensitivity dimension — the webpack chunk loader resolving ids
+# against BASE_URL (flightClient.browser withAppBase) is what this guards.
+export BASE_URL='/test-base-url/'
+./scripts/test-both.sh "${SUITES[@]}"
