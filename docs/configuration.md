@@ -55,8 +55,11 @@ export default defineConfig({
       batchSize: 8,                    // pages per batch in parallel mode
       rscOutputPath: "index.rsc",
       htmlOutputPath: "index.html",
-      // Inline each prerendered route's flight into its index.html so first
-      // paint hydrates with no index.rsc round-trip. See docs/build-output.md.
+      // How the flight payload rides inside the HTML: "blob" (alias true)
+      // buffers it into each prerendered index.html — static/CDN targets;
+      // "stream" interleaves it into per-request document renders as they
+      // stream — dynamic/edge targets; false fetches .rsc instead.
+      // Build-time, per-target choice. See docs/build-output.md.
       inlineFlight: false,
 
       // Optional — single-isolate edge bundle (additive; ON by default).
@@ -209,18 +212,16 @@ Controls whether `moduleBase` (e.g. `src/`) appears in output paths:
 
 ## App Mode (`--app`)
 
-When using `vite build --app`, the plugin builds all environments in sequence. Add the `buildApp` hook to ensure correct ordering:
+`vite build --app` is the whole story — the plugin supplies its own
+`builder.buildApp`, which builds every environment in order and then runs the
+post-build steps (deferred static generation, the edge bake, the
+transport-webpack freeze). Do **not** define a `builder.buildApp` of your own:
+a config-level hook overrides the plugin's and silently skips those post-build
+steps.
 
 ```ts
 export default defineConfig({
   plugins: [vitePluginReactServer(options)],
-  builder: {
-    buildApp: async (builder) => {
-      for (const env of Object.values(builder.environments)) {
-        if (!env.isBuilt) await builder.build(env);
-      }
-    },
-  },
 });
 ```
 

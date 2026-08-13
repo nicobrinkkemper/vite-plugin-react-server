@@ -26,7 +26,7 @@ an implementation detail, not a knob you tune.
 | Kind | Vite plugin | Vite plugin (official) | Framework | Framework (+ RSC extension) |
 | Imposes routing / app structure | No — file-based router is opt-in (since v3) | No | Yes (file-based pages router) | Yes (file-based) |
 | React target | Stable 19.2+ (default) or experimental | Stable, canary, or experimental (your choice) | React 19 | React 19 |
-| RSC transport | `react-server-dom-esm`, via `react-server-loader` (edge bake can select a vendored webpack transport) | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
+| RSC transport | `react-server-dom-esm` by default, via `react-server-loader`; `transport: "webpack"` switches the whole deploy (dev server, snapshots, edge pair) to the vendored webpack flavor | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
 | Build output | `static/` + `client/` + `server/` portable ESM | app bundle via multi-environment build | framework-managed | framework-managed |
 | Host anywhere (static / Express / Hono) | Yes, you wire the server | Yes | Via the framework's server | Via vike-server |
 | Node `--conditions react-server` | Optional; works either way (see [below](#the-react-server-condition-is-optional)) | Used internally | Managed | Managed |

@@ -316,8 +316,13 @@ renderRouteToDocument(url, { cssFiles, globalCss }): Promise<{
 ```
 
 `createEdgeHandler`'s **document mode** drives it: it renders `full` to a complete
-HTML document and inlines `headless` as `<script id="vprs-flight">`, so the browser
-hydrates in place.
+HTML document and delivers `headless` inline, so the browser hydrates in place.
+Its `inlineFlight` option picks the delivery: `"blob"` (default) buffers the
+document and splices the whole flight in as one `<script id="vprs-flight">`;
+`"stream"` responds with the HTML **as it renders**, interleaving the flight as
+executable push-script chunks between React's flushes — no full-document
+buffering, TTFB is the shell flush. Under a script-src CSP pass `nonce`: the
+interleaved scripts are executable and are stamped with it.
 
 ```ts
 const handler = createEdgeHandler({

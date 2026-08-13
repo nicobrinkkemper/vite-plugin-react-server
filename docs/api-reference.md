@@ -60,7 +60,7 @@ export const config = {
 | `preserveModulesRoot` | `boolean` | When `true`, preserves the `moduleBase` directory (e.g. `src/`) in output paths. When `false`, strips it from output paths. | `false` |
 | `renderMode` | `"parallel" \| "sequential"` | How SSG renders pages: concurrent batches, or one at a time (less memory, deterministic order) | `"parallel"` |
 | `batchSize` | `number` | Pages rendered concurrently when `renderMode` is `"parallel"` | `8` |
-| `inlineFlight` | `boolean` | Inline each prerendered route's flight payload into its `index.html` (non-executable `<script id="vprs-flight">`), so first paint hydrates with no `index.rsc` round-trip. Runs at the post-SSG point in both build modes. See [Build Output](./build-output.md). | `false` |
+| `inlineFlight` | `boolean \| "blob" \| "stream"` | How the flight payload rides inside the HTML. `"blob"` (alias `true`): buffer and inline it into each prerendered route's `index.html` as one non-executable `<script id="vprs-flight">` at the post-SSG point, in both build modes — static/CDN targets, simplest client. `"stream"`: interleave it into the HTML **as it streams** on per-request document renders — dynamic/edge targets, TTFB is the shell flush; prerendered pages have no streamed form and fall back to fetching `index.rsc`. `false`: no inlining, the client always fetches `.rsc`. See [Build Output](./build-output.md). | `false` |
 | `edge` | `boolean \| EdgeBuildConfig` | Single-isolate edge bundle (see [`build.edge`](#buildedge) below) | `true` |
 | `assetsDir` | `string` | Assets directory | `"assets"` |
 | `api` | `string` | API output directory | `"api"` |
@@ -84,7 +84,7 @@ export const config = {
 
 | Option | Type | Description | Default |
 |--------|------|-------------|---------|
-| `inlineCss` | `boolean` | Disable inline CSS in HTML | `true` |
+| `inlineCss` | `boolean \| undefined` | `undefined` (default) = auto: inline a file when it is at or under `inlineThreshold` or matches `inlinePatterns`; `true` = always inline; `false` = always link | `undefined` |
 | `inlineThreshold` | `number` | Size threshold for inlining (bytes) | `4096` |
 | `inlinePatterns` | `RegExp[]` | Patterns for files to always inline | `[]` |
 | `linkPatterns` | `RegExp[]` | Patterns for files to always link | `[]` |
@@ -103,7 +103,7 @@ export const config = {
 | `allowedDirectives` | `string[]` | List of allowed directive names | `["use server", "use client"]` |
 | `mode` | `"development" \| "production" \| "test"` | Loader mode | `"development"` |
 | `isServerFunctionCode` | `(code: string, moduleId?: string) => boolean` | Custom server function detection | - |
-| `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client-module detection (source + filename) | `detectClientModule` (filename `.client.*` or top-of-file `"use client"`) |
+| `isClientComponentCode` | `(code: string, moduleId?: string) => boolean` | Custom client-module detection (source + filename) | `detectClientModule` (top-of-file `"use client"` directive; the `.client.*` filename convention carries no meaning to detection) |
 | `isClientComponentByCode` | `(code: string) => boolean` | Custom client-module detection (source only) | `detectClientModule` |
 | `isClientComponentByName` | `(moduleId: string) => boolean` | Opt-in escape hatch for name-based client detection. The **default never classifies by name** — only a `"use client"` directive makes a client module. Supply your own predicate if you really want the filename to decide. | always `false` |
 | `getDirectiveType` | `(directive: string, moduleId?: string) => "client" \| "server" \| undefined` | Custom directive type detection | - |
