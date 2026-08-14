@@ -1,4 +1,4 @@
-import { env } from "#env";
+import { absoluteURL } from "./envUrls.js";
 // The one place browser code picks a flight client. WHICH client must follow
 // how the server encoded the payload: a webpack-transport bundle's document
 // injects `self.__vprsFlightTransport` (see createEdgeRenderHook) and its
@@ -25,17 +25,13 @@ export type BrowserFlightClient = {
 };
 
 // Chunk ids in the flight are root-relative identity keys ("/components/…").
-// The FETCH URL derives from the app's base at load time — transport parity
-// with the esm client, which resolves specifiers through moduleBaseURL. Ids
-// stay base-free, so a snapshot baked once serves from any base. Without
-// this, a subpath deploy (GitHub Pages, any mounted app) 404s every client
-// chunk against the domain root.
-export const withAppBase = (chunk: string): string => {
-  if (!chunk.startsWith("/") || chunk.startsWith("//")) return chunk;
-  const base = env.BASE_URL || "/";
-  if (base === "/" || chunk.startsWith(base)) return chunk;
-  return base.replace(/\/$/, "") + chunk;
-};
+// The FETCH URL derives from the app's PUBLIC_ORIGIN + BASE_URL at load time
+// via the same composition the esm client's moduleBaseURL uses — full
+// transport parity, including CDN-origin deploys. Ids stay base-free, so a
+// snapshot baked once serves from any base/origin. External and
+// protocol-relative ids pass through; already-based ids are not re-prefixed
+// (createBaseURL guards both).
+export const resolveChunkUrl = (chunk: string): string => absoluteURL(chunk);
 
 export const loadBrowserFlightClient = (): PromiseLike<BrowserFlightClient> =>
   (globalThis as { __vprsFlightTransport?: string }).__vprsFlightTransport ===
@@ -44,7 +40,7 @@ export const loadBrowserFlightClient = (): PromiseLike<BrowserFlightClient> =>
         ({ createWebpackClient }) =>
           createWebpackClient({
             load: (chunk: string) =>
-              import(/* @vite-ignore */ withAppBase(chunk)),
+              import(/* @vite-ignore */ resolveChunkUrl(chunk)),
           })
       ) as PromiseLike<BrowserFlightClient>)
     : (import(

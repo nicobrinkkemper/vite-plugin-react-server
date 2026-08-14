@@ -27,6 +27,9 @@ jobs:
       - name: Run full test suite
         run: npm run test-all
 
+      - name: Webpack transport matrix (root + subpath base)
+        run: npm run test:transport-webpack
+
       - name: Verify package manifest (publint + entrypoints)
         run: npm run build && npm run verify:package
 
