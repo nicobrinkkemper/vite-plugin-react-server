@@ -9,6 +9,9 @@ describe('#env (condition-split env source)', () => {
 
     expect(envModule).toBeDefined();
     expect(envModule.env).toBeDefined();
-    expect(envModule.env.BASE_URL).toBe('/');
+    // env.node reads the mirrored VITE_BASE_URL live, so the assertion must
+    // follow the environment — a literal '/' made this test fail under the
+    // test-base-url rerun the moment that script actually set the base.
+    expect(envModule.env.BASE_URL).toBe(process.env.VITE_BASE_URL || '/');
   });
 }); 

@@ -21,7 +21,7 @@ export const config = {
 | `moduleBase` | `string` | Root directory for project modules | `"src"` |
 | `moduleBasePath` | `string` | Second argument to `renderToPipeableStream` | `"/my-repo/"` |
 | `moduleBaseURL` | `string` | Requests from this base | `"/my-repo/"` |
-| `publicOrigin` | `string` | Origin for moduleBaseURL | `"https://username.github.io"` |
+| `publicOrigin` | `string` | Origin for building absolute urls (`absoluteURL`/`pageURL`, canonical hrefs in snapshots). Browser **module** loading is deliberately same-origin — the bootstrap entry and flight-loaded chunks must share one origin/module graph or hydration fails with two Reacts — so this never affects where chunks load from; to CDN-serve modules, pass an absolute `moduleBaseURL` explicitly. | `"https://username.github.io"` |
 | `Page` | `(url: string) => string` | Maps URLs to page component files | - |
 | `props` | `(url: string) => string` | Maps URLs to props files | - |
 | `routes` | `RoutesOption` | File-based router (v3+): scans a route tree and derives `Page`, `props`, `routePatterns` and the prerender worklist. Takes `{ dir?, staticPaths? }` or a `fileRouter()` result. See [Routing](./routing.md). | `{ dir: "routes" }` |
