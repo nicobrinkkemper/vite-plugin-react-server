@@ -102,8 +102,24 @@ function serve(
   handler: (req: Request) => Promise<Response | null>,
   staticRoots: string[]
 ): Server {
+  // Under the base-url rerun the build's urls all carry BASE, so the app is
+  // MOUNTED there — the deployment reality a subpath host (GH Pages, an
+  // nginx location) provides. Stripping the prefix up front puts both the
+  // static lookup and the handler back in root shape, like a reverse proxy.
+  const base = process.env.VITE_BASE_URL || "/";
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    if (base !== "/") {
+      if (url.pathname === base || url.pathname + "/" === base) {
+        url.pathname = "/";
+      } else if (url.pathname.startsWith(base)) {
+        url.pathname = "/" + url.pathname.slice(base.length);
+      } else {
+        res.writeHead(404);
+        res.end("outside base");
+        return;
+      }
+    }
     if (req.method === "GET") {
       for (const root of staticRoots) {
         const file = join(root, url.pathname);
@@ -228,9 +244,10 @@ describe.skipIf(!browserAvailable)(
           if (r.request().method() === "POST") actionStatus = r.status();
         });
 
-        await page.goto(`http://localhost:${PORT}/`, {
-          waitUntil: "networkidle",
-        });
+        await page.goto(
+          `http://localhost:${PORT}${process.env.VITE_BASE_URL || "/"}`,
+          { waitUntil: "networkidle" },
+        );
         const button = page.locator("#ping");
         await button.waitFor({ timeout: 15000 });
         await page.waitForFunction(
