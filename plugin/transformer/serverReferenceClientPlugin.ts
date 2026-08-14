@@ -40,11 +40,13 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
   let normalizer = (resolved.type === "success"
     ? resolved.userOptions.normalizer
     : undefined) as ((p: string) => [unknown, string]) | undefined;
+  let viteBase = "/";
 
   return {
     name: "vite-plugin-react-server:server-reference-client",
     enforce: "pre",
     configResolved(config) {
+      viteBase = config.base ?? "/";
       // Recreate moduleID with the runtime configEnv/mode, mirroring
       // createTransformerPlugin, so the hosted id matches the server side.
       const r = resolveOptions(
@@ -118,10 +120,8 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
         // createTransformerPlugin's proxy emission for the full rationale).
         return [
           `import { createServerReference } from "react-server-dom-esm/client.browser";`,
-          // Runtime-composed: utils/callServer reads env.BASE_URL, which the
-          // consumer's build define-replaces inside THAT module — the action
-          // posts to the deploy's real base without baking a literal here.
-          `import { callServer } from "vite-plugin-react-server/utils";`,
+          `import { createCallServer } from "vite-plugin-react-server/utils";`,
+          `const callServer = createCallServer(${JSON.stringify(viteBase)});`,
           ...exportNames.map(
             (n) =>
               `export const ${n} = createServerReference(${JSON.stringify(

@@ -80,7 +80,11 @@ async function setupFixture() {
   await writeFile(
     join(testDir, "src/client.tsx"),
     `import { startClient } from "vite-plugin-react-server/router/client";\n` +
-      `startClient({ moduleBaseURL: "/" });\n`
+      // No explicit moduleBaseURL: the env default is the deploy's real
+      // base (define-baked), which the base-url rerun exercises — a literal
+      // "/" here silently pinned every run to the root and made the action
+      // POST to the origin root under a subpath base.
+      `startClient();\n`
   );
   await writeFile(
     join(testDir, "index.html"),
