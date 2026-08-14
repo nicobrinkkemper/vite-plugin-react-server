@@ -360,7 +360,7 @@
     "test:e2e": "playwright test",
     "test:e2e:server": "npx tsx test/e2e/server.ts",
     "test:dev-flight-hydration": "node scripts/verify-dev-flight-hydration.mjs",
-    "test-base-url": "export BASE_URL='/test-base-url/' && npm run build && npm run test:server",
+    "test-base-url": "export VITE_BASE_URL='/test-base-url/' && npm run build && npm run test:server",
     "test:transport-webpack": "./scripts/test-transport-webpack.sh",
     "test:coverage": "NODE_OPTIONS='--conditions react-server' vitest run --typecheck --coverage",
     "test:ui": "npm run setup:test-fixtures && vitest --ui",

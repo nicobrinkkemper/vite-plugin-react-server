@@ -1,4 +1,4 @@
-import { absoluteURL } from "./envUrls.js";
+import { baseURL } from "./envUrls.js";
 // The one place browser code picks a flight client. WHICH client must follow
 // how the server encoded the payload: a webpack-transport bundle's document
 // injects `self.__vprsFlightTransport` (see createEdgeRenderHook) and its
@@ -25,13 +25,15 @@ export type BrowserFlightClient = {
 };
 
 // Chunk ids in the flight are root-relative identity keys ("/components/…").
-// The FETCH URL derives from the app's PUBLIC_ORIGIN + BASE_URL at load time
-// via the same composition the esm client's moduleBaseURL uses — full
-// transport parity, including CDN-origin deploys. Ids stay base-free, so a
-// snapshot baked once serves from any base/origin. External and
-// protocol-relative ids pass through; already-based ids are not re-prefixed
-// (createBaseURL guards both).
-export const resolveChunkUrl = (chunk: string): string => absoluteURL(chunk);
+// The FETCH URL derives from BASE_URL only — the SERVING origin loads the
+// chunk, never a baked PUBLIC_ORIGIN. Same-origin is the browser module
+// contract (see urls.test.ts): the bootstrap entry is injected same-origin,
+// and flight-loaded chunks must share its origin or the page ends up with
+// two module graphs and two Reacts (null-dispatcher hydration failure).
+// CDN-serving the module graph is the explicit absolute-moduleBaseURL
+// escape hatch, not a publicOrigin side effect. External and already-based
+// ids pass through (createBaseURL guards both).
+export const resolveChunkUrl = (chunk: string): string => baseURL(chunk);
 
 export const loadBrowserFlightClient = (): PromiseLike<BrowserFlightClient> =>
   (globalThis as { __vprsFlightTransport?: string }).__vprsFlightTransport ===
