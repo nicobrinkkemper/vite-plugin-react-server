@@ -26,6 +26,8 @@ SUITES=(
 
 # Parity leg: the same suites under a subpath base. Transport must never be
 # a base-sensitivity dimension — the webpack chunk loader resolving ids
-# against BASE_URL (flightClient.browser withAppBase) is what this guards.
-export BASE_URL='/test-base-url/'
+# through PUBLIC_ORIGIN + BASE_URL (flightClient.browser resolveChunkUrl)
+# is what this guards. The plugin reads the VITE_-prefixed value; a bare
+# BASE_URL export is ignored and silently reruns the root base.
+export VITE_BASE_URL='/test-base-url/'
 ./scripts/test-both.sh "${SUITES[@]}"
