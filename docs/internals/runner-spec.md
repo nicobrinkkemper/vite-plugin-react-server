@@ -39,7 +39,7 @@ One declaration names the choice. Two roles must not be conflated:
   *names* who owns resolution — Node's resolver, or Vite's Environment API.
 
 Both topologies stay valid. The runner is not a canonicalization; it is the
-name of a deliberate choice (see `vprs_runner_and_design_philosophy`).
+name of a deliberate choice.
 
 ## Paradigm matrix
 
