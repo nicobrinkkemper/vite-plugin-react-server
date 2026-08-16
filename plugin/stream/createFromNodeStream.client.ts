@@ -50,6 +50,14 @@ export const createFromNodeStream: CreateFromNodeStreamFn<"client"> =
       }
       moduleBaseURL = "/";
     }
+    // COMPOSITION CONTRACT with the stock esm transport (see
+    // createReactFetcher): the flight client builds browser-facing specifiers
+    // as `moduleBaseURL + id` and vprs ids carry a LEADING slash. A base
+    // ending in "/" composes "//…" — a protocol-relative URL, so the script
+    // hoistables this decode bakes into the HTML resolve the id's first path
+    // segment as a HOST instead of loading the same-origin chunk. Strip the
+    // trailing slash here, same as the browser side does before decoding.
+    moduleBaseURL = moduleBaseURL.replace(/\/+$/, "");
     if (!moduleRootPath) {
       moduleRootPath = "";
     } else if (!moduleRootPath.endsWith("/")) {
