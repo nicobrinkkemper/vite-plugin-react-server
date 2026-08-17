@@ -2,7 +2,7 @@ import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 import type { ConfigEnv } from "vite";
@@ -84,7 +84,20 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // environment ('unknown') — handle both, or the RSC worker never hears
       // about the edit. Multiple calls for the same change are deduped by
       // `isProcessingHmr` below.
-      if (envName !== 'client' && envName !== 'unknown') return;
+      if (envName !== 'client' && envName !== 'unknown') {
+        // Not a plain pass-through for css: the server/ssr environments hold
+        // their own node for a server-imported stylesheet (page.tsx imports
+        // it for class-name hashes), and Vite's native propagation for that
+        // node dead-ends into a full reload — the dev:rsc orchestrator
+        // suppresses this in plugin.server.ts, and dev:ssr must match. The
+        // client-environment call owns the real update (worker invalidation
+        // + the kind:'css' cache-bust event).
+        const rel = file.replace(userOptions.projectRoot || server.config.root, '').replace(/^\/+/, '');
+        if (rel.startsWith((userOptions.moduleBase || 'src') + '/') && CSS_EXT.test(file)) {
+          return [];
+        }
+        return;
+      }
       
       // Prevent recursive HMR updates
       if (isProcessingHmr) {
@@ -123,17 +136,29 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // hashes) until a server restart. This is the dev:ssr counterpart to
       // the #96 fix in plugin.server.ts: that fix only takes effect on the
       // dev:rsc main thread; dev:ssr loads plugin.client.ts instead.
-      const isClientGraphCss =
-        isCssFile &&
-        (ctx.modules ?? []).some(
-          (m: { importers?: Set<unknown> }) => (m.importers?.size ?? 0) > 0,
-        );
-      if (isClientGraphCss) {
-        // Vite owns the visible update, but the RSC worker still holds the
-        // css-module JS proxy — drop it so the next server render agrees
-        // with the new stylesheet's class-name hashes.
+      const clientOwnedCss = isCssFile
+        ? clientOwnedCssModules(ctx.modules, file)
+        : [];
+      if (isCssFile && clientOwnedCss.length > 0) {
+        // Vite owns the visible update for the client-imported modules, but
+        // the RSC worker still holds the css-module JS proxy — drop it so
+        // the next server render agrees with the new class-name hashes.
+        // Return ONLY the swappable modules: the link-fetch artifact nodes
+        // riding along would dead-end propagation into a full reload.
         hmrHandler?.sendHmrUpdate(file);
-        return; // let Vite's native client CSS HMR apply the update
+        // Dual-graph: the SAME stylesheet may also be server-rendered as a
+        // <link> (the <Css cssFiles={...}/> pattern), whose href doesn't
+        // change on edit — without the cache-bust event that copy stays
+        // stale. Cascade order can mask it (an edited declaration wins via
+        // Vite's fresher <style>), but a DELETED rule survives in the stale
+        // link. Send the tagged event so useRscHmr cache-busts matching
+        // links, exactly as the non-client-owned css branch below does.
+        server.ws.send({
+          type: "custom",
+          event: "vite-plugin-react-server:server-component-update",
+          data: { file: normalizedFile, path: file, kind: "css" },
+        });
+        return clientOwnedCss as never[];
       }
 
       const isServerFile = isSourceFile && !isClientFile;
