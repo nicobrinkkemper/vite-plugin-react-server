@@ -41,6 +41,30 @@ One declaration names the choice. Two roles must not be conflated:
 Both topologies stay valid. The runner is not a canonicalization; it is the
 name of a deliberate choice.
 
+### The runner/condition invariant (validated, not assumed)
+
+The flag names an intent; the process either matches it or the build must
+say so loudly, because neither direction fails soft:
+
+- **`main` requires the process condition present.** The flag cannot
+  retroactively add `--conditions react-server` to imports that already
+  resolved — `vite.config.ts` and its graph load BEFORE any plugin code
+  runs, so a `main` runner in a flagless process has already resolved
+  client-condition React into the config layer. Erroring is the only honest
+  response: "runner 'main' needs NODE_OPTIONS='--conditions react-server'
+  (react-in-config resolves at process start)".
+- **`isolated` / `edge` require the condition absent.** A global
+  `--conditions react-server` poisons every module the orchestrator loads
+  outside its per-environment `resolve.conditions` — the launch flag would
+  silently reintroduce exactly the inference this spec retires. Error:
+  "runner '<name>' owns react-server resolution itself; remove the process
+  flag".
+
+Validation is one `getCondition()` check at config-resolve time, and it is
+what makes the flag trustworthy: after it, `runner` is the single source of
+truth for paradigm, and the process flag is a checked precondition rather
+than a signal.
+
 ## Paradigm matrix
 
 | | `main` | `isolated` | `edge` |
@@ -148,18 +172,25 @@ dependency edge.
 ## Resolutions (proposed, for review)
 
 1. **Flag default: none — a missing `runner` errors**, listing the three
-   options with a one-line description each. A default is inference with
+   options with a one-line description each; a PRESENT flag is then checked
+   against the process condition (the invariant above), so a mismatch is a
+   config-time error, not a runtime mystery. A default is inference with
    better branding: it silently canonicalizes one topology, which Non-goals
    refuses, and it hides the exact choice this spec exists to surface. The
    error message doubles as the paradigm's elevator pitch; templates ship
    with `runner` already set, so first-run DX is a template concern, not a
    default.
-2. **`build.edge` survives as an artifact knob on the other runners.**
-   Runner and edge artifact are different axes: the runner is process
-   topology, `build.edge` is an emitted output. A `main` setup that debugs
-   in-process but deploys the baked pair needs both from one config. The
-   `edge` runner is the paradigm where the baked pair also serves dev and
-   prod, not the only gate to producing it.
+2. **`build.edge` survives as an artifact knob on the other runners — and
+   every emitted host target describes itself.** Runner and edge artifact
+   are different axes: the runner is process topology, `build.edge` is an
+   emitted output. A `main` setup that debugs in-process but deploys the
+   baked pair needs both from one config. Such a build has TWO valid
+   deployment targets, so hosting metadata is per-target, never global: each
+   emitted serving path carries its own host manifest / generated host entry
+   next to its own artifacts (see the host spec), and nothing in `dist/`
+   claims to speak for the build as a whole. The `edge` runner is the
+   paradigm where the baked pair also serves dev and prod, not the only gate
+   to producing it.
 3. **The runner owns action dispatch; the delegator stays an advanced
    export.** Consumer action code is identical under all three runners —
    that identity is what makes `runner` one abstraction instead of three
