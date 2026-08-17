@@ -55,6 +55,11 @@ test.describe('HMR in bidoof-template', () => {
       expect(hmrLogs.some((log) => log.includes('Server component updated'))).toBe(true);
     } finally {
       await writeFile(pageFile, originalContent);
+      // Drain the restore's refetch before ending — it must not bleed into
+      // the next test's window (state-wiping remounts, stray HMR logs).
+      try {
+        await expect(page.locator('h1')).not.toContainText('HMR TEST', { timeout: 15000 });
+      } catch {}
     }
   });
 
@@ -79,6 +84,12 @@ test.describe('HMR in bidoof-template', () => {
       });
     } finally {
       await writeFile(pageFile, originalContent);
+      // Same drain: wait for the marker to leave before the test ends.
+      try {
+        await expect(page.locator('[data-testid="hmr-marker"]')).toHaveCount(0, {
+          timeout: 15000,
+        });
+      } catch {}
     }
   });
 
@@ -94,15 +105,10 @@ test.describe('HMR in bidoof-template', () => {
   });
 
   test('CSS change applies without page reload', async ({ page }) => {
-    // Pinned repro of a real bug (expected-fail until fixed): css this page
-    // delivers INLINE (at/under css.inlineThreshold) rides the flight as a
-    // React hoistable <style>, and React dedupes style hoistables by identity
-    // without updating the content of one already inserted — so the refetch
-    // that useRscHmr fires on a css edit silently drops the new styles. The
-    // server side is verified correct (a fresh flight carries the new rule);
-    // linked css works (refreshCssLinks mutates <link> outside React). When
-    // the fix lands this flips to unexpected-pass — remove the annotation.
-    test.fail();
+    // Regression guard (formerly a pinned expected-fail): dev delivers css as
+    // <link> and a css edit cache-busts it via the kind:'css' event while the
+    // client-owned module hot-swaps — the 3.10.x/3.11.0 fix line. The edit
+    // must apply live with input state preserved and no reload.
     const cssFile = join(bidoofDir, 'src/css/pokedex.module.css');
     const originalContent = await readFile(cssFile, 'utf-8');
     try {
@@ -122,6 +128,15 @@ test.describe('HMR in bidoof-template', () => {
       await expect(input).toHaveValue('state-marker');
     } finally {
       await writeFile(cssFile, originalContent);
+      // Drain the restore's own HMR cycle before the test ends — its css
+      // event and refetch must not bleed into the next test's log window.
+      try {
+        await expect(page.locator('h1')).not.toHaveCSS('font-size', '61px', {
+          timeout: 10000,
+        });
+      } catch {
+        // Best-effort settle; the restore itself already happened above.
+      }
     }
   });
 
