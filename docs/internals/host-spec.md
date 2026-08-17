@@ -1,4 +1,4 @@
-# Host spec — `createHost({ buildDir })` (draft)
+# Host spec — `createHost` over per-target manifests (draft)
 
 Status: DRAFT for review. Companion to the runner spec: that one declares the
 paradigm at build time; this one makes prod serving a one-liner over the
@@ -85,10 +85,15 @@ shared manifest would leave such a build with two valid deployment targets
 and no way to say which one a given host serves; per-target manifests make
 each entry self-describing.
 
+The shared core (routing + policy) is identical in both; only the render
+source and how relative paths resolve differ. The edge shape, whose paths
+resolve against its own directory:
+
 ```
-dist/server/host-manifest.json
+dist/server-edge/host-manifest.json
 {
   "version": 1,
+  "target": "edge",
   "base": "/",
   "routes": [
     { "pattern": "/pokedex/$name", "dynamic": true },
@@ -96,6 +101,7 @@ dist/server/host-manifest.json
     { "pattern": "/", "dynamic": false }
   ],
   "prerendered": ["/", "/pokedex", "/pokedex/pikachu", "…"],
+  "assets": ["index-abc123.js", "assets/css/pokemon-xyz.css", "…"],
   "cssByPattern": { "/pokedex/$name": ["assets/css/pokemon-xyz.css"] },
   "inlineThreshold": 10000,
   "bootstrapModules": ["/index-abc123.js"],
@@ -104,10 +110,18 @@ dist/server/host-manifest.json
   "etags": { "index.html": "W/\"a1b2c3\"", "…": "…" },
   "precompressed": ["br", "gzip"],
   "transport": "webpack",
-  "renderBundle": "../server-edge/render.js",
-  "consumerBundle": "../server-edge/consumer.js"
+  "renderBundle": "./render.js",
+  "consumerBundle": "./consumer.js"
 }
 ```
+
+The Node/worker shape (`dist/server/host-manifest.json`) carries the same
+routing and policy fields with `"target": "node"`, and instead of the baked
+pair it names ITS render source: the server bundle's request entry (and the
+worker files when the build is worker-based). `assets` is the exact-match
+inventory step 2 of the request algorithm serves from — every emitted static
+file that is not a prerendered document — so asset serving derives from the
+manifest like everything else, not from an existsSync per request.
 
 Everything in it is information the build holds at emit time; nothing is
 computed at runtime that the build already computed. The file is versioned so
@@ -136,20 +150,29 @@ For `GET`/`HEAD` on `pathname`:
 1. Normalize: base strip, `.rsc` suffix detection, trailing-slash
    canonicalization (`/pokedex` → 308 → `/pokedex/`, matching what the
    prerender emitted — one URL per page, not two).
-2. `pathname` in `prerendered` → serve the static file (delegate to the
-   platform's static layer when `statics: "platform"`, below).
-3. Else match `routes`; a `dynamic` match → per-request render through the
+2. **Exact asset lookup, before any routing.** `pathname` matches a file in
+   the manifest's `assets` inventory (hashed chunks, CSS, images, fonts —
+   every emitted static file that is not a prerendered document) → serve it
+   with the asset cache profile. Route matching never sees these paths: a
+   catch-all pattern must not swallow `/assets/app-abc123.js` and render a
+   404 document for it. Under `statics: "platform"` this step (and step 3)
+   is the platform's; when a request for a known asset still reaches the
+   handler there, it answers through the `serveStatic` seam (below) or 404s
+   with the asset name — never by attempting a render.
+3. `pathname` in `prerendered` → serve the static document (same
+   `statics: "platform"` delegation).
+4. Else match `routes`; a `dynamic` match → per-request render through the
    render bundle (full document, or headless flight for `.rsc`/Accept), with
    the pattern's CSS, under the request's abort signal and a render
    deadline.
-4. Outcomes are kept distinct — this is a server, not a router with one
+5. Outcomes are kept distinct — this is a server, not a router with one
    apology page:
    - loader `notFound()` / no match → the prerendered 404 page, status 404;
    - loader `redirect()` → the 3xx, passed through;
    - render **failure** (thrown error, upstream fetch dead, deadline hit) →
      status **500** with the error page, after `onError` — never disguised
      as a 404, never a clean 200. There is deliberately no stale-fallback
-     knob: step 2 serves every prerendered URL before a render is attempted,
+     knob: step 3 serves every prerendered URL before a render is attempted,
      so by the time a render fails there is no prerendered copy of that URL
      to fall back to. A serve-prerendered-but-revalidate-per-request mode
      (which WOULD create that fallback window) is real scope, but it needs
@@ -217,6 +240,38 @@ createHost({
   cache?: (url) => HeadersInit,     // override the cache-profile defaults
   rewrite?: (url) => string | null, // escape hatch before matching
 })
+```
+
+The knobs are not Node-only. The generated edge entry exports the SAME
+option surface as a factory, with the zero-config default handler built from
+it:
+
+```ts
+// dist/server-edge/host.js (generated) — shape, not implementation:
+export function createHost(options?: HostOptions): (request: Request, ...platform) => Promise<Response>;
+export default createHost();   // the zero-config handler
+```
+
+`HostOptions` here is every knob above except `buildDir` (the entry's
+artifacts are baked; there is no directory) and `statics: "serve"` (a fetch
+runtime has no filesystem to serve from), plus the seam that makes
+`statics: "platform"` a contract instead of hand-waving:
+
+```ts
+serveStatic?: (request: Request) => Promise<Response | null>,
+// null → not an asset/prerendered file; continue to route matching.
+```
+
+This is the same `serveStatic` the shared `createHostFromManifest` core
+already takes — the Node form derives it from `buildDir`, and a platform
+wrapper passes the platform's own asset layer:
+
+```ts
+// workerd, assets binding:
+export default {
+  fetch: (req, env, ctx) =>
+    createHost({ serveStatic: (r) => env.ASSETS.fetch(r).then((res) => res.status === 404 ? null : res) })(req, env, ctx),
+};
 ```
 
 Small on purpose. Anything beyond this is composition: wrap the returned
