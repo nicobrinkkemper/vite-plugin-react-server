@@ -24,4 +24,16 @@ describe("withParams", () => {
     const props = withParams("/u/$name", async ({ params }) => `hi ${params.name}`);
     await expect(props("/u/ada")).resolves.toBe("hi ada");
   });
+
+  it("strips .html from param values by default (SSG-correct)", () => {
+    const props = withParams("/profile/$id", ({ params }) => params);
+    expect(props("/profile/42.html")).toEqual({ id: "42" });
+  });
+
+  it("keeps .html in a splat when stripHtmlSuffix is false", () => {
+    const props = withParams("/docs/$", ({ params }) => params, {
+      stripHtmlSuffix: false,
+    });
+    expect(props("/docs/intro.html")).toEqual({ _splat: "intro.html" });
+  });
 });

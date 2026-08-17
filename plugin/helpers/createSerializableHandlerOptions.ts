@@ -71,6 +71,7 @@ export interface SerializableHandlerOptions {
 
   // Route patterns for request-time param resolution (plain strings, cloneable)
   routePatterns?: readonly string[];
+  stripHtmlSuffix?: boolean;
   // Precomputed params (plain object, cloneable). `request` is intentionally
   // excluded — a Request can't cross the worker boundary.
   params?: Record<string, string>;
@@ -123,6 +124,7 @@ export function createSerializableHandlerOptions(
     globalCss,
     pageProps,
     routePatterns,
+    stripHtmlSuffix,
     params,
     css,
     autoDiscover,
@@ -193,6 +195,7 @@ export function createSerializableHandlerOptions(
   if (globalCss != null) result.globalCss = globalCss;
   if (pageProps != null) result.pageProps = pageProps;
   if (routePatterns != null) result.routePatterns = [...routePatterns];
+  if (stripHtmlSuffix != null) result.stripHtmlSuffix = stripHtmlSuffix;
   if (params != null) result.params = params;
   if (clientPipeableStreamOptions != null) {
     // Use the existing helper to clean the object - this will handle all non-function properties

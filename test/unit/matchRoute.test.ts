@@ -170,6 +170,20 @@ describe("normalizePathForMatch", () => {
   it("honors a custom rsc suffix", () => {
     expect(normalizePathForMatch("/p/42.flight", ".flight")).toBe("/p/42");
   });
+
+  it("strips a trailing .html by default (SSG transport suffix)", () => {
+    expect(normalizePathForMatch("/profile/42.html")).toBe("/profile/42");
+  });
+
+  it("keeps .html when stripHtmlSuffix is false (content path)", () => {
+    expect(normalizePathForMatch("/docs/intro.html", ".rsc", false)).toBe(
+      "/docs/intro.html",
+    );
+    // The transport suffix still strips regardless of the html knob.
+    expect(normalizePathForMatch("/docs/intro.rsc", ".rsc", false)).toBe(
+      "/docs/intro",
+    );
+  });
 });
 
 describe("orderPatterns", () => {

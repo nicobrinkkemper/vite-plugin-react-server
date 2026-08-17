@@ -46,6 +46,11 @@ export type FileRouterConfig = {
    */
   routePatterns: string[];
   /**
+   * The `.html`-stripping choice, spread into the plugin config so the
+   * request-time `params` derivation matches the same way this router does.
+   */
+  stripHtmlSuffix?: boolean;
+  /**
    * Params for a concrete url, from the matched pattern (`/profile/123` →
    * `{ id: "123" }`). This is what the loader plumbing threads into
    * `props(url, { params, request })`; returns `{}` when nothing matches.
@@ -73,6 +78,14 @@ export function fileRouter(
      * an extra path segment and a catch-all (or `$param`) swallows it.
      */
     rscOutputPath?: string;
+    /**
+     * Strip a trailing `.html` before matching (default `true`, the
+     * SSG-correct behavior: a prerendered `/profile/42.html` resolves
+     * `{ id: "42" }`). Set `false` when `.html` is content, not transport —
+     * a catch-all like `/docs/$` whose splat values legitimately end in
+     * `.html`.
+     */
+    stripHtmlSuffix?: boolean;
   } = {},
 ): FileRouterConfig {
   // `root` decouples "where to scan" from "what path to emit": scan
@@ -104,7 +117,9 @@ export function fileRouter(
   const patterns = routes.map((r) => r.pattern);
   const byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
   const rscOutputPath = opts.rscOutputPath ?? RSC_OUTPUT_PATH;
-  const forMatch = (url: string) => normalizePathForMatch(url, rscOutputPath);
+  const stripHtmlSuffix = opts.stripHtmlSuffix ?? true;
+  const forMatch = (url: string) =>
+    normalizePathForMatch(url, rscOutputPath, stripHtmlSuffix);
 
   const matched = (url: string): RouteEntry => {
     const m = matchRoutes(patterns, forMatch(url));
@@ -142,6 +157,7 @@ export function fileRouter(
     build: { pages },
     routes,
     routePatterns: patterns,
+    stripHtmlSuffix: opts.stripHtmlSuffix,
     getParams: (url) => matchRoutes(patterns, forMatch(url))?.params ?? {},
     layouts: (url) => matched(url).layouts,
   };
@@ -188,6 +204,8 @@ export function resolveRoutesOption(
     patterns?: ScanPatterns;
     /** Transport suffix stripped before matching (`build.rscOutputPath`). */
     rscOutputPath?: string;
+    /** Strip a trailing `.html` before matching (default `true`). */
+    stripHtmlSuffix?: boolean;
   },
 ): FileRouterConfig {
   // A pre-built router table has a `Page` resolver; a declarative config
@@ -198,5 +216,6 @@ export function resolveRoutesOption(
     staticPaths: routes.staticPaths,
     root: opts.projectRoot,
     rscOutputPath: opts.rscOutputPath,
+    stripHtmlSuffix: opts.stripHtmlSuffix,
   });
 }

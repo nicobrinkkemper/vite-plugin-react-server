@@ -232,6 +232,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
         patterns: { pagePattern, propsPattern },
         rscOutputPath:
           options.build?.rscOutputPath ?? DEFAULT_CONFIG.BUILD.rscOutputPath,
+        stripHtmlSuffix: options.stripHtmlSuffix,
       })
     : undefined;
   // Soft nudge (not a break): the loose Page/props/routePatterns remain the
@@ -252,6 +253,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const effectiveProps = options.props ?? routerTable?.props;
   const effectiveRoutePatterns =
     options.routePatterns ?? routerTable?.routePatterns;
+  const effectiveStripHtmlSuffix =
+    options.stripHtmlSuffix ?? routerTable?.stripHtmlSuffix;
   // `build.pages` is the prerender worklist (an output concern). Its function
   // form now receives the ROUTER-derived list, so a user can filter / extend /
   // replace it without restating routes:
@@ -1067,6 +1070,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       serverEntry: options.serverEntry ?? DEFAULT_CONFIG.SERVER_ENTRY,
       clientPackages: options.clientPackages,
       routePatterns: effectiveRoutePatterns,
+      stripHtmlSuffix: effectiveStripHtmlSuffix,
       autoDiscover: autoDiscover,
       loader: loader,
       pipeableStreamOptions,

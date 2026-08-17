@@ -38,10 +38,14 @@ const PROBE_SEGMENT = "__vprs_dyn__";
  * `"42.rsc"`. Shared by the fileRouter-threaded `params` (resolvePageAndProps)
  * and the manual `withParams` escape hatch so the two agree for a given request.
  */
-export function normalizePathForMatch(path: string, rscSuffix = ".rsc"): string {
+export function normalizePathForMatch(
+  path: string,
+  rscSuffix = ".rsc",
+  stripHtmlSuffix = true,
+): string {
   let p = path.split("?")[0];
   if (rscSuffix && p.endsWith(rscSuffix)) p = p.slice(0, -rscSuffix.length);
-  else if (p.endsWith(".html")) p = p.slice(0, -".html".length);
+  else if (stripHtmlSuffix && p.endsWith(".html")) p = p.slice(0, -".html".length);
   if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
   return p || "/";
 }
