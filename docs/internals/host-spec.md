@@ -38,27 +38,52 @@ Two well-known escapes exist and both are rejected:
 
 ## The API
 
-```ts
-import { createHost } from "vite-plugin-react-server/host";
+Two entry shapes, one contract — because "read an arbitrary directory at
+runtime" and "run on workerd" are incompatible. A fetch runtime needs its
+imports statically discoverable at bundle time; it cannot `readFile` a
+manifest or dynamically import `../server-edge/render.js` from a `buildDir`
+it has no filesystem for. So the filesystem-walking form is a **Node-only
+convenience**, and the portable form is a **generated host entry** the build
+emits with every import baked in:
 
-const handler = createHost({ buildDir: "./dist" });
-// (request: Request) => Promise<Response> — mount it anywhere:
-http.createServer(toNodeListener(handler));      // plain Node
+```ts
+// Node (convenience form): inspects buildDir at startup.
+import { createHost, toNodeListener } from "vite-plugin-react-server/host";
+http.createServer(toNodeListener(createHost({ buildDir: "./dist" }))).listen(3000);
+```
+
+```ts
+// Any fetch runtime (portable form): the build emits dist/server-edge/host.js —
+// a generated module that statically imports its render/consumer bundles and
+// inlines its manifest, then calls the same core with resolved artifacts.
+import handler from "./dist/server-edge/host.js";
 export default { fetch: handler };               // workerd / Bun / Deno
 export default handler;                          // Vercel function
 ```
 
-`createHost` returns a Web-standard fetch handler and owns **routing between
-the artifacts**: static files for prerendered URLs, per-request render for
-dynamic ones, the action gate for `x-rsc-action` POSTs, the prerendered 404
-for everything else. It owns no listener, no port, no process — the consumer
-mounts it, wraps it, or composes middleware around it. `toNodeListener`
-remains the Node adapter it already is.
+Both forms delegate to one runtime-agnostic core,
+`createHostFromManifest({ manifest, loadRender, serveStatic })` — the Node
+form derives those from `buildDir`; the generated entry bakes them. The
+handler owns **routing between the artifacts**: static files for prerendered
+URLs, per-request render for dynamic ones, the action gate for
+`x-rsc-action` POSTs, the prerendered 404 for everything else. It owns no
+listener, no port, no process — the consumer mounts it, wraps it, or
+composes middleware around it. `toNodeListener` remains the Node adapter it
+already is.
 
 ## The host manifest
 
 Derivation needs a stable contract, not directory spelunking. The build emits
 one additional artifact:
+
+Each host flavor gets its OWN manifest next to its own artifacts —
+`dist/server/host-manifest.json` for the Node/worker serving path,
+`dist/server-edge/host-manifest.json` baked into the generated edge entry —
+because one build can legitimately emit BOTH (the runner spec keeps
+`build.edge` as an artifact knob on the `main`/`isolated` runners). A single
+shared manifest would leave such a build with two valid deployment targets
+and no way to say which one a given host serves; per-target manifests make
+each entry self-describing.
 
 ```
 dist/server/host-manifest.json
@@ -123,10 +148,12 @@ For `GET`/`HEAD` on `pathname`:
    - loader `redirect()` → the 3xx, passed through;
    - render **failure** (thrown error, upstream fetch dead, deadline hit) →
      status **500** with the error page, after `onError` — never disguised
-     as a 404, never a clean 200. When a prerendered copy of the same URL
-     exists, `degrade: "stale"` may serve it (marked with a response header)
-     instead of the error page — the old demo's `/todos` fallback, made an
-     explicit knob instead of an accident.
+     as a 404, never a clean 200. There is deliberately no stale-fallback
+     knob: step 2 serves every prerendered URL before a render is attempted,
+     so by the time a render fails there is no prerendered copy of that URL
+     to fall back to. A serve-prerendered-but-revalidate-per-request mode
+     (which WOULD create that fallback window) is real scope, but it needs
+     its own revalidation semantics — out of scope for v1.
 
 `POST` with the action header → the baked sealed gate (its own 404/500
 separation follows the same rule). Everything else → 405 with `Allow`.
@@ -186,8 +213,6 @@ createHost({
   statics?: "serve" | "platform",   // default per runner (table above)
   onNotFound?: (url, request) => Response | null,  // null → prerendered 404
   onError?: (error, url) => void,   // default: console.error (never swallow)
-  degrade?: "error" | "stale",      // render failure: 500 page (default) or
-                                    // stale prerendered copy when one exists
   renderDeadlineMs?: number,        // default 30_000 → 500, not a hung socket
   cache?: (url) => HeadersInit,     // override the cache-profile defaults
   rewrite?: (url) => string | null, // escape hatch before matching
@@ -212,7 +237,7 @@ render: async (pathname, request) => {
   const route = pathname.replace(/\/index\.rsc$|\.rsc$|\/$/, "");
   if (!/^\/pokedex\/[^/]+$/.test(route)) return null;
   if (fs.existsSync(path.join(staticDir, route.slice(1), "index.html"))) return null;
-  // … flight-vs-document branch, notFound dressing, error degrade …
+  // … flight-vs-document branch, notFound dressing, error handling …
 }
 ```
 
@@ -242,18 +267,21 @@ knobs that remain.
 
 ## Resolutions (proposed, for review)
 
-1. **Explicit `host-manifest.json` over directory inference.** Inference
-   (existsSync-per-request, glob-the-static-dir) works until base paths,
-   platform statics, or `.html`-suffixed prerenders make it lie. One emitted
-   file, versioned, is the contract; the build is the only writer.
+1. **Explicit `host-manifest.json` over directory inference — one per host
+   flavor.** Inference (existsSync-per-request, glob-the-static-dir) works
+   until base paths, platform statics, or `.html`-suffixed prerenders make
+   it lie. An emitted file, versioned, is the contract; the build is the
+   only writer — and it writes one PER emitted host target, so a build
+   carrying both a Node serving path and a `build.edge` artifact has two
+   self-describing entries instead of one ambiguous manifest with two valid
+   deployments.
 2. **`statics: "platform"` is the edge default.** Serving static files from
    an edge function is paying compute to imitate a CDN; the platform serves
    statics and the handler answers only what needs compute. `"serve"` stays
    the Node default so `npm run demo` works with zero platform assumptions.
 3. **404 and 500 are different failures with different pages.** The
    prerendered 404 answers misses (unknown route, loader `notFound()`); a
-   render failure answers 500 with the error page after `onError`, with
-   `degrade: "stale"` as the opt-in softer mode. Bare-text bodies from inner
+   render failure answers 500 with the error page after `onError`. Bare-text bodies from inner
    handlers are a host-layer bug. Collapsing failures into one apology page
    is what "just a 404" criticism rightly calls out — a prod-ready handler
    keeps the distinction.
