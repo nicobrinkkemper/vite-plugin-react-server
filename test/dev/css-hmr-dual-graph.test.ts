@@ -5,6 +5,7 @@ import { testUserOptions } from "../test-config";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { clientOwnedCssModules } from "../../plugin/dev-server/devPluginShared.js";
 
 /**
  * Dual-graph CSS: the SAME stylesheet imported by a "use client" component
@@ -99,15 +100,17 @@ describe("dual-graph css edit", () => {
     // carries import.meta.hot.accept — Vite then marks the node
     // self-accepting and hot-swaps it in place. Plain fetches can't run that
     // client-side registration, so mirror the browser-driven state — but
-    // ONLY on the client-IMPORTED node (the one with a JS importer). The
-    // link-fetch artifact nodes stay exactly as a browser leaves them:
-    // non-accepting, which is what the plugin's importer predicate must
-    // filter out of the returned module list.
-    for (const m of (server as any).environments.client.moduleGraph.getModulesByFile(
-      join(testDir, "src/page/card.module.css"),
-    ) ?? []) {
-      const node = m as { isSelfAccepting?: boolean; importers?: Set<unknown> };
-      if ((node.importers?.size ?? 0) > 0) node.isSelfAccepting = true;
+    // ONLY on nodes the production predicate itself classifies as
+    // client-owned (a JS importer that is not the stylesheet's own file):
+    // the exact filter the plugin applies, so the guard cannot be
+    // accidentally satisfied by a looser marking. Artifact nodes stay as a
+    // browser leaves them: non-accepting.
+    const cssAbs = join(testDir, "src/page/card.module.css");
+    const cssNodes = [
+      ...((server as any).environments.client.moduleGraph.getModulesByFile(cssAbs) ?? []),
+    ];
+    for (const m of clientOwnedCssModules(cssNodes, cssAbs)) {
+      (m as { isSelfAccepting?: boolean }).isSelfAccepting = true;
     }
 
     const events: Array<{ type: string; event?: string; data?: { kind?: string } }> = [];
