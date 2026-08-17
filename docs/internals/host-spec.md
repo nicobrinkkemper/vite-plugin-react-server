@@ -153,12 +153,15 @@ For `GET`/`HEAD` on `pathname`:
 2. **Exact asset lookup, before any routing.** `pathname` matches a file in
    the manifest's `assets` inventory (hashed chunks, CSS, images, fonts —
    every emitted static file that is not a prerendered document) → serve it
-   with the asset cache profile. Route matching never sees these paths: a
-   catch-all pattern must not swallow `/assets/app-abc123.js` and render a
-   404 document for it. Under `statics: "platform"` this step (and step 3)
-   is the platform's; when a request for a known asset still reaches the
-   handler there, it answers through the `serveStatic` seam (below) or 404s
-   with the asset name — never by attempting a render.
+   with the asset cache profile. The classification is the manifest's, not
+   the adapter's: once a path is a known static artifact, route matching
+   never sees it — a catch-all pattern must not swallow
+   `/assets/app-abc123.js` and render a 404 document for it. Serving goes
+   through the `serveStatic` seam (below); an adapter MISS on a known
+   artifact is answered with a plain 404 naming the asset, never by falling
+   through to a render. Under `statics: "platform"` the platform normally
+   answers these before the handler runs; the same rule covers the ones
+   that still reach it.
 3. `pathname` in `prerendered` → serve the static document (same
    `statics: "platform"` delegation).
 4. Else match `routes`; a `dynamic` match → per-request render through the
@@ -258,20 +261,30 @@ runtime has no filesystem to serve from), plus the seam that makes
 `statics: "platform"` a contract instead of hand-waving:
 
 ```ts
-serveStatic?: (request: Request) => Promise<Response | null>,
-// null → not an asset/prerendered file; continue to route matching.
+serveStatic?: (request: Request, ...platform: unknown[]) => Promise<Response | null>,
+// null → the ADAPTER couldn't serve it. What happens next is the
+// manifest's call, not the adapter's: a path classified as a known static
+// artifact (assets / prerendered) answers 404 naming the file; only paths
+// the manifest doesn't know continue to route matching. An adapter miss
+// can therefore never leak an asset URL into a catch-all render.
 ```
 
 This is the same `serveStatic` the shared `createHostFromManifest` core
 already takes — the Node form derives it from `buildDir`, and a platform
-wrapper passes the platform's own asset layer:
+wrapper passes the platform's own asset layer. The handler is created ONCE
+at module scope; the platform's per-request arguments (workerd's `env`,
+`ctx`) arrive as the handler's trailing arguments and are forwarded to the
+seam:
 
 ```ts
-// workerd, assets binding:
-export default {
-  fetch: (req, env, ctx) =>
-    createHost({ serveStatic: (r) => env.ASSETS.fetch(r).then((res) => res.status === 404 ? null : res) })(req, env, ctx),
-};
+// workerd, assets binding — created once, not per fetch:
+const handler = createHost({
+  serveStatic: async (req, env) => {
+    const res = await (env as { ASSETS: { fetch: typeof fetch } }).ASSETS.fetch(req);
+    return res.status === 404 ? null : res;
+  },
+});
+export default { fetch: handler };
 ```
 
 Small on purpose. Anything beyond this is composition: wrap the returned
