@@ -98,13 +98,16 @@ describe("dual-graph css edit", () => {
     // A real browser executes the css-as-JS module, whose dev transform
     // carries import.meta.hot.accept — Vite then marks the node
     // self-accepting and hot-swaps it in place. Plain fetches can't run that
-    // client-side registration, so mirror the browser-driven state on the
-    // graph node; without it the propagation dead-ends and this test would
-    // assert a reload that real usage doesn't have.
+    // client-side registration, so mirror the browser-driven state — but
+    // ONLY on the client-IMPORTED node (the one with a JS importer). The
+    // link-fetch artifact nodes stay exactly as a browser leaves them:
+    // non-accepting, which is what the plugin's importer predicate must
+    // filter out of the returned module list.
     for (const m of (server as any).environments.client.moduleGraph.getModulesByFile(
       join(testDir, "src/page/card.module.css"),
     ) ?? []) {
-      (m as { isSelfAccepting?: boolean }).isSelfAccepting = true;
+      const node = m as { isSelfAccepting?: boolean; importers?: Set<unknown> };
+      if ((node.importers?.size ?? 0) > 0) node.isSelfAccepting = true;
     }
 
     const events: Array<{ type: string; event?: string; data?: { kind?: string } }> = [];
@@ -144,6 +147,10 @@ describe("dual-graph css edit", () => {
     );
     // The cache-bust event is what refreshes the server-rendered <link>.
     expect(cssEvents.length).toBeGreaterThan(0);
+    // Vite's native hot-swap must ALSO go out — proof the hook returned the
+    // client-owned module (an empty return would log "no modules matched"
+    // and send nothing) rather than merely avoiding a reload.
+    expect(events.some((e) => e.type === "update")).toBe(true);
     // And the dual-graph shape must not dead-end into a reload.
     expect(events.some((e) => e.type === "full-reload")).toBe(false);
   }, 20000);
