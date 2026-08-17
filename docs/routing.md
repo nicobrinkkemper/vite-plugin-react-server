@@ -73,6 +73,25 @@ export const props = (_url: string, { params }: { params: { name: string } }) =>
 The page then receives that return value as its props. In a client component,
 read them with `useParams()`.
 
+### `.html` in a param value: `stripHtmlSuffix`
+
+Before matching, the router drops the query, the transport suffix
+(`.rsc`/`build.rscOutputPath`), a trailing slash — and, by default, a trailing
+`.html`, so an SSG-served prerender like `/profile/42.html` resolves
+`{ id: "42" }`. When `.html` is *content* rather than transport — a catch-all
+like `/docs/$` whose splat values legitimately end in `.html` — opt out once at
+the router level:
+
+```ts
+routes: { dir: "routes" },
+stripHtmlSuffix: false,   // /docs/intro.html → { _splat: "intro.html" }
+```
+
+The choice applies everywhere params are derived — request-time loaders,
+layout loaders, dev, the worker path, and the baked edge bundle. `withParams`
+takes the same choice as an options argument:
+`withParams("/docs/$", loader, { stripHtmlSuffix: false })`.
+
 ## Layouts nest, and each has its own loader
 
 A `route.tsx` exports `Layout`. It wraps its segment's page *and* everything
