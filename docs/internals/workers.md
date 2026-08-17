@@ -94,6 +94,44 @@ Custom workers must implement the same message protocol. They become part of you
 | `CHUNK_PROCESSED` | success | RSC chunk acknowledged |
 | `ERROR` | error, errorInfo? | Error occurred |
 
+## End-of-Stream Contract (RSC worker two-port protocol)
+
+The RSC worker streams a render over two `MessagePort`s with distinct roles:
+
+- **Data port** — raw RSC bytes, in-band `ERROR` envelopes, and the `null`
+  end-signal. Everything on this port is ordered relative to everything else
+  on it.
+- **Control port** — `RSC_END`, an `ERROR` copy, and metrics. Ordered within
+  itself, but delivery order **across** the two ports is not guaranteed.
+
+Producer (worker) contract:
+
+- On successful completion, the worker posts the data-port `null` **before**
+  posting `RSC_END`. This ordering is contractual for the producer.
+- A render failure's authoritative copy rides the **data port** (an in-band
+  `ERROR` envelope), so it is ordered ahead of the `null`. The control-port
+  `ERROR` is a secondary copy for logging/observability; it can lose the
+  cross-port race and find the response already committed.
+
+Consumer contract:
+
+- The data-port `null` (or in-band error) is the **only** end-of-stream
+  authority. The only other terminal condition is observable worker death:
+  the worker's `exit` event errors a stream whose `null` never arrived.
+- `RSC_END` is a control notification ("render work finished"). It must
+  **never** terminate the data stream: the producer-side ordering above does
+  not survive cross-port delivery, so frames — including the trailing `$E`
+  after a failure — can still be queued on the data port when `RSC_END`
+  arrives. Ending on `RSC_END` turns a should-be error into a clean-looking
+  success.
+- No timers. A quiet-window heuristic cannot prove completion: if the data
+  port can legally lag, any legitimate gap longer than the window truncates a
+  live stream.
+
+Pinned by `test/streams/rsc-end-race.test.ts` (ordering, late frames, worker
+death) and `test/streams/error-surface.test.ts` (which copy of a failure owns
+which surface).
+
 ## Worker Termination Ordering
 
 Build cleanup in `plugin/react-static/plugin.client.ts` and `plugin/react-static/plugin.server.ts` `await worker.terminate()` inside the `finally` block, after the cooperative `SHUTDOWN` protocol times out or completes. The `await` is load-bearing: without it, libuv-level handles for file reads/writes the worker had in flight at exit can fire AFTER `doBuild` restores `cwd`, producing post-teardown `ENOENT` errors against relative paths the worker resolved while `cwd` was the test fixture root. If you add a new build path that spawns a worker, mirror the same `try { SHUTDOWN } catch {} finally { await worker.terminate() }` shape.
