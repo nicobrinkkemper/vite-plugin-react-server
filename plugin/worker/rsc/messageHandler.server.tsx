@@ -324,6 +324,7 @@ export async function loadComponentsWithCache(options: {
   layouts?: RouteLayer[];  // Root→leaf route.tsx chain for nested layouts
   layoutExportName?: string;
   rscOutputPath?: string;  // Transport suffix, for stripping when matching params
+  stripHtmlSuffix?: boolean;  // .html-as-transport vs .html-as-content (router knob)
   request?: Request;  // Rebuilt from serializedRequest; threaded into loader ctx
   /** Document-only render: Fragment page, no page/props/loader work. */
   shell?: boolean;
@@ -354,6 +355,7 @@ export async function loadComponentsWithCache(options: {
     layouts,
     layoutExportName = DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
     rscOutputPath = DEFAULT_CONFIG.BUILD.rscOutputPath,
+    stripHtmlSuffix,
     request,
     marks,
   } = options;
@@ -470,6 +472,7 @@ export async function loadComponentsWithCache(options: {
           propsExportName,
           url: normalizedUrl,
           routePatterns,
+          stripHtmlSuffix,
           request,
           loader,
           verbose: verbose || false,
@@ -564,6 +567,7 @@ export async function loadComponentsWithCache(options: {
           propsExportName,
           url: normalizedUrl,
           routePatterns,
+          stripHtmlSuffix,
           request,
           loader,
           verbose: verbose || false,
@@ -606,8 +610,10 @@ export async function loadComponentsWithCache(options: {
   // cookies/headers here too; undefined at static build.
   if (layouts?.length) {
     const params = routePatterns?.length
-      ? matchRoutes(routePatterns, normalizePathForMatch(url, rscOutputPath))
-          ?.params ?? {}
+      ? matchRoutes(
+          routePatterns,
+          normalizePathForMatch(url, rscOutputPath, stripHtmlSuffix),
+        )?.params ?? {}
       : {};
     if (marks) marks.moduleRunAt ??= Date.now();
     layoutChain = await resolveLayoutChain({
@@ -859,6 +865,8 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             logger,
             panicThreshold: msg.options.panicThreshold,
             routePatterns: msg.options.routePatterns ?? userOptions.routePatterns,
+            stripHtmlSuffix:
+              msg.options.stripHtmlSuffix ?? userOptions.stripHtmlSuffix,
             resolvedPageProps: msg.options.resolvedPageProps,  // Pre-resolved from main thread
             layouts: msg.options.layouts,
             layoutExportName:
@@ -1299,6 +1307,7 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             verbose,
             logger,
             routePatterns: workerData.userOptions?.routePatterns,
+            stripHtmlSuffix: workerData.userOptions?.stripHtmlSuffix,
           });
 
           const resolutionTime = performance.now() - resolutionStartTime;

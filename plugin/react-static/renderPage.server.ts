@@ -110,6 +110,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
           url: handlerOptions.url,
           moduleBaseURL: handlerOptions.moduleBaseURL,
           routePatterns: handlerOptions.routePatterns,
+          stripHtmlSuffix: handlerOptions.stripHtmlSuffix,
           layouts: handlerOptions.layouts,
           layoutExportName: handlerOptions.layoutExportName,
           build: {

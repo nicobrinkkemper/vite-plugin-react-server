@@ -462,6 +462,15 @@ export type ResolvedUserOptions = {
   routePatterns?: readonly string[];
 
   /**
+   * Strip a trailing `.html` before route matching (default `true`, the
+   * SSG-correct behavior: a prerendered `/profile/42.html` resolves
+   * `{ id: "42" }`). Set `false` when `.html` is content, not transport — a
+   * catch-all like `/docs/$` whose splat values legitimately end in `.html`.
+   * Spread from `fileRouter(...)` or set directly.
+   */
+  stripHtmlSuffix?: boolean;
+
+  /**
    * Per-url `route.tsx` layout-chain resolver (from the user's `layouts` option /
    * `fileRouter(...)`). Named distinctly from the resolved `layouts: RouteLayer[]`
    * array on {@link CreateHandlerOptions} so a `...userOptions` spread never
@@ -964,6 +973,14 @@ export interface StreamPluginOptions<
    */
   routePatterns?: readonly string[];
   /**
+   * Strip a trailing `.html` before route matching (default `true`, the
+   * SSG-correct behavior: a prerendered `/profile/42.html` resolves
+   * `{ id: "42" }`). Set `false` when `.html` is content, not transport — a
+   * catch-all like `/docs/$` whose splat values legitimately end in `.html`.
+   * Spread from `fileRouter(...)` or set directly.
+   */
+  stripHtmlSuffix?: boolean;
+  /**
    * Per-url resolver for a route's root→leaf `route.tsx` layout chain — spread
    * from `fileRouter().layouts`. vprs folds the chain around the leaf page so the
    * nested tree streams as one flight. Omit for a flat / hand-rolled router.
@@ -1079,6 +1096,7 @@ export type CreateHandlerOptions<
   | "rscWorkerPath"
   | "htmlWorkerPath"
   | "routePatterns"
+  | "stripHtmlSuffix"
   | "layoutExportName"
 > & {
   id?: string;

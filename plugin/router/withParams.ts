@@ -26,9 +26,22 @@ export type LoaderContext<Pattern extends string> = {
   params: RouteParams<Pattern>;
 };
 
+export type WithParamsOptions = {
+  /** Transport suffix stripped before matching (`build.rscOutputPath`). */
+  rscSuffix?: string;
+  /**
+   * Strip a trailing `.html` before matching (default `true`, the
+   * SSG-correct behavior: `/profile/42.html` → `{ id: "42" }`). Set `false`
+   * when `.html` is content, not transport — a catch-all like `/docs/$`
+   * whose splat values legitimately end in `.html`.
+   */
+  stripHtmlSuffix?: boolean;
+};
+
 export function withParams<Pattern extends string, T>(
   pattern: Pattern,
   loader: (ctx: LoaderContext<Pattern>) => T,
+  options?: WithParamsOptions,
 ): (url: string) => T {
   return (url) =>
     loader({
@@ -36,7 +49,13 @@ export function withParams<Pattern extends string, T>(
       // Match against the normalized pathname (drop query / `.rsc` / trailing
       // slash) so `withParams` yields the same params the fileRouter-threaded
       // `params` does for the same request — e.g. `/greet/alice.rsc` → `alice`.
-      params: (matchRoute(pattern, normalizePathForMatch(url)) ??
-        {}) as RouteParams<Pattern>,
+      params: (matchRoute(
+        pattern,
+        normalizePathForMatch(
+          url,
+          options?.rscSuffix,
+          options?.stripHtmlSuffix,
+        ),
+      ) ?? {}) as RouteParams<Pattern>,
     });
 }

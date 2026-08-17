@@ -652,6 +652,7 @@ const MODULE_BASE_URL = ${JSON.stringify(moduleBaseURL)};
 // document/decode side still receives verbatim.
 const FLIGHT_HOSTED_ROOT = ${JSON.stringify(moduleBasePath.replace(/\/+$/, ""))};
 const ROUTE_PATTERNS = ${JSON.stringify(userOptions.routePatterns ?? [])};
+const STRIP_HTML_SUFFIX = ${JSON.stringify(userOptions.stripHtmlSuffix ?? true)};
 // Built stylesheets, baked from the static manifest, so the document producer
 // renders styled HTML on the edge with no per-app CSS wiring. Consumers can
 // still override via opts.globalCss.
@@ -743,6 +744,7 @@ async function resolveRoute(url, request) {
     layoutExportName: LAYOUT_EXPORT,
     moduleBaseURL: MODULE_BASE_URL,
     routePatterns: ROUTE_PATTERNS,
+    stripHtmlSuffix: STRIP_HTML_SUFFIX,
     // The in-flight request, so a loader can read cookies/headers to gate an
     // authenticated route. Present only for per-request edge renders (the
     // handler passes it); undefined at prerender.

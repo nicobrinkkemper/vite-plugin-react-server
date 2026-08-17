@@ -67,7 +67,11 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
         (handlerOptions.routePatterns?.length
           ? matchRoutes(
               handlerOptions.routePatterns,
-              normalizePathForMatch(handlerOptions.route || url, rscSuffix)
+              normalizePathForMatch(
+                handlerOptions.route || url,
+                rscSuffix,
+                handlerOptions.stripHtmlSuffix,
+              )
             )?.params ?? {}
           : {});
       const loaderCtx: LoaderCtx = { params, request: handlerOptions.request };
@@ -337,6 +341,7 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
     | "verbose"
     | "logger"
     | "routePatterns"
+    | "stripHtmlSuffix"
     | "params"
     | "request"
   > & {

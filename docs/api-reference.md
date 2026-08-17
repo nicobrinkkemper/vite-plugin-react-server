@@ -26,6 +26,7 @@ export const config = {
 | `props` | `(url: string) => string` | Maps URLs to props files | - |
 | `routes` | `RoutesOption` | File-based router (v3+): scans a route tree and derives `Page`, `props`, `routePatterns` and the prerender worklist. Takes `{ dir?, staticPaths? }` or a `fileRouter()` result. See [Routing](./routing.md). | `{ dir: "routes" }` |
 | `routePatterns` | `string[]` | Route patterns for param matching (derived by `routes`; state explicitly only without it) | `["/", "/greet/$name"]` |
+| `stripHtmlSuffix` | `boolean` | Strip a trailing `.html` before route matching. Default `true` (SSG-correct: `/profile/42.html` → `{ id: "42" }`); set `false` when `.html` is content, not transport (a catch-all serving `.html`-named documents). See [Routing](./routing.md#html-in-a-param-value-striphtmlsuffix). | `false` |
 | `Html` | `React.ComponentType<HtmlProps>` | Wrapper component for production pages | - |
 | `pageExportName` | `string` | Name of the page export | `"Page"` |
 | `propsExportName` | `string` | Name of the props export | `"props"` |

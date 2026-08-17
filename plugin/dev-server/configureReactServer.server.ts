@@ -423,6 +423,7 @@ export const configureReactServer: ConfigureReactServerFn =
             route: info.route,
             moduleBaseURL: server.config.base,
             routePatterns: userHandlerOptions.routePatterns,
+            stripHtmlSuffix: userHandlerOptions.stripHtmlSuffix,
             // Nested layouts: resolve the chain here (dev renders directly on the
             // main thread via Vite's runner, so a layout loader also sees the live
             // `request`) and thread the resolved chain into the stream below.
