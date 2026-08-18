@@ -74,10 +74,10 @@ and prerendering while React Router drives client-side navigation inside a
 
 vprs runs on **stable React 19.2+** out of the box — that is the default and
 needs no special install. It **also supports experimental React**: install
-`react@experimental` / `react-dom@experimental` and the matching
-`react-server-loader@experimental` (which pins the exact experimental React it
-was built against). The vendored ESM transport ships both a stable and an
-experimental train for this reason.
+`react` / `react-dom` / `react-server-loader` at the exact experimental
+snapshot vprs's peer range names (see
+[React Compatibility](./react-type-compatibility.md)). The vendored ESM
+transport ships both a stable and an experimental train for this reason.
 
 Running experimental buys you the newest RSC features ahead of the stable
 channel. A concrete example today: stable React 19.2.x emits a cosmetic

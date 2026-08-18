@@ -6,42 +6,35 @@ The plugin runs on **stable React 19.2+**. The RSC server APIs it depends on
 (`prerenderToNodeStream` and the `react-server` transport exports) are part of
 stable React. The RSC transport itself is an implementation detail, supplied by
 the [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-dependency, whose peer range pins the exact React build the transport was
-vendored against.
+peer dependency, whose own peer range pins the exact React build the transport
+was vendored against.
 
 | React Version | Support | Notes |
 |---------------|---------|-------|
-| React 19.2+ stable | ✅ Supported | The default. `react-server-loader`'s stable train vendors a transport built against this line; install plain `react` / `react-dom` and the peer ranges line up. |
-| `react@experimental` (any `0.0.0-experimental-*` prerelease) | ✅ Supported | Still works for the newest RSC features. Use `react-server-loader@experimental`, which pins the exact experimental React it was built against. |
+| React 19.2+ stable | ✅ Supported | The default. `react-server-loader`'s stable train vendors a transport built against this line; install plain `react` / `react-dom` / `react-server-loader` and the peer ranges line up. |
+| `react@experimental` | ✅ Supported | The newest RSC features, at the exact experimental snapshot vprs's peer range names (see below). |
 | React 19.0 / 19.1 stable | ⚠️ Untested | Missing the stable prerender/transport APIs vprs depends on; upgrade to 19.2+. |
 | React 18 stable | ❌ Not supported | Missing RSC APIs |
 
-```bash
-npm install react@^19.2.7 react-dom@^19.2.7
-```
-
-For the experimental train, pin the exact React `react-server-loader@experimental`
-was built against (the `@experimental` dist-tag moves daily):
-
-```bash
-npm view react-server-loader@experimental peerDependencies
-npm install react@<that-exact-version> react-dom@<that-exact-version>
-```
-
-`react-server-loader` is a regular **dependency** whose range admits the
-stable train plus the exact experimental build this release was verified
-against — check `dependencies["react-server-loader"]` in vprs's
+`react-server-loader` is a **peer dependency** whose range admits the stable
+train plus the exact experimental build this release was verified against —
+check `peerDependencies["react-server-loader"]` in vprs's
 [`package.json`](https://github.com/nicobrinkkemper/vite-plugin-react-server/blob/main/package.json)
-for the current range. Every package manager installs it for you — the stable
-train by default, no extra step (yarn included).
-
-To run the experimental train, install all three React packages at the
-`@experimental` tag. The loader's range also admits that experimental build, so
-npm collapses to a single copy alongside your experimental React — no
-`overrides`, no duplicate in the tree:
+for the current range. Install it yourself alongside `react` / `react-dom`;
+one copy in your tree serves both vprs and your app. For stable:
 
 ```bash
-npm install react@experimental react-dom@experimental react-server-loader@experimental
+npm install react@^19.2.8 react-dom@^19.2.8 react-server-loader
+```
+
+For the experimental train, install all three at the exact snapshot vprs's
+peer range names (`react-server-loader`'s experimental versions carry the same
+version string as the React build they vendor). Do not use the floating
+`@experimental` dist-tag — it moves daily and drifts past the exact peer:
+
+```bash
+npm view vite-plugin-react-server peerDependencies  # names the exact snapshot
+npm install react@0.0.0-experimental-eb8feb71-20260814 react-dom@0.0.0-experimental-eb8feb71-20260814 react-server-loader@0.0.0-experimental-eb8feb71-20260814
 ```
 
 One practical reason to run experimental: stable React 19.2.x emits its
@@ -50,7 +43,7 @@ preload; styles still load, just not preloaded (see
 [troubleshooting](./troubleshooting.md)). The experimental channel carries
 the fix.
 
-**React peer**: `react` / `react-dom` at `^19.2.7 || >=0.0.0-0 <0.0.1` (admits
+**React peer**: `react` / `react-dom` at `^19.2.8 || >=0.0.0-0 <0.0.1` (admits
 both trains). The transport binds to a single React build's internals and
 throws on a mismatch, so keep `react`, `react-dom`, and `react-server-loader`
 on the same train. See

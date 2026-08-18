@@ -55,21 +55,23 @@ with per-request routes; all three are deletable if you don't need Vercel
 Starting from scratch instead:
 
 ```bash
-npm install -D vite-plugin-react-server react react-dom
+npm install -D vite-plugin-react-server react react-dom react-server-loader
 ```
 
 vprs runs on **stable React 19.2+** out of the box, and on experimental React
 too. Everything locked to a React version (the RSC transport on both the server
 and your browser bundle, the directive engine, the Node loader) lives in the
 [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
-dependency, whose versions track React the way `@types/react` does. Pick a
-React track, install the matching `react-server-loader`; the command above is
-all you need for stable. For the experimental train (which the starter pins),
-install the three together; the `react-server-loader` range collapses them to
-one copy, no `overrides` needed:
+peer dependency, whose versions track React the way `@types/react` does. Pick a
+React track, install the matching `react-server-loader` alongside `react` and
+`react-dom` — one copy in your tree, no `overrides` needed. For the
+experimental train (which the starter pins), install all three at the exact
+snapshot vprs's peer range names — the floating `@experimental` dist-tag moves
+daily and drifts past it:
 
 ```bash
-npm install react@experimental react-dom@experimental react-server-loader@experimental
+npm view vite-plugin-react-server peerDependencies  # the exact experimental version
+npm install react@0.0.0-experimental-eb8feb71-20260814 react-dom@0.0.0-experimental-eb8feb71-20260814 react-server-loader@0.0.0-experimental-eb8feb71-20260814
 ```
 
 Experimental buys the newest RSC features ahead of stable, for instance the fix
@@ -265,7 +267,7 @@ which is itself built with vprs.
 ## Requirements
 
 - Node.js 22.0.0+ (the build uses `node:fs/promises#glob`, which landed in 22)
-- **React 19.2+**, stable (`react` / `react-dom` at `^19.2.7`) or experimental.
+- **React 19.2+**, stable (`react` / `react-dom` at `^19.2.8`) or experimental.
   The RSC server APIs vprs uses (`prerenderToNodeStream`, the `react-server`
   transport exports) ship in stable React; the matching `react-server-dom-esm`
   transport comes from the `react-server-loader` dependency, which tracks your

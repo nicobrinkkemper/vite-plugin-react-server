@@ -315,6 +315,7 @@
     "build:types": "tsc --build --force",
     "build:vite": "vite build",
     "test:package": "node scripts/verify-package-entrypoints.mjs",
+    "test:peer-install": "./scripts/verify-peer-install.sh",
     "lint:package": "publint",
     "lint:no-bead-ids": "./scripts/check-no-bead-ids.sh",
     "verify:package": "npm run lint:package && npm run test:package && npm run lint:no-bead-ids",
@@ -396,8 +397,9 @@
   },
   "homepage": "https://github.com/nicobrinkkemper/vite-plugin-react-server#readme",
   "peerDependencies": {
-    "react": "^19.2.7 || >=0.0.0-0 <0.0.1",
-    "react-dom": "^19.2.7 || >=0.0.0-0 <0.0.1",
+    "react": "^19.2.8 || >=0.0.0-0 <0.0.1",
+    "react-dom": "^19.2.8 || >=0.0.0-0 <0.0.1",
+    "react-server-loader": "^19.2.20 || 0.0.0-experimental-eb8feb71-20260814",
     "vite": "^6.3.5 || ^7 || ^8"
   },
   "peerDependenciesMeta": {
@@ -405,6 +407,9 @@
       "optional": false
     },
     "react-dom": {
+      "optional": false
+    },
+    "react-server-loader": {
       "optional": false
     },
     "vite": {
@@ -428,8 +433,9 @@
     "marked": "^18.0.5",
     "playwright": "^1.58.1",
     "publint": "^0.3.21",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-server-loader": "^19.2.20",
     "shiki": "^4.2.0",
     "source-map": "^0.7.4",
     "supports-color": "^10.0.0",
@@ -444,7 +450,6 @@
   "dependencies": {
     "acorn": "^8.16.0",
     "picocolors": "^1.1.1",
-    "react-server-loader": "^19.2.20 || 0.0.0-experimental-eb8feb71-20260814",
     "tsx": "^4.21.0",
     "vitefu": "^1.1.3"
   }
