@@ -8,7 +8,7 @@ import { resolve, join } from "node:path";
 import { setupIndexHTML } from "../setup.js";
 
 /**
- * Regression for bd-qvz acceptance #2:
+ * Regression for a formerly-swallowed failure mode:
  *
  *   "Stream errors are swallowed: by default, an RSC render failure returns
  *    an empty 200. Should emit at least a server-side log + a 5xx (or

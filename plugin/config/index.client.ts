@@ -5,7 +5,7 @@
 //
 // IMPORTANT: do not re-export *.server.js here — that would statically link the
 // .server implementation, wrong under react-client and undermining the
-// conditional exports map. See bd-6pi.
+// conditional exports map.
 
 export * from "./index.shared.js";
 

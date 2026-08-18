@@ -1,7 +1,7 @@
 // Condition-neutral surface shared by the public ./config subpath under BOTH
 // conditions. Only modules that are import-safe under react-server AND
 // react-client belong here — re-exporting a *.server or *.client impl would
-// defeat the conditional exports and risk the bd-6pi cross-linking crash. The
+// defeat the conditional exports and risk the cross-condition linking crash. The
 // per-condition `createHandlerOptions` binding lives in index.{server,client}.ts.
 
 // Condition-neutral utilities (safe under both conditions).

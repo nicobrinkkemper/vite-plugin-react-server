@@ -80,8 +80,8 @@ describe("export-surface parity across conditions", () => {
 //
 // The runtime check above is stronger where it applies (it also proves the
 // module EVALUATES under both conditions), but most condition-split targets
-// can't be naively imported — a .client barrel under react-server crashes
-// (bd-6pi). Export NAMES don't need evaluation.
+// can't be naively imported — a .client barrel under react-server crashes.
+// Export NAMES don't need evaluation.
 //
 // SOURCE is parsed, not dist: the vite-built and tsc-built dist flavors have
 // different re-export shapes (the prepack trap), so a dist-parsing guard

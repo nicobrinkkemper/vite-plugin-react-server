@@ -1,10 +1,10 @@
 /**
- * Regression coverage for bd-5rk (2026-05-13):
+ * Regression coverage:
  *
  *   Reported: editing a *.module.css file in `dev:ssr` mode breaks the
  *   served stylesheet (rule disappears, wrong MIME type, or 404 on the
- *   linked chunk URL). Distinct from bd-vvi (dev:rsc CSS not updating
- *   without manual refresh) — this is `dev:ssr` mode going *backwards*
+ *   linked chunk URL). Distinct from dev:rsc CSS not updating
+ *   without manual refresh — this is `dev:ssr` mode going *backwards*
  *   on an edit, not just failing to update.
  *
  * Hypothesis: the SSR worker caches a compiled CSS chunk by URL, the
@@ -82,12 +82,12 @@ test.afterAll(async () => {
   await stopViteDev(server);
 });
 
-// bd-5rk regression: in dev:ssr the SSR worker imports compiled CSS modules
+// Regression: in dev:ssr the SSR worker imports compiled CSS modules
 // through Node's loader, which caches by URL. Before the fix, CSS edits did
 // not trigger a worker restart, so reloading the page re-rendered with the
 // pre-edit class hashes. Fix lives in plugin/dev-server/plugin.client.ts
 // (CSS files now route through the same worker-invalidation path as .ts/.tsx).
-test("dev:ssr applies CSS-module edits after reload (bd-5rk)", async ({ page }) => {
+test("dev:ssr applies CSS-module edits after reload", async ({ page }) => {
   await page.goto(BASE_URL + "/");
 
   // The .Home class hash-name varies; target the outermost Home-prefixed div.
@@ -98,7 +98,7 @@ test("dev:ssr applies CSS-module edits after reload (bd-5rk)", async ({ page }) 
   const updated = originalCss!.replace("font-size: 50px", "font-size: 60px");
   await writeFile(cssFile, updated);
 
-  // Reload. This test is NOT about HMR auto-update (that's bd-vvi). It's
+  // Reload. This test is NOT about HMR auto-update. It's
   // about whether dev:ssr serves correct styles after an edit at all —
   // the reported symptom was "CSS simply breaks" after an edit, which
   // would persist even across an explicit refresh.

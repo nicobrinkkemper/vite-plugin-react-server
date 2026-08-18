@@ -5,7 +5,7 @@
 // orchestrator/createPluginOrchestrator.ts, so wrong-side ESM linking can't force
 // module-init crashes. The explicit-side `vite-plugin-react-server/server`
 // subpath still goes through plugin.server.ts directly, so consumers who
-// explicitly opt into a side fail noisily under the wrong condition. See bd-6pi.
+// explicitly opt into a side fail noisily under the wrong condition.
 
 import { makeVitePluginReactServer } from "./index.shared.js";
 

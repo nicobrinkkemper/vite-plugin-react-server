@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
- * createReactFetcher join contract (bd-fnmz): the base handed to the flight
+ * createReactFetcher join contract: the base handed to the flight
  * client must not end in "/" once ids are rooted, or `base + id` composes
  * "//…" and the browser loads shared chunks under two identities.
  *
@@ -18,7 +18,7 @@ function flightResponse(body = '0:"ok"\n'): Response {
   });
 }
 
-describe("createReactFetcher join contract (bd-fnmz)", () => {
+describe("createReactFetcher join contract", () => {
   const seen: Array<{ moduleBaseURL?: string }> = [];
 
   beforeEach(() => {

@@ -178,7 +178,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       // hard-requires react-server). In dev:ssr the main thread is NOT react-server, so we
       // must NOT attempt this — the worker loads props instead. Attempting it there made
       // Vite's ModuleRunner log a "react-server condition must be enabled" error during
-      // full reloads even though we caught the rejection (bd-u7v). Gate on the condition
+      // full reloads even though we caught the rejection. Gate on the condition
       // so the doomed import never runs in dev:ssr.
       let resolvedPageProps: Record<string, unknown> | undefined;
       if (propsPath) {

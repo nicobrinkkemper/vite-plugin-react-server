@@ -740,7 +740,7 @@ return (
   // configures `props: undefined` (the "no props at all" case). The
   // original fixture used `url` undefined in a `new URL(...)` constructor,
   // which threw `TypeError: Invalid URL` and surfaced as a per-run
-  // `[client] RSC render error for /page2: Invalid URL` log (bd-w4t).
+  // `[client] RSC render error for /page2: Invalid URL` log.
   // The `new URL(...)` call has been removed entirely — the test only
   // asserts that "Home Page for ..." appears in the rendered output, and
   // the URL parsing was incidental.

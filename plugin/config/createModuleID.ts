@@ -271,7 +271,7 @@ export const createDefaultModuleID = (
     // to .js. In DEV, Vite transpiles .tsx on the fly, so mapping there gives
     // the client-reference id a phantom .js the dev module graph never has —
     // the import resolves to "<name>.client.js.tsx", which 404s on the second
-    // HMR fetch and kills Fast Refresh after the first edit (bd-572). Keep the
+    // HMR fetch and kills Fast Refresh after the first edit. Keep the
     // real .tsx id in dev. Client-ness for hashing is re-derived inside `hash`
     // (and again by the outer wrapModuleID for the join contract).
     if (isBuild) {

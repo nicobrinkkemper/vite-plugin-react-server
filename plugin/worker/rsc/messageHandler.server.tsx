@@ -407,11 +407,11 @@ export async function loadComponentsWithCache(options: {
     
     // Check cache first, but only if not invalidated.
     //
-    // bd-5xu (2026-04-30): we cache the Page component (a stable function from
+    // We cache the Page component (a stable function from
     // the source file) but NOT the props result. Props functions read mutable
     // server state — DB rows, in-memory stores, request-scoped data — and a
     // cross-request cache silently serves stale data after a server action
-    // mutates that state. The pre-bd-5xu code keyed pageProps by URL and only
+    // mutates that state. Earlier code keyed pageProps by URL and only
     // invalidated on file change, so e.g. deleting a todo via a server action
     // was correctly persisted to the DB but the next /todos/index.rsc still
     // returned the pre-delete cached props. dev:rsc didn't go through this
@@ -494,7 +494,7 @@ export async function loadComponentsWithCache(options: {
           }
 
           // Cache the Page component (stable across requests). Props are
-          // not cached — see bd-5xu note above for why.
+          // not cached — see the props-caching note above for why.
           cacheComponent(pageId, PageComponent);
 
           if (verbose) {
@@ -577,7 +577,7 @@ export async function loadComponentsWithCache(options: {
         if (pageAndPropsResult.type === "success") {
           pageProps = pageAndPropsResult.pageProps;
 
-          // Props are not cached across requests — see bd-5xu note earlier.
+          // Props are not cached across requests — see the props-caching note earlier.
           if (verbose) {
             logger?.info(
               `[rsc-worker] Loaded fresh pageProps for URL: ${url}`

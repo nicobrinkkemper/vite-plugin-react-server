@@ -50,8 +50,7 @@ export function pipeToResponse(options: PipeToResponseOptions): void {
 
   readable.on('error', (error) => {
     // Always log: a stream error here means an RSC render blew up. Without
-    // this log the user just sees a hung tab and an empty 5xx, which is
-    // exactly the verbose-only behavior bd-qvz #2 calls out.
+    // this log the user just sees a hung tab and an empty 5xx.
     const panicError = handleError({
       error,
       logger,

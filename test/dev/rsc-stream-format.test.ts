@@ -146,7 +146,7 @@ describe("RSC Stream Format", () => {
     // Extension mapping to .js happens only in a BUILD (where the browser loads
     // the compiled .js). Forcing .js in dev produced a phantom
     // "<name>.client.js.tsx" import that 404'd on the second HMR fetch and broke
-    // Fast Refresh after the first edit (bd-572).
+    // Fast Refresh after the first edit.
     expect(response.result).toMatch(/I\[.*Link\.client.*\.tsx.*Link/);
     expect(response.result).not.toMatch(/I\[.*\.client\.js[^.].*Link/);
   });

@@ -13,7 +13,7 @@
  * Every case also asserts that vprs's condition guard
  * ("Condition mismatch …" / "react … under the wrong condition") never fires.
  *
- * All cases pass as of the dev-only extension fix (bd-572): vprs no longer maps
+ * All cases pass as of the dev-only extension fix: vprs no longer maps
  * client-ref ids to `.js` in dev, so Fast Refresh's incremental fetch hits the
  * real `.tsx` module instead of a phantom `.client.js.tsx` (404). This matrix
  * now guards against Fast-Refresh / HMR regressions under RSC.
@@ -59,7 +59,7 @@ function defineSuite(mode: Mode, port: number) {
     let origPage = "";
     // Accumulate the dev server's stdout+stderr so a test can assert the node
     // console stays clean — the "react-server condition must be enabled" error
-    // on dev:ssr full reloads (bd-u7v) only shows here, not in the browser.
+    // on dev:ssr full reloads only shows here, not in the browser.
     let serverLog = "";
     const baseURL = `http://localhost:${port}`;
 
@@ -191,7 +191,7 @@ function defineSuite(mode: Mode, port: number) {
 
     // Runs last (serial): the prior edits would, on dev:ssr, have triggered the
     // node-console "react-server condition must be enabled" error during Vite's
-    // full reload (bd-u7v) if the props pre-load weren't gated to dev:rsc.
+    // full reload if the props pre-load weren't gated to dev:rsc.
     test("node console has no react-server condition error", () => {
       expect(
         serverLog,

@@ -5,7 +5,7 @@
 // IMPORTANT: do not re-export *.client.js here — ESM static linking would
 // evaluate that module's transitive deps (e.g. vendor.client.js, which calls
 // projectRequire("react-dom/server")), which throws under --conditions
-// react-server. See bd-6pi.
+// react-server.
 
 export * from "./index.shared.js";
 
