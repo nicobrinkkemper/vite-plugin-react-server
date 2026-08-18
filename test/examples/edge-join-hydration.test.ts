@@ -10,7 +10,7 @@ import { doBuild } from "../doBuild.js";
 import { fileRouter } from "../../plugin/router/fileRouter.js";
 
 /**
- * Regression for the moduleBaseURL + id join contract (bd-fnmz).
+ * Regression for the moduleBaseURL + id join contract.
  *
  * The stock esm transport concatenates `moduleBaseURL + id`. With rooted ids
  * and a trailing-slash base that produced "//…" URLs — same bytes, different
@@ -129,7 +129,7 @@ function serve(
 }
 
 describe.skipIf(!createEdgeHandler || !browserAvailable)(
-  "edge join contract — moduleBaseURL '/' hydrates (bd-fnmz)",
+  "edge join contract — moduleBaseURL '/' hydrates",
   () => {
     let server: Server | undefined;
 

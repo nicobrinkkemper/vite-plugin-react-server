@@ -9,7 +9,7 @@ export interface GracefulShutdownOptions {
    * Await `worker.terminate()` before resolving. The client static build needs
    * this: libuv handles still pending in the worker at exit (file reads/writes)
    * can otherwise fire AFTER doBuild restores cwd, producing post-teardown
-   * ENOENT errors against relative paths. See bd-6pi. Default false (the server
+   * ENOENT errors against relative paths. Default false (the server
    * build doesn't restore cwd under the worker, so a sync terminate is fine).
    */
   awaitTerminate?: boolean;

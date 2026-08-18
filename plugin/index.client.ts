@@ -7,7 +7,7 @@
 // esbuild picks the `default` (client) entry. To stay safe, the shared factory in
 // index.shared.ts builds the plugin through the neutral TLA dispatcher in
 // orchestrator/createPluginOrchestrator.ts, which dispatches to the correct side
-// at runtime via Vite's dynamic-import-helper. See bd-6pi.
+// at runtime via Vite's dynamic-import-helper.
 //
 // The explicit-side `vite-plugin-react-server/client` and `/server` subpaths
 // still use the direct per-side plugin entries (plugin.client.ts /

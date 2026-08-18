@@ -5,7 +5,7 @@
 // Both sides route through the NEUTRAL TLA dispatcher in
 // orchestrator/createPluginOrchestrator.ts, which dispatches to the correct
 // per-side implementation at runtime — so this shared module carries no
-// static-linking hazard (it never imports a .server/.client subtree). See bd-6pi.
+// static-linking hazard (it never imports a .server/.client subtree).
 
 import type { VitePluginMainFn } from "./types.js";
 import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.js";

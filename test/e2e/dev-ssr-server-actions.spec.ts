@@ -1,5 +1,5 @@
 /**
- * Regression test for bd-5xu (2026-04-30):
+ * Regression test:
  *
  *   Browser-driven server actions appeared to succeed under `dev:ssr` but
  *   their effect was invisible after a page refresh. Root cause: the RSC
@@ -94,7 +94,7 @@ test.afterAll(async () => {
   await stopViteDev(server);
 });
 
-test.describe("server actions persist under dev:ssr (bd-5xu)", () => {
+test.describe("server actions persist under dev:ssr", () => {
   test("delete-then-refresh reflects the deletion", async ({ page }) => {
     seedTodos(["alpha", "beta", "gamma"]);
     expect(readTodos().map((t) => t.title)).toEqual(["alpha", "beta", "gamma"]);
@@ -118,7 +118,7 @@ test.describe("server actions persist under dev:ssr (bd-5xu)", () => {
     const dbAfterAction = readTodos().map((t) => t.title);
     expect(dbAfterAction).toEqual(["beta", "gamma"]);
 
-    // The page on hard reload must agree with the DB. Pre-bd-5xu this
+    // The page on hard reload must agree with the DB. Before the fix this
     // returned cached pageProps and showed alpha back.
     await page.reload({ waitUntil: "networkidle" });
     const titlesAfter = await page

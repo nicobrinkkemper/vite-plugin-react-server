@@ -3,8 +3,7 @@
 // react-client belong here. The per-condition residue lives in
 // index.{server,client}.ts: the `handleServerAction` binding, and the client-only
 // `resolveComponentsClient` (re-exporting resolveComponents.client under
-// react-server would static-link vendor.client -> react-dom/server and crash —
-// see bd-6pi).
+// react-server would static-link vendor.client -> react-dom/server and crash).
 
 // Route and file handling
 export * from "./getRouteFiles.js";

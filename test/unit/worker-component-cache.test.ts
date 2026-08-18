@@ -122,7 +122,7 @@ describe("worker component cache (loadComponentsWithCache)", () => {
     expect(paths).not.toContain(HTML);
   });
 
-  it("re-resolves props on every request even when Page is cached (bd-5xu)", async () => {
+  it("re-resolves props on every request even when Page is cached", async () => {
     const gen1 = makeGeneration({ title: "one" });
     await load(gen1.modules);
 

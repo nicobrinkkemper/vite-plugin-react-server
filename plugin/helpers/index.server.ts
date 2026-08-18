@@ -4,7 +4,7 @@
 //
 // resolveComponents.client is intentionally NOT re-exported here: under
 // react-server, ESM static linking would evaluate the .client module's
-// transitive deps (vendor.client.js -> react-dom/server) and crash. See bd-6pi.
+// transitive deps (vendor.client.js -> react-dom/server) and crash.
 
 export * from "./index.shared.js";
 

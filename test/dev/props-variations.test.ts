@@ -19,7 +19,7 @@ let server,
 const testDir = resolve(__dirname, "../fixtures/props-variations.test");
 
 // Capture every error/warn log the plugin emits during this test's lifecycle.
-// Used by the bd-w4t regression test to assert that a sub-route RSC request
+// Used by the sub-route regression test to assert that a sub-route RSC request
 // does not surface any error logs (the symptom of the original bug).
 const recordedErrors: string[] = [];
 const recordedWarns: string[] = [];
@@ -187,8 +187,8 @@ describe("RSC Server", () => {
     expect(refreshed.result).toContain("Home Page for");
   });
 
-  it("does not emit RSC render error logs for the sub-route request (bd-w4t regression)", () => {
-    // bd-w4t: prior to the fixture fix, every run of this file logged
+  it("does not emit RSC render error logs for the sub-route request", () => {
+    // Prior to the fixture fix, every run of this file logged
     //   [client] RSC render error for /page2: Invalid URL
     // because the page2 fixture called new URL() on undefined props.
     // Catch any regression of that pattern at the logger boundary.

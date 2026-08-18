@@ -21,12 +21,12 @@
 // dynamic import — Vite's dynamic-import-helper detects the template
 // literal pattern at bundle time and emits a runtime helper that bundles
 // BOTH candidates and picks one based on the resolved string at execution.
-// That's the only escape hatch the bd-6pi rule allows for genuinely
+// That's the only escape hatch the no-cross-linking rule allows for genuinely
 // runtime-dispatched code, and the orchestrator is exactly that case.
 //
 // PR #27 removed this dispatch on the assumption that conditional
 // `exports` would be sufficient. They aren't, because esbuild bundles
-// without honoring them; bd-6pi tracks the resulting bidoof regression.
+// without honoring them, which regressed a downstream consumer.
 
 import type { Plugin } from "vite";
 import { getCondition, REACT_CONDITION } from "../config/getCondition.js";

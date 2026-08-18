@@ -944,7 +944,7 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
             // Await full worker exit before the build's promise resolves: libuv
             // handles still pending in the worker (file reads/writes) can
             // otherwise fire AFTER doBuild restores cwd, producing post-teardown
-            // ENOENT errors against relative paths. See bd-6pi.
+            // ENOENT errors against relative paths.
             awaitTerminate: true,
           });
           rscWorker = undefined;

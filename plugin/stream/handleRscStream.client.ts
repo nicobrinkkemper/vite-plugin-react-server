@@ -47,8 +47,7 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
     // stream so cleanup can be deferred until then. This prevents the data
     // stream's `null` end-signal from racing the worker's control-port
     // messages (e.g. an ERROR posted just before RSC_END) — closing
-    // controlPort1 too early would silently drop those messages, which is
-    // exactly the cross-condition leak bd-6pi was hunting.
+    // controlPort1 too early would silently drop those messages.
     let controlEndedReceived = false;
     // The data port's `null` signal is the only ordered end-of-stream
     // authority: it queues behind every data chunk on the same port. RSC_END
@@ -268,7 +267,7 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           // otherwise we defer port closure to a later tick so any pending
           // control messages get a chance to deliver. Without this guard the
           // dataPort `null` signal races control messages and ERROR posts
-          // are silently dropped — see bd-6pi.
+          // are silently dropped.
           if (controlEndedReceived) {
             cleanupPorts();
           } else {
