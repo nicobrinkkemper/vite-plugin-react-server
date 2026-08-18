@@ -5,11 +5,13 @@
  * asserts the half of the invariant its ambient condition can observe.
  */
 import { describe, it, expect } from "vitest";
+import { vitePluginReactServer } from "vite-plugin-react-server";
 import { validateRunner, RUNNER_NAMES } from "../../plugin/config/runner.js";
 import {
   getCondition,
   REACT_CONDITION,
 } from "../../plugin/config/getCondition.js";
+import { testUserOptions } from "../test-config.js";
 
 const conditionPresent = getCondition() === REACT_CONDITION.server;
 
@@ -59,6 +61,47 @@ describe("validateRunner", () => {
 
     it("rejects 'edge' as not implemented yet", () => {
       expect(() => validateRunner("edge")).toThrow(/not implemented yet/);
+    });
+  }
+});
+
+// The `.` package entry (resolved through the exports map into dist/) is what
+// normal consumers call — it must enforce the invariant itself, not only the
+// explicit /client and /server subpaths.
+describe("root package entry enforces the invariant", () => {
+  const withRunner = (runner: unknown) => () =>
+    vitePluginReactServer({
+      ...testUserOptions,
+      runner,
+    } as Parameters<typeof vitePluginReactServer>[0]);
+
+  it("rejects unknown runners", () => {
+    expect(withRunner("bogus")).toThrow(/Unknown runner/);
+  });
+
+  it("still accepts an undeclared runner (legacy inference)", () => {
+    expect(vitePluginReactServer(testUserOptions)).toBeInstanceOf(Array);
+  });
+
+  if (conditionPresent) {
+    it("accepts 'main' under the process condition", () => {
+      expect(withRunner("main")()).toBeInstanceOf(Array);
+    });
+
+    it("rejects 'isolated' under the process condition", () => {
+      expect(withRunner("isolated")).toThrow(
+        /owns react-server resolution itself; remove the process flag/
+      );
+    });
+  } else {
+    it("rejects 'main' without the process condition", () => {
+      expect(withRunner("main")).toThrow(
+        /needs NODE_OPTIONS='--conditions react-server'/
+      );
+    });
+
+    it("accepts 'isolated' without the process condition", () => {
+      expect(withRunner("isolated")()).toBeInstanceOf(Array);
     });
   }
 });
