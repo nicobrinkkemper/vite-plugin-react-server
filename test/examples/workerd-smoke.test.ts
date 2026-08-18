@@ -35,7 +35,11 @@ let Miniflare: (new (options: unknown) => {
 }) | undefined;
 try {
   ({ Miniflare } = await import(/* @vite-ignore */ MINIFLARE));
-} catch {
+} catch (error) {
+  // Fail-open is only acceptable where miniflare is legitimately absent
+  // (local runs). The dedicated CI job sets VPRS_REQUIRE_MINIFLARE=1 so a
+  // broken install fails the job instead of green-skipping all coverage.
+  if (process.env.VPRS_REQUIRE_MINIFLARE === "1") throw error;
   /* not installed — suite skips */
 }
 

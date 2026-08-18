@@ -60,6 +60,10 @@ jobs:
           npm i --no-save miniflare@4
 
       - name: Run the smoke in both conditions
+        env:
+          # Fail closed: a broken miniflare install must fail this job, not
+          # skip the suite green. Local runs without miniflare still skip.
+          VPRS_REQUIRE_MINIFLARE: "1"
         run: |
           npm run build
           ./scripts/test-both.sh test/examples/workerd-smoke.test.ts
