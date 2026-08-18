@@ -10,6 +10,7 @@
 import type { VitePluginMainFn } from "./types.js";
 import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.js";
 import type { UserOptions, Strategy } from "./orchestrator/types.js";
+import { validateRunner } from "./config/runner.js";
 
 export function makeVitePluginReactServer(
   importContext: Strategy["importContext"],
@@ -18,6 +19,11 @@ export function makeVitePluginReactServer(
     if (options == null) {
       throw new Error("options is required");
     }
+
+    // Runner/condition invariant: a declared runner either matches the
+    // process condition or errors here, at config-resolve time.
+    validateRunner((options as UserOptions).runner);
+
     const userStrategy = (options as UserOptions).strategy || {};
     const finalStrategy: Strategy = {
       mode: "auto",

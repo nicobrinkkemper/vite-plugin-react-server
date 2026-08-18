@@ -29,6 +29,7 @@ import type {
 } from "./helpers/serializeUserOptions.js";
 import type { AllowedDirectives, Program } from "react-server-loader/directives";
 import type { RoutesOption } from "./router/fileRouter.js";
+import type { RunnerName } from "./config/runner.js";
 import type { RouteLayer } from "./router/scanRoutes.js";
 import type { ResolvedLayoutLayer } from "./helpers/resolveLayoutChain.js";
 
@@ -723,6 +724,18 @@ export type PluginEventType = PluginEvent["type"];
 export interface StreamPluginOptions<
   Interface extends ViteReactServerComponentsPlugin = DefaultInterface
 > {
+  /**
+   * The execution paradigm, declared instead of inferred from the process
+   * condition (see docs/internals/runner-spec.md). "main" runs react-server
+   * on the main thread and requires NODE_OPTIONS='--conditions react-server';
+   * "isolated" resolves react-server inside the rsc-worker with no process
+   * flag; "edge" bakes React per environment at build time. Validated against
+   * the process condition at config-resolve time — a mismatch is a
+   * config-time error, not a runtime mystery. Currently optional (omitting it
+   * keeps the condition-inferred dispatch); becomes required in the next
+   * major.
+   */
+  runner?: RunnerName;
   projectRoot?: string; // defaults to process.cwd()
   /**
    * The deploy's RSC flight flavor. Default "esm". With "webpack" every
