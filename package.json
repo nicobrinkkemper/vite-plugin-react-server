@@ -315,6 +315,7 @@
     "build:types": "tsc --build --force",
     "build:vite": "vite build",
     "test:package": "node scripts/verify-package-entrypoints.mjs",
+    "test:peer-install": "./scripts/verify-peer-install.sh",
     "lint:package": "publint",
     "verify:package": "npm run lint:package && npm run test:package",
     "verify:tag": "node scripts/verify-release-tag.mjs",

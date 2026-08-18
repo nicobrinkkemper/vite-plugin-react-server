@@ -65,10 +65,13 @@ and your browser bundle, the directive engine, the Node loader) lives in the
 peer dependency, whose versions track React the way `@types/react` does. Pick a
 React track, install the matching `react-server-loader` alongside `react` and
 `react-dom` — one copy in your tree, no `overrides` needed. For the
-experimental train (which the starter pins), install the three together:
+experimental train (which the starter pins), install all three at the exact
+snapshot vprs's peer range names — the floating `@experimental` dist-tag moves
+daily and drifts past it:
 
 ```bash
-npm install react@experimental react-dom@experimental react-server-loader@experimental
+npm view vite-plugin-react-server peerDependencies  # the exact experimental version
+npm install react@0.0.0-experimental-eb8feb71-20260814 react-dom@0.0.0-experimental-eb8feb71-20260814 react-server-loader@0.0.0-experimental-eb8feb71-20260814
 ```
 
 Experimental buys the newest RSC features ahead of stable, for instance the fix

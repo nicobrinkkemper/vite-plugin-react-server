@@ -33,6 +33,30 @@ jobs:
       - name: Verify package manifest (publint + entrypoints)
         run: npm run build && npm run verify:package
 
+  # The react-server-loader PEER contract, proven from the consumer side:
+  # pack the plugin, install the tarball into a fresh consumer on each React
+  # track (stable, and the exact experimental snapshot the peer range names),
+  # and assert a single copy of react / react-dom / react-server-loader
+  # resolves. The repo's own fixtures resolve by self-reference and cannot
+  # see a duplicated tree.
+  peer-install:
+    name: packed-consumer peer install (stable + experimental)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Peer install on both tracks
+        run: npm run test:peer-install
+
   # The webpack bake pair on REAL workerd. The edge-bundle guard proves
   # "no node builtins" by static analysis; this job proves the runtime claims
   # by execution: one isolate, no nodejs_compat — boot, flight render,

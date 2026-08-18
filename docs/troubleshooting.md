@@ -21,9 +21,9 @@ Open the browser DevTools console (F12). The plugin streams detailed errors ther
 
 ## `react-server-dom-esm` Resolution Errors
 
-The transport ships inside the `react-server-loader` peer dependency (npm and
-pnpm install it automatically; yarn users add it explicitly), so there is no
-separate transport package to install. The plugin resolves bare
+The transport ships inside the `react-server-loader` peer dependency
+(installed alongside `react` / `react-dom`), so there is no separate
+transport package to install. The plugin resolves bare
 `react-server-dom-esm/*` imports for you. For scripts outside Vite:
 
 ```bash

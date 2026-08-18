@@ -41,7 +41,7 @@ builder config and re-adds the shims the stripped plugin would otherwise have
 provided:
 
 - **Resolves** `react-server-dom-esm/client.browser` to the ESM build shipped
-  by the `react-server-loader` dependency at
+  by the `react-server-loader` peer dependency at
   `react-server-loader/client.browser` (`react-server-dom-esm` is vendored
   inside `react-server-loader`, not a standalone npm package — without the
   shim the bare import is unresolvable).
