@@ -33,6 +33,41 @@ jobs:
       - name: Verify package manifest (publint + entrypoints)
         run: npm run build && npm run verify:package
 
+  # The webpack bake pair on REAL workerd. The edge-bundle guard proves
+  # "no node builtins" by static analysis; this job proves the runtime claims
+  # by execution: one isolate, no nodejs_compat — boot, flight render,
+  # consumer HTML render, action round-trip, loud gate rejection.
+  #
+  # workerd comes via miniflare, deliberately NOT a dependency of this repo:
+  # the suite skips wherever miniflare is absent, and this job scratch-installs
+  # it (--no-save keeps package.json and the lockfile untouched). Pin @4 — the
+  # latest tag resolves to a 5.x alpha with a changed constructor schema.
+  workerd-smoke:
+    name: workerd smoke (edge bake pair in a real isolate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install (+ scratch miniflare)
+        run: |
+          npm ci
+          npm i --no-save miniflare@4
+
+      - name: Run the smoke in both conditions
+        env:
+          # Fail closed: a broken miniflare install must fail this job, not
+          # skip the suite green. Local runs without miniflare still skip.
+          VPRS_REQUIRE_MINIFLARE: "1"
+        run: |
+          npm run build
+          ./scripts/test-both.sh test/examples/workerd-smoke.test.ts
+
   # Drive a REAL browser against a REAL installed consumer.
   #
   # Everything above tests this repo against its own fixtures, which resolve the
