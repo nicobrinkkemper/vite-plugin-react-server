@@ -33,7 +33,7 @@ export function checkReactVersion() {
         throw new Error(
           `[vite-plugin-react-server] React ${version} is not supported. ` +
             `This plugin requires React 19.2 or newer (or an experimental build). ` +
-            `Install with: npm install react@^19.2.7 react-dom@^19.2.7`
+            `Install with: npm install react@^19.2.8 react-dom@^19.2.8`
         );
       }
     }

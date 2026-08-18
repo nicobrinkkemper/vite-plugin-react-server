@@ -12,10 +12,14 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# The stable track installs the EXACT minimum of each peer range (caret
+# stripped), not the range: a ranged install floats to the latest patch and
+# masks a lower-bound mismatch between vprs's React floor and the floor its
+# react-server-loader peer declares.
 peer_range="$(node -p "require('$root/package.json').peerDependencies['react-server-loader']")"
-stable_rsl="$(node -p "\"$peer_range\".split('||')[0].trim()")"
+stable_rsl="$(node -p "\"$peer_range\".split('||')[0].trim().replace(/^\^/, '')")"
 exp_rsl="$(node -p "\"$peer_range\".split('||').map(s=>s.trim()).find(s=>s.startsWith('0.0.0-experimental-')) ?? ''")"
-react_stable="$(node -p "require('$root/package.json').peerDependencies.react.split('||')[0].trim()")"
+react_stable="$(node -p "require('$root/package.json').peerDependencies.react.split('||')[0].trim().replace(/^\^/, '')")"
 
 if [ -z "$exp_rsl" ]; then
   echo "✗ peerDependencies['react-server-loader'] no longer names an exact experimental snapshot: $peer_range" >&2

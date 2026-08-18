@@ -32,7 +32,7 @@ from-scratch path below uses stable React.
 npm install -D vite-plugin-react-server react react-dom react-server-loader
 ```
 
-vprs runs on **stable React 19.2+** (`react` / `react-dom` at `^19.2.7`). The
+vprs runs on **stable React 19.2+** (`react` / `react-dom` at `^19.2.8`). The
 RSC transport underneath is version-locked by the
 [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
 peer dependency, which you install alongside `react` / `react-dom` (the

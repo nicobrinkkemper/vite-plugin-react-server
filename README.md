@@ -267,7 +267,7 @@ which is itself built with vprs.
 ## Requirements
 
 - Node.js 22.0.0+ (the build uses `node:fs/promises#glob`, which landed in 22)
-- **React 19.2+**, stable (`react` / `react-dom` at `^19.2.7`) or experimental.
+- **React 19.2+**, stable (`react` / `react-dom` at `^19.2.8`) or experimental.
   The RSC server APIs vprs uses (`prerenderToNodeStream`, the `react-server`
   transport exports) ship in stable React; the matching `react-server-dom-esm`
   transport comes from the `react-server-loader` dependency, which tracks your

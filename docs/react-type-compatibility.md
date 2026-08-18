@@ -24,7 +24,7 @@ for the current range. Install it yourself alongside `react` / `react-dom`;
 one copy in your tree serves both vprs and your app. For stable:
 
 ```bash
-npm install react@^19.2.7 react-dom@^19.2.7 react-server-loader
+npm install react@^19.2.8 react-dom@^19.2.8 react-server-loader
 ```
 
 For the experimental train, install all three at the exact snapshot vprs's
@@ -43,7 +43,7 @@ preload; styles still load, just not preloaded (see
 [troubleshooting](./troubleshooting.md)). The experimental channel carries
 the fix.
 
-**React peer**: `react` / `react-dom` at `^19.2.7 || >=0.0.0-0 <0.0.1` (admits
+**React peer**: `react` / `react-dom` at `^19.2.8 || >=0.0.0-0 <0.0.1` (admits
 both trains). The transport binds to a single React build's internals and
 throws on a mismatch, so keep `react`, `react-dom`, and `react-server-loader`
 on the same train. See
