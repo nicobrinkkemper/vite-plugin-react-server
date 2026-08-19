@@ -4,8 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { resolve, join, extname } from "node:path";
 import { chromium } from "playwright";
-import { doBuild } from "../doBuild.js";
-import { fileRouter } from "../../plugin/router/fileRouter.js";
+import { spawnSync } from "node:child_process";
 import {
   getCondition,
   REACT_CONDITION,
@@ -27,13 +26,6 @@ const browserAvailable = (() => {
   }
 })();
 
-// The isolated-runner leg is gated OFF: the client-condition SSG pipeline
-// hangs on ANY Suspense boundary in a prerendered page (even a synchronous
-// child — removing only the wrapper builds in ~500ms). Writing this proof is
-// what surfaced the hang. Ungate when the worker pipeline handles multi-flush
-// renders; until then the hydration contract is proven on the main-runner
-// build, whose output is byte-equivalent by the build-parity invariant.
-const mainConditionLeg = getCondition() === REACT_CONDITION.server;
 
 const testDir = resolve(__dirname, "../fixtures/static-suspense-hydration.test");
 const PORT = 4193;
@@ -137,7 +129,7 @@ function serveStatic(roots: string[]): Server {
   });
 }
 
-describe.skipIf(!browserAvailable || !mainConditionLeg)(
+describe.skipIf(!browserAvailable)(
   "static Suspense — prerendered boundary hydrates from a dumb file server",
   () => {
     let server: Server | undefined;
@@ -146,15 +138,54 @@ describe.skipIf(!browserAvailable || !mainConditionLeg)(
     beforeAll(async () => {
       await rm(testDir, { recursive: true, force: true });
       await setupFixture();
-      const fr = fileRouter(join(testDir, "src/routes"), { root: testDir });
-      await doBuild({
-        projectRoot: testDir,
-        moduleBase: "src",
-        Page: fr.Page,
-        props: fr.props,
-        routePatterns: fr.routePatterns,
-        build: { pages: fr.build.pages, outDir: "dist" },
-      } as never);
+
+      // Build in a SPAWNED process with NODE_ENV=production, like the
+      // html-backpressure regression: a deploy's build is a production build,
+      // and vitest's ambient NODE_ENV=test would silently swap the vendored
+      // transport to its dev variant — a different pipeline than any deploy
+      // runs (and one with its own, separately tracked, suspended-flight
+      // stall in the isolated topology). The runner follows this leg's
+      // ambient condition, so test-both still covers both topologies.
+      const mainLeg = getCondition() === REACT_CONDITION.server;
+      await writeFile(
+        join(testDir, "build.mjs"),
+        `import { createBuilder } from "vite";\n` +
+          `import { vitePluginReactServer } from "vite-plugin-react-server";\n` +
+          `import { fileRouter } from "vite-plugin-react-server/router";\n` +
+          `const fr = fileRouter("src/routes", { root: process.cwd() });\n` +
+          `const builder = await createBuilder({\n` +
+          `  configFile: false,\n` +
+          `  root: process.cwd(),\n` +
+          `  mode: "production",\n` +
+          `  esbuild: { jsx: "automatic" },\n` +
+          `  plugins: vitePluginReactServer({\n` +
+          `    runner: ${JSON.stringify(mainLeg ? "main" : "isolated")},\n` +
+          `    moduleBase: "src",\n` +
+          `    Page: fr.Page,\n` +
+          `    props: fr.props,\n` +
+          `    routePatterns: fr.routePatterns,\n` +
+          `    build: { pages: fr.build.pages, outDir: "dist" },\n` +
+          `    moduleBasePath: "",\n` +
+          `    moduleBaseURL: "/",\n` +
+          `    projectRoot: process.cwd(),\n` +
+          `  }),\n` +
+          `});\n` +
+          `await builder.buildApp();\n` +
+          `console.log("SUSPENSE_BUILD_OK");\n` +
+          `process.exit(0);\n`
+      );
+      const env = { ...process.env, NODE_ENV: "production" };
+      env["NODE_OPTIONS"] = mainLeg ? "--conditions react-server" : "";
+      const proc = spawnSync("node", ["build.mjs"], {
+        cwd: testDir,
+        encoding: "utf8",
+        timeout: 120000,
+        env,
+      });
+      expect(
+        proc.stdout,
+        `build failed (status ${proc.status}):\n${proc.stderr}`
+      ).toContain("SUSPENSE_BUILD_OK");
 
       html = await readFile(join(testDir, "dist/static/index.html"), "utf8");
       server = serveStatic([
