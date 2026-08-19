@@ -213,6 +213,25 @@ Whatever resolves the id, these stay yours per action:
   values it captures, so treat anything an exposed action closes over as visible
   to the client. Pass an id and look the value up on the server instead.
 
+### Wire protocol
+
+Arguments and results ride the transport's own flight codec, end to end:
+
+- The browser's `encodeReply(args)` output — plain text, or multipart
+  `FormData` when an argument carries binary (a `File` upload) — reaches the
+  server's `decodeReply` intact. Typed values survive: a `Date` argument
+  arrives as a `Date`, a `File` as a `File`.
+- The response is the flight render of `{ returnValue }` in the deploy's
+  transport flavor, so a return value may be anything the transport can
+  serialize — not only JSON.
+- Where the action executes follows the topology: the react-server process
+  decodes and renders in place; the client-condition dev server forwards the
+  raw body to the rsc-worker, which decodes, executes, and renders; the baked
+  edge gate carries its own codec inside the bundle.
+
+A hand-rolled caller (no `encodeReply`) may POST the JSON envelope
+`{ "id": "path#export", "args": [...] }` instead; its args are taken as-is.
+
 ### Endpoint hardening
 
 The sealed gate decides *which function* a request may resolve — it confirms the
@@ -249,6 +268,8 @@ response.
 ## Limitations
 
 - Server actions don't support CSS collection or custom prop functions
-- Keep return values simple — use success indicators and update client state accordingly
+- Return values ride the flight renderer, so anything the transport can
+  serialize survives — but a small explicit result object still beats
+  returning your whole model
 - Always use `"use server"` directive (file-level or function-level)
 - Never expose sensitive operations without proper authorization

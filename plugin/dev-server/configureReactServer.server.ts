@@ -147,6 +147,7 @@ export const configureReactServer: ConfigureReactServerFn =
         ...userHandlerOptions,
         moduleBaseURL: server.config.base,
         moduleBasePath: userHandlerOptions.moduleBasePath,
+        transport: _userOptions.transport,
         projectRoot: _userOptions.projectRoot,
         css: userHandlerOptions.css,
         loader: loader,

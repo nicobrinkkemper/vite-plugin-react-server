@@ -9,7 +9,7 @@ import { PassThrough } from "node:stream";
 import type {
   ServerActionHandlerOptions,
 } from "./handleServerActionHelper.js";
-import { parseServerActionRequestBody, createServerActionResponse, setupServerActionHeaders } from "./handleServerActionHelper.js";
+import { readServerActionForWorker, createServerActionResponse, setupServerActionHeaders } from "./handleServerActionHelper.js";
 
 // Use shared helper instead of duplicating logic
 
@@ -74,15 +74,11 @@ export async function delegateServerActionToWorker(
   const passThrough = createServerActionStream(res);
 
   try {
-    // Read request body
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    const body = Buffer.concat(chunks).toString();
-
-    // Parse the server action request
-    const { id, args } = parseServerActionRequestBody(body, req.url);
+    // Read the request into worker-message parts: text and multipart bodies
+    // stay RAW for the worker's transport decodeReply (multipart as bytes —
+    // FormData cannot cross the thread boundary); the legacy JSON envelope
+    // stays pre-decoded args.
+    const parts = await readServerActionForWorker(req);
 
     // Set up response headers
     setupServerActionHeaders(res);
@@ -90,8 +86,7 @@ export async function delegateServerActionToWorker(
     // Send server action request to worker
     options.worker.postMessage({
       type: "SERVER_ACTION",
-      id,
-      args,
+      ...parts,
     } satisfies RscWorkerInputMessage);
 
     // Handle worker messages
@@ -99,6 +94,24 @@ export async function delegateServerActionToWorker(
       if (message.type === "RSC_CHUNK") {
         passThrough.write(message.chunk);
       } else if (message.type === "RSC_END") {
+        if (messageHandler) {
+          cleanupServerAction(passThrough, options.worker!, messageHandler, res);
+        }
+      } else if (message.type === "SERVER_ACTION_RESPONSE") {
+        // The worker rendered `{ returnValue }` through the transport's flight
+        // renderer — write it verbatim; the JSON row remains for errors and
+        // the legacy result shape.
+        if (message.error) {
+          const text =
+            typeof message.error === "string"
+              ? message.error
+              : message.error?.message;
+          passThrough.write(`0:${JSON.stringify({ error: text })}\n`);
+        } else if (typeof message.flight === "string") {
+          passThrough.write(message.flight);
+        } else {
+          passThrough.write(`0:${JSON.stringify(message.result)}\n`);
+        }
         if (messageHandler) {
           cleanupServerAction(passThrough, options.worker!, messageHandler, res);
         }

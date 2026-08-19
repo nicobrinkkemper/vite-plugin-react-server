@@ -137,7 +137,7 @@ export const Page = () => <div>Test Page</div>;`
       body: JSON.stringify(["hello"]),
     });
     const text = await res.text();
-    expect(text).toMatch(/^0:/); // RSC wire format, not an error
+    expect(text).toMatch(/^0:/m); // a flight model row, not an error
     expect(text).toContain("ok"); // addItem returns { ok: !!title }
     expect(text).toContain("true");
   });

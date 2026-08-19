@@ -4,11 +4,11 @@ import type {
   RscWorkerOutputMessage,
 } from "../worker/rsc/types.js";
 import {
-  parseServerActionRequestBody,
   setupServerActionHeaders,
   createServerActionStream,
   handleServerActionError,
 } from "../helpers/handleServerAction.client.js";
+import { readServerActionForWorker } from "../helpers/handleServerActionHelper.js";
 import type { MessageHandler } from "../types.js";
 import { cleanupServerAction } from "./cleanupServerAction.client.js";
 import type { HandleWorkerServerActionFn } from "../react-client/types.js";
@@ -27,19 +27,10 @@ export const handleServerAction: HandleWorkerServerActionFn =
 
     const passThrough = createServerActionStream(res);
     try {
-      // Read request body
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      const body = Buffer.concat(chunks).toString();
-
-      // Parse the server action request
-      // Get action ID from x-rsc-action header (React's standard) or fall back to body/URL
-      const headerActionId = req.headers["x-rsc-action"] as string | undefined;
-      const parsed = parseServerActionRequestBody(body, req.url);
-      const id = headerActionId || parsed.id;
-      const args = parsed.args;
+      // Read the request into worker-message parts: raw text / multipart
+      // bytes for the worker's transport decodeReply, or legacy envelope args.
+      // The x-rsc-action header (React's standard) wins for the id.
+      const parts = await readServerActionForWorker(req);
 
       // Set up response headers
       setupServerActionHeaders(res);
@@ -47,8 +38,7 @@ export const handleServerAction: HandleWorkerServerActionFn =
       // Send server action request to worker
       worker.postMessage({
         type: "SERVER_ACTION",
-        id,
-        args,
+        ...parts,
       } satisfies RscWorkerInputMessage);
 
       // Create a pass-through stream for the response
@@ -63,16 +53,20 @@ export const handleServerAction: HandleWorkerServerActionFn =
               cleanupServerAction(passThrough, worker, messageHandler, res);
             }
           } else if (message.type === "SERVER_ACTION_RESPONSE") {
-            // Server action completed - write result in RSC format and end stream
-            // RSC format: 0:<json-value>\n
+            // Server action completed — the worker rendered `{ returnValue }`
+            // through the transport's flight renderer; write it verbatim (this
+            // thread holds no react-server context to re-encode with). The
+            // JSON row remains only for errors and the legacy result shape.
             if (message.error?.message) {
               logger.error(`[handleServerAction] Server action error: ${message.error?.message}`);
               passThrough.write(`0:${JSON.stringify({ error: message.error.message })}\n`);
             } else if(typeof message.error === "string") {
               logger.error(`[handleServerAction] Server action error: ${message.error}`);
               passThrough.write(`0:${JSON.stringify({ error: message.error })}\n`);
+            } else if (typeof (message as { flight?: string }).flight === "string") {
+              passThrough.write((message as { flight: string }).flight);
             } else {
-              // Write the result directly - React will unwrap it
+              // Legacy: write the raw result as a JSON row.
               passThrough.write(`0:${JSON.stringify(message.result)}\n`);
             }
             if (messageHandler) {

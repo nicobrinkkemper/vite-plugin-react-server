@@ -631,7 +631,7 @@ export async function buildEdgeBundle(opts: {
   const entryPath = join(serverDir, `.vprs-${entryFileName}`);
   const entrySource = `import * as React from "react";
 import { createElement } from "react";
-import { renderToReadableStream } from ${JSON.stringify(flightServerEntry)};
+import { renderToReadableStream, decodeReply } from ${JSON.stringify(flightServerEntry)};
 import { resolvePageAndProps } from ${JSON.stringify(resolveHelper)};
 import { matchRoutes } from ${JSON.stringify(matchRouteHelper)};
 import { createElementWithReact } from ${JSON.stringify(elementHelper)};
@@ -848,6 +848,14 @@ export async function ${actionExport}(request, opts = {}) {
     projectRoot: opts.projectRoot ?? "",
     base: MODULE_BASE_URL,
     resolveServerReference: (id) => actionGate.resolveServerReference(id),
+    // The baked flight pair: arguments decode through THIS bundle's transport
+    // (text or multipart FormData, File included) and the { returnValue }
+    // response renders through the same renderer the routes use — no JSON
+    // re-encoding outside the baked react-server context.
+    flightCodec: {
+      decodeReply: (body) => decodeReply(body${transport === "webpack" ? "" : ", MODULE_BASE_PATH"}),
+      renderResponse: (payload) => renderToReadableStream(payload, ${flightArg}),
+    },
     ...opts,
   });
 }

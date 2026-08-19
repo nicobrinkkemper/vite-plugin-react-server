@@ -294,7 +294,14 @@ const STATIC_ASYMMETRIC: Record<string, { serverOnly: string[]; browserOnly: str
     browserOnly: ["cleanupServerAction", "configureRequestHandler"],
   },
   "./helpers/handleServerAction": {
-    serverOnly: ["handleServerActionRequest", "resolveAndExecuteServerAction"],
+    serverOnly: [
+      "handleServerActionRequest",
+      "resolveAndExecuteServerAction",
+      // The flight-codec resolver imports the transport pair, which only a
+      // react-server process can hold; the client side delegates to the
+      // rsc-worker instead.
+      "resolveActionFlightCodec",
+    ],
     browserOnly: ["delegateServerActionToWorker"],
   },
   "./react-static": {

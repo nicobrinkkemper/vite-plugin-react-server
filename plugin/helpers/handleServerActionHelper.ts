@@ -57,37 +57,183 @@ export type ServerActionHandlerOptions = {
    * and never reads `<serverRoot>/.vite/manifest.json`.
    */
   resolveServerReference?: (id: string) => Promise<unknown>;
-};
-
-export type ServerActionRequest = {
-  id: string;
-  args: unknown[];
+  /**
+   * The deploy's flight flavor, used to pick the built-in codec (decodeReply
+   * arity and response renderer) when the handler runs under the react-server
+   * condition. Defaults to `"esm"`, matching the plugin option.
+   */
+  transport?: "esm" | "webpack";
+  /** The esm transport's hosted-module prefix (plugin `moduleBasePath`). */
+  moduleBasePath?: string;
+  /** The client-facing module base (plugin `moduleBaseURL`), webpack dev map. */
+  moduleBaseURL?: string;
+  /**
+   * The flight codec to decode request arguments and render responses with.
+   * Defaults per environment: under the react-server condition the built-in
+   * transport pair is loaded lazily; the baked edge handler passes its own;
+   * without either, text bodies fall back to the legacy JSON reading and
+   * responses to the legacy JSON row (multipart fails loud).
+   */
+  flightCodec?: ServerActionFlightCodec;
 };
 
 /**
- * Parses a server action request from the request body.
- * Supports two formats:
- * 1. Direct args array: [arg1, arg2, ...]
- * 2. Object with id and args: { id: string, args: unknown[] }
+ * The action request body as received, BEFORE flight decoding. The browser's
+ * `encodeReply(args)` produces either text or multipart `FormData` — both must
+ * reach the transport's `decodeReply` intact. The `args` kind is the legacy
+ * curl-style JSON envelope (`{ id, args }`), already decoded by definition.
  */
-export function parseServerActionRequestBody(body: string, url?: string): ServerActionRequest {
-  const parsed = JSON.parse(body);
-  
-  if (Array.isArray(parsed)) {
-    // Format 1: Direct args array
+export type ServerActionBody =
+  | { kind: "form-data"; formData: FormData }
+  | { kind: "text"; text: string }
+  | { kind: "args"; args: unknown[] };
+
+export type ServerActionRequest = {
+  id: string;
+  body: ServerActionBody;
+};
+
+/**
+ * The transport-aware seam the handlers decode and respond through. The
+ * built-in default (react-server processes) comes from
+ * `stream/flightRenderer.server.js`; the single-isolate edge bake passes its
+ * own baked pair; a custom host may pass anything honoring the contract.
+ * `renderResponse` returns either a Node pipeable (`{ pipe }`) or a Web
+ * `ReadableStream` — each handler adapts to its envelope.
+ */
+export type ServerActionFlightCodec = {
+  decodeReply: (body: string | FormData) => Promise<unknown[]>;
+  renderResponse: (payload: {
+    returnValue: unknown;
+  }) => { pipe: (destination: unknown) => unknown } | ReadableStream;
+};
+
+/** Reconstruct a multipart body as FormData via the standard parser. */
+export async function formDataFromBytes(
+  bytes: Uint8Array,
+  contentType: string
+): Promise<FormData> {
+  return await new Response(bytes as BodyInit, {
+    headers: { "content-type": contentType },
+  }).formData();
+}
+
+/**
+ * Classify a buffered text body. The `{ id, args }` JSON envelope is the one
+ * legacy shape kept as pre-decoded args (it is not something `encodeReply`
+ * ever emits, so the special case cannot shadow a real flight reply).
+ * Everything else — including a bare JSON array, which IS what `encodeReply`
+ * emits for simple arguments — stays text for `decodeReply`, which yields the
+ * same values for plain JSON and the correct ones for typed rows.
+ */
+export function classifyTextBody(text: string): {
+  body: ServerActionBody;
+  legacyId?: string;
+} {
+  try {
+    const parsed = JSON.parse(text);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      "id" in parsed
+    ) {
+      return {
+        body: { kind: "args", args: (parsed as { args?: unknown[] }).args ?? [] },
+        legacyId: (parsed as { id: string }).id,
+      };
+    }
+  } catch {
+    // Not JSON at all — flight reply text, or garbage decodeReply will reject.
+  }
+  return { body: { kind: "text", text } };
+}
+
+/**
+ * Legacy string parser kept for the worker-delegate call sites. Returns the
+ * new body model; the `{ id, args }` envelope overrides the URL-derived id.
+ */
+export function parseServerActionRequestBody(
+  body: string,
+  url?: string
+): ServerActionRequest {
+  const { body: classified, legacyId } = classifyTextBody(body);
+  return {
+    id: legacyId ?? url?.split("?")[0] ?? "",
+    body: classified,
+  };
+}
+
+/**
+ * Read a Node action request into the fields a SERVER_ACTION worker message
+ * carries. FormData cannot cross the thread boundary, so multipart travels as
+ * raw bytes + content type and the worker reconstructs it; text travels
+ * verbatim for the worker's `decodeReply`; the legacy `{ id, args }` envelope
+ * stays pre-decoded args.
+ */
+export async function readServerActionForWorker(
+  req: IncomingMessage
+): Promise<{
+  id: string;
+  args?: unknown[];
+  body?: string | Uint8Array;
+  contentType?: string;
+}> {
+  const headerActionId = req.headers["x-rsc-action"] as string | undefined;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  const raw = Buffer.concat(chunks);
+  const contentType = (req.headers["content-type"] as string | undefined) ?? "";
+  if (contentType.startsWith("multipart/form-data")) {
     return {
-      args: parsed,
-      id: url?.split("?")[0] ?? "",
-    };
-  } else if (parsed && typeof parsed === "object" && "id" in parsed) {
-    // Format 2: Object with id and args
-    return {
-      id: parsed.id,
-      args: parsed.args ?? [],
+      id: headerActionId ?? req.url?.split("?")[0] ?? "",
+      body: new Uint8Array(raw),
+      contentType,
     };
   }
-  
-  throw new Error("Invalid server action request format");
+  const text = raw.toString();
+  const { body, legacyId } = classifyTextBody(text);
+  const id = headerActionId ?? legacyId ?? req.url?.split("?")[0] ?? "";
+  if (body.kind === "args") return { id, args: body.args };
+  return { id, body: text };
+}
+
+/**
+ * Decode a parsed body to the action's argument list. With a codec, text and
+ * multipart both go through the transport's `decodeReply` — the complete
+ * flight reply protocol, File uploads included. Without one (a process that
+ * cannot hold the react-server transport), the legacy JSON reading of text
+ * bodies is preserved, and multipart fails LOUD instead of degrading.
+ */
+export async function decodeActionBody(
+  body: ServerActionBody,
+  codec: Pick<ServerActionFlightCodec, "decodeReply"> | null
+): Promise<unknown[]> {
+  if (body.kind === "args") return body.args;
+  if (codec) {
+    return await codec.decodeReply(
+      body.kind === "form-data" ? body.formData : body.text
+    );
+  }
+  if (body.kind === "form-data") {
+    throw new Error(
+      "[handleServerAction] Multipart action body received but no flight codec " +
+        "is available to decode it. Run the handler under the react-server " +
+        "condition (runner 'main'), route the request to the rsc-worker, or " +
+        "use the baked edge action handler."
+    );
+  }
+  // Legacy text reading: a JSON args array executes as-is; anything else is
+  // passed through as the single raw argument (the historical worker contract).
+  try {
+    const parsed = JSON.parse(body.text);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // fall through
+  }
+  return [body.text];
 }
 
 export type ServerActionResponse = {
@@ -133,8 +279,8 @@ export async function parseServerActionRequest(
     logger?.info(`[handleServerActionHelper] Action ID from header: ${req.headers["x-rsc-action"]}`);
   }
 
-  // Parse the request body
-  let args: unknown[];
+  // Buffer the request body under the size cap, then classify it.
+  let body: ServerActionBody;
   try {
     const chunks: Buffer[] = [];
     let received = 0;
@@ -151,36 +297,24 @@ export async function parseServerActionRequest(
       }
       chunks.push(chunk);
     }
-    const body = Buffer.concat(chunks).toString();
-    
+    const raw = Buffer.concat(chunks);
+
     if (verbose) {
-      logger?.info(`[handleServerActionHelper] Request body length: ${body.length}`);
+      logger?.info(`[handleServerActionHelper] Request body length: ${raw.length}`);
     }
 
-    // Try to parse as JSON first (for backwards compatibility)
-    try {
-      const parsed = JSON.parse(body);
-      if (Array.isArray(parsed)) {
-        // Format 1: Direct args array
-        args = parsed;
-        if (verbose) {
-          logger?.info(`[handleServerActionHelper] Parsed args as array`);
-        }
-      } else if (parsed && typeof parsed === "object" && "id" in parsed) {
-        // Format 2: Object with id and args (legacy format)
-        id = parsed.id;
-        args = parsed.args ?? [];
-      } else {
-        throw new Error("Invalid server action request format");
-      }
-    } catch {
-      // Not JSON - assume it's React's encoded format
-      // For now, pass the raw body to the worker which can decode it
-      // using decodeReply from react-server-dom-esm/server
-      if (verbose) {
-        logger?.info(`[handleServerActionHelper] Body is not JSON, passing raw body`);
-      }
-      args = [body]; // Pass raw body as first arg, worker will decode
+    const contentType = (req.headers["content-type"] as string | undefined) ?? "";
+    if (contentType.startsWith("multipart/form-data")) {
+      // encodeReply's multipart output (File / binary arguments). Reconstruct
+      // the standard FormData for the transport's decodeReply.
+      body = {
+        kind: "form-data",
+        formData: await formDataFromBytes(new Uint8Array(raw), contentType),
+      };
+    } else {
+      const classified = classifyTextBody(raw.toString());
+      body = classified.body;
+      if (classified.legacyId) id = classified.legacyId;
     }
   } catch (error: unknown) {
     // Preserve a tagged status (e.g. 413 from the size cap) rather than masking it
@@ -199,11 +333,11 @@ export async function parseServerActionRequest(
 
   if (verbose) {
     logger?.info(
-      `[handleServerActionHelper] Server action request for ${id} with args: ${JSON.stringify(args)}`
+      `[handleServerActionHelper] Server action request for ${id} (${body.kind})`
     );
   }
 
-  return { id, args };
+  return { id, body };
 }
 
 /**
@@ -243,10 +377,12 @@ export async function parseServerActionWebRequest(
     new URL(request.url).pathname ??
     "";
 
-  let body = "";
+  // Buffer under the size cap first (request.formData()/text() have no cap of
+  // their own), then classify — multipart reconstructs as FormData for
+  // decodeReply, everything else stays text.
+  const bytes: Uint8Array[] = [];
   if (request.body) {
     const reader = request.body.getReader();
-    const decoder = new TextDecoder();
     let received = 0;
     for (;;) {
       const { done, value } = await reader.read();
@@ -260,36 +396,42 @@ export async function parseServerActionWebRequest(
         err.statusCode = 413;
         throw err;
       }
-      body += decoder.decode(value, { stream: true });
+      bytes.push(value);
     }
-    body += decoder.decode();
-  } else {
-    body = await request.text();
+  }
+  let total = 0;
+  for (const b of bytes) total += b.byteLength;
+  const raw = new Uint8Array(total);
+  {
+    let offset = 0;
+    for (const b of bytes) {
+      raw.set(b, offset);
+      offset += b.byteLength;
+    }
   }
 
-  let args: unknown[];
-  try {
-    const parsed = JSON.parse(body);
-    if (Array.isArray(parsed)) {
-      args = parsed;
-    } else if (parsed && typeof parsed === "object" && "id" in parsed) {
-      id = (parsed as { id: string }).id;
-      args = (parsed as { args?: unknown[] }).args ?? [];
-    } else {
-      throw new Error("Invalid server action request format");
-    }
-  } catch {
-    // Not JSON — React's encoded format; pass the raw body for downstream decode.
-    args = [body];
+  let body: ServerActionBody;
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.startsWith("multipart/form-data")) {
+    body = {
+      kind: "form-data",
+      formData: await formDataFromBytes(raw, contentType),
+    };
+  } else {
+    const classified = classifyTextBody(new TextDecoder().decode(raw));
+    body = classified.body;
+    if (classified.legacyId) id = classified.legacyId;
   }
 
   if (!id) {
     throw new Error("Server action ID is required");
   }
   if (verbose) {
-    logger?.info(`[handleServerActionHelper] Web server action request for ${id}`);
+    logger?.info(
+      `[handleServerActionHelper] Web server action request for ${id} (${body.kind})`
+    );
   }
-  return { id, args };
+  return { id, body };
 }
 
 /**

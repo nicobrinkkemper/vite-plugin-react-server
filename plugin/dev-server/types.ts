@@ -41,7 +41,12 @@ export type HandleServerActionFn = (
   server: ViteDevServer,
   handlerOptions: Pick<
     CreateHandlerOptions,
-    "verbose" | "moduleBasePath" | "projectRoot" | "loader"
+    | "verbose"
+    | "moduleBasePath"
+    | "moduleBaseURL"
+    | "transport"
+    | "projectRoot"
+    | "loader"
   >
 ) => Promise<void>;
 
