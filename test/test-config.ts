@@ -1,13 +1,15 @@
 import type {  StreamPluginOptions } from "vite-plugin-react-server/types";
-import { getCondition } from "vite-plugin-react-server";
+import { getCondition, REACT_CONDITION } from "vite-plugin-react-server/config";
 import { metricWatcher } from "vite-plugin-react-server/metrics";
 
 // The suite deliberately runs BOTH paradigms over the same configs
 // (test-both.sh reruns every suite under each condition), so the declared
 // runner must track the ambient condition or the runner/condition invariant
 // errors the whole matrix. Real consumer configs declare a literal runner.
+// (/config, not the root entry: every suite imports this file, and the root
+// entry drags the TLA orchestrator dispatcher graph along for no reason.)
 export const runnerForCondition = (): "main" | "isolated" =>
-  getCondition() === "react-server" ? "main" : "isolated";
+  getCondition() === REACT_CONDITION.server ? "main" : "isolated";
 
 // Transport matrix knob — the transport twin of test-both.sh's condition
 // rerun. VPRS_TEST_TRANSPORT=webpack reruns transport-AGNOSTIC suites with
