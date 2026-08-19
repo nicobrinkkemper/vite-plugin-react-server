@@ -140,8 +140,24 @@ jobs:
           npm ci
           npm install ../vite-plugin-react-server-*.tgz
 
+      # The browser download has no timeout of its own and Playwright's CDN
+      # has real bad hours (a hang here ate 20+ minutes four times on
+      # 2026-08-19). The cache removes the download from the common path; the
+      # step timeout caps the damage when the CDN still gets a say.
+      - name: Resolve Playwright version (cache key)
+        id: playwright-version
+        working-directory: demo
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Chromium
         working-directory: demo
+        timeout-minutes: 5
         run: npx playwright install --with-deps chromium
 
       - name: e2e — build, boot the prod server, drive the browser
