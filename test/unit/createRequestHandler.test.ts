@@ -94,3 +94,57 @@ describe("createRequestHandler", () => {
     expect(JSON.parse(row![1]!)).toEqual({ returnValue: { got: "hi" } });
   });
 });
+
+describe("createRequestHandler — not-found flight outcome", () => {
+  let dir: string;
+  let h: (request: Request) => Promise<Response>;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "vprs-req-404-"));
+    await mkdir(join(dir, "404"), { recursive: true });
+    await writeFile(join(dir, "404", "index.rsc"), '0:["$","h1",null,{"children":"lost"}]\n');
+    await writeFile(join(dir, "index.html"), "<!doctype html><title>home</title>");
+    h = createRequestHandler({ staticDir: dir });
+  });
+
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  it("answers a flight miss with the 404 route's flight, status 404", async () => {
+    const res = await h(new Request("https://example.test/nope/index.rsc"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("text/x-component");
+    expect(res.headers.get("x-vprs-outcome")).toBe("not-found");
+    expect(await res.text()).toContain("lost");
+  });
+
+  it("answers an Accept-negotiated flight miss the same way", async () => {
+    const res = await h(
+      new Request("https://example.test/nope/", {
+        headers: { accept: "text/x-component" },
+      })
+    );
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-vprs-outcome")).toBe("not-found");
+    expect(await res.text()).toContain("lost");
+  });
+
+  it("keeps the plain 404 for document misses — the outcome is flight-path only", async () => {
+    const res = await h(new Request("https://example.test/nope/"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type") ?? "").not.toContain("text/x-component");
+  });
+
+  it("keeps the plain 404 when the app prerendered no /404 route", async () => {
+    const bare = await mkdtemp(join(tmpdir(), "vprs-req-bare-"));
+    try {
+      const bareHandler = createRequestHandler({ staticDir: bare });
+      const res = await bareHandler(
+        new Request("https://example.test/nope/index.rsc")
+      );
+      expect(res.status).toBe(404);
+      expect(res.headers.get("content-type") ?? "").not.toContain("text/x-component");
+    } finally {
+      await rm(bare, { recursive: true, force: true });
+    }
+  });
+});

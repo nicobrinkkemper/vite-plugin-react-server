@@ -197,8 +197,27 @@ export function createReactFetcher({
         () => {}
       );
     }
+    // Only flight reaches the decoder. The gate is the CONTENT TYPE, not the
+    // status: a 404 whose body is the 404 route's flight (the handler's
+    // not-found outcome) decodes and renders in the SPA, while a host's
+    // text/HTML miss or error page REJECTS here — fast and descriptive —
+    // instead of surfacing as decoder garbage. The router's existing
+    // rejection fallback then performs a full navigation, so the server's
+    // real response is what the user sees.
+    const flightResponse = responsePromise.then((response) => {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("text/x-component")) {
+        throw new Error(
+          `[vprs] flight fetch for ${parsedURL.indexRSC} answered ` +
+            `${response.status} with content-type ${JSON.stringify(
+              contentType
+            )} — not a flight payload; falling back to a full navigation`
+        );
+      }
+      return response;
+    });
     return flightClient().then(({ createFromFetch }) =>
-      createFromFetch(responsePromise, decodeOptions)
+      createFromFetch(flightResponse, decodeOptions)
     );
   };
 

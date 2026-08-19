@@ -114,6 +114,35 @@ export function createRequestHandler(
           headers: { "Content-Type": file.contentType },
         });
       }
+
+      // A FLIGHT request that missed answers with the 404 route's flight when
+      // the app prerendered one: status 404 (a shared cache must not treat a
+      // miss as content), but a body the flight DECODER can read — the client
+      // router then shows the 404 route without leaving the SPA. Text or HTML
+      // here would poison the decoder; that class is what this exists to
+      // retire. Without a prerendered /404, the plain 404 below stands and
+      // the client falls back to a full navigation.
+      if (
+        url.pathname.endsWith(".rsc") ||
+        (request.headers.get("accept") ?? "").includes("text/x-component")
+      ) {
+        const notFoundFlight = await resolveStaticFile(
+          staticDir,
+          "/404/index.rsc"
+        );
+        if (notFoundFlight) {
+          return new Response(
+            request.method === "HEAD" ? null : (notFoundFlight.body as BodyInit),
+            {
+              status: 404,
+              headers: {
+                "Content-Type": "text/x-component; charset=utf-8",
+                "x-vprs-outcome": "not-found",
+              },
+            }
+          );
+        }
+      }
     }
 
     return new Response("Not Found", { status: 404 });
