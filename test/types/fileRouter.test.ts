@@ -32,6 +32,7 @@ describe("fileRouter → plugin options", () => {
     // like the example config — a regression on `routePatterns` (undeclared) or
     // `props` (too narrow) fails here.
     const options = {
+      runner: "main" as const,
       moduleBase: "src",
       Page: router.Page,
       props: router.props,
@@ -45,6 +46,7 @@ describe("fileRouter → plugin options", () => {
 describe("routes field", () => {
   it("accepts an empty config (scan moduleBase itself)", () => {
     const options = {
+      runner: "main" as const,
       moduleBase: "app",
       routes: {},
     } satisfies StreamPluginOptions;
@@ -53,6 +55,7 @@ describe("routes field", () => {
 
   it("accepts the declarative { dir } form", () => {
     const options = {
+      runner: "main" as const,
       moduleBase: "src",
       routes: {
         dir: "page",
@@ -70,6 +73,7 @@ describe("routes field", () => {
       build: { pages: [] as string[] },
     };
     const options = {
+      runner: "main" as const,
       moduleBase: "src",
       routes: table,
     } satisfies StreamPluginOptions;

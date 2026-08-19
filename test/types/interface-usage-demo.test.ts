@@ -63,6 +63,7 @@ describe("Interface-Aware Type Usage Demo", () => {
 
   it("should use interface-aware types correctly", () => {
     const options: StreamPluginOptions<CustomInterface> = {
+      runner: "main",
       moduleBase: "src",
       pageExportName: "PageComponent",
       propsExportName: "pageProps",
