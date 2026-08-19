@@ -184,38 +184,15 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       }
     });
 
-    // Create a custom writable stream that pipes to our PassThrough
-    // This ensures the stream is consumed to completion naturally
-    const customWritable = {
-      write(chunk: any, _encoding?: any, callback?: any) {
-        // Pipe the chunk to our PassThrough stream
-        htmlStream.write(chunk);
-        if (callback) callback();
-      },
-      end(chunk?: any, _encoding?: any, callback?: any) {
-        if (chunk) {
-          htmlStream.write(chunk);
-        }
-        // End the PassThrough stream
-        htmlStream.end();
-        if (callback) callback();
-      },
-      destroy(error?: Error) {
-        // Destroy the PassThrough stream with the error
-        try {
-          htmlStream.destroy(error);
-        } catch (destroyError) {
-          // Stream may already be destroyed, ignore
-        }
-      },
-      on() {}, // No-op for event listeners
-      once() {}, // No-op for event listeners
-      emit() { return false; }, // No-op for event emitters
-    };
-
-    // Pipe the React stream directly to our custom writable
-    // This ensures the stream is consumed to completion naturally
-    pipe(customWritable as any);
+    // Pipe React into the REAL PassThrough — never a faked writable. React's
+    // pipe() honors the write() return value and waits for 'drain' on
+    // backpressure, so a no-op event emitter deadlocks every render whose
+    // content arrives in a second flush (a Suspense boundary that actually
+    // suspended, e.g. on a client-reference module import): the first flush
+    // exhausts the fake capacity, the drain that would resume the flush can
+    // never fire, and the SSG hangs with no error. Same lost-drain class the
+    // html worker's handleHtmlRender fix removed — this was its last copy.
+    pipe(htmlStream);
 
     if (verbose) {
       logger?.info(
