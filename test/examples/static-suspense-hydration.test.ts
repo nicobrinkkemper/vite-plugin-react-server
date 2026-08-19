@@ -25,6 +25,15 @@ const browserAvailable = (() => {
     return false;
   }
 })();
+// Fail CLOSED where a browser is guaranteed (the CI browser-regressions job
+// sets this): a missing Chromium must fail the job, never skip it green.
+// Local runs without a browser still skip. Same discipline as
+// VPRS_REQUIRE_MINIFLARE in the workerd smoke.
+if (!browserAvailable && process.env["VPRS_REQUIRE_BROWSER"]) {
+  throw new Error(
+    "VPRS_REQUIRE_BROWSER is set but Playwright Chromium is not installed"
+  );
+}
 
 
 const testDir = resolve(__dirname, "../fixtures/static-suspense-hydration.test");
