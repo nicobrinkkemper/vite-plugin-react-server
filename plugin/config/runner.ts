@@ -32,12 +32,17 @@ const runnerList = (): string =>
  *   `--conditions react-server` poisons every module the orchestrator loads
  *   outside its per-environment `resolve.conditions`.
  *
- * Returns the validated runner, or undefined when none was declared (the
- * legacy condition-inferred dispatch; a declared runner becomes required in
- * the next major).
+ * Returns the validated runner. A missing runner errors with the three
+ * options: a default would be inference with better branding — it would
+ * silently canonicalize one topology and hide the exact choice the flag
+ * exists to surface (runner-spec Resolutions §1).
  */
-export function validateRunner(runner: unknown): RunnerName | undefined {
-  if (runner === undefined || runner === null) return undefined;
+export function validateRunner(runner: unknown): RunnerName {
+  if (runner === undefined || runner === null) {
+    throw new Error(
+      `[vite-plugin-react-server] The 'runner' option is required. Pick one:\n${runnerList()}`
+    );
+  }
   if (!RUNNER_NAMES.includes(runner as RunnerName)) {
     throw new Error(
       `[vite-plugin-react-server] Unknown runner ${JSON.stringify(runner)}. Pick one:\n${runnerList()}`

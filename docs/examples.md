@@ -12,6 +12,7 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 export default defineConfig({
   base: "/my-repo/",
   plugins: vitePluginReactServer({
+    runner: "isolated",
     moduleBase: "src",
     moduleBaseURL: "/my-repo/",
     Page: (url) => `src/pages${url}page.tsx`,
@@ -126,6 +127,7 @@ import { Css } from "vite-plugin-react-server/components";
 
 export default defineConfig({
   plugins: vitePluginReactServer({
+    runner: "isolated",
     moduleBase: "src",
     Page: "src/page.tsx",
     components: {

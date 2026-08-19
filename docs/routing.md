@@ -12,6 +12,7 @@ It is opt-in. Without `routes`, the plugin does not own routing at all — see
 ```ts
 // vite.config.ts
 vitePluginReactServer({
+  runner: "isolated",
   moduleBase: "src",
   routes: { dir: "routes" },   // scans src/routes/**
 })

@@ -7,6 +7,8 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 export default defineConfig({
   plugins: vitePluginReactServer({
     // Required
+    runner: "isolated",                // "main" | "isolated" | "edge" — the
+                                       // execution paradigm; see below
     moduleBase: "src",
     Page: "src/page.tsx",              // string or (url: string) => string
     build: { pages: ["/"] },
@@ -147,34 +149,49 @@ For the conventional setup — an `index.html` with `<script type="module" src="
 
 Set `clientEntry` only when the client entry isn't referenced from `index.html` and needs to be picked up another way.
 
-## Dev Modes
+## Runner
 
-| Mode | Command | RSC runs on | Benefits |
-|------|---------|-------------|----------|
-| SSR | `vite` | Worker thread | Default, better isolation |
-| RSC | `NODE_OPTIONS='--conditions react-server' vite` | Main thread | Easier debugging, React in config |
+`runner` declares the execution paradigm — where react-server executes — and
+is required. The declared runner is validated against the process condition at
+config-resolve time, so a mismatch is a loud error rather than a silently
+different topology.
 
-Both produce identical output. The RSC worker is skipped in `dev:rsc` mode by default — Vite's environment runner handles HMR directly.
+| Runner | Scripts carry | RSC runs on | Trade |
+|--------|---------------|-------------|-------|
+| `"isolated"` | no flag | Worker thread | No launch flags, better isolation |
+| `"main"` | `NODE_OPTIONS='--conditions react-server'` | Main thread | A bit faster, better stack traces, React usable in `vite.config.ts` |
+| `"edge"` | no flag | Single isolate (baked pair) | Portability; not implemented yet — use `"isolated"` (or `"main"`) with `build.edge` meanwhile |
+
+Both implemented runners produce identical output. Under `"main"`, the RSC
+worker is skipped in dev — Vite's environment runner handles HMR directly.
 
 ## Build Scripts
+
+The scripts match the declared runner. With `runner: "isolated"`:
 
 ```json
 {
   "scripts": {
     "dev": "vite",
-    "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
     "build": "vite build --app",
     "preview": "vite preview"
   }
 }
 ```
 
-`--conditions react-server` is optional everywhere, never required: with it the
-main thread renders RSC directly (a bit faster, better stack traces); without
-it a worker thread carries the react-server condition and the output is
-identical. `dev:rsc` above is that optional variant for dev; add
-`NODE_OPTIONS='--conditions react-server'` to `build` too if you want the same
-for builds.
+With `runner: "main"`, every command states the flag that topology requires
+(`vite.config.ts` and its imports resolve before plugin code runs, so the
+flag cannot be added retroactively):
+
+```json
+{
+  "scripts": {
+    "dev": "NODE_OPTIONS='--conditions react-server' vite",
+    "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
+    "preview": "NODE_OPTIONS='--conditions react-server' vite preview"
+  }
+}
+```
 
 ## Third-party `"use client"` packages
 

@@ -68,6 +68,10 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 
 export default defineConfig({
   plugins: vitePluginReactServer({
+    // The execution paradigm: "isolated" (worker owns react-server, no
+    // process flag), "main" (react-server on the main thread, needs
+    // NODE_OPTIONS='--conditions react-server'), or "edge".
+    runner: "isolated",
     moduleBase: "src",
     Page: "src/page.tsx",
     props: "src/props.ts",
@@ -82,21 +86,34 @@ export default defineConfig({
 {
   "scripts": {
     "dev": "vite",
-    "dev:rsc": "NODE_OPTIONS='--conditions react-server' vite",
     "build": "vite build --app",
-    "build:rsc": "NODE_OPTIONS='--conditions react-server' vite build --app",
     "preview": "vite preview"
   }
 }
 ```
 
-The plain and `:rsc` variants serve and build the same app — neither mode is
-required. Whichever condition the main thread runs, the plugin spawns a worker
-for the mirrored half, so server components and client hydration both always
-have their proper React context. The `:rsc` variants put the react-server side
-on the main thread: an optional optimization (slightly faster, better stack
-traces). See [Architecture](./internals/architecture.md) for how the mirroring
-works.
+The scripts match the declared runner. With `runner: "isolated"` (above) no
+script carries a process flag: a worker thread owns react-server resolution,
+and the main thread keeps the react-client context hydration needs. Declaring
+`runner: "main"` instead puts react-server on the main thread — slightly
+faster, better stack traces, React usable in `vite.config.ts` — and then
+every script states the flag that topology requires:
+
+```json
+{
+  "scripts": {
+    "dev": "NODE_OPTIONS='--conditions react-server' vite",
+    "build": "NODE_OPTIONS='--conditions react-server' vite build --app",
+    "preview": "NODE_OPTIONS='--conditions react-server' vite preview"
+  }
+}
+```
+
+Runner and flag are validated against each other at config-resolve time, so a
+mismatch is a loud error, not a silently different topology. Either way the
+plugin spawns a worker for the mirrored half, so server components and client
+hydration both always have their proper React context. See
+[Architecture](./internals/architecture.md) for how the mirroring works.
 
 ```bash
 npm run dev
@@ -153,6 +170,7 @@ For GitHub Pages with a subdirectory, set `moduleBaseURL` and Vite's `base`:
 export default defineConfig({
   base: "/my-repo/",
   plugins: vitePluginReactServer({
+    runner: "isolated",
     moduleBase: "src",
     moduleBaseURL: "/my-repo/",
     Page: "src/page.tsx",
@@ -167,6 +185,7 @@ export default defineConfig({
 // vite.config.ts
 export default defineConfig({
   plugins: vitePluginReactServer({
+    runner: "isolated",
     moduleBase: "src",
     Page: (url) => `src/pages${url}page.tsx`,
     props: (url) => `src/pages${url}props.ts`,
