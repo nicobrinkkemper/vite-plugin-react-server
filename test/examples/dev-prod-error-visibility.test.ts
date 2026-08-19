@@ -79,6 +79,7 @@ async function setupFixture(dir: string) {
       `  esbuild: { jsx: "automatic" },\n` +
       `  optimizeDeps: { include: ["react-server-dom-esm/client.browser"] },\n` +
       `  plugins: vitePluginReactServer({\n` +
+      `    runner: "main",\n` +
       `    moduleBase: "src",\n` +
       `    Page: "src/page/page.tsx",\n` +
       `    props: "src/page/props.ts",\n` +

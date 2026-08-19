@@ -52,6 +52,7 @@ export default defineConfig({
   optimizeDeps: { include: ["react-server-dom-esm/client.browser"] },
   plugins: [
     ...vitePluginReactServer({
+      runner: "main",
       moduleBase: "src",
       Page: "src/page/page.tsx",
       Html: "src/page/html.tsx",

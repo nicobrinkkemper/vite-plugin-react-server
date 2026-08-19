@@ -9,8 +9,9 @@
     "edge": "node edge-server.mjs"
   },
   "dependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-server-loader": "^19.2.20",
     "vite-plugin-react-server": "file:../.."
   },
   "devDependencies": {

@@ -112,6 +112,7 @@ async function setupFixture(dir: string) {
       `  mode: "production",\n` +
       `  esbuild: { jsx: "automatic" },\n` +
       `  plugins: vitePluginReactServer({\n` +
+      `    runner: "main",\n` +
       `    moduleBase: "src",\n` +
       `    Page: "src/page/page.tsx",\n` +
       `    props: "src/page/page.tsx",\n` +

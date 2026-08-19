@@ -3,6 +3,7 @@ import { StreamPluginOptions, vitePluginReactServer } from "vite-plugin-react-se
 
 export default defineConfig({
   plugins: [vitePluginReactServer({
+    runner: "isolated",
     moduleBase: "src",
     // File-based routing: scan `moduleBase` itself — src/page.tsx (+ sibling
     // props.ts) becomes "/", and the prerender worklist derives from the tree.
