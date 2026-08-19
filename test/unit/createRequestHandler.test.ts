@@ -134,6 +134,29 @@ describe("createRequestHandler — not-found flight outcome", () => {
     expect(res.headers.get("content-type") ?? "").not.toContain("text/x-component");
   });
 
+  it("honors a custom build.rscOutputPath for the 404 flight lookup", async () => {
+    const custom = await mkdtemp(join(tmpdir(), "vprs-req-custom-"));
+    try {
+      await mkdir(join(custom, "404"), { recursive: true });
+      await writeFile(
+        join(custom, "404", "payload.rsc"),
+        '0:["$","h1",null,{"children":"lost-custom"}]\n'
+      );
+      const customHandler = createRequestHandler({
+        staticDir: custom,
+        rscOutputPath: "payload.rsc",
+      });
+      const res = await customHandler(
+        new Request("https://example.test/nope/payload.rsc")
+      );
+      expect(res.status).toBe(404);
+      expect(res.headers.get("x-vprs-outcome")).toBe("not-found");
+      expect(await res.text()).toContain("lost-custom");
+    } finally {
+      await rm(custom, { recursive: true, force: true });
+    }
+  });
+
   it("keeps the plain 404 when the app prerendered no /404 route", async () => {
     const bare = await mkdtemp(join(tmpdir(), "vprs-req-bare-"));
     try {

@@ -197,16 +197,23 @@ export function createReactFetcher({
         () => {}
       );
     }
-    // Only flight reaches the decoder. The gate is the CONTENT TYPE, not the
-    // status: a 404 whose body is the 404 route's flight (the handler's
-    // not-found outcome) decodes and renders in the SPA, while a host's
-    // text/HTML miss or error page REJECTS here — fast and descriptive —
-    // instead of surfacing as decoder garbage. The router's existing
-    // rejection fallback then performs a full navigation, so the server's
-    // real response is what the user sees.
+    // Only flight reaches the decoder — but "deploy dist/static to any static
+    // host" is a documented contract, and a host that has never heard of
+    // .rsc serves the file as application/octet-stream (or text/plain) with
+    // a 200. The gate therefore accepts BOTH shapes of legitimacy:
+    //   - a response DECLARED as flight (text/x-component), at any status —
+    //     that is how the not-found outcome rides a 404; and
+    //   - an OK response that is not a DOCUMENT — the dumb-host case above.
+    // Everything else rejects fast and descriptive: an HTML body (an
+    // SPA-fallback host answering index.html for any path, an error page)
+    // or a non-OK non-flight miss. The router's rejection fallback then
+    // performs a full navigation, so the server's real response is what the
+    // user sees — never decoder garbage.
     const flightResponse = responsePromise.then((response) => {
       const contentType = response.headers.get("content-type") ?? "";
-      if (!contentType.includes("text/x-component")) {
+      const declaredFlight = contentType.includes("text/x-component");
+      const documentish = contentType.includes("text/html");
+      if (!declaredFlight && (documentish || !response.ok)) {
         throw new Error(
           `[vprs] flight fetch for ${parsedURL.indexRSC} answered ` +
             `${response.status} with content-type ${JSON.stringify(
