@@ -5,7 +5,6 @@ import type { ReactCondition } from "../config/getCondition.js";
 export interface Strategy {
     mode?: "auto" | "client" | "server";
     bundleTarget?: "server" | "client" | "ssr";
-    importContext?: ReactCondition;
     mainThreadCondition?: ReactCondition;
     staticBuild?: boolean;
     ssg?: boolean;

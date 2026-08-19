@@ -3,9 +3,9 @@
   "version": "3.11.2",
   "description": "Vite plugin for React Server Components (RSC)",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/plugin/index.js",
+  "module": "./dist/plugin/index.js",
+  "types": "./dist/plugin/index.d.ts",
   "files": [
     "dist",
     "plugin",
@@ -24,9 +24,8 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "react-server": "./dist/plugin/index.server.js",
-      "default": "./dist/plugin/index.client.js"
+      "types": "./dist/plugin/index.d.ts",
+      "default": "./dist/plugin/index.js"
     },
     "./client": "./dist/client.js",
     "./server": "./dist/server.js",

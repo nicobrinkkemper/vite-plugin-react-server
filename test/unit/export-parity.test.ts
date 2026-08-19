@@ -218,8 +218,9 @@ function conditionSplitSubpaths(): Array<{ sub: string; server: string; browser:
 }
 
 /** Subpaths whose two condition targets must expose IDENTICAL runtime names. */
+// "." is deliberately absent: since the de-split it has ONE target for both
+// conditions, so there is no pair to compare.
 const STATIC_SYMMETRIC = [
-  ".",
   "./utils",
   "./env",
   "./env/plugin",

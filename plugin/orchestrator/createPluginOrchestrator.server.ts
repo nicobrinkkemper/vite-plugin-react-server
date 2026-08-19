@@ -27,7 +27,6 @@ export const createPluginOrchestrator = (userOptions: any): Plugin[] =>
 export interface Strategy {
   mode?: "auto" | "server" | "client";
   bundleTarget?: "server" | "client" | "ssr";
-  importContext?: ReactCondition;
   mainThreadCondition?: ReactCondition;
   legacyBuilder?: boolean;
   staticBuild?: boolean;

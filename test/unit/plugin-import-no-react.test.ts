@@ -65,17 +65,15 @@ function reactModulesLoadedByImporting(
 }
 
 describe("plugin entries do not import React at load", () => {
-  it("react-server entry loads zero React/react-dom/transport modules", () => {
+  it("the '.' entry loads zero React/react-dom/transport modules under react-server", () => {
     expect(
-      reactModulesLoadedByImporting("dist/plugin/index.server.js", [
-        "react-server",
-      ]),
+      reactModulesLoadedByImporting("dist/plugin/index.js", ["react-server"]),
     ).toEqual([]);
   });
 
-  it("client/default entry loads zero React/react-dom/transport modules", () => {
+  it("the '.' entry loads zero React/react-dom/transport modules by default", () => {
     expect(
-      reactModulesLoadedByImporting("dist/plugin/index.client.js", []),
+      reactModulesLoadedByImporting("dist/plugin/index.js", []),
     ).toEqual([]);
   });
 });
