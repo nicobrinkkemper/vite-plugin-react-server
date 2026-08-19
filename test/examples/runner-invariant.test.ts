@@ -16,9 +16,19 @@ import { testUserOptions } from "../test-config.js";
 const conditionPresent = getCondition() === REACT_CONDITION.server;
 
 describe("validateRunner", () => {
-  it("returns undefined when no runner is declared (legacy inference)", () => {
-    expect(validateRunner(undefined)).toBeUndefined();
-    expect(validateRunner(null)).toBeUndefined();
+  it("rejects a missing runner, listing all three options", () => {
+    for (const missing of [undefined, null]) {
+      try {
+        validateRunner(missing);
+        expect.unreachable("should have thrown");
+      } catch (e) {
+        const msg = String(e);
+        expect(msg).toContain("'runner' option is required");
+        for (const name of RUNNER_NAMES) {
+          expect(msg).toContain(`"${name}"`);
+        }
+      }
+    }
   });
 
   it("rejects unknown runners, listing all three options", () => {
@@ -40,13 +50,16 @@ describe("validateRunner", () => {
       expect(validateRunner("main")).toBe("main");
     });
 
-    it("rejects 'isolated' and 'edge' under the process condition", () => {
+    it("rejects 'isolated' under the process condition", () => {
       expect(() => validateRunner("isolated")).toThrow(
         /owns react-server resolution itself; remove the process flag/
       );
-      expect(() => validateRunner("edge")).toThrow(
-        /owns react-server resolution itself; remove the process flag/
-      );
+    });
+
+    it("rejects 'edge' as not implemented before the condition check", () => {
+      // A declared 'edge' hears not-implemented first — never a flag
+      // instruction toward a value that then rejects anyway.
+      expect(() => validateRunner("edge")).toThrow(/not implemented yet/);
     });
   } else {
     it("rejects 'main' without the process condition", () => {
@@ -79,11 +92,13 @@ describe("root package entry enforces the invariant", () => {
     expect(withRunner("bogus")).toThrow(/Unknown runner/);
   });
 
-  it("still accepts an undeclared runner (legacy inference)", () => {
+  it("rejects a missing runner", () => {
     // testUserOptions declares runnerForCondition() — strip it so this case
-    // actually exercises the undeclared path.
+    // actually exercises the missing-runner path.
     const { runner: _runner, ...withoutRunner } = testUserOptions;
-    expect(vitePluginReactServer(withoutRunner)).toBeInstanceOf(Array);
+    expect(() =>
+      vitePluginReactServer(withoutRunner as typeof testUserOptions)
+    ).toThrow(/'runner' option is required/);
   });
 
   if (conditionPresent) {

@@ -79,6 +79,7 @@ Request ──▶ renderRouteToFlight(url)  ──▶ Flight stream   (dist/serv
 ```ts
 // vite.config.ts
 vitePluginReactServer({
+  runner: "isolated",
   moduleBase: "src",
   Page: "src/page.tsx",
   props: "src/props.ts",

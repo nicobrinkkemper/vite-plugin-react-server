@@ -29,7 +29,7 @@ export type StaticPathsMap = Record<
 // → urlMap), with no core changes. It replaces the hand-rolled
 // `createRouter(file) => (url) => switch {…}` that mmc/bidoof write by hand:
 //
-//   vitePluginReactServer({ moduleBase: "src", ...fileRouter("src/routes") })
+//   vitePluginReactServer({ runner: "isolated", moduleBase: "src", ...fileRouter("src/routes") })
 //
 // Pass a project-root-relative `routesDir` so the emitted file paths are
 // root-relative too (matching how you'd hand-write `Page`/`props`).

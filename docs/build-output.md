@@ -6,9 +6,10 @@ function) is a consumer of the output described here, not a separate build
 mode. The [deploy recipes](./README.md#three-ways-to-ship) all read from this
 page.
 
-Running `vite build --app` produces three directories (prefix
-`NODE_OPTIONS='--conditions react-server'` if you want the optional
-main-thread render — the output is identical either way):
+Running `vite build --app` produces three directories (the command follows
+your declared runner: `runner: "main"` requires the
+`NODE_OPTIONS='--conditions react-server'` prefix, `runner: "isolated"` runs
+plain — the output is identical either way):
 
 ```
 dist/
@@ -242,9 +243,11 @@ the edge bundle. The plugin supplies Vite's `builder` config, so plain
 per-environment CLI decomposition: `vite build --ssr` also resolves to the
 full app build, not a partial one.
 
-Prefixing `NODE_OPTIONS='--conditions react-server'` is an optional variant:
-the main thread renders RSC directly instead of a worker; a bit faster,
-better stack traces, same output.
+The process flag follows the declared runner: `runner: "main"` requires the
+`NODE_OPTIONS='--conditions react-server'` prefix (the main thread renders
+RSC directly instead of a worker; a bit faster, better stack traces), and
+`runner: "isolated"` rejects it (the rsc-worker owns react-server
+resolution). Same output either way.
 
 ### Parallel Rendering
 

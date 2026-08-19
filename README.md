@@ -22,12 +22,14 @@ supplied and version-locked by `react-server-loader`.) For a batteries-included
 framework instead, see Waku or Vike. Full breakdown:
 [How vprs compares](./docs/comparison.md).
 
-It runs in both Node module conditions by design: the dev server and the build
-work with or without `--conditions react-server`, and a worker thread mirrors
-whichever half your main thread isn't on (server components need a react-server
-context, client hydration a react-client one). Running the main thread under
-react-server is an optional optimization — a bit faster, better stack traces —
-never a requirement.
+The execution topology is a declared choice: the `runner` option names where
+react-server executes. `"isolated"` gives a worker thread react-server
+resolution with no launch flags; `"main"` puts it on the main thread — a bit
+faster, better stack traces, React usable in `vite.config.ts` — paired with
+`--conditions react-server` stated once in your scripts. Either way a worker
+mirrors the other half (server components need a react-server context, client
+hydration a react-client one), and runner and flag are validated against each
+other at config-resolve time.
 
 ## Quick start
 
@@ -91,6 +93,7 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 
 export default defineConfig({
   plugins: vitePluginReactServer({
+    runner: "isolated",
     moduleBase: "src",
     // Scans src/routes/** for page.tsx (+ sibling props.ts) and derives the
     // route table and the prerender worklist.
@@ -147,7 +150,8 @@ a `Page: (url) => string` mapping — see [Routing](./docs/routing.md).
 npx vite              # dev server
 npx vite build --app  # build: static site + server/client ESM
 
-# Optional react-server main thread: a bit faster, better stack traces
+# With runner: "main" declared instead (react-server on the main thread —
+# a bit faster, better stack traces), every command carries the flag:
 NODE_OPTIONS='--conditions react-server' vite build --app
 ```
 
@@ -204,6 +208,7 @@ Detection is automatic at build start: any package with `react` in its `peerDepe
 
 ```ts
 vitePluginReactServer({
+  runner: "isolated",
   // Force a package into the list (e.g. one that doesn't peerDep react)
   clientPackages: ["@my/internal-ui"],
   // Skip a detected one (e.g. devDeps Storybook bringing along @storybook/react)

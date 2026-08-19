@@ -731,11 +731,11 @@ export interface StreamPluginOptions<
    * "isolated" resolves react-server inside the rsc-worker with no process
    * flag; "edge" bakes React per environment at build time. Validated against
    * the process condition at config-resolve time — a mismatch is a
-   * config-time error, not a runtime mystery. Currently optional (omitting it
-   * keeps the condition-inferred dispatch); becomes required in the next
-   * major.
+   * config-time error, not a runtime mystery. Required: there is no default,
+   * because a default would silently canonicalize one topology — the flag
+   * exists to make the choice visible.
    */
-  runner?: RunnerName;
+  runner: RunnerName;
   projectRoot?: string; // defaults to process.cwd()
   /**
    * The deploy's RSC flight flavor. Default "esm". With "webpack" every
