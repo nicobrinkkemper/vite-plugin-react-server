@@ -26,8 +26,9 @@ describe("server-action flight codec (webpack transport)", () => {
   it("round-trips File + Date with the same semantics as esm", async () => {
     // The webpack flavor must expose identical action semantics: its own
     // encodeReply on the wire in, its own decodeReply + renderer on the way
-    // out, selected by the options' transport field.
-    const { encodeReply } = await import(
+    // out (selected by the options' transport field), and its own flight
+    // client decoding the response.
+    const { encodeReply, createFromReadableStream } = await import(
       "react-server-loader/webpack/client.edge"
     );
     const file = new File(["webpack leg"], "wp.txt", { type: "text/plain" });
@@ -45,6 +46,8 @@ describe("server-action flight codec (webpack transport)", () => {
             name: f.name,
             text: await f.text(),
             iso: (args[1] as Date).toISOString(),
+            // A typed value in the RESPONSE too — webpack-flavored rows.
+            echoedAt: new Date("2026-08-19T13:30:00.000Z"),
           };
         },
       }),
@@ -54,15 +57,21 @@ describe("server-action flight codec (webpack transport)", () => {
     expect(res.status).toBe(200);
     expect(received[0]).toBeInstanceOf(File);
     expect(received[1]).toBeInstanceOf(Date);
-    const payload = await res.text();
-    const row = payload.match(/^0:(.*)$/m);
-    expect(row, `flight payload: ${payload}`).toBeTruthy();
-    expect(JSON.parse(row![1]!)).toEqual({
-      returnValue: {
-        name: "wp.txt",
-        text: "webpack leg",
-        iso: "2026-08-19T13:00:00.000Z",
-      },
-    });
+    // Decode the response with the REAL webpack flight client — the JSON
+    // reading of row 0 cannot tell a typed row from its marker string.
+    const decoded = (await createFromReadableStream(res.body as ReadableStream, {
+      // No client references in this payload; the webpack client still
+      // requires the options bag with a manifest slot.
+      serverConsumerManifest: { moduleMap: {}, serverModuleMap: null, moduleLoading: null },
+    })) as {
+      returnValue: { name: string; text: string; iso: string; echoedAt: Date };
+    };
+    expect(decoded.returnValue.name).toBe("wp.txt");
+    expect(decoded.returnValue.text).toBe("webpack leg");
+    expect(decoded.returnValue.iso).toBe("2026-08-19T13:00:00.000Z");
+    expect(decoded.returnValue.echoedAt).toBeInstanceOf(Date);
+    expect(decoded.returnValue.echoedAt.toISOString()).toBe(
+      "2026-08-19T13:30:00.000Z"
+    );
   });
 });

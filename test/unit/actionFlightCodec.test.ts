@@ -1,18 +1,24 @@
 /**
  * The complete server-action reply protocol, browser-encoded to
- * server-decoded: the request body is produced by the transport's REAL
- * `encodeReply` (not a hand-rolled imitation), and the handler must route it
- * through `decodeReply` — text and multipart alike — then flight-render the
- * `{ returnValue }` response. Pins the two shapes the old JSON.parse path
- * mangled: a multipart File upload, and a typed reply row (Date).
+ * server-decoded AND server-rendered to client-decoded: request bodies come
+ * from the transport's REAL `encodeReply` (not a hand-rolled imitation), and
+ * responses are decoded with the transport's REAL flight client (not a
+ * JSON.parse of row 0 — that reading cannot tell a typed row from its marker
+ * string, which is the bug class this protocol replaces). Pins the shapes the
+ * old JSON path mangled in BOTH directions: a multipart File upload in, a
+ * typed value (Date) in, and a typed value inside `returnValue` out.
  *
  * Runs under the react-server condition (test:unit), where the built-in
  * codec resolves from the vendored transport pair.
  */
 import { describe, it, expect } from "vitest";
-// The edge client build carries encodeReply (the Node-stream client does
-// not); its encode side is environment-neutral, exactly what a browser emits.
-import { encodeReply } from "react-server-dom-esm/client.edge";
+// The edge client build carries encodeReply and a Web-stream decoder (the
+// Node-stream client has neither); its codec side is environment-neutral —
+// exactly what a browser does.
+import {
+  encodeReply,
+  createFromReadableStream,
+} from "react-server-dom-esm/client.edge";
 import {
   handleServerAction,
   handleServerActionRequest,
@@ -35,15 +41,17 @@ function requestFor(body: string | FormData, id = "src/actions.ts#run") {
   });
 }
 
-/** Extract the model row from a flight payload (dev builds prepend debug rows). */
-function modelRow(payload: string): unknown {
-  const row = payload.match(/^0:(.*)$/m);
-  expect(row, `flight payload: ${payload}`).toBeTruthy();
-  return JSON.parse(row![1]!);
+/** Decode a response the way the browser does: the real esm flight client. */
+async function decodeResponse(res: Response): Promise<{ returnValue: unknown }> {
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toContain("text/x-component");
+  return (await createFromReadableStream(res.body as ReadableStream, {
+    moduleBaseURL: "/",
+  })) as { returnValue: unknown };
 }
 
 describe("server-action flight codec (complete reply protocol)", () => {
-  it("round-trips a multipart FormData body with a real File (Web handler)", async () => {
+  it("round-trips a multipart File in and a typed Date out (Web handler)", async () => {
     const file = new File(["hello upload"], "note.txt", { type: "text/plain" });
     const body = await encodeReply([file, { label: "attach" }]);
     // Binary arguments force encodeReply's multipart output.
@@ -56,19 +64,31 @@ describe("server-action flight codec (complete reply protocol)", () => {
         run: async (...args: unknown[]) => {
           received = args;
           const f = args[0] as File;
-          return { name: f.name, text: await f.text() };
+          return {
+            name: f.name,
+            text: await f.text(),
+            // A non-JSON flight value in the RESPONSE — the round trip the
+            // old 0:<json> row could never carry.
+            receivedAt: new Date("2026-08-19T14:00:00.000Z"),
+          };
         },
       })
     );
 
-    expect(res.status).toBe(200);
     expect(received[0]).toBeInstanceOf(File);
-    expect(modelRow(await res.text())).toEqual({
-      returnValue: { name: "note.txt", text: "hello upload" },
-    });
+    const decoded = await decodeResponse(res);
+    const value = decoded.returnValue as {
+      name: string;
+      text: string;
+      receivedAt: Date;
+    };
+    expect(value.name).toBe("note.txt");
+    expect(value.text).toBe("hello upload");
+    expect(value.receivedAt).toBeInstanceOf(Date);
+    expect(value.receivedAt.toISOString()).toBe("2026-08-19T14:00:00.000Z");
   });
 
-  it("decodes typed reply rows (Date) that JSON.parse mangled (Web handler)", async () => {
+  it("decodes typed reply rows (Date argument) that JSON.parse mangled (Web handler)", async () => {
     const when = new Date("2026-08-19T12:00:00.000Z");
     const body = await encodeReply([when, "plain"]);
     expect(typeof body).toBe("string");
@@ -84,10 +104,11 @@ describe("server-action flight codec (complete reply protocol)", () => {
       })
     );
 
-    expect(res.status).toBe(200);
     expect(received[0]).toBeInstanceOf(Date);
-    expect(modelRow(await res.text())).toEqual({
-      returnValue: { iso: "2026-08-19T12:00:00.000Z", second: "plain" },
+    const decoded = await decodeResponse(res);
+    expect(decoded.returnValue).toEqual({
+      iso: "2026-08-19T12:00:00.000Z",
+      second: "plain",
     });
   });
 
@@ -138,15 +159,24 @@ describe("server-action flight codec (complete reply protocol)", () => {
         run: async (...args: unknown[]) => {
           received = args;
           const f = args[0] as File;
-          return { name: f.name, text: await f.text() };
+          return {
+            name: f.name,
+            text: await f.text(),
+            stamped: new Date("2026-08-19T15:30:00.000Z"),
+          };
         },
       }),
     });
     await done;
 
     expect(received[0]).toBeInstanceOf(File);
-    expect(modelRow(Buffer.concat(chunks).toString())).toEqual({
-      returnValue: { name: "node.txt", text: "node leg" },
-    });
+    // Decode the captured Node response body with the real flight client.
+    const decoded = (await createFromReadableStream(
+      new Response(Buffer.concat(chunks)).body as ReadableStream,
+      { moduleBaseURL: "/" }
+    )) as { returnValue: { name: string; text: string; stamped: Date } };
+    expect(decoded.returnValue.name).toBe("node.txt");
+    expect(decoded.returnValue.text).toBe("node leg");
+    expect(decoded.returnValue.stamped).toBeInstanceOf(Date);
   });
 });

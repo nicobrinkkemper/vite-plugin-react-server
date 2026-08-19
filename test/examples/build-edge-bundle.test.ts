@@ -37,7 +37,7 @@ async function setupFixture() {
   // conditions action path below dispatches through the BAKED gate.
   await writeFile(
     join(testDir, "src/page/actions.server.ts"),
-    `"use server";\nexport async function bump(n: number) { return n + 1; }`
+    `"use server";\nexport async function bump(n: number) { return n + 1; }\nexport async function echoUpload(file: File, when: Date) {\n  return { name: file.name, text: await file.text(), iso: when.toISOString(), stamped: new Date("2026-08-19T17:00:00.000Z") };\n}`
   );
   await writeFile(
     join(testDir, "src/page/props.ts"),
@@ -233,6 +233,47 @@ describe.skipIf(!renderFlightToHtml)(
       expect(response.status).toBe(200);
       // The flight-rendered { returnValue } envelope — bump(41) ran through the gate → 42.
       expect(await response.text()).toContain('{"returnValue":42}');
+    });
+
+    it("round-trips a multipart File + Date through the baked codec", async () => {
+      // The complete reply protocol against the BAKED pair: the browser's
+      // real encodeReply (multipart — File) in, the bundle's own decodeReply
+      // + renderToReadableStream out, decoded with the real flight client so
+      // typed values are proven in both directions.
+      const { encodeReply, createFromReadableStream } = await import(
+        "react-server-dom-esm/client.edge"
+      );
+      const { handleRouteAction } = (await import(
+        pathToFileURL(join(testDir, "dist/server-edge/render.js")).href
+      )) as { handleRouteAction: (r: Request, o?: object) => Promise<Response> };
+
+      const file = new File(["edge leg"], "edge.txt", { type: "text/plain" });
+      const body = await encodeReply([
+        file,
+        new Date("2026-08-19T11:22:33.000Z"),
+      ]);
+      expect(typeof body).not.toBe("string");
+
+      const response = await handleRouteAction(
+        new Request("http://edge.test/", {
+          method: "POST",
+          headers: { "x-rsc-action": "src/page/actions.server.ts#echoUpload" },
+          body: body as FormData,
+        }),
+        { projectRoot: testDir }
+      );
+      expect(response.status).toBe(200);
+
+      const decoded = (await createFromReadableStream(
+        response.body as ReadableStream,
+        { moduleBaseURL: "/" }
+      )) as {
+        returnValue: { name: string; text: string; iso: string; stamped: Date };
+      };
+      expect(decoded.returnValue.name).toBe("edge.txt");
+      expect(decoded.returnValue.text).toBe("edge leg");
+      expect(decoded.returnValue.iso).toBe("2026-08-19T11:22:33.000Z");
+      expect(decoded.returnValue.stamped).toBeInstanceOf(Date);
     });
 
     // The ./edge one-liner. Every test below imports the bundle as a NAMESPACE

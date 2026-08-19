@@ -38,6 +38,15 @@ export async function getItems(): Promise<string[]> {
 export async function failingAction(): Promise<void> {
   throw new Error("This action intentionally fails");
 }
+
+export async function echoUpload(file: File, when: Date) {
+  return {
+    name: file.name,
+    text: await file.text(),
+    iso: when.toISOString(),
+    stamped: new Date("2026-08-19T16:00:00.000Z"),
+  };
+}
 `
   );
 
@@ -132,6 +141,48 @@ describe("Server Actions", () => {
     expect(text).toContain("item1");
     expect(text).toContain("item2");
     expect(text).toContain("item3");
+  });
+
+  it("round-trips a multipart File + Date with a flight response (worker path in client condition)", async () => {
+    // The full reply protocol through whichever topology this leg runs:
+    // main-thread execution under the react-server condition, the rsc-worker
+    // delegate otherwise. Body from the REAL encodeReply (multipart — File),
+    // response decoded with the REAL flight client, so typed values are
+    // proven in both directions; a JSON reading of the rows could not tell
+    // a typed row from its marker string.
+    const { encodeReply, createFromReadableStream } = await import(
+      "react-server-dom-esm/client.edge"
+    );
+    const file = new File(["worker leg"], "w.txt", { type: "text/plain" });
+    const body = await encodeReply([
+      file,
+      new Date("2026-08-19T12:34:56.000Z"),
+    ]);
+    expect(typeof body).not.toBe("string");
+
+    const response = await fetch(`http://localhost:${port}/`, {
+      method: "POST",
+      headers: {
+        Accept: "text/x-component",
+        "x-rsc-action": "/src/server/actions.server.ts#echoUpload",
+      },
+      body: body as FormData,
+    });
+    expect(response.ok).toBe(true);
+
+    const decoded = (await createFromReadableStream(
+      response.body as ReadableStream,
+      { moduleBaseURL: "/" }
+    )) as {
+      returnValue: { name: string; text: string; iso: string; stamped: Date };
+    };
+    expect(decoded.returnValue.name).toBe("w.txt");
+    expect(decoded.returnValue.text).toBe("worker leg");
+    expect(decoded.returnValue.iso).toBe("2026-08-19T12:34:56.000Z");
+    expect(decoded.returnValue.stamped).toBeInstanceOf(Date);
+    expect(decoded.returnValue.stamped.toISOString()).toBe(
+      "2026-08-19T16:00:00.000Z"
+    );
   });
 
   it("should return error for failing action", async () => {
