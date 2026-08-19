@@ -54,9 +54,10 @@ vitePluginReactServer({
 })
 ```
 
-`"edge"` (single isolate, React baked per environment) validates but is not
-implemented yet — use `"isolated"` or `"main"` with `build.edge` to emit
-the baked pair meanwhile.
+`"edge"` (single isolate, React baked per environment) is a recognized value
+but is currently rejected: declaring it is a config-time error until the edge
+runner ships in a later 4.x minor. Use `"isolated"` or `"main"` with
+`build.edge` to emit the baked pair meanwhile.
 
 ## Install react-server-loader yourself
 
