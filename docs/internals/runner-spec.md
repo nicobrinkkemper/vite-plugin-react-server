@@ -5,13 +5,18 @@ in the mold of the router parity spec.
 
 ## Problem
 
-The execution paradigm is inferred, not declared. The package exports map
-splits the plugin API on the process condition (`.` → `index.server.js`
-under `react-server`, `index.client.js` otherwise), `getCondition()` reads
-the same signal at runtime, and the two orchestrator faces differ only in an
-`OrchestratorStrategy` (`defaultEnvironment: "server" | "client"` plus which
-`.server`/`.client` dev-server and static plugins they pull). The paradigm a
-consumer runs is therefore the *reverse image of their `--conditions` flag* —
+(This section describes the 3.x state the spec set out to retire; 4.0
+implements the resolutions below — the `.` entry is now one neutral module
+and the runner is required.)
+
+The execution paradigm was inferred, not declared. The package exports map
+split the plugin API on the process condition (`.` → `index.server.js`
+under `react-server`, `index.client.js` otherwise), `getCondition()` read
+the same signal at runtime, and the two orchestrator faces differed only in
+an `OrchestratorStrategy` (`defaultEnvironment: "server" | "client"` plus
+which `.server`/`.client` dev-server and static plugins they pull). The
+paradigm a consumer ran was therefore the *reverse image of their
+`--conditions` flag* —
 a fact about how the process was launched, smeared across every script:
 
 - mmc: `dev:rsc`, `build`, `build:gh` each restate

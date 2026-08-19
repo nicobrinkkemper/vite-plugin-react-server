@@ -30,7 +30,7 @@ Every feature follows the same pattern:
 
 ```
 plugin/
-├── index.ts              # Condition-based loader
+├── index.ts              # Neutral entry (TLA dispatcher picks the side at runtime)
 ├── plugin.client.ts      # Client environment
 ├── plugin.server.ts      # Server environment
 ├── dev-server/

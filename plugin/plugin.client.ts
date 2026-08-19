@@ -33,7 +33,6 @@ export const vitePluginReactServer: VitePluginMainFn =
     const userStrategy = (options as UserOptions).strategy || {};
     const finalStrategy: Strategy = {
       mode: "auto", // All builds
-      importContext: "react-client", // Indicate this came from client context
       environmentTargets: new Map([["client", "client"], ["ssr", "ssr"], ["server", "server"]]), 
       ...userStrategy,
       ...strategy
