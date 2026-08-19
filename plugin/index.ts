@@ -22,3 +22,7 @@ export const vitePluginReactServer = makeVitePluginReactServer();
 export const vitePluginReactClient = vitePluginReactServer;
 
 export { createPluginOrchestrator, getCondition } from "./index.shared.js";
+
+// The root entry carries the full public type surface, like the retired
+// condition-split pair did.
+export type * from "./types.js";
