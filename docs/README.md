@@ -10,6 +10,7 @@ guides below are organized around the three ways people actually ship.
 - [Starter (vprs-starter)](https://github.com/nicobrinkkemper/vprs-starter) — minimal app to clone: one build shipping CDN snapshots plus a per-request Vercel route (shape 3 below)
 - [Getting Started](./getting-started.md) — install, first page, dev server, build, deploy
 - [Build Output](./build-output.md) — the contract: what the build emits and how it is meant to be consumed
+- [Migrating to 4.0](./migrating-4.md) — declare a runner, install react-server-loader as a peer
 
 ## Three ways to ship
 
