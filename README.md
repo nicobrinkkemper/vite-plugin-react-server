@@ -208,6 +208,7 @@ Detection is automatic at build start: any package with `react` in its `peerDepe
 
 ```ts
 vitePluginReactServer({
+  runner: "isolated",
   // Force a package into the list (e.g. one that doesn't peerDep react)
   clientPackages: ["@my/internal-ui"],
   // Skip a detected one (e.g. devDeps Storybook bringing along @storybook/react)

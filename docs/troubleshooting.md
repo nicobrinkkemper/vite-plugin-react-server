@@ -186,6 +186,7 @@ This shows full error messages instead of "this error message is hidden in produ
 
 ```ts
 vitePluginReactServer({
+  runner: "isolated",
   verbose: true,
   onEvent: (event) => console.log("Event:", event),
   onMetrics: (metrics) => console.log("Metrics:", metrics),
