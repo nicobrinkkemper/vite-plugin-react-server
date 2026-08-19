@@ -1,5 +1,13 @@
 import type {  StreamPluginOptions } from "vite-plugin-react-server/types";
+import { getCondition } from "vite-plugin-react-server";
 import { metricWatcher } from "vite-plugin-react-server/metrics";
+
+// The suite deliberately runs BOTH paradigms over the same configs
+// (test-both.sh reruns every suite under each condition), so the declared
+// runner must track the ambient condition or the runner/condition invariant
+// errors the whole matrix. Real consumer configs declare a literal runner.
+export const runnerForCondition = (): "main" | "isolated" =>
+  getCondition() === "react-server" ? "main" : "isolated";
 
 // Transport matrix knob — the transport twin of test-both.sh's condition
 // rerun. VPRS_TEST_TRANSPORT=webpack reruns transport-AGNOSTIC suites with
@@ -12,6 +20,7 @@ export const TEST_TRANSPORT: "esm" | "webpack" =
 
 export const testUserOptions = {
   ...(TEST_TRANSPORT === "webpack" ? { transport: "webpack" as const } : {}),
+  runner: runnerForCondition(),
   moduleBase: "src",
   Page: "src/page/page.tsx",
   props: "src/page/props.ts",

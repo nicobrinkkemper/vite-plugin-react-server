@@ -9,6 +9,7 @@ import { StreamPluginOptions, vitePluginReactServer } from "vite-plugin-react-se
 export default defineConfig({
   plugins: [
     vitePluginReactServer({
+      runner: "isolated",
       moduleBase: "src",
       Page: () => "src/page.tsx",
       props: () => "src/props.ts",

@@ -80,7 +80,10 @@ describe("root package entry enforces the invariant", () => {
   });
 
   it("still accepts an undeclared runner (legacy inference)", () => {
-    expect(vitePluginReactServer(testUserOptions)).toBeInstanceOf(Array);
+    // testUserOptions declares runnerForCondition() — strip it so this case
+    // actually exercises the undeclared path.
+    const { runner: _runner, ...withoutRunner } = testUserOptions;
+    expect(vitePluginReactServer(withoutRunner)).toBeInstanceOf(Array);
   });
 
   if (conditionPresent) {
