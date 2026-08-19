@@ -76,12 +76,28 @@ export type CleanupCompleteMessage = {
 
 export type ServerActionMessage = {
   type: "SERVER_ACTION";
-  args: unknown[];
+  /** Legacy pre-decoded arguments (the `{id,args}` JSON envelope). */
+  args?: unknown[];
+  /**
+   * The raw request body, preserved for the worker's transport `decodeReply`:
+   * text as-is; multipart as bytes (FormData cannot cross the thread
+   * boundary) with `contentType` carrying the boundary for reconstruction.
+   */
+  body?: string | Uint8Array;
+  contentType?: string;
 } & WorkerMessage;
 
 export type ServerActionResponseMessage = {
   type: "SERVER_ACTION_RESPONSE";
   id: string;
+  /**
+   * The flight-rendered `{ returnValue }` payload, produced by the worker's
+   * transport renderer. The main thread writes it to the response verbatim —
+   * non-JSON flight values survive because no re-encoding happens outside the
+   * react-server context.
+   */
+  flight?: string;
+  /** Legacy raw result (pre-flight protocol); main thread JSON-rows it. */
   result?: unknown;
   error?: string;
 } & WorkerMessage;
@@ -149,7 +165,8 @@ export type ServerOnlyStreamHandlers = {
   onServerActionResponse?: (
     id: string,
     result?: unknown,
-    error?: string
+    error?: string,
+    flight?: string
   ) => void;
   onError: (id: string, error: unknown, errorInfo?: { route?: string; context?: string }) => void;
   onPostpone?: (id: string, reason: string) => void;

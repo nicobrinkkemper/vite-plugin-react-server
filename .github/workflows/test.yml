@@ -112,7 +112,10 @@ jobs:
   e2e:
     name: e2e (demo app, plain-Node prod server)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Must exceed the Install Chromium step's own cap, or the job timeout
+    # always wins and the step cap is decorative (checkout/build/install eat
+    # minutes before the step even starts).
+    timeout-minutes: 30
     steps:
       - name: Checkout the plugin
         uses: actions/checkout@v6
@@ -140,10 +143,72 @@ jobs:
           npm ci
           npm install ../vite-plugin-react-server-*.tgz
 
+      # The browser download has no timeout of its own and Playwright's CDN
+      # has real bad hours (2026-08-19: installs crawled for 10–25 minutes,
+      # some finishing, some cancelled). The cache removes the download from
+      # the common path after one success per Playwright version; the step
+      # timeout is deliberately GENEROUS — tight enough to kill a true
+      # never-completes, loose enough that a slow-but-alive download still
+      # finishes and seeds the cache.
+      - name: Resolve Playwright version (cache key)
+        id: playwright-version
+        working-directory: demo
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Chromium
         working-directory: demo
+        timeout-minutes: 20
         run: npx playwright install --with-deps chromium
 
       - name: e2e — build, boot the prod server, drive the browser
         working-directory: demo
         run: npm run test:e2e
+
+  # The static-host browser proofs (prerendered Suspense hydration, dumb-host
+  # client navigation) live in test/examples behind a browser gate — without
+  # this job CI would skip them green forever. Runs them under BOTH conditions
+  # via test-both.sh; VPRS_REQUIRE_BROWSER makes the gate fail closed, so a
+  # missing Chromium fails the job instead of skipping the suite. The vitest
+  # filters are substring matches: a name that exists on this branch runs, a
+  # sibling that has not merged yet simply matches nothing.
+  browser-regressions:
+    name: browser regressions (static-host proofs, both conditions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Resolve Playwright version (cache key)
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Chromium
+        timeout-minutes: 20
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the proofs in both conditions
+        env:
+          VPRS_REQUIRE_BROWSER: "1"
+        run: |
+          npm run build
+          ./scripts/test-both.sh static-suspense-hydration static-navigation

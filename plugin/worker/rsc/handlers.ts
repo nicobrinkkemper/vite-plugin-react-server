@@ -140,11 +140,14 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
         id: id,
       });
     },
-    onServerActionResponse: (id, result, error) => {
+    onServerActionResponse: (id, result, error, flight) => {
       sendMessage({
         type: "SERVER_ACTION_RESPONSE",
         id: id,
-        result: result,
+        // With a flight payload the raw result stays home: it may hold values
+        // that cannot survive structured clone (and must not be re-encoded
+        // outside the react-server context anyway).
+        ...(flight !== undefined ? { flight } : { result }),
         // Only include error if it's truthy - prevents serializeError(undefined)
         ...(error ? { error } : {}),
       });

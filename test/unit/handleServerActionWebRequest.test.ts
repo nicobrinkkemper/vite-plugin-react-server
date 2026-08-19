@@ -108,9 +108,11 @@ describe("handleServerActionRequest (Web)", () => {
       expect(body).not.toMatch(/\.ts:\d+|\/proj\//);
     });
 
-    it("returns the action result in RSC wire format on success", async () => {
+    it("returns the flight-rendered { returnValue } payload on success", async () => {
       // devOpen path (not a trust boundary; used here to exercise the success
-      // envelope end-to-end without a built module on disk).
+      // envelope end-to-end without a built module on disk). This suite runs
+      // under the react-server condition, so the built-in codec is active and
+      // the response is the transport's own flight render of { returnValue }.
       const ssrLoadModule = vi.fn(async () => ({
         addTodo: async (t: string) => ({ ok: t }),
       }));
@@ -120,7 +122,13 @@ describe("handleServerActionRequest (Web)", () => {
       );
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toContain("text/x-component");
-      expect(await res.text()).toBe(`0:${JSON.stringify({ ok: "milk" })}\n`);
+      const body = await res.text();
+      // A pure-JSON model renders as a single flight row; the dev flight
+      // build may prepend debug rows (e.g. ":N<ts>"), so match the model row
+      // anywhere in the payload.
+      const row = body.match(/^0:(.*)$/m);
+      expect(row, `flight body: ${body}`).toBeTruthy();
+      expect(JSON.parse(row![1]!)).toEqual({ returnValue: { ok: "milk" } });
       expect(ssrLoadModule).toHaveBeenCalled();
     });
   });
