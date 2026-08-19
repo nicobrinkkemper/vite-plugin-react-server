@@ -29,7 +29,7 @@ an implementation detail, not a knob you tune.
 | RSC transport | `react-server-dom-esm` by default, via `react-server-loader`; `transport: "webpack"` switches the whole deploy (dev server, snapshots, edge pair) to the vendored webpack flavor | `react-server-dom-webpack`, vendored (BYO to pin a version) | managed by the framework | managed by the extension |
 | Build output | `static/` + `client/` + `server/` portable ESM | app bundle via multi-environment build | framework-managed | framework-managed |
 | Host anywhere (static / Express / Hono) | Yes, you wire the server | Yes | Via the framework's server | Via vike-server |
-| Node `--conditions react-server` | Optional; works either way (see [below](#the-react-server-condition-is-optional)) | Used internally | Managed | Managed |
+| Node `--conditions react-server` | Declared via the required `runner`: `"main"` requires it, `"isolated"` rejects it (see [below](#the-react-server-condition-follows-the-runner)) | Used internally | Managed | Managed |
 | Maturity (mid-2026) | 3.x | 0.5.x, official and actively developed | 1.0 beta | extension is early-stage |
 
 Versions move fast; check each project for current numbers. One caveat on that
@@ -110,23 +110,25 @@ apps that is the better deal. The honest trade is that a framework picks the
 optimization for you and vprs declines to, leaving both the ceiling and the
 assembly in your hands.
 
-## The `react-server` condition is optional
+## The `react-server` condition follows the runner
 
-vprs works the same whether or not you launch Node with
-`--conditions react-server`. A worker thread always mirrors whichever condition
-your main thread is not on, so the server-component half and the client half
-each get the context they need either way.
+vprs supports both topologies: the main thread runs under
+`--conditions react-server` and renders RSC directly, or a worker thread owns
+the react-server half while the main thread stays plain. The required `runner`
+option declares which one, and the declaration is validated at startup:
+`runner: "main"` errors without the process flag, `runner: "isolated"` errors
+with it. The output is identical either way.
 
-Running your *main* thread under the condition is a choice, not a requirement,
-and the reasons to do it are developer experience rather than correctness: stack
-traces for your server components stay on the main thread where they are easier
-to read, and any plain Node script you run in that process gains React and RSC
-support, including your `vite.config`.
+The reasons to declare `"main"` are developer experience rather than
+correctness: stack traces for your server components stay on the main thread
+where they are easier to read, and any plain Node script you run in that
+process gains React and RSC support, including your `vite.config`.
 
-It is also a footgun. The condition is process-global, so it changes module
+The condition is also a footgun. It is process-global, so it changes module
 resolution for everything in that process, which is easy to forget you turned
-on. RSC is still early in the wider ecosystem, so we do not assume you want any
-of this. vprs allows it and leaves the call to you.
+on. That is exactly why the runner is declared rather than inferred: the
+config names the topology, and a mismatch between the declaration and the
+process is a startup error instead of a silent difference.
 
 ## Is the ESM transport safe in production?
 

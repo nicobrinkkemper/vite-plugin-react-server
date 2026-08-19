@@ -250,6 +250,7 @@ per-request rendering.
 
 ```ts
 vitePluginReactServer({
+  runner: "isolated",
   transport: "webpack",
 });
 ```
@@ -279,6 +280,7 @@ The option is a plain value, so per-mode policy is ordinary JavaScript:
 
 ```ts
 vitePluginReactServer({
+  runner: "isolated",
   transport: process.env.NODE_ENV === "production" ? "webpack" : "esm",
 });
 ```
@@ -303,6 +305,7 @@ for the output format and options.
 import { metricWatcher } from "vite-plugin-react-server/metrics";
 
 vitePluginReactServer({
+  runner: "isolated",
   onMetrics: metricWatcher(),
 });
 ```
