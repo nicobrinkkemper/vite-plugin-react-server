@@ -50,13 +50,16 @@ describe("validateRunner", () => {
       expect(validateRunner("main")).toBe("main");
     });
 
-    it("rejects 'isolated' and 'edge' under the process condition", () => {
+    it("rejects 'isolated' under the process condition", () => {
       expect(() => validateRunner("isolated")).toThrow(
         /owns react-server resolution itself; remove the process flag/
       );
-      expect(() => validateRunner("edge")).toThrow(
-        /owns react-server resolution itself; remove the process flag/
-      );
+    });
+
+    it("rejects 'edge' as not implemented before the condition check", () => {
+      // A declared 'edge' hears not-implemented first — never a flag
+      // instruction toward a value that then rejects anyway.
+      expect(() => validateRunner("edge")).toThrow(/not implemented yet/);
     });
   } else {
     it("rejects 'main' without the process condition", () => {
