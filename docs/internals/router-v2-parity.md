@@ -164,6 +164,7 @@ The v1 API made the user hand-copy `Page` / `props` / `routePatterns` /
 
 ```js
 vitePluginReactServer({
+  runner: "isolated",
   moduleBase: "src",
   routes: { dir: "page" },            // the route table; the plugin fans it out
   build: { edge: { minify: false } }, // build.pages defaults from the router
