@@ -12,8 +12,14 @@ import type {
   ComponentsResolvedMessage,
 } from "./types.js";
 import { toError } from "../../error/toError.js";
-// Import decodeReply for server action argument decoding
-import { decodeReply } from "react-server-dom-esm/server";
+// Transport-aware flight seams for server actions: the reply decoder for
+// arguments (text or reconstructed multipart) and the renderer for the
+// `{ returnValue }` response payload.
+import {
+  resolveFlightRenderer,
+  resolveFlightReplyDecoder,
+} from "../../stream/flightRenderer.server.js";
+import { formDataFromBytes } from "../../helpers/handleServerActionHelper.js";
 
 import { createHandlers } from "./handlers.js";
 import {
@@ -1351,29 +1357,60 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             msg.id
           )) as (...args: unknown[]) => unknown;
 
-          // Decode args if they're in React's encoded format
-          let decodedArgs = msg.args;
-          if (msg.args.length === 1 && typeof msg.args[0] === "string") {
-            // Might be React's encoded format - try to decode
-            try {
-              const moduleBasePath = serverActionUserOptions.moduleBasePath ?? "/";
-              decodedArgs = await decodeReply(msg.args[0], moduleBasePath);
-              if (verbose) {
-                logger?.info(`[rsc-worker] Decoded server action args: ${JSON.stringify(decodedArgs)}`);
-              }
-            } catch {
-              // Not encoded format, use as-is
-              if (verbose) {
-                logger?.info(`[rsc-worker] Using raw server action args`);
-              }
-            }
+          // Decode the preserved request body through the transport's own
+          // decodeReply — the complete flight reply protocol (typed rows,
+          // FormData, File). Multipart crossed the thread boundary as bytes
+          // and reconstructs here; the legacy envelope arrives pre-decoded.
+          const decoder = resolveFlightReplyDecoder({
+            transport: serverActionUserOptions.transport,
+            moduleBasePath: serverActionUserOptions.moduleBasePath ?? "/",
+          });
+          let decodedArgs: unknown[];
+          if (msg.body instanceof Uint8Array) {
+            const formData = await formDataFromBytes(
+              msg.body,
+              msg.contentType ?? "multipart/form-data"
+            );
+            decodedArgs = await decoder.decodeReply(formData);
+          } else if (typeof msg.body === "string") {
+            decodedArgs = await decoder.decodeReply(msg.body);
+          } else {
+            decodedArgs = msg.args ?? [];
+          }
+          if (verbose) {
+            logger?.info(
+              `[rsc-worker] Server action ${msg.id}: ${decodedArgs.length} arg(s) decoded`
+            );
           }
 
           // Execute the server action
           const result = await action(...decodedArgs);
 
+          // Render `{ returnValue }` through the transport's flight renderer
+          // so non-JSON values survive, and hand the finished payload to the
+          // main thread verbatim (it holds no react-server context).
+          const renderer = resolveFlightRenderer({
+            transport: serverActionUserOptions.transport,
+            moduleBasePath: serverActionUserOptions.moduleBasePath,
+            moduleBaseURL: serverActionUserOptions.moduleBaseURL,
+          });
+          const flight = await new Promise<string>((resolve, reject) => {
+            const chunks: Buffer[] = [];
+            const sink = new PassThrough();
+            sink.on("data", (chunk: Buffer) => chunks.push(chunk));
+            sink.on("end", () =>
+              resolve(Buffer.concat(chunks).toString("utf8"))
+            );
+            sink.on("error", reject);
+            const pipeable = renderer.render(
+              { returnValue: result },
+              { onError: reject }
+            );
+            pipeable.pipe(sink);
+          });
+
           // Send success response
-          effectiveHandlers.onServerActionResponse?.(msg.id, result);
+          effectiveHandlers.onServerActionResponse?.(msg.id, result, undefined, flight);
         } catch (error: unknown) {
           const errorMessage = toError(error).message;
           // Send error response

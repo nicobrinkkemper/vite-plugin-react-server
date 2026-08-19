@@ -84,6 +84,13 @@ describe("createRequestHandler", () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/x-component");
-    expect(await res.text()).toBe(`0:${JSON.stringify({ got: "hi" })}\n`);
+    // Under the react-server condition the codec flight-renders the
+    // { returnValue } envelope (a pure-JSON model is a single row).
+    const body = await res.text();
+    // the dev flight build may prepend debug rows (e.g. ":N<ts>");
+    // match the model row anywhere in the payload.
+    const row = body.match(/^0:(.*)$/m);
+    expect(row, `flight body: ${body}`).toBeTruthy();
+    expect(JSON.parse(row![1]!)).toEqual({ returnValue: { got: "hi" } });
   });
 });

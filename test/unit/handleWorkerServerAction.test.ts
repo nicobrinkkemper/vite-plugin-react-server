@@ -254,27 +254,35 @@ describe('handleWorkerServerAction', () => {
 
 
 
-  it('should handle invalid request body', async () => {
+  it('forwards a non-JSON body to the worker verbatim for decodeReply', async () => {
+    // The delegate no longer judges the body: text it cannot classify as the
+    // legacy { id, args } envelope is the transport's to decode (flight reply
+    // text is not generally JSON). It must reach the worker untouched.
     mockReq[Symbol.asyncIterator] = async function* () {
       yield Buffer.from('invalid json');
     };
 
     await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
-
-    expect(mockLogger.error).toHaveBeenCalled();
-    expect(mockRes.end).toHaveBeenCalled();
+    expect(mockWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SERVER_ACTION', body: 'invalid json' })
+    );
+    expect(mockLogger.error).not.toHaveBeenCalled();
   });
 
-  it('should handle missing action ID', async () => {
+  it('forwards a JSON body without an id as text, id from the URL', async () => {
+    // { args } without an id is not the legacy envelope — it stays text for
+    // the worker's decodeReply, and the id falls back to the header/URL
+    // (empty here, so the worker's sealed gate answers the rejection).
+    const body = JSON.stringify({ args: [1, 2] });
     mockReq[Symbol.asyncIterator] = async function* () {
-      yield Buffer.from(JSON.stringify({ args: [1, 2] }));
+      yield Buffer.from(body);
     };
 
     await handleServerAction(mockReq, mockRes, mockWorker, mockLogger);
 
-
-    expect(mockLogger.error).toHaveBeenCalled();
-    expect(mockRes.end).toHaveBeenCalled();
+    expect(mockWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SERVER_ACTION', body })
+    );
   });
 }); 

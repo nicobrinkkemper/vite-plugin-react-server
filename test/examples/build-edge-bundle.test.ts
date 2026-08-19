@@ -231,8 +231,8 @@ describe.skipIf(!renderFlightToHtml)(
       });
       const response = await handleRouteAction(request, { projectRoot: testDir });
       expect(response.status).toBe(200);
-      // RSC success wire format `0:<json>` — bump(41) ran through the gate → 42.
-      expect(await response.text()).toContain("0:42");
+      // The flight-rendered { returnValue } envelope — bump(41) ran through the gate → 42.
+      expect(await response.text()).toContain('{"returnValue":42}');
     });
 
     // The ./edge one-liner. Every test below imports the bundle as a NAMESPACE
@@ -319,7 +319,7 @@ describe.skipIf(!renderFlightToHtml)(
           })
         );
         expect(response.status).toBe(200);
-        expect(await response.text()).toContain("0:42");
+        expect(await response.text()).toContain('{"returnValue":42}');
       });
 
       it("renders only the routes `dynamic` selects", async () => {

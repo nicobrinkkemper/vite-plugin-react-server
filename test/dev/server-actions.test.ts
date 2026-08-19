@@ -107,8 +107,8 @@ describe("Server Actions", () => {
     expect(response.headers.get("Content-Type")).toContain("text/x-component");
 
     const text = await response.text();
-    // Should be in RSC wire format: 0:<json>\n
-    expect(text).toMatch(/^0:/);
+    // The model row of the flight payload (dev builds may prepend debug rows)
+    expect(text).toMatch(/^0:/m);
     expect(text).toContain("success");
     expect(text).toContain("true");
     expect(text).toContain("id");
@@ -128,7 +128,7 @@ describe("Server Actions", () => {
     expect(response.ok).toBe(true);
 
     const text = await response.text();
-    expect(text).toMatch(/^0:/);
+    expect(text).toMatch(/^0:/m);
     expect(text).toContain("item1");
     expect(text).toContain("item2");
     expect(text).toContain("item3");
