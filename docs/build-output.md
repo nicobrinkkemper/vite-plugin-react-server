@@ -249,6 +249,17 @@ RSC directly instead of a worker; a bit faster, better stack traces), and
 `runner: "isolated"` rejects it (the rsc-worker owns react-server
 resolution). Same output either way.
 
+### Suspense in prerendered pages
+
+The static HTML is the FINAL markup: prerendering renders each route through
+`react-dom/static`, so a Suspense boundary that suspended during the build
+ships its resolved content at its position — no fallback templates, no hidden
+segments, no inline completion scripts. The file is the page, with or without
+JavaScript, under any Content-Security-Policy. Per-request renders (the edge
+document path, the worker per-request path, dev) keep streaming: progressive
+flushes are what time-to-first-byte and inline-flight interleaving are made
+of, and a live connection is where they mean something.
+
 ### Parallel Rendering
 
 For sites with many pages:

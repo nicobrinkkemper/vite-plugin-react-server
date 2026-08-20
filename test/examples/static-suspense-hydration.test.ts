@@ -215,6 +215,22 @@ describe.skipIf(!browserAvailable)(
       expect(html).toContain("padding-to-split-the-flush");
     });
 
+    it("the prerendered HTML IS the page: no swap scripts, content at position", () => {
+      // The static artifact contract (react-dom/static prerender): a suspended
+      // boundary's resolved markup sits AT its position — never the streamed
+      // shape of fallback-in-place + hidden content + an inline $RC swap that
+      // only JavaScript can perform. This is what makes the file correct under
+      // no-JS and inline-script-blocking CSP.
+      expect(html).not.toContain("$RC");
+      expect(html).not.toContain("<template");
+      expect(html).not.toContain("div hidden");
+      // Resolved content precedes where the fallback would have been; the
+      // fallback markup is absent entirely.
+      expect(html).not.toContain('id="fallback"');
+      const h1 = html.indexOf("</h1>");
+      expect(html.slice(h1, h1 + 120)).toContain('data-resolved="yes"');
+    });
+
     it("hydrates without #419: the boundary stays resolved and answers a click", async () => {
       const browser = await chromium.launch();
       try {

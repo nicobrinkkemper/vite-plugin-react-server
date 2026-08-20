@@ -24,7 +24,7 @@ assertNonReactServer();
  * @param handlers
  * @param logger
  */
-export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
+export const handleHtmlRender: HandleHtmlRenderFn = async function _handleHtmlRender(
   handlerOptions,
   handlers
 ) {
@@ -121,6 +121,73 @@ export const handleHtmlRender: HandleHtmlRenderFn = function _handleHtmlRender(
           mergedPipeableStreamOptions
         )}`
       );
+    }
+
+    if (handlerOptions.prerender) {
+      // STATIC prerender (SSG renders only — the INIT message carries the
+      // flag from the build's render path): react-dom/static waits for every
+      // Suspense boundary and emits the FINAL markup inline — no fallback
+      // templates, no hidden segments, no inline $RC swap scripts. The
+      // prerendered HTML is the page, with or without JavaScript. Live
+      // per-request renders through this same worker (the inline-flight
+      // document path) never set the flag and keep streaming: TTFB and the
+      // inlineFlight "stream" interleave depend on progressive flushes.
+      const prerenderWritable = new Writable({
+        write(chunk: any, _encoding, callback) {
+          handlers.onData(id, chunk);
+          callback();
+        },
+        final(callback) {
+          handlers.onEnd(id);
+          callback();
+        },
+      });
+      try {
+        const { prerenderToNodeStream } = await import("react-dom/static");
+        const { prelude } = await prerenderToNodeStream(result.children, {
+          ...mergedPipeableStreamOptions,
+          // A static file has no progressive delivery: without this, React
+          // OUTLINES boundary content larger than the default progressive
+          // chunk size (~12KB) behind a $RC swap script even in a completed
+          // prerender. Effectively infinite unless the consumer set one.
+          progressiveChunkSize:
+            (mergedPipeableStreamOptions as { progressiveChunkSize?: number })
+              ?.progressiveChunkSize ?? 1 << 30,
+          onError(error: unknown, errorInfo?: unknown) {
+            // Boundary errors: the render continues (the boundary falls
+            // back); same reporting seam as the streaming render.
+            logger.error(
+              `[html-worker:${route}] React prerender error: ${error}`
+            );
+            handlers.onError(route, error, errorInfo as never);
+            mergedPipeableStreamOptions?.onError?.(error, errorInfo as never);
+          },
+        } as never);
+        prelude.pipe(prerenderWritable);
+      } catch (error) {
+        // A SHELL error REJECTS (react-dom/static has no onShellError seam):
+        // nothing was piped; the ERROR message lets the main thread destroy
+        // its stream, exactly like the streaming path's shell failure.
+        logger.error(
+          `[html-worker:${route}] HTML static prerender failed (nothing was piped): ${error}`
+        );
+        handlers.onError(route, error, {
+          componentStack: undefined,
+          digest: undefined,
+        });
+        mergedPipeableStreamOptions?.onShellError?.(error);
+      }
+      // RSC stream errors surface the same way in both modes.
+      rscStream.on("error", (error) => {
+        if (verbose) {
+          logger.error(`[html-worker:${route}] RSC stream error: ${error}`);
+        }
+        handlers.onError(id, error, {
+          componentStack: undefined,
+          digest: undefined,
+        });
+      });
+      return;
     }
 
     // Create the stream once and pipe directly with onData

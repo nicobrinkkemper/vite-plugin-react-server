@@ -1121,6 +1121,15 @@ export type CreateHandlerOptions<
    */
   transport?: "esm" | "webpack";
   /**
+   * STATIC prerender mode for the HTML render: react-dom/static waits for
+   * every Suspense boundary and emits the FINAL markup inline — no fallback
+   * templates, no hidden segments, no inline $RC swap scripts — so the
+   * prerendered HTML is the page, with or without JavaScript. Set by the SSG
+   * render paths only; live per-request renders stay streaming (TTFB, and
+   * inlineFlight "stream" interleaving depends on progressive flushes).
+   */
+  prerender?: boolean;
+  /**
    * Params parsed from the request url against the matched route pattern
    * (`/profile/123` → `{ id: "123" }`). Passed to a loader as
    * `props(url, { params, request })`. When absent, vprs derives it from

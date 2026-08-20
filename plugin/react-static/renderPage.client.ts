@@ -440,6 +440,8 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
     // Create HTML stream using the full RSC stream (which reuses headless stream elements)
     const htmlTransformStream = createRscToHtmlStream({
       ...newHandlerOptions,
+      // SSG render: the emitted HTML must BE the page (react-dom/static).
+      prerender: true,
       htmlTimeout: handlerOptions.htmlTimeout || 15000,
       route: handlerOptions.route,
       logger: handlerOptions.logger,
@@ -589,6 +591,7 @@ export const renderPage: RenderPageFn = async function* _renderPageClient(
       
       // Create HTML stream that processes the fallback RSC stream to ensure performance timing script is injected
       const fallbackHtmlStream = createRscToHtmlStream({
+        prerender: true,
         id: handlerOptions.id,
         route: handlerOptions.route,
         url: handlerOptions.url,

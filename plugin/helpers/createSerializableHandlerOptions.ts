@@ -81,6 +81,9 @@ export interface SerializableHandlerOptions {
   
   // Timeouts
   htmlTimeout?: number;
+
+  // Static prerender mode (SSG renders only; live renders stay streaming)
+  prerender?: boolean;
   
   // Stream options
   clientPipeableStreamOptions?: Omit<NonNullable<CreateHandlerOptions["clientPipeableStreamOptions"]>, `on${string}` | 'filterStackFrame'>;
@@ -163,6 +166,7 @@ export function createSerializableHandlerOptions(
     }));
   }
   if (typeof projectRoot === 'string') result.projectRoot = projectRoot;
+  if (options.prerender === true) result.prerender = true;
   if (typeof moduleRootPath === 'string') result.moduleRootPath = moduleRootPath;
   if (typeof moduleBaseURL === 'string') result.moduleBaseURL = moduleBaseURL;
   if (typeof moduleBasePath === 'string') result.moduleBasePath = moduleBasePath;
