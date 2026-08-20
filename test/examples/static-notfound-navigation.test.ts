@@ -9,11 +9,12 @@ import { chromium } from "playwright";
 // The NOT-FOUND terminal outcome, end to end in a real browser: navigating to
 // a route that does not exist must stay IN the SPA. The host answers the
 // flight miss with the prerendered /404 route's flight (status 404,
-// x-vprs-outcome: not-found), the fetcher decodes it because it IS flight —
-// the gate is the content type, not the status — and the router renders the
-// 404 route without a document load. Text or HTML reaching the decoder is
-// the failure class this retires; a host that answers a miss with anything
-// non-flight still triggers the router's full-navigation fallback instead.
+// x-vprs-outcome: not-found), and the fetcher decodes it under the gate's
+// dual rule — DECLARED flight (text/x-component, any status), or an OK
+// response that is not a document — so the router renders the 404 route
+// without a document load. Text or HTML reaching the decoder is the failure
+// class this retires; a host that answers a miss with anything that fails
+// both halves of the rule still triggers the full-navigation fallback.
 const browserAvailable = (() => {
   try {
     return existsSync(chromium.executablePath());
