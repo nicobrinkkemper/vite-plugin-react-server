@@ -227,6 +227,22 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
   // re-navigate (replace) to the final route so history matches the content.
   // Deferred assignment: the fetcher closure exists before the router does.
   let followRedirect: (response: Response) => void = () => {};
+  // The deploy base (a subpath like "/app/"), derived from moduleBaseURL's
+  // path. The router keeps app-relative state and composes/strips this at
+  // the document boundary; redirect follows below strip it the same way.
+  let basePath = "/";
+  if (moduleBaseURL) {
+    try {
+      basePath = new URL(moduleBaseURL, "http://placeholder.local").pathname;
+      if (!basePath.endsWith("/")) basePath += "/";
+    } catch {
+      basePath = "/";
+    }
+  }
+  const stripBasePath = (pathname: string): string =>
+    basePath !== "/" && pathname.startsWith(basePath)
+      ? pathname.slice(basePath.length - 1)
+      : pathname;
   const fetchFlight = (url: string): Promise<ReactNode> =>
     Promise.resolve(
       createReactFetcher({
@@ -237,10 +253,15 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
       }),
     ) as Promise<ReactNode>;
 
-  const router = createRouter<ReactNode>({ fetchFlight, isDynamic, dynamicTtlMs });
+  const router = createRouter<ReactNode>({
+    fetchFlight,
+    isDynamic,
+    dynamicTtlMs,
+    base: basePath,
+  });
   followRedirect = (response) => {
     if (!response.redirected || !response.ok) return;
-    let finalRoute = new URL(response.url).pathname;
+    let finalRoute = stripBasePath(new URL(response.url).pathname);
     if (finalRoute.endsWith("/index.rsc")) {
       finalRoute = finalRoute.slice(0, -"/index.rsc".length) || "/";
     }
