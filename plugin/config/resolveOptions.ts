@@ -1074,6 +1074,13 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       autoDiscover: autoDiscover,
       loader: loader,
       pipeableStreamOptions,
+      // The VARIANT stream options must survive resolution: dropping them
+      // here silently discarded a consumer's explicit
+      // clientPipeableStreamOptions (progressiveChunkSize included) on every
+      // path downstream. The legacy shared bag backfills the server variant.
+      serverPipeableStreamOptions:
+        options.serverPipeableStreamOptions ?? options.pipeableStreamOptions,
+      clientPipeableStreamOptions: options.clientPipeableStreamOptions,
       rscTimeout:
         typeof options.rscTimeout === "number"
           ? options.rscTimeout

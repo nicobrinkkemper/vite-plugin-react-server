@@ -113,6 +113,22 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       // keeps streaming semantics by default.
       const controller = new AbortController();
       abortRender = () => controller.abort();
+      // A prerender waits for EVERY boundary, so a render that never settles
+      // (a hung data source) would wait forever — htmlTimeout turns that into
+      // a clean rejection through the same signal the consumer's abort uses.
+      const timeoutMs = (options as { htmlTimeout?: number }).htmlTimeout;
+      const timeout =
+        typeof timeoutMs === "number" && timeoutMs > 0
+          ? setTimeout(
+              () =>
+                controller.abort(
+                  new Error(
+                    `[createRenderToPipeableStreamHandler.client:${route}] prerender did not complete within htmlTimeout (${timeoutMs}ms)`
+                  )
+                ),
+              timeoutMs
+            )
+          : null;
       void import("react-dom/static").then(
         async ({ prerenderToNodeStream }) => {
           try {
@@ -139,14 +155,27 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
                 reportRenderError(error);
               },
             } as never);
+            if (timeout) clearTimeout(timeout);
+            // An abort AFTER the shell resolves the prerender with fallback
+            // markup and client-render holes — a degraded document. A static
+            // build must fail instead of silently writing it.
+            if (controller.signal.aborted) {
+              throw controller.signal.reason ?? new Error("prerender aborted");
+            }
             prelude.pipe(htmlStream);
           } catch (error) {
+            if (timeout) clearTimeout(timeout);
             // A SHELL error REJECTS here (react-dom/static has no
-            // onShellError seam). Destroy the output so downstream settles
-            // (the guarded pipe below propagates), and route the panic logic.
-            reportRenderError(error);
+            // onShellError seam), and so does an htmlTimeout abort — the
+            // signal's reason carries the message. Destroy the output so
+            // downstream settles (the guarded pipe below propagates), and
+            // route the panic logic.
+            const cause = controller.signal.aborted
+              ? (controller.signal.reason ?? error)
+              : error;
+            reportRenderError(cause);
             htmlStream.destroy(
-              error instanceof Error ? error : new Error(String(error))
+              cause instanceof Error ? cause : new Error(String(cause))
             );
           }
         }
