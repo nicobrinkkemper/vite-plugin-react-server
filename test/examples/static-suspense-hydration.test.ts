@@ -45,7 +45,10 @@ const MIME: Record<string, string> = {
   ".mjs": "text/javascript",
   ".css": "text/css",
   ".map": "application/json",
-  ".rsc": "text/x-component; charset=utf-8",
+  // A host that has never heard of .rsc serves it like this — the fixtures
+  // must NOT flatter the deploy target with the correct flight MIME, or the
+  // fetcher's dumb-host compatibility path goes unexercised.
+  ".rsc": "application/octet-stream",
 };
 
 async function setupFixture() {
