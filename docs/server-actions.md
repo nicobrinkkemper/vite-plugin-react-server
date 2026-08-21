@@ -232,32 +232,57 @@ Arguments and results ride the transport's own flight codec, end to end:
 A hand-rolled caller (no `encodeReply`) may POST the JSON envelope
 `{ "id": "path#export", "args": [...] }` instead; its args are taken as-is.
 
+### Terminal outcomes
+
+An action ends in exactly one of four ways, and each is a declared wire
+shape — the flight decoder never receives anything it cannot read:
+
+| Outcome | The action | The response | The router client |
+|---|---|---|---|
+| return | returns a value | `200`, flight `{ returnValue }` | resolves with the value, then refreshes the current route (drops its cached flight, refetches, swaps) so mutations show without app wiring |
+| redirect | throws `redirect(to)` | `303` to the target's flight, `x-vprs-outcome: redirect` | `fetch` follows the 303; the decoded response IS the target page — delivered to the view, address bar updated, no document load |
+| not found | throws `notFound()` | `404`, `x-vprs-outcome: not-found`, no body | fetches the `/404/` route's flight through its own GET path and swaps it in; the address stays |
+| error | throws anything else | tagged status (`403`/`413`) or `500`, `x-vprs-outcome: error`, flight `{ error: { message } }` | rejects the action call with the server's message — the message only, never the stack |
+
+`redirect` and `notFound` are the same signals loaders throw
+(`vite-plugin-react-server/router`), and the mapping is identical in every
+execution topology: the react-server process, the rsc-worker delegate, and
+the baked edge gate.
+
+Outside the router (a bare `createReactFetcher` with no `callServerHooks`),
+the defaults still hold the contract: a redirect becomes a document
+navigation, not-found rejects with a `notFound()`-marked error (test with
+`isNotFound`), and a non-flight response is reported as an error instead of
+being fed to the decoder.
+
 ### Endpoint hardening
 
 The sealed gate decides *which function* a request may resolve — it confirms the
 *target* is a real action, not that the *caller* is allowed to call it or that the
-request is well-sized. Two opt-in options on `handleServerAction` cover the
-endpoint itself; both are off by default so they never silently change an existing
-deploy:
+request is well-sized. The endpoint itself ships guarded by default; two options
+adjust the guards:
 
 ```ts
 await handleServerAction(req, res, {
   projectRoot,
-  allowedOrigins: ["https://app.example.com"], // CSRF guard (see below)
-  maxBodyBytes: 1024 * 1024,                    // reject bodies over 1 MiB with 413
+  allowedOrigins: ["https://app.example.com"], // trusted origins beyond same-origin
+  maxBodyBytes: 8 * 1024 * 1024,               // raise the default 1 MiB body cap
 });
 ```
 
 - **`allowedOrigins` (CSRF / cross-origin).** A server action is a cookie-bearing,
   state-changing POST, so a page on another origin can drive a logged-in user's
-  browser to invoke one. When set, a request whose `Origin` header is present and
-  not in the allowlist is rejected with `403` before the action runs (mirrors
-  Next's `serverActions.allowedOrigins`). A *missing* `Origin` is allowed: a page
-  cannot suppress it on a cross-origin browser POST, so its absence means
+  browser to invoke one. Same-origin is enforced by default: a request whose
+  `Origin` header is present and whose host differs from the request's own host
+  is rejected with `403` before the action runs. The list names *additional*
+  trusted origins (same-origin stays allowed alongside it); `"any"` turns the
+  guard off for a deliberately public endpoint. A *missing* `Origin` is allowed:
+  a page cannot suppress it on a cross-origin browser POST, so its absence means
   same-origin or a non-browser client, which is not a CSRF vector.
 - **`maxBodyBytes` (DoS).** The handler buffers the POST body in memory to decode
-  the arguments. When set, a body exceeding the cap is rejected with `413` before
-  it is fully buffered, so an unauthenticated client cannot exhaust memory.
+  the arguments. A body exceeding the cap — 1 MiB by default — is rejected with
+  `413` before it is fully buffered, so an unauthenticated client cannot exhaust
+  memory. Pass `Infinity` for an endpoint that genuinely takes unbounded uploads.
 
 Error responses never include a stack trace — only `{ success: false, error }`.
 The full error (with stack) goes to the server log via your Vite logger, not to

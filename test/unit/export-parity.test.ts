@@ -302,7 +302,13 @@ const STATIC_ASYMMETRIC: Record<string, { serverOnly: string[]; browserOnly: str
       // rsc-worker instead.
       "resolveActionFlightCodec",
     ],
-    browserOnly: ["delegateServerActionToWorker"],
+    browserOnly: [
+      "delegateServerActionToWorker",
+      // The worker delegates' shared outcome writer: maps the terminal
+      // outcomes onto the HTTP response in the non-react-server process; the
+      // server side answers outcomes inside its own handlers instead.
+      "writeServerActionOutcome",
+    ],
   },
   "./react-static": {
     serverOnly: ["collectHtmlContent"],

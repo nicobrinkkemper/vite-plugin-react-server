@@ -34,18 +34,22 @@ export type ServerActionHandlerOptions = {
    */
   devOpen?: boolean;
   /**
-   * Opt-in CSRF guard. When set, a request whose `Origin` header is present and
-   * not in this allowlist is rejected with 403 before the action runs. A missing
-   * `Origin` is allowed: a page cannot suppress it on a cross-origin browser POST,
-   * so its absence means same-origin or a non-browser client (not a CSRF vector).
-   * List your own origins, e.g. `["https://app.example.com"]`. Off by default to
-   * avoid breaking existing deploys; the endpoint is otherwise the host's to guard.
+   * CSRF guard. Same-origin is enforced BY DEFAULT: a request whose `Origin`
+   * header is present and whose host differs from the request's own host is
+   * rejected with 403 before the action runs. A missing `Origin` is allowed:
+   * a page cannot suppress it on a cross-origin browser POST, so its absence
+   * means same-origin or a non-browser client (not a CSRF vector).
+   *
+   * List additional trusted origins, e.g. `["https://app.example.com"]`
+   * (same-origin stays allowed alongside the list), or pass `"any"` to turn
+   * the guard off for an endpoint that is deliberately public.
    */
-  allowedOrigins?: string[];
+  allowedOrigins?: string[] | "any";
   /**
-   * Opt-in cap on the server-action request body, in bytes. When set, a body that
-   * exceeds it is rejected with 413 instead of being buffered into memory. Off by
-   * default (no limit). Recommended for any internet-facing deploy.
+   * Cap on the server-action request body, in bytes; an oversized body is
+   * rejected with 413 instead of being buffered into memory. Defaults to
+   * 1 MiB ({@link DEFAULT_MAX_ACTION_BODY_BYTES}); pass `Infinity` for an
+   * endpoint that genuinely takes unbounded uploads.
    */
   maxBodyBytes?: number;
   /**
@@ -103,9 +107,13 @@ export type ServerActionRequest = {
  */
 export type ServerActionFlightCodec = {
   decodeReply: (body: string | FormData) => Promise<unknown[]>;
-  renderResponse: (payload: {
-    returnValue: unknown;
-  }) => { pipe: (destination: unknown) => unknown } | ReadableStream;
+  /**
+   * Flight-render a response payload: `{ returnValue }` for a settled action,
+   * `{ error: { message } }` for the error outcome.
+   */
+  renderResponse: (
+    payload: unknown
+  ) => { pipe: (destination: unknown) => unknown } | ReadableStream;
 };
 
 /** Reconstruct a multipart body as FormData via the standard parser. */
@@ -286,7 +294,7 @@ export async function parseServerActionRequest(
     let received = 0;
     for await (const chunk of req) {
       received += chunk.length;
-      if (maxBodyBytes !== undefined && received > maxBodyBytes) {
+      if (received > (maxBodyBytes ?? DEFAULT_MAX_ACTION_BODY_BYTES)) {
         // Reject oversized bodies before buffering them all into memory. Tagged
         // with a statusCode so the handler answers 413, not a generic 500.
         const err = new Error(
@@ -340,23 +348,40 @@ export async function parseServerActionRequest(
   return { id, body };
 }
 
+/** The default `maxBodyBytes`: 1 MiB. Pass `Infinity` to lift the cap. */
+export const DEFAULT_MAX_ACTION_BODY_BYTES = 1 << 20;
+
 /**
- * CSRF / cross-origin guard shared by the Node and Web entry points. When
- * `allowedOrigins` is set, a request whose `Origin` is present and not in the
- * allowlist is rejected (throws a 403-tagged error). A missing `Origin` is
- * allowed: a browser cannot suppress it on a cross-origin POST, so its absence
- * means same-origin or a non-browser client (not a CSRF vector).
+ * CSRF / cross-origin guard shared by the Node and Web entry points.
+ * Same-origin BY DEFAULT: a present `Origin` must match the request's own
+ * host (host compared, not scheme — the Node side cannot know its scheme
+ * behind a proxy) or appear in `allowedOrigins`; otherwise a 403-tagged
+ * error is thrown before the action runs. `"any"` disables the guard. A
+ * missing `Origin` is allowed: a browser cannot suppress it on a
+ * cross-origin POST, so its absence means same-origin or a non-browser
+ * client (not a CSRF vector). An unknown request host (no `Host` header)
+ * allows only listed origins to be judged — there is nothing to compare
+ * same-origin against.
  */
 export function assertOriginAllowed(
   origin: string | null | undefined,
-  allowedOrigins?: string[]
+  allowedOrigins?: string[] | "any",
+  requestHost?: string | null
 ): void {
-  if (!allowedOrigins || allowedOrigins.length === 0) return;
-  if (origin && !allowedOrigins.includes(origin)) {
-    const err = new Error("Origin not allowed") as Error & { statusCode?: number };
-    err.statusCode = 403;
-    throw err;
+  if (allowedOrigins === "any") return;
+  if (!origin) return;
+  if (Array.isArray(allowedOrigins) && allowedOrigins.includes(origin)) return;
+  let originHost: string | null = null;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    originHost = null;
   }
+  if (requestHost && originHost === requestHost) return;
+  if (!requestHost && !Array.isArray(allowedOrigins)) return;
+  const err = new Error("Origin not allowed") as Error & { statusCode?: number };
+  err.statusCode = 403;
+  throw err;
 }
 
 /**
@@ -388,7 +413,7 @@ export async function parseServerActionWebRequest(
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
-      if (maxBodyBytes !== undefined && received > maxBodyBytes) {
+      if (received > (maxBodyBytes ?? DEFAULT_MAX_ACTION_BODY_BYTES)) {
         await reader.cancel();
         const err = new Error(
           `Server action request body exceeds maxBodyBytes (${maxBodyBytes})`

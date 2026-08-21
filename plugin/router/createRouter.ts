@@ -42,6 +42,10 @@ export type Router<T> = {
   toHref: (to: ToPath) => string;
   /** The (cached) flight for a url; reuses a warmed/in-flight fetch. */
   flight: (url: string) => Promise<T>;
+  /** Store an already-decoded flight for a url (a followed action redirect
+   *  delivers the target page's flight; priming it makes the navigation
+   *  swap without a second fetch). */
+  prime: (url: string, flight: T) => void;
   /** Drop a cached flight (one url, or all) so the next `flight()` refetches. */
   invalidate: (url?: string) => void;
 };
@@ -123,6 +127,7 @@ export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
     },
     flight,
     toHref: (to) => withBase(to),
+    prime: (url, value) => cache.prime(url, value),
     invalidate: (url) => cache.invalidate(url),
   };
 }

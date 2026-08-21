@@ -25,6 +25,9 @@ export type FlightGetOptions<T> = {
 export type FlightCache<T> = {
   get(url: string, opts: FlightGetOptions<T>): Promise<T>;
   prefetch(url: string, opts: FlightGetOptions<T>): void;
+  /** Store an already-decoded flight (e.g. one delivered by a followed
+   *  action redirect), so the next `get` for the url needs no fetch. */
+  prime(url: string, flight: T): void;
   has(url: string): boolean;
   invalidate(url?: string): void;
 };
@@ -67,6 +70,9 @@ export function createFlightCache<T>(
     get,
     prefetch: (url, opts) => {
       void get(url, opts);
+    },
+    prime: (url, flight) => {
+      store(url, { promise: Promise.resolve(flight), at: now() });
     },
     has: (url) => cache.has(url),
     invalidate: (url) => {

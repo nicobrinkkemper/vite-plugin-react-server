@@ -75,3 +75,26 @@ describe("server-action flight codec (webpack transport)", () => {
     );
   });
 });
+
+describe("server-action terminal outcomes (webpack transport)", () => {
+  it("a thrown error answers a webpack-decodable flight envelope", async () => {
+    const { createFromReadableStream } = await import(
+      "react-server-loader/webpack/client.edge"
+    );
+    const res = await handleServerActionRequest(requestFor("[]"), {
+      ...options({
+        run: () => {
+          throw new Error("webpack-kaboom");
+        },
+      }),
+      transport: "webpack",
+    });
+    expect(res.status).toBe(500);
+    expect(res.headers.get("x-vprs-outcome")).toBe("error");
+    expect(res.headers.get("content-type")).toContain("text/x-component");
+    const payload = (await createFromReadableStream(res.body as ReadableStream, {
+      serverConsumerManifest: { moduleMap: {}, serverModuleMap: null, moduleLoading: null },
+    })) as { error: { message: string } };
+    expect(payload.error.message).toBe("webpack-kaboom");
+  });
+});

@@ -84,6 +84,18 @@ npm install react@<snapshot> react-dom@<snapshot> react-server-loader@<snapshot>
 If you carried an `overrides` block forcing `react-server-loader` to one
 copy, delete it — the peer layout makes it redundant.
 
+## Server actions guard themselves by default
+
+The action endpoint's two guards were opt-in in 3.x and are on by default in
+4.0:
+
+- **Same-origin enforcement**: a POST whose `Origin` host differs from the
+  request's own host answers `403`. A cross-origin caller you trust goes in
+  `allowedOrigins: ["https://app.example.com"]` (same-origin stays allowed
+  alongside the list); `allowedOrigins: "any"` restores the 3.x open behavior.
+- **Body cap**: request bodies over 1 MiB answer `413`. Raise `maxBodyBytes`
+  for larger uploads, or pass `Infinity` to restore the 3.x uncapped behavior.
+
 ## The `.` entry is one module
 
 The root entry no longer condition-splits: `import { vitePluginReactServer }
