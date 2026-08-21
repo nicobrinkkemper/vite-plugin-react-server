@@ -99,7 +99,9 @@ export type ServerActionResponseMessage = {
   flight?: string;
   /** Legacy raw result (pre-flight protocol); main thread JSON-rows it. */
   result?: unknown;
-  error?: string;
+  /** A string, or a serializeError object whose plain marker fields
+   *  (loader signals, tagged statusCode) survive the thread boundary. */
+  error?: string | Record<string, unknown>;
 } & WorkerMessage;
 
 export type HmrAcceptMessage = {
@@ -166,7 +168,9 @@ export type ServerOnlyStreamHandlers = {
   onServerActionResponse?: (
     id: string,
     result?: unknown,
-    error?: string,
+    /** A string, or a serializeError object whose plain marker fields
+     *  (loader signals, tagged statusCode) survive the thread boundary. */
+    error?: string | Record<string, unknown>,
     flight?: string
   ) => void;
   onError: (id: string, error: unknown, errorInfo?: { route?: string; context?: string }) => void;

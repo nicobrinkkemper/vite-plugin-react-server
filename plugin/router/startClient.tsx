@@ -113,10 +113,15 @@ function RouteView({
   router,
   initialNode,
   rootId,
+  deliverRef,
 }: {
   router: Router<ReactNode>;
   initialNode: ReactNode;
   rootId: string;
+  /** Out-of-band delivery slot: action outcomes (refresh, not-found) swap
+   *  the view without a navigation, so they arrive here instead of through
+   *  the location effect. */
+  deliverRef?: { current: ((node: ReactNode) => void) | null };
 }) {
   const location = useLocation();
   // The view plus a GENERATION that bumps on every delivered flight: in dev
@@ -132,6 +137,14 @@ function RouteView({
     []
   );
   const shown = React.useRef<string>(router.getState().url);
+
+  React.useEffect(() => {
+    if (!deliverRef) return;
+    deliverRef.current = swap;
+    return () => {
+      deliverRef.current = null;
+    };
+  }, [deliverRef, swap]);
 
   // The matched route's head.ts contribution rides the tree as an inert
   // template (hoistables can't ride the hydration flight — see
@@ -227,6 +240,43 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
   // re-navigate (replace) to the final route so history matches the content.
   // Deferred assignment: the fetcher closure exists before the router does.
   let followRedirect: (response: Response) => void = () => {};
+  // Out-of-band view delivery for action outcomes; RouteView fills the slot.
+  const deliverRef: { current: ((node: ReactNode) => void) | null } = {
+    current: null,
+  };
+  // Server-action outcomes, wired into the router so each lands as an SPA
+  // transition: a redirect() delivers the target page (prime + navigate — no
+  // second fetch); a notFound() swaps in the 404 route's flight with the
+  // address unchanged; any successful action refreshes the current route
+  // (drop its cached flight, refetch, swap), so mutations show without the
+  // app wiring anything.
+  const callServerHooks = {
+    onRedirect: (route: string, page: unknown) => {
+      router.prime(route, page as ReactNode);
+      router.navigate(route);
+    },
+    onNotFound: () => {
+      Promise.resolve(router.flight("/404/")).then(
+        (node) => deliverRef.current?.(node),
+        () => {
+          // No decodable 404 flight on this host — leave the view alone; the
+          // action already settled.
+        },
+      );
+    },
+    onSuccess: () => {
+      const url = router.getState().url;
+      router.invalidate(url);
+      Promise.resolve(router.flight(url)).then(
+        (node) => {
+          if (router.getState().url === url) deliverRef.current?.(node);
+        },
+        () => {
+          // The refresh fetch failed; the current view stands.
+        },
+      );
+    },
+  };
   const fetchFlight = (url: string): Promise<ReactNode> =>
     Promise.resolve(
       createReactFetcher({
@@ -234,6 +284,7 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
         moduleBaseURL,
         publicOrigin,
         onResponse: (response) => followRedirect(response),
+        callServerHooks,
       }),
     ) as Promise<ReactNode>;
 
@@ -258,7 +309,12 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
     const initialNode = await router.flight(router.getState().url);
     const tree = (
       <RouterProvider router={router} patterns={patterns}>
-        <RouteView router={router} initialNode={initialNode} rootId={rootId} />
+        <RouteView
+          router={router}
+          initialNode={initialNode}
+          rootId={rootId}
+          deliverRef={deliverRef}
+        />
       </RouterProvider>
     );
     return wrap ? wrap(tree) : tree;

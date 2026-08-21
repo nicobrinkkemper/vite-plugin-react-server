@@ -142,10 +142,28 @@ export const handleHtmlRender: HandleHtmlRenderFn = async function _handleHtmlRe
           callback();
         },
       });
+      // Same clean-failure contract as the client-condition seam: a
+      // prerender waits for EVERY boundary, so a render that never settles
+      // trips htmlTimeout into an abort instead of hanging the build.
+      const prerenderController = new AbortController();
+      const prerenderTimeoutMs = workerData.userOptions?.htmlTimeout;
+      const prerenderTimeout =
+        typeof prerenderTimeoutMs === "number" && prerenderTimeoutMs > 0
+          ? setTimeout(
+              () =>
+                prerenderController.abort(
+                  new Error(
+                    `[html-worker:${route}] prerender did not complete within htmlTimeout (${prerenderTimeoutMs}ms)`
+                  )
+                ),
+              prerenderTimeoutMs
+            )
+          : null;
       try {
         const { prerenderToNodeStream } = await import("react-dom/static");
         const { prelude } = await prerenderToNodeStream(result.children, {
           ...mergedPipeableStreamOptions,
+          signal: prerenderController.signal,
           // A static file has no progressive delivery: without this, React
           // OUTLINES boundary content larger than the default progressive
           // chunk size (~12KB) behind a $RC swap script even in a completed
@@ -163,19 +181,34 @@ export const handleHtmlRender: HandleHtmlRenderFn = async function _handleHtmlRe
             mergedPipeableStreamOptions?.onError?.(error, errorInfo as never);
           },
         } as never);
+        if (prerenderTimeout) clearTimeout(prerenderTimeout);
+        // An abort AFTER the shell resolves the prerender with fallback
+        // markup and client-render holes — a degraded document. A static
+        // build must fail instead of silently writing it.
+        if (prerenderController.signal.aborted) {
+          throw (
+            prerenderController.signal.reason ?? new Error("prerender aborted")
+          );
+        }
         prelude.pipe(prerenderWritable);
       } catch (error) {
-        // A SHELL error REJECTS (react-dom/static has no onShellError seam):
-        // nothing was piped; the ERROR message lets the main thread destroy
-        // its stream, exactly like the streaming path's shell failure.
+        if (prerenderTimeout) clearTimeout(prerenderTimeout);
+        // A SHELL error REJECTS (react-dom/static has no onShellError seam),
+        // and so does an htmlTimeout abort — the signal's reason carries the
+        // message. Nothing was piped; the ERROR message lets the main thread
+        // destroy its stream, exactly like the streaming path's shell
+        // failure.
+        const cause = prerenderController.signal.aborted
+          ? (prerenderController.signal.reason ?? error)
+          : error;
         logger.error(
-          `[html-worker:${route}] HTML static prerender failed (nothing was piped): ${error}`
+          `[html-worker:${route}] HTML static prerender failed (nothing was piped): ${cause}`
         );
-        handlers.onError(route, error, {
+        handlers.onError(route, cause, {
           componentStack: undefined,
           digest: undefined,
         });
-        mergedPipeableStreamOptions?.onShellError?.(error);
+        mergedPipeableStreamOptions?.onShellError?.(cause);
       }
       // RSC stream errors surface the same way in both modes.
       rscStream.on("error", (error) => {

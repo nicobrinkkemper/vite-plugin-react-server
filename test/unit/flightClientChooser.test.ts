@@ -64,7 +64,10 @@ describe("createCallServer transport dispatch", () => {
       "fetch",
       vi.fn(async (_url: unknown, init?: RequestInit) => {
         seen.push(init ?? {});
-        return new Response("", { status: 200 });
+        return new Response("", {
+          status: 200,
+          headers: { "content-type": "text/x-component" },
+        });
       })
     );
     const result = await createCallServer("/")("some/action#run", [1]);
@@ -78,7 +81,13 @@ describe("createCallServer transport dispatch", () => {
     );
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("", { status: 200 }))
+      vi.fn(
+        async () =>
+          new Response("", {
+            status: 200,
+            headers: { "content-type": "text/x-component" },
+          })
+      )
     );
     const result = await createCallServer("/")("some/action#run", [1]);
     expect(result).toBe("esm");

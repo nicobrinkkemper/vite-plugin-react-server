@@ -12,6 +12,7 @@ import type {
   ComponentsResolvedMessage,
 } from "./types.js";
 import { toError } from "../../error/toError.js";
+import { serializeError } from "../../error/serializeError.js";
 // Transport-aware flight seams for server actions: the reply decoder for
 // arguments (text or reconstructed multipart) and the renderer for the
 // `{ returnValue }` response payload.
@@ -1412,12 +1413,53 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           // Send success response
           effectiveHandlers.onServerActionResponse?.(msg.id, result, undefined, flight);
         } catch (error: unknown) {
-          const errorMessage = toError(error).message;
-          // Send error response
+          const err = toError(error);
+          // Loader signals (redirect()/notFound() thrown by the action)
+          // answer the transaction: cross the thread boundary as a
+          // serializeError object so the plain marker fields survive and the
+          // delegate maps them to the outcome responses.
+          if (isLoaderSignal(err)) {
+            effectiveHandlers.onServerActionResponse?.(
+              msg.id,
+              undefined,
+              serializeError(err)
+            );
+            return;
+          }
+          // The error outcome: render the { error: { message } } envelope
+          // through the SAME flight renderer as a success, so the main thread
+          // streams valid flight — never JSON/text into a flight decoder.
+          // Message only; the stack stays in this process's log.
+          let flight: string | undefined;
+          try {
+            const serverActionUserOptions = getUserOptions();
+            const renderer = resolveFlightRenderer({
+              transport: serverActionUserOptions.transport,
+              moduleBasePath: serverActionUserOptions.moduleBasePath,
+              moduleBaseURL: serverActionUserOptions.moduleBaseURL,
+            });
+            flight = await new Promise<string>((resolve, reject) => {
+              const chunks: Buffer[] = [];
+              const sink = new PassThrough();
+              sink.on("data", (chunk: Buffer) => chunks.push(chunk));
+              sink.on("end", () =>
+                resolve(Buffer.concat(chunks).toString("utf8"))
+              );
+              sink.on("error", reject);
+              const pipeable = renderer.render(
+                { error: { message: err.message } },
+                { onError: reject }
+              );
+              pipeable.pipe(sink);
+            });
+          } catch {
+            // The envelope render itself failed; the legacy JSON row stands.
+          }
           effectiveHandlers.onServerActionResponse?.(
             msg.id,
             undefined,
-            errorMessage
+            serializeError(err),
+            flight
           );
         }
         return;

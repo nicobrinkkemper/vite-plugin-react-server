@@ -83,8 +83,20 @@ export async function freezeStaticSnapshots(opts: {
   // the route and the component error, while a relaxed panicThreshold keeps
   // the degrade-and-continue behavior — loudly.
   const renderErrors: unknown[] = [];
+  // The freeze renders documents through the consumer's PRERENDER export:
+  // react-dom/static waits out every Suspense boundary and the artifact
+  // carries final markup at position (the static artifact contract), while
+  // per-request serving keeps the streaming renderFlightToHtml. A pair baked
+  // by this build always carries the export; fail loud on a foreign pair
+  // rather than silently freezing the streamed shape.
+  if (typeof consumer.prerenderFlightToHtml !== "function") {
+    throw new Error(
+      `[transport:webpack] ${consumerPath} exports no prerenderFlightToHtml — ` +
+        `the consumer bundle predates the prerender freeze; rebuild the pair.`
+    );
+  }
   const handler = createEdgeRequestHandler(bundle, {
-    renderFlightToHtml: consumer.renderFlightToHtml,
+    renderFlightToHtml: consumer.prerenderFlightToHtml,
     onError: (error: unknown) => {
       renderErrors.push(error);
     },

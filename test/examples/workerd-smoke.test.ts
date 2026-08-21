@@ -51,8 +51,18 @@ async function setupFixture() {
   await writeFile(
     join(testDir, "src/ping.ts"),
     `"use server";\n` +
+      `import { redirect, notFound } from "vite-plugin-react-server/router";\n` +
       `export async function ping(n: number): Promise<{ doubled: number }> {\n` +
       `  return { doubled: n * 2 };\n` +
+      `}\n` +
+      `export async function bounce() {\n` +
+      `  redirect("/next/");\n` +
+      `}\n` +
+      `export async function vanish() {\n` +
+      `  notFound();\n` +
+      `}\n` +
+      `export async function explode() {\n` +
+      `  throw new Error("edge-kaboom");\n` +
       `}\n`
   );
   await writeFile(
@@ -206,6 +216,33 @@ describe.skipIf(!Miniflare)("workerd smoke (webpack bake pair)", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('{"doubled":42}');
+  });
+
+  it("maps action terminal outcomes on-platform (redirect / notFound / error)", async () => {
+    const act = (id: string) =>
+      mf!.dispatchFetch("http://localhost/", {
+        method: "POST",
+        headers: { "x-rsc-action": `src/ping.ts#${id}` },
+        body: "[]",
+        redirect: "manual",
+      });
+
+    const redirected = await act("bounce");
+    expect(redirected.status).toBe(303);
+    expect(redirected.headers.get("location")).toBe("/next/index.rsc");
+    expect(redirected.headers.get("x-vprs-outcome")).toBe("redirect");
+
+    const missing = await act("vanish");
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("x-vprs-outcome")).toBe("not-found");
+    expect(await missing.text()).toBe("");
+
+    // The error outcome is VALID FLIGHT from the baked renderer, never JSON.
+    const failed = await act("explode");
+    expect(failed.status).toBe(500);
+    expect(failed.headers.get("x-vprs-outcome")).toBe("error");
+    expect(failed.headers.get("content-type")).toContain("text/x-component");
+    expect(await failed.text()).toContain("edge-kaboom");
   });
 
   it("rejects a malformed action id loudly", async () => {

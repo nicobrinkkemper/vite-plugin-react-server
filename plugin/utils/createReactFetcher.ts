@@ -1,5 +1,5 @@
 import type React from "react";
-import { createCallServer } from "./createCallServer.js";
+import { createCallServer, type CallServerHooks } from "./createCallServer.js";
 import { loadBrowserFlightClient } from "./flightClient.browser.js";
 import { env } from "#env";
 import { createPageURL } from "./urls.js";
@@ -103,6 +103,7 @@ export function createReactFetcher({
   },
   signal,
   onResponse,
+  callServerHooks,
 }: {
   url?: string;
   moduleBaseURL?: string;
@@ -124,6 +125,13 @@ export function createReactFetcher({
    * (`response.redirected`) and fix the address bar.
    */
   onResponse?: (response: Response) => void;
+  /**
+   * Router hooks for server-action outcomes (redirect, not-found,
+   * refresh-on-success). Every action dispatched from content decoded by this
+   * fetcher reports through them; see {@link CallServerHooks} for the
+   * hookless defaults.
+   */
+  callServerHooks?: CallServerHooks;
 } = {}): PromiseLike<React.ReactNode> {
   const parsedURL = createPageURL(
     moduleBaseURL,
@@ -145,7 +153,7 @@ export function createReactFetcher({
   // references coherent too.
   const flightBaseURL = parsedURL.moduleBaseURL.replace(/\/+$/, "");
   const decodeOptions = {
-    callServer: createCallServer(flightBaseURL),
+    callServer: createCallServer(flightBaseURL, callServerHooks),
     moduleBaseURL: flightBaseURL,
   };
 

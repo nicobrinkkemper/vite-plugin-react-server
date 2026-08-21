@@ -7,6 +7,7 @@ import {
   setupServerActionHeaders,
   createServerActionStream,
   handleServerActionError,
+  writeServerActionOutcome,
 } from "../helpers/handleServerAction.client.js";
 import { readServerActionForWorker } from "../helpers/handleServerActionHelper.js";
 import type { MessageHandler } from "../types.js";
@@ -53,22 +54,20 @@ export const handleServerAction: HandleWorkerServerActionFn =
               cleanupServerAction(passThrough, worker, messageHandler, res);
             }
           } else if (message.type === "SERVER_ACTION_RESPONSE") {
-            // Server action completed — the worker rendered `{ returnValue }`
-            // through the transport's flight renderer; write it verbatim (this
-            // thread holds no react-server context to re-encode with). The
-            // JSON row remains only for errors and the legacy result shape.
-            if (message.error?.message) {
-              logger.error(`[handleServerAction] Server action error: ${message.error?.message}`);
-              passThrough.write(`0:${JSON.stringify({ error: message.error.message })}\n`);
-            } else if(typeof message.error === "string") {
-              logger.error(`[handleServerAction] Server action error: ${message.error}`);
-              passThrough.write(`0:${JSON.stringify({ error: message.error })}\n`);
-            } else if (typeof (message as { flight?: string }).flight === "string") {
-              passThrough.write((message as { flight: string }).flight);
-            } else {
-              // Legacy: write the raw result as a JSON row.
-              passThrough.write(`0:${JSON.stringify(message.result)}\n`);
-            }
+            // Server action completed — the worker rendered the payload
+            // through the transport's flight renderer; the shared writer maps
+            // terminal outcomes (redirect/not-found/error) identically to the
+            // react-server handler.
+            writeServerActionOutcome(
+              message as {
+                error?: string | Record<string, unknown>;
+                flight?: string;
+                result?: unknown;
+              },
+              passThrough,
+              res,
+              logger
+            );
             if (messageHandler) {
               cleanupServerAction(passThrough, worker, messageHandler, res);
             }
