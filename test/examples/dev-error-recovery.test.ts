@@ -101,6 +101,7 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
   let page: Page;
   let port: number;
   const documentRequests: string[] = [];
+  let documentBaseline = 0;
 
   const heading = async () => {
     try {
@@ -166,6 +167,13 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
       undefined,
       { timeout: 20000, polling: 300 }
     );
+    // Startup settles before the baseline: a LINKED plugin is excluded from
+    // the dep optimizer (never-stale dist), so its inner deps are discovered
+    // on first load and one cold-cache re-optimize reload can land during
+    // startup. The contract under test is the break/fix cycle — measured
+    // against this baseline, not against startup noise.
+    await new Promise((r) => setTimeout(r, 1500));
+    documentBaseline = documentRequests.length;
   }, 120000);
 
   afterAll(async () => {
@@ -188,9 +196,10 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
     await waitFor(async () => (await heading()) === "version-2");
     expect(await errorPanelVisible()).toBe(false);
 
-    // Same session, no document reload: the recovery happened in place.
+    // Same session, no document reload DURING the cycle: the recovery
+    // happened in place.
     expect(await page.evaluate(() => performance.timeOrigin)).toBe(timeOrigin);
-    expect(documentRequests).toHaveLength(1);
+    expect(documentRequests.length).toBe(documentBaseline);
   }, 60000);
 
   it("a syntax break keeps the current view, and the fix updates it", async () => {
@@ -202,7 +211,7 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
 
     await writeFile(PAGE, goodPage(3));
     await waitFor(async () => (await heading()) === "version-3");
-    expect(documentRequests).toHaveLength(1);
+    expect(documentRequests.length).toBe(documentBaseline);
 
     // The client component inside the recovered tree still answers clicks.
     await page.waitForFunction(
