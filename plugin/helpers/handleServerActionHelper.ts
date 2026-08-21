@@ -103,9 +103,13 @@ export type ServerActionRequest = {
  */
 export type ServerActionFlightCodec = {
   decodeReply: (body: string | FormData) => Promise<unknown[]>;
-  renderResponse: (payload: {
-    returnValue: unknown;
-  }) => { pipe: (destination: unknown) => unknown } | ReadableStream;
+  /**
+   * Flight-render a response payload: `{ returnValue }` for a settled action,
+   * `{ error: { message } }` for the error outcome.
+   */
+  renderResponse: (
+    payload: unknown
+  ) => { pipe: (destination: unknown) => unknown } | ReadableStream;
 };
 
 /** Reconstruct a multipart body as FormData via the standard parser. */

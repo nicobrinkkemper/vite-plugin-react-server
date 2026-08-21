@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { MIME_TYPES } from "../config/mimeTypes.js";
 import { isPathWithin } from "./isPathWithin.js";
+import { OUTCOME, OUTCOME_HEADER } from "../utils/outcomeHeader.js";
 import type { ServerActionHandlerOptions } from "./handleServerActionHelper.js";
 
 /**
@@ -150,8 +151,8 @@ export function createRequestHandler(
             {
               status: 404,
               headers: {
-                "Content-Type": "text/x-component; charset=utf-8",
-                "x-vprs-outcome": "not-found",
+                  "Content-Type": "text/x-component; charset=utf-8",
+                [OUTCOME_HEADER]: OUTCOME.notFound,
               },
             }
           );
