@@ -232,6 +232,29 @@ Arguments and results ride the transport's own flight codec, end to end:
 A hand-rolled caller (no `encodeReply`) may POST the JSON envelope
 `{ "id": "path#export", "args": [...] }` instead; its args are taken as-is.
 
+### Terminal outcomes
+
+An action ends in exactly one of four ways, and each is a declared wire
+shape — the flight decoder never receives anything it cannot read:
+
+| Outcome | The action | The response | The router client |
+|---|---|---|---|
+| return | returns a value | `200`, flight `{ returnValue }` | resolves with the value, then refreshes the current route (drops its cached flight, refetches, swaps) so mutations show without app wiring |
+| redirect | throws `redirect(to)` | `303` to the target's flight, `x-vprs-outcome: redirect` | `fetch` follows the 303; the decoded response IS the target page — delivered to the view, address bar updated, no document load |
+| not found | throws `notFound()` | `404`, `x-vprs-outcome: not-found`, no body | fetches the `/404/` route's flight through its own GET path and swaps it in; the address stays |
+| error | throws anything else | tagged status (`403`/`413`) or `500`, `x-vprs-outcome: error`, flight `{ error: { message } }` | rejects the action call with the server's message — the message only, never the stack |
+
+`redirect` and `notFound` are the same signals loaders throw
+(`vite-plugin-react-server/router`), and the mapping is identical in every
+execution topology: the react-server process, the rsc-worker delegate, and
+the baked edge gate.
+
+Outside the router (a bare `createReactFetcher` with no `callServerHooks`),
+the defaults still hold the contract: a redirect becomes a document
+navigation, not-found rejects with a `notFound()`-marked error (test with
+`isNotFound`), and a non-flight response is reported as an error instead of
+being fed to the decoder.
+
 ### Endpoint hardening
 
 The sealed gate decides *which function* a request may resolve — it confirms the

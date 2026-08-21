@@ -22,6 +22,12 @@ import type {
   ServerActionRequest,
 } from "./handleServerActionHelper.js";
 import { hasReactServerCondition } from "../config/getCondition.js";
+import { isNotFound, isRedirect } from "../router/loaderSignals.js";
+import {
+  OUTCOME,
+  OUTCOME_HEADER,
+  actionRedirectLocation,
+} from "../utils/outcomeHeader.js";
 import { createSealedServerReferenceGate } from "../references/createSealedServerReferenceGate.server.js";
 import type { ReferenceGate } from "react-server-loader/references";
 // node:fs / node:path load lazily inside the disk-manifest fallback ONLY (see
@@ -230,17 +236,49 @@ export async function resolveAndExecuteServerAction(
 }
 
 /**
- * Stream a flight-rendered `{ returnValue }` payload into a Node response.
- * The codec may hand back either a Node pipeable or a Web stream — the edge
- * codec renders Web streams; the built-in Node pair renders pipeables.
+ * Map a thrown action error to its terminal outcome. `null` means "not a
+ * declared outcome" — a real failure, which the caller answers as the error
+ * outcome (flight envelope when a codec exists, legacy JSON otherwise).
+ */
+function actionSignalOutcome(
+  error: unknown
+): { status: number; headers: Record<string, string> } | null {
+  if (isRedirect(error)) {
+    return {
+      status: 303,
+      headers: {
+        location: actionRedirectLocation(error.to),
+        [OUTCOME_HEADER]: OUTCOME.redirect,
+      },
+    };
+  }
+  if (isNotFound(error)) {
+    // Marker only, no body: the client router fetches the 404 route's flight
+    // through its own (cached) GET path, so this stays identical on hosts
+    // that cannot render — static file servers and the bare Web handler
+    // included.
+    return { status: 404, headers: { [OUTCOME_HEADER]: OUTCOME.notFound } };
+  }
+  return null;
+}
+
+/** The error-outcome envelope: message only — never the stack or paths. */
+const actionErrorPayload = (error: Error) => ({
+  error: { message: error.message },
+});
+
+/**
+ * Stream a flight-rendered payload into a Node response. The codec may hand
+ * back either a Node pipeable or a Web stream — the edge codec renders Web
+ * streams; the built-in Node pair renders pipeables.
  */
 async function sendFlightActionResponse(
   res: ServerResponse,
   codec: ServerActionFlightCodec,
-  result: unknown
+  payload: unknown
 ): Promise<void> {
   res.setHeader("Content-Type", "text/x-component; charset=utf-8");
-  const stream = codec.renderResponse({ returnValue: result });
+  const stream = codec.renderResponse(payload);
   if (isWebStream(stream)) {
     const { Readable } = (await importAtRuntime("node:stream")) as
       typeof import("node:stream");
@@ -253,9 +291,10 @@ async function sendFlightActionResponse(
 /** The Web counterpart: wrap the rendered payload in a `Response`. */
 async function flightActionWebResponse(
   codec: ServerActionFlightCodec,
-  result: unknown
+  payload: unknown,
+  init: { status?: number; headers?: Record<string, string> } = {}
 ): Promise<Response> {
-  const stream = codec.renderResponse({ returnValue: result });
+  const stream = codec.renderResponse(payload);
   let webStream: ReadableStream;
   if (isWebStream(stream)) {
     webStream = stream;
@@ -271,7 +310,11 @@ async function flightActionWebResponse(
     webStream = Readable.toWeb(passThrough) as unknown as ReadableStream;
   }
   return new Response(webStream, {
-    headers: { "Content-Type": "text/x-component; charset=utf-8" },
+    status: init.status ?? 200,
+    headers: {
+      "Content-Type": "text/x-component; charset=utf-8",
+      ...init.headers,
+    },
   });
 }
 
@@ -305,7 +348,7 @@ export async function handleServerAction(
     if (codec) {
       // The complete protocol: the payload rides the transport's own flight
       // renderer, so non-JSON values (Dates, streams, elements) survive.
-      await sendFlightActionResponse(res, codec, result);
+      await sendFlightActionResponse(res, codec, { returnValue: result });
     } else {
       // Legacy JSON row — a condition-less process with no codec cannot
       // flight-render; plain JSON results keep working as before.
@@ -316,6 +359,36 @@ export async function handleServerAction(
       logger?.info("[handleServerAction:server] Server action completed successfully");
     }
   } catch (error: unknown) {
+    // Loader-signal outcomes (redirect() / notFound() thrown by the action)
+    // answer the transaction, they are not failures.
+    const signal = actionSignalOutcome(error);
+    if (signal) {
+      res.statusCode = signal.status;
+      for (const [key, value] of Object.entries(signal.headers)) {
+        res.setHeader(key, value);
+      }
+      res.end();
+      return;
+    }
+    // The error outcome: with a codec the body is valid flight — a
+    // { error: { message } } envelope the client decodes and re-throws —
+    // never JSON/text fed to a flight decoder. Codec-less keeps the legacy
+    // JSON error row (the client refuses to decode non-flight).
+    const err = toError(error) as Error & { statusCode?: number };
+    let codec: ServerActionFlightCodec | null = null;
+    try {
+      codec = await resolveActionFlightCodec(options);
+    } catch {
+      // The codec itself is unavailable — the legacy JSON path stands.
+    }
+    if (codec && !res.headersSent) {
+      logError(err, logger);
+      res.statusCode =
+        typeof err.statusCode === "number" ? err.statusCode : 500;
+      res.setHeader(OUTCOME_HEADER, OUTCOME.error);
+      await sendFlightActionResponse(res, codec, actionErrorPayload(err));
+      return;
+    }
     handleServerActionErrorHelper(error, res, logger);
   }
 }
@@ -350,22 +423,44 @@ export async function handleServerActionRequest(
     const result = await resolveAndExecuteServerAction(parsed, options, codec);
 
     if (codec) {
-      return await flightActionWebResponse(codec, result);
+      return await flightActionWebResponse(codec, { returnValue: result });
     }
     // Legacy RSC wire row, matching the Node sendServerActionResponse output.
     return new Response(`0:${JSON.stringify(result)}\n`, {
       headers: { "Content-Type": "text/x-component" },
     });
   } catch (error: unknown) {
+    // Loader-signal outcomes (redirect() / notFound() thrown by the action)
+    // answer the transaction, they are not failures.
+    const signal = actionSignalOutcome(error);
+    if (signal) {
+      return new Response(null, { status: signal.status, headers: signal.headers });
+    }
     const err = toError(error) as Error & { statusCode?: number };
     logError(err, logger);
     // Honor a tagged status (403 origin, 413 oversized) else 500. Never ship the
     // stack to the client — it exposes absolute paths and internal module ids;
     // the full error is logged above.
+    const status = typeof err.statusCode === "number" ? err.statusCode : 500;
+    let codec: ServerActionFlightCodec | null = null;
+    try {
+      codec = await resolveActionFlightCodec(options);
+    } catch {
+      // The codec itself is unavailable — the legacy JSON path stands.
+    }
+    if (codec) {
+      // The error outcome: valid flight, never JSON/text into a flight
+      // decoder. The client decodes the envelope and rejects the action with
+      // the server's message.
+      return await flightActionWebResponse(codec, actionErrorPayload(err), {
+        status,
+        headers: { [OUTCOME_HEADER]: OUTCOME.error },
+      });
+    }
     return new Response(
       JSON.stringify({ success: false, error: err.message }),
       {
-        status: typeof err.statusCode === "number" ? err.statusCode : 500,
+        status,
         headers: { "Content-Type": "application/json" },
       }
     );
