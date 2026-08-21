@@ -10,6 +10,81 @@ import {
 import { createRouter, type Router } from "./createRouter.js";
 import { RouterProvider, useLocation } from "./router-react.js";
 import { applyRouteHead } from "./applyRouteHead.js";
+import { env } from "#env";
+
+/**
+ * Dev-only recovery boundary around the route view. Without it, a server
+ * runtime error riding the flight (a broken edit during dev) throws uncaught
+ * in the client render and React UNMOUNTS THE WHOLE TREE — the HMR hooks die
+ * with it, so fixing the file cannot recover and only a manual refresh helps.
+ * The boundary keeps the React root (and the HMR subscription) alive, shows
+ * the error in place, and is remounted with a fresh key whenever a new flight
+ * arrives — so the fix's re-render is attempted automatically. Production
+ * behavior is unchanged (error semantics there belong to the transaction
+ * contract, not this boundary).
+ */
+class DevErrorRecoveryBoundary extends React.Component<
+  { generation: number; children?: ReactNode },
+  { error: Error | null; lastGeneration: number }
+> {
+  override state: { error: Error | null; lastGeneration: number } = {
+    error: null,
+    lastGeneration: -1,
+  };
+  static getDerivedStateFromError(error: unknown): { error: Error } {
+    return {
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+  // Reset by PROP, never by key: a fresh flight (generation bump) clears any
+  // caught error so the new payload renders; re-renders within the SAME
+  // generation (the error being caught, unrelated state) leave the error
+  // alone. Healthy updates flow through as ordinary reconciliation, so
+  // client-component state survives them (the state-preserving HMR
+  // contract) — an unconditional key remount here destroyed that state on
+  // every delivered flight. Tracking the last SEEN generation avoids the
+  // race a caught-at marker has with componentDidCatch's setState.
+  static getDerivedStateFromProps(
+    props: { generation: number },
+    state: { error: Error | null; lastGeneration: number }
+  ): Partial<{ error: null; lastGeneration: number }> | null {
+    if (props.generation !== state.lastGeneration) {
+      return { lastGeneration: props.generation, error: null };
+    }
+    return null;
+  }
+  override componentDidCatch(error: unknown) {
+    console.error(
+      "[vprs] route render error (dev recovery active: fix the file and the page re-renders on the next update)",
+      error
+    );
+  }
+  override render() {
+    if (this.state.error) {
+      return (
+        <div
+          data-vprs-dev-error=""
+          style={{
+            fontFamily: "ui-monospace, monospace",
+            padding: "1rem",
+            margin: "1rem",
+            border: "2px solid #c00",
+            borderRadius: "4px",
+            background: "#fff5f5",
+            color: "#600",
+          }}
+        >
+          <strong>{"Route render error (dev)"}</strong>
+          <pre style={{ whiteSpace: "pre-wrap", overflowX: "auto" }}>
+            {this.state.error.message}
+          </pre>
+          <p style={{ opacity: 0.8 }}>{"Fix the file to recover."}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // The supplied client entry: assembles createRouter + RouterProvider +
 // createReactFetcher + hydration + HMR so a consumer's client.tsx is one line:
@@ -44,7 +119,18 @@ function RouteView({
   rootId: string;
 }) {
   const location = useLocation();
-  const [node, setNode] = React.useState<ReactNode>(initialNode);
+  // The view plus a GENERATION that bumps on every delivered flight: in dev
+  // the recovery boundary is keyed by it, so a fresh payload (the fix after a
+  // broken edit) remounts a clean boundary and the re-render is attempted.
+  const [view, setView] = React.useState<{
+    node: ReactNode;
+    generation: number;
+  }>({ node: initialNode, generation: 0 });
+  const swap = React.useCallback(
+    (node: ReactNode) =>
+      setView((current) => ({ node, generation: current.generation + 1 })),
+    []
+  );
   const shown = React.useRef<string>(router.getState().url);
 
   // The matched route's head.ts contribution rides the tree as an inert
@@ -72,7 +158,7 @@ function RouteView({
         // Ignore a stale resolve (a newer navigation won the race).
         if (!cancelled && router.getState().url === target) {
           shown.current = target;
-          setNode(next);
+          swap(next);
         }
       },
       () => {
@@ -88,7 +174,7 @@ function RouteView({
     return () => {
       cancelled = true;
     };
-  }, [location, router]);
+  }, [location, router, swap]);
 
   useRscHmr(() => {
     // A server-component edit can invalidate any route's flight, and the flight
@@ -98,10 +184,30 @@ function RouteView({
     // first, then refetch the current route.
     router.invalidate();
     const url = router.getState().url;
-    Promise.resolve(router.flight(url)).then(setNode);
+    Promise.resolve(router.flight(url)).then(swap, (error) => {
+      // The refetch itself failed — a TRANSFORM error (broken syntax) makes
+      // the dev flight endpoint answer non-flight, so the fetch rejects.
+      // KEEP the current view: Vite's own channel reports the compile error,
+      // and the next HMR event (the fix) retries through this same path. The
+      // old behavior let the rejection escape, which could tear the page
+      // down and leave nothing listening for the fix.
+      console.warn(
+        "[vprs] HMR flight refetch failed — keeping the current view; the next update retries.",
+        error
+      );
+    });
   });
 
-  return <>{node}</>;
+  // Dev wraps the view in the recovery boundary (keyed per delivered flight);
+  // production renders exactly as before.
+  if (env.DEV) {
+    return (
+      <DevErrorRecoveryBoundary generation={view.generation}>
+        {view.node}
+      </DevErrorRecoveryBoundary>
+    );
+  }
+  return <>{view.node}</>;
 }
 
 export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {

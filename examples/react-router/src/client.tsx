@@ -1,3 +1,4 @@
+"use client";
 import { useCallback, useState, type ReactNode } from "react";
 import { createReactFetcher, hydrateOrRender } from "vite-plugin-react-server/utils";
 import { useRscHmr } from "virtual:react-server/hmr";

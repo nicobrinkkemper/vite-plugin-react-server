@@ -12,7 +12,7 @@ examples/hello-world/
 ├── tsconfig.json
 └── src/
     ├── page.tsx      # 'Page' export — server component
-    └── client.tsx    # createReactFetcher + useRscHmr
+    └── client.tsx    # startClient (hydration + HMR + dev error recovery)
 ```
 
 Total source: under 50 lines across `src/` + `vite.config.ts` + `index.html`.
@@ -32,7 +32,7 @@ Open the URL Vite prints. You should see "Hello world".
 The plugin's README "Minimal Example" snippet (one `vite.config.ts`, one `page.tsx`) doesn't actually run a browser app on its own. A working RSC dev app additionally needs:
 
 - `index.html` mounting `/src/client.tsx` into `#root`
-- `src/client.tsx` using `createReactFetcher` + `useRscHmr`
+- `src/client.tsx` calling `startClient` (hydration, HMR, dev error recovery)
 - `src/props.ts` (a function that runs per-request)
 - `optimizeDeps.include` for `react-server-dom-esm/client.browser`
 
