@@ -1,4 +1,7 @@
 import type { Plugin, UserConfig, ViteBuilder, ESBuildOptions } from "vite";
+import { createRequire } from "node:module";
+import { realpathSync } from "node:fs";
+import { sep } from "node:path";
 
 // Minimal shape of Vite 8's `oxc` config. Imported from "vite" it would be
 // `OxcOptions`, but that type doesn't exist in Vite 6/7, so model it locally to
@@ -14,6 +17,39 @@ import { resolveOptions } from "../config/resolveOptions.js";
 import { handleError } from "../error/handleError.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { wrapModuleID } from "../config/moduleIdContract.js";
+
+/**
+ * Is vite-plugin-react-server LINKED into this project (file:/workspace
+ * symlink) rather than a real node_modules install? Decides which side of the
+ * dep optimizer the plugin's own browser subpaths go on. A real install is
+ * pre-bundled (`optimizeDeps.include`) so a cold cache discovers the whole
+ * chain up front — lazy mid-session re-optimizes abort the initial flight
+ * fetch. A LINKED copy must be EXCLUDED instead: an explicit include
+ * overrides Vite's linked-package handling and freezes a pre-bundle of dist
+ * that a rebuild does not invalidate (same version, same lockfile), so every
+ * plugin rebuild silently served STALE client code until `--force`. Excluded,
+ * Vite serves the linked dist as source — a rebuild is live on reload.
+ */
+let selfIsLinked: boolean | null = null;
+function isSelfLinked(projectRoot: string): boolean {
+  if (selfIsLinked !== null) return selfIsLinked;
+  try {
+    const projectRequire = createRequire(
+      projectRoot.endsWith(sep) ? projectRoot : projectRoot + sep
+    );
+    const pkgPath = projectRequire.resolve(
+      "vite-plugin-react-server/package.json"
+    );
+    const real = realpathSync(pkgPath);
+    selfIsLinked = !real.includes(
+      `${sep}node_modules${sep}vite-plugin-react-server${sep}`
+    );
+  } catch {
+    selfIsLinked = false;
+  }
+  return selfIsLinked;
+}
+
 import { createLogger, version as viteVersion } from "vite";
 import { join } from "node:path";
 import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
@@ -337,7 +373,8 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             // dep, which is free.
             include: [
               ...(userConfig.optimizeDeps?.include ?? []),
-              ...(consumer === "client"
+              ...(consumer === "client" &&
+              !isSelfLinked(userOptions.projectRoot)
                 ? [
                     "vite-plugin-react-server/router/client",
                     "vite-plugin-react-server/utils",
@@ -348,6 +385,14 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
                     "react-server-loader/webpack/runtime",
                     "react-server-loader/webpack/client",
                   ]
+                : []),
+            ],
+            exclude: [
+              ...(userConfig.optimizeDeps?.exclude ?? []),
+              // Linked plugin development: never pre-bundle ourselves — see
+              // isSelfLinked. Real installs stay on the include side above.
+              ...(consumer === "client" && isSelfLinked(userOptions.projectRoot)
+                ? ["vite-plugin-react-server"]
                 : []),
             ],
           },

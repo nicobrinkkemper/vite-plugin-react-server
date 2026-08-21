@@ -1,17 +1,6 @@
-import { use, useCallback, useState, useTransition } from "react";
-import { createRoot } from "react-dom/client";
-import { createReactFetcher } from "vite-plugin-react-server/utils";
-import { useRscHmr } from "virtual:react-server/hmr";
+import { startClient } from "vite-plugin-react-server/router/client";
 
-const Shell = ({ data }: { data: React.Usable<React.ReactNode> }) => {
-  const [, startTransition] = useTransition();
-  const [stream, setStream] = useState<React.Usable<React.ReactNode>>(data);
-  const refetch = useCallback(() => {
-    startTransition(() => setStream(createReactFetcher()));
-  }, []);
-  useRscHmr(refetch);
-  return <>{use(stream)}</>;
-};
-
-const root = document.getElementById("root")!;
-createRoot(root).render(<Shell data={createReactFetcher()} />);
+// The supplied client entry: hydration, client navigation, HMR, and dev
+// error recovery (a broken server-component edit shows the error in place
+// and the page re-renders when the file is fixed) in one call.
+startClient({ moduleBaseURL: "/" });
