@@ -14,6 +14,13 @@ export type RouterState = { url: string; shownUrl: string };
 export type CreateRouterOptions<T> = {
   /** Fetch the RSC flight for a url (e.g. createReactFetcher({ url })). */
   fetchFlight: (url: string) => T | Promise<T>;
+  /**
+   * Subpath the app is deployed under (a GH-Pages-style base, e.g. "/app/").
+   * Router STATE stays app-relative; the base is composed exactly at the
+   * document boundary — history writes and <Link> hrefs — and stripped when
+   * reading window.location. Default "/".
+   */
+  base?: string;
   /** Whether a url is a dynamic route → its flight gets a short cache ttl. */
   isDynamic?: (url: string) => boolean;
   /** Cache ttl (ms) for dynamic-route flights. Default 2000. */
@@ -30,6 +37,9 @@ export type Router<T> = {
    *  pending window that `useNavigation()` reports. */
   markShown: (url: string) => void;
   prefetch: (to: ToPath) => void;
+  /** The document href for an app-relative path (the base composed in) —
+   *  what <Link> renders so open-in-new-tab works under a subpath deploy. */
+  toHref: (to: ToPath) => string;
   /** The (cached) flight for a url; reuses a warmed/in-flight fetch. */
   flight: (url: string) => Promise<T>;
   /** Store an already-decoded flight for a url (a followed action redirect
@@ -40,10 +50,28 @@ export type Router<T> = {
   invalidate: (url?: string) => void;
 };
 
-const currentUrl = () =>
-  typeof location === "undefined" ? "/" : location.pathname + location.search;
+const normalizeBase = (base?: string): string => {
+  if (!base || base === "/") return "/";
+  let b = base;
+  if (!b.startsWith("/")) b = `/${b}`;
+  if (!b.endsWith("/")) b = `${b}/`;
+  return b;
+};
 
 export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
+  const base = normalizeBase(opts.base);
+  // App-relative on the inside, based at the document boundary: reading the
+  // location strips the base; history writes and hrefs compose it back. With
+  // the default "/" both are identity.
+  const stripBase = (url: string): string =>
+    base !== "/" && url.startsWith(base) ? url.slice(base.length - 1) : url;
+  const withBase = (to: string): string =>
+    base === "/" ? to : base.slice(0, -1) + to;
+  const currentUrl = () =>
+    typeof location === "undefined"
+      ? "/"
+      : stripBase(location.pathname) + location.search;
+
   const cache = opts.cache ?? createFlightCache<T>();
   const listeners = new Set<() => void>();
   const initialUrl = currentUrl();
@@ -83,8 +111,9 @@ export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
     navigate: (to, { replace = false } = {}) => {
       void flight(to); // warm (or reuse a prefetch) before we swap
       if (typeof history !== "undefined") {
-        if (replace) history.replaceState({ url: to }, "", to);
-        else history.pushState({ url: to }, "", to);
+        const href = withBase(to);
+        if (replace) history.replaceState({ url: to }, "", href);
+        else history.pushState({ url: to }, "", href);
       }
       setUrl(to);
     },
@@ -97,6 +126,7 @@ export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
       cache.prefetch(to, { fetcher: opts.fetchFlight, ttlMs: ttlFor(to) });
     },
     flight,
+    toHref: (to) => withBase(to),
     prime: (url, value) => cache.prime(url, value),
     invalidate: (url) => cache.invalidate(url),
   };

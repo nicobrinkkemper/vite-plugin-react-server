@@ -75,7 +75,7 @@ export function Link({
 
   return (
     <a
-      href={to}
+      href={router ? router.toHref(to) : to}
       target={target}
       data-pending={pending || undefined}
       aria-busy={pending || undefined}
