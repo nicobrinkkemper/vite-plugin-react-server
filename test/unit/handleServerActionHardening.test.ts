@@ -84,6 +84,81 @@ describe("server-action endpoint hardening", () => {
     });
   });
 
+  describe("same-origin default (no allowedOrigins config)", () => {
+    it("rejects a cross-origin POST with 403, before parsing", async () => {
+      const ssrLoadModule = vi.fn();
+      const res = mockRes();
+      await handleServerAction(
+        mockReq("src/server/actions.server.ts#addTodo", "[]", {
+          origin: "https://evil.example",
+          host: "app.example",
+        }),
+        res,
+        {
+          projectRoot: "/proj",
+          serverManifest: MANIFEST,
+          serverRoot: "/proj/dist/server",
+          ssrLoadModule,
+        }
+      );
+      expect(res.statusCode).toBe(403);
+      expect(ssrLoadModule).not.toHaveBeenCalled();
+    });
+
+    it("allows a same-origin POST (Origin host matches the request host)", async () => {
+      const res = mockRes();
+      await handleServerAction(
+        mockReq("forged.server.ts#pwn", "[]", {
+          origin: "https://app.example",
+          host: "app.example",
+        }),
+        res,
+        {
+          projectRoot: "/proj",
+          serverManifest: MANIFEST,
+          serverRoot: "/proj/dist/server",
+        }
+      );
+      expect(res.statusCode).not.toBe(403);
+    });
+
+    it("same-origin stays allowed alongside an allowlist", async () => {
+      const res = mockRes();
+      await handleServerAction(
+        mockReq("forged.server.ts#pwn", "[]", {
+          origin: "https://app.example",
+          host: "app.example",
+        }),
+        res,
+        {
+          projectRoot: "/proj",
+          serverManifest: MANIFEST,
+          serverRoot: "/proj/dist/server",
+          allowedOrigins: ["https://partner.example"],
+        }
+      );
+      expect(res.statusCode).not.toBe(403);
+    });
+
+    it('"any" turns the guard off', async () => {
+      const res = mockRes();
+      await handleServerAction(
+        mockReq("forged.server.ts#pwn", "[]", {
+          origin: "https://evil.example",
+          host: "app.example",
+        }),
+        res,
+        {
+          projectRoot: "/proj",
+          serverManifest: MANIFEST,
+          serverRoot: "/proj/dist/server",
+          allowedOrigins: "any",
+        }
+      );
+      expect(res.statusCode).not.toBe(403);
+    });
+  });
+
   describe("maxBodyBytes (DoS guard)", () => {
     it("rejects an oversized body with 413 without resolving the action", async () => {
       const ssrLoadModule = vi.fn();
@@ -122,6 +197,34 @@ describe("server-action endpoint hardening", () => {
   });
 
   describe("error responses", () => {
+    it("caps at 1 MiB by default (413), and Infinity lifts the cap", async () => {
+      const big = "x".repeat((1 << 20) + 1);
+      const res = mockRes();
+      await handleServerAction(
+        mockReq("src/server/actions.server.ts#addTodo", big),
+        res,
+        {
+          projectRoot: "/proj",
+          serverManifest: MANIFEST,
+          serverRoot: "/proj/dist/server",
+        }
+      );
+      expect(res.statusCode).toBe(413);
+
+      const resOpen = mockRes();
+      await handleServerAction(
+        mockReq("forged.server.ts#pwn", big),
+        resOpen,
+        {
+          projectRoot: "/proj",
+          serverManifest: MANIFEST,
+          serverRoot: "/proj/dist/server",
+          maxBodyBytes: Infinity,
+        }
+      );
+      expect(resOpen.statusCode).not.toBe(413);
+    });
+
     it("never includes a stack trace in the client response", async () => {
       const res = mockRes();
       await handleServerAction(mockReq("forged.server.ts#pwn"), res, {

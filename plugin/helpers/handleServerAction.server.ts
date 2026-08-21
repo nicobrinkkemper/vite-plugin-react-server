@@ -334,7 +334,11 @@ export async function handleServerAction(
       logger?.info("[handleServerAction:server] Processing server action request");
     }
 
-    assertOriginAllowed(req.headers.origin as string | undefined, options.allowedOrigins);
+    assertOriginAllowed(
+      req.headers.origin as string | undefined,
+      options.allowedOrigins,
+      req.headers.host ?? null
+    );
 
     const parsed = await parseServerActionRequestHelper(
       req,
@@ -411,7 +415,11 @@ export async function handleServerActionRequest(
       logger?.info("[handleServerAction:web] Processing server action request");
     }
 
-    assertOriginAllowed(request.headers.get("origin"), options.allowedOrigins);
+    assertOriginAllowed(
+      request.headers.get("origin"),
+      options.allowedOrigins,
+      new URL(request.url).host
+    );
 
     const parsed = await parseServerActionWebRequest(
       request,
