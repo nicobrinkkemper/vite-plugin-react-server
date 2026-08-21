@@ -76,7 +76,8 @@ async function setupFixture() {
   await writeFile(join(testDir, "src/page/props.ts"), `export const props = () => ({});\n`);
   await writeFile(
     join(testDir, "src/client.tsx"),
-    `import { startClient } from "vite-plugin-react-server/router/client";\n` +
+    `"use client";\n` +
+      `import { startClient } from "vite-plugin-react-server/router/client";\n` +
       `startClient({ moduleBaseURL: "/" });\n`
   );
   await writeFile(
