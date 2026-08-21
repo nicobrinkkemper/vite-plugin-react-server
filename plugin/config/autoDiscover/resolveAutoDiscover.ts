@@ -7,6 +7,7 @@ import { resolvePages } from "../resolvePages.js";
 import type { Logger, ResolvedConfig } from "vite";
 import { createGlobAutoDiscover } from "./createGlobAutoDiscover.js";
 import { createDirectiveClientAutoDiscover } from "./createDirectiveClientAutoDiscover.js";
+import { createDirectiveServerAutoDiscover } from "./createDirectiveServerAutoDiscover.js";
 import { patternProbeUrl } from "../../router/matchRoute.js";
 import { customWorkerFiles } from "./customWorkerFiles.js";
 import { pageAndPropFiles } from "./pageAndPropFiles.js";
@@ -115,6 +116,11 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
     // First-party modules detected by a top-of-file `"use client"` directive
     // (no `.client.` suffix) must also be emitted to dist/client.
     const directiveClientFiles = createDirectiveClientAutoDiscover();
+    // First-party action modules detected by a top-of-file `"use server"`
+    // directive (no `.server.` suffix) must also be BUILT server-side, or a
+    // client-only-imported action ships a working browser proxy pointing at a
+    // module the sealed gate has never heard of.
+    const directiveServerFiles = createDirectiveServerAutoDiscover();
     const serverFiles = createGlobAutoDiscover(userOptions.autoDiscover.serverEntry);
     const cssFiles = createGlobAutoDiscover(userOptions.autoDiscover.cssEntry);
     const jsonFiles = createGlobAutoDiscover(userOptions.autoDiscover.jsonEntry);
@@ -141,10 +147,18 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
         inputs: {},
         userOptions,
       });
-    const serverActions = await serverFiles({
+    const globServerActions = await serverFiles({
       inputs: {},
       userOptions,
     });
+    const { inputs: directiveServerActions } = await directiveServerFiles({
+      inputs: {},
+      userOptions,
+    });
+    // One action set, discovered two ways: the `.server.` filename glob and
+    // the file-level directive scan. Downstream consumers (server inputs, the
+    // baked gate's walk) see them uniformly.
+    const serverActions = { ...globServerActions, ...directiveServerActions };
 
     const pageAndPropInputs = pageAndPropFiles({
       files,
