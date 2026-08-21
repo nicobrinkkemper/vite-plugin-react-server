@@ -56,15 +56,13 @@ export class MessagePortReadable extends Readable {
       // Push data to the stream
       const canContinue = this.push(bufferChunk);
       
-      // If the stream is backpressured, send a drain signal to the worker
-      if (!canContinue && !this.closed) {
+      // Buffer full: pause the worker's writable (wire naming is historical —
+      // DRAIN means "pause"). Control traffic rides the CONTROL port only;
+      // posting objects onto the data port would interleave them with the
+      // flight bytes.
+      if (!canContinue && !this.closed && this.toWorker) {
         try {
-          if (this.toWorker) {
-            this.toWorker.postMessage({ type: 'DRAIN' });
-          } else {
-            // Fallback to data port if no control port
-            this.fromWorker.postMessage({ type: 'DRAIN' });
-          }
+          this.toWorker.postMessage({ type: 'DRAIN' });
         } catch (error) {
           // Port may be closed - ignore drain signal
         }
@@ -93,13 +91,16 @@ export class MessagePortReadable extends Readable {
   }
 
   _read() {
-    // The stream is ready to receive more data
-    // Send a drain signal to the worker to resume writing
-    if (!this.closed && !this.ended) {
+    // The stream is ready for more data: un-pause the worker's writable.
+    // This must be RESUME on the CONTROL port — the writable only listens
+    // there, and DRAIN is the pause signal. The old code sent DRAIN on the
+    // DATA port: never received, so a paused producer stayed paused forever
+    // (the isolated-runner suspended-flight stall under dev-variant builds).
+    if (!this.closed && !this.ended && this.toWorker) {
       try {
-        this.fromWorker.postMessage({ type: 'DRAIN' });
+        this.toWorker.postMessage({ type: 'RESUME' });
       } catch (error) {
-        // Port may be closed - ignore drain signal
+        // Port may be closed - ignore resume signal
       }
     }
   }

@@ -42,7 +42,10 @@ const MIME: Record<string, string> = {
   ".mjs": "text/javascript",
   ".css": "text/css",
   ".map": "application/json",
-  ".rsc": "text/x-component; charset=utf-8",
+  // A host that has never heard of .rsc serves it like this — the fixtures
+  // must NOT flatter the deploy target with the correct flight MIME, or the
+  // fetcher's dumb-host compatibility path goes unexercised.
+  ".rsc": "application/octet-stream",
 };
 
 async function setupFixture() {
@@ -79,6 +82,7 @@ async function setupFixture() {
       `    <h1 id="heading">{"home"}</h1>\n` +
       `    <Counter id="home-counter" />\n` +
       `    <Link id="to-about" to="/about/">{"go to about"}</Link>\n` +
+      `    <Link id="to-void" to="/void/">{"go nowhere"}</Link>\n` +
       `  </main>\n` +
       `);\n`
   );
@@ -253,6 +257,51 @@ describe.skipIf(!browserAvailable)(
         expect(
           consoleErrors.filter((e) => /#4(18|19|23|25)|hydrat/i.test(e))
         ).toEqual([]);
+      } finally {
+        await browser.close();
+      }
+    });
+
+    it("falls back to a FULL navigation when the host answers a miss with text", async () => {
+      // The negative half of the decode gate: this dumb host has no 404
+      // flight — a missing route's .rsc fetch gets a text/plain 404. That
+      // must never reach the decoder; the router performs a full document
+      // navigation instead, so the host's real response is what shows.
+      const browser = await chromium.launch();
+      try {
+        const page = await browser.newPage();
+        const documentRequests: string[] = [];
+        page.on("request", (r) => {
+          if (r.resourceType() === "document")
+            documentRequests.push(new URL(r.url()).pathname);
+        });
+
+        await page.goto(`http://localhost:${PORT}/`, {
+          waitUntil: "networkidle",
+        });
+        await page.waitForFunction(
+          () => {
+            const b = document.querySelector(
+              "#home-counter"
+            ) as HTMLButtonElement;
+            if (!b) return false;
+            b.click();
+            return b.textContent !== "count:0";
+          },
+          undefined,
+          { timeout: 20000, polling: 400 }
+        );
+
+        await page.click("#to-void");
+        // Full document load of the target: the address moves AND the host's
+        // plain 404 body is what renders — no decoder involvement.
+        await page.waitForURL(/\/void\/?$/, { timeout: 15000 });
+        await page.waitForFunction(
+          () => document.body.textContent?.includes("not found"),
+          undefined,
+          { timeout: 10000 }
+        );
+        expect(documentRequests).toContain("/void/");
       } finally {
         await browser.close();
       }

@@ -86,6 +86,8 @@ export type HtmlRenderMessage = {
     htmlTimeout?: number;
     panicThreshold?: PanicThreshold;
     publicOrigin?: string;
+    /** Static-prerender flag (SSG renders); live renders keep streaming. */
+    prerender?: boolean;
   };
 };
 
@@ -141,6 +143,7 @@ export type HandleHtmlRenderFn = (
   options: Pick<
     CreateHandlerOptions,
     | "id"
+    | "prerender"
     | "clientPipeableStreamOptions"
     | "route"
     | "htmlStream"

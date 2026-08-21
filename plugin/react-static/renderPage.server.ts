@@ -423,6 +423,8 @@ export const renderPage: RenderPageFn = async function* renderPage(
 
     // Create HTML transform stream - need createRscToHtmlStream for async server actions
     htmlTransformStream = createRscToHtmlStream({
+      // SSG render: the emitted HTML must BE the page (react-dom/static).
+      prerender: true,
       id: handlerOptions.id,
       worker: handlerOptions.worker,
       route: handlerOptions.route,
