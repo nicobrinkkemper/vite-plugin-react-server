@@ -8,6 +8,7 @@ import type { PassThrough, Readable } from "node:stream";
  */
 export type CreateHtmlStreamOptions = Pick<
   CreateHandlerOptions<ResolvedUserOptions>,
+  | "prerender"
   | "moduleRootPath"
   | "moduleBasePath"
   | "moduleBaseURL"

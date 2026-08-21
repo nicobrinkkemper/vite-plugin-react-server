@@ -178,6 +178,7 @@ export type RenderStreamsFn = <
 export type RscToHtmlOptions = Pick<
   CreateHandlerOptions,
   | "id"
+  | "prerender"
   | "worker"
   | "htmlWorker"
   | "route"

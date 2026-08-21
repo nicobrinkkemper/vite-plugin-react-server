@@ -23,6 +23,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // This replaces the original createFromNodeStream logic
   
   return createRenderToPipeableStreamHandler({
+    prerender: options.prerender,
     route: options.route,
     logger: options.logger,
     verbose: options.verbose || DEFAULT_CONFIG.VERBOSE,
