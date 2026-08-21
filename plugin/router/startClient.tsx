@@ -58,9 +58,7 @@ class DevErrorRecoveryBoundary extends React.Component<
           <pre style={{ whiteSpace: "pre-wrap", overflowX: "auto" }}>
             {this.state.error.message}
           </pre>
-          <p style={{ opacity: 0.8 }}>
-            {"Fix the file — the page recovers on the next update."}
-          </p>
+          <p style={{ opacity: 0.8 }}>{"Fix the file to recover."}</p>
         </div>
       );
     }
