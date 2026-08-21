@@ -197,8 +197,34 @@ export function createReactFetcher({
         () => {}
       );
     }
+    // Only flight reaches the decoder — but "deploy dist/static to any static
+    // host" is a documented contract, and a host that has never heard of
+    // .rsc serves the file as application/octet-stream (or text/plain) with
+    // a 200. The gate therefore accepts BOTH shapes of legitimacy:
+    //   - a response DECLARED as flight (text/x-component), at any status —
+    //     that is how the not-found outcome rides a 404; and
+    //   - an OK response that is not a DOCUMENT — the dumb-host case above.
+    // Everything else rejects fast and descriptive: an HTML body (an
+    // SPA-fallback host answering index.html for any path, an error page)
+    // or a non-OK non-flight miss. The router's rejection fallback then
+    // performs a full navigation, so the server's real response is what the
+    // user sees — never decoder garbage.
+    const flightResponse = responsePromise.then((response) => {
+      const contentType = response.headers.get("content-type") ?? "";
+      const declaredFlight = contentType.includes("text/x-component");
+      const documentish = contentType.includes("text/html");
+      if (!declaredFlight && (documentish || !response.ok)) {
+        throw new Error(
+          `[vprs] flight fetch for ${parsedURL.indexRSC} answered ` +
+            `${response.status} with content-type ${JSON.stringify(
+              contentType
+            )} — not a flight payload; falling back to a full navigation`
+        );
+      }
+      return response;
+    });
     return flightClient().then(({ createFromFetch }) =>
-      createFromFetch(responsePromise, decodeOptions)
+      createFromFetch(flightResponse, decodeOptions)
     );
   };
 

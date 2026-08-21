@@ -45,6 +45,13 @@ export interface CreateRequestHandlerOptions {
   ) => Promise<Response | null> | Response | null;
   /** Header that marks a POST as a server action. Default `x-rsc-action`. */
   actionHeader?: string;
+  /**
+   * The per-route flight artifact's filename, matching the build's
+   * `build.rscOutputPath` (default `index.rsc`). The not-found outcome reads
+   * the 404 route's flight from `/404/<rscOutputPath>`, and a miss on a path
+   * ending in it counts as a flight request.
+   */
+  rscOutputPath?: string;
 }
 
 async function resolveStaticFile(
@@ -82,7 +89,13 @@ async function resolveStaticFile(
 export function createRequestHandler(
   options: CreateRequestHandlerOptions
 ): (request: Request) => Promise<Response> {
-  const { staticDir, action, render, actionHeader = "x-rsc-action" } = options;
+  const {
+    staticDir,
+    action,
+    render,
+    actionHeader = "x-rsc-action",
+    rscOutputPath = "index.rsc",
+  } = options;
 
   return async function handler(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -113,6 +126,36 @@ export function createRequestHandler(
         return new Response(request.method === "HEAD" ? null : (file.body as BodyInit), {
           headers: { "Content-Type": file.contentType },
         });
+      }
+
+      // A FLIGHT request that missed answers with the 404 route's flight when
+      // the app prerendered one: status 404 (a shared cache must not treat a
+      // miss as content), but a body the flight DECODER can read — the client
+      // router then shows the 404 route without leaving the SPA. Text or HTML
+      // here would poison the decoder; that class is what this exists to
+      // retire. Without a prerendered /404, the plain 404 below stands and
+      // the client falls back to a full navigation.
+      if (
+        url.pathname.endsWith(".rsc") ||
+        url.pathname.endsWith(`/${rscOutputPath}`) ||
+        (request.headers.get("accept") ?? "").includes("text/x-component")
+      ) {
+        const notFoundFlight = await resolveStaticFile(
+          staticDir,
+          `/404/${rscOutputPath}`
+        );
+        if (notFoundFlight) {
+          return new Response(
+            request.method === "HEAD" ? null : (notFoundFlight.body as BodyInit),
+            {
+              status: 404,
+              headers: {
+                "Content-Type": "text/x-component; charset=utf-8",
+                "x-vprs-outcome": "not-found",
+              },
+            }
+          );
+        }
       }
     }
 
