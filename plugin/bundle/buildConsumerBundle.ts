@@ -145,6 +145,7 @@ export async function buildConsumerBundle(opts: {
   const entryPath = join(clientDir, `.vprs-${consumerFileName}`);
   const entrySource = `import * as React from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
+import { prerender } from "react-dom/static.edge";
 import { createFromReadableStream } from ${JSON.stringify(webpackClientEdge)};
 import { installWebpackGlobals } from ${JSON.stringify(webpackRuntime)};
 import { createPassthroughConsumerManifest } from ${JSON.stringify(consumerManifestHelper)};
@@ -212,6 +213,53 @@ export async function ${consumerExport}(options) {
     React.createElement(React.Suspense, null, React.createElement(Root)),
     { bootstrapModules, bootstrapScriptContent, nonce, onError, signal }
   );
+}
+
+/**
+ * The SSG counterpart: decode the same flight, but PRERENDER it —
+ * react-dom/static waits out every Suspense boundary and emits the FINAL
+ * markup at its position, no fallback templates, no $RC swap scripts. The
+ * static artifact contract: the file is the page under no-JS and
+ * script-blocking CSP. Only the freeze pass calls this; per-request serving
+ * stays on the streaming render above. A shell error REJECTS here (prerender
+ * has no partial document to hand back), which is exactly what a build step
+ * wants. progressiveChunkSize mirrors the static default: without it React
+ * outlines large boundaries into the streamed shape even when prerendering.
+ */
+export async function prerenderFlightToHtml(options) {
+  const {
+    rscStream,
+    bootstrapModules,
+    bootstrapScriptContent,
+    nonce,
+    onError,
+    signal,
+  } = options;
+
+  if (!rscStream) {
+    throw new Error("[edge:consumer] rscStream is required");
+  }
+
+  const elementPromise = createFromReadableStream(rscStream, {
+    serverConsumerManifest,
+  });
+
+  function Root() {
+    return React.use(elementPromise);
+  }
+
+  const { prelude } = await prerender(
+    React.createElement(React.Suspense, null, React.createElement(Root)),
+    {
+      bootstrapModules,
+      bootstrapScriptContent,
+      nonce,
+      onError,
+      signal,
+      progressiveChunkSize: 1 << 30,
+    }
+  );
+  return prelude;
 }
 `;
   writeFileSync(entryPath, entrySource, "utf8");
