@@ -123,6 +123,7 @@ export type HtmlRenderMessage = {
 } & WorkerMessage &
   Pick<
     CreateHandlerOptions,
+    | "prerender"
     | "projectRoot"
     | "moduleRootPath"
     | "moduleBasePath"

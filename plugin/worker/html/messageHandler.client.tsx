@@ -115,6 +115,9 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
           {
             id,
             route: options.route,
+            // Static-prerender flag from the SSG render path; live renders
+            // through this worker never set it and keep streaming.
+            prerender: options?.prerender === true,
             rscStream,
             projectRoot:
               options?.projectRoot ??

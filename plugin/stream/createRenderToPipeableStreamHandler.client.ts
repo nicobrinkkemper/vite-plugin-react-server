@@ -78,6 +78,82 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       );
     }
 
+    // The stream the fileWriter consumes, shared by both render modes.
+    const htmlStream = new PassThrough();
+
+    // Add error handler to prevent unhandled errors
+    htmlStream.on('error', (error) => {
+      // Ignore errors during abort - they're expected
+      if (verbose) {
+        logger?.info(`[createRenderToPipeableStreamHandler.client:${route}] HTML stream error (ignored): ${error.message}`);
+      }
+    });
+
+    // Shared panic-policy mapping for a render error in either mode.
+    const reportRenderError = (error: unknown) => {
+      const panicError = handleError({
+        error: error,
+        logger: logger,
+        panicThreshold: options.panicThreshold,
+        context: `RSC stream onError for route ${route}`,
+      });
+      options.onEvent?.({
+        type: "route.error",
+        data: { route: route, error: panicError ?? error },
+      });
+    };
+
+    let abortRender: () => void;
+    if (options.prerender) {
+      // STATIC prerender (SSG): react-dom/static waits for every Suspense
+      // boundary and emits the FINAL markup inline — no fallback templates,
+      // no hidden segments, no inline $RC swap scripts. The prerendered HTML
+      // is the page, with or without JavaScript. This handler's chain is
+      // SSG-only today, but the mode is FLAG-driven so a future live consumer
+      // keeps streaming semantics by default.
+      const controller = new AbortController();
+      abortRender = () => controller.abort();
+      void import("react-dom/static").then(
+        async ({ prerenderToNodeStream }) => {
+          try {
+            const { prelude } = await prerenderToNodeStream(reactElements, {
+              bootstrapModules:
+                clientPipeableStreamOptions?.bootstrapModules || [],
+              // A static file has no progressive delivery: without this,
+              // React OUTLINES boundary content larger than the default
+              // progressive chunk size (~12KB) behind a $RC swap script even
+              // in a completed prerender — the exact shape this mode exists
+              // to retire. Effectively infinite unless the consumer set one.
+              progressiveChunkSize:
+                (clientPipeableStreamOptions as { progressiveChunkSize?: number } | undefined)
+                  ?.progressiveChunkSize ?? 1 << 30,
+              signal: controller.signal,
+              // Boundary errors: the render continues (the boundary falls
+              // back) — same policy surface as the streaming onError.
+              onError(error: unknown) {
+                if (verbose) {
+                  logger?.error(
+                    `[createRenderToPipeableStreamHandler.client:${route}] React prerender error: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                }
+                reportRenderError(error);
+              },
+            } as never);
+            prelude.pipe(htmlStream);
+          } catch (error) {
+            // A SHELL error REJECTS here (react-dom/static has no
+            // onShellError seam). Destroy the output so downstream settles
+            // (the guarded pipe below propagates), and route the panic logic.
+            reportRenderError(error);
+            htmlStream.destroy(
+              error instanceof Error ? error : new Error(String(error))
+            );
+          }
+        }
+      );
+      return buildResult();
+    }
+
     // Create the React HTML stream using ReactDOMServer.renderToPipeableStream
     let rendererAborted = false;
     const { pipe, abort } = ReactDOMServer.renderToPipeableStream(reactElements, {
@@ -129,33 +205,8 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
           });
         }
         
-        // Handle error according to panic threshold
-        const panicError = handleError({
-          error: error,
-          logger: logger,
-          panicThreshold: options.panicThreshold,
-          context: `RSC stream onError for route ${route}`,
-        });
-
-        if (panicError != null) {
-          // This is a panic threshold error, emit event to notify parent
-          options.onEvent?.({
-            type: "route.error",
-            data: {
-              route: route,
-              error: panicError,
-            },
-          });
-        } else {
-          // For non-panic errors, just log and send event
-          options.onEvent?.({
-            type: "route.error",
-            data: {
-              route: route,
-              error: error,
-            },
-          });
-        }
+        // Handle error according to panic threshold (shared mapping).
+        reportRenderError(error);
       },
       // A SHELL error (thrown outside every Suspense boundary) also reaches
       // onError above, which destroys htmlStream and routes the panic logic.
@@ -172,17 +223,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       },
     });
 
-    // Create a PassThrough stream that the fileWriter can consume
-    // This follows the HTML worker pattern but provides a proper stream interface
-    const htmlStream = new PassThrough();
-    
-    // Add error handler to prevent unhandled errors
-    htmlStream.on('error', (error) => {
-      // Ignore errors during abort - they're expected
-      if (verbose) {
-        logger?.info(`[createRenderToPipeableStreamHandler.client:${route}] HTML stream error (ignored): ${error.message}`);
-      }
-    });
+    abortRender = abort;
 
     // Pipe React into the REAL PassThrough — never a faked writable. React's
     // pipe() honors the write() return value and waits for 'drain' on
@@ -200,8 +241,13 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       );
     }
 
-    // Return a result that provides a proper stream for fileWriter
-    return {
+    return buildResult();
+
+    // Both render modes hand the fileWriter the SAME contract over htmlStream:
+    // the guarded pipe (propagates a pre-subscription render failure), abort,
+    // and the raw stream/elements/metrics.
+    function buildResult() {
+      return {
       type: "client" as const,
       pipe: <Writable extends NodeJS.WritableStream>(destination: Writable) => {
         // A React render error destroys htmlStream (see onError above) — and it
@@ -238,7 +284,7 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       },
       abort: (reason?: unknown) => {
         try {
-          abort();
+          abortRender();
         } catch (error) {
           // React abort may already be called, ignore
         }
@@ -256,5 +302,6 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
       htmlStream: htmlStream,
       elements: reactElements,
       metrics: streamMetrics,
-    };
+      };
+    }
   };
