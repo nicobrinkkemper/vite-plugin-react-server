@@ -24,18 +24,38 @@ import { env } from "#env";
  * contract, not this boundary).
  */
 class DevErrorRecoveryBoundary extends React.Component<
-  { children?: ReactNode },
-  { error: Error | null }
+  { generation: number; children?: ReactNode },
+  { error: Error | null; lastGeneration: number }
 > {
-  override state: { error: Error | null } = { error: null };
+  override state: { error: Error | null; lastGeneration: number } = {
+    error: null,
+    lastGeneration: -1,
+  };
   static getDerivedStateFromError(error: unknown): { error: Error } {
     return {
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }
+  // Reset by PROP, never by key: a fresh flight (generation bump) clears any
+  // caught error so the new payload renders; re-renders within the SAME
+  // generation (the error being caught, unrelated state) leave the error
+  // alone. Healthy updates flow through as ordinary reconciliation, so
+  // client-component state survives them (the state-preserving HMR
+  // contract) — an unconditional key remount here destroyed that state on
+  // every delivered flight. Tracking the last SEEN generation avoids the
+  // race a caught-at marker has with componentDidCatch's setState.
+  static getDerivedStateFromProps(
+    props: { generation: number },
+    state: { error: Error | null; lastGeneration: number }
+  ): Partial<{ error: null; lastGeneration: number }> | null {
+    if (props.generation !== state.lastGeneration) {
+      return { lastGeneration: props.generation, error: null };
+    }
+    return null;
+  }
   override componentDidCatch(error: unknown) {
     console.error(
-      "[vprs] route render error — dev recovery active: fix the file and the page re-renders on the next update.",
+      "[vprs] route render error (dev recovery active: fix the file and the page re-renders on the next update)",
       error
     );
   }
@@ -182,7 +202,7 @@ function RouteView({
   // production renders exactly as before.
   if (env.DEV) {
     return (
-      <DevErrorRecoveryBoundary key={view.generation}>
+      <DevErrorRecoveryBoundary generation={view.generation}>
         {view.node}
       </DevErrorRecoveryBoundary>
     );

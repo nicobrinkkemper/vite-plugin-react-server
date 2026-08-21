@@ -184,6 +184,25 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
       await rm(testDir, { recursive: true, force: true });
   });
 
+  it("a HEALTHY server edit preserves client-component state", async () => {
+    // The state-preserving HMR contract: the recovery boundary must never
+    // remount the subtree on a healthy update (an unconditional key remount
+    // did, wiping client state on every delivered flight).
+    expect(await heading()).toBe("version-1");
+    // Click up to a known count on top of whatever the hydration gate left.
+    await page.click("#counter");
+    await page.click("#counter");
+    const before = await page.locator("#counter").textContent();
+
+    await writeFile(PAGE, goodPage(1.5));
+    await waitFor(async () => (await heading()) === "version-1.5");
+    expect(await page.locator("#counter").textContent()).toBe(before);
+
+    await writeFile(PAGE, goodPage(1));
+    await waitFor(async () => (await heading()) === "version-1");
+    expect(await page.locator("#counter").textContent()).toBe(before);
+  }, 60000);
+
   it("a runtime break shows the error in place, and the fix recovers without a refresh", async () => {
     expect(await heading()).toBe("version-1");
     const timeOrigin = await page.evaluate(() => performance.timeOrigin);
