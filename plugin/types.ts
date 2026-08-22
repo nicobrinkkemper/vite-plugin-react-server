@@ -1357,9 +1357,12 @@ export type BuildConfig = {
    *   shell flush and the server never buffers the whole document (though
    *   consumer backpressure is not propagated to the render — see the
    *   transform's contract limits). Per-request delivery only — a
-   *   PRERENDERED page has no streamed form, so the post-SSG inliner skips
-   *   and prerendered routes fall back to fetching `index.rsc` (use `"blob"`
-   *   for static targets).
+   *   PRERENDERED page has no streamed form. Under transport `"webpack"` the
+   *   SSG freeze emits its snapshots with the `"blob"` form instead (the
+   *   interleaver's injection safety needs a producer that flushes at element
+   *   boundaries, which prerender's replayed prelude is not); under the esm
+   *   SSG pass the post-SSG inliner skips and prerendered routes fall back
+   *   to fetching `index.rsc` (use `"blob"` for static targets).
    * - `true`: boolean alias for `"blob"`.
    *
    * For `"blob"`, the plugin runs the inlining itself at the post-SSG point in
