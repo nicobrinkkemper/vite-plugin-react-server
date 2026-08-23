@@ -54,11 +54,12 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
     // arrives on the control port, and cross-port delivery order is NOT
     // guaranteed — under load it can be processed while data chunks (notably
     // the in-band `$E` error frame after a render failure) are still queued
-    // on the data port. Ending the stream from RSC_END truncated the response
-    // to the leading `:N<timeOrigin>` chunk — a silent 200, the exact
-    // swallowed-error case rsc-stream-error-surface guards against. RSC_END
-    // therefore only ends the stream as a delayed fallback for a worker that
-    // died before posting `null`.
+    // on the data port. Ending the stream from RSC_END truncates the response
+    // to the leading chunks — a silent 200, the exact swallowed-error case
+    // rsc-stream-error-surface guards against. RSC_END therefore never ends
+    // the data stream; the only other terminal condition is worker death,
+    // which errors a stream whose `null` never arrived (see the exit handler
+    // below).
     let dataEndedReceived = false;
     const endDataStream = () => {
       dataEndedReceived = true;
@@ -97,15 +98,8 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           }
           controlEndedReceived = true;
           // Do not end the data stream here — see the dataEndedReceived note
-          // above. Fall back to ending only if the data port's `null` never
-          // arrives (worker died between chunks and its onEnd).
-          if (!dataEndedReceived) {
-            setTimeout(() => {
-              if (!dataEndedReceived) {
-                endDataStream();
-              }
-            }, 100).unref?.();
-          }
+          // above. A worker that dies before posting `null` is handled by the
+          // exit handler, not by RSC_END.
           break;
         case "ERROR": {
           const err = toError(message.error, message.errorInfo);
@@ -177,9 +171,10 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
           );
         }
         // Write the Uint8Array directly without conversion - keep it as raw bytes.
-        // A chunk can still arrive after the RSC_END fallback ended the stream;
-        // dropping it beats ERR_STREAM_WRITE_AFTER_END tearing down the response.
-        if (!rscStream.writableEnded) {
+        // A chunk can still arrive after the stream ended or was destroyed
+        // (worker exit); dropping it beats ERR_STREAM_WRITE_AFTER_END tearing
+        // down the response.
+        if (!rscStream.writableEnded && !rscStream.destroyed) {
           rscStream.write(data);
         }
       } else {
@@ -193,6 +188,38 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
     };
 
     dataPort1.on("message", dataMessageHandler);
+
+    // A data port closing before the null is the same truncation as worker
+    // death, but the worker can be perfectly alive (far port torn down, GC'd
+    // channel) — without this the stream just hangs. Never a clean end.
+    (dataPort1 as any).on?.("close", () => {
+      if (!dataEndedReceived) {
+        rscStream.destroy(
+          new Error(
+            `[client] RSC data port closed before end-of-stream (null) for ${requestId} — stream truncated`
+          )
+        );
+      }
+    });
+
+    // Worker death is the only terminal condition besides the data port's
+    // `null`: a dead worker can never complete the stream, and ending it
+    // cleanly would serve a truncated payload as a success. Error it so the
+    // failure is visible to the consumer. The listener is removed when the
+    // stream closes — the worker outlives individual requests.
+    const workerExitHandler = (code: number) => {
+      if (!dataEndedReceived) {
+        rscStream.destroy(
+          new Error(
+            `[client] RSC worker exited (code ${code}) before ending the stream for ${requestId}`
+          )
+        );
+      }
+    };
+    (worker as any).once?.("exit", workerExitHandler);
+    rscStream.on("close", () => {
+      (worker as any).removeListener?.("exit", workerExitHandler);
+    });
 
     // Send the render message to the worker with ports
     worker.postMessage({

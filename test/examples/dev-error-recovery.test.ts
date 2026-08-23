@@ -213,16 +213,24 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
     await waitFor(errorPanelVisible);
 
     await writeFile(PAGE, goodPage(2));
-    await waitFor(async () => (await heading()) === "version-2");
+    // Watcher -> worker re-render -> update event -> refetch: under CI load
+    // this transition alone exceeded the 15s default (by 211ms) while the
+    // test budget sat at 60s. Give the wait the budget it actually has.
+    await waitFor(async () => (await heading()) === "version-2", 45000);
     expect(await errorPanelVisible()).toBe(false);
 
     // Same session, no document reload DURING the cycle: the recovery
     // happened in place.
     expect(await page.evaluate(() => performance.timeOrigin)).toBe(timeOrigin);
     expect(documentRequests.length).toBe(documentBaseline);
-  }, 60000);
+  }, 120000);
 
   it("a syntax break keeps the current view, and the fix updates it", async () => {
+    // Self-established baseline: without this the case starts from wherever
+    // the previous test left the fixture, and a flake there cascades here as
+    // a second, misleading failure.
+    await writeFile(PAGE, goodPage(2));
+    await waitFor(async () => (await heading()) === "version-2", 45000);
     await writeFile(PAGE, brokenSyntaxPage);
     // The refetch rejects (transform error → non-flight answer); the view is
     // RETAINED — never blanked, never navigated.
@@ -244,5 +252,5 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
       undefined,
       { timeout: 10000, polling: 300 }
     );
-  }, 60000);
+  }, 120000);
 });

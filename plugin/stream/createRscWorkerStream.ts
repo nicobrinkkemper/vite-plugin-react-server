@@ -84,8 +84,9 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
   // (it queues behind every chunk on the same port). RSC_END arrives on the
   // control port, and cross-port delivery order is NOT guaranteed — ending
   // from RSC_END can truncate chunks still queued on the data port (notably
-  // the in-band `$E` frame after a render failure). RSC_END only ends the
-  // stream as a delayed fallback for a worker that died before posting `null`.
+  // the in-band `$E` frame after a render failure). RSC_END never ends the
+  // stream; the only other terminal condition is worker death, which errors a
+  // stream whose `null` never arrived (see the exit handler below).
   let dataEndedReceived = false;
 
   // Data port - ONLY for raw RSC stream data
@@ -102,6 +103,25 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
 
       // Note: We don't close ports here - let the stream consumer manage port lifecycle
       // This ensures ReactDOMClient.createFromNodeStream() can fully consume the stream
+    } else if (data && data.type === 'ERROR') {
+      // Failures ride the DATA port so they are ordered ahead of the null
+      // end-signal (handlers.onDataError). The envelope must be decoded
+      // BEFORE the byte branch: writing the object into the binary stream
+      // throws ERR_INVALID_ARG_TYPE from the message callback and buries the
+      // real error. Post-null it cannot un-complete the stream, but the
+      // failure still reaches onError.
+      const dataError = toError(data.error);
+      if (verbose) {
+        logger?.error(
+          `[createRscWorkerStream] RSC stream error via dataPort: ${dataError.message}`
+        );
+      }
+      if (!dataEndedReceived) {
+        rscStream.destroy(dataError);
+      }
+      if (onError) {
+        onError(dataError);
+      }
     } else {
       // Raw RSC data - direct piping
       if (verbose) {
@@ -112,6 +132,19 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
       }
     }
   };
+
+  // A data port closing before the null is a truncation even while the
+  // worker lives (far port torn down, GC'd channel) — without this the
+  // stream hangs. Never a clean end.
+  (dataPort1 as any).on?.('close', () => {
+    if (!dataEndedReceived) {
+      rscStream.destroy(
+        new Error(
+          '[createRscWorkerStream] data port closed before end-of-stream (null) — stream truncated'
+        )
+      );
+    }
+  });
   
   // Control port - ONLY for control messages
   (controlPort1 as any).onmessage = (event: any) => {
@@ -126,14 +159,7 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
         if (verbose) {
           logger?.info(`[createRscWorkerStream] RSC stream ended by control message`);
         }
-        // See the dataEndedReceived note above: only a fallback end.
-        if (!dataEndedReceived) {
-          setTimeout(() => {
-            if (!dataEndedReceived) {
-              rscStream.end();
-            }
-          }, 100).unref?.();
-        }
+        // See the dataEndedReceived note above: RSC_END never ends the stream.
         break;
       case 'ERROR':
         if (verbose) {
@@ -162,6 +188,25 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
         }
     }
   };
+
+  // Worker death is the only terminal condition besides the data port's
+  // `null`: a dead worker can never complete the stream, and ending it
+  // cleanly would serve a truncated payload as a success. Error it so the
+  // failure is visible to the consumer. The listener is removed when the
+  // stream closes — the worker outlives individual requests.
+  const workerExitHandler = (code: number) => {
+    if (!dataEndedReceived) {
+      rscStream.destroy(
+        new Error(
+          `[createRscWorkerStream] RSC worker exited (code ${code}) before ending the stream for ${route}`
+        )
+      );
+    }
+  };
+  (worker as any).once?.("exit", workerExitHandler);
+  rscStream.on("close", () => {
+    (worker as any).removeListener?.("exit", workerExitHandler);
+  });
 
   // Send the INIT message to the worker with both MessagePorts
   worker.postMessage({

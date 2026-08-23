@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { describe, it, expect, vi } from "vitest";
 import type { Worker } from "node:worker_threads";
 import { handleRscStream } from "../../dist/plugin/stream/handleRscStream.client.js";
@@ -12,7 +13,9 @@ import { createRscWorkerStream } from "../../dist/plugin/stream/createRscWorkerS
  * `:N<timeOrigin>` chunk, i.e. a silently swallowed error. This suite pins
  * the legal-but-unlucky interleaving deterministically: RSC_END is processed
  * BEFORE the remaining data chunks and the data port's `null` end-signal.
- * Only the `null` may end the stream eagerly; RSC_END is a fallback.
+ * Only the `null` may end the stream; RSC_END never does. The one other
+ * terminal condition is worker death — the `exit` event errors a stream
+ * whose `null` never arrived, so a truncated payload cannot pass as success.
  *
  * Imports target the concrete dist modules (not the conditional package
  * entry) so both implementations are pinned regardless of the condition the
@@ -27,14 +30,12 @@ const chunkErrorFrame = () =>
 
 function createCapturingWorker() {
   const posted: any[] = [];
-  const worker = {
+  // A real EventEmitter so the stream's worker `exit` listener is live.
+  const worker = Object.assign(new EventEmitter(), {
     postMessage: vi.fn((msg: any) => {
       posted.push(msg);
     }),
-    on: vi.fn(),
-    off: vi.fn(),
-    removeListener: vi.fn(),
-  } as unknown as Worker;
+  }) as unknown as Worker;
   return { worker, posted };
 }
 
@@ -86,7 +87,7 @@ describe("RSC_END vs data-port ordering (handleRscStream.client)", () => {
     expect(rest).toContain("intentional-render-failure");
   });
 
-  it("still ends the stream via RSC_END when the null end-signal never arrives", async () => {
+  it("errors the stream when the worker exits before the null end-signal", async () => {
     const { worker, posted } = createCapturingWorker();
 
     const stream = handleRscStream({
@@ -110,12 +111,10 @@ describe("RSC_END vs data-port ordering (handleRscStream.client)", () => {
 
     // Worker dies after RSC_END without ever posting the data-port null.
     controlPort.postMessage({ type: "RSC_END", id: "req-2" });
+    await tick();
+    (worker as unknown as EventEmitter).emit("exit", 1);
 
-    const done = await Promise.race([
-      reader.read().then((r) => r.done),
-      new Promise<string>((r) => setTimeout(() => r("timeout"), 1000)),
-    ]);
-    expect(done).toBe(true);
+    await expect(reader.read()).rejects.toThrow(/exited/);
   });
 });
 
