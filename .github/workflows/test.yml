@@ -212,3 +212,12 @@ jobs:
         run: |
           npm run build
           ./scripts/test-both.sh static-suspense-hydration static-navigation static-notfound-navigation dev-error-recovery action-outcomes edge-streaming-suspense-reveal transport-webpack-suspense static-subpath-contracts
+
+      # Exact-path invocation, deliberately separate: substring filters fail
+      # open (a misspelled or deleted target matches nothing while the other
+      # filters keep the shared run green), an exact path fails the job with
+      # "no test files found".
+      - name: Stream-static regression (fail-closed by exact path)
+        env:
+          VPRS_REQUIRE_BROWSER: "1"
+        run: ./scripts/test-both.sh test/examples/transport-webpack-stream-static.test.ts

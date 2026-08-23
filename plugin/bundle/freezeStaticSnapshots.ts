@@ -97,6 +97,16 @@ export async function freezeStaticSnapshots(opts: {
   }
   const handler = createEdgeRequestHandler(bundle, {
     renderFlightToHtml: consumer.prerenderFlightToHtml,
+    // Frozen documents carry the BLOB delivery shape regardless of
+    // build.inlineFlight: streamed interleaving is only parse-safe when the
+    // HTML producer flushes at element boundaries, which holds for the live
+    // streaming renderer but not for prerender's prelude (a buffered document
+    // replayed at arbitrary byte offsets) — a chunk script injected
+    // mid-attribute is swallowed by the parser and the truncated payload
+    // fails hydration ("Connection closed"). A static file has no
+    // "as it renders" anyway; the buffered splice targets the </body>
+    // boundary exactly. Per-request serving keeps the configured mode.
+    inlineFlight: "blob",
     onError: (error: unknown) => {
       renderErrors.push(error);
     },

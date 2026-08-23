@@ -61,6 +61,9 @@ export default defineConfig({
       // buffers it into each prerendered index.html — static/CDN targets;
       // "stream" interleaves it into per-request document renders as they
       // stream — dynamic/edge targets; false fetches .rsc instead.
+      // "stream" is a per-request shape: transport "webpack" freezes its
+      // prerendered snapshots with the blob form instead, and the esm SSG
+      // pass leaves prerendered pages un-inlined (they fetch .rsc).
       // Build-time, per-target choice. See docs/build-output.md.
       inlineFlight: false,
 
