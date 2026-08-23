@@ -47,6 +47,32 @@ describe("createActionOutcomeHooks", () => {
     expect(fetches).toContain("/list/");
   });
 
+  it("a slow earlier refresh does not clobber a newer one", async () => {
+    const resolvers: Array<(v: string) => void> = [];
+    const router = makeRouter(
+      () => new Promise<string>((resolve) => resolvers.push(resolve)),
+    );
+    const delivered: string[] = [];
+    const hooks = createActionOutcomeHooks({
+      router: () => router,
+      deliver: (node) => delivered.push(node),
+      stripBasePath: (p) => p,
+    });
+
+    // Two actions back-to-back: each success invalidates and refetches, and
+    // resolution order is not start order.
+    hooks.onSuccess();
+    hooks.onSuccess();
+    expect(resolvers).toHaveLength(2);
+
+    resolvers[1]!("fresh"); // the newer refetch lands first
+    await flush();
+    resolvers[0]!("stale"); // the pre-second-mutation snapshot lands last
+    await flush();
+
+    expect(delivered[delivered.length - 1]).toBe("fresh");
+  });
+
   it("onSuccess does not deliver a view for a route the user already left", async () => {
     const router = makeRouter(async (url) => `flight:${url}`);
     const delivered: string[] = [];

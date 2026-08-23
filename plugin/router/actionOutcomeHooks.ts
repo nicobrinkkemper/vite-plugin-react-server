@@ -20,6 +20,10 @@ export function createActionOutcomeHooks<T>(opts: {
   stripBasePath: (pathname: string) => string;
 }) {
   const { deliver, stripBasePath } = opts;
+  // Monotonic refresh ticket: rapid successive actions each start a refetch,
+  // and resolution order is not start order — an earlier (pre-later-mutation)
+  // snapshot resolving last must not overwrite the newer view.
+  let refreshSeq = 0;
   return {
     onRedirect: (route: string, page: unknown) => {
       const router = opts.router();
@@ -46,9 +50,11 @@ export function createActionOutcomeHooks<T>(opts: {
       // too or nav-back serves the pre-mutation view. Bare invalidate()
       // clears the whole cache; missed routes refetch lazily on next visit.
       router.invalidate();
+      const seq = ++refreshSeq;
       Promise.resolve(router.flight(url)).then(
         (node) => {
-          if (router.getState().url === url) deliver(node);
+          if (seq === refreshSeq && router.getState().url === url)
+            deliver(node);
         },
         () => {
           // The refresh fetch failed; the current view stands.
