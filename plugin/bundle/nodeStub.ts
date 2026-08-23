@@ -10,14 +10,22 @@
  * fail a Workers build of an otherwise Node-free bundle. Aliasing the dead
  * branches here removes the specifier; if one is ever reached anyway, the
  * throw below names the real problem instead of a runtime-missing-module error.
+ *
+ * The alias covers the WHOLE bundle, application modules included — a `use
+ * server` action doing ordinary file IO lands here too, so the message serves
+ * that caller first and the internal invariant second.
  */
 const unreachable =
   (name: string) =>
   (): never => {
     throw new Error(
-      `[edge] ${name} was called inside a baked bundle. These disk-fallback ` +
-        `branches are unreachable when the baked entry provides its own ` +
-        `resolver — reaching one means the handler was invoked without it.`
+      `[edge] ${name} is not available inside the baked edge bundle: the ` +
+        `bake targets isolates without a filesystem, so node:fs and ` +
+        `node:path are stubbed out bundle-wide, application code included. ` +
+        `Keep file access outside baked actions and reach platform data ` +
+        `through the host's bindings. If nothing in the application calls ` +
+        `this, a vprs disk-fallback branch was reached — the handler was ` +
+        `invoked without the baked entry's own resolver.`
     );
   };
 
