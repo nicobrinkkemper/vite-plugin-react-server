@@ -103,6 +103,25 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
 
       // Note: We don't close ports here - let the stream consumer manage port lifecycle
       // This ensures ReactDOMClient.createFromNodeStream() can fully consume the stream
+    } else if (data && data.type === 'ERROR') {
+      // Failures ride the DATA port so they are ordered ahead of the null
+      // end-signal (handlers.onDataError). The envelope must be decoded
+      // BEFORE the byte branch: writing the object into the binary stream
+      // throws ERR_INVALID_ARG_TYPE from the message callback and buries the
+      // real error. Post-null it cannot un-complete the stream, but the
+      // failure still reaches onError.
+      const dataError = toError(data.error);
+      if (verbose) {
+        logger?.error(
+          `[createRscWorkerStream] RSC stream error via dataPort: ${dataError.message}`
+        );
+      }
+      if (!dataEndedReceived) {
+        rscStream.destroy(dataError);
+      }
+      if (onError) {
+        onError(dataError);
+      }
     } else {
       // Raw RSC data - direct piping
       if (verbose) {
@@ -113,6 +132,19 @@ export function createRscWorkerStream(options: RscWorkerStreamOptions): {
       }
     }
   };
+
+  // A data port closing before the null is a truncation even while the
+  // worker lives (far port torn down, GC'd channel) — without this the
+  // stream hangs. Never a clean end.
+  (dataPort1 as any).on?.('close', () => {
+    if (!dataEndedReceived) {
+      rscStream.destroy(
+        new Error(
+          '[createRscWorkerStream] data port closed before end-of-stream (null) — stream truncated'
+        )
+      );
+    }
+  });
   
   // Control port - ONLY for control messages
   (controlPort1 as any).onmessage = (event: any) => {

@@ -189,6 +189,19 @@ export const handleRscStream: HandleRscStreamFn<"client"> =
 
     dataPort1.on("message", dataMessageHandler);
 
+    // A data port closing before the null is the same truncation as worker
+    // death, but the worker can be perfectly alive (far port torn down, GC'd
+    // channel) — without this the stream just hangs. Never a clean end.
+    (dataPort1 as any).on?.("close", () => {
+      if (!dataEndedReceived) {
+        rscStream.destroy(
+          new Error(
+            `[client] RSC data port closed before end-of-stream (null) for ${requestId} — stream truncated`
+          )
+        );
+      }
+    });
+
     // Worker death is the only terminal condition besides the data port's
     // `null`: a dead worker can never complete the stream, and ending it
     // cleanly would serve a truncated payload as a success. Error it so the
