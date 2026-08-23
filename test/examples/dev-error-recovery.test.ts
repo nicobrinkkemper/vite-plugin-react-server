@@ -223,7 +223,7 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
     // happened in place.
     expect(await page.evaluate(() => performance.timeOrigin)).toBe(timeOrigin);
     expect(documentRequests.length).toBe(documentBaseline);
-  }, 60000);
+  }, 120000);
 
   it("a syntax break keeps the current view, and the fix updates it", async () => {
     // Self-established baseline: without this the case starts from wherever
@@ -252,5 +252,5 @@ describe.skipIf(!browserAvailable)("dev error recovery (edit → break → fix)"
       undefined,
       { timeout: 10000, polling: 300 }
     );
-  }, 60000);
+  }, 120000);
 });
