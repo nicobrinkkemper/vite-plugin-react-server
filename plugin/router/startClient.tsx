@@ -8,6 +8,7 @@ import {
   useRscHmr,
 } from "../utils/index.client.js";
 import { createRouter, type Router } from "./createRouter.js";
+import { createActionOutcomeHooks } from "./actionOutcomeHooks.js";
 import { RouterProvider, useLocation } from "./router-react.js";
 import { applyRouteHead } from "./applyRouteHead.js";
 import { env } from "#env";
@@ -260,42 +261,14 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
   const deliverRef: { current: ((node: ReactNode) => void) | null } = {
     current: null,
   };
-  // Server-action outcomes, wired into the router so each lands as an SPA
-  // transition: a redirect() delivers the target page (prime + navigate — no
-  // second fetch); a notFound() swaps in the 404 route's flight with the
-  // address unchanged; any successful action refreshes the current route
-  // (drop its cached flight, refetch, swap), so mutations show without the
-  // app wiring anything.
-  const callServerHooks = {
-    onRedirect: (route: string, page: unknown) => {
-      // The followed 303's final url is BASED; the router speaks
-      // app-relative paths.
-      const target = stripBasePath(route);
-      router.prime(target, page as ReactNode);
-      router.navigate(target);
-    },
-    onNotFound: () => {
-      Promise.resolve(router.flight("/404/")).then(
-        (node) => deliverRef.current?.(node),
-        () => {
-          // No decodable 404 flight on this host — leave the view alone; the
-          // action already settled.
-        },
-      );
-    },
-    onSuccess: () => {
-      const url = router.getState().url;
-      router.invalidate(url);
-      Promise.resolve(router.flight(url)).then(
-        (node) => {
-          if (router.getState().url === url) deliverRef.current?.(node);
-        },
-        () => {
-          // The refresh fetch failed; the current view stands.
-        },
-      );
-    },
-  };
+  // Server-action outcomes as SPA transitions — the contract lives (and is
+  // tested) in actionOutcomeHooks. The router thunk defers the reference:
+  // these hooks are constructed before the router exists and only fire after.
+  const callServerHooks = createActionOutcomeHooks<ReactNode>({
+    router: () => router,
+    deliver: (node) => deliverRef.current?.(node),
+    stripBasePath,
+  });
   const fetchFlight = (url: string): Promise<ReactNode> =>
     Promise.resolve(
       createReactFetcher({
