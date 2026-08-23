@@ -26,6 +26,7 @@ import { createHandlers } from "./handlers.js";
 import {
   addCssFileContent,
   addModuleId,
+  importByMtime,
   referenceGate,
   cssFiles,
   hmrState,
@@ -1562,10 +1563,15 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
       case "MODULE_REQUEST": {
         const { id, path } = msg;
         try {
-          const module = await import(
+          // mtime-keyed for the same edit-freshness as the reference gate —
+          // a bare import() would pin the first-loaded version for the
+          // worker's lifetime (see importByMtime).
+          const module = await importByMtime(
             join(workerData.userOptions?.projectRoot, path)
           );
-          effectiveHandlers.onServerModule?.(id, path, module);
+          // The handler type says `source: string` but this path has always
+          // passed the imported namespace; the bare import()'s `any` hid it.
+          effectiveHandlers.onServerModule?.(id, path, module as unknown as string);
         } catch (error) {
           effectiveHandlers.onError(id, toError(error));
         }

@@ -1,4 +1,6 @@
 import { workerData } from "node:worker_threads";
+import { statSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { createCssProps } from "../../helpers/createCssProps.js";
 import type { CssContent, ResolvedUserOptions, HmrState } from "../../types.js";
 import type { PassThrough } from "node:stream";
@@ -51,6 +53,28 @@ function tagServerExports(
   return out;
 }
 
+/**
+ * Import a module keyed by its file mtime, so an edited file re-imports while
+ * an unchanged one stays cached. A bare dynamic import() hits Node's ESM
+ * cache, which never invalidates — the first import of a `use server` module
+ * would keep answering every action POST for the worker's lifetime while the
+ * render path (invalidation-aware component cache) reloaded the same file
+ * fresh, making the edit LOOK live. Vite's runner is not in scope on this
+ * resolution path, so the mtime query is the invalidation: same mtime → same
+ * cached instance, new mtime → one new instance per actual edit.
+ */
+export async function importByMtime(
+  fullPath: string
+): Promise<Record<string, unknown>> {
+  const url = pathToFileURL(fullPath);
+  try {
+    url.searchParams.set("t", String(statSync(fullPath).mtimeMs));
+  } catch {
+    // Unstatable (virtual/deleted): the plain import's own error is clearer.
+  }
+  return (await import(url.href)) as Record<string, unknown>;
+}
+
 // Open mode for now: an unregistered id falls back to devResolve — a raw import
 // of the real path (NOT derived from the id beyond the basePath strip), with its
 // exports tagged so the gate can verify them. Sealing — the prod trust boundary
@@ -73,7 +97,7 @@ export const referenceGate = createReferenceGate({
         `Server action id resolves outside the project root: ${key}`
       );
     }
-    const mod = (await import(fullPath)) as Record<string, unknown>;
+    const mod = await importByMtime(fullPath);
     return tagServerExports(key, mod);
   },
 });
@@ -178,7 +202,13 @@ export function getInvalidatedModules(): string[] {
 
 export function addModuleId(id: string, url: string) {
   moduleIds.set(id, url);
-  referenceGate.register({ id, kind: "server", load: () => import(url) });
+  // Registered entries load per call, so key absolute on-disk paths by mtime
+  // for the same edit-freshness as devResolve; URLs, virtual ids, and
+  // relative specifiers (resolved against this module) import as before.
+  const load = url.startsWith("/")
+    ? () => importByMtime(url)
+    : () => import(url);
+  referenceGate.register({ id, kind: "server", load });
 }
 
 // Helper to cache a resolved component
