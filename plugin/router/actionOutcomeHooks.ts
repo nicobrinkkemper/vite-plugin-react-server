@@ -30,11 +30,19 @@ export function createActionOutcomeHooks<T>(opts: {
       // The followed 303's final url is BASED; the router speaks
       // app-relative paths.
       const target = stripBasePath(route);
+      // A redirect completes an action all the same (create-then-view), so
+      // cached routes drop like onSuccess — then the primed target, rendered
+      // post-mutation by the redirect follow, goes in fresh.
+      router.invalidate();
       router.prime(target, page as T);
       router.navigate(target);
     },
     onNotFound: () => {
-      Promise.resolve(opts.router().flight("/404/")).then(
+      const router = opts.router();
+      // notFound usually reports a mutation too (the deleted thing's route):
+      // cached views of it and of the lists that contained it must drop.
+      router.invalidate();
+      Promise.resolve(router.flight("/404/")).then(
         (node) => deliver(node),
         () => {
           // No decodable 404 flight on this host — leave the view alone; the

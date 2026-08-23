@@ -108,6 +108,52 @@ describe("createActionOutcomeHooks", () => {
     expect(delivered).toHaveLength(0);
   });
 
+  it("onRedirect drops cached routes — the mutation behind a create-then-redirect", async () => {
+    const fetches: string[] = [];
+    const router = makeRouter(async (url) => {
+      fetches.push(url);
+      return `flight:${url}`;
+    });
+    const hooks = createActionOutcomeHooks({
+      router: () => router,
+      deliver: () => {},
+      stripBasePath: (p) => p,
+    });
+
+    await router.flight("/list/");
+    fetches.length = 0;
+
+    hooks.onRedirect("/item/new/", "primed-page");
+
+    // The primed target must survive (no refetch), the stale list must not.
+    await router.flight("/item/new/");
+    expect(fetches).not.toContain("/item/new/");
+    await router.flight("/list/");
+    expect(fetches).toContain("/list/");
+  });
+
+  it("onNotFound drops cached routes — the mutation behind a delete-then-notFound", async () => {
+    const fetches: string[] = [];
+    const router = makeRouter(async (url) => {
+      fetches.push(url);
+      return `flight:${url}`;
+    });
+    const hooks = createActionOutcomeHooks({
+      router: () => router,
+      deliver: () => {},
+      stripBasePath: (p) => p,
+    });
+
+    await router.flight("/list/");
+    fetches.length = 0;
+
+    hooks.onNotFound();
+    await flush();
+
+    await router.flight("/list/");
+    expect(fetches).toContain("/list/");
+  });
+
   it("onRedirect strips the base, primes the target, and navigates", () => {
     const router = makeRouter(async (url) => `flight:${url}`);
     const prime = vi.spyOn(router, "prime");
