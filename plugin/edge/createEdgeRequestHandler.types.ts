@@ -24,6 +24,7 @@ export type EdgeBundleExports = {
     opts?: {
       request?: Request;
       cssFiles?: Map<string, CssContent>;
+      platform?: unknown[];
       globalCss?: unknown;
     }
   ) => Promise<{
@@ -111,5 +112,6 @@ export type CreateEdgeRequestHandlerOptions = Omit<
  */
 export type EdgeRenderHook = (
   route: string,
-  request: Request
+  request: Request,
+  ...platform: unknown[]
 ) => Promise<Response | null>;

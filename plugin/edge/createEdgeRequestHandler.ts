@@ -136,7 +136,8 @@ export function createEdgeRenderHook(
 
   return async function edgeRender(
     route: string,
-    request: Request
+    request: Request,
+    ...platform: unknown[]
   ): Promise<Response | null> {
     // `route` arrives as the raw pathname from createRequestHandler; normalize it
     // the same way the document handler's getURL does, so both agree on the key.
@@ -150,7 +151,10 @@ export function createEdgeRenderHook(
       // Client navigation: the Root-only payload, from the same producer (and so
       // the same live props) the document path inlines on first paint.
       try {
-        const { headless } = await bundle.renderRouteToDocument(url, { request });
+        const { headless } = await bundle.renderRouteToDocument(url, {
+          request,
+          platform,
+        });
         return new Response(headless as unknown as BodyInit, {
           headers: {
             "content-type": "text/x-component; charset=utf-8",
@@ -177,7 +181,7 @@ export function createEdgeRenderHook(
       }
     }
 
-    const response = await (await getDocumentHandler())(request);
+    const response = await (await getDocumentHandler())(request, ...platform);
     // An unbaked route is a fall-through for a hook, not an answer.
     return response === NOT_HANDLED ? null : response;
   };
@@ -237,7 +241,8 @@ export function createEdgeRequestHandler(
   const render = createEdgeRenderHook(bundle, options);
 
   return async function edgeRequestHandler(
-    request: Request
+    request: Request,
+    ...platform: unknown[]
   ): Promise<Response> {
     const { pathname } = new URL(request.url);
 
@@ -250,7 +255,7 @@ export function createEdgeRequestHandler(
     }
 
     if (request.method === "GET" || request.method === "HEAD") {
-      const response = await render(pathname, request);
+      const response = await render(pathname, request, ...platform);
       if (response) return response;
     }
 

@@ -91,7 +91,9 @@ async function setupFixture() {
       `  mode: "production",\n` +
       `  esbuild: { jsx: "automatic" },\n` +
       `  plugins: vitePluginReactServer({\n` +
-      `    runner: "edge",\n` +
+      // runner "isolated" until the edge-runner branch merges — the pair,
+      // manifest, and host entry emit identically under webpack transport.
+      `    runner: "isolated",\n` +
       `    transport: "webpack",\n` +
       `    moduleBase: "src",\n` +
       `    Page: fr.Page,\n` +
