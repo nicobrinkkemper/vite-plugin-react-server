@@ -163,9 +163,9 @@ different topology.
 |--------|---------------|-------------|-------|
 | `"isolated"` | no flag | Worker thread | No launch flags, better isolation |
 | `"main"` | `NODE_OPTIONS='--conditions react-server'` | Main thread | A bit faster, better stack traces, React usable in `vite.config.ts` |
-| `"edge"` | no flag | Single isolate (baked pair) | Portability; not implemented yet — use `"isolated"` (or `"main"`) with `build.edge` meanwhile |
+| `"edge"` | no flag | Single isolate (baked pair) | Portability; requires `transport: "webpack"`, and the pair is the serving artifact (`build.edge: false` errors) |
 
-Both implemented runners produce identical output. Under `"main"`, the RSC
+`"main"` and `"isolated"` produce identical output. Under `"main"`, the RSC
 worker is skipped in dev — Vite's environment runner handles HMR directly.
 
 ## Build Scripts
