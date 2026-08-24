@@ -56,10 +56,12 @@ vitePluginReactServer({
 
 `"edge"` (single isolate, React baked per environment) validates like
 `"isolated"` — no process flag — and makes the baked pair the serving
-artifact: `build.edge: false` is a config-time contradiction. It requires
-`transport: "webpack"` (the pair's consumer half needs the webpack module
-map; the esm transport has no equivalent seam yet) — esm apps use
-`"isolated"`, with `build.edge` if they want the producer artifact.
+artifact: `build.edge: false` is a config-time contradiction and a failed
+bake fails the build. It requires `transport: "webpack"` (the pair's
+consumer half needs the webpack module map; the esm transport has no
+equivalent seam yet) — esm apps use `"isolated"`, with `build.edge` if they
+want the producer artifact. The edge runner is a production serving choice:
+dev runs the isolated worker shape, and the pair is what deploys.
 
 ## Install react-server-loader yourself
 
