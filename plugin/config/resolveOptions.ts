@@ -1031,6 +1031,10 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     const userOptions: ResolvedUserOptions = {
       projectRoot,
       transport: options.transport ?? "esm",
+      // The declared paradigm travels with the resolved options so build
+      // steps can enforce runner-specific contracts (fatal bake under
+      // "edge"). Optional: hand-built handler options carry no runner.
+      runner: options.runner,
       moduleBase,
       moduleBasePath,
       moduleBaseURL,

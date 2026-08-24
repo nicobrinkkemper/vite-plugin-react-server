@@ -396,6 +396,8 @@ export type StreamError = {
 export type PanicThreshold = "none" | "critical_errors" | "all_errors";
 
 export type ResolvedUserOptions = {
+  /** The declared execution paradigm; absent on hand-built handler options. */
+  runner?: RunnerName;
   // Core required properties
   projectRoot: string;
   /**

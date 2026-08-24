@@ -923,6 +923,15 @@ export async function ${actionExport}(request, opts = {}) {
         "baked bundle has no filesystem. Read files at build time instead " +
         "(import.meta.glob, optionally with ?raw) or set build.edge:false."
       : "";
+    // Under runner "edge" the pair IS the serving artifact — a build that
+    // exits green without it is a broken deploy discovered in production.
+    // Warn-and-continue is only sound where the bake is an additive extra.
+    if (userOptions.runner === "edge") {
+      throw new Error(
+        `${tag} edge bundle bake failed and runner 'edge' has no serving ` +
+          `artifact without it: ${message}${stubHint}`
+      );
+    }
     logger.warn(
       `${tag} skipped — edge bundle bake failed (the main build is unaffected; ` +
         `set build.edge:false to silence): ${message}${stubHint}`

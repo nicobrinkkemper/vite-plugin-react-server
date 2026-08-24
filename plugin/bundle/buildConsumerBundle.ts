@@ -54,6 +54,15 @@ export async function buildConsumerBundle(opts: {
   const clientDir = join(outRoot, userOptions.build.client);
   const clientManifestPath = join(clientDir, ".vite/manifest.json");
   if (!existsSync(clientManifestPath)) {
+    // Under runner "edge" the pair is the serving artifact and the freeze
+    // imports this consumer — a missing client manifest is a broken build,
+    // not a skippable extra.
+    if (userOptions.runner === "edge") {
+      throw new Error(
+        `${tag} no client manifest at ${clientManifestPath} — runner 'edge' ` +
+          `cannot emit its consumer without it.`
+      );
+    }
     logger.warn(
       `${tag} no client manifest at ${clientManifestPath}; skipping the consumer bake ` +
         `(the runtime consumer still serves this build)`
@@ -96,7 +105,22 @@ export async function buildConsumerBundle(opts: {
   const idByFile = new Map<string, string>();
   let divergent = 0;
 
+  // With zero client references the client env has no explicit inputs, so
+  // Vite builds its index.html default into this tree: the html root and the
+  // browser entry it imports (whose top level calls startClient). Neither is
+  // a flight-referenceable module, and importing the entry eagerly executes
+  // document access inside the bake — exclude the html-claimed graph roots.
+  const htmlClaimed = new Set<string>();
   for (const [key, entry] of Object.entries(clientManifest)) {
+    if (!key.endsWith(".html")) continue;
+    htmlClaimed.add(key);
+    for (const imported of (entry as { imports?: string[] })?.imports ?? []) {
+      htmlClaimed.add(imported);
+    }
+  }
+
+  for (const [key, entry] of Object.entries(clientManifest)) {
+    if (htmlClaimed.has(key)) continue;
     const file = entry?.file;
     if (!file || !/\.[cm]?js$/.test(file)) continue;
     const abs = join(clientDir, file);
@@ -121,10 +145,12 @@ export async function buildConsumerBundle(opts: {
   }
 
   if (importLines.length === 0) {
-    logger.warn(
-      `${tag} no client modules found in ${clientDir}; skipping the consumer bake`
+    // A server-only app is a valid build: no client references means an
+    // empty registry, not a missing consumer — the renderer half is what the
+    // SSG freeze (and any baked-pair host) imports.
+    logger.info(
+      `${tag} no client references — baking the consumer with an empty registry`
     );
-    return;
   }
 
   const { consumerFileName, consumerExport } = DEFAULT_CONFIG.EDGE;

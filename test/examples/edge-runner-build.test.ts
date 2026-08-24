@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile, readFile, symlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   getCondition,
   REACT_CONDITION,
@@ -19,31 +20,34 @@ const isolatedLeg = getCondition() !== REACT_CONDITION.server;
 
 const testDir = resolve(__dirname, "../fixtures/edge-runner-build.test");
 
-async function setupFixture(edgeOption: string) {
+async function setupFixture(
+  edgeOption: string,
+  opts: { clientRef?: boolean; pages?: string } = {}
+) {
+  const { clientRef = true, pages = "fr.build.pages" } = opts;
   await rm(testDir, { recursive: true, force: true });
   await mkdir(join(testDir, "src/routes"), { recursive: true });
-  // The page carries a real client reference: a webpack bake with ZERO
-  // client references bundles the browser entry into the consumer and
-  // executes it at import ("document is not defined") — a pre-existing
-  // freeze bug on every runner, tracked separately; this suite pins the
-  // RUNNER contract, not that bug.
-  await writeFile(
-    join(testDir, "src/routes/Counter.client.tsx"),
-    `"use client";\n` +
-      `import * as React from "react";\n` +
-      `export function Counter() {\n` +
-      `  const [n, setN] = React.useState(0);\n` +
-      `  return <button onClick={() => setN((v) => v + 1)}>{"n:" + n}</button>;\n` +
-      `}\n`
-  );
+  if (clientRef) {
+    await writeFile(
+      join(testDir, "src/routes/Counter.client.tsx"),
+      `"use client";\n` +
+        `import * as React from "react";\n` +
+        `export function Counter() {\n` +
+        `  const [n, setN] = React.useState(0);\n` +
+        `  return <button onClick={() => setN((v) => v + 1)}>{"n:" + n}</button>;\n` +
+        `}\n`
+    );
+  }
   await writeFile(
     join(testDir, "src/routes/page.tsx"),
     `import * as React from "react";\n` +
-      `import { Counter } from "./Counter.client.js";\n` +
+      (clientRef
+        ? `import { Counter } from "./Counter.client.js";\n`
+        : ``) +
       `export const Page = () => (\n` +
       `  <main id="app">\n` +
       `    <h1>{"edge-runner-build"}</h1>\n` +
-      `    <Counter />\n` +
+      (clientRef ? `    <Counter />\n` : ``) +
       `  </main>\n` +
       `);\n`
   );
@@ -76,7 +80,7 @@ async function setupFixture(edgeOption: string) {
       `    Page: fr.Page,\n` +
       `    props: fr.props,\n` +
       `    routePatterns: fr.routePatterns,\n` +
-      `    build: { pages: fr.build.pages, outDir: "dist"${edgeOption} },\n` +
+      `    build: { pages: ${pages}, outDir: "dist"${edgeOption} },\n` +
       `    moduleBasePath: "",\n` +
       `    moduleBaseURL: "/",\n` +
       `    projectRoot: process.cwd(),\n` +
@@ -155,3 +159,77 @@ describe.skipIf(!isolatedLeg)(
     }, 240000);
   }
 );
+
+describe.skipIf(!isolatedLeg)(
+  "runner 'edge' with ZERO client references (a server-only app is valid)",
+  () => {
+    beforeAll(async () => {
+      await setupFixture("", { clientRef: false });
+      const proc = runBuild();
+      expect(
+        proc.stdout,
+        `build failed (status ${proc.status}):\n${proc.stderr}`
+      ).toContain("EDGE_RUNNER_BUILD_OK");
+    }, 240000);
+
+    afterAll(async () => {
+      if (!process.env["KEEP_FIXTURE"])
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    it("emits the pair, and the consumer imports and renders", async () => {
+      expect(existsSync(join(testDir, "dist/server-edge/render.js"))).toBe(
+        true
+      );
+      const consumerPath = join(testDir, "dist/server-edge/consumer.js");
+      expect(existsSync(consumerPath)).toBe(true);
+      // The freeze already imported the consumer during the build; import it
+      // here too and prove the renderer half works with an empty registry.
+      const consumer = await import(pathToFileURL(consumerPath).href);
+      expect(typeof consumer.prerenderFlightToHtml).toBe("function");
+    });
+
+    it("the frozen page is final markup through the pair", async () => {
+      const html = await readFile(
+        join(testDir, "dist/static/index.html"),
+        "utf8"
+      );
+      expect(html).toContain("edge-runner-build");
+      expect(html).toContain('id="vprs-flight"');
+    });
+  }
+);
+
+describe.skipIf(!isolatedLeg)(
+  "runner 'edge' with an empty page set still emits its serving artifact",
+  () => {
+    it("build.pages: [] produces the pair (nothing to freeze is fine; no pair is not)", async () => {
+      await setupFixture("", { pages: "[]" });
+      const proc = runBuild();
+      expect(
+        proc.stdout,
+        `build failed (status ${proc.status}):\n${proc.stderr}`
+      ).toContain("EDGE_RUNNER_BUILD_OK");
+      expect(existsSync(join(testDir, "dist/server-edge/render.js"))).toBe(
+        true
+      );
+      expect(existsSync(join(testDir, "dist/server-edge/consumer.js"))).toBe(
+        true
+      );
+    }, 240000);
+  }
+);
+
+describe.skipIf(!isolatedLeg)("runner 'edge' bake failures are fatal", () => {
+  it("a failed bake fails the build (isolated only warns; edge has no artifact without it)", async () => {
+    // Induce a deterministic bake failure: the edge outDir collides with a
+    // FILE, so the bundle write cannot create its directory.
+    await setupFixture(', edge: { outDir: "edge-collide" }');
+    await writeFile(join(testDir, "dist-collide-placeholder"), "");
+    await mkdir(join(testDir, "dist"), { recursive: true });
+    await writeFile(join(testDir, "dist/edge-collide"), "not a directory");
+    const proc = runBuild();
+    expect(proc.status).not.toBe(0);
+    expect(proc.stderr).toMatch(/no serving artifact without it/);
+  }, 240000);
+});
