@@ -43,6 +43,35 @@ export function createHost(
   const manifest = JSON.parse(
     readFileSync(edgeManifestPath, "utf8")
   ) as HostManifest;
+  // Startup validation, per the spec: a mismatch is a startup error naming
+  // the config that fixes it — never a first-request import failure. An
+  // ordinary esm bake emits a manifest too, but no consumer half.
+  if (manifest.target !== "edge") {
+    throw new Error(
+      `[createHost] ${edgeManifestPath} describes target "${manifest.target}" — expected the edge target.`
+    );
+  }
+  if (
+    manifest.transport !== "webpack" ||
+    !manifest.renderBundle ||
+    !manifest.consumerBundle
+  ) {
+    throw new Error(
+      `[createHost] the manifest at ${edgeManifestPath} has no complete ` +
+        `baked pair (transport "${manifest.transport}", renderBundle ` +
+        `${JSON.stringify(manifest.renderBundle)}, consumerBundle ` +
+        `${JSON.stringify(manifest.consumerBundle)}) — this host renders ` +
+        `through the pair, which requires transport:"webpack".`
+    );
+  }
+  for (const rel of [manifest.renderBundle, manifest.consumerBundle]) {
+    if (!existsSync(join(buildDir, "server-edge", rel))) {
+      throw new Error(
+        `[createHost] the manifest names ${rel} but it does not exist in ` +
+          `${join(buildDir, "server-edge")} — rebuild.`
+      );
+    }
+  }
 
   const staticDir = join(buildDir, "static");
   const serveStatic = async (path: string): Promise<StaticFile | null> => {
@@ -62,33 +91,39 @@ export function createHost(
   const loadRender = async () => {
     const edgeDir = join(buildDir, "server-edge");
     const bundle = (await import(
-      pathToFileURL(join(edgeDir, "render.js")).href
+      pathToFileURL(join(edgeDir, manifest.renderBundle!)).href
     )) as {
       handleRouteAction: (request: Request) => Promise<Response>;
     };
     const consumer = (await import(
-      pathToFileURL(join(edgeDir, "consumer.js")).href
+      pathToFileURL(join(edgeDir, manifest.consumerBundle!)).href
     )) as { renderFlightToHtml: unknown };
     const { createEdgeRequestHandler } = await import("../edge/index.js");
-    // React reports component failures through onError while the boundary
-    // DEGRADES and the buffered document still answers 200 — the same
-    // silent-bad-response the SSG freeze guards against. The document branch
-    // buffers before responding, so every onError for a request has fired by
-    // the time its Response exists: a grown error list turns the degraded
-    // 200 into the thrown failure the host maps to the 500 page. (Under
-    // concurrent failing renders the count-delta can blame an overlapping
-    // request — the conservative direction: never a degraded 200.)
-    const renderErrors: unknown[] = [];
-    const render = createEdgeRequestHandler(bundle as never, {
-      renderFlightToHtml: consumer.renderFlightToHtml as never,
-      onError: (error: unknown) => renderErrors.push(error),
-    });
+    const { HOST_OUTCOME_HEADER } = await import(
+      "./createHostFromManifest.js"
+    );
     return {
+      // A handler per REQUEST: React reports component failures through
+      // onError while the boundary degrades and the buffered document still
+      // answers 200 (the silent-bad-response the SSG freeze guards
+      // against). Per-request construction gives each render its own error
+      // list, so attribution can never cross concurrent requests.
       render: async (request: Request) => {
-        const before = renderErrors.length;
+        const renderErrors: unknown[] = [];
+        const render = createEdgeRequestHandler(bundle as never, {
+          renderFlightToHtml: consumer.renderFlightToHtml as never,
+          onError: (error: unknown) => renderErrors.push(error),
+          // A loader notFound() must reach the manifest 404 document, not
+          // the inner handler's bare-text default — mark it for the core.
+          onNotFound: () =>
+            new Response(null, {
+              status: 404,
+              headers: { [HOST_OUTCOME_HEADER]: "not-found" },
+            }),
+        });
         const response = await render(request);
-        if (renderErrors.length > before) {
-          throw renderErrors[before];
+        if (renderErrors.length > 0) {
+          throw renderErrors[0];
         }
         return response;
       },
@@ -99,7 +134,13 @@ export function createHost(
   return createHostFromManifest({
     manifest,
     serveStatic,
-    loadRender,
+    loadRender: async () => {
+      const inner = await loadRender();
+      return {
+        render: (request: Request) => inner.render(request),
+        action: (request: Request) => inner.action(request),
+      };
+    },
     ...(onError ? { onError } : {}),
     ...(renderDeadlineMs !== undefined ? { renderDeadlineMs } : {}),
   });

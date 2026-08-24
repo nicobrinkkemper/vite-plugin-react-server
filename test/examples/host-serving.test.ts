@@ -61,9 +61,13 @@ async function setupFixture() {
   );
   await writeFile(
     join(testDir, "src/routes/docs/$slug/props.ts"),
-    `export const props = (url: string) => ({\n` +
-      `  slug: url.split("/").filter(Boolean).pop() ?? "",\n` +
-      `});\n`
+    `import { notFound } from "vite-plugin-react-server/router";\n` +
+      `export const props = (url: string) => {\n` +
+      `  const slug = url.split("/").filter(Boolean).pop() ?? "";\n` +
+      `  if (slug === "gone") notFound();\n` +
+      `  if (slug === "hang") return new Promise(() => {});\n` +
+      `  return { slug };\n` +
+      `};\n`
   );
   await writeFile(
     join(testDir, "src/client.tsx"),
@@ -85,10 +89,12 @@ async function setupFixture() {
       `  root: process.cwd(),\n` +
       `  staticPaths: { "/docs/$slug": () => [{ slug: "alpha" }] },\n` +
       `});\n` +
+      `const BASE_PATH = process.env.BASE_PATH || undefined;\n` +
       `const builder = await createBuilder({\n` +
       `  configFile: false,\n` +
       `  root: process.cwd(),\n` +
       `  mode: "production",\n` +
+      `  base: BASE_PATH,\n` +
       `  esbuild: { jsx: "automatic" },\n` +
       `  plugins: vitePluginReactServer({\n` +
       `    runner: "isolated",\n` +
@@ -99,7 +105,7 @@ async function setupFixture() {
       `    routePatterns: fr.routePatterns,\n` +
       `    build: { pages: fr.build.pages, outDir: "dist" },\n` +
       `    moduleBasePath: "",\n` +
-      `    moduleBaseURL: "/",\n` +
+      `    moduleBaseURL: BASE_PATH || "/",\n` +
       `    projectRoot: process.cwd(),\n` +
       `  }),\n` +
       `});\n` +
@@ -238,5 +244,132 @@ describe.skipIf(!isolatedLeg)("createHost (Node convenience form)", () => {
     const res = await fetch(`${BASE}/`, { method: "PUT" });
     expect(res.status).toBe(405);
     expect(res.headers.get("allow")).toBeTruthy();
+  });
+
+  it("a prerendered .rsc is a document: no-cache and Vary, never immutable", async () => {
+    const res = await fetch(`${BASE}/docs/alpha/index.rsc`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/x-component");
+    expect(res.headers.get("cache-control")).toContain("no-cache");
+    expect(res.headers.get("cache-control")).not.toContain("immutable");
+    expect(res.headers.get("vary") ?? "").toContain("Accept");
+  });
+
+  it("Accept: text/x-component on a prerendered route serves the flight", async () => {
+    const res = await fetch(`${BASE}/docs/alpha/`, {
+      headers: { accept: "text/x-component" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/x-component");
+  });
+
+  it("a 404 answer never turns into a 304", async () => {
+    const first = await fetch(`${BASE}/no/such/route/`);
+    expect(first.status).toBe(404);
+    const etag = first.headers.get("etag");
+    const again = await fetch(`${BASE}/no/such/route/`, {
+      headers: { "if-none-match": etag ?? 'W/"whatever"' },
+    });
+    expect(again.status).toBe(404);
+  });
+
+  it("HEAD carries Content-Length for known-length statics", async () => {
+    const res = await fetch(`${BASE}/`, { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(Number(res.headers.get("content-length"))).toBeGreaterThan(0);
+  });
+
+  it("loader notFound() reaches the manifest 404 document, not a bare body", async () => {
+    const res = await fetch(`${BASE}/docs/gone/`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("text/html");
+  });
+
+  it("a hung render answers 500 fast — the deadline aborts, nothing lingers", async () => {
+    const { createHost } = (await import(
+      "vite-plugin-react-server/host"
+    )) as {
+      createHost: (opts: {
+        buildDir: string;
+        renderDeadlineMs?: number;
+      }) => (req: Request) => Promise<Response>;
+    };
+    const impatient = createHost({
+      buildDir: join(testDir, "dist"),
+      renderDeadlineMs: 500,
+    });
+    const started = Date.now();
+    const res = await impatient(new Request(`${BASE}/docs/hang/`));
+    expect(res.status).toBe(500);
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+});
+
+describe.skipIf(!isolatedLeg)("createHost under a subpath base", () => {
+  let server: Server | undefined;
+  const PORT2 = 4226;
+  const BASE2 = `http://localhost:${PORT2}`;
+
+  beforeAll(async () => {
+    await setupFixture();
+    const proc = spawnSync("node", ["build.mjs"], {
+      cwd: testDir,
+      encoding: "utf8",
+      timeout: 180000,
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        NODE_OPTIONS: "",
+        BASE_PATH: "/app/",
+      },
+    });
+    expect(
+      proc.stdout,
+      `build failed (status ${proc.status}):\n${proc.stderr}`
+    ).toContain("HOST_SERVING_BUILD_OK");
+    const { createHost, toNodeListener } = (await import(
+      "vite-plugin-react-server/host"
+    )) as {
+      createHost: (opts: {
+        buildDir: string;
+      }) => (req: Request) => Promise<Response>;
+      toNodeListener: (
+        h: (req: Request) => Promise<Response>
+      ) => Parameters<typeof createServer>[1];
+    };
+    const handler = createHost({ buildDir: join(testDir, "dist") });
+    server = createServer(toNodeListener(handler));
+    await new Promise<void>((r) => server!.listen(PORT2, r));
+  }, 240000);
+
+  afterAll(async () => {
+    await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
+    if (!process.env["KEEP_FIXTURE"])
+      await rm(testDir, { recursive: true, force: true });
+  });
+
+  it("renders a dynamic match under the base — the inner renderer sees the app-relative url", async () => {
+    const res = await fetch(`${BASE2}/app/docs/beta/`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("doc:beta");
+  });
+
+  it("a path outside the base is not routable", async () => {
+    const res = await fetch(`${BASE2}/docs/beta/`);
+    expect(res.status).toBe(404);
+  });
+
+  it("canonicalization preserves base and query", async () => {
+    const res = await fetch(`${BASE2}/app/docs/beta?q=1`, {
+      redirect: "manual",
+    });
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("/app/docs/beta/?q=1");
+  });
+
+  it("serves the based prerendered document", async () => {
+    const res = await fetch(`${BASE2}/app/`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("host-serving-home");
   });
 });
