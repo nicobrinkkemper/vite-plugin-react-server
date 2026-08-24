@@ -131,7 +131,18 @@ describe("root package entry enforces the invariant", () => {
     });
 
     it("accepts 'edge' without the process condition", () => {
-      expect(withRunner("edge")()).toBeInstanceOf(Array);
+      // C1 scope: the edge runner requires transport "webpack" (the SSG
+      // freeze renders through the baked pair; the esm leg is a later slice).
+      const plugins = vitePluginReactServer({
+        ...testUserOptions,
+        runner: "edge",
+        transport: "webpack",
+      } as Parameters<typeof vitePluginReactServer>[0]);
+      expect(plugins).toBeInstanceOf(Array);
+    });
+
+    it("rejects 'edge' with the esm transport (later slice), naming the path", () => {
+      expect(withRunner("edge")).toThrow(/requires transport:"webpack"/);
     });
   }
 });

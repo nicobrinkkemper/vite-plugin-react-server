@@ -986,6 +986,28 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   // Return resolved options
   try {
+    // Under runner "edge" the baked pair IS the serving artifact — the
+    // paradigm, not an add-on. Disabling the bake contradicts the declared
+    // runner; refuse it before any transport-level guidance.
+    if (options.runner === "edge" && !build.edge.enabled) {
+      throw new Error(
+        "[vite-plugin-react-server] runner 'edge': the baked pair IS the " +
+          "serving artifact — remove `build.edge: false` (or declare runner " +
+          "'isolated'/'main' if you don't want the bake)."
+      );
+    }
+    // C1 scope: the edge runner's SSG renders through the pair, which today
+    // exists only under transport "webpack". The esm-through-pair leg ships
+    // in the next slice — refuse it loudly rather than silently running the
+    // esm SSG pass outside the declared paradigm.
+    if (options.runner === "edge" && options.transport !== "webpack") {
+      throw new Error(
+        "[vite-plugin-react-server] runner 'edge' currently requires " +
+          'transport:"webpack" (the SSG freeze renders through the baked ' +
+          "pair). The esm leg ships in a following release — use runner " +
+          "'isolated' with build.edge meanwhile."
+      );
+    }
     // transport:"webpack" contracts the whole build around the baked pair:
     // the esm SSG pass is skipped and the freeze IS the SSG backend. A config
     // that disables the bake (or pins it to esm) would silently produce no

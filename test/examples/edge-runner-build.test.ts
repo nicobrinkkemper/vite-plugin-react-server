@@ -22,12 +22,28 @@ const testDir = resolve(__dirname, "../fixtures/edge-runner-build.test");
 async function setupFixture(edgeOption: string) {
   await rm(testDir, { recursive: true, force: true });
   await mkdir(join(testDir, "src/routes"), { recursive: true });
+  // The page carries a real client reference: a webpack bake with ZERO
+  // client references bundles the browser entry into the consumer and
+  // executes it at import ("document is not defined") — a pre-existing
+  // freeze bug on every runner, tracked separately; this suite pins the
+  // RUNNER contract, not that bug.
+  await writeFile(
+    join(testDir, "src/routes/Counter.client.tsx"),
+    `"use client";\n` +
+      `import * as React from "react";\n` +
+      `export function Counter() {\n` +
+      `  const [n, setN] = React.useState(0);\n` +
+      `  return <button onClick={() => setN((v) => v + 1)}>{"n:" + n}</button>;\n` +
+      `}\n`
+  );
   await writeFile(
     join(testDir, "src/routes/page.tsx"),
     `import * as React from "react";\n` +
+      `import { Counter } from "./Counter.client.js";\n` +
       `export const Page = () => (\n` +
       `  <main id="app">\n` +
       `    <h1>{"edge-runner-build"}</h1>\n` +
+      `    <Counter />\n` +
       `  </main>\n` +
       `);\n`
   );
