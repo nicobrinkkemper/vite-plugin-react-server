@@ -68,11 +68,11 @@ function walkFiles(dir: string): string[] {
   return out;
 }
 
-export function emitHostManifests(opts: {
+export async function emitHostManifests(opts: {
   userOptions: ResolvedUserOptions;
   projectRoot: string;
   logger: Logger;
-}): void {
+}): Promise<void> {
   const { userOptions, projectRoot, logger } = opts;
   const outRoot = join(projectRoot, userOptions.build.outDir);
   const staticDir = join(outRoot, userOptions.build.static);
@@ -137,15 +137,15 @@ export function emitHostManifests(opts: {
     let key: unknown;
     if (typeof pageFor === "function") {
       try {
-        key = pageFor(pattern);
+        // Resolvers may be async (UrlOpt supports Promise<string>) — a
+        // skipped await here would silently strip a route's css.
+        key = await pageFor(pattern);
       } catch {
         key = undefined;
       }
     } else {
       key = pageFor;
     }
-    // Async Page resolvers have no synchronous path here; their routes get
-    // no cssByPattern entry rather than a wrong one.
     if (typeof key !== "string") continue;
     const normalized = key.replace(/^\.\//, "");
     const entryKey = Object.keys(serverManifest).find(
@@ -157,9 +157,21 @@ export function emitHostManifests(opts: {
   }
 
   const indexHtmlFile = staticManifest["index.html"]?.file;
-  const base = userOptions.moduleBaseURL || "/";
+  const moduleBaseURL = userOptions.moduleBaseURL || "/";
+  // The route base strips request pathnames; moduleBaseURL locates modules
+  // and may be a full origin — they are different axes and the host must
+  // never conflate them (the same derivation startClient uses).
+  let base = "/";
+  try {
+    base = new URL(moduleBaseURL, "http://placeholder.local").pathname;
+    if (!base.endsWith("/")) base += "/";
+  } catch {
+    base = "/";
+  }
   const bootstrapModules = indexHtmlFile
-    ? [`${base.endsWith("/") ? base : `${base}/`}${indexHtmlFile}`]
+    ? [
+        `${moduleBaseURL.endsWith("/") ? moduleBaseURL : `${moduleBaseURL}/`}${indexHtmlFile}`,
+      ]
     : [];
 
   const notFound = prerendered.includes("/404")
@@ -183,6 +195,10 @@ export function emitHostManifests(opts: {
     etags,
     precompressed: [] as string[],
     transport: userOptions.transport ?? "esm",
+    moduleBaseURL,
+    htmlOutputPath: htmlName,
+    rscOutputPath: userOptions.build.rscOutputPath ?? "index.rsc",
+    stripHtmlSuffix: userOptions.stripHtmlSuffix ?? true,
   };
 
   const write = (dir: string, manifest: object) => {

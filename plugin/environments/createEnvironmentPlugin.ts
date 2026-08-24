@@ -578,7 +578,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
             const { emitHostManifests } = await import(
               "../bundle/emitHostManifests.js"
             );
-            emitHostManifests({
+            await emitHostManifests({
               userOptions,
               projectRoot: userOptions.projectRoot,
               logger,

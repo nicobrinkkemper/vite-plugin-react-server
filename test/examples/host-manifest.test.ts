@@ -80,21 +80,27 @@ async function setupFixture() {
       `  root: process.cwd(),\n` +
       `  staticPaths: { "/docs/$slug": () => [{ slug: "alpha" }] },\n` +
       `});\n` +
+      `const ASYNC_PAGE = process.env.ASYNC_PAGE === "1";\n` +
+      `const MBU = process.env.MODULE_BASE_URL || "/";\n` +
       `const builder = await createBuilder({\n` +
       `  configFile: false,\n` +
       `  root: process.cwd(),\n` +
       `  mode: "production",\n` +
+      `  base: ASYNC_PAGE ? new URL(MBU, "http://x").pathname : undefined,\n` +
       `  esbuild: { jsx: "automatic" },\n` +
       `  plugins: vitePluginReactServer({\n` +
       `    runner: "isolated",\n` +
-      `    transport: "webpack",\n` +
+      // The webpack bake cannot resolve async Page yet (its own gap, tracked
+      // separately) — the async variant runs on the esm transport, where the
+      // emitter's await is what this suite pins.
+      `    transport: ASYNC_PAGE ? "esm" : "webpack",\n` +
       `    moduleBase: "src",\n` +
-      `    Page: fr.Page,\n` +
+      `    Page: ASYNC_PAGE ? async (url) => fr.Page(url) : fr.Page,\n` +
       `    props: fr.props,\n` +
       `    routePatterns: fr.routePatterns,\n` +
       `    build: { pages: fr.build.pages, outDir: "dist" },\n` +
       `    moduleBasePath: "",\n` +
-      `    moduleBaseURL: "/",\n` +
+      `    moduleBaseURL: MBU,\n` +
       `    projectRoot: process.cwd(),\n` +
       `  }),\n` +
       `});\n` +
@@ -123,6 +129,10 @@ type HostManifest = {
   cssByPattern: Record<string, string[]>;
   bootstrapModules: string[];
   transport: string;
+  moduleBaseURL: string;
+  htmlOutputPath: string;
+  rscOutputPath: string;
+  stripHtmlSuffix: boolean;
   renderBundle?: string;
   consumerBundle?: string;
 };
@@ -202,9 +212,70 @@ describe.skipIf(!isolatedLeg)("host-manifest emission (per host target)", () => 
     }
   });
 
+  it("records the output-path contract the host normalizes with", () => {
+    for (const m of [node, edge]) {
+      expect(m.htmlOutputPath).toBe("index.html");
+      expect(m.rscOutputPath).toBe("index.rsc");
+      expect(typeof m.stripHtmlSuffix).toBe("boolean");
+    }
+  });
+
   it("the edge manifest names its pair; the node manifest does not", () => {
     expect(edge.renderBundle).toBe("./render.js");
     expect(edge.consumerBundle).toBe("./consumer.js");
     expect(node.renderBundle).toBeUndefined();
   });
 });
+
+describe.skipIf(!isolatedLeg)(
+  "host-manifest: origin moduleBaseURL and async Page resolvers",
+  () => {
+    let edge: HostManifest;
+
+    beforeAll(async () => {
+      await setupFixture();
+      const proc = spawnSync("node", ["build.mjs"], {
+        cwd: testDir,
+        encoding: "utf8",
+        timeout: 180000,
+        env: {
+          ...process.env,
+          NODE_ENV: "production",
+          NODE_OPTIONS: "",
+          ASYNC_PAGE: "1",
+          MODULE_BASE_URL: "https://cdn.example.com/app/",
+        },
+      });
+      expect(
+        proc.stdout,
+        `build failed (status ${proc.status}):\n${proc.stderr}`
+      ).toContain("HOST_MANIFEST_BUILD_OK");
+      edge = JSON.parse(
+        await readFile(
+          join(testDir, "dist/server/host-manifest.json"),
+          "utf8"
+        )
+      );
+    }, 240000);
+
+    afterAll(async () => {
+      if (!process.env["KEEP_FIXTURE"])
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    it("base strips pathnames; moduleBaseURL locates modules — different axes", () => {
+      expect(edge.base).toBe("/app/");
+      expect(edge.moduleBaseURL).toBe("https://cdn.example.com/app/");
+      expect(
+        edge.bootstrapModules.every((m) =>
+          m.startsWith("https://cdn.example.com/app/")
+        )
+      ).toBe(true);
+    });
+
+    it("an async Page resolver still yields the route's css", () => {
+      const rootCss = edge.cssByPattern["/"] ?? [];
+      expect(rootCss.some((f) => f.endsWith(".css"))).toBe(true);
+    });
+  }
+);
