@@ -100,9 +100,12 @@ vitePluginReactServer({
 });
 ```
 
-`build.edge` is `boolean | { outDir?, minify? }`, default **`true`** (the bundle
-is additive — the worker-based `dist/server` build is untouched — and a bake
-failure is a warning, never a build failure).
+`build.edge` is `boolean | { outDir?, minify? }`, default **`true`**. Under
+runner `"main"` or `"isolated"` the bundle is additive — the worker-based
+`dist/server` build is untouched, and a bake failure is a warning, never a
+build failure. Under runner `"edge"` the same knob describes the serving
+artifact itself: a bake failure fails the build, and `edge: false` is a
+config-time contradiction (see above).
 
 | form                     | meaning |
 | ------------------------ | ------- |
