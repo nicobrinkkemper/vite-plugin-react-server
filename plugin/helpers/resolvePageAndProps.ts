@@ -74,7 +74,11 @@ export const resolvePageAndProps: ResolvePageAndPropsFn =
               )
             )?.params ?? {}
           : {});
-      const loaderCtx: LoaderCtx = { params, request: handlerOptions.request };
+      const loaderCtx: LoaderCtx = {
+        params,
+        request: handlerOptions.request,
+        ...(handlerOptions.platform ? { platform: handlerOptions.platform } : {}),
+      };
 
       const resolvePagePromise = resolvePage({
         id: handlerOptions.pagePath,
@@ -344,6 +348,7 @@ export type ResolvePageAndPropsFn = <T extends PagePropOpt = PagePropOpt>(
     | "stripHtmlSuffix"
     | "params"
     | "request"
+    | "platform"
   > & {
     moduleBaseURL?: string;
     route?: string;

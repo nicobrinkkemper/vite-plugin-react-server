@@ -5,7 +5,10 @@ import type { RenderFlightToHtmlFn } from "./renderFlightToHtml.types.js";
  * A Web `fetch` handler: the standard edge-runtime entrypoint shape
  * (Cloudflare Workers, Deno Deploy, Vercel Edge, Bun, Node via an adapter).
  */
-export type EdgeFetchHandler = (request: Request) => Promise<Response>;
+export type EdgeFetchHandler = (
+  request: Request,
+  ...platform: unknown[]
+) => Promise<Response>;
 
 /**
  * Options for {@link CreateEdgeHandlerFn}. Composes the baked per-route flight
@@ -34,7 +37,8 @@ export type CreateEdgeHandlerOptions = {
    */
   render?: (
     url: string,
-    request?: Request
+    request?: Request,
+    ...platform: unknown[]
   ) => Promise<ReadableStream<Uint8Array>>;
   /**
    * The baked full-document producer: the `renderRouteToDocument` export of the
@@ -46,7 +50,7 @@ export type CreateEdgeHandlerOptions = {
    */
   renderDocument?: (
     url: string,
-    opts?: { request?: Request }
+    opts?: { request?: Request; platform?: unknown[] }
   ) => Promise<EdgeDocumentFlights>;
   /**
    * Base URL the client transport uses to resolve client-reference modules —
