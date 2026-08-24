@@ -216,9 +216,10 @@ describe.skipIf(!isolatedLeg)("createHost (Node convenience form)", () => {
     const res = await fetch(`${BASE}/docs/explode/`);
     expect(res.status).toBe(500);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(seenErrors.some((e) => e.includes("deliberate render failure"))).toBe(
-      true
-    );
+    // The baked pair runs production React: the flight carries a digest,
+    // not the component message — the contract is that onError FIRED and
+    // the response is the 500 page, never a degraded 200.
+    expect(seenErrors.length).toBeGreaterThan(0);
   });
 
   it("routes action POSTs through the gate", async () => {
