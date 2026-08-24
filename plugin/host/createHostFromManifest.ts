@@ -26,6 +26,10 @@ export type HostManifest = {
   etags: Record<string, string>;
   precompressed: string[];
   transport: "esm" | "webpack";
+  moduleBaseURL: string;
+  htmlOutputPath: string;
+  rscOutputPath: string;
+  stripHtmlSuffix: boolean;
   renderBundle?: string;
   consumerBundle?: string;
 };
@@ -112,6 +116,11 @@ export function createHostFromManifest(
   const base = manifest.base.endsWith("/") ? manifest.base : `${manifest.base}/`;
   const assets = new Set(manifest.assets);
   const prerendered = new Set(manifest.prerendered);
+  const htmlName = manifest.htmlOutputPath || "index.html";
+  const rscName = manifest.rscOutputPath || "index.rsc";
+  const rscSuffixRe = new RegExp(
+    `^(.*/)${rscName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`
+  );
 
   let renderPair:
     | Promise<{
@@ -224,7 +233,7 @@ export function createHostFromManifest(
     }
 
     // The `.rsc` sibling of a prerendered/dynamic document.
-    const rscMatch = pathname.match(/^(.*\/)index\.rsc$/);
+    const rscMatch = pathname.match(rscSuffixRe);
     const docPathname = rscMatch ? rscMatch[1]! : pathname;
 
     // Trailing-slash canonicalization for document urls: one URL per page,
@@ -241,7 +250,7 @@ export function createHostFromManifest(
 
     if (prerendered.has(routeUrl)) {
       const dir = routeUrl === "/" ? "" : `${routeUrl.slice(1)}/`;
-      const file = rscMatch ? `${dir}index.rsc` : `${dir}index.html`;
+      const file = rscMatch ? `${dir}${rscName}` : `${dir}${htmlName}`;
       return serveFile(request, file, "document");
     }
 
