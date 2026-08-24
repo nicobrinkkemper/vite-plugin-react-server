@@ -56,10 +56,12 @@ describe("validateRunner", () => {
       );
     });
 
-    it("rejects 'edge' as not implemented before the condition check", () => {
-      // A declared 'edge' hears not-implemented first — never a flag
-      // instruction toward a value that then rejects anyway.
-      expect(() => validateRunner("edge")).toThrow(/not implemented yet/);
+    it("rejects 'edge' under the process condition", () => {
+      // Same invariant as isolated: the edge runner owns react-server
+      // resolution (baked at build time) — a global flag poisons the graph.
+      expect(() => validateRunner("edge")).toThrow(
+        /owns react-server resolution itself; remove the process flag/
+      );
     });
   } else {
     it("rejects 'main' without the process condition", () => {
@@ -72,8 +74,8 @@ describe("validateRunner", () => {
       expect(validateRunner("isolated")).toBe("isolated");
     });
 
-    it("rejects 'edge' as not implemented yet", () => {
-      expect(() => validateRunner("edge")).toThrow(/not implemented yet/);
+    it("accepts 'edge' without the process condition", () => {
+      expect(validateRunner("edge")).toBe("edge");
     });
   }
 });
@@ -111,6 +113,12 @@ describe("root package entry enforces the invariant", () => {
         /owns react-server resolution itself; remove the process flag/
       );
     });
+
+    it("rejects 'edge' under the process condition", () => {
+      expect(withRunner("edge")).toThrow(
+        /owns react-server resolution itself; remove the process flag/
+      );
+    });
   } else {
     it("rejects 'main' without the process condition", () => {
       expect(withRunner("main")).toThrow(
@@ -120,6 +128,10 @@ describe("root package entry enforces the invariant", () => {
 
     it("accepts 'isolated' without the process condition", () => {
       expect(withRunner("isolated")()).toBeInstanceOf(Array);
+    });
+
+    it("accepts 'edge' without the process condition", () => {
+      expect(withRunner("edge")()).toBeInstanceOf(Array);
     });
   }
 });
