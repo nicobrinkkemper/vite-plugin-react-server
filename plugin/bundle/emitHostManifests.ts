@@ -4,6 +4,7 @@ import { join, relative, sep } from "node:path";
 import type { Logger } from "vite";
 import type { ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { patternProbeUrl } from "../router/matchRoute.js";
 
 /**
  * Emit `host-manifest.json` per host target (docs/internals/host-spec.md,
@@ -72,8 +73,10 @@ export async function emitHostManifests(opts: {
   userOptions: ResolvedUserOptions;
   projectRoot: string;
   logger: Logger;
+  /** Vite's declared base — the ROUTE base a host strips from pathnames. */
+  viteBase?: string;
 }): Promise<void> {
-  const { userOptions, projectRoot, logger } = opts;
+  const { userOptions, projectRoot, logger, viteBase } = opts;
   const outRoot = join(projectRoot, userOptions.build.outDir);
   const staticDir = join(outRoot, userOptions.build.static);
   const serverDir = join(outRoot, userOptions.build.server);
@@ -137,9 +140,17 @@ export async function emitHostManifests(opts: {
     let key: unknown;
     if (typeof pageFor === "function") {
       try {
-        // Resolvers may be async (UrlOpt supports Promise<string>) — a
-        // skipped await here would silently strip a route's css.
-        key = await pageFor(pattern);
+        // Probe with a concrete url resolved through the same specificity a
+        // request uses — the raw pattern would resolve a catch-all like
+        // /files/$ to its more specific /files/$name sibling. Resolvers may
+        // be async (UrlOpt supports Promise<string>); a skipped await would
+        // silently strip a route's css.
+        key = await pageFor(
+          patternProbeUrl(
+            pattern,
+            routes.map((r) => r.pattern)
+          )
+        );
       } catch {
         key = undefined;
       }
@@ -158,16 +169,13 @@ export async function emitHostManifests(opts: {
 
   const indexHtmlFile = staticManifest["index.html"]?.file;
   const moduleBaseURL = userOptions.moduleBaseURL || "/";
-  // The route base strips request pathnames; moduleBaseURL locates modules
-  // and may be a full origin — they are different axes and the host must
-  // never conflate them (the same derivation startClient uses).
-  let base = "/";
-  try {
-    base = new URL(moduleBaseURL, "http://placeholder.local").pathname;
-    if (!base.endsWith("/")) base += "/";
-  } catch {
-    base = "/";
-  }
+  // The route base strips request pathnames and is Vite's own base —
+  // recorded INDEPENDENTLY of moduleBaseURL, which locates modules, may be
+  // a full origin, and may deliberately differ (assets on a CDN while the
+  // app serves under /shop/).
+  let base = viteBase || "/";
+  if (!base.startsWith("/")) base = `/${base}`;
+  if (!base.endsWith("/")) base += "/";
   const bootstrapModules = indexHtmlFile
     ? [
         `${moduleBaseURL.endsWith("/") ? moduleBaseURL : `${moduleBaseURL}/`}${indexHtmlFile}`,

@@ -82,11 +82,12 @@ async function setupFixture() {
       `});\n` +
       `const ASYNC_PAGE = process.env.ASYNC_PAGE === "1";\n` +
       `const MBU = process.env.MODULE_BASE_URL || "/";\n` +
+      `const VITE_BASE = process.env.VITE_BASE || undefined;\n` +
       `const builder = await createBuilder({\n` +
       `  configFile: false,\n` +
       `  root: process.cwd(),\n` +
       `  mode: "production",\n` +
-      `  base: ASYNC_PAGE ? new URL(MBU, "http://x").pathname : undefined,\n` +
+      `  base: VITE_BASE,\n` +
       `  esbuild: { jsx: "automatic" },\n` +
       `  plugins: vitePluginReactServer({\n` +
       `    runner: "isolated",\n` +
@@ -243,7 +244,8 @@ describe.skipIf(!isolatedLeg)(
           NODE_ENV: "production",
           NODE_OPTIONS: "",
           ASYNC_PAGE: "1",
-          MODULE_BASE_URL: "https://cdn.example.com/app/",
+          VITE_BASE: "/shop/",
+          MODULE_BASE_URL: "https://cdn.example.com/assets/",
         },
       });
       expect(
@@ -263,12 +265,15 @@ describe.skipIf(!isolatedLeg)(
         await rm(testDir, { recursive: true, force: true });
     });
 
-    it("base strips pathnames; moduleBaseURL locates modules — different axes", () => {
-      expect(edge.base).toBe("/app/");
-      expect(edge.moduleBaseURL).toBe("https://cdn.example.com/app/");
+    it("base is Vite's own base, independent of moduleBaseURL", () => {
+      // Deliberately DIFFERING values: the app serves under /shop/ while
+      // modules load from a CDN origin — deriving one from the other emits
+      // the wrong route base.
+      expect(edge.base).toBe("/shop/");
+      expect(edge.moduleBaseURL).toBe("https://cdn.example.com/assets/");
       expect(
         edge.bootstrapModules.every((m) =>
-          m.startsWith("https://cdn.example.com/app/")
+          m.startsWith("https://cdn.example.com/assets/")
         )
       ).toBe(true);
     });

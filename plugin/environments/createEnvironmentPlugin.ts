@@ -582,6 +582,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
               userOptions,
               projectRoot: userOptions.projectRoot,
               logger,
+              viteBase: config.base,
             });
           },
         },
