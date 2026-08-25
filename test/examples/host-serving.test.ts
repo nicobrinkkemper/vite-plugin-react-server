@@ -240,6 +240,20 @@ describe.skipIf(!isolatedLeg)("createHost (Node convenience form)", () => {
     expect(await res.text()).toContain('"host:7"');
   });
 
+  it("malformed percent-encoding is a controlled 404, never a rejection", async () => {
+    const res = await fetch(`${BASE}/%zz/`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("text/html");
+  });
+
+  it("an encoded slash stays one segment — it cannot forge boundaries", async () => {
+    // /docs/a%2Fb matches /docs/$slug as ONE segment; a decoded /docs/a/b
+    // would be two segments and no route.
+    const res = await fetch(`${BASE}/docs/a%2Fb/`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("doc:");
+  });
+
   it("everything else is 405 with Allow", async () => {
     const res = await fetch(`${BASE}/`, { method: "PUT" });
     expect(res.status).toBe(405);

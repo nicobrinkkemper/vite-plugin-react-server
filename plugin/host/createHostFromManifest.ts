@@ -216,12 +216,24 @@ export function createHostFromManifest(
       ? `${base.slice(0, -1)}${location}`
       : location;
 
+  // Malformed percent-encoding must be a controlled 404, never a handler
+  // rejection — and matching happens on the ENCODED pathname (the canonical
+  // router decodes individual segments defensively itself; a top-level
+  // decode would turn %2F into a segment boundary).
+  const safeDecode = (value: string): string | null => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return null;
+    }
+  };
+
   return async function hostHandler(
     request: Request,
     ...platform: unknown[]
   ): Promise<Response> {
     const url = new URL(request.url);
-    let pathname = decodeURIComponent(url.pathname);
+    let pathname = url.pathname;
 
     // The route base scopes the app: strip it, and refuse anything outside
     // it — an un-based path must not remain routable under a based deploy.
@@ -266,16 +278,26 @@ export function createHostFromManifest(
     const docPathname = rscMatch ? rscMatch[1]! : pathname;
     const routeUrl = docPathname === "/" ? "/" : docPathname.replace(/\/$/, "");
 
-    if ((rscMatch || acceptsFlight) && prerendered.has(routeUrl)) {
-      const dir = routeUrl === "/" ? "" : `${routeUrl.slice(1)}/`;
+    // Static inventories hold decoded file paths: decode the candidate
+    // through the guard for lookups only. A malformed encoding simply never
+    // matches an artifact and falls through to the controlled 404.
+    const decodedRouteUrl = safeDecode(routeUrl);
+
+    if (
+      (rscMatch || acceptsFlight) &&
+      decodedRouteUrl !== null &&
+      prerendered.has(decodedRouteUrl)
+    ) {
+      const dir =
+        decodedRouteUrl === "/" ? "" : `${decodedRouteUrl.slice(1)}/`;
       return serveFile(request, `${dir}${rscName}`, "document");
     }
 
     // Exact asset lookup before routing: once a path is a known static
     // artifact, route matching never sees it.
-    const assetPath = pathname.replace(/^\//, "");
-    if (!rscMatch && assets.has(assetPath)) {
-      return serveFile(request, assetPath, "asset");
+    const decodedAsset = safeDecode(pathname.replace(/^\//, ""));
+    if (!rscMatch && decodedAsset !== null && assets.has(decodedAsset)) {
+      return serveFile(request, decodedAsset, "asset");
     }
 
     // Trailing-slash canonicalization for document urls — preserving base
@@ -289,8 +311,9 @@ export function createHostFromManifest(
       });
     }
 
-    if (prerendered.has(routeUrl)) {
-      const dir = routeUrl === "/" ? "" : `${routeUrl.slice(1)}/`;
+    if (decodedRouteUrl !== null && prerendered.has(decodedRouteUrl)) {
+      const dir =
+        decodedRouteUrl === "/" ? "" : `${decodedRouteUrl.slice(1)}/`;
       return serveFile(request, `${dir}${htmlName}`, "document");
     }
 
