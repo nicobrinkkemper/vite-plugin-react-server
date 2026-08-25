@@ -78,4 +78,31 @@ echo "→ vite build --app (root-install consumer)"
 echo "→ guard: no statically-evaluated node builtins in dist/server-edge"
 (cd "$root" && node scripts/edge-builtin-guard.mjs "$dir/dist/server-edge")
 
+# Variant: ZERO client references (a server-only page). The registry filters
+# to nothing — the consumer must still emit with an empty registry (the
+# server-only-app contract), not skip, and stay builtin-free.
+dir2="$workdir/consumer-zero-refs"
+mkdir -p "$dir2/src/page"
+cp -r "$dir/node_modules" "$dir2/node_modules"
+cp "$dir/package.json" "$dir2/package.json"
+cp "$dir/index.html" "$dir2/index.html"
+cp "$dir/vite.config.mjs" "$dir2/vite.config.mjs"
+cp "$dir/src/client.tsx" "$dir2/src/client.tsx"
+cat > "$dir2/src/page/page.tsx" <<'EOF2'
+export const Page = ({ name }: { name: string }) => (
+  <div id="root">Hello {name}</div>
+);
+EOF2
+cat > "$dir2/src/page/props.ts" <<'EOF2'
+export const props = (_url: string) => ({ name: "zero-refs" });
+EOF2
+echo "→ vite build --app (zero client references)"
+(cd "$dir2" && npx vite build --app) 2>&1 | tail -4
+if [ ! -f "$dir2/dist/server-edge/consumer.js" ]; then
+  echo "✗ zero-reference build skipped the consumer bake — the empty registry must still emit" >&2
+  exit 1
+fi
+echo "→ guard: zero-reference bake"
+(cd "$root" && node scripts/edge-builtin-guard.mjs "$dir2/dist/server-edge")
+
 echo "✓ root-install edge bake is deploy-clean"
