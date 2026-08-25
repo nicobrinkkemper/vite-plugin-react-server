@@ -21,8 +21,12 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
   const post = (payload: Parameters<typeof sendMessage>[0]) => {
     if (!toWorker) {
       throw new Error(
-        `[rsc-worker] ${String(payload.type)} posted before INIT delivered ` +
-          `the message ports — the two-port protocol requires INIT first.`
+        `[rsc-worker] the worker was asked to render before it finished ` +
+          `initializing, so it has no channel to send ${String(payload.type)} ` +
+          `back on. In normal plugin use this is a bug in ` +
+          `vite-plugin-react-server, please report it: ` +
+          `https://github.com/nicobrinkkemper/vite-plugin-react-server/issues ` +
+          `(when driving the worker directly, INIT must be the first message).`
       );
     }
     toWorker.postMessage(payload);
@@ -56,8 +60,12 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
       if (!messagePortWritable) {
         void data;
         throw new Error(
-          `[rsc-worker] RSC data for ${id} before INIT delivered the ` +
-            `message ports — the two-port protocol requires INIT first.`
+          `[rsc-worker] the worker produced render output for "${id}" before ` +
+            `it finished initializing, so it has no channel to send it on. ` +
+            `In normal plugin use this is a bug in vite-plugin-react-server, ` +
+            `please report it: ` +
+            `https://github.com/nicobrinkkemper/vite-plugin-react-server/issues ` +
+            `(when driving the worker directly, INIT must be the first message).`
         );
       }
     },
