@@ -228,13 +228,13 @@ export function createHostFromManifest(
     }
   };
 
-  // Static inventories hold decoded paths, so lookups must decode — but
-  // SEGMENT-WISE, refusing any decode that forges a separator: with
-  // prerendered /docs/a/b and dynamic /docs/$slug, /docs/a%2Fb must stay one
-  // parameter, never the nested static page. `malformed` (any segment that
-  // fails to decode) is the controlled-404 signal; `value: null` with
-  // well-formed input means a forged separator — no static artifact can
-  // match, but routing may still see the encoded path.
+  // Static-inventory lookups decode — but SEGMENT-WISE, refusing any decode
+  // that forges a separator: with prerendered /docs/a/b and dynamic
+  // /docs/$slug, /docs/a%2Fb must stay one parameter, never the nested
+  // static page. `malformed` (any segment that fails to decode) is the
+  // controlled-404 signal; `value: null` with well-formed input means a
+  // forged separator — only the raw encoded key can then match a static
+  // artifact, and routing may still see the encoded path.
   const decodeForLookup = (
     path: string
   ): { malformed: boolean; value: string | null } => {
@@ -249,6 +249,22 @@ export function createHostFromManifest(
     }
     return { malformed: false, value: out.join("/") };
   };
+
+  // Inventory keys are the literal on-disk paths, and fillPattern emits
+  // ENCODED urls the writer preserves — a staticPaths param "a b" is
+  // prerendered AS /u/a%20b (an intentional "a/b" as /u/a%2Fb). So the raw
+  // encoded key is tried first, the guarded decode second, and serving uses
+  // whichever spelling actually matched.
+  const inventoryKey = (
+    inventory: Set<string>,
+    raw: string,
+    decoded: string | null
+  ): string | null =>
+    inventory.has(raw)
+      ? raw
+      : decoded !== null && inventory.has(decoded)
+        ? decoded
+        : null;
 
   return async function hostHandler(
     request: Request,
@@ -308,23 +324,26 @@ export function createHostFromManifest(
     if (routeLookup.malformed || assetLookup.malformed) {
       return notFound(request);
     }
-    const decodedRouteUrl = routeLookup.value;
+    const prerenderedKey = inventoryKey(
+      prerendered,
+      routeUrl,
+      routeLookup.value
+    );
 
-    if (
-      (rscMatch || acceptsFlight) &&
-      decodedRouteUrl !== null &&
-      prerendered.has(decodedRouteUrl)
-    ) {
-      const dir =
-        decodedRouteUrl === "/" ? "" : `${decodedRouteUrl.slice(1)}/`;
+    if ((rscMatch || acceptsFlight) && prerenderedKey !== null) {
+      const dir = prerenderedKey === "/" ? "" : `${prerenderedKey.slice(1)}/`;
       return serveFile(request, `${dir}${rscName}`, "document");
     }
 
     // Exact asset lookup before routing: once a path is a known static
     // artifact, route matching never sees it.
-    const decodedAsset = assetLookup.value;
-    if (!rscMatch && decodedAsset !== null && assets.has(decodedAsset)) {
-      return serveFile(request, decodedAsset, "asset");
+    const assetKey = inventoryKey(
+      assets,
+      pathname.replace(/^\//, ""),
+      assetLookup.value
+    );
+    if (!rscMatch && assetKey !== null) {
+      return serveFile(request, assetKey, "asset");
     }
 
     // Trailing-slash canonicalization for document urls — preserving base
@@ -338,9 +357,8 @@ export function createHostFromManifest(
       });
     }
 
-    if (decodedRouteUrl !== null && prerendered.has(decodedRouteUrl)) {
-      const dir =
-        decodedRouteUrl === "/" ? "" : `${decodedRouteUrl.slice(1)}/`;
+    if (prerenderedKey !== null) {
+      const dir = prerenderedKey === "/" ? "" : `${prerenderedKey.slice(1)}/`;
       return serveFile(request, `${dir}${htmlName}`, "document");
     }
 

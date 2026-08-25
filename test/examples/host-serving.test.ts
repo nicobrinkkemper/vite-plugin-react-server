@@ -75,6 +75,20 @@ async function setupFixture() {
     `import * as React from "react";\n` +
       `export const Page = () => <article>{"nested-static-ab"}</article>;\n`
   );
+  await mkdir(join(testDir, "src/routes/files/$name"), { recursive: true });
+  await writeFile(
+    join(testDir, "src/routes/files/$name/page.tsx"),
+    `import * as React from "react";\n` +
+      `export const Page = ({ name }: { name: string }) => (\n` +
+      `  <article>{"file:" + name}</article>\n` +
+      `);\n`
+  );
+  await writeFile(
+    join(testDir, "src/routes/files/$name/props.ts"),
+    `export const props = (url: string) => ({\n` +
+      `  name: url.split("/").filter(Boolean).pop() ?? "",\n` +
+      `});\n`
+  );
   await writeFile(
     join(testDir, "src/client.tsx"),
     `"use client";\n` +
@@ -93,7 +107,10 @@ async function setupFixture() {
       `import { fileRouter } from "vite-plugin-react-server/router";\n` +
       `const fr = fileRouter("src/routes", {\n` +
       `  root: process.cwd(),\n` +
-      `  staticPaths: { "/docs/$slug": () => [{ slug: "alpha" }] },\n` +
+      `  staticPaths: {\n` +
+      `    "/docs/$slug": () => [{ slug: "alpha" }, { slug: "a b" }],\n` +
+      `    "/files/$name": () => [{ name: "a/b" }],\n` +
+      `  },\n` +
       `});\n` +
       `const BASE_PATH = process.env.BASE_PATH || undefined;\n` +
       `const builder = await createBuilder({\n` +
@@ -266,6 +283,33 @@ describe.skipIf(!isolatedLeg)("createHost (Node convenience form)", () => {
     const nested = await fetch(`${BASE}/docs/a/b/`);
     expect(nested.status).toBe(200);
     expect(await nested.text()).toContain("nested-static-ab");
+  });
+
+  it("an encoded staticPaths parameter serves its prerendered artifact", async () => {
+    // fillPattern emitted /docs/a%20b and the writer preserved it: the raw
+    // encoded inventory key must serve the snapshot — the no-cache document
+    // profile, never the no-store dynamic render of the decoded path.
+    const res = await fetch(`${BASE}/docs/a%20b/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toContain("no-cache");
+    expect(res.headers.get("cache-control")).not.toContain("no-store");
+    expect(res.headers.get("etag")).toBeTruthy();
+    expect(await res.text()).toContain("doc:");
+
+    const rsc = await fetch(`${BASE}/docs/a%20b/index.rsc`);
+    expect(rsc.status).toBe(200);
+    expect(rsc.headers.get("content-type")).toContain("text/x-component");
+  });
+
+  it("an encoded slash prerendered on purpose serves its snapshot", async () => {
+    // /files/a%2Fb IS in the inventory: the raw encoded key matches before
+    // the decode guard voids the lookup. The forge guard above still holds —
+    // an UN-prerendered /docs/a%2Fb never reaches the nested static page.
+    const res = await fetch(`${BASE}/files/a%2Fb/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toContain("no-cache");
+    expect(res.headers.get("cache-control")).not.toContain("no-store");
+    expect(await res.text()).toContain("file:");
   });
 
   it("a malformed segment inside a dynamic-shaped path is the controlled 404", async () => {
