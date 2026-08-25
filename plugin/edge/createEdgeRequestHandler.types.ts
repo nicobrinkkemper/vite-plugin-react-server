@@ -37,7 +37,7 @@ export type EdgeBundleExports = {
    */
   handleRouteAction?: (
     request: Request,
-    opts?: { projectRoot?: string }
+    opts?: { projectRoot?: string; platform?: unknown[] }
   ) => Promise<Response>;
   /** `bootstrapModules`: the content-hashed browser entry, baked at build time. */
   bootstrapModules?: string[];

@@ -251,7 +251,7 @@ export function createEdgeRequestHandler(
       request.headers.get(actionHeader) &&
       bundle.handleRouteAction
     ) {
-      return bundle.handleRouteAction(request, { projectRoot });
+      return bundle.handleRouteAction(request, { projectRoot, platform });
     }
 
     if (request.method === "GET" || request.method === "HEAD") {

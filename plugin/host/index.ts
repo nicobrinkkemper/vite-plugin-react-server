@@ -128,6 +128,8 @@ export function createHost(
         return response;
       },
       action: (request: Request) => bundle.handleRouteAction(request),
+      // (Node hosts have an empty platform; the executor appends the ctx
+      // uniformly, so action code behaves identically across hosts.)
     };
   };
 

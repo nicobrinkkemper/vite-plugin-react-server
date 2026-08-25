@@ -847,6 +847,7 @@ const actionGate = createSealedServerReferenceGate({
 export async function ${actionExport}(request, opts = {}) {
   return handleServerActionRequest(request, {
     projectRoot: opts.projectRoot ?? "",
+    platform: opts.platform,
     base: MODULE_BASE_URL,
     resolveServerReference: (id) => actionGate.resolveServerReference(id),
     // The baked flight pair: arguments decode through THIS bundle's transport

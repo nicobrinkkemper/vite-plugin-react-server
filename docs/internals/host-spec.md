@@ -56,8 +56,11 @@ http.createServer(toNodeListener(createHost({ buildDir: "./dist" }))).listen(300
 // Any fetch runtime (portable form): the build emits dist/server-edge/host.js —
 // a generated module that statically imports its render/consumer bundles and
 // inlines its manifest, then calls the same core with resolved artifacts.
-import handler from "./dist/server-edge/host.js";
-export default { fetch: handler };               // workerd / Bun / Deno
+// The default export IS the module-worker mount — a workerd deploy points
+// its main at host.js with no wrapper file at all. Runtimes that want the
+// bare function import it by name:
+import hostModule, { handler } from "./dist/server-edge/host.js";
+export default hostModule;                       // workerd / Bun / Deno ({ fetch: handler })
 export default handler;                          // Vercel function
 ```
 

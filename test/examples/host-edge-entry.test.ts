@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdir, rm, writeFile, symlink } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile, symlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve, join } from "node:path";
@@ -20,6 +20,37 @@ import {
 // plainly, never re-rendered.
 const isolatedLeg = getCondition() !== REACT_CONDITION.server;
 
+// The portability claim ("mountable in a filesystem-less runtime") is proven
+// by actually mounting host.js in workerd, not by importing it in Node.
+// miniflare is deliberately NOT a dependency — the dedicated CI job installs
+// it (`npm i --no-save miniflare@4`) and sets VPRS_REQUIRE_MINIFLARE=1 so
+// its absence there fails loudly instead of green-skipping.
+const MINIFLARE = "miniflare";
+let Miniflare:
+  | (new (options: unknown) => {
+      dispatchFetch: (url: string, init?: RequestInit) => Promise<Response>;
+      dispose: () => Promise<void>;
+    })
+  | undefined;
+try {
+  ({ Miniflare } = await import(/* @vite-ignore */ MINIFLARE));
+} catch (error) {
+  if (process.env.VPRS_REQUIRE_MINIFLARE === "1") throw error;
+}
+
+async function collectModules(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const entry of await readdir(dir, {
+    withFileTypes: true,
+    recursive: true,
+  })) {
+    if (entry.isFile() && /\.m?js$/.test(entry.name)) {
+      out.push(join(entry.parentPath, entry.name));
+    }
+  }
+  return out.sort();
+}
+
 const testDir = resolve(__dirname, "../fixtures/host-edge-entry.test");
 
 async function setupFixture() {
@@ -28,8 +59,10 @@ async function setupFixture() {
   await writeFile(
     join(testDir, "src/action.ts"),
     `"use server";\n` +
-      `export async function greet(n: number): Promise<string> {\n` +
-      `  return "entry:" + n;\n` +
+      `type Ctx = { platform?: Array<Record<string, unknown>> };\n` +
+      `export async function greet(n: number, ctx?: Ctx): Promise<string> {\n` +
+      `  const bound = (ctx?.platform?.[0] as { GREETING?: string } | undefined)?.GREETING;\n` +
+      `  return "entry:" + n + ":" + String(bound ?? "none");\n` +
       `}\n`
   );
   await writeFile(
@@ -144,16 +177,61 @@ describe.skipIf(!isolatedLeg)("generated portable host entry", () => {
       true
     );
     const mod = (await import(pathToFileURL(entryPath).href)) as {
-      default: typeof handler;
+      default: { fetch: typeof handler };
+      handler: typeof handler;
     };
-    expect(typeof mod.default).toBe("function");
-    handler = mod.default;
+    // The default is the module-worker mount; the bare function is named.
+    expect(typeof mod.default).toBe("object");
+    expect(typeof mod.default.fetch).toBe("function");
+    expect(typeof mod.handler).toBe("function");
+    handler = mod.default.fetch;
   }, 240000);
 
   afterAll(async () => {
     if (!process.env["KEEP_FIXTURE"])
       await rm(testDir, { recursive: true, force: true });
   });
+
+  it.skipIf(!Miniflare)(
+    "mounts in workerd: document render and platform-bound action in-isolate",
+    async () => {
+      const edgeDir = join(testDir, "dist/server-edge");
+      const hostPath = join(edgeDir, "host.js");
+      const chunkPaths = (await collectModules(edgeDir)).filter(
+        (p) => p !== hostPath
+      );
+      // No nodejs_compat: the entry must run without node shims, like the
+      // pair it imports. Bindings become workerd's env — platform[0].
+      const mf = new Miniflare!({
+        compatibilityDate: "2026-07-01",
+        modulesRoot: edgeDir,
+        modules: [
+          { type: "ESModule", path: hostPath },
+          ...chunkPaths.map((path) => ({ type: "ESModule", path })),
+        ],
+        bindings: { GREETING: "workerd" },
+      });
+      try {
+        const doc = await mf.dispatchFetch("http://edge.test/hello/bindings/");
+        expect(doc.status).toBe(200);
+        expect(await doc.text()).toContain("hello:bindings:workerd");
+
+        const { encodeReply } = await import(
+          "react-server-dom-esm/client.edge"
+        );
+        const act = await mf.dispatchFetch("http://edge.test/", {
+          method: "POST",
+          headers: { "x-rsc-action": "src/action.ts#greet" },
+          body: (await encodeReply([7])) as string,
+        });
+        expect(act.status).toBe(200);
+        expect(await act.text()).toContain('"entry:7:workerd"');
+      } finally {
+        await mf.dispose();
+      }
+    },
+    120000
+  );
 
   it("renders a dynamic match with baked imports and inlined manifest", async () => {
     const res = await handler(new Request("http://edge.test/hello/world/"));
@@ -181,7 +259,7 @@ describe.skipIf(!isolatedLeg)("generated portable host entry", () => {
     expect(body).toContain("index.html");
   });
 
-  it("routes action POSTs through the baked gate", async () => {
+  it("routes action POSTs through the baked gate — and platform reaches the action", async () => {
     const { encodeReply } = await import("react-server-dom-esm/client.edge");
     const body = await encodeReply([3]);
     const res = await handler(
@@ -189,10 +267,22 @@ describe.skipIf(!isolatedLeg)("generated portable host entry", () => {
         method: "POST",
         headers: { "x-rsc-action": "src/action.ts#greet" },
         body: body as string,
-      })
+      }),
+      { GREETING: "bound" },
+      { waitUntil: () => {} }
     );
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('"entry:3"');
+    expect(await res.text()).toContain('"entry:3:bound"');
+
+    // Without runtime arguments the ctx is present but empty.
+    const bare = await handler(
+      new Request("http://edge.test/", {
+        method: "POST",
+        headers: { "x-rsc-action": "src/action.ts#greet" },
+        body: (await encodeReply([4])) as string,
+      })
+    );
+    expect(await bare.text()).toContain('"entry:4:none"');
   });
 
   it("a miss is the 404 fallback document", async () => {

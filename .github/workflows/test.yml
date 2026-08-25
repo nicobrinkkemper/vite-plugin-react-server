@@ -91,6 +91,7 @@ jobs:
         run: |
           npm run build
           ./scripts/test-both.sh test/examples/workerd-smoke.test.ts
+          ./scripts/test-both.sh test/examples/host-edge-entry.test.ts
 
   # Drive a REAL browser against a REAL installed consumer.
   #

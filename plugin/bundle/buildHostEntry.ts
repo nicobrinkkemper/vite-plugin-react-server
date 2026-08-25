@@ -80,10 +80,10 @@ const loadRender = async () => ({
     if (renderErrors.length > 0) throw renderErrors[0];
     return response;
   },
-  action: (request) => bundle.handleRouteAction(request),
+  action: (request, platform) => bundle.handleRouteAction(request, { platform }),
 });
 
-const handler = createHostFromManifest({
+export const handler = createHostFromManifest({
   manifest: MANIFEST,
   // Platform statics: the CDN/platform serves the emitted files; a known
   // artifact that still reaches the handler is answered plainly by the
@@ -92,7 +92,9 @@ const handler = createHostFromManifest({
   loadRender,
 });
 
-export default handler;
+// Mountable directly as a Cloudflare module worker; Vercel-style runtimes
+// that want the bare function import the named \`handler\`.
+export default { fetch: handler };
 `;
 
   try {
@@ -133,8 +135,15 @@ export default handler;
     });
     logger.info(`${tag} portable host entry → ${join(edgeDir, "host.js")}`);
   } catch (error) {
-    // Additive today; the edge runner's fatal tie-in (the entry is part of
-    // that paradigm's artifact set) lands with the runner branch.
+    // Under runner "edge" the entry is part of the paradigm's artifact set —
+    // a green build without it is a broken deploy. (Defensive read: the
+    // runner field ships on the resolved options with the runner branch.)
+    if ((userOptions as { runner?: string }).runner === "edge") {
+      throw new Error(
+        `${tag} host entry build failed and runner 'edge' treats it as a ` +
+          `serving artifact: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(`${tag} skipped — host entry build failed: ${message}`);
   } finally {
