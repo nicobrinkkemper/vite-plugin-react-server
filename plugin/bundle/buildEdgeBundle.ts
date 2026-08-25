@@ -262,9 +262,15 @@ export async function buildEdgeBundle(opts: {
   // `{ key: { pagePath, propsPath, modules } }` line — shared by the enumerated
   // (exact-url) and dynamic (pattern) maps. Returns null when the built modules
   // can't be resolved.
-  const routeEntryLine = (key: string, resolveUrl: string): string | null => {
-    const pageSrc = routeSource(userOptions.Page, resolveUrl);
-    const propsSrc = routeSource(userOptions.props, resolveUrl);
+  const routeEntryLine = async (
+    key: string,
+    resolveUrl: string
+  ): Promise<string | null> => {
+    // UrlOpt resolvers may be async (Promise<string>) — the esm SSG path
+    // awaits them, and so must the bake, or every route of an async-resolver
+    // app is silently omitted and the pair never emits.
+    const pageSrc = await routeSource(userOptions.Page, resolveUrl);
+    const propsSrc = await routeSource(userOptions.props, resolveUrl);
     const pageAbs = resolveBuilt(pageSrc);
     // Props are optional by contract: a route may have a page.tsx with no
     // sibling props file (fileRouter returns undefined). Only a MISSING page
@@ -333,7 +339,7 @@ export async function buildEdgeBundle(opts: {
   // Enumerated routes → exact-url map (the flash-free prerendered set).
   const routeLines: string[] = [];
   for (const url of urls ?? []) {
-    const line = routeEntryLine(url, url);
+    const line = await routeEntryLine(url, url);
     if (line) routeLines.push(line);
     else
       logger.warn(
@@ -350,7 +356,10 @@ export async function buildEdgeBundle(opts: {
   // pass uses.
   const patternRouteLines: string[] = [];
   for (const pattern of userOptions.routePatterns ?? []) {
-    const line = routeEntryLine(pattern, patternProbeUrl(pattern, userOptions.routePatterns));
+    const line = await routeEntryLine(
+      pattern,
+      patternProbeUrl(pattern, userOptions.routePatterns)
+    );
     if (line) patternRouteLines.push(line);
     else
       logger.warn(
