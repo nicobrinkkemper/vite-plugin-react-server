@@ -315,6 +315,7 @@
     "build:vite": "vite build",
     "test:package": "node scripts/verify-package-entrypoints.mjs",
     "test:peer-install": "./scripts/verify-peer-install.sh",
+    "test:root-install-bake": "./scripts/verify-root-install-bake.sh",
     "lint:package": "publint",
     "lint:no-bead-ids": "./scripts/check-no-bead-ids.sh",
     "verify:package": "npm run lint:package && npm run test:package && npm run lint:no-bead-ids",

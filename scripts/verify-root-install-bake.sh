@@ -22,7 +22,7 @@ react_stable="$(node -p "require('$root/package.json').peerDependencies.react.sp
 stable_rsl="$(node -p "require('$root/package.json').peerDependencies['react-server-loader'].split('||')[0].trim().replace(/^\^/, '')")"
 
 workdir="$(mktemp -d)"
-trap 'rm -rf "$workdir"' EXIT
+if [ "${KEEP:-}" != "1" ]; then trap 'rm -rf "$workdir"' EXIT; else echo "KEEP=1: $workdir"; fi
 
 echo "→ npm pack (the bytes a consumer installs)"
 (cd "$root" && npm pack --loglevel=error --pack-destination "$workdir" >/dev/null)
@@ -36,7 +36,7 @@ echo "→ root install: tarball + stable peers"
   npm pkg set type=module >/dev/null &&
   npm install --no-audit --no-fund --loglevel=error "$tarball" \
     "react@$react_stable" "react-dom@$react_stable" \
-    "react-server-loader@$stable_rsl" vite@^8)
+    "react-server-loader@$stable_rsl" vite@8.1.0)
 
 cat > "$dir/src/page/page.tsx" <<'EOF'
 import { Link } from "vite-plugin-react-server/router/client";
