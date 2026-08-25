@@ -12,14 +12,20 @@ import type { MessagePort } from "node:worker_threads";
 export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort): ServerStreamHandlers {
   // Create writable stream for fromWorker if available
   const messagePortWritable = fromWorker ? new MessagePortWritable(fromWorker, toWorker) : null;
-  // In two-port mode control messages go back through toWorker; otherwise they
-  // go through the single-port sendMessage channel.
+  // Control messages ride toWorker. A portless call means a render-path
+  // message arrived before INIT stored the ports — a protocol violation
+  // that used to degrade into silent single-port posts on parentPort;
+  // diagnose it loudly instead. (The sendMessage calls below — HMR,
+  // shutdown, action responses — are deliberate parentPort traffic, not
+  // this fallback.)
   const post = (payload: Parameters<typeof sendMessage>[0]) => {
-    if (toWorker) {
-      toWorker.postMessage(payload);
-    } else {
-      sendMessage(payload);
+    if (!toWorker) {
+      throw new Error(
+        `[rsc-worker] ${String(payload.type)} posted before INIT delivered ` +
+          `the message ports — the two-port protocol requires INIT first.`
+      );
     }
+    toWorker.postMessage(payload);
   };
   return {
     onRscRender: (id) => {
@@ -44,17 +50,15 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
       });
     },
     onData: (id, data) => {
-      // In two-port mode, data goes through the writable stream
-      // In single-port mode, use the old message approach
-      if (messagePortWritable) {
-        // Data is handled by piping to messagePortWritable
-        // This method is called but the actual data flow is through the stream
-      } else {
-        sendMessage({
-          type: "RSC_CHUNK",
-          id: id,
-          chunk: data,
-        });
+      // Data flows by piping into messagePortWritable; this callback is
+      // informational in the two-port protocol. Reaching it portless is the
+      // same pre-INIT violation post() diagnoses.
+      if (!messagePortWritable) {
+        void data;
+        throw new Error(
+          `[rsc-worker] RSC data for ${id} before INIT delivered the ` +
+            `message ports — the two-port protocol requires INIT first.`
+        );
       }
     },
     onDataError: (id, error) => {
