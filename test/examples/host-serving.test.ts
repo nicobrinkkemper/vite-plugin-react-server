@@ -25,6 +25,7 @@ const BASE = `http://localhost:${PORT}`;
 async function setupFixture() {
   await rm(testDir, { recursive: true, force: true });
   await mkdir(join(testDir, "src/routes/docs/$slug"), { recursive: true });
+  await mkdir(join(testDir, "src/routes/docs/a/b"), { recursive: true });
   await writeFile(
     join(testDir, "src/action.ts"),
     `"use server";\n` +
@@ -68,6 +69,11 @@ async function setupFixture() {
       `  if (slug === "hang") return new Promise(() => {});\n` +
       `  return { slug };\n` +
       `};\n`
+  );
+  await writeFile(
+    join(testDir, "src/routes/docs/a/b/page.tsx"),
+    `import * as React from "react";\n` +
+      `export const Page = () => <article>{"nested-static-ab"}</article>;\n`
   );
   await writeFile(
     join(testDir, "src/client.tsx"),
@@ -247,11 +253,27 @@ describe.skipIf(!isolatedLeg)("createHost (Node convenience form)", () => {
   });
 
   it("an encoded slash stays one segment — it cannot forge boundaries", async () => {
-    // /docs/a%2Fb matches /docs/$slug as ONE segment; a decoded /docs/a/b
-    // would be two segments and no route.
+    // A COLLIDING static page exists: /docs/a/b is prerendered. The encoded
+    // /docs/a%2Fb must still be the dynamic $slug render with one parameter,
+    // never the nested static artifact.
     const res = await fetch(`${BASE}/docs/a%2Fb/`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("doc:");
+    const body = await res.text();
+    expect(body).toContain("doc:");
+    expect(body).not.toContain("nested-static-ab");
+
+    // And the real nested page still serves plainly.
+    const nested = await fetch(`${BASE}/docs/a/b/`);
+    expect(nested.status).toBe(200);
+    expect(await nested.text()).toContain("nested-static-ab");
+  });
+
+  it("a malformed segment inside a dynamic-shaped path is the controlled 404", async () => {
+    // /docs/$slug would match /docs/<anything> — but %zz cannot decode, so
+    // the promise is the 404 document, not a dynamic render of raw bytes.
+    const res = await fetch(`${BASE}/docs/%zz/`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("text/html");
   });
 
   it("everything else is 405 with Allow", async () => {

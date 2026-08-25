@@ -217,15 +217,37 @@ export function createHostFromManifest(
       : location;
 
   // Malformed percent-encoding must be a controlled 404, never a handler
-  // rejection — and matching happens on the ENCODED pathname (the canonical
-  // router decodes individual segments defensively itself; a top-level
-  // decode would turn %2F into a segment boundary).
+  // rejection or a dynamic render — and matching happens on the ENCODED
+  // pathname (the canonical router decodes individual segments defensively
+  // itself; a top-level decode would turn %2F into a segment boundary).
   const safeDecode = (value: string): string | null => {
     try {
       return decodeURIComponent(value);
     } catch {
       return null;
     }
+  };
+
+  // Static inventories hold decoded paths, so lookups must decode — but
+  // SEGMENT-WISE, refusing any decode that forges a separator: with
+  // prerendered /docs/a/b and dynamic /docs/$slug, /docs/a%2Fb must stay one
+  // parameter, never the nested static page. `malformed` (any segment that
+  // fails to decode) is the controlled-404 signal; `value: null` with
+  // well-formed input means a forged separator — no static artifact can
+  // match, but routing may still see the encoded path.
+  const decodeForLookup = (
+    path: string
+  ): { malformed: boolean; value: string | null } => {
+    const out: string[] = [];
+    for (const seg of path.split("/")) {
+      const dec = safeDecode(seg);
+      if (dec === null) return { malformed: true, value: null };
+      if (dec.includes("/") || dec.includes("\\")) {
+        return { malformed: false, value: null };
+      }
+      out.push(dec);
+    }
+    return { malformed: false, value: out.join("/") };
   };
 
   return async function hostHandler(
@@ -278,10 +300,15 @@ export function createHostFromManifest(
     const docPathname = rscMatch ? rscMatch[1]! : pathname;
     const routeUrl = docPathname === "/" ? "/" : docPathname.replace(/\/$/, "");
 
-    // Static inventories hold decoded file paths: decode the candidate
-    // through the guard for lookups only. A malformed encoding simply never
-    // matches an artifact and falls through to the controlled 404.
-    const decodedRouteUrl = safeDecode(routeUrl);
+    // Segment-wise guarded decode for the static inventories. A malformed
+    // segment is the promised controlled 404 — answered HERE, before route
+    // matching, so a dynamic /docs/$slug can never render /docs/%zz.
+    const routeLookup = decodeForLookup(routeUrl);
+    const assetLookup = decodeForLookup(pathname.replace(/^\//, ""));
+    if (routeLookup.malformed || assetLookup.malformed) {
+      return notFound(request);
+    }
+    const decodedRouteUrl = routeLookup.value;
 
     if (
       (rscMatch || acceptsFlight) &&
@@ -295,7 +322,7 @@ export function createHostFromManifest(
 
     // Exact asset lookup before routing: once a path is a known static
     // artifact, route matching never sees it.
-    const decodedAsset = safeDecode(pathname.replace(/^\//, ""));
+    const decodedAsset = assetLookup.value;
     if (!rscMatch && decodedAsset !== null && assets.has(decodedAsset)) {
       return serveFile(request, decodedAsset, "asset");
     }
