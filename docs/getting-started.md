@@ -301,11 +301,14 @@ vitePluginReactServer({
 
 Nothing to set up: `startClient` (the one-line client entry from
 [Routing](./routing.md#client-side-navigation)) wires RSC HMR along with
-hydration and the client router — a server-component edit refetches the
-current route's flight automatically. Assembling the client entry by hand
-instead? `useRscHmr` from `vite-plugin-react-server/utils` is the same hook
-`startClient` uses, and `setupRscHmr()` is the non-React form (call it once in
-your entry; it refetches the current page's flight on server-component edits).
+hydration and the client router — an edit to anything the server tree
+imports refetches the current route's flight automatically: server
+components, loaders, and the content they read (markdown through
+`import.meta.glob(..., { query: "?raw" })`, JSON data), wherever it lives in
+the project. Assembling the client entry by hand instead? `useRscHmr` from
+`vite-plugin-react-server/utils` is the same hook `startClient` uses, and
+`setupRscHmr()` is the non-React form (call it once in your entry; it
+refetches the current page's flight on those edits).
 
 ## Next Steps
 
