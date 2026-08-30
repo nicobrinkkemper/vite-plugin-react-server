@@ -996,16 +996,19 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
           "'isolated'/'main' if you don't want the bake)."
       );
     }
-    // C1 scope: the edge runner's SSG renders through the pair, which today
-    // exists only under transport "webpack". The esm-through-pair leg ships
-    // in the next slice — refuse it loudly rather than silently running the
-    // esm SSG pass outside the declared paradigm.
+    // The edge runner's SSG renders through the pair, and the pair's
+    // consumer half exists only under transport "webpack": the esm client
+    // transport resolves modules at request time (import(moduleBaseURL+id))
+    // and has no module-map seam a baked, closed registry can bind to.
+    // Until that manifest-resolved esm consumer exists, refuse loudly
+    // rather than silently running the esm SSG pass outside the declared
+    // paradigm.
     if (options.runner === "edge" && options.transport !== "webpack") {
       throw new Error(
-        "[vite-plugin-react-server] runner 'edge' currently requires " +
-          'transport:"webpack" (the SSG freeze renders through the baked ' +
-          "pair). The esm leg ships in a following release — use runner " +
-          "'isolated' with build.edge meanwhile."
+        "[vite-plugin-react-server] runner 'edge' requires " +
+          'transport:"webpack": the baked pair\'s consumer half needs the ' +
+          "webpack module map, and the esm transport has no equivalent " +
+          "seam yet. Use runner 'isolated' for the esm transport."
       );
     }
     // transport:"webpack" contracts the whole build around the baked pair:

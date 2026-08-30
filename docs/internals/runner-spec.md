@@ -79,7 +79,7 @@ than a signal.
 | react-in-config (React usable in `vite.config.ts`) | **yes** — the only runner that can; config executes in plain Node, outside any Vite environment, so only the process flag reaches it | no | no |
 | Render pipeline | in-process render | worker protocol (`RSC_CHUNK`/`RSC_END`), html-worker for SSG | baked pair (`dist/server-edge/render.js`), Web streams end-to-end |
 | Streams | Node streams | Node streams over the worker bridge | Web streams only, no `node:*` |
-| Dev shape | `vite` under the process flag (today's `dev:rsc`) | plain `vite` — the rsc-worker carries the condition internally (today's client-first dev) | plain `vite` + baked-pair preview |
+| Dev shape | `vite` under the process flag (today's `dev:rsc`) | plain `vite` — the rsc-worker carries the condition internally (today's client-first dev) | plain `vite` on the isolated worker shape; the pair serves prod (baked-pair preview arrives with `createHost`) |
 | Prod shape | host `dist/server` under the flag (`handleServerAction` sealed helper) | worker-based serving | `handleRouteAction` baked gate, no `--conditions` process |
 | Action dispatch | sealed executor in-process | delegate to worker | baked sealed gate |
 | Stack traces / debugging | best (one thread, one graph) | split across bridge | bundled |
@@ -133,6 +133,13 @@ dependency edge.
   process. A `build.edge` artifact emitted from a `main`/`isolated` config
   sits outside this invariant: it is an additional output, and deploying it
   is choosing the edge paradigm's transport for that deployment.
+- **Shipped deviation for `edge` (4.1):** the edge runner is a production
+  serving choice. Its dev server runs the isolated worker shape — same app
+  code, worker-owned react-server resolution — because baking the pair per
+  edit is not a dev loop, and pair-flavored preview belongs to `createHost`
+  (the host spec's worked example is exactly that server). Until then the
+  same-transport invariant holds for the artifact that deploys, not for the
+  dev server.
 - Prod action dispatch goes through sealed references baked into the
   manifest; dev's permissive dispatch surface is structurally absent from
   the artifacts.

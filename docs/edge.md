@@ -30,8 +30,16 @@ the **transport** the render path uses, picked at build time
   `vite-plugin-react-server/edge/web` — see
   [Workers / Deno](#workers--deno-the-baked-consumer-and-edgeweb) below.
 
-It is **additive**: the normal `dist/server` / `dist/static` output is untouched.
-Dev is unaffected.
+Under runner `"main"` or `"isolated"` the bake is **additive**: the normal
+`dist/server` / `dist/static` output is untouched, dev is unaffected, and a
+bake failure warns without failing the build. Declaring **`runner: "edge"`**
+promotes the pair to the paradigm: the build requires `transport: "webpack"`,
+`build.edge: false` is a config-time contradiction, the SSG snapshots render
+through the pair, and a bake failure fails the build — an edge-runner build
+without its serving artifact is a broken deploy. The edge runner is a
+**production serving choice**: its dev server runs the isolated worker shape
+(same app code, worker-owned react-server resolution), and the baked pair is
+what deploys.
 
 ## How it works
 
@@ -92,9 +100,12 @@ vitePluginReactServer({
 });
 ```
 
-`build.edge` is `boolean | { outDir?, minify? }`, default **`true`** (the bundle
-is additive — the worker-based `dist/server` build is untouched — and a bake
-failure is a warning, never a build failure).
+`build.edge` is `boolean | { outDir?, minify? }`, default **`true`**. Under
+runner `"main"` or `"isolated"` the bundle is additive — the worker-based
+`dist/server` build is untouched, and a bake failure is a warning, never a
+build failure. Under runner `"edge"` the same knob describes the serving
+artifact itself: a bake failure fails the build, and `edge: false` is a
+config-time contradiction (see above).
 
 | form                     | meaning |
 | ------------------------ | ------- |
