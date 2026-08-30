@@ -35,24 +35,28 @@ run_mode() {
   TEST_MODE="$label" NODE_OPTIONS="$node_options" npx vitest run "${ARGS[@]}"
 }
 
-declare -A RESULTS
-
+# Plain scalars, not `declare -A`: stock macOS ships bash 3.2, which has no
+# associative arrays, and `#!/usr/bin/env bash` resolves to it on any Mac
+# without a Homebrew bash ahead on PATH.
 run_mode "dev:rsc" "--conditions react-server"
-RESULTS["dev:rsc"]=$?
+rsc_code=$?
 
 run_mode "dev:ssr" ""
-RESULTS["dev:ssr"]=$?
+ssr_code=$?
 
-echo ""
-echo "=== summary ==="
-overall=0
-for mode in "dev:rsc" "dev:ssr"; do
-  code=${RESULTS[$mode]}
+report() {
+  local mode="$1" code="$2"
   if [ "$code" -eq 0 ]; then
     printf "  %-10s OK\n" "$mode"
   else
     printf "  %-10s FAIL (exit %d)\n" "$mode" "$code"
     overall=1
   fi
-done
+}
+
+echo ""
+echo "=== summary ==="
+overall=0
+report "dev:rsc" "$rsc_code"
+report "dev:ssr" "$ssr_code"
 exit $overall
