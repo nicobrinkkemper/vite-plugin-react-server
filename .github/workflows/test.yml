@@ -57,6 +57,29 @@ jobs:
       - name: Peer install on both tracks
         run: npm run test:peer-install
 
+  root-install-bake:
+    name: packed-consumer root-install edge bake
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The layout the repo's own fixtures cannot take (they resolve the
+      # plugin by self-reference — always the hoisted path): the plugin
+      # installed at a consumer's root, a server page importing the package
+      # client barrel, edge bake on. Proves dist/server-edge stays free of
+      # statically-evaluated node builtins (bd y4l3's Cloudflare 10021 class).
+      - name: Root-install edge bake gate
+        run: npm run test:root-install-bake
+
   # The webpack bake pair on REAL workerd. The edge-bundle guard proves
   # "no node builtins" by static analysis; this job proves the runtime claims
   # by execution: one isolate, no nodejs_compat — boot, flight render,

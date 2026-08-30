@@ -1,3 +1,4 @@
+import { sourceHasTopLevelClientDirective } from "react-server-loader/directives";
 import { build as viteBuild, type Logger } from "vite";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -111,6 +112,28 @@ export async function buildConsumerBundle(opts: {
   // a flight-referenceable module, and importing the entry eagerly executes
   // document access inside the bake — exclude the html-claimed graph roots.
   const htmlClaimed = new Set<string>();
+  // Only DIRECTIVE modules belong in the registry: flight payloads can
+  // reference exactly the modules that registered a client reference, i.e.
+  // sources carrying "use client" — first-party *.client.tsx and package
+  // modules alike (the root-install barrel case). Bundling every manifest
+  // chunk instead used to drag transport libraries in STATICALLY — the
+  // vendored CJS webpack flight client's interop preamble put
+  // `import { createRequire } from "node:module"` into consumer.js, which a
+  // fetch runtime's validator rejects at deploy while every Node-based
+  // check stays green. Fail closed: a key whose source can't be read is not
+  // a reference either — virtual chunks (rolldown's own runtime helper is a
+  // manifest entry, and its hosted copy carries that same preamble) have no
+  // source file, and a real reference always does.
+  const isReferenceSource = (key: string): boolean => {
+    try {
+      return sourceHasTopLevelClientDirective(
+        readFileSync(join(projectRoot, key), "utf8")
+      );
+    } catch {
+      return false;
+    }
+  };
+
   for (const [key, entry] of Object.entries(clientManifest)) {
     if (!key.endsWith(".html")) continue;
     htmlClaimed.add(key);
@@ -123,6 +146,7 @@ export async function buildConsumerBundle(opts: {
     if (htmlClaimed.has(key)) continue;
     const file = entry?.file;
     if (!file || !/\.[cm]?js$/.test(file)) continue;
+    if (!isReferenceSource(key)) continue;
     const abs = join(clientDir, file);
     if (!existsSync(abs)) continue;
 
@@ -290,11 +314,48 @@ export async function prerenderFlightToHtml(options) {
 `;
   writeFileSync(entryPath, entrySource, "utf8");
 
+  // Package client modules (the root-install barrel case) lazily reference
+  // their own transport runtime — rsl's webpack runtime and the vendored
+  // flight clients get HOSTED copies under dist/client. In the isolate those
+  // branches are dead: this bundle carries its own client.edge + globals, and
+  // registry modules are only ever rendered, never asked to decode flight.
+  // Bundling the hosted copies anyway dragged the node-flavored CJS client in
+  // and its interop preamble (`import { createRequire } from "node:module"`)
+  // failed fetch-runtime validators at deploy. Stub exactly those hosted
+  // copies — loudly, so a path that ever DOES reach one fails with a name,
+  // not a silent undefined. The entry's own rsl imports resolve from
+  // node_modules, not dist/client, and stay real.
+  // (rolldown resolves plain relative imports without consulting plugin
+  // resolveId, so the interception lives in `load`, keyed on the resolved
+  // absolute path.)
+  const isHostedTransportPath = (id: string): boolean =>
+    id.startsWith(clientDir) && /[\/]react-server-loader[\/]/.test(id);
+  const hostedTransportStub = {
+    name: "vprs:consumer-hosted-transport-stub",
+    load(id: string) {
+      if (!isHostedTransportPath(id)) return null;
+      return (
+        `const explain = () => { throw new Error(` +
+        `"[edge:consumer] a baked client module reached its hosted transport ` +
+        `runtime — dead in the isolate (the consumer carries its own ` +
+        `client.edge). This stub exists to keep node-flavored CJS out of ` +
+        `the bake."); };\n` +
+        `export default new Proxy(explain, { get: explain, apply: explain });\n` +
+        `export const createWebpackClient = explain;\n` +
+        `export const installWebpackGlobals = explain;\n` +
+        `export const createFromReadableStream = explain;\n` +
+        `export const createFromFetch = explain;\n` +
+        `export const encodeReply = explain;\n`
+      );
+    },
+  };
+
   try {
     await viteBuild({
       root: clientDir,
       logLevel: "warn",
       configFile: false,
+      plugins: [hostedTransportStub],
       // No react-server aliasing here — that is the producer's job. This graph
       // resolves React normally, which is what makes it the CLIENT half.
       define: { "process.env.NODE_ENV": JSON.stringify("production") },
