@@ -182,4 +182,51 @@ export const Page = () => <div>Version 2 Content</div>;`
     // The RSC stream should reflect the new props somehow
     // (exact verification depends on how props are used in the stream)
   }, 15000);
+
+  it("should push a refetch when content outside src changes", async () => {
+    // Markdown the page reads through a `?raw` glob: outside the module base
+    // and without a script extension, so path/extension heuristics never see
+    // it as a server edit. The server module graph does.
+    await mkdir(join(testDir, "content"), { recursive: true });
+    await writeFile(join(testDir, "content/note.md"), "note: first draft");
+    await writeAndNotify(
+      "src/page/props.ts",
+      `const notes = import.meta.glob("../../content/*.md", { query: "?raw", import: "default", eager: true });
+export const props = () => ({ note: Object.values(notes)[0] });`
+    );
+    await writeAndNotify(
+      "src/page/page.tsx",
+      `import React from "react";
+export const Page = ({ note }) => <div>{note}</div>;`
+    );
+    const before = await fetchUntil(`http://localhost:${port}/`, "first draft");
+    expect(before).toContain("first draft");
+    // The dev:ssr hook dedupes hotUpdate calls with a short processing
+    // window after each edit; let the two setup writes above clear it so the
+    // content edit below is judged on its own.
+    await sleep(300);
+
+    const events: Array<{ type: string; event?: string; data?: any }> = [];
+    const originalSend = server.ws.send.bind(server.ws);
+    server.ws.send = function (payload: any) {
+      if (payload && typeof payload === "object") events.push(payload);
+      return originalSend(payload);
+    };
+    try {
+      await writeAndNotify("content/note.md", "note: second draft");
+
+      const after = await fetchUntil(`http://localhost:${port}/`, "second draft");
+      expect(after).toContain("second draft");
+
+      const pushed = events.filter(
+        (e) =>
+          e.type === "custom" &&
+          e.event === "vite-plugin-react-server:server-component-update" &&
+          e.data?.file === "content/note.md"
+      );
+      expect(pushed.length).toBeGreaterThan(0);
+    } finally {
+      server.ws.send = originalSend;
+    }
+  }, 20000);
 });

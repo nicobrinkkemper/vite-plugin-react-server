@@ -2,7 +2,7 @@ import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 import type { ConfigEnv } from "vite";
@@ -117,6 +117,12 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // ModuleRunner cache drops every reachable CSS module before the
       // next render asks for class-name hashes.
       const isCssFile = isInModuleBase && CSS_EXT.test(file);
+      // Content the server tree imports from outside the module base or
+      // without a script extension (markdown via `?raw` globs, JSON data).
+      // The worker re-reads it on the next render either way; without this
+      // the browser is never told to ask for that render.
+      const isServerContentFile =
+        !isSourceFile && !isCssFile && isServerGraphFile(server, file);
 
       // Skip client components — Vite owns client-side HMR (Fast Refresh
       // when `@vitejs/plugin-react` is installed, plain reload otherwise).
@@ -161,7 +167,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         return clientOwnedCss as never[];
       }
 
-      const isServerFile = isSourceFile && !isClientFile;
+      const isServerFile = (isSourceFile && !isClientFile) || isServerContentFile;
       const shouldInvalidateWorker = isServerFile || isCssFile;
 
       if (shouldInvalidateWorker && hmrHandler) {

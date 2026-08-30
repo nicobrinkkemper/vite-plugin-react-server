@@ -3,7 +3,7 @@ import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 
@@ -63,8 +63,10 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       const projectRoot = userOptions.projectRoot || server?.config?.root || '';
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
       const isSourceFile = normalizedFile.startsWith(moduleBase + '/');
-      
-      if (!isSourceFile) return;
+
+      // Outside the module base only files the server graph actually imports
+      // count (markdown via `?raw` globs, JSON data); see isServerGraphFile.
+      if (!isSourceFile && !isServerGraphFile(server, file)) return;
       
       // Client environment: Vite owns client-side HMR (Fast Refresh if
       // `@vitejs/plugin-react` is installed; plain reload otherwise).

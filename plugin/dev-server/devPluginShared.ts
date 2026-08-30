@@ -110,3 +110,27 @@ export const clientOwnedCssModules = <M,>(
       }
     )
   );
+
+type ServerGraphLookup = {
+  environments?: Record<
+    string,
+    { moduleGraph?: { getModulesByFile(file: string): Set<unknown> | undefined } } | undefined
+  >;
+};
+
+/**
+ * True when the server environment's module graph imports `file`. Content
+ * the server tree reads without a script extension, or from outside the
+ * module base (markdown through `?raw` globs, JSON data), never matches the
+ * path/extension heuristics in the hotUpdate hooks; the graph knows exactly
+ * what the last render pulled in. node_modules stay out so a dependency's
+ * own churn does not refetch every open page.
+ */
+export function isServerGraphFile(
+  server: ServerGraphLookup | undefined,
+  file: string,
+): boolean {
+  if (!server || file.includes("/node_modules/")) return false;
+  const mods = server.environments?.["server"]?.moduleGraph?.getModulesByFile(file);
+  return !!mods && mods.size > 0;
+}
