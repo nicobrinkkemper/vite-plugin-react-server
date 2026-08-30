@@ -26,10 +26,11 @@ The execution topology is a declared choice: the `runner` option names where
 react-server executes. `"isolated"` gives a worker thread react-server
 resolution with no launch flags; `"main"` puts it on the main thread — a bit
 faster, better stack traces, React usable in `vite.config.ts` — paired with
-`--conditions react-server` stated once in your scripts. Either way a worker
-mirrors the other half (server components need a react-server context, client
-hydration a react-client one), and runner and flag are validated against each
-other at config-resolve time.
+`--conditions react-server` stated once in your scripts; `"edge"` bakes React
+per environment into a single-isolate pair that IS the production serving
+artifact (webpack transport, no `node:` imports — Workers/Deno-ready), while
+its dev server runs the isolated worker shape. Runner and flag are validated
+against each other at config-resolve time.
 
 ## Quick start
 

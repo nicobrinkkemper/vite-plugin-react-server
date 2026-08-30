@@ -986,6 +986,31 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   // Return resolved options
   try {
+    // Under runner "edge" the baked pair IS the serving artifact — the
+    // paradigm, not an add-on. Disabling the bake contradicts the declared
+    // runner; refuse it before any transport-level guidance.
+    if (options.runner === "edge" && !build.edge.enabled) {
+      throw new Error(
+        "[vite-plugin-react-server] runner 'edge': the baked pair IS the " +
+          "serving artifact — remove `build.edge: false` (or declare runner " +
+          "'isolated'/'main' if you don't want the bake)."
+      );
+    }
+    // The edge runner's SSG renders through the pair, and the pair's
+    // consumer half exists only under transport "webpack": the esm client
+    // transport resolves modules at request time (import(moduleBaseURL+id))
+    // and has no module-map seam a baked, closed registry can bind to.
+    // Until that manifest-resolved esm consumer exists, refuse loudly
+    // rather than silently running the esm SSG pass outside the declared
+    // paradigm.
+    if (options.runner === "edge" && options.transport !== "webpack") {
+      throw new Error(
+        "[vite-plugin-react-server] runner 'edge' requires " +
+          'transport:"webpack": the baked pair\'s consumer half needs the ' +
+          "webpack module map, and the esm transport has no equivalent " +
+          "seam yet. Use runner 'isolated' for the esm transport."
+      );
+    }
     // transport:"webpack" contracts the whole build around the baked pair:
     // the esm SSG pass is skipped and the freeze IS the SSG backend. A config
     // that disables the bake (or pins it to esm) would silently produce no
@@ -1009,6 +1034,10 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     const userOptions: ResolvedUserOptions = {
       projectRoot,
       transport: options.transport ?? "esm",
+      // The declared paradigm travels with the resolved options so build
+      // steps can enforce runner-specific contracts (fatal bake under
+      // "edge"). Optional: hand-built handler options carry no runner.
+      runner: options.runner,
       moduleBase,
       moduleBasePath,
       moduleBaseURL,

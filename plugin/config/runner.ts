@@ -15,7 +15,7 @@ const RUNNER_PITCH: Record<RunnerName, string> = {
   main: "react-server on the main thread; best stack traces, React usable in vite.config.ts; requires NODE_OPTIONS='--conditions react-server'",
   isolated:
     "worker_threads rsc-worker owns react-server resolution; no process flag",
-  edge: "single isolate, React baked per environment at build time; Web streams, no process flag (not implemented yet — ships in a later 4.x minor)",
+  edge: "single isolate, React baked per environment at build time; Web streams, no process flag",
 };
 
 const runnerList = (): string =>
@@ -49,14 +49,6 @@ export function validateRunner(runner: unknown): RunnerName {
     );
   }
   const name = runner as RunnerName;
-  // Not-implemented before the condition invariant: a consumer who declared
-  // 'edge' should hear that first, not be walked through flag changes toward
-  // a value that then rejects anyway.
-  if (name === "edge") {
-    throw new Error(
-      "[vite-plugin-react-server] runner 'edge' is not implemented yet — use runner 'isolated' (or 'main') with build.edge to emit the baked pair meanwhile."
-    );
-  }
   const conditionPresent = getCondition() === REACT_CONDITION.server;
   if (name === "main" && !conditionPresent) {
     throw new Error(
