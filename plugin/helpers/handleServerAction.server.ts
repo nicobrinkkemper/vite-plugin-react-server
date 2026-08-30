@@ -232,7 +232,7 @@ export async function resolveAndExecuteServerAction(
   }
 
   const args = await decodeActionBody(body, codec);
-  return executeServerAction(action, args, verbose, logger);
+  return executeServerAction(action, args, verbose, logger, options.platform);
 }
 
 /**

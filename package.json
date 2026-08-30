@@ -63,6 +63,10 @@
       "types": "./dist/plugin/edge/web.d.ts",
       "default": "./dist/plugin/edge/web.js"
     },
+    "./host": {
+      "types": "./dist/plugin/host/index.d.ts",
+      "default": "./dist/plugin/host/index.js"
+    },
     "./stream": {
       "react-server": "./dist/plugin/stream/index.server.js",
       "default": "./dist/plugin/stream/index.client.js"
