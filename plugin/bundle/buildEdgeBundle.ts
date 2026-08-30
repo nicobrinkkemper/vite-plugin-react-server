@@ -723,7 +723,7 @@ ${patternRouteLines.join("\n")}
 };
 
 /** Resolve a route's Page component + live props through the canonical helper. */
-async function resolveRoute(url, request) {
+async function resolveRoute(url, request, platform) {
   // Exact match for the enumerated/prerendered set; else fall back to matching
   // the url against the route patterns so any concrete dynamic url (e.g. a
   // /profile/<id> that wasn't prerendered) renders per-request on the edge.
@@ -749,6 +749,7 @@ async function resolveRoute(url, request) {
     // authenticated route. Present only for per-request edge renders (the
     // handler passes it); undefined at prerender.
     request,
+    platform,
     url,
     loader: async (id) => {
       // resolvePage/resolveProps may pass "<path>#<export>"; key by the path.
@@ -765,8 +766,8 @@ async function resolveRoute(url, request) {
 }
 
 /** Headless page flight (Page only) — the simple producer. */
-export async function ${flightExport}(url, request) {
-  const resolved = await resolveRoute(url, request);
+export async function ${flightExport}(url, request, platform) {
+  const resolved = await resolveRoute(url, request, platform);
   // Page-only compose (Html/Root as Fragment) so nested layouts fold around the
   // leaf; equivalent to createElement(Page, props) when there is no chain.
   return renderToReadableStream(
@@ -789,7 +790,7 @@ export async function ${flightExport}(url, request) {
  * (Map<string, CssContent>) so both carry the page styles.
  */
 export async function ${documentExport}(url, opts = {}) {
-  const resolved = await resolveRoute(url, opts.request);
+  const resolved = await resolveRoute(url, opts.request, opts.platform);
   const base = {
     PageComponent: resolved.PageComponent,
     RootComponent,
@@ -846,6 +847,7 @@ const actionGate = createSealedServerReferenceGate({
 export async function ${actionExport}(request, opts = {}) {
   return handleServerActionRequest(request, {
     projectRoot: opts.projectRoot ?? "",
+    platform: opts.platform,
     base: MODULE_BASE_URL,
     resolveServerReference: (id) => actionGate.resolveServerReference(id),
     // The baked flight pair: arguments decode through THIS bundle's transport

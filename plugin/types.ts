@@ -1146,6 +1146,9 @@ export type CreateHandlerOptions<
    * across the worker boundary).
    */
   request?: Request;
+  /** The fetch runtime's extra handler arguments (workerd env/ctx) —
+   *  threaded into the loader ctx by hosts. Empty on Node. */
+  platform?: unknown[];
   /**
    * Cloneable stand-in for {@link request} sent to the RSC worker: the absolute
    * url + method + headers (enough for a loader to read cookies/headers to gate

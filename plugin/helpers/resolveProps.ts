@@ -10,6 +10,9 @@ export type LoaderCtx = {
   params: Record<string, string>;
   /** In-flight request; present only on the dev request thread (see CreateHandlerOptions). */
   request?: Request;
+  /** The fetch runtime's extra handler arguments (workerd's env/ctx) — the
+   *  bindings seam, threaded by createHost. Empty on Node hosts. */
+  platform?: unknown[];
 };
 
 type ResolvePropsOptions = {

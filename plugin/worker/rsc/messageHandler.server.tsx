@@ -1385,8 +1385,10 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
             );
           }
 
-          // Execute the server action
-          const result = await action(...decodedArgs);
+          // Execute the server action. The trailing ctx matches the sealed
+          // gate's shape (bindings seam) — dev has no platform, so it is
+          // empty, and action code behaves identically across environments.
+          const result = await action(...decodedArgs, { platform: [] });
 
           // Render `{ returnValue }` through the transport's flight renderer
           // so non-JSON values survive, and hand the finished payload to the

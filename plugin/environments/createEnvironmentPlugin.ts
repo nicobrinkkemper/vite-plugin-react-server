@@ -572,6 +572,28 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
                 logger,
               });
             }
+            // Step 7: the host manifests — one per emitted host target, the
+            // contract createHost derives serving from (host-spec Resolution
+            // 1). Last, so every artifact it inventories exists.
+            const { emitHostManifests } = await import(
+              "../bundle/emitHostManifests.js"
+            );
+            await emitHostManifests({
+              userOptions,
+              projectRoot: userOptions.projectRoot,
+              logger,
+              viteBase: config.base,
+            });
+            // Step 8: the portable host entry over the pair + its manifest
+            // (host-spec "The API") — after the manifest, which it inlines.
+            const { buildHostEntry } = await import(
+              "../bundle/buildHostEntry.js"
+            );
+            await buildHostEntry({
+              userOptions,
+              projectRoot: userOptions.projectRoot,
+              logger,
+            });
           },
         },
       };
