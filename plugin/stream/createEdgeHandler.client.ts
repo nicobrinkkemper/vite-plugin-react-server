@@ -110,7 +110,10 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
           headers: { "content-type": "text/plain; charset=utf-8" },
         });
 
-  return async function edgeHandler(request: Request): Promise<Response> {
+  return async function edgeHandler(
+    request: Request,
+    ...platform: unknown[]
+  ): Promise<Response> {
     const url = getURL(request);
 
     // Full flash-free document: render the Html-wrapped `full` flight to a
@@ -122,7 +125,7 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
       try {
         // Pass the request so a loader can gate an authenticated route on
         // cookies/headers (the baked producer forwards it to props).
-        flights = await renderDocument(url, { request });
+        flights = await renderDocument(url, { request, platform });
       } catch (error) {
         if (isUnknownRoute(error)) return notFound(url, request);
         // Loader control flow: a redirect() answers with the 3xx itself; a
@@ -175,7 +178,7 @@ export const createEdgeHandler: CreateEdgeHandlerFn = function createEdgeHandler
 
     let rscStream: ReadableStream<Uint8Array>;
     try {
-      rscStream = await render!(url, request);
+      rscStream = await render!(url, request, ...platform);
     } catch (error) {
       // The producer is a closed manifest over `build.pages`; an unknown url is
       // a 404, not a 500. Everything else is a real failure — surface it.

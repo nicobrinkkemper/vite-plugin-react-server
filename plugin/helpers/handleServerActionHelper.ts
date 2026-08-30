@@ -6,6 +6,8 @@ import type { ServerResponse } from "node:http";
 import type { IncomingMessage } from "node:http";
 
 export type ServerActionHandlerOptions = {
+  /** The fetch runtime's extra handler arguments — the bindings seam. */
+  platform?: unknown[];
   projectRoot: string;
   verbose?: boolean;
   logger?: Logger;
@@ -545,13 +547,19 @@ export async function executeServerAction(
   action: Function,
   args: unknown[],
   verbose = false,
-  logger?: Logger
+  logger?: Logger,
+  platform?: unknown[]
 ): Promise<unknown> {
   if (verbose) {
     logger?.info(`[handleServerActionHelper] Executing action with args: ${JSON.stringify(args)}`);
   }
 
-  const result = await action(...args);
+  // The bindings seam (host-spec Resolution 4): every action receives a
+  // trailing ctx argument carrying the runtime's extra handler arguments
+  // (workerd's env/ctx; empty on Node/dev). Additive — an action that
+  // ignores it keeps working; one that declares it reads ctx.platform.
+  // Concurrency-safe by construction: no request-scoped globals.
+  const result = await action(...args, { platform: platform ?? [] });
   
   if (verbose) {
     logger?.info(`[handleServerActionHelper] Action executed successfully: ${JSON.stringify(result)}`);

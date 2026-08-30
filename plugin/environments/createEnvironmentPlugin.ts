@@ -584,6 +584,16 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
               logger,
               viteBase: config.base,
             });
+            // Step 8: the portable host entry over the pair + its manifest
+            // (host-spec "The API") — after the manifest, which it inlines.
+            const { buildHostEntry } = await import(
+              "../bundle/buildHostEntry.js"
+            );
+            await buildHostEntry({
+              userOptions,
+              projectRoot: userOptions.projectRoot,
+              logger,
+            });
           },
         },
       };
