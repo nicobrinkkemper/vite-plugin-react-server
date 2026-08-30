@@ -245,3 +245,42 @@ jobs:
         env:
           VPRS_REQUIRE_BROWSER: "1"
         run: ./scripts/test-both.sh test/examples/transport-webpack-stream-static.test.ts
+
+  # macOS is where contributors run this suite by hand, and it is where the
+  # platform quietly diverges from every Linux lane above: stock /bin/bash is
+  # 3.2 (no associative arrays — scripts/test-dev-both-modes.sh died on it for
+  # months, unnoticed, #419), `localhost` resolves to an IPv6-only Vite bind,
+  # and file watching is FSEvents rather than inotify. Deliberately narrow —
+  # build, the dev suite under BOTH conditions via the STOCK shell, and the
+  # client half — so it stays cheap (macOS minutes bill at 10x) while still
+  # covering the shell + watcher + resolver surfaces that actually differ.
+  # Playwright is left to the Linux lanes on purpose: the Chromium download is
+  # the flaky, expensive part and proves nothing macOS-specific.
+  test-macos:
+    name: macOS (stock bash 3.2, dev suite both conditions, client half)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Invoked through /bin/bash explicitly, not `npm run test:dev:both`, so
+      # a bash-4-ism in the script fails HERE instead of on a contributor's
+      # laptop. Homebrew bash is not on the runner's PATH ahead of /bin/bash.
+      - name: Dev suite, both conditions, under stock /bin/bash 3.2
+        run: |
+          /bin/bash --version | head -1
+          /bin/bash scripts/test-dev-both-modes.sh
+
+      - name: Client suite
+        run: npx vitest run
