@@ -124,9 +124,7 @@ async function setupFixture() {
       `  mode: "production",\n` +
       `  esbuild: { jsx: "automatic" },\n` +
       `  plugins: vitePluginReactServer({\n` +
-      // runner "isolated" until the edge-runner branch merges — the pair,
-      // manifest, and host entry emit identically under webpack transport.
-      `    runner: "isolated",\n` +
+      `    runner: "edge",\n` +
       `    transport: "webpack",\n` +
       `    moduleBase: "src",\n` +
       `    Page: fr.Page,\n` +
@@ -171,6 +169,9 @@ describe.skipIf(!isolatedLeg)("generated portable host entry", () => {
       proc.stdout,
       `build failed (status ${proc.status}):\n${proc.stderr}`
     ).toContain("HOST_EDGE_ENTRY_BUILD_OK");
+    // The host-entry sub-build must not alarm every consumer build: Vite
+    // warns when a build's outDir is its own root.
+    expect(proc.stderr).not.toContain("build.outDir must not be");
 
     const entryPath = join(testDir, "dist/server-edge/host.js");
     expect(existsSync(entryPath), "dist/server-edge/host.js missing").toBe(

@@ -100,7 +100,12 @@ export default { fetch: handler };
   try {
     writeFileSync(entryPath, entrySource);
     await viteBuild({
-      root: edgeDir,
+      // The build root is the output root, not the edge dir: Vite warns on
+      // every build whose outDir is its root (it could overwrite sources),
+      // and the entry imports its pair relatively, so root plays no part in
+      // resolution. Nothing static ships from here either.
+      root: outRoot,
+      publicDir: false,
       logLevel: "warn",
       configFile: false,
       define: { "process.env.NODE_ENV": JSON.stringify("production") },
@@ -136,9 +141,8 @@ export default { fetch: handler };
     logger.info(`${tag} portable host entry → ${join(edgeDir, "host.js")}`);
   } catch (error) {
     // Under runner "edge" the entry is part of the paradigm's artifact set —
-    // a green build without it is a broken deploy. (Defensive read: the
-    // runner field ships on the resolved options with the runner branch.)
-    if ((userOptions as { runner?: string }).runner === "edge") {
+    // a green build without it is a broken deploy.
+    if (userOptions.runner === "edge") {
       throw new Error(
         `${tag} host entry build failed and runner 'edge' treats it as a ` +
           `serving artifact: ${error instanceof Error ? error.message : String(error)}`
