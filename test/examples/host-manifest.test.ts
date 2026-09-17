@@ -91,10 +91,10 @@ async function setupFixture() {
       `  esbuild: { jsx: "automatic" },\n` +
       `  plugins: vitePluginReactServer({\n` +
       `    runner: "isolated",\n` +
-      // The webpack bake cannot resolve async Page yet (its own gap, tracked
-      // separately) — the async variant runs on the esm transport, where the
-      // emitter's await is what this suite pins.
-      `    transport: ASYNC_PAGE ? "esm" : "webpack",\n` +
+      // Both variants run on the webpack transport: the async one pins the
+      // emitter's await under the bake that runner edge requires (the bake
+      // awaits async Page/props resolvers since 4.1.0).
+      `    transport: "webpack",\n` +
       `    moduleBase: "src",\n` +
       `    Page: ASYNC_PAGE ? async (url) => fr.Page(url) : fr.Page,\n` +
       `    props: fr.props,\n` +
@@ -231,6 +231,7 @@ describe.skipIf(!isolatedLeg)("host-manifest emission (per host target)", () => 
 describe.skipIf(!isolatedLeg)(
   "host-manifest: origin moduleBaseURL and async Page resolvers",
   () => {
+    let node: HostManifest;
     let edge: HostManifest;
 
     beforeAll(async () => {
@@ -252,9 +253,12 @@ describe.skipIf(!isolatedLeg)(
         proc.stdout,
         `build failed (status ${proc.status}):\n${proc.stderr}`
       ).toContain("HOST_MANIFEST_BUILD_OK");
+      node = JSON.parse(
+        await readFile(join(testDir, "dist/server/host-manifest.json"), "utf8")
+      );
       edge = JSON.parse(
         await readFile(
-          join(testDir, "dist/server/host-manifest.json"),
+          join(testDir, "dist/server-edge/host-manifest.json"),
           "utf8"
         )
       );
@@ -269,18 +273,23 @@ describe.skipIf(!isolatedLeg)(
       // Deliberately DIFFERING values: the app serves under /shop/ while
       // modules load from a CDN origin — deriving one from the other emits
       // the wrong route base.
-      expect(edge.base).toBe("/shop/");
-      expect(edge.moduleBaseURL).toBe("https://cdn.example.com/assets/");
-      expect(
-        edge.bootstrapModules.every((m) =>
-          m.startsWith("https://cdn.example.com/assets/")
-        )
-      ).toBe(true);
+      for (const m of [node, edge]) {
+        expect(m.base).toBe("/shop/");
+        expect(m.moduleBaseURL).toBe("https://cdn.example.com/assets/");
+        expect(
+          m.bootstrapModules.every((b) =>
+            b.startsWith("https://cdn.example.com/assets/")
+          )
+        ).toBe(true);
+      }
     });
 
-    it("an async Page resolver still yields the route's css", () => {
-      const rootCss = edge.cssByPattern["/"] ?? [];
-      expect(rootCss.some((f) => f.endsWith(".css"))).toBe(true);
+    it("an async Page resolver still yields the route's css under webpack", () => {
+      for (const m of [node, edge]) {
+        expect(m.transport).toBe("webpack");
+        const rootCss = m.cssByPattern["/"] ?? [];
+        expect(rootCss.some((f) => f.endsWith(".css"))).toBe(true);
+      }
     });
   }
 );
