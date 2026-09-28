@@ -90,8 +90,9 @@ export async function emitHostManifests(opts: {
   }));
 
   // Per-pattern css, from the same resolver the freeze renders with (see
-  // routeCss.ts): the closure of the pattern's page module AND its props
-  // loader. This is what retires the consumer-side collectManifestCss dance.
+  // routeCss.ts): the closure of the pattern's page module, its props loader
+  // and its layout chain. This is what retires the consumer-side
+  // collectManifestCss dance.
   const routeCss = createRouteCssResolver({ userOptions, projectRoot });
   const { staticManifest } = routeCss;
   const cssByPattern: Record<string, string[]> = {};
