@@ -156,11 +156,15 @@ export function createEdgeRenderHook(
 
     if (wantsFlight(pathname, request, rscOutputPath)) {
       // Client navigation: the Root-only payload, from the same producer (and so
-      // the same live props) the document path inlines on first paint.
+      // the same live props) the document path inlines on first paint. The
+      // route's css rides in the Root (see components/root.tsx), so the flight
+      // needs the same cssFiles the document gets — a navigation into a route
+      // otherwise arrives unstyled.
       try {
         const { headless } = await bundle.renderRouteToDocument(url, {
           request,
           platform,
+          cssFiles: cssFilesFor(url),
         });
         return new Response(headless as unknown as BodyInit, {
           headers: {

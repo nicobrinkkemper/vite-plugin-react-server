@@ -8,11 +8,13 @@ import type { ResolvedUserOptions } from "../types.js";
  * One resolver, two consumers that must agree: emitHostManifests records it
  * per pattern as `cssByPattern` (what a host serves the route from), and the
  * webpack freeze hands it to the baked producer per route (what the frozen
- * document links). The roots are the SSG pass's (processCssFilesForPages):
- * the page module AND its props loader. A stylesheet only props.ts imports —
- * a loader-owned theme, a data-driven layout — reaches the esm-frozen
- * document through that pass; a walk from the page alone served the same
- * route unstyled from the manifest and from the bake.
+ * document and its navigation flight link). The roots are the SSG pass's
+ * (processCssFilesForPages): the page module, its props loader, and every
+ * `route.tsx` layout wrapping the route with each layer's own props. A
+ * stylesheet only props.ts or a layout imports — a loader-owned theme, a
+ * per-section chrome — reaches the esm-frozen document through that pass; a
+ * walk from the page alone served the same route unstyled from the manifest
+ * and from the bake.
  */
 
 export type ViteManifest = Record<
@@ -65,7 +67,11 @@ function cssClosure(
  * undefined for a route without a loader.
  */
 async function manifestKeyFor(
-  resolver: ResolvedUserOptions["Page"] | ResolvedUserOptions["props"],
+  resolver:
+    | ResolvedUserOptions["Page"]
+    | ResolvedUserOptions["props"]
+    | string
+    | undefined,
   url: string,
   manifest: ViteManifest,
 ): Promise<string | undefined> {
@@ -94,7 +100,8 @@ export interface RouteCssResolver {
   /**
    * The css files (paths relative to `staticDir`, as the static manifest
    * spells them) for the route `url` resolves to: the closure of its page
-   * module and its props loader.
+   * module, its props loader, and its layout chain (each layer's component
+   * and props).
    */
   cssFor(url: string): Promise<string[]>;
 }
@@ -114,10 +121,22 @@ export function createRouteCssResolver(opts: {
     staticManifest,
     serverManifest,
     async cssFor(url) {
-      const roots = [
-        await manifestKeyFor(userOptions.Page, url, serverManifest),
-        await manifestKeyFor(userOptions.props, url, serverManifest),
-      ].filter((k): k is string => typeof k === "string");
+      // Layouts resolve from a separate module graph than the page
+      // (layoutsResolver), so a layer's stylesheet only reaches this route's
+      // css if its component and props are explicit roots — same as the SSG
+      // pass. Layer paths are project-relative sources; manifestKeyFor maps
+      // them onto the server manifest like page/props.
+      const layers = userOptions.layoutsResolver?.(url) ?? [];
+      const roots = (
+        await Promise.all([
+          manifestKeyFor(userOptions.Page, url, serverManifest),
+          manifestKeyFor(userOptions.props, url, serverManifest),
+          ...layers.flatMap((layer) => [
+            manifestKeyFor(layer.component, url, serverManifest),
+            manifestKeyFor(layer.props, url, serverManifest),
+          ]),
+        ])
+      ).filter((k): k is string => typeof k === "string");
       const css = new Set<string>();
       for (const root of roots) {
         for (const f of cssClosure(serverManifest, staticManifest, root)) {

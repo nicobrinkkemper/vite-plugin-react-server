@@ -60,6 +60,20 @@ async function setupFixture() {
     join(testDir, "src/routes/about/about.css"),
     `.about { color: rebeccapurple; }\n`,
   );
+  // /about is wrapped by a segment layout whose stylesheet only the layout
+  // imports — a third root, resolved from a separate graph than the page.
+  await writeFile(
+    join(testDir, "src/routes/about/route.tsx"),
+    `import * as React from "react";\n` +
+      `import "./layout.css";\n` +
+      `export const Layout = ({ children }: { children?: React.ReactNode }) => (\n` +
+      `  <section className="about-layout">{children}</section>\n` +
+      `);\n`,
+  );
+  await writeFile(
+    join(testDir, "src/routes/about/layout.css"),
+    `.about-layout { border: 1px solid rebeccapurple; }\n`,
+  );
   // /styled: the page itself imports css — the ordinary automatic case.
   await mkdir(join(testDir, "src/routes/styled"), { recursive: true });
   await writeFile(
@@ -117,6 +131,7 @@ async function setupFixture() {
       `    Page: fr.Page,\n` +
       `    props: fr.props,\n` +
       `    routePatterns: fr.routePatterns,\n` +
+      `    layouts: fr.layouts,\n` +
       `    build: { pages: fr.build.pages, outDir: "dist" },\n` +
       // Link, never inline: the assertions are about <link> emission.
       `    css: { inlineCss: false },\n` +
@@ -158,6 +173,16 @@ async function frozenDocument(route: string): Promise<string> {
   return readFile(join(distDir, hit), "utf8");
 }
 
+/** The frozen navigation flight for a route (index.rsc beside its document). */
+async function frozenFlight(route: string): Promise<string> {
+  const distDir = join(testDir, "dist");
+  const wanted = `${route.replace(/^\//, "")}/index.rsc`;
+  const files = (await readdir(distDir, { recursive: true })) as string[];
+  const hit = files.find((f) => f.split("\\").join("/").endsWith(wanted));
+  if (!hit) throw new Error(`no frozen flight for ${route} under ${distDir}`);
+  return readFile(join(distDir, hit), "utf8");
+}
+
 const stylesheetLinks = (html: string): string[] =>
   [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map((m) => m[0]);
 
@@ -195,25 +220,38 @@ describe.skipIf(!isolatedLeg)(
         await rm(testDir, { recursive: true, force: true });
     });
 
-    it("a stylesheet only props.ts imports is in the route's cssByPattern (node and edge)", () => {
+    it("stylesheets only props.ts and the layout import are in the route's cssByPattern (node and edge)", () => {
       for (const m of [node, edge]) {
         const css = m.cssByPattern["/about"] ?? [];
-        expect(css, `${m.target} cssByPattern["/about"]`).toHaveLength(1);
-        expect(css[0]).toMatch(/\.css$/);
+        expect(css, `${m.target} cssByPattern["/about"]`).toHaveLength(2);
+        expect(css.some((f) => /\/about-[^/]*\.css$/.test(f))).toBe(true);
+        expect(css.some((f) => /\/layout-[^/]*\.css$/.test(f))).toBe(true);
       }
       // The two targets describe one build.
       expect(edge.cssByPattern["/about"]).toEqual(node.cssByPattern["/about"]);
     });
 
-    it("the frozen /about document links that same stylesheet", async () => {
+    it("the frozen /about document links both stylesheets", async () => {
       const html = await frozenDocument("/about");
       expect(html).toContain("props-css-about");
-      const [cssFile] = node.cssByPattern["/about"];
+      expect(html).toContain("about-layout");
       const links = stylesheetLinks(html);
-      expect(
-        links.some((l) => l.includes(cssFile)),
-        `expected a <link rel="stylesheet"> for ${cssFile}, got:\n${links.join("\n")}`,
-      ).toBe(true);
+      for (const cssFile of node.cssByPattern["/about"]) {
+        expect(
+          links.some((l) => l.includes(cssFile)),
+          `expected a <link rel="stylesheet"> for ${cssFile}, got:\n${links.join("\n")}`,
+        ).toBe(true);
+      }
+    });
+
+    it("the frozen /about navigation flight carries both stylesheets too", async () => {
+      // The route's css rides in the Root, so a client navigation into
+      // /about must bring them along — a flight without them leaves the
+      // route unstyled after navigation even though its document was fine.
+      const rsc = await frozenFlight("/about");
+      for (const cssFile of node.cssByPattern["/about"]) {
+        expect(rsc, `flight names ${cssFile}`).toContain(cssFile);
+      }
     });
 
     it("a stylesheet the page imports is recorded and linked the same way", async () => {
