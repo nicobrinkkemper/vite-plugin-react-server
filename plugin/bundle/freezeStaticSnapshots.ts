@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import type { Logger } from "vite";
-import type { ResolvedUserOptions } from "../types.js";
+import type { CssContent, ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { createRouteCssResolver, normalizeRouteKey } from "./routeCss.js";
+import { processCssFromStaticBuild } from "../helpers/createUnifiedCssProcessor.js";
 import { fileWriter } from "../react-static/fileWriter.js";
 import { pruneUnclaimedEntryHtml } from "../react-static/pruneUnclaimedEntryHtml.js";
 import { handleError } from "../error/handleError.js";
@@ -95,8 +97,36 @@ export async function freezeStaticSnapshots(opts: {
         `the consumer bundle predates the prerender freeze; rebuild the pair.`
     );
   }
+  // Each route's own stylesheets — the closure of its page module, props
+  // loader and layout chain, read off the manifests the static and server
+  // builds just wrote —
+  // through the same inline-or-link policy the esm pass applies
+  // (processCssFromStaticBuild). The bake's default is the client entry's
+  // css only; without this the frozen document of a route whose page, props
+  // or island imports a stylesheet shipped unstyled.
+  const routeCss = createRouteCssResolver({ userOptions, projectRoot });
+  const cssByRoute = new Map<string, Map<string, CssContent>>();
+  for (const route of routes) {
+    const files = await routeCss.cssFor(route);
+    if (files.length === 0) continue;
+    cssByRoute.set(
+      normalizeRouteKey(route),
+      processCssFromStaticBuild(
+        Object.fromEntries(files.map((f) => [f, f])),
+        {
+          userOptions,
+          logger,
+          verbose: userOptions.verbose,
+          staticOutDir: routeCss.staticDir,
+          staticManifest: routeCss.staticManifest,
+        }
+      )
+    );
+  }
+
   const handler = createEdgeRequestHandler(bundle, {
     renderFlightToHtml: consumer.prerenderFlightToHtml,
+    cssFiles: (url) => cssByRoute.get(normalizeRouteKey(url)),
     // Frozen documents carry the BLOB delivery shape regardless of
     // build.inlineFlight: streamed interleaving is only parse-safe when the
     // HTML producer flushes at element boundaries, which holds for the live

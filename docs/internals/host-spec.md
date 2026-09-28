@@ -132,9 +132,14 @@ the host helper and the plugin can evolve independently — a host reading a
 manifest it doesn't understand fails loudly at startup, not per-request.
 
 `cssByPattern` retires the per-route `collectManifestCss` dance: the build
-walks each route's page module once and records the resolved CSS files; the
-host applies the same inline-vs-link threshold the static build used, so a
-per-request document and its prerendered sibling agree by construction.
+walks each route's page module, its props loader and its `route.tsx` layout
+chain once (the same roots the SSG pass seeds its css walk with, so a
+stylesheet only `props.ts` or a layout imports is recorded too) and records
+the resolved CSS files; the host applies the same
+inline-vs-link threshold the static build used, so a per-request document and
+its prerendered sibling agree by construction. The webpack freeze renders
+through the same resolver, handing each route's files to the baked producer
+as `cssFiles` for the document and for the navigation flight alike.
 
 `transport` + `consumerBundle` make the flavor a followed fact instead of a
 wiring exercise. Under a webpack bake the host renders HTML through the baked

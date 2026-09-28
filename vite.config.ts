@@ -222,7 +222,6 @@ export default defineConfig({
         exports: "named",
         preserveModules: true,
         esModule: true,
-        compact: false,
         banner:
           "/**\n * vite-plugin-react-server\n * Copyright (c) Nico Brinkkemper\n * MIT License\n */",
       },
