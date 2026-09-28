@@ -15,6 +15,12 @@
 }
 ```
 
+## `Cannot read properties of null (reading 'useSyncExternalStore')` in the webpack freeze
+
+**Symptoms:** `vite build --app` with `transport: "webpack"` panics while freezing a page whose client tree uses `react-i18next`, `zustand`, `react-redux` or anything else that reaches React through `use-sync-external-store/shim`. The same page with plain `useState`/`useContext` freezes fine.
+
+**Cause:** the shim is CommonJS and `require("react")`s. React is external to the client build, so the bundler left that call as a runtime `createRequire` — a second physical React once the chunk was baked into the single-isolate consumer, with its dispatcher never set. Since 4.1.1 the build hoists such requires into static imports, so the baked pair shares one React and no `node:module` import reaches the edge bundle. If you had aliased the shim onto your own `.client.ts` wrapper to get past this, the alias can go.
+
 ## Missing Stack Traces
 
 Open the browser DevTools console (F12). The plugin streams detailed errors there, not to the rendered page.

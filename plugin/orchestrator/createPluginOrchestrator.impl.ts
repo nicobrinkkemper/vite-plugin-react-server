@@ -2,6 +2,7 @@ import type { Plugin } from "vite";
 import { createEnvironmentPlugin } from "../environments/createEnvironmentPlugin.js";
 import { createBuildEventPlugin } from "../environments/createBuildEventPlugin.js";
 import { createVendoredPackageJsonPlugin } from "../environments/createVendoredPackageJsonPlugin.js";
+import { createReactRequireInteropPlugin } from "../environments/createReactRequireInteropPlugin.js";
 import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 import { serverReferenceClientPlugin } from "../transformer/serverReferenceClientPlugin.js";
 import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
@@ -73,6 +74,12 @@ export const createPluginOrchestratorImpl = (
   // ESM, so they still parse as ESM where the root package.json isn't
   // co-located (serverless functions ship only the build output).
   plugins.push(createVendoredPackageJsonPlugin());
+
+  // A bundled CommonJS dependency's `require("react")` targets an external of
+  // the ssr/server environments; rolldown leaves it as a runtime
+  // `createRequire` call, which becomes a SECOND React once the chunk is baked
+  // into a single-isolate bundle. Hoist the react family into static imports.
+  plugins.push(createReactRequireInteropPlugin());
 
   const devServerPlugins = strategy.devServerPlugin(userOptions);
   if (Array.isArray(devServerPlugins)) {
