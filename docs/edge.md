@@ -157,6 +157,7 @@ module graph.
 | option          | default            | meaning |
 | --------------- | ------------------ | ------- |
 | `dynamic`       | every baked route  | which routes render per request — a predicate, or a list of urls and/or route patterns (`/blog/$slug`). A serving-layer choice, so one build can be served static, dynamic, or a mix. |
+| `cssFiles`      | baked `globalCss` only | per-route stylesheets for the document render: a `Map<string, CssContent>`, or a function of the route url returning one (what the host manifest's `cssByPattern` names for the matched route). The build's webpack freeze passes each route's own css here. |
 | `projectRoot`   | —                  | forwarded to the baked action gate |
 | `actionHeader`  | `"x-rsc-action"`   | header marking a POST as a server action |
 | `rscOutputPath` | `"index.rsc"`      | filename the client router fetches a flight from |
@@ -370,6 +371,12 @@ const handler = createEdgeHandler({
 
 Pass live `cssFiles`/`globalCss` (a `Map<string, CssContent>`, e.g. via
 `collectManifestCss`) so the document and the inline payload carry the same styles.
+`createEdgeRequestHandler` takes the same `cssFiles` — a map, or a function of
+the route url returning one — and forwards it to the baked producer per
+request; the build's webpack freeze passes each route's own stylesheets (the
+closure of its page module and props loader, what the host manifest records as
+`cssByPattern`) through exactly that option, so a frozen document is styled
+like the esm pass's.
 
 ## Server actions, no `--conditions` (`handleRouteAction`)
 

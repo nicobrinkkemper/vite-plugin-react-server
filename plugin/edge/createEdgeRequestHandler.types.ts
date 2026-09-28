@@ -92,6 +92,19 @@ export type CreateEdgeRequestHandlerOptions = Omit<
    * with no prerendered snapshots to fall back to.
    */
   dynamic?: string[] | ((url: string) => boolean);
+  /**
+   * Per-route stylesheets for the document render: the `cssFiles` the baked
+   * `renderRouteToDocument` accepts (keyed by css file, as the static manifest
+   * spells it), or a function of the route url returning them. The build's
+   * webpack freeze passes each route's own css here — the closure of its page
+   * module and props loader — so the frozen document is styled like the esm
+   * pass's; a live host can hand over what its host manifest's `cssByPattern`
+   * names for the matched route. Omit to render with the baked `globalCss`
+   * (the client entry's stylesheets) only.
+   */
+  cssFiles?:
+    | Map<string, CssContent>
+    | ((url: string) => Map<string, CssContent> | undefined);
   /** Forwarded to the baked action gate (which ignores it — nothing loads from disk). */
   projectRoot?: string;
   /** Header marking a POST as a server action. @default "x-rsc-action" */

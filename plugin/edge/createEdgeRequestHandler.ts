@@ -84,8 +84,11 @@ export function createEdgeRenderHook(
     projectRoot: _projectRoot,
     actionHeader: _actionHeader,
     onNotFound: _onNotFound,
+    cssFiles,
     ...edgeOptions
   } = options;
+  const cssFilesFor = (url: string) =>
+    typeof cssFiles === "function" ? cssFiles(url) : cssFiles;
 
   const isDynamic = toDynamicPredicate(dynamic);
 
@@ -102,7 +105,11 @@ export function createEdgeRenderHook(
       ({ createEdgeHandler }) =>
         createEdgeHandler({
           ...edgeOptions,
-          renderDocument: (url, opts) => bundle.renderRouteToDocument(url, opts),
+          renderDocument: (url, opts) =>
+            bundle.renderRouteToDocument(url, {
+              ...opts,
+              cssFiles: cssFilesFor(url),
+            }),
           // From the bundle's own bake — the point is that the handler already
           // knows its entry. An explicit option still wins.
           moduleBaseURL: options.moduleBaseURL ?? bundle.clientModuleBaseURL ?? "/",
