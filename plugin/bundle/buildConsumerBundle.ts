@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import type { ResolvedUserOptions } from "../types.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { hostedPath } from "./clientManifest.js";
+import { htmlClaimedKeys } from "./htmlClaimed.js";
 
 /**
  * Bake the CONSUMER half of the single-isolate edge render: decode a Flight
@@ -111,7 +112,16 @@ export async function buildConsumerBundle(opts: {
   // browser entry it imports (whose top level calls startClient). Neither is
   // a flight-referenceable module, and importing the entry eagerly executes
   // document access inside the bake — exclude the html-claimed graph roots.
-  const htmlClaimed = new Set<string>();
+  // Rollup records no html key at all, so the claim also reads the html
+  // source (see htmlClaimedKeys).
+  const readProjectSource = (key: string): string | undefined => {
+    try {
+      return readFileSync(join(projectRoot, key), "utf8");
+    } catch {
+      return undefined;
+    }
+  };
+  const htmlClaimed = htmlClaimedKeys(clientManifest, readProjectSource);
   // Only DIRECTIVE modules belong in the registry: flight payloads can
   // reference exactly the modules that registered a client reference, i.e.
   // sources carrying "use client" — first-party *.client.tsx and package
@@ -125,22 +135,9 @@ export async function buildConsumerBundle(opts: {
   // manifest entry, and its hosted copy carries that same preamble) have no
   // source file, and a real reference always does.
   const isReferenceSource = (key: string): boolean => {
-    try {
-      return sourceHasTopLevelClientDirective(
-        readFileSync(join(projectRoot, key), "utf8")
-      );
-    } catch {
-      return false;
-    }
+    const source = readProjectSource(key);
+    return source !== undefined && sourceHasTopLevelClientDirective(source);
   };
-
-  for (const [key, entry] of Object.entries(clientManifest)) {
-    if (!key.endsWith(".html")) continue;
-    htmlClaimed.add(key);
-    for (const imported of (entry as { imports?: string[] })?.imports ?? []) {
-      htmlClaimed.add(imported);
-    }
-  }
 
   for (const [key, entry] of Object.entries(clientManifest)) {
     if (htmlClaimed.has(key)) continue;
