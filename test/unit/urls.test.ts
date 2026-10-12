@@ -156,6 +156,38 @@ describe('URL utilities', () => {
       const result = pageURL('/test');
       expect(result.moduleBaseURL).toBe('http://localhost:5173/');
     });
+
+    // A navigation to a location with a query (router.navigate("/level/?course=x"))
+    // used to produce `/level/?course=x/index.rsc`: a static host answers that
+    // with the html page and the client falls back to a full load. The flight
+    // file sits on the pathname; the search follows it.
+    it('puts the flight file on the pathname and keeps the search after it', () => {
+      const pageURL = createPageURL('/', 'http://localhost:5173');
+      const result = pageURL('/level/bridge/?course=abc&name=x%20y');
+      expect(result.indexRSC).toBe(
+        'http://localhost:5173/level/bridge/index.rsc?course=abc&name=x%20y'
+      );
+    });
+
+    it('keeps the search under a sub path base too', () => {
+      const pageURL = createPageURL('/app/', 'http://localhost:5173');
+      const result = pageURL('/level?course=abc');
+      expect(result.indexRSC).toBe('http://localhost:5173/app/level/index.rsc?course=abc');
+    });
+
+    it('drops the fragment: it never reaches a server', () => {
+      const pageURL = createPageURL('/', 'http://localhost:5173');
+      expect(pageURL('/level/?course=abc#top').indexRSC).toBe(
+        'http://localhost:5173/level/index.rsc?course=abc'
+      );
+      expect(pageURL('/level/#top').indexRSC).toBe('http://localhost:5173/level/index.rsc');
+    });
+
+    it('keeps the search on the relative fallback (invalid public origin)', () => {
+      const pageURL = createPageURL('/', 'IGNORE_THIS_ERROR');
+      expect(pageURL('/level/?course=abc').indexRSC).toBe('/level/index.rsc?course=abc');
+      expect(pageURL('/level?course=abc').indexRSC).toBe('/level/index.rsc?course=abc');
+    });
   });
 
   describe('createPageURL in a browser (origin-split regression)', () => {

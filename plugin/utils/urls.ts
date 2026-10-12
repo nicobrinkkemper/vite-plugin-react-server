@@ -162,16 +162,24 @@ export const createPageURL = (
     : addTrailingSlash
 ) => {
   return (to: string, fileName: string = "index.rsc") => {
+    // The router hands over the whole location (`/level/?course=x`), but the
+    // flight file sits on the PATHNAME: `<pathname>/index.rsc?course=x`. Built
+    // from the full string instead, `/level/?course=x/index.rsc` asks a static
+    // host for the html page and the client falls back to a full load. The
+    // fragment never reaches a server, so it is dropped rather than carried.
+    const tailAt = to.search(/[?#]/);
+    const pathname = tailAt === -1 ? to : to.slice(0, tailAt);
+    const search = tailAt === -1 ? "" : to.slice(tailAt).replace(/#.*$/, "");
     try {
       // Ensure withBaseURL is a string
       const baseURLString = typeof withBaseURL === 'string' ? withBaseURL : String(withBaseURL || '/');
-      
+
       // Create the base URL first
       const folderName = addTrailingSlash(
-        to.replace(/\[index.(html?|rsc|HTML?)]$/, "")
+        pathname.replace(/\[index.(html?|rsc|HTML?)]$/, "")
       );
       const baseURL = createBaseURL(baseURLString);
-      const rscPath = baseURL(folderName) + fileName;
+      const rscPath = baseURL(folderName) + fileName + search;
       // Create moduleBaseURL and normalize it to match input format
       const moduleBaseURL = parseURL(baseURLString, withPublicOrigin);
       if (moduleBaseURL.type === "error") {
@@ -188,13 +196,14 @@ export const createPageURL = (
       };
     } catch (error) {
       if (isDev) console.error("Error parsing pageURL", error);
-      const shouldJoin = !to.endsWith("/") && !fileName.startsWith("/");
-      const shouldSlice = to.endsWith("/") && fileName.startsWith("/");
+      const shouldJoin = !pathname.endsWith("/") && !fileName.startsWith("/");
+      const shouldSlice = pathname.endsWith("/") && fileName.startsWith("/");
       return {
         indexRSC:
-          to +  
+          pathname +
           (shouldJoin ? "/" : "") +
-          (shouldSlice ? fileName.slice(1) : fileName),
+          (shouldSlice ? fileName.slice(1) : fileName) +
+          search,
         moduleBaseURL: typeof withBaseURL === 'string' ? withBaseURL : String(withBaseURL || '/'),
       };
     }
