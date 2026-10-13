@@ -7,7 +7,7 @@ import { INLINE_FLIGHT_STREAM_GLOBAL } from "../../plugin/utils/inlineFlightId.j
 // single-isolate edge tests use; the suite runs on the client leg of test-both.
 const createEdgeHandler = (streamApi as { createEdgeHandler?: unknown })
   .createEdgeHandler as
-  | typeof import("../../plugin/stream/createEdgeHandler.client.js").createEdgeHandler
+  | typeof import("../../plugin/stream/createEdgeHandler.js").createEdgeHandler
   | undefined;
 
 const encoder = new TextEncoder();

@@ -42,7 +42,7 @@ export type {
   CreateInlineFlightRendererFn,
 } from "./createInlineFlightRenderer.types.js";
 
-assertReactServer();
+assertReactServer(import.meta.url);
 
 /** Read the build manifest's entry module as a bootstrap module URL. */
 function deriveBootstrapModules(staticDir: string, base: string): string[] {

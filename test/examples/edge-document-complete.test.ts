@@ -11,7 +11,7 @@ import { doBuild } from "../doBuild.js";
 // this suite runs on the client leg of test-both — same guard the other
 // single-isolate edge tests use. The edge bake itself runs during the build.
 const createEdgeHandler = (streamApi as any).createEdgeHandler as
-  | typeof import("../../plugin/stream/createEdgeHandler.client.js").createEdgeHandler
+  | typeof import("../../plugin/stream/createEdgeHandler.js").createEdgeHandler
   | undefined;
 
 const testDir = resolve(__dirname, "../fixtures/edge-document-complete.test");

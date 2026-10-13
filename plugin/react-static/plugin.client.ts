@@ -68,7 +68,7 @@ import { baseURL } from "../utils/envUrls.js";
 import { tryManifest } from "../helpers/tryManifest.js";
 // cssCollector removed - using filesystem-based CSS processing
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * plugin.client.ts

@@ -7,7 +7,7 @@ import type {
 } from "../types.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { assertNonReactServer } from "../config/getCondition.js";
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 export const reactServerPlugin: VitePluginFn =
   function _reactServerPluginForClient(options) {

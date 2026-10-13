@@ -16,7 +16,7 @@ import { deriveImplicitSsr } from "../config/deriveImplicitSsr.js";
 import { handleError } from "../error/handleError.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Main entry for `react-client` behavior. This plugin is imported when the plugin is imported from the main

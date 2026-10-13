@@ -8,7 +8,7 @@ import { assertNonReactServer } from "../config/getCondition.js";
 import { createFromNodeStream } from "../stream/createFromNodeStream.client.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Client version of resolveStreamElements.

@@ -11,7 +11,7 @@ import { deriveImplicitSsr } from "../config/deriveImplicitSsr.js";
 import { handleError } from "../error/handleError.js";
 import { assertReactServer } from "../config/getCondition.js";
 
-assertReactServer();  
+assertReactServer(import.meta.url);  
 
 /**
  * Semantic entry for `react-client` build behavior under the `react-server`  condition.

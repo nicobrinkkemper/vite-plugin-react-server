@@ -4,7 +4,7 @@ import type { UserOptions, Strategy } from "./orchestrator/types.js";
 import { assertNonReactServer } from "./config/getCondition.js";
 import { validateRunner } from "./config/runner.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Main entrypoint for React Server Components.

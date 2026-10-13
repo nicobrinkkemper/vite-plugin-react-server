@@ -60,7 +60,7 @@ import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.
 import { assertReactServer, REACT_CONDITION } from "../config/getCondition.js";
 import { toError } from "../error/toError.js";
 
-assertReactServer();
+assertReactServer(import.meta.url);
 
 /**
  * Main entrypoint for the static plugin.

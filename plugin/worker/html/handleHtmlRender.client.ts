@@ -11,7 +11,7 @@ import { createFromNodeStream } from "../../stream/createFromNodeStream.client.j
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
 import { ReactDOMServer } from "../../vendor/vendor.client.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Handle the render of an HTML stream from RSC chunks, creates the stream once and pipes directly.

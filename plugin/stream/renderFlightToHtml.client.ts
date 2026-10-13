@@ -4,7 +4,7 @@ import { ReactDOMClientEdge } from "../vendor/vendorEdge.client.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 import { createPassthroughConsumerManifest } from "./webpackConsumerManifest.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Single-isolate flash-free HTML: decode a Flight RSC `ReadableStream` and

@@ -13,7 +13,7 @@ import {
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createRscWorkerStream } from "./createRscWorkerStream.js";
 
-assertReactServer();
+assertReactServer(import.meta.url);
 
 /**
  * Creates an RSC stream using the server-side render handler.
