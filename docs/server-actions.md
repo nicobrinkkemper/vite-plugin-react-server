@@ -255,6 +255,21 @@ navigation, not-found rejects with a `notFound()`-marked error (test with
 `isNotFound`), and a non-flight response is reported as an error instead of
 being fed to the decoder.
 
+An error outcome rejects the *call*; what happens next is the caller's.
+React 19 unmounts the whole tree when a transition's rejection goes uncaught
+with no error boundary above it: one failed click, blank page, navigation
+dead. `startClient` mounts the root with no default boundary. Catch the
+rejection where the action is called (`try`/`catch` inside the
+transition), or put a boundary above the caller (`error.tsx` in the router,
+`createErrorBoundary` from `vite-plugin-react-server/router/client`
+elsewhere, see [routing.md](./routing.md)).
+
+The message is the server's `error.message` verbatim and nothing else: no
+stack, no `cause`, no paths of vprs's own. Library errors interpolate their
+internals into the message itself (a database driver's host and port, a
+wrapped config value), so an action that must stay opaque throws its own
+error with a message written for the browser.
+
 ### Endpoint hardening
 
 The sealed gate decides *which function* a request may resolve — it confirms the
