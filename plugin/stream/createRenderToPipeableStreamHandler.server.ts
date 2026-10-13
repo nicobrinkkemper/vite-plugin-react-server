@@ -10,7 +10,7 @@ import type { CreateRenderToPipeableStreamHandlerFn } from "./createRenderToPipe
 
 import { PassThrough } from "node:stream";
 
-assertReactServer();
+assertReactServer(import.meta.url);
 
 /**
  * Creates an RSC stream from React elements using ReactDOMServer.renderToPipeableStream.

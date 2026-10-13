@@ -6,7 +6,7 @@ import { React } from "../vendor/vendor.client.js";
 import { ReactDOMClientEdge } from "../vendor/vendorEdge.client.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Web-stream counterpart of {@link createFromNodeStream}: decode a Flight RSC

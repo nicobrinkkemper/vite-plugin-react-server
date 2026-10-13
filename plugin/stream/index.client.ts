@@ -23,7 +23,7 @@ export * from "./createFromReadableStream.client.js";
 // plugin/worker/html, for edge / single-isolate builds.
 export * from "./renderFlightToHtml.client.js";
 import { renderFlightToHtml } from "./renderFlightToHtml.client.js";
-import { createEdgeHandler as coreCreateEdgeHandler } from "./createEdgeHandler.client.js";
+import { createEdgeHandler as coreCreateEdgeHandler } from "./createEdgeHandler.js";
 import type { CreateEdgeHandlerFn } from "./createEdgeHandler.types.js";
 
 // Edge fetch handler: compose the baked flight producer + renderFlightToHtml

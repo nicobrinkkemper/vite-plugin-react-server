@@ -40,7 +40,7 @@ export const renderPage: RenderPageFn = async function* renderPage(
   handlerOptions
 ) {
   // Ensure we're in the correct environment
-  assertReactServer();
+  assertReactServer(import.meta.url);
 
   // Metrics topology — server: RSC on the main thread, HTML in the worker.
   const { htmlMetrics, rscFullMetrics, rscHeadlessMetrics } =

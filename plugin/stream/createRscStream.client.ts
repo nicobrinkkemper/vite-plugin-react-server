@@ -7,7 +7,7 @@ import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { createMessageChannels } from "./createMessageChannels.js";
 import { MessagePortReadable } from "./MessagePortReadable.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Creates an RSC stream by communicating with the RSC worker.

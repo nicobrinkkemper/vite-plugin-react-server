@@ -3,7 +3,7 @@ import { assertNonReactServer } from "../config/getCondition.js";
 import { createRenderToPipeableStreamHandler } from "./createRenderToPipeableStreamHandler.client.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   options

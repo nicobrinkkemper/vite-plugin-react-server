@@ -6,7 +6,7 @@ import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
 import { handleError } from "../error/handleError.js";
 import { PassThrough } from "node:stream";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Client version of createRenderToPipeableStreamHandler.

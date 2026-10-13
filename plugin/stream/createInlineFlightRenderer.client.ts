@@ -22,7 +22,7 @@ export type {
   CreateInlineFlightRendererFn,
 } from "./createInlineFlightRenderer.types.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 export const createInlineFlightRenderer: CreateInlineFlightRendererFn =
   function _createInlineFlightRendererClient() {

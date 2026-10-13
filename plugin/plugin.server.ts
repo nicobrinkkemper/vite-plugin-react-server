@@ -5,7 +5,7 @@ import { assertReactServer } from "./config/getCondition.js";
 import { validateRunner } from "./config/runner.js";
 import { createPluginOrchestrator } from "./orchestrator/createPluginOrchestrator.server.js";
 
-assertReactServer();
+assertReactServer(import.meta.url);
 
 /**
  * Main entrypoint for React Server Components.

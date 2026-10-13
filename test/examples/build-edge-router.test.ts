@@ -14,7 +14,7 @@ const renderFlightToHtml = (streamApi as any).renderFlightToHtml as
   | typeof import("../../plugin/stream/renderFlightToHtml.client.js").renderFlightToHtml
   | undefined;
 const createEdgeHandler = (streamApi as any).createEdgeHandler as
-  | typeof import("../../plugin/stream/createEdgeHandler.client.js").createEdgeHandler
+  | typeof import("../../plugin/stream/createEdgeHandler.js").createEdgeHandler
   | undefined;
 
 const testDir = resolve(__dirname, "../fixtures/build-edge-router.test");

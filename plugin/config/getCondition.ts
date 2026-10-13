@@ -210,27 +210,31 @@ export const getCondition = <Prefix extends string = "react-", DefaultCondition 
  * Asserts that the current condition is react-server
  * Throws an error with a descriptive message if not
  */
-export function assertReactServer(): asserts this is {
+export function assertReactServer(moduleUrl?: string): asserts this is {
   condition: "react-server";
 } {
   const currentCondition = getCurrentCondition();
   if (currentCondition !== REACT_CONDITION.server) {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
     console.warn(
-      `[vite-plugin-react-server] Condition mismatch: expected react-server. Set NODE_OPTIONS="--conditions=react-server"`
+      `[vite-plugin-react-server] Condition mismatch: expected react-server on ${moduleUrl ?? "this module"}. Set NODE_OPTIONS="--conditions=react-server"`
     );
     return; // Don't throw — Vite 7 may load both condition variants during config bundling
   }
 }
 
-export function assertNonReactServer(): asserts this is {
+/**
+ * Pass `import.meta.url` so the warning names the module that was evaluated
+ * under the wrong condition; a bare warning once cost a stack-tracing hunt.
+ */
+export function assertNonReactServer(moduleUrl?: string): asserts this is {
   condition: "react-client";
 } {
   const currentCondition = getCurrentCondition();
   if (currentCondition === REACT_CONDITION.server) {
     // Debug-only: avoid Node-only APIs to keep this file browser-safe
     console.warn(
-      `[vite-plugin-react-server] Condition mismatch: unexpected react-server condition on this module.`
+      `[vite-plugin-react-server] Condition mismatch: unexpected react-server condition on ${moduleUrl ?? "this module"}.`
     );
     return; // Don't throw — Vite 7 may load both condition variants during config bundling
   }

@@ -2,7 +2,7 @@ import type { CreateFromNodeStreamFn } from "./createFromNodeStream.types.js";
 import { React, ReactDOMClient } from "../vendor/vendor.client.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Client version of createNodeStream.

@@ -58,7 +58,7 @@ import { createRscToHtmlStream } from "./rscToHtmlStream.client.js";
 
 
 
-assertNonReactServer();
+assertNonReactServer(import.meta.url);
 
 /**
  * Client version of renderPage that uses the react-client pattern

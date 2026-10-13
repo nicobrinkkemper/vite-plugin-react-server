@@ -4,11 +4,8 @@ import type {
 } from "./createEdgeHandler.types.js";
 import { injectInlineFlightIntoHtml } from "../utils/inlineFlight.js";
 import { interleaveFlightIntoHtmlStream } from "./interleaveFlightIntoHtml.js";
-import { assertNonReactServer } from "../config/getCondition.js";
 import { isUnknownRoute } from "./unknownRoute.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
-
-assertNonReactServer();
 
 /** Drain a Web ReadableStream of bytes into a single Uint8Array. */
 async function collectBytes(

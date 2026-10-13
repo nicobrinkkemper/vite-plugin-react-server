@@ -101,7 +101,7 @@ export function createEdgeRenderHook(
   // Memoized: built once, then reused for every request.
   let documentHandler: Promise<EdgeFetchHandler> | undefined;
   const getDocumentHandler = (): Promise<EdgeFetchHandler> =>
-    (documentHandler ??= import("../stream/createEdgeHandler.client.js").then(
+    (documentHandler ??= import("../stream/createEdgeHandler.js").then(
       ({ createEdgeHandler }) =>
         createEdgeHandler({
           ...edgeOptions,
