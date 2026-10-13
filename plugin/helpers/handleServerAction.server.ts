@@ -262,7 +262,14 @@ function actionSignalOutcome(
   return null;
 }
 
-/** The error-outcome envelope: message only — never the stack or paths. */
+/**
+ * The error-outcome envelope: message only — never the stack, never `cause`
+ * (where Node's fetch keeps the address). The message itself is the server's
+ * verbatim, by choice: consumers show real errors, and an action that must
+ * stay opaque throws its own (docs/server-actions.md, Terminal outcomes).
+ * React's digest-only prod convention was weighed and not adopted: the baked
+ * bundle stubs node:fs, so the ENOENT-with-a-path class cannot reach here.
+ */
 const actionErrorPayload = (error: Error) => ({
   error: { message: error.message },
 });
