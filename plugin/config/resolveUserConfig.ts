@@ -10,7 +10,7 @@ import type {
   ResolvedUserOptions,
   AutoDiscoveredFiles,
 } from "../types.js";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 // Vite 8 swaps Rollup→Rolldown; source bundle types from Vite's version-agnostic Rollup namespace.
 import type { Rollup } from "vite";
@@ -42,6 +42,10 @@ import { createRollupLikeHash } from "./createRollupLikeHash.js";
 const dropStaleRolldownAlias = {
   rolldownOptions: undefined,
 } as Record<string, undefined>;
+
+// Vite's CSS_LANGS_RE, minus the query it allows: what css-post emits as a
+// .css asset started as one of these.
+const STYLESHEET_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)$/;
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
@@ -194,6 +198,29 @@ export const resolveUserConfig: ResolveUserConfigFn =
       // Fall back to the user's assetFile function for consistent behavior
       return fallback(info, ssr);
     };
+
+    // Rollup merges the assets that share one source: the first emitFile
+    // names the file, later emits only append their name and
+    // originalFileName. Vite emits a stylesheet twice when a module imports
+    // it with `?url`, from concurrent renderChunk calls, and the two
+    // disagree on both fields: the url emit carries the basename and the
+    // ABSOLUTE source path, the css-chunk emit the module path and the
+    // root-relative one. Whichever reached Rollup first used to name the
+    // file, so the same build produced either the asset url or, through the
+    // stash below, the css entry chunk's own .js name. A stylesheet asset is
+    // named from its source path, so both emits land on one name.
+    const stylesheetRoot = resolve(config.root ?? userOptions.projectRoot);
+    const stylesheetAsset = (info: PreRenderedAsset): PreRenderedAsset => {
+      const original = info.originalFileNames?.[0]?.split("?")[0];
+      if (!original || !STYLESHEET_RE.test(original)) return info;
+      const posix = original.split("\\").join("/");
+      const source = isAbsolute(posix)
+        ? relative(stylesheetRoot, posix).split("\\").join("/")
+        : posix;
+      if (source.startsWith("..")) return info;
+      const name = source.replace(/\.[^./]+$/, ".css");
+      return { ...info, names: [name], originalFileNames: [source] };
+    };
     const userDefinedOutput = config.build?.rollupOptions?.output;
     const hasOtherOutput =
       Array.isArray(userDefinedOutput) && userDefinedOutput.length > 1;
@@ -277,7 +304,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
             const idx = posix.lastIndexOf(seg);
             if (idx >= 0) return posix.slice(idx);
           }
-          const inputId = input + (ssr ? "-ssr" : "");
+          const inputId = "entry:" + input + (ssr ? "-ssr" : "");
           if (!stashedReturns[inputId]) {
             const r = handleSsrEntryName(
               info,
@@ -296,9 +323,12 @@ export const resolveUserConfig: ResolveUserConfigFn =
         }),
       assetFileNames:
         userDefinedAssetFileNames ??
-        ((info) => {
+        ((rawInfo) => {
+          const info = stylesheetAsset(rawInfo);
           const input = info.originalFileNames[0];
-          const inputId = input + (ssr ? "-ssr" : "");
+          // Keyed by kind: a css entry chunk is keyed by its absolute facade
+          // id, which is exactly the url emit's originalFileName.
+          const inputId = "asset:" + input + (ssr ? "-ssr" : "");
 
           if (!stashedReturns[inputId]) {
             const r = handleSsrAssetName(
@@ -330,7 +360,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
           const input =
             info.facadeModuleId ??
             info.name + userOptions.autoDiscover.modulePattern.source;
-          const inputId = input + (ssr ? "-ssr" : "");
+          const inputId = "chunk:" + input + (ssr ? "-ssr" : "");
 
           if (!stashedReturns[inputId]) {
             const r = handleSsrEntryName(
