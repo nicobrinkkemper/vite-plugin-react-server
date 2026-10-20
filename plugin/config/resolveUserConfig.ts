@@ -379,6 +379,13 @@ export const resolveUserConfig: ResolveUserConfigFn =
         }),
       format: "esm",
       exports: "named",
+      // Browser names carry Rollup's [hash]; keep them in the character set
+      // vprs names have always used (build.hash.format "hex", else base36).
+      hashCharacters:
+        typeof userOptions.build.hash === "object" &&
+        userOptions.build.hash?.format === "hex"
+          ? "hex"
+          : "base36",
     } satisfies OutputOptions;
 
     const newOutput = Array.isArray(config.build?.rollupOptions?.output)
