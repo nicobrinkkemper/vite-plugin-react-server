@@ -537,9 +537,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   /**
    * Outputs that must keep a stable path (assets/CSS still use single-file
-   * hashing; entry/chunk use the combined-graph bag — fpm9).
+   * hashing; entry/chunk use the combined-graph bag).
    */
-  const shouldLeaveUnhashed = (input: string): boolean => {
+  const shouldLeaveUnhashed = (input: string, ssr: boolean): boolean => {
     if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) return true;
     if (input.includes("node_modules")) return true;
     if (
@@ -551,12 +551,15 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     if (hashOption === "false") return true;
     // Skip outputs addressed by canonical path rather than the build manifest:
     // html/rsc SSG URLs; page/props/server SSR entries imported by literal path.
+    // The browser build has no such entries, and the patterns match any name
+    // ending in page/props/server (a vendor `create-split-props.js` chunk), so
+    // they apply to SSR builds only.
+    if (htmlPattern.test(input) || rscPattern.test(input)) return true;
     if (
-      htmlPattern.test(input) ||
-      rscPattern.test(input) ||
-      pagePattern.test(input) ||
-      propsPattern.test(input) ||
-      serverPattern.test(input)
+      ssr &&
+      (pagePattern.test(input) ||
+        propsPattern.test(input) ||
+        serverPattern.test(input))
     ) {
       return true;
     }
@@ -579,7 +582,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
    */
   const hash = (input: string | null, ssr: boolean, sourceContent?: string) => {
     if (!input) return "";
-    if (shouldLeaveUnhashed(input)) {
+    if (shouldLeaveUnhashed(input, ssr)) {
       return input;
     }
 
@@ -628,8 +631,8 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   };
 
   /**
-   * Content-addressed entry/chunk name from the combined module graph (fpm9
-   * option 2). The bag is the transitive first-party import closure of the
+   * Content-addressed entry/chunk name from the combined module graph.
+   * The bag is the transitive first-party import closure of the
    * facade (or of every module in a shared chunk) — sources, not Rollup
    * membership and not final hashed import filenames — so:
    * - bundled deps bust the facade name (preserveModules: false);
@@ -643,7 +646,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     facadeSource?: string
   ) => {
     if (!input) return "";
-    if (shouldLeaveUnhashed(input)) {
+    if (shouldLeaveUnhashed(input, ssr)) {
       return input;
     }
 
