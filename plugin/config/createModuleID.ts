@@ -9,6 +9,7 @@ import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import { createCombinedGraphChunkHash } from "./createCombinedGraphChunkHash.js";
 import { toCanonicalModuleId } from "./combinedGraphChunkInputs.js";
+import { collectTransitiveModuleBagFromEntry } from "./collectTransitiveModuleBag.js";
 import { wrapModuleID } from "./moduleIdContract.js";
 
 export type ModuleIDKey =
@@ -123,30 +124,30 @@ export const createDefaultModuleID = (
       projectRoot,
       sourceModuleId ?? input
     );
-    // Prefer on-disk source so the bag matches entryFile/chunkFile (which
-    // read disk). Transformer `sourceContent` is still used above for
-    // client detection when the file is missing from disk (unit tests).
-    let source = "";
+    // Same transitive first-party import closure as entryFile/chunkFile so
+    // client-ref ids track bundled and separate-chunk deps alike.
+    let entrySource: string | undefined = sourceContent;
     try {
       const sourcePath = resolve(projectRoot, canonicalId);
       if (existsSync(sourcePath)) {
-        source = readFileSync(sourcePath, "utf-8");
-      } else if (sourceContent != null) {
-        source = sourceContent;
+        entrySource = readFileSync(sourcePath, "utf-8");
       }
     } catch {
-      if (sourceContent != null) {
-        source = sourceContent;
-      }
+      // Keep transformer sourceContent when disk is unavailable (unit tests).
     }
+    const transitive = collectTransitiveModuleBagFromEntry(
+      projectRoot,
+      canonicalId,
+      entrySource
+    );
 
     const hashCharacters =
       typeof hashOption === "object" && hashOption?.format === "hex"
         ? "hex"
         : "base36";
     const contentHash = createCombinedGraphChunkHash({
-      moduleIds: [canonicalId],
-      moduleSources: { [canonicalId]: source },
+      moduleIds: transitive.moduleIds,
+      moduleSources: transitive.moduleSources,
       importedChunkNames: [],
       hashCharacters,
     });

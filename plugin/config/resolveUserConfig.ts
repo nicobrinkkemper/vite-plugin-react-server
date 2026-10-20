@@ -27,7 +27,7 @@ import {
   mergeClientPackagesOptimizeDepsExclude,
 } from "../clientPackages/index.js";
 import { serializeCombinedGraphChunkBag } from "./createCombinedGraphChunkHash.js";
-import { buildCombinedGraphChunkHashInput } from "./combinedGraphChunkInputs.js";
+import { collectTransitiveModuleBag } from "./collectTransitiveModuleBag.js";
 
 // rolldown-vite materializes a sibling plugin's build.rollupOptions
 // contribution (e.g. @vitejs/plugin-react's onwarn wrapper) as a real
@@ -915,24 +915,27 @@ export const resolveUserConfig: ResolveUserConfigFn =
                   }
                 },
               },
-              // Salt Rollup's [hash] (when used) with the same combined-graph
-              // bag as entryFile/chunkFile — every module source, not facade-only.
+              // Salt Rollup's [hash] (when used) with the same transitive
+              // first-party import bag as entryFile/chunkFile.
               {
                 name: "vite:plugin-react-server/content-hash",
                 augmentChunkHash(chunk) {
-                  const bag = buildCombinedGraphChunkHashInput(
+                  const roots =
+                    chunk.facadeModuleId != null && chunk.facadeModuleId !== ""
+                      ? [chunk.facadeModuleId]
+                      : [...chunk.moduleIds];
+                  const transitive = collectTransitiveModuleBag(
                     userOptions.projectRoot,
-                    chunk,
-                    {
-                      // Final import fileNames are circular with embedded hashes;
-                      // naming omits them too. Same bag ⇒ same salt across envs.
-                      importedChunkNames: [],
-                    }
+                    roots
                   );
-                  if (bag.moduleIds.length === 0) {
+                  if (transitive.moduleIds.length === 0) {
                     return chunk.facadeModuleId ?? chunk.name;
                   }
-                  return serializeCombinedGraphChunkBag(bag);
+                  return serializeCombinedGraphChunkBag({
+                    moduleIds: transitive.moduleIds,
+                    moduleSources: transitive.moduleSources,
+                    importedChunkNames: [],
+                  });
                 },
               },
             ],

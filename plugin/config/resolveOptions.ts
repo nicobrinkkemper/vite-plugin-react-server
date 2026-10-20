@@ -38,10 +38,10 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { createRollupLikeHash } from "./createRollupLikeHash.js";
 import { createCombinedGraphChunkHash } from "./createCombinedGraphChunkHash.js";
 import {
-  buildCombinedGraphChunkHashInput,
   toCanonicalModuleId,
   type ChunkGraphLike,
 } from "./combinedGraphChunkInputs.js";
+import { collectTransitiveModuleBag } from "./collectTransitiveModuleBag.js";
 import { DEFAULT_LAYOUT } from "../router/scanRoutes.js";
 import { wrapModuleID } from "./moduleIdContract.js";
 
@@ -629,12 +629,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   /**
    * Content-addressed entry/chunk name from the combined module graph (fpm9
-   * option 2). Shared chunks (no client facade) hash every module source —
-   * never the Rollup name. Client-reference facades hash only that one
-   * module so the filename matches {@link createDefaultModuleID}: static
-   * `preserveModules: false` can pull extra modules into the facade's
-   * chunk, and including them would diverge the flight id from the
-   * client/SSR emit.
+   * option 2). The bag is the transitive first-party import closure of the
+   * facade (or of every module in a shared chunk) — sources, not Rollup
+   * membership and not final hashed import filenames — so:
+   * - bundled deps bust the facade name (preserveModules: false);
+   * - separate-chunk deps also bust the importer name (preserveModules: true);
+   * - createDefaultModuleID walks the same closure for client-ref agreement.
    */
   const hashChunk = (
     input: string | null,
@@ -647,64 +647,41 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return input;
     }
 
-    let graphChunk: ChunkGraphLike = chunk;
     const facade = chunk.facadeModuleId;
-    if (facade) {
-      let facadeCode = facadeSource;
-      if (facadeCode == null) {
-        try {
-          const absolute = resolve(
-            projectRoot,
-            toCanonicalModuleId(projectRoot, facade)
-          );
-          if (existsSync(absolute)) {
-            facadeCode = readFileSync(absolute, "utf-8");
-          }
-        } catch {
-          // Fall through; name/code detectors treat missing source as non-client.
-        }
-      }
-      if (
-        isClientComponentByName(facade) ||
-        (facadeCode != null &&
-          facadeCode !== "" &&
-          isClientComponentByCode(facadeCode))
-      ) {
-        graphChunk = {
-          name: chunk.name,
-          facadeModuleId: facade,
-          moduleIds: [facade],
-        };
-      }
-    }
+    const roots =
+      facade != null && facade !== ""
+        ? [facade]
+        : chunk.moduleIds.length > 0
+          ? [...chunk.moduleIds]
+          : [];
 
     const overrides: Record<string, string> | undefined =
-      facadeSource != null && graphChunk.facadeModuleId
-        ? {
-            [toCanonicalModuleId(projectRoot, graphChunk.facadeModuleId)]:
-              facadeSource,
-          }
-        : facadeSource != null && graphChunk.moduleIds.length === 1
-          ? {
-              [toCanonicalModuleId(projectRoot, graphChunk.moduleIds[0]!)]:
-                facadeSource,
-            }
-          : undefined;
+      facadeSource != null && facade
+        ? { [toCanonicalModuleId(projectRoot, facade)]: facadeSource }
+        : undefined;
 
-    const bag = buildCombinedGraphChunkHashInput(projectRoot, graphChunk, {
-      hashCharacters,
-      moduleSourceOverrides: overrides,
-      // Filename embeds this hash; imported final names would be circular.
-      importedChunkNames: [],
+    const transitive = collectTransitiveModuleBag(projectRoot, roots, {
+      sourceOverrides: overrides,
     });
+
+    // Shared chunk with nothing resolvable: fall back to hashing membership
+    // ids with empty sources rather than the Rollup name alone.
+    const moduleIds =
+      transitive.moduleIds.length > 0
+        ? transitive.moduleIds
+        : roots.map((id) => toCanonicalModuleId(projectRoot, id));
+    const moduleSources =
+      transitive.moduleIds.length > 0
+        ? transitive.moduleSources
+        : Object.fromEntries(moduleIds.map((id) => [id, ""]));
 
     if (
       ssr &&
       !isClientComponentByName(input) &&
-      !bag.moduleIds.some(
+      !moduleIds.some(
         (id) =>
           isClientComponentByName(id) ||
-          isClientComponentByCode(bag.moduleSources[id] ?? "")
+          isClientComponentByCode(moduleSources[id] ?? "")
       )
     ) {
       return input;
@@ -712,11 +689,19 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
     if (options.verbose) {
       logger.info(
-        `[hash] Combined-graph bag for ${input}: ${bag.moduleIds.length} module(s)`
+        `[hash] Combined-graph bag for ${input}: ${moduleIds.length} module(s)`
       );
     }
 
-    return applyHashSuffix(input, createCombinedGraphChunkHash(bag));
+    return applyHashSuffix(
+      input,
+      createCombinedGraphChunkHash({
+        moduleIds,
+        moduleSources,
+        importedChunkNames: [],
+        hashCharacters,
+      })
+    );
   };
 
   // Output path resolution
