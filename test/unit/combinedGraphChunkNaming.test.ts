@@ -129,6 +129,22 @@ describe("combined-graph chunk naming", () => {
     expect(afterSuffix).not.toBe(nameOnlyHash);
   });
 
+  it("a browser chunk whose name ends in props/page/server is still hashed", () => {
+    write("src/split.ts", "export const split = 1;\n");
+    for (const name of ["create-split-props", "homepage", "observer"]) {
+      const fileName = clientChunkFileNames().chunkFileNames({
+        type: "chunk" as const,
+        name,
+        facadeModuleId: null,
+        isEntry: false,
+        isDynamicEntry: false,
+        exports: [] as string[],
+        moduleIds: [join(root, "src/split.ts")],
+      });
+      expect(fileName).toMatch(new RegExp(`${name}-[a-z0-9]+\\.js$`));
+    }
+  });
+
   it("facade unchanged, imported module changes: importer name busts (facade-only hash would not)", () => {
     const bridge = `import { save } from "./courseSave";\nexport const bridge = save;\n`;
     write("src/bridge.ts", bridge);
