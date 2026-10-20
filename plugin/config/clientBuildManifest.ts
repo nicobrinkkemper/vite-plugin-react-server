@@ -1,6 +1,5 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { resolve } from "node:path";
-import { toCanonicalModuleId } from "./combinedGraphChunkInputs.js";
+import { relative, resolve, sep } from "node:path";
 
 /**
  * The browser file the client build emitted for a source module, read from
@@ -56,8 +55,14 @@ export function createClientBuildManifestLookup({
   return {
     path,
     exists: () => existsSync(path),
-    fileOf: (sourceId) => load()?.get(toCanonicalModuleId(projectRoot, sourceId)),
+    fileOf: (sourceId) => load()?.get(manifestKey(projectRoot, sourceId)),
   };
+}
+
+/** Vite's manifest key for a module: its path from the root, posix, no query. */
+function manifestKey(projectRoot: string, sourceId: string): string {
+  const path = resolve(projectRoot, sourceId.replace(/^\0/, "").replace(/\?.*$/, ""));
+  return relative(projectRoot, path).split(sep).join("/");
 }
 
 export function missingClientManifestError(path: string, sourceId: string): Error {

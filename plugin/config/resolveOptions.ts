@@ -40,7 +40,6 @@ import {
   createClientBuildManifestLookup,
   missingClientManifestError,
 } from "./clientBuildManifest.js";
-import type { ChunkGraphLike } from "./combinedGraphChunkInputs.js";
 import { DEFAULT_LAYOUT } from "../router/scanRoutes.js";
 import { wrapModuleID } from "./moduleIdContract.js";
 
@@ -672,7 +671,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const hashChunk = (
     input: string | null,
     ssr: boolean,
-    chunk: ChunkGraphLike,
+    chunk: { facadeModuleId?: string | null },
     facadeSource?: string
   ) => {
     if (!input) return "";
