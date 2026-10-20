@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { initSync, parse as parseImports } from "es-module-lexer";
+import { transformSync } from "esbuild";
 import {
   collectModuleSources,
   toCanonicalModuleId,
@@ -108,20 +109,29 @@ export function resolveFirstPartyImport(
  * Extract relative import/export specifiers from module source via
  * es-module-lexer (static string specs only).
  */
-export function listRelativeImportSpecs(source: string): string[] {
+export function listRelativeImportSpecs(source: string, moduleId = "module.tsx"): string[] {
   ensureLexer();
+  let imports;
   try {
-    const [imports] = parseImports(source);
-    const specs: string[] = [];
-    for (const item of imports) {
-      if (item.n && isRelativeFirstPartySpec(item.n)) {
-        specs.push(item.n);
-      }
-    }
-    return specs;
+    [imports] = parseImports(source);
   } catch {
-    return [];
+    // Assets (HTML/CSS/etc.) still contribute their bytes, but are not scripts.
+    if (!/\.[cm]?[jt]sx?$/.test(moduleId)) return [];
+    // The lexer accepts JavaScript, not JSX/TypeScript. Hash the original
+    // source, but lower syntax for import discovery so real components do not
+    // silently lose their dependency closure. Keep unused value imports too.
+    const loader = /\.(?:ts|mts|cts)$/.test(moduleId) ? "ts" : "tsx";
+    const { code } = transformSync(source, {
+      loader,
+      sourcefile: moduleId,
+      jsx: "transform",
+      tsconfigRaw: { compilerOptions: { verbatimModuleSyntax: true } },
+    });
+    [imports] = parseImports(code);
   }
+  return imports.flatMap((item) =>
+    item.n && isRelativeFirstPartySpec(item.n) ? [item.n] : []
+  );
 }
 
 export type TransitiveModuleBag = {
@@ -179,7 +189,7 @@ export function collectTransitiveModuleBag(
     }
     if (!source) continue;
 
-    for (const spec of listRelativeImportSpecs(source)) {
+    for (const spec of listRelativeImportSpecs(source, id)) {
       const resolved = resolveFirstPartyImport(projectRoot, id, spec);
       if (resolved && !visited.has(resolved)) {
         visited.add(resolved);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdir, rm, writeFile, readFile, symlink } from "node:fs/promises";
+import { mkdir, rm, writeFile, readFile, readdir, symlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve, join } from "node:path";
@@ -28,12 +28,15 @@ async function setupFixture(
   await rm(testDir, { recursive: true, force: true });
   await mkdir(join(testDir, "src/routes"), { recursive: true });
   if (clientRef) {
+    await mkdir(join(testDir, "src/routes/helper"), { recursive: true });
+    await writeFile(join(testDir, "src/routes/helper/index.js"), "export const initialCount = 0;\n");
     await writeFile(
       join(testDir, "src/routes/Counter.client.tsx"),
       `"use client";\n` +
         `import * as React from "react";\n` +
+        `import { initialCount } from "./helper";\n` +
         `export function Counter() {\n` +
-        `  const [n, setN] = React.useState(0);\n` +
+        `  const [n, setN] = React.useState(initialCount);\n` +
         `  return <button onClick={() => setN((v) => v + 1)}>{"n:" + n}</button>;\n` +
         `}\n`
     );
@@ -131,6 +134,34 @@ describe.skipIf(!isolatedLeg)("runner 'edge' build contract", () => {
       true
     );
   });
+
+  it("pins client-reference IDs across browser, SSR, RSC and edge after a dependency-only edit", async () => {
+    async function snapshot() {
+      const names = await Promise.all(["static", "client", "server"].map(async (env) => {
+        const files = await readdir(join(testDir, "dist", env, "routes"));
+        const matches = files.filter((file) => /^Counter\.client-[a-z0-9]+\.js$/i.test(file));
+        expect(matches, env).toHaveLength(1);
+        return matches[0];
+      }));
+      expect(new Set(names).size).toBe(1);
+      const ref = `/routes/${names[0]}`;
+      // The emitted RSC reference, edge producer and baked SSR registry all
+      // point at the exact browser filename, not merely an equal hash suffix.
+      for (const file of ["server/routes/" + names[0], "server-edge/render.js", "server-edge/consumer.js", "static/index.rsc"]) {
+        expect(await readFile(join(testDir, "dist", file), "utf8"), file).toContain(ref);
+      }
+      return names[0];
+    }
+    const sourcePath = join(testDir, "src/routes/Counter.client.tsx");
+    const source = await readFile(sourcePath, "utf8");
+    const before = await snapshot();
+    await writeFile(join(testDir, "src/routes/helper/index.js"), "export const initialCount = 7;\n");
+    const proc = runBuild();
+    expect(proc.status, proc.stdout + proc.stderr).toBe(0);
+    expect(await readFile(sourcePath, "utf8")).toBe(source);
+    expect(await snapshot()).not.toBe(before);
+    expect(await readFile(join(testDir, "dist/static/index.html"), "utf8")).toContain("n:7");
+  }, 240000);
 
   it("renders the static pages through the pair — final markup, pair flavor", async () => {
     const html = await readFile(

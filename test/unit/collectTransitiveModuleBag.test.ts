@@ -6,6 +6,7 @@ import {
   collectTransitiveModuleBag,
   collectTransitiveModuleBagFromEntry,
   resolveFirstPartyImport,
+  listRelativeImportSpecs,
 } from "vite-plugin-react-server/config";
 import { createCombinedGraphChunkHash } from "vite-plugin-react-server/config";
 
@@ -113,6 +114,21 @@ describe("collectTransitiveModuleBag", () => {
       importedChunkNames: [],
     });
     expect(after).not.toBe(before);
+  });
+
+  it("follows imports through actual TSX components", () => {
+    write("src/Widget.tsx", '\"use client\";\nimport { n } from "./helper";\nexport const Widget = () => <button>{n}</button>;\n');
+    write("src/helper.ts", "export const n: number = 1;\n");
+    const before = collectTransitiveModuleBagFromEntry(root, "src/Widget.tsx");
+    expect(before.moduleIds).toEqual(["src/Widget.tsx", "src/helper.ts"]);
+    write("src/helper.ts", "export const n: number = 2;\n");
+    expect(createCombinedGraphChunkHash(collectTransitiveModuleBagFromEntry(root, "src/Widget.tsx")))
+      .not.toBe(createCombinedGraphChunkHash(before));
+  });
+
+  it("keeps re-exports and literal dynamic imports when lowering TSX", () => {
+    expect(listRelativeImportSpecs('export { n } from "./helper"; export const W = () => <div/>; export const load = () => import("./lazy");'))
+      .toEqual(["./helper", "./lazy"]);
   });
 
   it("skips bare package imports and node_modules", () => {
