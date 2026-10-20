@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { ConfigEnv } from "vite";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 // Import the SOURCE (not the built package entry) so this test guards the fix
 // in `plugin/config/createModuleID.ts` directly — reverting the two lines there
 // must make the regression assertion below fail without a rebuild.
@@ -23,6 +26,9 @@ import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
  * The fix keys both off `isBuild` (`command === "build"`) instead of `mode`,
  * so a development-mode build produces the SAME id as a production-mode build.
  * The dev SERVER (`command === "serve"`) stays unhashed + `src/`-kept.
+ *
+ * In a build the hosted id is the file the client build emitted for the
+ * module, read from that build's manifest (dist/static/.vite/manifest.json).
  */
 describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
   // Minimal-but-valid options. Pick only what the function consumes, and reuse
@@ -32,7 +38,7 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
     moduleBase: DEFAULT_CONFIG.MODULE_BASE,
     moduleBasePath: DEFAULT_CONFIG.MODULE_BASE_PATH,
     moduleBaseURL: DEFAULT_CONFIG.MODULE_BASE_URL,
-    projectRoot: "/nonexistent-project-root",
+    projectRoot: "",
     autoDiscover: {
       virtualPattern: DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern,
     },
@@ -49,6 +55,26 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
     },
   } satisfies Parameters<typeof createDefaultModuleID>[0];
 
+  // The client build's manifest: what it emitted for each source module.
+  const EMITTED: Record<string, string> = {
+    "src/components/Widget.client.tsx": "components/Widget.client-AbC123x_.js",
+    "src/view/View.generated.tsx": "view/View-Dd4e5F6g.js",
+  };
+  beforeAll(() => {
+    options.projectRoot = mkdtempSync(join(tmpdir(), "vprs-moduleid-"));
+    const dir = join(options.projectRoot, "dist/static/.vite");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "manifest.json"),
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(EMITTED).map(([src, file]) => [src, { file, src, isEntry: true }])
+        )
+      )
+    );
+  });
+  afterAll(() => rmSync(options.projectRoot, { recursive: true, force: true }));
+
   const CLIENT_ID = "src/components/Widget.client.tsx";
   // What makes it a client module is the DIRECTIVE, not the name. The `.client.`
   // suffix here is incidental — react-server-loader 19.2.15 stopped reading
@@ -63,18 +89,36 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
   const buildProd: ConfigEnv = { command: "build", mode: "production" };
   const serveDev: ConfigEnv = { command: "serve", mode: "development" };
 
-  it("development-mode build hashes + strips `src/` (matches the emitted chunk)", () => {
+  it("development-mode build names the emitted chunk", () => {
     const moduleID = createDefaultModuleID(options, buildDev, "development");
-    const id = moduleID(CLIENT_ID, CLIENT_SOURCE);
     // moduleBasePath defaults to "/", so the hosted ref is "/components/...".
-    expect(id).toMatch(/^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/);
-    expect(id).not.toContain("src/");
+    expect(moduleID(CLIENT_ID, CLIENT_SOURCE)).toBe("/components/Widget.client-AbC123x_.js");
   });
 
   it("the transformer's `isClientByDirective` answer alone is enough (no re-parse)", () => {
     const moduleID = createDefaultModuleID(options, buildDev, "development");
-    const id = moduleID(CLIENT_ID, undefined, true);
-    expect(id).toMatch(/^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/);
+    expect(moduleID(CLIENT_ID, undefined, true)).toBe("/components/Widget.client-AbC123x_.js");
+  });
+
+  it("a directive-detected module takes the emitted name, whatever its source path", () => {
+    const moduleID = createDefaultModuleID(options, buildProd, "production");
+    expect(moduleID("src/view/View.generated.tsx", undefined, true)).toBe("/view/View-Dd4e5F6g.js");
+  });
+
+  it("a client build that rewrites its manifest is read again", () => {
+    const moduleID = createDefaultModuleID(options, buildProd, "production");
+    expect(moduleID(CLIENT_ID, CLIENT_SOURCE)).toBe("/components/Widget.client-AbC123x_.js");
+    const path = join(options.projectRoot, "dist/static/.vite/manifest.json");
+    const rewritten = { [CLIENT_ID]: { file: "components/Widget.client-Zz9.js", src: CLIENT_ID } };
+    writeFileSync(path, JSON.stringify(rewritten));
+    // A distinct mtime: the lookup re-reads when the file changes.
+    const later = new Date(Date.now() + 5000);
+    utimesSync(path, later, later);
+    expect(moduleID(CLIENT_ID, CLIENT_SOURCE)).toBe("/components/Widget.client-Zz9.js");
+    writeFileSync(
+      path,
+      JSON.stringify(Object.fromEntries(Object.entries(EMITTED).map(([src, file]) => [src, { file, src }])))
+    );
   });
 
   it("development-mode build === production-mode build (core regression assertion)", () => {
@@ -91,80 +135,21 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
     expect(id).not.toMatch(/-[A-Za-z0-9]+\.js$/);
   });
 
-  /**
-   * Trailing-segment normalization for DIRECTIVE-detected client modules
-   * (Step 1b) must match the build's entryFile normalizer
-   * (stripTrailingDotSegment) for every naming convention — the two used to
-   * be independent copies that agreed only by inspection (the compound-
-   * filename bug fixed in PR #55 was exactly such a drift).
-   */
-  describe("directive-detected client moduleID — trailing-segment parity", () => {
-    const buildId = (id: string) =>
-      createDefaultModuleID(options, buildProd, "production")(
-        id,
-        undefined,
-        /* isClientByDirective */ true
-      );
-
-    it("compound filename collapses one trailing segment (compound-filename regression, PR #55)", () => {
-      expect(buildId("src/view/View.generated.tsx")).toMatch(
-        /^\/view\/View-[A-Za-z0-9]+\.js$/
-      );
-    });
-
-    it("multi-dot filename collapses exactly ONE trailing segment", () => {
-      expect(buildId("src/components/A.B.C.tsx")).toMatch(
-        /^\/components\/A\.B-[A-Za-z0-9]+\.js$/
-      );
-    });
-
-    it("hyphenated-with-dots filename collapses the dot segment only", () => {
-      expect(buildId("src/components/a-b.c.tsx")).toMatch(
-        /^\/components\/a-b-[A-Za-z0-9]+\.js$/
-      );
-    });
-
-    it("`.client.` suffix is preserved, not collapsed", () => {
-      expect(buildId("src/components/Widget.client.tsx")).toMatch(
-        /^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/
-      );
-    });
-
-    it("`.server.` suffix is preserved, not collapsed", () => {
-      expect(buildId("src/components/Widget.server.tsx")).toMatch(
-        /^\/components\/Widget\.server-[A-Za-z0-9]+\.js$/
-      );
-    });
-
-    it("a dot in a DIRECTORY name is not a trailing segment", () => {
-      expect(buildId("src/view.v2/Widget.tsx")).toMatch(
-        /^\/view\.v2\/Widget-[A-Za-z0-9]+\.js$/
-      );
-    });
-
-    it("single-segment filename has nothing to strip", () => {
-      expect(buildId("src/components/Widget.tsx")).toMatch(
-        /^\/components\/Widget-[A-Za-z0-9]+\.js$/
-      );
-    });
-  });
-
   describe("join contract — bare moduleBasePath still roots client ids", () => {
-    const bareOptions = {
-      ...options,
-      moduleBasePath: "",
-    } satisfies Parameters<typeof createDefaultModuleID>[0];
+    // Read at call time: the project root is a temp dir made in beforeAll.
+    const bare = () =>
+      ({ ...options, moduleBasePath: "" }) satisfies Parameters<typeof createDefaultModuleID>[0];
 
     it("build: bare moduleBasePath emits rooted client refs (bidoof migration)", () => {
-      const id = createDefaultModuleID(bareOptions, buildProd, "production")(
+      const id = createDefaultModuleID(bare(), buildProd, "production")(
         CLIENT_ID,
         CLIENT_SOURCE
       );
-      expect(id).toMatch(/^\/components\/Widget\.client-[A-Za-z0-9]+\.js$/);
+      expect(id).toBe("/components/Widget.client-AbC123x_.js");
     });
 
     it("dev: bare moduleBasePath roots client refs without hashing", () => {
-      const id = createDefaultModuleID(bareOptions, serveDev, "development")(
+      const id = createDefaultModuleID(bare(), serveDev, "development")(
         CLIENT_ID,
         CLIENT_SOURCE
       );
@@ -172,7 +157,7 @@ describe("createDefaultModuleID — dev-mode build ref/emit parity", () => {
     });
 
     it("non-client ids stay bare under moduleBasePath ''", () => {
-      const id = createDefaultModuleID(bareOptions, serveDev, "development")(
+      const id = createDefaultModuleID(bare(), serveDev, "development")(
         "src/routes/page.tsx"
       );
       expect(id.startsWith("/")).toBe(false);

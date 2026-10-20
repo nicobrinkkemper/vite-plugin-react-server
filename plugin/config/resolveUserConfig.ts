@@ -26,8 +26,6 @@ import {
   mergeClientPackagesNoExternal,
   mergeClientPackagesOptimizeDepsExclude,
 } from "../clientPackages/index.js";
-import { serializeCombinedGraphChunkBag } from "./createCombinedGraphChunkHash.js";
-import { collectTransitiveModuleBag } from "./collectTransitiveModuleBag.js";
 
 // rolldown-vite materializes a sibling plugin's build.rollupOptions
 // contribution (e.g. @vitejs/plugin-react's onwarn wrapper) as a real
@@ -913,29 +911,6 @@ export const resolveUserConfig: ResolveUserConfigFn =
                         //);
                     }
                   }
-                },
-              },
-              // Salt Rollup's [hash] (when used) with the same transitive
-              // first-party import bag as entryFile/chunkFile.
-              {
-                name: "vite:plugin-react-server/content-hash",
-                augmentChunkHash(chunk) {
-                  const roots =
-                    chunk.facadeModuleId != null && chunk.facadeModuleId !== ""
-                      ? [chunk.facadeModuleId]
-                      : [...chunk.moduleIds];
-                  const transitive = collectTransitiveModuleBag(
-                    userOptions.projectRoot,
-                    roots
-                  );
-                  if (transitive.moduleIds.length === 0) {
-                    return chunk.facadeModuleId ?? chunk.name;
-                  }
-                  return serializeCombinedGraphChunkBag({
-                    moduleIds: transitive.moduleIds,
-                    moduleSources: transitive.moduleSources,
-                    importedChunkNames: [],
-                  });
                 },
               },
             ],

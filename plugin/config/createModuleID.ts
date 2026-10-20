@@ -6,10 +6,7 @@ import { detectClientModule } from "react-server-loader/directives";
 import { stripTrailingDotSegment } from "../helpers/inputNormalizer.js";
 import type { ConfigEnv } from "vite";
 import { sep, resolve, join } from "node:path";
-import { readFileSync, existsSync } from "node:fs";
-import { createCombinedGraphChunkHash } from "./createCombinedGraphChunkHash.js";
-import { toCanonicalModuleId } from "./combinedGraphChunkInputs.js";
-import { collectTransitiveModuleBagFromEntry } from "./collectTransitiveModuleBag.js";
+import { createClientBuildManifestLookup } from "./clientBuildManifest.js";
 import { wrapModuleID } from "./moduleIdContract.js";
 
 export type ModuleIDKey =
@@ -75,10 +72,9 @@ export const createDefaultModuleID = (
     isClientByDirective === true ||
     detectClientModule({ source: sourceContent, moduleId: id });
 
-  // Hash function for client components — same combined-graph bag as
-  // resolveOptions entryFile/chunkFile, so client-reference ids match
-  // emitted chunk names. `sourceModuleId` is the on-disk module path (before
-  // extension remap); the bag keys on that canonical id, not the .js stem.
+  // A client component's hosted file name: the one the client build emitted
+  // for it. `sourceModuleId` is the on-disk module path (before extension
+  // remap), which is what the client build's manifest keys on.
   const hash = (
     input: string | null,
     _ssr: boolean,
@@ -120,48 +116,21 @@ export const createDefaultModuleID = (
       return input;
     }
     
-    const canonicalId = toCanonicalModuleId(
-      projectRoot,
-      sourceModuleId ?? input
+    // The client build named this module's browser file; the reference
+    // carries that name so SSR and the browser load the same path. Every
+    // environment asks, the client build included (before its manifest
+    // exists), but only the server build bakes the answer into a reference;
+    // the ssr/server chunk naming fails loudly when the manifest is missing.
+    return (
+      clientBuildManifest.fileOf(resolve(projectRoot, sourceModuleId ?? input)) ??
+      input
     );
-    // Same transitive first-party import closure as entryFile/chunkFile so
-    // client-ref ids track bundled and separate-chunk deps alike.
-    let entrySource: string | undefined = sourceContent;
-    try {
-      const sourcePath = resolve(projectRoot, canonicalId);
-      if (existsSync(sourcePath)) {
-        entrySource = readFileSync(sourcePath, "utf-8");
-      }
-    } catch {
-      // Keep transformer sourceContent when disk is unavailable (unit tests).
-    }
-    const transitive = collectTransitiveModuleBagFromEntry(
-      projectRoot,
-      canonicalId,
-      entrySource
-    );
-
-    const hashCharacters =
-      typeof hashOption === "object" && hashOption?.format === "hex"
-        ? "hex"
-        : "base36";
-    const contentHash = createCombinedGraphChunkHash({
-      moduleIds: transitive.moduleIds,
-      moduleSources: transitive.moduleSources,
-      importedChunkNames: [],
-      hashCharacters,
-    });
-    
-    // Apply naming logic
-    const extensionIndex = input.lastIndexOf(".");
-    if (extensionIndex !== -1) {
-      const extension = input.slice(extensionIndex);
-      const filename = input.slice(0, extensionIndex);
-      return filename + "-" + contentHash + extension;
-    } else {
-      return input + "-" + contentHash;
-    }
   };
+  const clientBuildManifest = createClientBuildManifestLookup({
+    projectRoot,
+    outDir: build?.outDir || DEFAULT_CONFIG.BUILD.outDir,
+    staticDir: build?.static || DEFAULT_CONFIG.BUILD.static,
+  });
   const staticClientDist = isBuild ? join(build?.outDir || "dist", build?.static || "static") : "";
   const ssrClientDist = isBuild ? join(build?.outDir || "dist", build?.client || "client") : "";
   const serverDist = isBuild ? join(build?.outDir || "dist", build?.server || "server") : "";
