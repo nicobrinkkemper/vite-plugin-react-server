@@ -28,6 +28,14 @@ const INDEX_EXTENSIONS = [
   "/index.mjs",
 ] as const;
 
+/** The TypeScript sources a `.js`-family specifier may name. */
+const TS_FOR_JS = {
+  js: [".ts", ".tsx"],
+  jsx: [".tsx"],
+  mjs: [".mts"],
+  cjs: [".cts"],
+} as const;
+
 let lexerReady = false;
 
 function ensureLexer(): void {
@@ -97,6 +105,15 @@ export function resolveFirstPartyImport(
   for (const ext of RESOLVE_EXTENSIONS) {
     const hit = tryPath(candidateBase + ext);
     if (hit) return hit;
+  }
+  // TypeScript ESM style: `./x.js` names `x.ts` (and .jsx/.mjs/.cjs likewise).
+  const jsExt = /\.(js|jsx|mjs|cjs)$/.exec(candidateBase);
+  if (jsExt) {
+    const stem = candidateBase.slice(0, -jsExt[0].length);
+    for (const ext of TS_FOR_JS[jsExt[1] as keyof typeof TS_FOR_JS]) {
+      const hit = tryPath(stem + ext);
+      if (hit) return hit;
+    }
   }
   for (const indexExt of INDEX_EXTENSIONS) {
     const hit = tryPath(candidateBase + indexExt);

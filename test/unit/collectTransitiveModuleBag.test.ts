@@ -11,7 +11,7 @@ import {
 import { createCombinedGraphChunkHash } from "vite-plugin-react-server/config";
 
 /**
- * Guards fpm9.2: the naming bag must follow relative first-party imports so
+ * The naming bag must follow relative first-party imports so
  * (1) bundled helpers change a client-ref hash and (2) separate-chunk helpers
  * also invalidate the importer — without hashing final filenames.
  */
@@ -35,6 +35,19 @@ describe("collectTransitiveModuleBag", () => {
   it("resolves extensionless relative imports to .ts/.tsx", () => {
     write("src/a.tsx", 'export const a = 1;\n');
     expect(resolveFirstPartyImport(root, "src/b.tsx", "./a")).toBe("src/a.tsx");
+  });
+
+  it("resolves a .js specifier to the .ts/.tsx source it names", () => {
+    write("src/lib/course.ts", "export const c = 1;\n");
+    write("src/View.tsx", "export const v = 1;\n");
+    write("src/legacy.js", "export const l = 1;\n");
+    expect(resolveFirstPartyImport(root, "src/a.ts", "./lib/course.js")).toBe(
+      "src/lib/course.ts"
+    );
+    expect(resolveFirstPartyImport(root, "src/a.ts", "./View.js")).toBe("src/View.tsx");
+    // A real .js file wins over a same-stem .ts.
+    write("src/legacy.ts", "export const l = 2;\n");
+    expect(resolveFirstPartyImport(root, "src/a.ts", "./legacy.js")).toBe("src/legacy.js");
   });
 
   it("resolves ./helper to helper/index.js, not the helper/ directory", () => {
