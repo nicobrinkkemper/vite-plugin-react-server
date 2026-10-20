@@ -123,17 +123,20 @@ export const createDefaultModuleID = (
       projectRoot,
       sourceModuleId ?? input
     );
-    let source: string;
-    if (sourceContent != null) {
-      source = sourceContent;
-    } else {
-      try {
-        const sourcePath = resolve(projectRoot, canonicalId);
-        source = existsSync(sourcePath)
-          ? readFileSync(sourcePath, "utf-8")
-          : "";
-      } catch {
-        source = "";
+    // Prefer on-disk source so the bag matches entryFile/chunkFile (which
+    // read disk). Transformer `sourceContent` is still used above for
+    // client detection when the file is missing from disk (unit tests).
+    let source = "";
+    try {
+      const sourcePath = resolve(projectRoot, canonicalId);
+      if (existsSync(sourcePath)) {
+        source = readFileSync(sourcePath, "utf-8");
+      } else if (sourceContent != null) {
+        source = sourceContent;
+      }
+    } catch {
+      if (sourceContent != null) {
+        source = sourceContent;
       }
     }
 

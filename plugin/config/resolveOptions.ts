@@ -629,9 +629,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   /**
    * Content-addressed entry/chunk name from the combined module graph (fpm9
-   * option 2). Hashes every listed module's source — never a lone facade and
-   * never the Rollup chunk name — so client/SSR/RSC/static/edge agree without
-   * hashing each environment's emitted bytes.
+   * option 2). Shared chunks (no client facade) hash every module source —
+   * never the Rollup name. Client-reference facades hash only that one
+   * module so the filename matches {@link createDefaultModuleID}: static
+   * `preserveModules: false` can pull extra modules into the facade's
+   * chunk, and including them would diverge the flight id from the
+   * client/SSR emit.
    */
   const hashChunk = (
     input: string | null,
@@ -644,20 +647,51 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return input;
     }
 
+    let graphChunk: ChunkGraphLike = chunk;
+    const facade = chunk.facadeModuleId;
+    if (facade) {
+      let facadeCode = facadeSource;
+      if (facadeCode == null) {
+        try {
+          const absolute = resolve(
+            projectRoot,
+            toCanonicalModuleId(projectRoot, facade)
+          );
+          if (existsSync(absolute)) {
+            facadeCode = readFileSync(absolute, "utf-8");
+          }
+        } catch {
+          // Fall through; name/code detectors treat missing source as non-client.
+        }
+      }
+      if (
+        isClientComponentByName(facade) ||
+        (facadeCode != null &&
+          facadeCode !== "" &&
+          isClientComponentByCode(facadeCode))
+      ) {
+        graphChunk = {
+          name: chunk.name,
+          facadeModuleId: facade,
+          moduleIds: [facade],
+        };
+      }
+    }
+
     const overrides: Record<string, string> | undefined =
-      facadeSource != null && chunk.facadeModuleId
+      facadeSource != null && graphChunk.facadeModuleId
         ? {
-            [toCanonicalModuleId(projectRoot, chunk.facadeModuleId)]:
+            [toCanonicalModuleId(projectRoot, graphChunk.facadeModuleId)]:
               facadeSource,
           }
-        : facadeSource != null && chunk.moduleIds.length === 1
+        : facadeSource != null && graphChunk.moduleIds.length === 1
           ? {
-              [toCanonicalModuleId(projectRoot, chunk.moduleIds[0]!)]:
+              [toCanonicalModuleId(projectRoot, graphChunk.moduleIds[0]!)]:
                 facadeSource,
             }
           : undefined;
 
-    const bag = buildCombinedGraphChunkHashInput(projectRoot, chunk, {
+    const bag = buildCombinedGraphChunkHashInput(projectRoot, graphChunk, {
       hashCharacters,
       moduleSourceOverrides: overrides,
       // Filename embeds this hash; imported final names would be circular.

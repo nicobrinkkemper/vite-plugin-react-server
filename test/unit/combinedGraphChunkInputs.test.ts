@@ -58,4 +58,48 @@ describe("combinedGraphChunkInputs", () => {
     });
     expect(touched).not.toBe(base);
   });
+
+  it("client-ref bag is facade-only even when the chunk lists extra modules", () => {
+    // Static preserveModules:false can pull deps into a .client. facade chunk;
+    // naming must still match createDefaultModuleID's single-module bag.
+    const facadeOnly = buildCombinedGraphChunkHashInput(root, {
+      name: "Counter.client",
+      facadeModuleId: "src/routes/Counter.client.tsx",
+      moduleIds: ["src/routes/Counter.client.tsx"],
+    }, {
+      moduleSourceOverrides: {
+        "src/routes/Counter.client.tsx": '"use client";\nexport const Counter = () => null;\n',
+      },
+    });
+    const withExtras = buildCombinedGraphChunkHashInput(root, {
+      name: "Counter.client",
+      facadeModuleId: "src/routes/Counter.client.tsx",
+      moduleIds: [
+        "src/routes/Counter.client.tsx",
+        "src/routes/helper.ts",
+      ],
+    }, {
+      moduleSourceOverrides: {
+        "src/routes/Counter.client.tsx": '"use client";\nexport const Counter = () => null;\n',
+        "src/routes/helper.ts": "export const n = 1;",
+      },
+    });
+    expect(createCombinedGraphChunkHash(withExtras)).not.toBe(
+      createCombinedGraphChunkHash(facadeOnly)
+    );
+    // resolveOptions.hashChunk narrows client facades to [facade] before
+    // calling this helper — simulate that narrowing:
+    const narrowed = buildCombinedGraphChunkHashInput(root, {
+      name: "Counter.client",
+      facadeModuleId: "src/routes/Counter.client.tsx",
+      moduleIds: ["src/routes/Counter.client.tsx"],
+    }, {
+      moduleSourceOverrides: {
+        "src/routes/Counter.client.tsx": '"use client";\nexport const Counter = () => null;\n',
+      },
+    });
+    expect(createCombinedGraphChunkHash(narrowed)).toBe(
+      createCombinedGraphChunkHash(facadeOnly)
+    );
+  });
 });
