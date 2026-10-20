@@ -101,15 +101,15 @@ In every mode the `.rsc` files still serve later client-side navigations — whe
 
 ## Consistent Hashing
 
-The same source file gets the same content hash across all three builds:
+Every browser file in `dist/static/` is named by Rollup's hash of the file itself, so a name always holds the same bytes and a host can cache `/*.js` as immutable. The client build runs first and records what it emitted in `dist/static/.vite/manifest.json`. The `ssr` and `server` builds read that manifest: a client component's file takes the same name in all three outputs, and that name is the module ID baked into the flight payload:
 
 ```
+dist/static/components/Link.client-CnBCzH8H.js
 dist/client/components/Link.client-CnBCzH8H.js
 dist/server/components/Link.client-CnBCzH8H.js
-dist/static/components/Link.client-CnBCzH8H.js
 ```
 
-This ensures module references are consistent between client and server. When the server component tree references a client component by module ID, that ID resolves correctly in both the browser (`dist/static/`) and Node (`dist/client/`).
+So the ID resolves in the browser (`dist/static/`) and in Node (`dist/client/`). Building the `ssr` or `server` environment without the client build's manifest is an error; `vite build --app` builds them in order.
 
 ## CSS in the Output
 
