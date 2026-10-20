@@ -13,10 +13,7 @@ export * from './resolveUserConfig.js';
 export * from './createModuleID.js';
 export * from './createRollupLikeHash.js';
 export * from './createCombinedGraphChunkHash.js';
-<<<<<<< HEAD
 export * from './combinedGraphChunkInputs.js';
-=======
->>>>>>> origin/main
 export * from './getCondition.js';
 export * from './mimeTypes.js';
 export * from './resolveDirectiveMatcher.js';
