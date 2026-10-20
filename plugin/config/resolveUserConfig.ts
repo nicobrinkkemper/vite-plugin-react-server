@@ -26,7 +26,8 @@ import {
   mergeClientPackagesNoExternal,
   mergeClientPackagesOptimizeDepsExclude,
 } from "../clientPackages/index.js";
-import { createRollupLikeHash } from "./createRollupLikeHash.js";
+import { serializeCombinedGraphChunkBag } from "./createCombinedGraphChunkHash.js";
+import { buildCombinedGraphChunkHashInput } from "./combinedGraphChunkInputs.js";
 
 // rolldown-vite materializes a sibling plugin's build.rollupOptions
 // contribution (e.g. @vitejs/plugin-react's onwarn wrapper) as a real
@@ -914,28 +915,24 @@ export const resolveUserConfig: ResolveUserConfigFn =
                   }
                 },
               },
-              // Add content hash plugin for consistent hashing across environments
+              // Salt Rollup's [hash] (when used) with the same combined-graph
+              // bag as entryFile/chunkFile — every module source, not facade-only.
               {
                 name: "vite:plugin-react-server/content-hash",
                 augmentChunkHash(chunk) {
-                  // Add a consistent salt based on the chunk's source file to make hash generation deterministic
-                  if (chunk.facadeModuleId) {
-                    try {
-                      const sourcePath = resolve(
-                        userOptions.projectRoot,
-                        chunk.facadeModuleId
-                      );
-                      if (existsSync(sourcePath)) {
-                        const sourceContent = readFileSync(sourcePath, "utf-8");
-                        // Use a short hash of the source content as salt
-                        return createRollupLikeHash(sourceContent, "hex");
-                      }
-                    } catch (error) {
-                      // Fallback: use the module ID as salt
-                      return chunk.facadeModuleId;
+                  const bag = buildCombinedGraphChunkHashInput(
+                    userOptions.projectRoot,
+                    chunk,
+                    {
+                      // Final import fileNames are circular with embedded hashes;
+                      // naming omits them too. Same bag ⇒ same salt across envs.
+                      importedChunkNames: [],
                     }
+                  );
+                  if (bag.moduleIds.length === 0) {
+                    return chunk.facadeModuleId ?? chunk.name;
                   }
-                  return;
+                  return serializeCombinedGraphChunkBag(bag);
                 },
               },
             ],
