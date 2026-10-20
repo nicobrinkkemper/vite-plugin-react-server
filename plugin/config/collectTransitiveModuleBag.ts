@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { initSync, parse as parseImports } from "es-module-lexer";
 import {
@@ -75,7 +75,13 @@ export function resolveFirstPartyImport(
   }
 
   const tryPath = (absolute: string): string | null => {
-    if (!existsSync(absolute)) return null;
+    // `existsSync` is true for directories; `./helper` must not bind the
+    // `helper/` folder (empty "source") and skip `helper/index.js`.
+    try {
+      if (!statSync(absolute).isFile()) return null;
+    } catch {
+      return null;
+    }
     const canonical = toCanonicalModuleId(projectRoot, absolute);
     if (
       !canonical ||

@@ -36,6 +36,39 @@ describe("collectTransitiveModuleBag", () => {
     expect(resolveFirstPartyImport(root, "src/b.tsx", "./a")).toBe("src/a.tsx");
   });
 
+  it("resolves ./helper to helper/index.js, not the helper/ directory", () => {
+    write(
+      "src/Counter.client.tsx",
+      `"use client";\nimport { n } from "./helper";\nexport const Counter = () => n;\n`
+    );
+    write("src/helper/index.js", "export const n = 1;\n");
+
+    expect(resolveFirstPartyImport(root, "src/Counter.client.tsx", "./helper")).toBe(
+      "src/helper/index.js"
+    );
+
+    const bag = collectTransitiveModuleBagFromEntry(
+      root,
+      "src/Counter.client.tsx"
+    );
+    expect(bag.moduleIds).toEqual([
+      "src/Counter.client.tsx",
+      "src/helper/index.js",
+    ]);
+    expect(bag.moduleSources["src/helper/index.js"]).toContain("n = 1");
+
+    const base = createCombinedGraphChunkHash({
+      ...bag,
+      importedChunkNames: [],
+    });
+    write("src/helper/index.js", "export const n = 2;\n");
+    const next = createCombinedGraphChunkHash({
+      ...collectTransitiveModuleBagFromEntry(root, "src/Counter.client.tsx"),
+      importedChunkNames: [],
+    });
+    expect(next).not.toBe(base);
+  });
+
   it("includes a relative helper in the facade bag (bundled-dep case)", () => {
     write(
       "src/Counter.client.tsx",
