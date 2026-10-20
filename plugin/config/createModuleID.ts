@@ -76,7 +76,7 @@ export const createDefaultModuleID = (
     detectClientModule({ source: sourceContent, moduleId: id });
 
   // Hash function for client components — same combined-graph bag as
-  // resolveOptions entryFile/chunkFile (fpm9), so client-reference ids match
+  // resolveOptions entryFile/chunkFile, so client-reference ids match
   // emitted chunk names. `sourceModuleId` is the on-disk module path (before
   // extension remap); the bag keys on that canonical id, not the .js stem.
   const hash = (

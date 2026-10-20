@@ -13,17 +13,17 @@ import {
 } from "vite-plugin-react-server/config";
 
 /**
- * fpm9.3 — acceptance pins for browser chunk naming.
+ * Acceptance pins for browser chunk naming.
  *
  * Three cases must stay green in CI, and each must assert the pre-fix
  * failure mode (hash the Rollup name, or hash the facade source alone)
  * would leave the suffix unchanged while the combined-graph wiring busts it.
  */
-describe("combined-graph chunk naming (fpm9.3)", () => {
+describe("combined-graph chunk naming", () => {
   let root: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "vprs-fpm9-naming-"));
+    root = mkdtempSync(join(tmpdir(), "vprs-chunk-naming-"));
   });
 
   afterEach(() => {
