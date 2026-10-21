@@ -535,9 +535,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   /**
    * Outputs that must keep a stable path (assets/CSS still use single-file
-   * hashing; entry/chunk use the combined-graph bag).
+   * hashing; browser entries/chunks use the bundler hash).
    */
-  const shouldLeaveUnhashed = (input: string, ssr: boolean): boolean => {
+  const shouldLeaveUnhashed = (input: string, ssr: boolean, clientReference = false): boolean => {
     if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) return true;
     if (input.includes("node_modules")) return true;
     if (
@@ -554,7 +554,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     // they apply to SSR builds only.
     if (htmlPattern.test(input) || rscPattern.test(input)) return true;
     if (
-      ssr &&
+      ssr && !clientReference &&
       (pagePattern.test(input) ||
         propsPattern.test(input) ||
         serverPattern.test(input))
@@ -631,6 +631,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
   const clientBuildManifest = createClientBuildManifestLookup({
     projectRoot,
     outDir,
+    getPath: () => build.clientManifestPath,
     staticDir:
       typeof options.build?.static === "string"
         ? options.build.static
@@ -675,14 +676,15 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     facadeSource?: string
   ) => {
     if (!input) return "";
-    if (shouldLeaveUnhashed(input, ssr)) {
+    const facade = chunk.facadeModuleId;
+    const clientReference = ssr && !!facade && isClientReferenceChunk(input, facade, facadeSource);
+    if (shouldLeaveUnhashed(input, ssr, clientReference)) {
       return input;
     }
     if (!ssr) {
       return applyHashSuffix(input, "[hash]");
     }
-    const facade = chunk.facadeModuleId;
-    if (!facade || !isClientReferenceChunk(input, facade, facadeSource)) {
+    if (!facade || !clientReference) {
       return input;
     }
     if (!clientBuildManifest.exists()) {
@@ -872,6 +874,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
    * nodeExtension
    */
   const build = {
+    clientManifestPath: (options.build as Partial<ResolvedUserOptions["build"]> | undefined)?.clientManifestPath,
     pages: effectiveBuildPages ?? DEFAULT_CONFIG.BUILD.pages,
     assetsDir: options.build?.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir,
     client: options.build?.client ?? DEFAULT_CONFIG.BUILD.client,

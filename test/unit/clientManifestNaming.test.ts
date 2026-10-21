@@ -212,6 +212,23 @@ describe("client-manifest naming", () => {
     expect(ref).toBe("/components/Widget.client-Bq2_x9Lm.js");
   });
 
+  it.each(["observer", "homepage", "props"])(
+    "a directive client named %s still takes its browser filename in SSR",
+    (name) => {
+      const source = '"use client"; export const Widget = () => null;';
+      const src = `src/components/${name}.tsx`;
+      const file = `components/${name}-12345678.js`;
+      write(src, source);
+      writeClientManifest({ [src]: file });
+      const facade = join(root, src);
+      const info = chunkInfo(`src/components/${name}`, facade, [facade]);
+      for (const condition of ["react-client", "react-server"] as const) {
+        expect(fileNames(condition, true).entryFileNames(info)).toBe(file);
+      }
+      expect(createDefaultModuleID(userOptions(), buildEnv)(src, source, true)).toBe(`/${file}`);
+    }
+  );
+
   it("a server module that is not a client reference keeps its path", () => {
     write("src/page/page.tsx", "export const Page = () => null;\n");
     writeClientManifest({});

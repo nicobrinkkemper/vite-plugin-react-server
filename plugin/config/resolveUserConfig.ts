@@ -21,6 +21,7 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { REACT_CONDITION, type ReactCondition } from "./getCondition.js";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
+import { resolveClientBuildManifestPath } from "./clientBuildManifest.js";
 import { effectiveModuleBaseURL } from "./effectiveModuleBaseURL.js";
 import {
   mergeClientPackagesNoExternal,
@@ -79,6 +80,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
     forceResolve = false,
     ssr = undefined,
   }) {
+    userOptions.build.clientManifestPath = resolveClientBuildManifestPath(userOptions, config);
     if (!forceResolve && originalConfig == null) {
       originalConfig = config;
     } else if (originalConfig != null && config !== originalConfig) {
