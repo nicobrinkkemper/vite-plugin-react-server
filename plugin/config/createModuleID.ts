@@ -83,6 +83,12 @@ export const createDefaultModuleID = (
     sourceModuleId?: string
   ) => {
     if (!input) return "";
+    // A hosted dependency/virtual client reference follows the browser
+    // manifest too. Only modules absent from it retain the legacy path.
+    if (hashOption !== "false" && isClientComponentId(input, sourceContent, isClientByDirective)) {
+      const file = clientBuildManifest.fileOf(resolve(projectRoot, sourceModuleId ?? input));
+      if (file) return file;
+    }
     if (new RegExp(/\.(node|d\.ts)$/).test(input)) {
       return input;
     }

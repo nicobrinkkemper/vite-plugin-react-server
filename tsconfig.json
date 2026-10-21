@@ -75,6 +75,7 @@
     "types/**/*.d.ts",
     // entry
     "server.ts",
+    "static.ts",
     "client.ts",
     "types.ts"
   ],

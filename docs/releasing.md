@@ -92,8 +92,9 @@ needed backfilling; v3.1.9 nearly did). `prepublishOnly` runs `verify:tag`, then
 refuses to publish unless `v<version>` exists and points at `HEAD` — a forgotten
 tag now fails the publish instead of shipping. For a deliberate untagged publish,
 set `VPRS_SKIP_TAG_CHECK=1`. After `prepublishOnly`, npm's `prepack` step
-rebuilds `dist` with plain `tsc` (`rm -rf dist && tsc -p tsconfig.json`), so the
-tarball's `dist` is the tsc output.
+rebuilds `dist` with plain `tsc` and then verifies every exported entrypoint, so the
+tarball's `dist` is the tsc output. Validate the packed output as well as the Vite
+build: entry files must be included in `tsconfig.json` to survive `prepack`.
 
 For pre-releases, hand-edit the version (e.g. `3.2.0-alpha.0`), tag it the same
 way, then `npm publish --tag alpha`.

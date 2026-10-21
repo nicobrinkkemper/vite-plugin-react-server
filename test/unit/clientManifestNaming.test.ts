@@ -101,7 +101,7 @@ describe("client-manifest naming", () => {
   });
 
   async function generate(
-    input: string[],
+    input: string[] | Record<string, string>,
     options: { preserveModules?: boolean; manualChunks?: Record<string, string[]> } = {}
   ): Promise<OutputChunk[]> {
     const bundle = await rollup({
@@ -195,6 +195,19 @@ describe("client-manifest naming", () => {
     expectSameNameSameBytes(before, after);
   });
 
+  it.each(["src/_virtual/runtime.js", "node_modules/example/runtime.js"])(
+    "browser output from %s changes URL when its emitted bytes change",
+    async (source) => {
+      write(source, "export const value = 1;");
+      const before = await generate({ [source.replace(/\.js$/, "")]: join(root, source) }, { preserveModules: true });
+      write(source, "export const value = 2;");
+      const after = await generate({ [source.replace(/\.js$/, "")]: join(root, source) }, { preserveModules: true });
+      expect(before[0].code).not.toBe(after[0].code);
+      expect(before[0].fileName).not.toBe(after[0].fileName);
+      expectSameNameSameBytes(before, after);
+    }
+  );
+
   it("SSR, RSC and the flight reference all name the file the client build emitted", () => {
     const source = '"use client";\nexport const Widget = () => null;\n';
     write("src/components/Widget.client.tsx", source);
@@ -226,6 +239,22 @@ describe("client-manifest naming", () => {
         expect(fileNames(condition, true).entryFileNames(info)).toBe(file);
       }
       expect(createDefaultModuleID(userOptions(), buildEnv)(src, source, true)).toBe(`/${file}`);
+    }
+  );
+
+  it.each(["src/_virtual/Widget.client.tsx", "node_modules/example/Widget.client.tsx"])(
+    "a hosted %s client reference uses the browser manifest in every output",
+    (sourceId) => {
+      const source = '\"use client\"; export const Widget = () => null;';
+      const file = "hosted/Widget.client-12345678.js";
+      write(sourceId, source);
+      writeClientManifest({ [sourceId]: file });
+      const facade = join(root, sourceId);
+      const info = chunkInfo(sourceId.replace(/\.tsx$/, ""), facade, [facade]);
+      for (const condition of ["react-client", "react-server"] as const) {
+        expect(fileNames(condition, true).entryFileNames(info)).toBe(file);
+      }
+      expect(createDefaultModuleID(userOptions(), buildEnv)(sourceId, source, true)).toBe(`/${file}`);
     }
   );
 
