@@ -1,5 +1,21 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
+import type { UserConfig } from "vite";
+import type { ResolvedUserOptions } from "../types.js";
+
+/** Use the browser environment configuration, including its final overrides. */
+export function resolveClientBuildManifestPath(
+  options: Pick<ResolvedUserOptions, "projectRoot" | "build">,
+  config: Pick<UserConfig, "build" | "environments">,
+): string {
+  const client = config.environments?.["client"]?.build;
+  const manifest = client?.manifest ?? config.build?.manifest;
+  return resolve(
+    options.projectRoot,
+    client?.outDir ?? resolve(options.projectRoot, options.build.outDir, options.build.static),
+    typeof manifest === "string" ? manifest : ".vite/manifest.json",
+  );
+}
 
 /**
  * The browser file the client build emitted for a source module, read from
@@ -24,19 +40,22 @@ export function createClientBuildManifestLookup({
   projectRoot,
   outDir,
   staticDir,
+  getPath,
 }: {
   projectRoot: string;
   outDir: string;
   staticDir: string;
+  getPath?: () => string | undefined;
 }): ClientBuildManifestLookup {
-  const path = resolve(projectRoot, outDir, staticDir, ".vite/manifest.json");
+  const manifestPath = () => getPath?.() ?? resolve(projectRoot, outDir, staticDir, ".vite/manifest.json");
   // Re-read when the client build rewrites it (several builds in one process).
-  let cached: { mtimeMs: number; files: Map<string, string> } | undefined;
+  let cached: { path: string; mtimeMs: number; files: Map<string, string> } | undefined;
 
   const load = (): Map<string, string> | undefined => {
+    const path = manifestPath();
     if (!existsSync(path)) return undefined;
     const { mtimeMs } = statSync(path);
-    if (cached?.mtimeMs !== mtimeMs) {
+    if (cached?.path !== path || cached?.mtimeMs !== mtimeMs) {
       const manifest = JSON.parse(readFileSync(path, "utf8")) as Record<
         string,
         { file?: string; src?: string } | undefined
@@ -47,14 +66,14 @@ export function createClientBuildManifestLookup({
           files.set(entry.src ?? key, entry.file);
         }
       }
-      cached = { mtimeMs, files };
+      cached = { path, mtimeMs, files };
     }
     return cached.files;
   };
 
   return {
-    path,
-    exists: () => existsSync(path),
+    get path() { return manifestPath(); },
+    exists: () => existsSync(manifestPath()),
     fileOf: (sourceId) => load()?.get(manifestKey(projectRoot, sourceId)),
   };
 }

@@ -510,6 +510,8 @@ export type ResolvedUserOptions = {
     | undefined;
   // inlineFlight resolves the boolean alias away: `true` normalizes to "blob".
   build: Omit<Required<BuildConfig>, "edge" | "inlineFlight"> & {
+    /** Internal: absolute path of the resolved browser build manifest. */
+    clientManifestPath?: string;
     edge: ResolvedEdgeConfig;
     inlineFlight: false | "blob" | "stream";
   };

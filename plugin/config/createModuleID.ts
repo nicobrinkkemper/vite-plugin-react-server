@@ -130,6 +130,7 @@ export const createDefaultModuleID = (
     projectRoot,
     outDir: build?.outDir || DEFAULT_CONFIG.BUILD.outDir,
     staticDir: build?.static || DEFAULT_CONFIG.BUILD.static,
+    getPath: () => build.clientManifestPath,
   });
   const staticClientDist = isBuild ? join(build?.outDir || "dist", build?.static || "static") : "";
   const ssrClientDist = isBuild ? join(build?.outDir || "dist", build?.client || "client") : "";
