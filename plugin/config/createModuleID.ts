@@ -7,7 +7,9 @@ import { stripTrailingDotSegment } from "../helpers/inputNormalizer.js";
 import type { ConfigEnv } from "vite";
 import { sep, resolve, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
-import { createRollupLikeHash } from "./createRollupLikeHash.js";
+import { createCombinedGraphChunkHash } from "./createCombinedGraphChunkHash.js";
+import { toCanonicalModuleId } from "./combinedGraphChunkInputs.js";
+import { collectTransitiveModuleBagFromEntry } from "./collectTransitiveModuleBag.js";
 import { wrapModuleID } from "./moduleIdContract.js";
 
 export type ModuleIDKey =
@@ -73,12 +75,16 @@ export const createDefaultModuleID = (
     isClientByDirective === true ||
     detectClientModule({ source: sourceContent, moduleId: id });
 
-  // Hash function for client components - same logic as resolveOptions.ts
+  // Hash function for client components — same combined-graph bag as
+  // resolveOptions entryFile/chunkFile, so client-reference ids match
+  // emitted chunk names. `sourceModuleId` is the on-disk module path (before
+  // extension remap); the bag keys on that canonical id, not the .js stem.
   const hash = (
     input: string | null,
     _ssr: boolean,
     sourceContent?: string,
-    isClientByDirective?: boolean
+    isClientByDirective?: boolean,
+    sourceModuleId?: string
   ) => {
     if (!input) return "";
     if (new RegExp(/\.(node|d\.ts)$/).test(input)) {
@@ -114,32 +120,37 @@ export const createDefaultModuleID = (
       return input;
     }
     
-    // Always hash the source content for consistency across builds
-    // This ensures the same hash is generated in transformer and build process
-    let contentToHash: string;
-    
-    if (sourceContent) {
-      // Use provided source content (preferred)
-      contentToHash = sourceContent;
-    } else {
-      // Try to read source file content
-      try {
-        const sourcePath = resolve(projectRoot, input);
-        if (existsSync(sourcePath)) {
-          contentToHash = readFileSync(sourcePath, 'utf-8');
-        } else {
-          // Fallback to filename
-          contentToHash = input;
-        }
-      } catch (error) {
-        // Fallback to filename
-        contentToHash = input;
+    const canonicalId = toCanonicalModuleId(
+      projectRoot,
+      sourceModuleId ?? input
+    );
+    // Same transitive first-party import closure as entryFile/chunkFile so
+    // client-ref ids track bundled and separate-chunk deps alike.
+    let entrySource: string | undefined = sourceContent;
+    try {
+      const sourcePath = resolve(projectRoot, canonicalId);
+      if (existsSync(sourcePath)) {
+        entrySource = readFileSync(sourcePath, "utf-8");
       }
+    } catch {
+      // Keep transformer sourceContent when disk is unavailable (unit tests).
     }
-    
-    // Generate hash using Rollup-like algorithm
-    const hashCharacters = typeof hashOption === 'object' && hashOption?.format === 'hex' ? 'hex' : 'base36';
-    const contentHash = createRollupLikeHash(contentToHash, hashCharacters);
+    const transitive = collectTransitiveModuleBagFromEntry(
+      projectRoot,
+      canonicalId,
+      entrySource
+    );
+
+    const hashCharacters =
+      typeof hashOption === "object" && hashOption?.format === "hex"
+        ? "hex"
+        : "base36";
+    const contentHash = createCombinedGraphChunkHash({
+      moduleIds: transitive.moduleIds,
+      moduleSources: transitive.moduleSources,
+      importedChunkNames: [],
+      hashCharacters,
+    });
     
     // Apply naming logic
     const extensionIndex = input.lastIndexOf(".");
@@ -223,8 +234,14 @@ export const createDefaultModuleID = (
         });
         
         
-        // Step 3: Apply hashing for client components
-        transformedId = hash(transformedId, false, sourceContent, isClientByDirective);
+        // Step 3: Apply hashing for client components (bag keyed on source id)
+        transformedId = hash(
+          transformedId,
+          false,
+          sourceContent,
+          isClientByDirective,
+          id
+        );
         
         // Step 4: Ensure paths start with moduleBasePath
         if (moduleBasePath && !transformedId.startsWith(moduleBasePath)) {

@@ -36,6 +36,12 @@ import { getNodeEnv } from "./getNodeEnv.js";
 import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./stashedOptionsState.js";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { createRollupLikeHash } from "./createRollupLikeHash.js";
+import { createCombinedGraphChunkHash } from "./createCombinedGraphChunkHash.js";
+import {
+  toCanonicalModuleId,
+  type ChunkGraphLike,
+} from "./combinedGraphChunkInputs.js";
+import { collectTransitiveModuleBag } from "./collectTransitiveModuleBag.js";
 import { DEFAULT_LAYOUT } from "../router/scanRoutes.js";
 import { wrapModuleID } from "./moduleIdContract.js";
 
@@ -524,94 +530,92 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       : DEFAULT_LOADER_CONFIG.isClientComponentByName);
 
   const hashOption = options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
+  const hashCharacters: "base36" | "hex" =
+    typeof hashOption === "object" && hashOption?.format === "hex"
+      ? "hex"
+      : "base36";
 
-  // User-facing hash function that can take source content or filename
+  /**
+   * Outputs that must keep a stable path (assets/CSS still use single-file
+   * hashing; entry/chunk use the combined-graph bag).
+   */
+  const shouldLeaveUnhashed = (input: string, ssr: boolean): boolean => {
+    if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) return true;
+    if (input.includes("node_modules")) return true;
+    if (
+      input.includes("_virtual") ||
+      (virtualPattern && virtualPattern.test(input))
+    ) {
+      return true;
+    }
+    if (hashOption === "false") return true;
+    // Skip outputs addressed by canonical path rather than the build manifest:
+    // html/rsc SSG URLs; page/props/server SSR entries imported by literal path.
+    // The browser build has no such entries, and the patterns match any name
+    // ending in page/props/server (a vendor `create-split-props.js` chunk), so
+    // they apply to SSR builds only.
+    if (htmlPattern.test(input) || rscPattern.test(input)) return true;
+    if (
+      ssr &&
+      (pagePattern.test(input) ||
+        propsPattern.test(input) ||
+        serverPattern.test(input))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const applyHashSuffix = (input: string, contentHash: string): string => {
+    const extensionIndex = input.lastIndexOf(".");
+    if (extensionIndex !== -1) {
+      const extension = input.slice(extensionIndex);
+      const filename = input.slice(0, extensionIndex);
+      return filename + "-" + contentHash + extension;
+    }
+    return input + "-" + contentHash;
+  };
+
+  /**
+   * Single-file hash for assets (CSS, fonts, …). Chunk/entry naming uses
+   * {@link hashChunk} so shared chunks track every module source.
+   */
   const hash = (input: string | null, ssr: boolean, sourceContent?: string) => {
     if (!input) return "";
-    if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) {
-      return input;
-    }
-    
-    // CRITICAL: Never hash node_modules files - Vite/Rollup handles those
-    if (input.includes("node_modules")) {
-      return input;
-    }
-    
-    // CRITICAL: Never hash virtual modules (_virtual or matching virtualPattern) - Vite handles those
-    const virtualPattern = resolveRegExp(
-      options.autoDiscover?.virtualPattern,
-      DEFAULT_CONFIG.AUTO_DISCOVER.virtualPattern
-    );
-    if (input.includes("_virtual") || (virtualPattern && virtualPattern.test(input))) {
-      return input;
-    }
-    
-    // Check if hashing is disabled
-    if (hashOption === "false") {
-      return input;
-    }
-    
-    // Skip outputs that are addressed by canonical path rather than via the
-    // build manifest, so renaming them would break their callers:
-    //   - htmlPattern / rscPattern: SSG outputs at fixed route URLs
-    //   - pagePattern / propsPattern / serverPattern: SSR entry modules the
-    //     runtime imports by literal path (see resolvePageAndProps), not
-    //     browser-served assets so caching isn't a concern either
-    // Everything else falls through to content-based hashing: in a browser/
-    // static build for cache-busting, and in an SSR build only for
-    // client-reference modules (see the ssr guard below). Cross-environment hash
-    // consistency is provided by handleSsrEntryName / handleSsrAssetName in
-    // resolveUserConfig.ts (which feed sourceContent through to this function)
-    // and the augmentChunkHash plugin.
-    if (
-      htmlPattern.test(input) ||
-      rscPattern.test(input) ||
-      pagePattern.test(input) ||
-      propsPattern.test(input) ||
-      serverPattern.test(input)
-    ) {
+    if (shouldLeaveUnhashed(input, ssr)) {
       return input;
     }
 
-    // Determine what to hash based on available input
     let contentToHash: string;
-    
     if (sourceContent) {
-      // Use provided source content (preferred)
       contentToHash = sourceContent;
     } else {
-           // Try to read source file content
-     try {
-       const sourcePath = resolve(projectRoot, input);
-       if (existsSync(sourcePath)) {
-         contentToHash = readFileSync(sourcePath, 'utf-8');
-         // Debug logging
-         if (options.verbose) {
-           logger.info(`[hash] Reading source: ${sourcePath} (${contentToHash.length} chars)`);
-         }
-       } else {
-         // Fallback to filename
-         contentToHash = input;
-         if (options.verbose) {
-           logger.warn(`[hash] File not found: ${sourcePath}, using filename: ${input}`);
-         }
-       }
-     } catch (error) {
-       // Fallback to filename
-       contentToHash = input;
-       if (options.verbose) {
-         logger.warn(`[hash] Error reading ${input}: ${error}`);
-       }
-     }
+      try {
+        const sourcePath = resolve(projectRoot, input);
+        if (existsSync(sourcePath)) {
+          contentToHash = readFileSync(sourcePath, "utf-8");
+          if (options.verbose) {
+            logger.info(
+              `[hash] Reading source: ${sourcePath} (${contentToHash.length} chars)`
+            );
+          }
+        } else {
+          contentToHash = input;
+          if (options.verbose) {
+            logger.warn(
+              `[hash] File not found: ${sourcePath}, using filename: ${input}`
+            );
+          }
+        }
+      } catch (error) {
+        contentToHash = input;
+        if (options.verbose) {
+          logger.warn(`[hash] Error reading ${input}: ${error}`);
+        }
+      }
     }
-    
-    // In an SSR build (server / ssr-client), only CLIENT-REFERENCE modules need
-    // a content-addressed name: they're loaded by the browser via the flight, so
-    // their hashed id must stay consistent with the client build. Pure
-    // server-only modules are loaded by Node from disk by literal path — hashing
-    // them busts no browser/CDN cache and only churns filenames (and can emit
-    // duplicate chunks), so keep their names stable. The browser/static build
-    // (ssr=false) still hashes everything for real cache-busting.
+
+    // SSR: only client-reference modules need content-addressed names.
     if (
       ssr &&
       !isClientComponentByName(input) &&
@@ -620,19 +624,87 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return input;
     }
 
-    // Generate hash using Rollup-like algorithm
-    const hashCharacters = typeof hashOption === 'object' && hashOption?.format === 'hex' ? 'hex' : 'base36';
-    const contentHash = createRollupLikeHash(contentToHash, hashCharacters);
-    
-    // Apply naming logic
-    const extensionIndex = input.lastIndexOf(".");
-    if (extensionIndex !== -1) {
-      const extension = input.slice(extensionIndex);
-      const filename = input.slice(0, extensionIndex);
-      return filename + "-" + contentHash + extension;
-    } else {
-      return input + "-" + contentHash;
+    return applyHashSuffix(
+      input,
+      createRollupLikeHash(contentToHash, hashCharacters)
+    );
+  };
+
+  /**
+   * Content-addressed entry/chunk name from the combined module graph.
+   * The bag is the transitive first-party import closure of the
+   * facade (or of every module in a shared chunk) — sources, not Rollup
+   * membership and not final hashed import filenames — so:
+   * - bundled deps bust the facade name (preserveModules: false);
+   * - separate-chunk deps also bust the importer name (preserveModules: true);
+   * - createDefaultModuleID walks the same closure for client-ref agreement.
+   */
+  const hashChunk = (
+    input: string | null,
+    ssr: boolean,
+    chunk: ChunkGraphLike,
+    facadeSource?: string
+  ) => {
+    if (!input) return "";
+    if (shouldLeaveUnhashed(input, ssr)) {
+      return input;
     }
+
+    const facade = chunk.facadeModuleId;
+    const roots =
+      facade != null && facade !== ""
+        ? [facade]
+        : chunk.moduleIds.length > 0
+          ? [...chunk.moduleIds]
+          : [];
+
+    const overrides: Record<string, string> | undefined =
+      facadeSource != null && facade
+        ? { [toCanonicalModuleId(projectRoot, facade)]: facadeSource }
+        : undefined;
+
+    const transitive = collectTransitiveModuleBag(projectRoot, roots, {
+      sourceOverrides: overrides,
+    });
+
+    // Shared chunk with nothing resolvable: fall back to hashing membership
+    // ids with empty sources rather than the Rollup name alone.
+    const moduleIds =
+      transitive.moduleIds.length > 0
+        ? transitive.moduleIds
+        : roots.map((id) => toCanonicalModuleId(projectRoot, id));
+    const moduleSources =
+      transitive.moduleIds.length > 0
+        ? transitive.moduleSources
+        : Object.fromEntries(moduleIds.map((id) => [id, ""]));
+
+    if (
+      ssr &&
+      !isClientComponentByName(input) &&
+      !moduleIds.some(
+        (id) =>
+          isClientComponentByName(id) ||
+          isClientComponentByCode(moduleSources[id] ?? "")
+      )
+    ) {
+      return input;
+    }
+
+    if (options.verbose) {
+      logger.info(
+        `[hash] Combined-graph bag for ${input}: ${moduleIds.length} module(s)`
+      );
+    }
+
+    return applyHashSuffix(
+      input,
+      createCombinedGraphChunkHash({
+        moduleIds,
+        moduleSources,
+        importedChunkNames: [],
+        hashCharacters,
+      })
+    );
   };
 
   // Output path resolution
@@ -712,7 +784,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       }
     }
     
-    return hash(outputPath, ssr, sourceContent);
+    return hashChunk(outputPath, ssr, n, sourceContent);
   }
 
   function chunkFile(n: PreRenderedChunk, ssr: boolean, sourceContent?: string): string {
@@ -732,7 +804,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       }
     }
     
-    return hash(outputPath, ssr, sourceContent);
+    return hashChunk(outputPath, ssr, n, sourceContent);
   }
 
   function assetFile(n: PreRenderedAsset, _ssr: boolean = false): string {
