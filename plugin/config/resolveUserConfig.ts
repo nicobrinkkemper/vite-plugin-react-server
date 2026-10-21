@@ -21,13 +21,12 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { REACT_CONDITION, type ReactCondition } from "./getCondition.js";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
+import { resolveClientBuildManifestPath } from "./clientBuildManifest.js";
 import { effectiveModuleBaseURL } from "./effectiveModuleBaseURL.js";
 import {
   mergeClientPackagesNoExternal,
   mergeClientPackagesOptimizeDepsExclude,
 } from "../clientPackages/index.js";
-import { serializeCombinedGraphChunkBag } from "./createCombinedGraphChunkHash.js";
-import { collectTransitiveModuleBag } from "./collectTransitiveModuleBag.js";
 
 // rolldown-vite materializes a sibling plugin's build.rollupOptions
 // contribution (e.g. @vitejs/plugin-react's onwarn wrapper) as a real
@@ -81,6 +80,7 @@ export const resolveUserConfig: ResolveUserConfigFn =
     forceResolve = false,
     ssr = undefined,
   }) {
+    userOptions.build.clientManifestPath = resolveClientBuildManifestPath(userOptions, config);
     if (!forceResolve && originalConfig == null) {
       originalConfig = config;
     } else if (originalConfig != null && config !== originalConfig) {
@@ -381,6 +381,13 @@ export const resolveUserConfig: ResolveUserConfigFn =
         }),
       format: "esm",
       exports: "named",
+      // Browser names carry Rollup's [hash]; keep them in the character set
+      // vprs names have always used (build.hash.format "hex", else base36).
+      hashCharacters:
+        typeof userOptions.build.hash === "object" &&
+        userOptions.build.hash?.format === "hex"
+          ? "hex"
+          : "base36",
     } satisfies OutputOptions;
 
     const newOutput = Array.isArray(config.build?.rollupOptions?.output)
@@ -913,29 +920,6 @@ export const resolveUserConfig: ResolveUserConfigFn =
                         //);
                     }
                   }
-                },
-              },
-              // Salt Rollup's [hash] (when used) with the same transitive
-              // first-party import bag as entryFile/chunkFile.
-              {
-                name: "vite:plugin-react-server/content-hash",
-                augmentChunkHash(chunk) {
-                  const roots =
-                    chunk.facadeModuleId != null && chunk.facadeModuleId !== ""
-                      ? [chunk.facadeModuleId]
-                      : [...chunk.moduleIds];
-                  const transitive = collectTransitiveModuleBag(
-                    userOptions.projectRoot,
-                    roots
-                  );
-                  if (transitive.moduleIds.length === 0) {
-                    return chunk.facadeModuleId ?? chunk.name;
-                  }
-                  return serializeCombinedGraphChunkBag({
-                    moduleIds: transitive.moduleIds,
-                    moduleSources: transitive.moduleSources,
-                    importedChunkNames: [],
-                  });
                 },
               },
             ],

@@ -12,6 +12,7 @@ import { getNodeEnv, isValidEnv } from "../config/getNodeEnv.js";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
+import { resolveClientBuildManifestPath } from "../config/clientBuildManifest.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
 import { detectClientModule, analyzeModule } from "react-server-loader/directives";
@@ -185,6 +186,7 @@ export const createTransformerPlugin = (
         }, true); // Force resolve to bypass cache
         if (runtimeOptionsResult.type === "success") {
           runtimeResolvedUserOptions = runtimeOptionsResult.userOptions;
+          runtimeResolvedUserOptions.build.clientManifestPath = resolveClientBuildManifestPath(runtimeResolvedUserOptions, config);
         }
 
         // CRITICAL: Update moduleID function with correct configEnv for build mode

@@ -9,7 +9,8 @@ import { sep } from "node:path";
 type OxcLike = {
   jsx?: ({ development?: boolean } & Record<string, unknown>) | string;
 } & Record<string, unknown>;
-import type { VitePluginFn } from "../types.js";
+import { resolveClientBuildManifestPath } from "../config/clientBuildManifest.js";
+import type { ResolvedUserOptions, VitePluginFn } from "../types.js";
 
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -76,6 +77,7 @@ import { buildEdgeBundle } from "../bundle/buildEdgeBundle.js";
  * - server (custom) → dist/server (React server components with registerClientReference)
  */
 export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
+  let namingOptions: ResolvedUserOptions | undefined;
   const environmentPlugin: Plugin = {
     name: "vite:plugin-react-server/environments",
     enforce: "pre",
@@ -117,6 +119,12 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       },
     },
 
+    configResolved(config) {
+      if (namingOptions) {
+        namingOptions.build.clientManifestPath = resolveClientBuildManifestPath(namingOptions, config);
+      }
+    },
+
     async config(config: UserConfig, configEnv) {
       // Resolve plugin options
       const resolvedOptionsResult = resolveOptions(options);
@@ -124,6 +132,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         throw resolvedOptionsResult.error;
       }
       const userOptions = resolvedOptionsResult.userOptions;
+      namingOptions = userOptions;
 
       // Add transformer plugins at the Vite level with proper environment filtering
       if (!config.plugins) {

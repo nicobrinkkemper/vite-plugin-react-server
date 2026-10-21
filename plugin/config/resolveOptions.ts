@@ -36,12 +36,10 @@ import { getNodeEnv } from "./getNodeEnv.js";
 import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./stashedOptionsState.js";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { createRollupLikeHash } from "./createRollupLikeHash.js";
-import { createCombinedGraphChunkHash } from "./createCombinedGraphChunkHash.js";
 import {
-  toCanonicalModuleId,
-  type ChunkGraphLike,
-} from "./combinedGraphChunkInputs.js";
-import { collectTransitiveModuleBag } from "./collectTransitiveModuleBag.js";
+  createClientBuildManifestLookup,
+  missingClientManifestError,
+} from "./clientBuildManifest.js";
 import { DEFAULT_LAYOUT } from "../router/scanRoutes.js";
 import { wrapModuleID } from "./moduleIdContract.js";
 
@@ -537,9 +535,9 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
 
   /**
    * Outputs that must keep a stable path (assets/CSS still use single-file
-   * hashing; entry/chunk use the combined-graph bag).
+   * hashing; browser entries/chunks use the bundler hash).
    */
-  const shouldLeaveUnhashed = (input: string, ssr: boolean): boolean => {
+  const shouldLeaveUnhashed = (input: string, ssr: boolean, clientReference = false): boolean => {
     if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) return true;
     if (input.includes("node_modules")) return true;
     if (
@@ -556,7 +554,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     // they apply to SSR builds only.
     if (htmlPattern.test(input) || rscPattern.test(input)) return true;
     if (
-      ssr &&
+      ssr && !clientReference &&
       (pagePattern.test(input) ||
         propsPattern.test(input) ||
         serverPattern.test(input))
@@ -630,81 +628,76 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     );
   };
 
+  const clientBuildManifest = createClientBuildManifestLookup({
+    projectRoot,
+    outDir,
+    getPath: () => build.clientManifestPath,
+    staticDir:
+      typeof options.build?.static === "string"
+        ? options.build.static
+        : DEFAULT_CONFIG.BUILD.static,
+  });
+
+  const isClientReferenceChunk = (
+    input: string,
+    facade: string,
+    facadeSource?: string
+  ): boolean => {
+    if (isClientComponentByName(input) || isClientComponentByName(facade)) {
+      return true;
+    }
+    let source = facadeSource;
+    if (source == null) {
+      try {
+        source = readFileSync(facade, "utf-8");
+      } catch {
+        return false;
+      }
+    }
+    return isClientComponentByCode(source);
+  };
+
   /**
-   * Content-addressed entry/chunk name from the combined module graph.
-   * The bag is the transitive first-party import closure of the
-   * facade (or of every module in a shared chunk) — sources, not Rollup
-   * membership and not final hashed import filenames — so:
-   * - bundled deps bust the facade name (preserveModules: false);
-   * - separate-chunk deps also bust the importer name (preserveModules: true);
-   * - createDefaultModuleID walks the same closure for client-ref agreement.
+   * Entry/chunk names.
+   *
+   * Browser (`ssr: false`): Rollup's own `[hash]` of the emitted chunk, so a
+   * name changes exactly when its bytes do, including what the rest of the
+   * graph does to it (export renaming, the names of the chunks it imports).
+   *
+   * SSR/RSC (`ssr: true`): a client reference takes the file the client build
+   * emitted for it (see clientBuildManifest.ts), so the id the flight payload
+   * carries names one file in every output. Other server files keep their
+   * paths.
    */
   const hashChunk = (
     input: string | null,
     ssr: boolean,
-    chunk: ChunkGraphLike,
+    chunk: { facadeModuleId?: string | null },
     facadeSource?: string
   ) => {
     if (!input) return "";
-    if (shouldLeaveUnhashed(input, ssr)) {
-      return input;
-    }
-
     const facade = chunk.facadeModuleId;
-    const roots =
-      facade != null && facade !== ""
-        ? [facade]
-        : chunk.moduleIds.length > 0
-          ? [...chunk.moduleIds]
-          : [];
-
-    const overrides: Record<string, string> | undefined =
-      facadeSource != null && facade
-        ? { [toCanonicalModuleId(projectRoot, facade)]: facadeSource }
-        : undefined;
-
-    const transitive = collectTransitiveModuleBag(projectRoot, roots, {
-      sourceOverrides: overrides,
-    });
-
-    // Shared chunk with nothing resolvable: fall back to hashing membership
-    // ids with empty sources rather than the Rollup name alone.
-    const moduleIds =
-      transitive.moduleIds.length > 0
-        ? transitive.moduleIds
-        : roots.map((id) => toCanonicalModuleId(projectRoot, id));
-    const moduleSources =
-      transitive.moduleIds.length > 0
-        ? transitive.moduleSources
-        : Object.fromEntries(moduleIds.map((id) => [id, ""]));
-
-    if (
-      ssr &&
-      !isClientComponentByName(input) &&
-      !moduleIds.some(
-        (id) =>
-          isClientComponentByName(id) ||
-          isClientComponentByCode(moduleSources[id] ?? "")
-      )
-    ) {
+    const clientReference = ssr && !!facade && isClientReferenceChunk(input, facade, facadeSource);
+    if (shouldLeaveUnhashed(input, ssr, clientReference)) {
       return input;
     }
-
+    if (!ssr) {
+      return applyHashSuffix(input, "[hash]");
+    }
+    if (!facade || !clientReference) {
+      return input;
+    }
+    if (!clientBuildManifest.exists()) {
+      throw missingClientManifestError(clientBuildManifest.path, facade);
+    }
+    const file = clientBuildManifest.fileOf(facade);
+    if (file) return file;
     if (options.verbose) {
-      logger.info(
-        `[hash] Combined-graph bag for ${input}: ${moduleIds.length} module(s)`
+      logger.warn(
+        `[hash] ${facade} is not in the client build's manifest; the browser has no file for it`
       );
     }
-
-    return applyHashSuffix(
-      input,
-      createCombinedGraphChunkHash({
-        moduleIds,
-        moduleSources,
-        importedChunkNames: [],
-        hashCharacters,
-      })
-    );
+    return input;
   };
 
   // Output path resolution
@@ -881,6 +874,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
    * nodeExtension
    */
   const build = {
+    clientManifestPath: (options.build as Partial<ResolvedUserOptions["build"]> | undefined)?.clientManifestPath,
     pages: effectiveBuildPages ?? DEFAULT_CONFIG.BUILD.pages,
     assetsDir: options.build?.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir,
     client: options.build?.client ?? DEFAULT_CONFIG.BUILD.client,
