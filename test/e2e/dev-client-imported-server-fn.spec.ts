@@ -12,18 +12,20 @@
  * import to a virtual client module that Vite import-analyzes, so the transport
  * resolves to a dev URL. Prod (Rollup-bundled) always worked.
  *
- * Drives bidoof-template's ServerFnProbe (a "use client" component that imports
- * getTodos directly and calls it on click). Requires the demo's client-imported
- * server-function probe (vite-plugin-react-server-demo-official#97).
+ * Drives the e2e-owned ServerFnProbe (installed via clientFixtures) on `/`.
+ * The probe imports getFavorites ("use server") directly and calls it on click.
  */
 import { test, expect } from "@playwright/test";
 import { type ChildProcess } from "node:child_process";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolveBidoofDir } from "./bidoofDir.js";
+import {
+  installClientFixtures,
+  uninstallClientFixtures,
+  type ClientFixtureHandle,
+} from "./clientFixtures.js";
 import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const bidoofDir = join(__dirname, "../../../bidoof-template");
+const bidoofDir = resolveBidoofDir();
 
 const MODES = [
   { label: "dev:ssr (client-first)", condition: "", basePort: 33000 },
@@ -35,8 +37,10 @@ for (const mode of MODES) {
     const PORT = mode.basePort + Math.floor(Math.random() * 1000);
     const BASE_URL = `http://localhost:${PORT}`;
     let server: ChildProcess | undefined;
+    let fixtures: ClientFixtureHandle | undefined;
 
     test.beforeAll(async () => {
+      fixtures = await installClientFixtures(bidoofDir);
       server = spawnViteDev({
         dir: bidoofDir,
         port: PORT,
@@ -55,6 +59,7 @@ for (const mode of MODES) {
 
     test.afterAll(async () => {
       await stopViteDev(server);
+      await uninstallClientFixtures(fixtures);
     });
 
     test("imports a server function directly and calls it (no bare-specifier error)", async ({
@@ -64,17 +69,17 @@ for (const mode of MODES) {
       page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
       page.on("pageerror", (e) => errors.push(e.message));
 
-      await page.goto(`${BASE_URL}/todos/`);
+      await page.goto(`${BASE_URL}/`);
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(1000); // let the client hydrate
 
-      // ServerFnProbe imports getTodos ("use server") directly; the click calls
-      // it. If the transport import were bare, the module would fail to load and
-      // the button would never hydrate/update.
+      // ServerFnProbe imports getFavorites ("use server") directly; the click
+      // calls it. If the transport import were bare, the module would fail to
+      // load and the button would never hydrate/update.
       const probe = page.getByTestId("server-fn-probe");
       await expect(probe).toHaveText("Probe server fn");
       await probe.click();
-      await expect(probe).toHaveText(/server says: \d+ todos/);
+      await expect(probe).toHaveText(/server says: \d+ favorites/);
 
       // No "bare specifier ... was not remapped" (or any) errors.
       expect(errors.join("\n")).not.toMatch(/bare specifier|not remapped/i);

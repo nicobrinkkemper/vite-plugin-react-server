@@ -18,6 +18,9 @@ import { test, expect } from "@playwright/test";
  * page is genuinely interactive: a client-side navigation preserves a window
  * marker that a full-page reload would wipe. The e2e fixture runs dev:rsc; the
  * browser client path is identical under dev:ssr.
+ *
+ * Navigation target is the live demo's `/pokedex/` link (not the retired
+ * `/todos` route).
  */
 test.describe("dev-server hydration", () => {
   test("mounts with no react-dom/client interop error", async ({ page }) => {
@@ -58,10 +61,10 @@ test.describe("dev-server hydration", () => {
       (window as Window & { __hydrated?: string }).__hydrated = "yes";
     });
 
-    const link = page.locator('a[href*="todos"]').first();
+    const link = page.locator('a[href*="pokedex"]').first();
     await expect(link).toBeVisible(); // fail loudly if the fixture changes, never a silent skip
     await link.click();
-    await page.waitForURL(/\/todos/);
+    await page.waitForURL(/\/pokedex/);
 
     const survived = await page.evaluate(
       () => (window as Window & { __hydrated?: string }).__hydrated,

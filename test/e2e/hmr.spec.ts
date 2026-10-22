@@ -1,10 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import { writeFile, readFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { resolveBidoofDir } from './bidoofDir.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const bidoofDir = join(__dirname, '../../../bidoof-template');
+const bidoofDir = resolveBidoofDir();
 
 // The demo surfaces this spec drives (bidoof-template's Pokédex app):
 // - `/pokedex/` — server page (src/page/pokedex/page.tsx) with the
