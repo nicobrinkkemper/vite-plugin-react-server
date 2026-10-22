@@ -39,6 +39,8 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 let server: ChildProcess | undefined;
 let fixtures: ActionFixtureHandle | undefined;
+// The demo's own favorites, put back after the run (the tests reseed the table).
+let savedFavorites: { name: string; created_at: string | null }[] | undefined;
 
 function withFavoritesDb<T>(fn: (db: DatabaseSync) => T): T {
   const db = new DatabaseSync(dbPath);
@@ -72,6 +74,13 @@ function readFavorites(): string[] {
 }
 
 test.beforeAll(async () => {
+  savedFavorites = withFavoritesDb(
+    (db) =>
+      db.prepare("SELECT name, created_at FROM favorites").all() as {
+        name: string;
+        created_at: string | null;
+      }[],
+  );
   fixtures = await installActionFixtures(bidoofDir);
 
   // dev:ssr-equivalent: NO --conditions react-server in NODE_OPTIONS.
@@ -101,6 +110,14 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await stopViteDev(server);
   await uninstallActionFixtures(fixtures);
+  if (savedFavorites) {
+    const rows = savedFavorites;
+    withFavoritesDb((db) => {
+      db.prepare("DELETE FROM favorites").run();
+      const insert = db.prepare("INSERT INTO favorites (name, created_at) VALUES (?, ?)");
+      for (const row of rows) insert.run(row.name, row.created_at);
+    });
+  }
 });
 
 test.describe("server actions persist under dev:ssr", () => {
