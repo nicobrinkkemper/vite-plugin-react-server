@@ -44,6 +44,9 @@ test.beforeAll(async () => {
       BASE_URL: "/",
       PUBLIC_ORIGIN: BASE_URL,
       FORCE_COLOR: "1",
+      // Match the dev:rsc fixture (server.ts) — WSL2 inotify on /mnt
+      // paths is unreliable; polling is needed for the file watcher to
+      // notice .module.css edits at all.
       CHOKIDAR_USEPOLLING: "true",
       CHOKIDAR_INTERVAL: "500",
     },
@@ -67,6 +70,11 @@ test.afterAll(async () => {
   await stopViteDev(server);
 });
 
+// Regression: in dev:ssr the SSR worker imports compiled CSS modules
+// through Node's loader, which caches by URL. Before the fix, CSS edits did
+// not trigger a worker restart, so reloading the page re-rendered with the
+// pre-edit class hashes. Fix lives in plugin/dev-server/plugin.client.ts
+// (CSS files now route through the same worker-invalidation path as .ts/.tsx).
 test("dev:ssr applies CSS-module edits after reload", async ({ page }) => {
   await page.goto(BASE_URL + "/");
 
@@ -85,6 +93,13 @@ test("dev:ssr applies CSS-module edits after reload", async ({ page }) => {
   );
 });
 
+// Live-HMR variant: edit the CSS and expect the rule to apply *without* a
+// page.reload(). Before this fix, plugin.client.ts's hotUpdate for CSS files
+// fired vprs's WS event but didn't return [], so Vite emitted its default
+// `vite:beforeFullReload` event right after — the browser did a hard reload,
+// which is functional but not HMR. plugin.client.ts now returns [] for CSS
+// edits to suppress that reload, and useRscHmr's `kind: 'css'` branch
+// cache-busts <link rel="stylesheet"> tags so the new rules apply live.
 test("dev:ssr applies CSS-module edits live without a manual reload", async ({ page }) => {
   await page.goto(BASE_URL + "/");
 

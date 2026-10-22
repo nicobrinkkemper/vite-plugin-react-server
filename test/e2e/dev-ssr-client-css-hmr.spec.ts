@@ -53,6 +53,8 @@ test.describe("dev:ssr CSS-module HMR", () => {
         BASE_URL: "/",
         PUBLIC_ORIGIN: BASE_URL,
         FORCE_COLOR: "1",
+        // WSL2 inotify on /mnt is unreliable; poll so .module.css edits are
+        // noticed by the file watcher at all.
         CHOKIDAR_USEPOLLING: "true",
         CHOKIDAR_INTERVAL: "500",
       },
@@ -67,6 +69,9 @@ test.describe("dev:ssr CSS-module HMR", () => {
     await uninstallClientFixtures(fixtures);
   });
 
+  // CONTROL — the working path. A SERVER-component CSS module edit must
+  // hot-update live without a full reload. If this fails, the harness/server
+  // is broken and the client result below is meaningless.
   test("server-component CSS module hot-updates live (control, should pass)", async ({
     page,
   }) => {
