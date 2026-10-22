@@ -122,11 +122,17 @@ export function setupRscHmr(options = {}) {
 export function virtualRscHmrPlugin(): Plugin {
   return {
     name: "vite-plugin-react-server:virtual-rsc-hmr",
-    resolveId(id) {
-      if (id === VIRTUAL_RSC_HMR) return RESOLVED_VIRTUAL_RSC_HMR;
+    resolveId: {
+      filter: { id: /^virtual:react-server\/hmr$/ },
+      handler(id) {
+        if (id === VIRTUAL_RSC_HMR) return RESOLVED_VIRTUAL_RSC_HMR;
+      },
     },
-    load(id) {
-      if (id === RESOLVED_VIRTUAL_RSC_HMR) return VIRTUAL_RSC_HMR_SOURCE;
+    load: {
+      filter: { id: /^\0virtual:react-server\/hmr$/ },
+      handler(id) {
+        if (id === RESOLVED_VIRTUAL_RSC_HMR) return VIRTUAL_RSC_HMR_SOURCE;
+      },
     },
   };
 }
