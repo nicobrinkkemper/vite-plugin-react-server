@@ -13,32 +13,25 @@
  *   RSC subtree re-streams and the linked stylesheet is cache-busted), so
  *   the bug is isolated to the client module graph.
  *
- * This file pairs a CONTROL (server-component CSS — the working path) with
- * the failing case (client-component CSS — the bug). The control proves the
- * harness itself works under dev:rsc; the client case is the red regression
- * guard that should go green once the client-graph CSS HMR path is fixed.
- *
- * Both targets live on the home page (`/`) of the bidoof-template fixture:
- *   - SERVER CSS:  src/css/home.module.css `.Home` font-size — imported by
+ * Both targets live on the home page (`/`) after `installClientFixtures`:
+ *   - SERVER CSS:  src/css/home.module.css `.Panel h1` font-size — imported by
  *     the server component src/page/page.tsx.
  *   - CLIENT CSS:  src/css/counterStyles.module.css `.Counter` color —
- *     imported directly by the "use client" component
- *     src/components/Counter.client.tsx, which the home page always renders.
- *
- * Self-contained-server pattern (own detached process group, process-group
- * kill in afterAll, WSL2 polling watcher) matches dev-fast-refresh.spec.ts.
- * Each test restores the CSS file it edits to its original bytes in a
- * try/finally so a failure can't leave the fixture dirty.
+ *     imported directly by the e2e-owned Counter.client.tsx.
  */
 import { test, expect } from "@playwright/test";
 import { type ChildProcess } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { resolveBidoofDir } from "./bidoofDir.js";
+import {
+  installClientFixtures,
+  uninstallClientFixtures,
+  type ClientFixtureHandle,
+} from "./clientFixtures.js";
 import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const bidoofDir = join(__dirname, "../../../bidoof-template");
+const bidoofDir = resolveBidoofDir();
 const serverCssFile = join(bidoofDir, "src/css/home.module.css");
 const clientCssFile = join(bidoofDir, "src/css/counterStyles.module.css");
 
@@ -46,14 +39,18 @@ const clientCssFile = join(bidoofDir, "src/css/counterStyles.module.css");
 const PORT = 33800;
 const BASE_URL = `http://localhost:${PORT}`;
 
+const SERVER_FONT_FROM = "font-size: 42px";
+const SERVER_FONT_TO = "font-size: 52px";
 
 // Serial single-worker suite: spawn exactly one dev:rsc server for both tests.
 test.describe("dev:rsc CSS-module HMR", () => {
   test.describe.configure({ mode: "serial", retries: 0 });
 
   let server: ChildProcess | undefined;
+  let fixtures: ClientFixtureHandle | undefined;
 
   test.beforeAll(async () => {
+    fixtures = await installClientFixtures(bidoofDir);
     server = spawnViteDev({
       dir: bidoofDir,
       port: PORT,
@@ -77,6 +74,7 @@ test.describe("dev:rsc CSS-module HMR", () => {
 
   test.afterAll(async () => {
     await stopViteDev(server);
+    await uninstallClientFixtures(fixtures);
   });
 
   // CONTROL — the working path. A SERVER-component CSS module edit must
@@ -86,25 +84,25 @@ test.describe("dev:rsc CSS-module HMR", () => {
     page,
   }) => {
     const original = await readFile(serverCssFile, "utf-8");
-    expect(original).toContain("font-size: 50px");
+    expect(original).toContain(SERVER_FONT_FROM);
     try {
       await page.goto(BASE_URL + "/", { waitUntil: "networkidle" });
 
-      const home = page.locator('div[class*="Home"]').first();
-      await expect(home).toHaveCSS("font-size", "50px");
+      const heading = page.locator('div[class*="Panel"] h1').first();
+      await expect(heading).toHaveCSS("font-size", "42px");
 
       // Sentinel: a full page reload creates a fresh window and wipes this.
       await page.evaluate(() => {
         (window as unknown as { __noReload?: boolean }).__noReload = true;
       });
 
-      // Edit the server-graph CSS: bump .Home font-size 50px -> 60px.
-      await writeFile(serverCssFile, original.replace("font-size: 50px", "font-size: 60px"));
+      await writeFile(
+        serverCssFile,
+        original.replace(SERVER_FONT_FROM, SERVER_FONT_TO),
+      );
 
-      // Expect the rule to apply via HMR (no page.reload()).
-      await expect(home).toHaveCSS("font-size", "60px", { timeout: 12_000 });
+      await expect(heading).toHaveCSS("font-size", "52px", { timeout: 12_000 });
 
-      // And it must have been HMR, not a full reload.
       const noReload = await page.evaluate(
         () => (window as unknown as { __noReload?: boolean }).__noReload === true
       );
@@ -114,16 +112,9 @@ test.describe("dev:rsc CSS-module HMR", () => {
     }
   });
 
-  // THE BUG — currently RED. A CSS module imported directly by a "use client"
-  // component (counterStyles.module.css <- Counter.client.tsx) does NOT
-  // hot-update under dev:rsc: the style never changes without a manual
-  // refresh, and no auto full-reload fires. This test should FAIL until the
-  // client-graph CSS HMR path is fixed, then become the regression guard.
-  test("client-component CSS module hot-updates live (BUG: currently fails)", async ({
-    page,
-  }) => {
+  // Client-graph CSS HMR regression guard (Counter.client.tsx → counterStyles).
+  test("client-component CSS module hot-updates live", async ({ page }) => {
     const original = await readFile(clientCssFile, "utf-8");
-    // Original .Counter color is rgb(255, 0, 0) (red).
     expect(original).toContain("rgb(255, 0, 0)");
     try {
       await page.goto(BASE_URL + "/", { waitUntil: "networkidle" });
@@ -132,23 +123,17 @@ test.describe("dev:rsc CSS-module HMR", () => {
       await expect(counter).toBeVisible();
       await expect(counter).toHaveCSS("color", "rgb(255, 0, 0)");
 
-      // Sentinel: a full page reload would wipe this. (Manual-refresh-only is
-      // the reported symptom; we assert the style updates AND no reload fired.)
       await page.evaluate(() => {
         (window as unknown as { __noReload?: boolean }).__noReload = true;
       });
 
-      // Edit the client-graph CSS: change .Counter color red -> lime.
       await writeFile(
         clientCssFile,
         original.replace("rgb(255, 0, 0)", "rgb(0, 255, 0)")
       );
 
-      // Expect the new color via HMR (no page.reload()). Under the bug this
-      // never happens within the budget, so the assertion times out (red).
       await expect(counter).toHaveCSS("color", "rgb(0, 255, 0)", { timeout: 12_000 });
 
-      // Guard against a "green via full reload" false pass: it must be HMR.
       const noReload = await page.evaluate(
         () => (window as unknown as { __noReload?: boolean }).__noReload === true
       );

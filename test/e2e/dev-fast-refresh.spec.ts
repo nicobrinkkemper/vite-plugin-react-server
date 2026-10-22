@@ -13,24 +13,23 @@
  * Every case also asserts that vprs's condition guard
  * ("Condition mismatch …" / "react … under the wrong condition") never fires.
  *
- * All cases pass as of the dev-only extension fix: vprs no longer maps
- * client-ref ids to `.js` in dev, so Fast Refresh's incremental fetch hits the
- * real `.tsx` module instead of a phantom `.client.js.tsx` (404). This matrix
- * now guards against Fast-Refresh / HMR regressions under RSC.
- *
- * Requires the bidoof-template fixture to have `@vitejs/plugin-react` wired
- * (`react()` before `vitePluginReactServer()`); without it the FR cases just
- * full-reload and the state-preservation assertions fail.
+ * Counter + home-page patch come from `clientFixtures` so this suite does not
+ * depend on the demo shipping those files. Teardown restores only after a
+ * successful capture — a failed beforeAll never truncates the real page.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { type ChildProcess } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { resolveBidoofDir } from "./bidoofDir.js";
+import {
+  installClientFixtures,
+  uninstallClientFixtures,
+  type ClientFixtureHandle,
+} from "./clientFixtures.js";
 import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const bidoofDir = join(__dirname, "../../../bidoof-template");
+const bidoofDir = resolveBidoofDir();
 const counterFile = join(bidoofDir, "src/components/Counter.client.tsx");
 const pageFile = join(bidoofDir, "src/page/page.tsx");
 
@@ -55,8 +54,10 @@ function defineSuite(mode: Mode, port: number) {
     // and collide on the port. No retries for the same reason.
     test.describe.configure({ mode: "serial", retries: 0 });
     let server: ChildProcess | undefined;
+    let fixtures: ClientFixtureHandle | undefined;
     let origCounter = "";
     let origPage = "";
+    let originalsReady = false;
     // Accumulate the dev server's stdout+stderr so a test can assert the node
     // console stays clean — the "react-server condition must be enabled" error
     // on dev:ssr full reloads only shows here, not in the browser.
@@ -64,8 +65,13 @@ function defineSuite(mode: Mode, port: number) {
     const baseURL = `http://localhost:${port}`;
 
     test.beforeAll(async () => {
+      fixtures = await installClientFixtures(bidoofDir);
+      // Re-read after install so edits restore to the installed (known) bytes,
+      // not the pre-install absence.
       origCounter = await readFile(counterFile, "utf-8");
       origPage = await readFile(pageFile, "utf-8");
+      originalsReady = true;
+
       server = spawnViteDev({
         dir: bidoofDir,
         port,
@@ -95,23 +101,25 @@ function defineSuite(mode: Mode, port: number) {
     test.afterEach(async () => {
       // Restore both fixture files between tests so each starts from a clean
       // source (tests edit the same files), then let the watcher settle.
-      await writeFile(counterFile, origCounter).catch(() => {});
-      await writeFile(pageFile, origPage).catch(() => {});
+      if (!originalsReady) return;
+      await writeFile(counterFile, origCounter);
+      await writeFile(pageFile, origPage);
       await new Promise((r) => setTimeout(r, 400));
     });
 
     test.afterAll(async () => {
-      await writeFile(counterFile, origCounter).catch(() => {});
-      await writeFile(pageFile, origPage).catch(() => {});
+      if (originalsReady) {
+        await writeFile(counterFile, origCounter).catch(() => {});
+        await writeFile(pageFile, origPage).catch(() => {});
+      }
       await stopViteDev(server);
+      await uninstallClientFixtures(fixtures);
     });
 
     test("first paint renders without condition errors", async ({ page }) => {
       const issues = watchIssues(page);
       await page.goto(baseURL, { waitUntil: "networkidle" });
-      await expect(
-        page.getByRole("heading", { name: /vite-plugin-react-server demo/i })
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Pokédex/i })).toBeVisible();
       expect(issues, issues.join("\n")).toEqual([]);
     });
 
@@ -171,7 +179,7 @@ function defineSuite(mode: Mode, port: number) {
 
       await writeFile(
         pageFile,
-        origPage.replace("vite-plugin-react-server demo", "RSC demo updated")
+        origPage.replace("<h1>Pokédex</h1>", "<h1>RSC demo updated</h1>")
       );
       await expect(
         page.getByRole("heading", { name: /RSC demo updated/i })
@@ -183,9 +191,7 @@ function defineSuite(mode: Mode, port: number) {
       const issues = watchIssues(page);
       await page.goto(baseURL, { waitUntil: "networkidle" });
       await page.reload({ waitUntil: "networkidle" });
-      await expect(
-        page.getByRole("heading", { name: /vite-plugin-react-server demo/i })
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Pokédex/i })).toBeVisible();
       expect(issues, issues.join("\n")).toEqual([]);
     });
 

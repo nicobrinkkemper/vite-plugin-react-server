@@ -45,14 +45,19 @@ for demo in ~/code/bidoof-template ~/code/mmc; do
   popd
 done
 
-# 1d. Playwright e2e (runs against bidoof-template per playwright.config.ts).
-npx playwright test test/e2e/hmr.spec.ts
+# 1d. Full Playwright browser gate (runs against bidoof-template per
+#     playwright.config.ts). Do NOT substitute the hmr.spec.ts subset — the
+#     release gate covers both dev conditions (global webServer = dev:rsc plus
+#     per-file spawned dev:ssr/dev:rsc servers), hydration/client navigation,
+#     client-imported server functions, state-preserving CSS/React HMR,
+#     server-action persistence, and dynamic route props. Specs that need
+#     Counter / ServerFnProbe /e2e-actions install those under test/e2e/*Fixtures
+#     and tear them down only after a successful capture.
+npx playwright test
 
-# Every test must pass or be an annotated expected-fail (7 as of 3.10.0; the
-# spec drives the demo's Pokédex surfaces): page render, RSC refetch with
-# client-state preservation, CSS HMR, server actions + persistence. A test
-# marked test.fail() pins a filed bug — an UNEXPECTED pass there means the
-# bug got fixed; remove the annotation rather than shipping around it.
+# Every test must pass. A test marked test.fail() pins a filed bug — an
+# UNEXPECTED pass there means the bug got fixed; remove the annotation rather
+# than shipping around it. Silent skips on missing demo routes are not allowed.
 ```
 
 **If any of 1a–1d fails, do not publish.** File an issue and bisect to the introducing commit. A regression that is already on `main` but not yet released is still a release-blocker — it ships to consumers the moment you `npm publish`.
@@ -184,7 +189,7 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 - [ ] `bidoof-template` linked via `file:../vite-plugin-react-server` — `npm run build:preview` AND dev server (`vite`) both succeed; home page returns 200 with content
 - [ ] `mmc` linked via `file:../vite-plugin-react-server` — `npm run build` succeeds; dev server starts cleanly
 - [ ] Both demo repos restored to their committed `package.json`/`package-lock.json` afterwards
-- [ ] `npx playwright test test/e2e/hmr.spec.ts` — all pass
+- [ ] `npx playwright test` — full browser gate green (both dev conditions; do not substitute the hmr.spec.ts subset)
 - [ ] `npm run version:<type>` — commit `package.json` + `package-lock.json`, PR, merge
 - [ ] `git tag -a v<version> -m "v<version>" && git push origin v<version>` — on merged `main`
 - [ ] `npm publish` (2FA — human step; `verify:tag` blocks an untagged publish)

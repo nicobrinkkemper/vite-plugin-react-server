@@ -4,15 +4,12 @@
  * 
  * This script starts bidoof-template's dev:rsc server on port 3200.
  */
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnViteDev, stopViteDev } from './devServer.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { resolveBidoofDir } from './bidoofDir.js';
 
 // Use bidoof-template as the e2e test fixture
 // It's already set up with the plugin and HMR
-const bidoofDir = join(__dirname, '../../../bidoof-template');
+const bidoofDir = resolveBidoofDir();
 
 async function main() {
   console.log('Starting bidoof-template dev server for e2e tests...');

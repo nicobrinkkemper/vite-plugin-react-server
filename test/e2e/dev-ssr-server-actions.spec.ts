@@ -5,67 +5,84 @@
  *   their effect was invisible after a page refresh. Root cause: the RSC
  *   worker's messageHandler cached the result of calling props() across
  *   requests, keyed by URL. Server actions write to mutable state that
- *   props() reads, so the next /todos/index.rsc still served the pre-action
+ *   props() reads, so the next RSC payload still served the pre-action
  *   pageProps. dev:rsc didn't go through the same worker code path so it
  *   didn't repro there — and `playwright.config.ts` only exercises dev:rsc,
  *   so e2e was clean while dev:ssr silently lied.
  *
  * This spec spawns its own bidoof-template dev server WITHOUT
  * `--conditions react-server` (the dev:ssr path), drives a real browser
- * to delete a todo, refreshes, and asserts the deletion is reflected.
+ * against an e2e-owned `/e2e-actions/` route whose props() reads the
+ * favorites DB into the flight payload, refreshes, and asserts persistence.
  *
  * It does NOT use the global `webServer` in `playwright.config.ts`. That
  * one stays on the dev:rsc path for the existing HMR/navigation specs.
  */
 import { test, expect } from "@playwright/test";
 import { type ChildProcess } from "node:child_process";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import {
+  installActionFixtures,
+  uninstallActionFixtures,
+  type ActionFixtureHandle,
+} from "./actionFixtures.js";
+import { resolveBidoofDir } from "./bidoofDir.js";
+import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const bidoofDir = join(__dirname, "../../../bidoof-template");
-const dbPath = join(bidoofDir, "todos.db");
+const bidoofDir = resolveBidoofDir();
+const dbPath = join(bidoofDir, "pokedex.db");
 // Pick a random high port to avoid collisions with the global webServer
 // (3200) and with stale vite processes left by an aborted prior run.
 const PORT = 32000 + Math.floor(Math.random() * 1000);
 const BASE_URL = `http://localhost:${PORT}`;
 
 let server: ChildProcess | undefined;
+let fixtures: ActionFixtureHandle | undefined;
+// The demo's own favorites, put back after the run (the tests reseed the table).
+let savedFavorites: { name: string; created_at: string | null }[] | undefined;
 
-function seedTodos(titles: string[]): void {
+function withFavoritesDb<T>(fn: (db: DatabaseSync) => T): T {
   const db = new DatabaseSync(dbPath);
   try {
     db.exec(
-      `CREATE TABLE IF NOT EXISTS todos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        completed INTEGER DEFAULT 0,
+      `CREATE TABLE IF NOT EXISTS favorites (
+        name TEXT PRIMARY KEY,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       ) STRICT`,
     );
-    db.prepare("DELETE FROM todos").run();
-    const insert = db.prepare("INSERT INTO todos (title) VALUES (?)");
-    for (const title of titles) insert.run(title);
+    return fn(db);
   } finally {
     db.close();
   }
 }
 
-function readTodos(): { id: number; title: string }[] {
-  const db = new DatabaseSync(dbPath);
-  try {
-    return db.prepare("SELECT id, title FROM todos ORDER BY id").all() as {
-      id: number;
-      title: string;
-    }[];
-  } finally {
-    db.close();
-  }
+function seedFavorites(names: string[]): void {
+  withFavoritesDb((db) => {
+    db.prepare("DELETE FROM favorites").run();
+    const insert = db.prepare("INSERT INTO favorites (name) VALUES (?)");
+    for (const name of names) insert.run(name);
+  });
+}
+
+function readFavorites(): string[] {
+  return withFavoritesDb((db) =>
+    (db.prepare("SELECT name FROM favorites ORDER BY name").all() as { name: string }[]).map(
+      (r) => r.name,
+    ),
+  );
 }
 
 test.beforeAll(async () => {
+  savedFavorites = withFavoritesDb(
+    (db) =>
+      db.prepare("SELECT name, created_at FROM favorites").all() as {
+        name: string;
+        created_at: string | null;
+      }[],
+  );
+  fixtures = await installActionFixtures(bidoofDir);
+
   // dev:ssr-equivalent: NO --conditions react-server in NODE_OPTIONS.
   // The plugin runs in client-mode and spawns the RSC worker with the
   // condition flipped — that worker is the one that previously cached
@@ -92,14 +109,23 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await stopViteDev(server);
+  await uninstallActionFixtures(fixtures);
+  if (savedFavorites) {
+    const rows = savedFavorites;
+    withFavoritesDb((db) => {
+      db.prepare("DELETE FROM favorites").run();
+      const insert = db.prepare("INSERT INTO favorites (name, created_at) VALUES (?, ?)");
+      for (const row of rows) insert.run(row.name, row.created_at);
+    });
+  }
 });
 
 test.describe("server actions persist under dev:ssr", () => {
   test("delete-then-refresh reflects the deletion", async ({ page }) => {
-    seedTodos(["alpha", "beta", "gamma"]);
-    expect(readTodos().map((t) => t.title)).toEqual(["alpha", "beta", "gamma"]);
+    seedFavorites(["alpha", "beta", "gamma"]);
+    expect(readFavorites()).toEqual(["alpha", "beta", "gamma"]);
 
-    await page.goto(`${BASE_URL}/todos`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE_URL}/e2e-actions/`, { waitUntil: "networkidle" });
     const titlesBefore = await page
       .locator("li")
       .allTextContents()
@@ -107,15 +133,12 @@ test.describe("server actions persist under dev:ssr", () => {
     expect(titlesBefore.length).toBe(3);
     expect(titlesBefore.some((t) => t.startsWith("alpha"))).toBe(true);
 
-    await page
-      .locator("button:has-text('×'), button:has-text('Delete')")
-      .first()
-      .click();
+    await page.locator("button:has-text('Delete')").first().click();
     // Wait for the action POST to round-trip.
     await page.waitForTimeout(1500);
 
     // DB must reflect the delete: alpha is gone, beta/gamma remain.
-    const dbAfterAction = readTodos().map((t) => t.title);
+    const dbAfterAction = readFavorites();
     expect(dbAfterAction).toEqual(["beta", "gamma"]);
 
     // The page on hard reload must agree with the DB. Before the fix this
@@ -132,27 +155,27 @@ test.describe("server actions persist under dev:ssr", () => {
   });
 
   test("RSC route returns fresh props on every request (no cross-request cache)", async () => {
-    seedTodos(["one", "two", "three"]);
+    seedFavorites(["one", "two", "three"]);
 
-    const first = await fetch(`${BASE_URL}/todos/index.rsc`, {
+    const first = await fetch(`${BASE_URL}/e2e-actions/index.rsc`, {
       headers: { Accept: "text/x-component" },
     });
     const firstBody = await first.text();
-    expect(firstBody).toContain('"title":"one"');
-    expect(firstBody).toContain('"title":"two"');
-    expect(firstBody).toContain('"title":"three"');
+    expect(firstBody).toContain('"one"');
+    expect(firstBody).toContain('"two"');
+    expect(firstBody).toContain('"three"');
 
     // Mutate DB out of band (simulating any server action effect).
-    const db = new DatabaseSync(dbPath);
-    db.prepare("DELETE FROM todos WHERE title = 'one'").run();
-    db.close();
+    withFavoritesDb((db) => {
+      db.prepare("DELETE FROM favorites WHERE name = 'one'").run();
+    });
 
-    const second = await fetch(`${BASE_URL}/todos/index.rsc`, {
+    const second = await fetch(`${BASE_URL}/e2e-actions/index.rsc`, {
       headers: { Accept: "text/x-component" },
     });
     const secondBody = await second.text();
-    expect(secondBody).not.toContain('"title":"one"');
-    expect(secondBody).toContain('"title":"two"');
-    expect(secondBody).toContain('"title":"three"');
+    expect(secondBody).not.toContain('"one"');
+    expect(secondBody).toContain('"two"');
+    expect(secondBody).toContain('"three"');
   });
 });
