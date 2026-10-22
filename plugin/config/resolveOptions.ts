@@ -678,6 +678,16 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     if (!input) return "";
     const facade = chunk.facadeModuleId;
     const clientReference = ssr && !!facade && isClientReferenceChunk(input, facade, facadeSource);
+    // These are emitted browser chunks, including virtual helpers and vendor
+    // modules. Their URLs must track emitted bytes too; the server's stable
+    // module-path exceptions do not apply to browser output.
+    if (!ssr && hashOption !== "false") {
+      return applyHashSuffix(input, "[hash]");
+    }
+    if (clientReference && hashOption !== "false") {
+      const file = clientBuildManifest.fileOf(facade!);
+      if (file) return file;
+    }
     if (shouldLeaveUnhashed(input, ssr, clientReference)) {
       return input;
     }

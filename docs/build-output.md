@@ -101,7 +101,7 @@ In every mode the `.rsc` files still serve later client-side navigations — whe
 
 ## Consistent Hashing
 
-Every browser file in `dist/static/` is named by Rollup's hash of the file itself, so a name always holds the same bytes and a host can cache `/*.js` as immutable. The client build runs first and records what it emitted in `dist/static/.vite/manifest.json`. The `ssr` and `server` builds read that manifest: a client component's file takes the same name in all three outputs, and that name is the module ID baked into the flight payload:
+With default hashing enabled, browser JavaScript chunks emitted by the bundler are named by Rollup's content hash, including virtual and dependency chunks. A host can cache these hashed URLs as immutable. Files copied from `public/`, HTML, RSC payloads, and custom output names without a content hash do not have this guarantee; do not apply an immutable rule to every `*.js` file. The client build runs first and records what it emitted in `dist/static/.vite/manifest.json`. The `ssr` and `server` builds read that manifest: a client component's file takes the same name in all three outputs, and that name is the module ID baked into the flight payload:
 
 ```
 dist/static/components/Link.client-CnBCzH8H.js
@@ -110,6 +110,21 @@ dist/server/components/Link.client-CnBCzH8H.js
 ```
 
 So the ID resolves in the browser (`dist/static/`) and in Node (`dist/client/`). Building the `ssr` or `server` environment without the client build's manifest is an error; `vite build --app` builds them in order.
+
+## Redeploying with cached clients
+
+Content-hashed chunk URLs prevent a returning browser from reusing old JavaScript
+for a new file. Keep HTML and fixed-path RSC payloads revalidated so an ordinary
+navigation discovers the current chunk names. Public files such as WASM glue and
+binaries need their own versioned paths or revalidation policy.
+
+An already-open tab still runs its old module graph. Hashing alone does not keep
+old lazy chunks available after deployment or make old and new RSC runtimes
+compatible. Retain prior release assets for active clients, or detect a build
+change before client navigation and perform a normal document navigation. Bound
+any chunk-error reload retries, handle offline failures separately, and preserve
+unsaved work before reloading. A query parameter on a fixed WASM path can bust a
+cache, but cannot retrieve an older glue/binary pair once the host replaces it.
 
 ## CSS in the Output
 

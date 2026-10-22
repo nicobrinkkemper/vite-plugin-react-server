@@ -9,7 +9,7 @@ import { assertNonReactServer } from "../../config/getCondition.js";
 import { createFromNodeStream } from "../../stream/createFromNodeStream.client.js";
 
 import { createModuleResolutionMetrics } from "../../metrics/createModuleResolutionMetrics.js";
-import { ReactDOMServer } from "../../vendor/vendor.client.js";
+import { ReactDOMServer, ReactDOMStatic } from "../../vendor/vendor.client.js";
 
 assertNonReactServer(import.meta.url);
 
@@ -160,7 +160,7 @@ export const handleHtmlRender: HandleHtmlRenderFn = async function _handleHtmlRe
             )
           : null;
       try {
-        const { prerenderToNodeStream } = await import("react-dom/static");
+        const { prerenderToNodeStream } = ReactDOMStatic;
         const { prelude } = await prerenderToNodeStream(result.children, {
           ...mergedPipeableStreamOptions,
           signal: prerenderController.signal,

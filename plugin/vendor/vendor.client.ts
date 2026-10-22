@@ -32,6 +32,14 @@ const lazyReactDOMServer = createLazyVendorModule(
 );
 const ReactDOMServer = lazyReactDOMServer.proxy;
 
+// Static prerendering must use the same consumer React installation as the
+// streaming renderer and decoded elements, including when VPRS is linked.
+const lazyReactDOMStatic = createLazyVendorModule(
+  () => projectRequire("react-dom/static") as typeof import("react-dom/static"),
+  reactPairedMode
+);
+const ReactDOMStatic = lazyReactDOMStatic.proxy;
+
 // Web-streams HTML renderer (react-dom/server.edge — renderToReadableStream).
 // The edge counterpart of ReactDOMServer's renderToPipeableStream: used by
 // renderFlightToHtml to render a decoded Flight tree to an HTML ReadableStream
@@ -67,5 +75,5 @@ if (hasReactServerCondition()) {
     .renderToPipeableStream;
 }
 
-export { ReactDOMServer, ReactDOMHtmlServerEdge, React, ReactDOMClient };
+export { ReactDOMServer, ReactDOMStatic, ReactDOMHtmlServerEdge, React, ReactDOMClient };
 export type React = typeof import("react");

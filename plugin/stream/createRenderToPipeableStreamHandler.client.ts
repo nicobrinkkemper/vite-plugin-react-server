@@ -1,5 +1,5 @@
 import type { CreateRenderToPipeableStreamHandlerFn } from "./createRenderToPipeableStreamHandler.types.js";
-import { ReactDOMServer } from "../vendor/vendor.client.js";
+import { ReactDOMServer, ReactDOMStatic } from "../vendor/vendor.client.js";
 import { assertNonReactServer } from "../config/getCondition.js";
 import { createFromNodeStream } from "./createFromNodeStream.client.js";
 import { createStreamMetrics } from "../metrics/createStreamMetrics.js";
@@ -129,57 +129,56 @@ export const createRenderToPipeableStreamHandler: CreateRenderToPipeableStreamHa
               timeoutMs
             )
           : null;
-      void import("react-dom/static").then(
-        async ({ prerenderToNodeStream }) => {
-          try {
-            const { prelude } = await prerenderToNodeStream(reactElements, {
-              bootstrapModules:
-                clientPipeableStreamOptions?.bootstrapModules || [],
-              // A static file has no progressive delivery: without this,
-              // React OUTLINES boundary content larger than the default
-              // progressive chunk size (~12KB) behind a $RC swap script even
-              // in a completed prerender — the exact shape this mode exists
-              // to retire. Effectively infinite unless the consumer set one.
-              progressiveChunkSize:
-                (clientPipeableStreamOptions as { progressiveChunkSize?: number } | undefined)
-                  ?.progressiveChunkSize ?? 1 << 30,
-              signal: controller.signal,
-              // Boundary errors: the render continues (the boundary falls
-              // back) — same policy surface as the streaming onError.
-              onError(error: unknown) {
-                if (verbose) {
-                  logger?.error(
-                    `[createRenderToPipeableStreamHandler.client:${route}] React prerender error: ${error instanceof Error ? error.message : String(error)}`
-                  );
-                }
-                reportRenderError(error);
-              },
-            } as never);
-            if (timeout) clearTimeout(timeout);
-            // An abort AFTER the shell resolves the prerender with fallback
-            // markup and client-render holes — a degraded document. A static
-            // build must fail instead of silently writing it.
-            if (controller.signal.aborted) {
-              throw controller.signal.reason ?? new Error("prerender aborted");
-            }
-            prelude.pipe(htmlStream);
-          } catch (error) {
-            if (timeout) clearTimeout(timeout);
-            // A SHELL error REJECTS here (react-dom/static has no
-            // onShellError seam), and so does an htmlTimeout abort — the
-            // signal's reason carries the message. Destroy the output so
-            // downstream settles (the guarded pipe below propagates), and
-            // route the panic logic.
-            const cause = controller.signal.aborted
-              ? (controller.signal.reason ?? error)
-              : error;
-            reportRenderError(cause);
-            htmlStream.destroy(
-              cause instanceof Error ? cause : new Error(String(cause))
-            );
+      void (async () => {
+        try {
+          const { prerenderToNodeStream } = ReactDOMStatic;
+          const { prelude } = await prerenderToNodeStream(reactElements, {
+            bootstrapModules:
+              clientPipeableStreamOptions?.bootstrapModules || [],
+            // A static file has no progressive delivery: without this,
+            // React OUTLINES boundary content larger than the default
+            // progressive chunk size (~12KB) behind a $RC swap script even
+            // in a completed prerender — the exact shape this mode exists
+            // to retire. Effectively infinite unless the consumer set one.
+            progressiveChunkSize:
+              (clientPipeableStreamOptions as { progressiveChunkSize?: number } | undefined)
+                ?.progressiveChunkSize ?? 1 << 30,
+            signal: controller.signal,
+            // Boundary errors: the render continues (the boundary falls
+            // back) — same policy surface as the streaming onError.
+            onError(error: unknown) {
+              if (verbose) {
+                logger?.error(
+                  `[createRenderToPipeableStreamHandler.client:${route}] React prerender error: ${error instanceof Error ? error.message : String(error)}`
+                );
+              }
+              reportRenderError(error);
+            },
+          } as never);
+          if (timeout) clearTimeout(timeout);
+          // An abort AFTER the shell resolves the prerender with fallback
+          // markup and client-render holes — a degraded document. A static
+          // build must fail instead of silently writing it.
+          if (controller.signal.aborted) {
+            throw controller.signal.reason ?? new Error("prerender aborted");
           }
+          prelude.pipe(htmlStream);
+        } catch (error) {
+          if (timeout) clearTimeout(timeout);
+          // A SHELL error REJECTS here (react-dom/static has no
+          // onShellError seam), and so does an htmlTimeout abort — the
+          // signal's reason carries the message. Destroy the output so
+          // downstream settles (the guarded pipe below propagates), and
+          // route the panic logic.
+          const cause = controller.signal.aborted
+            ? (controller.signal.reason ?? error)
+            : error;
+          reportRenderError(cause);
+          htmlStream.destroy(
+            cause instanceof Error ? cause : new Error(String(cause))
+          );
         }
-      );
+      })();
       return buildResult();
     }
 
