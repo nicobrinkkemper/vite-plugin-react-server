@@ -81,33 +81,39 @@ export function vitePluginVendorAlias(): Plugin {
       ensureVendoredPackageLinked(config.root);
     },
 
-    resolveId(source) {
-      if (!source.startsWith("react-server-dom-esm")) return;
-      if (source === "react-server-dom-esm/client.browser") return;
+    resolveId: {
+      // The filter lets the bundler skip this hook for every other import
+      // without calling into JS. The checks below stay for bundlers that
+      // run the handler regardless.
+      filter: { id: /^react-server-dom-esm/ },
+      handler(source) {
+        if (!source.startsWith("react-server-dom-esm")) return;
+        if (source === "react-server-dom-esm/client.browser") return;
 
-      // Server/static entries: mark external under the BARE canonical
-      // specifier, so the emitted artifact carries
-      // `import ... from "react-server-dom-esm/server.node"` — no
-      // machine-absolute path binding dist to the build machine (it used to
-      // stamp /home/<user>/.../react-server-loader/vendor/... into every
-      // client-reference proxy). Resolution at runtime is already provided
-      // for every consumer of dist/server: plain Node resolves through the
-      // node_modules/react-server-dom-esm symlink this plugin maintains
-      // (ensureVendoredPackageLinked — the vendored dir is a complete package
-      // with its own exports map), and the RSC worker's loader hook maps the
-      // bare ids directly.
-      //
-      // Two spellings deliberately NOT used: the resolved absolute path (the
-      // machine binding), and bare `react-server-loader/*` — dist can host a
-      // PARTIAL rsl copy under its own node_modules (the node_modules-shipped
-      // client-reference feature), and that shadow intercepts bare rsl
-      // resolution with an incomplete package. `react-server-dom-esm` is
-      // never hosted, so it has no shadow.
-      if (isServerEntry(source)) {
-        return { id: canonicalTransportSpecifier(source), external: true };
-      }
+        // Server/static entries: mark external under the BARE canonical
+        // specifier, so the emitted artifact carries
+        // `import ... from "react-server-dom-esm/server.node"` — no
+        // machine-absolute path binding dist to the build machine (it used to
+        // stamp /home/<user>/.../react-server-loader/vendor/... into every
+        // client-reference proxy). Resolution at runtime is already provided
+        // for every consumer of dist/server: plain Node resolves through the
+        // node_modules/react-server-dom-esm symlink this plugin maintains
+        // (ensureVendoredPackageLinked — the vendored dir is a complete package
+        // with its own exports map), and the RSC worker's loader hook maps the
+        // bare ids directly.
+        //
+        // Two spellings deliberately NOT used: the resolved absolute path (the
+        // machine binding), and bare `react-server-loader/*` — dist can host a
+        // PARTIAL rsl copy under its own node_modules (the node_modules-shipped
+        // client-reference feature), and that shadow intercepts bare rsl
+        // resolution with an incomplete package. `react-server-dom-esm` is
+        // never hosted, so it has no shadow.
+        if (isServerEntry(source)) {
+          return { id: canonicalTransportSpecifier(source), external: true };
+        }
 
-      return resolveVendored(source);
+        return resolveVendored(source);
+      },
     },
   };
 }

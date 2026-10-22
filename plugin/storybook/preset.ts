@@ -29,11 +29,14 @@ function resolveReactServerDomEsm(): Plugin {
   return {
     name: "vite-plugin-react-server:storybook:resolve-rsd",
     enforce: "pre",
-    resolveId(source) {
-      if (source === "react-server-dom-esm/client.browser") {
-        return require.resolve("react-server-loader/client.browser");
-      }
-      return null;
+    resolveId: {
+      filter: { id: /^react-server-dom-esm\/client\.browser$/ },
+      handler(source) {
+        if (source === "react-server-dom-esm/client.browser") {
+          return require.resolve("react-server-loader/client.browser");
+        }
+        return null;
+      },
     },
   };
 }
@@ -65,24 +68,30 @@ function stubVirtualRscHmr(): Plugin {
   return {
     name: "vite-plugin-react-server:storybook:stub-virtual-rsc-hmr",
     enforce: "pre",
-    resolveId(source) {
-      if (source === VIRTUAL_RSC_HMR) {
-        return RESOLVED_VIRTUAL_RSC_HMR_STUB;
-      }
-      return null;
+    resolveId: {
+      filter: { id: /^virtual:react-server\/hmr$/ },
+      handler(source) {
+        if (source === VIRTUAL_RSC_HMR) {
+          return RESOLVED_VIRTUAL_RSC_HMR_STUB;
+        }
+        return null;
+      },
     },
-    load(id) {
-      if (id === RESOLVED_VIRTUAL_RSC_HMR_STUB) {
-        // Mirror the real virtual's export shape (see plugin/types/virtual-rsc-hmr.d.ts)
-        // so any consumer of `virtual:react-server/hmr` continues to type-check
-        // and tree-shake cleanly under Storybook.
-        return [
-          "export const RSC_HMR_EVENT = 'vite-plugin-react-server:server-component-update';",
-          "export function useRscHmr() {}",
-          "export function setupRscHmr() {}",
-        ].join("\n");
-      }
-      return null;
+    load: {
+      filter: { id: /^\0virtual:react-server\/hmr\?storybook-stub$/ },
+      handler(id) {
+        if (id === RESOLVED_VIRTUAL_RSC_HMR_STUB) {
+          // Mirror the real virtual's export shape (see plugin/types/virtual-rsc-hmr.d.ts)
+          // so any consumer of `virtual:react-server/hmr` continues to type-check
+          // and tree-shake cleanly under Storybook.
+          return [
+            "export const RSC_HMR_EVENT = 'vite-plugin-react-server:server-component-update';",
+            "export function useRscHmr() {}",
+            "export function setupRscHmr() {}",
+          ].join("\n");
+        }
+        return null;
+      },
     },
   };
 }

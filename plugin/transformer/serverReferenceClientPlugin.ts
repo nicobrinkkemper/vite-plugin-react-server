@@ -72,73 +72,82 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
       }
     },
 
-    async resolveId(source, importer) {
-      const env = this.environment?.name;
-      if (env !== "client" && env !== "ssr") return null;
-      if (source.startsWith(PREFIX)) return source; // already ours
-      const clean = source.split("?")[0];
-      if (!SERVER_SUFFIX.test(clean)) return null;
-      const real = await this.resolve(source, importer, { skipSelf: true });
-      if (!real || real.external) return null;
-      return PREFIX + real.id;
+    resolveId: {
+      // The handler acts on ids it produced (PREFIX) and on `.server.*`
+      // specifiers once the query is dropped; the filter says the same so
+      // the bundler can skip every other import without calling into JS.
+      filter: { id: [/^\0vprs-server-ref:/, /^[^?]*\.server\.[tj]sx?(?:\?|$)/] },
+      async handler(source, importer) {
+        const env = this.environment?.name;
+        if (env !== "client" && env !== "ssr") return null;
+        if (source.startsWith(PREFIX)) return source; // already ours
+        const clean = source.split("?")[0];
+        if (!SERVER_SUFFIX.test(clean)) return null;
+        const real = await this.resolve(source, importer, { skipSelf: true });
+        if (!real || real.external) return null;
+        return PREFIX + real.id;
+      },
     },
 
-    async load(id) {
-      if (!id.startsWith(PREFIX)) return null;
-      const realPath = id.slice(PREFIX.length).split("?")[0];
-      const src = await readFile(realPath, "utf8");
+    load: {
+      filter: { id: /^\0vprs-server-ref:/ },
+      async handler(id) {
+        if (!id.startsWith(PREFIX)) return null;
+        const realPath = id.slice(PREFIX.length).split("?")[0];
+        const src = await readFile(realPath, "utf8");
 
-      // Strip TS types before analysis — we read the raw .server source. The
-      // transform preserves the top-level "use server" directive and the
-      // export names, which is all analyzeModule needs; no parser is injected,
-      // so analysis runs on rsl's own version-stable parse.
-      const isTsx = /\.[tj]sx$/.test(realPath);
-      const { code: js } = await transformTsSource(
-        src,
-        realPath,
-        isTsx ? "tsx" : "ts",
-      );
-      const analysis = await analyzeModule(js);
-      if (
-        analysis.type !== "success" ||
-        analysis.directiveInfo?.fileLevel?.type !== "server"
-      ) {
-        // Not actually a "use server" module — hand back the real source.
-        return src;
-      }
-      const exportNames = Array.from(analysis.exports.exports.values()).map(
-        (e) => e.exportName
-      );
-      if (exportNames.length === 0) return src;
+        // Strip TS types before analysis — we read the raw .server source. The
+        // transform preserves the top-level "use server" directive and the
+        // export names, which is all analyzeModule needs; no parser is injected,
+        // so analysis runs on rsl's own version-stable parse.
+        const isTsx = /\.[tj]sx$/.test(realPath);
+        const { code: js } = await transformTsSource(
+          src,
+          realPath,
+          isTsx ? "tsx" : "ts",
+        );
+        const analysis = await analyzeModule(js);
+        if (
+          analysis.type !== "success" ||
+          analysis.directiveInfo?.fileLevel?.type !== "server"
+        ) {
+          // Not actually a "use server" module — hand back the real source.
+          return src;
+        }
+        const exportNames = Array.from(analysis.exports.exports.values()).map(
+          (e) => e.exportName
+        );
+        if (exportNames.length === 0) return src;
 
-      const normalizedPath = normalizer ? normalizer(realPath)[1] : realPath;
-      const hostedId = moduleID ? moduleID(normalizedPath, src, false) : normalizedPath;
+        const normalizedPath = normalizer ? normalizer(realPath)[1] : realPath;
+        const hostedId = moduleID ? moduleID(normalizedPath, src, false) : normalizedPath;
 
-      if (this.environment?.name === "client") {
-        // esm createServerReference is transport-safe: the callable only
-        // delegates to callServer, where the transport chooser lives (see
-        // createTransformerPlugin's proxy emission for the full rationale).
-        return [
-          `import { createServerReference } from "react-server-dom-esm/client.browser";`,
-          `import { createCallServer } from "vite-plugin-react-server/utils";`,
-          `const callServer = createCallServer(${JSON.stringify(viteBase)});`,
-          ...exportNames.map(
+        if (this.environment?.name === "client") {
+          // esm createServerReference is transport-safe: the callable only
+          // delegates to callServer, where the transport chooser lives (see
+          // createTransformerPlugin's proxy emission for the full rationale).
+          return [
+            `import { createServerReference } from "react-server-dom-esm/client.browser";`,
+            `import { createCallServer } from "vite-plugin-react-server/utils";`,
+            `const callServer = createCallServer(${JSON.stringify(viteBase)});`,
+            ...exportNames.map(
+              (n) =>
+                `export const ${n} = createServerReference(${JSON.stringify(
+                  `${hostedId}#${n}`
+                )}, callServer);`
+            ),
+          ].join("\n");
+        }
+        // SSR: render-safe stub (never called during render; no browser transport).
+        return exportNames
+          .map(
             (n) =>
-              `export const ${n} = createServerReference(${JSON.stringify(
-                `${hostedId}#${n}`
-              )}, callServer);`
-          ),
-        ].join("\n");
-      }
-      // SSR: render-safe stub (never called during render; no browser transport).
-      return exportNames
-        .map(
-          (n) =>
-            `export const ${n} = () => { throw new Error(${JSON.stringify(
-              `Server function "${n}" cannot run during SSR; it executes in the browser via a server reference.`
-            )}); };`
-        )
-        .join("\n");
+              `export const ${n} = () => { throw new Error(${JSON.stringify(
+                `Server function "${n}" cannot run during SSR; it executes in the browser via a server reference.`
+              )}); };`
+          )
+          .join("\n");
+      },
     },
   };
 };

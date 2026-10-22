@@ -169,21 +169,27 @@ applyToEnvironment(partialEnvironment: any) {
     applyToEnvironment(env: any) {
       return env?.name === 'server';
     },
-    transform(code: string, id: string) {
-      if (id.includes('node_modules')) return;
-      if (!id.match(/\.[jt]sx?$/)) return;
-      
-      const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
-      if (!namedImportRe.test(code)) return;
-      
-      namedImportRe.lastIndex = 0;
-      let counter = 0;
-      const result = code.replace(namedImportRe, (_match, imports) => {
-        const alias = `__react_cjs_${counter++}`;
-        return `import ${alias} from "react"; const {${imports}} = ${alias};`;
-      });
-      
-      return { code: result, map: null };
+    transform: {
+      filter: {
+        id: { include: /\.[jt]sx?$/, exclude: /node_modules/ },
+        code: /import\s*\{([^}]+)\}\s*from\s*["']react["']/,
+      },
+      handler(code: string, id: string) {
+        if (id.includes('node_modules')) return;
+        if (!id.match(/\.[jt]sx?$/)) return;
+
+        const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
+        if (!namedImportRe.test(code)) return;
+
+        namedImportRe.lastIndex = 0;
+        let counter = 0;
+        const result = code.replace(namedImportRe, (_match, imports) => {
+          const alias = `__react_cjs_${counter++}`;
+          return `import ${alias} from "react"; const {${imports}} = ${alias};`;
+        });
+
+        return { code: result, map: null };
+      },
     },
   };
 

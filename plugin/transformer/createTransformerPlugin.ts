@@ -225,6 +225,10 @@ export const createTransformerPlugin = (
       },
       transform: {
         order: "post",
+        // Only ids matching modulePattern ever reach the work below (see the
+        // first early return). The filter lets the bundler skip the hook for
+        // the rest (CSS, JSON, assets) without calling into JS.
+        filter: { id: modulePattern },
         // when transforming to:
         // dist/server / env=server - it adds registerClientReference and registerServerReference based on directive (ssg portable)
         // dist/client / env=ssr - removes use client directive and hides server modules, hides client entry or without exports (ssg portable)
