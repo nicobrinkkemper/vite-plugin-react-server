@@ -279,7 +279,7 @@ const STATIC_ASYMMETRIC: Record<string, { serverOnly: string[]; browserOnly: str
       "getVendoredRendererMode",
       "getVendoredWebpackRendererMode",
     ],
-    browserOnly: ["ReactDOMClient", "ReactDOMHtmlServerEdge"],
+    browserOnly: ["ReactDOMClient", "ReactDOMHtmlServerEdge", "ReactDOMStatic"],
   },
   "./helpers": {
     serverOnly: [
