@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// The demo's home page, whatever origin the run uses.
+const isHome = (url: URL) => url.pathname === '/';
+
 /**
  * Client-side navigation against the live Pokédex demo.
  * Uses `/pokedex/` (and a species dynamic route) — never silently skips when
@@ -57,7 +60,7 @@ test.describe('Client-side navigation', () => {
     const homeLink = page.locator('a[href="/"], a[href="/."]').first();
     await expect(homeLink).toBeVisible();
     await homeLink.click();
-    await page.waitForURL(/\/?$/);
+    await page.waitForURL(isHome);
 
     // Marker should still exist (React transition keeps old UI until new is ready)
     const marker = await page.evaluate(
@@ -75,7 +78,7 @@ test.describe('Client-side navigation', () => {
     await page.waitForURL(/\/pokedex/);
 
     await page.goBack();
-    await expect(page).toHaveURL(/\/?$/);
+    await expect(page).toHaveURL(isHome);
 
     await page.goForward();
     await expect(page).toHaveURL(/\/pokedex/);
