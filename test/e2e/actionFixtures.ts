@@ -6,9 +6,10 @@
  *
  * Teardown restores/deletes only slots that were successfully captured.
  */
-import { join } from "node:path";
+import { rmdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import {
-  restoreFile,
+  restoreAll,
   writeTracked,
   type CapturedFile,
 } from "./safeFiles.js";
@@ -87,9 +88,9 @@ export async function installActionFixtures(
       ),
     );
   } catch (err) {
-    for (const slot of [...slots].reverse()) {
-      await restoreFile(slot);
-    }
+    await uninstallActionFixtures({ slots }).catch((restoreErr: unknown) => {
+      console.error(restoreErr);
+    });
     throw err;
   }
   return { slots };
@@ -99,14 +100,10 @@ export async function uninstallActionFixtures(
   handle: ActionFixtureHandle | undefined,
 ): Promise<void> {
   if (!handle) return;
-  for (const slot of [...handle.slots].reverse()) {
-    await restoreFile(slot);
-  }
+  await restoreAll(handle.slots);
   // Drop the route dir if we created it and it is now empty.
-  const pageSlot = handle.slots.find((s) => s.path.endsWith(`${join("e2e-actions", "page.tsx")}`));
+  const pageSlot = handle.slots.find((s) => s.path.endsWith(join("e2e-actions", "page.tsx")));
   if (pageSlot?.previous === null) {
-    const { rmdir } = await import("node:fs/promises");
-    const { dirname } = await import("node:path");
     await rmdir(dirname(pageSlot.path)).catch(() => {});
   }
 }

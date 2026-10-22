@@ -19,7 +19,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { type ChildProcess } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveBidoofDir } from "./bidoofDir.js";
 import {
@@ -68,7 +68,6 @@ function defineSuite(mode: Mode, port: number) {
       fixtures = await installClientFixtures(bidoofDir);
       // Re-read after install so edits restore to the installed (known) bytes,
       // not the pre-install absence.
-      const { readFile } = await import("node:fs/promises");
       origCounter = await readFile(counterFile, "utf-8");
       origPage = await readFile(pageFile, "utf-8");
       originalsReady = true;
@@ -113,8 +112,8 @@ function defineSuite(mode: Mode, port: number) {
         await writeFile(counterFile, origCounter).catch(() => {});
         await writeFile(pageFile, origPage).catch(() => {});
       }
-      await uninstallClientFixtures(fixtures);
       await stopViteDev(server);
+      await uninstallClientFixtures(fixtures);
     });
 
     test("first paint renders without condition errors", async ({ page }) => {

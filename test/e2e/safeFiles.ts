@@ -49,15 +49,36 @@ export async function restoreFile(slot: CapturedFile | undefined): Promise<void>
 }
 
 /**
+ * Restore slots newest-first. Keeps going past a failing slot so one stuck
+ * path never strands the rest, then reports every failure.
+ */
+export async function restoreAll(slots: readonly CapturedFile[]): Promise<void> {
+  const errors: unknown[] = [];
+  for (const slot of [...slots].reverse()) {
+    await restoreFile(slot).catch((err: unknown) => errors.push(err));
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(errors, "e2e fixture restore failed");
+  }
+}
+
+/**
  * Capture then write. Returns the capture slot for later restore.
- * If capture fails, nothing is written.
+ * If capture fails, nothing is written; if the write fails, the path is
+ * restored before the error propagates.
  */
 export async function writeTracked(
   path: string,
   contents: string,
 ): Promise<CapturedFile> {
   const slot = await captureFile(path);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, contents);
+  try {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, contents);
+  } catch (err) {
+    // A failed (possibly partial) write must not leave the path changed.
+    await restoreFile(slot);
+    throw err;
+  }
   return slot;
 }

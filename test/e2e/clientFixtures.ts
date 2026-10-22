@@ -9,10 +9,11 @@
  * Teardown is gated on successful capture: a failed install never writes empty
  * originals back over existing demo sources.
  */
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   captureFile,
-  restoreFile,
+  restoreAll,
   writeTracked,
   type CapturedFile,
 } from "./safeFiles.js";
@@ -116,6 +117,13 @@ export async function installClientFixtures(
   if (pageSlot.previous === null) {
     throw new Error(`clientFixtures: missing home page at ${pageFile}`);
   }
+  // A run killed before teardown leaves the patched page behind. Capturing
+  // that as the "original" would make every later teardown restore the patch.
+  if (pageSlot.previous.includes(FIXTURE_MARK)) {
+    throw new Error(
+      `clientFixtures: ${pageFile} still carries the e2e patch from an interrupted run; restore it (git checkout) and delete the e2e fixture files first`,
+    );
+  }
 
   const slots: CapturedFile[] = [];
   try {
@@ -124,15 +132,15 @@ export async function installClientFixtures(
     slots.push(await writeTracked(probeFile, SERVER_FN_PROBE_SOURCE));
 
     const patched = patchHomePage(pageSlot.previous);
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(pageFile, patched);
+    // Track the page before writing so a failed write is rolled back too.
     slots.push(pageSlot);
+    await writeFile(pageFile, patched);
   } catch (err) {
     // Roll back anything already written so a failed setup never leaves the
     // demo half-patched (and never truncates page.tsx with empty defaults).
-    for (const slot of [...slots].reverse()) {
-      await restoreFile(slot);
-    }
+    await restoreAll(slots).catch((restoreErr: unknown) => {
+      console.error(restoreErr);
+    });
     throw err;
   }
 
@@ -145,7 +153,5 @@ export async function uninstallClientFixtures(
 ): Promise<void> {
   if (!handle) return;
   // Restore in reverse order so the page goes back before we delete imports.
-  for (const slot of [...handle.slots].reverse()) {
-    await restoreFile(slot);
-  }
+  await restoreAll(handle.slots);
 }
