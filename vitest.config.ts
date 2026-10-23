@@ -20,6 +20,7 @@ export default defineConfig({
     // conditional exports.)
     alias: {
       "react-server-dom-esm/client.browser": join(transportPkgDir, "client.browser.js"),
+      "react-server-dom-esm/client.edge": join(transportPkgDir, "client.edge.js"),
       "react-server-dom-esm/server": join(transportPkgDir, "server.node.js"),
     },
   },
