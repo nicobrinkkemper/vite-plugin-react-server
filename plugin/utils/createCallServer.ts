@@ -19,7 +19,7 @@ import { NOT_FOUND_FIELD } from "../router/loaderSignals.js";
  * defaults still behave correctly, just without a router: a redirect becomes
  * a document navigation, not-found rejects with a `notFound()`-marked error
  * (check it with `isNotFound` from the router exports), and success simply
- * returns the value.
+ * returns the value (a requested refresh needs a router to mean anything).
  */
 export type CallServerHooks = {
   /**
@@ -29,8 +29,12 @@ export type CallServerHooks = {
   onRedirect?: (route: string, page: unknown) => void;
   /** The action answered the not-found outcome. */
   onNotFound?: () => void;
-  /** A normal action response settled — the refresh/revalidation trigger. */
-  onSuccess?: () => void;
+  /**
+   * The action succeeded and asked for a refresh (`ctx.refresh()` on the
+   * server). A success without it does not fire this: a read must not cost
+   * a refetch, and an effect that calls one would otherwise loop on it.
+   */
+  onRefresh?: () => void;
 };
 
 const routeFromFlightUrl = (url: string): string => {
@@ -123,7 +127,9 @@ export const createCallServer = (
     }
 
     const result = await decode();
-    hooks.onSuccess?.();
+    if (response.headers.get(OUTCOME_HEADER) === OUTCOME.refresh) {
+      hooks.onRefresh?.();
+    }
 
     if (result && typeof result === "object" && "returnValue" in result) {
       return (result as { returnValue: unknown }).returnValue;

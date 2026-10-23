@@ -4,9 +4,9 @@ import type { Router } from "./createRouter.js";
  * Server-action outcomes, wired into the router so each lands as an SPA
  * transition: a redirect() delivers the target page (prime + navigate — no
  * second fetch); a notFound() swaps in the 404 route's flight with the
- * address unchanged; any successful action refreshes the current route
- * (drop cached flights, refetch, swap), so mutations show without the app
- * wiring anything.
+ * address unchanged; an action that called `ctx.refresh()` refreshes the
+ * current route (drop cached flights, refetch, swap), so its mutation shows
+ * without the client wiring anything.
  *
  * Extracted from startClient so the outcome contract is testable without a
  * browser: the hooks close over nothing but what they're handed.
@@ -20,7 +20,7 @@ export function createActionOutcomeHooks<T>(opts: {
   stripBasePath: (pathname: string) => string;
 }) {
   const { deliver, stripBasePath } = opts;
-  // Monotonic refresh ticket: rapid successive actions each start a refetch,
+  // Monotonic refresh ticket: rapid successive refreshes each start a refetch,
   // and resolution order is not start order — an earlier (pre-later-mutation)
   // snapshot resolving last must not overwrite the newer view.
   let refreshSeq = 0;
@@ -31,7 +31,7 @@ export function createActionOutcomeHooks<T>(opts: {
       // app-relative paths.
       const target = stripBasePath(route);
       // A redirect completes an action all the same (create-then-view), so
-      // cached routes drop like onSuccess — then the primed target, rendered
+      // cached routes drop like onRefresh — then the primed target, rendered
       // post-mutation by the redirect follow, goes in fresh.
       router.invalidate();
       router.prime(target, page as T);
@@ -50,7 +50,7 @@ export function createActionOutcomeHooks<T>(opts: {
         },
       );
     },
-    onSuccess: () => {
+    onRefresh: () => {
       const router = opts.router();
       const url = router.getState().url;
       // A mutation's reach is unknowable client-side: the route the user is

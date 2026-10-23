@@ -24,6 +24,10 @@ import type {
 import { hasReactServerCondition } from "../config/getCondition.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 import {
+  createServerActionContext,
+  type ServerActionContext,
+} from "../utils/actionContext.js";
+import {
   OUTCOME,
   OUTCOME_HEADER,
   actionRedirectLocation,
@@ -158,12 +162,15 @@ function isWebStream(value: unknown): value is ReadableStream {
  * devOpen dev resolver, or the sealed production gate), decode its arguments
  * through the codec, and execute it. Shared by the Node (req/res) and Web
  * (Request/Response) entry points so the trust boundary lives in exactly one
- * place. Returns the action's result.
+ * place. Returns the action's result; pass `context` to read what the action
+ * asked of it (`refresh()`) after it settles.
  */
 export async function resolveAndExecuteServerAction(
   { id, body }: ServerActionRequest,
   options: ServerActionHandlerOptions,
-  codec: ServerActionFlightCodec | null
+  codec: ServerActionFlightCodec | null,
+  context: ServerActionContext = createServerActionContext(options.platform)
+    .context
 ): Promise<unknown> {
   const { projectRoot, verbose = false, logger, ssrLoadModule, base } = options;
 
@@ -232,7 +239,14 @@ export async function resolveAndExecuteServerAction(
   }
 
   const args = await decodeActionBody(body, codec);
-  return executeServerAction(action, args, verbose, logger, options.platform);
+  return executeServerAction(
+    action,
+    args,
+    verbose,
+    logger,
+    options.platform,
+    context
+  );
 }
 
 /**
@@ -354,7 +368,16 @@ export async function handleServerAction(
       options.maxBodyBytes
     );
     const codec = await resolveActionFlightCodec(options);
-    const result = await resolveAndExecuteServerAction(parsed, options, codec);
+    const { context, refreshRequested } = createServerActionContext(
+      options.platform
+    );
+    const result = await resolveAndExecuteServerAction(
+      parsed,
+      options,
+      codec,
+      context
+    );
+    if (refreshRequested()) res.setHeader(OUTCOME_HEADER, OUTCOME.refresh);
 
     if (codec) {
       // The complete protocol: the payload rides the transport's own flight
@@ -435,14 +458,29 @@ export async function handleServerActionRequest(
       options.maxBodyBytes
     );
     const codec = await resolveActionFlightCodec(options);
-    const result = await resolveAndExecuteServerAction(parsed, options, codec);
+    const { context, refreshRequested } = createServerActionContext(
+      options.platform
+    );
+    const result = await resolveAndExecuteServerAction(
+      parsed,
+      options,
+      codec,
+      context
+    );
+    const headers: Record<string, string> = refreshRequested()
+      ? { [OUTCOME_HEADER]: OUTCOME.refresh }
+      : {};
 
     if (codec) {
-      return await flightActionWebResponse(codec, { returnValue: result });
+      return await flightActionWebResponse(
+        codec,
+        { returnValue: result },
+        { headers }
+      );
     }
     // Legacy RSC wire row, matching the Node sendServerActionResponse output.
     return new Response(`0:${JSON.stringify(result)}\n`, {
-      headers: { "Content-Type": "text/x-component" },
+      headers: { "Content-Type": "text/x-component", ...headers },
     });
   } catch (error: unknown) {
     // Loader-signal outcomes (redirect() / notFound() thrown by the action)
