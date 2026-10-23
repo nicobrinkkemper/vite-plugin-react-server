@@ -239,10 +239,30 @@ shape — the flight decoder never receives anything it cannot read:
 
 | Outcome | The action | The response | The router client |
 |---|---|---|---|
-| return | returns a value | `200`, flight `{ returnValue }` | resolves with the value, then refreshes the current route (drops its cached flight, refetches, swaps) so mutations show without app wiring |
+| return | returns a value | `200`, flight `{ returnValue }`; `x-vprs-outcome: refresh` when it called `ctx.refresh()` | resolves with the value; with `refresh`, also refreshes the current route (drops every cached flight, refetches, swaps) |
 | redirect | throws `redirect(to)` | `303` to the target's flight, `x-vprs-outcome: redirect` | `fetch` follows the 303; the decoded response IS the target page — delivered to the view, address bar updated, no document load |
 | not found | throws `notFound()` | `404`, `x-vprs-outcome: not-found`, no body | fetches the `/404/` route's flight through its own GET path and swaps it in; the address stays |
 | error | throws anything else | tagged status (`403`/`413`) or `500`, `x-vprs-outcome: error`, flight `{ error: { message } }` | rejects the action call with the server's message — the message only, never the stack |
+
+A return leaves the view alone unless the action asks for a refresh. The
+action's trailing context argument (typed `ServerActionContext` from
+`vite-plugin-react-server/router`) carries `refresh()`: call it from an
+action whose change the current page renders, and the router refetches the
+route once the call settles. A read, or a mutation whose caller renders the
+returned value itself, does not call it and costs no refetch. Refreshing
+after every action made a read called from an effect loop: each refresh
+handed the component a new action reference, the effect ran again, and
+that call refreshed again.
+
+```ts
+"use server";
+import type { ServerActionContext } from "vite-plugin-react-server/router";
+
+export async function addTodo(text: string, ctx: ServerActionContext) {
+  await db.insert(text);
+  ctx.refresh();
+}
+```
 
 `redirect` and `notFound` are the same signals loaders throw
 (`vite-plugin-react-server/router`), and the mapping is identical in every

@@ -152,7 +152,7 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
         id: id,
       });
     },
-    onServerActionResponse: (id, result, error, flight) => {
+    onServerActionResponse: (id, result, error, flight, refresh) => {
       sendMessage({
         type: "SERVER_ACTION_RESPONSE",
         id: id,
@@ -160,6 +160,7 @@ export function createHandlers(fromWorker?: MessagePort, toWorker?: MessagePort)
         // that cannot survive structured clone (and must not be re-encoded
         // outside the react-server context anyway).
         ...(flight !== undefined ? { flight } : { result }),
+        ...(refresh ? { refresh } : {}),
         // Only include error if it's truthy - prevents serializeError(undefined)
         ...(error ? { error } : {}),
       });

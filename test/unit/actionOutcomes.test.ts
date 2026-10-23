@@ -10,6 +10,8 @@
  *  - a thrown error answers VALID FLIGHT: a `{ error: { message } }`
  *    envelope decoded with the transport's real client — never JSON/text
  *    fed to a flight decoder. Tagged statuses (403/413) survive.
+ *  - a success carries the refresh outcome only when the action called
+ *    `ctx.refresh()`; a plain success has no outcome header at all.
  *
  * Runs under the react-server condition (test:unit), where the built-in
  * codec resolves from the vendored transport pair.
@@ -32,6 +34,7 @@ import {
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 type ActionModule = Record<string, (...args: never[]) => unknown>;
+type Ctx = { refresh: () => void };
 
 const options = (impl: ActionModule) => ({
   projectRoot: process.cwd(),
@@ -161,6 +164,55 @@ describe("server-action terminal outcomes (Web handler)", () => {
     );
     expect(res.status).toBe(413);
     expect(res.headers.get(OUTCOME_HEADER)).toBe(OUTCOME.error);
+  });
+});
+
+describe("server-action refresh outcome", () => {
+  it("Web: ctx.refresh() marks the success and keeps the return value", async () => {
+    const res = await handleServerActionRequest(
+      await webRequestFor(),
+      options({
+        run: (ctx: Ctx) => {
+          ctx.refresh();
+          return 7;
+        },
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get(OUTCOME_HEADER)).toBe(OUTCOME.refresh);
+    const payload = (await decodeFlight(res.body as ReadableStream)) as {
+      returnValue: number;
+    };
+    expect(payload.returnValue).toBe(7);
+  });
+
+  it("Web: a success without ctx.refresh() carries no outcome", async () => {
+    const res = await handleServerActionRequest(
+      await webRequestFor(),
+      options({ run: () => 7 })
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get(OUTCOME_HEADER)).toBeNull();
+  });
+
+  it("Node: ctx.refresh() marks the success; a plain success does not", async () => {
+    const refreshed = nodeResponse();
+    await handleServerAction(
+      await nodeRequestFor(),
+      refreshed.res,
+      options({ run: (ctx: Ctx) => ctx.refresh() })
+    );
+    await refreshed.finished;
+    expect(refreshed.headers[OUTCOME_HEADER]).toBe(OUTCOME.refresh);
+
+    const plain = nodeResponse();
+    await handleServerAction(
+      await nodeRequestFor(),
+      plain.res,
+      options({ run: () => 7 })
+    );
+    await plain.finished;
+    expect(plain.headers[OUTCOME_HEADER]).toBeUndefined();
   });
 });
 

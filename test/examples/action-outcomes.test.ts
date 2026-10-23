@@ -13,9 +13,9 @@ import {
 // The user-visible half of the Flight transaction contract, in a real
 // browser against the dev server (both runner topologies via test-both):
 //
-//  - refresh: a successful action revalidates the current route — the
-//    mutated value shows WITHOUT a reload, and client-component state
-//    survives the swap.
+//  - refresh: an action that calls ctx.refresh() revalidates the current
+//    route — the mutated value shows WITHOUT a reload, and client-component
+//    state survives the swap. One that does not (a read) fetches no flight.
 //  - error: a throwing action rejects with the server's message (decoded
 //    from the flight error envelope) and the page stays alive.
 //  - redirect: an action redirect() lands on the target route — address bar
@@ -53,12 +53,16 @@ async function setupFixture() {
     join(testDir, "src/page/actions.ts"),
     `"use server";\n` +
       `import { readFile, writeFile } from "node:fs/promises";\n` +
-      `import { redirect, notFound } from "vite-plugin-react-server/router";\n` +
+      `import { redirect, notFound, type ServerActionContext } from "vite-plugin-react-server/router";\n` +
       `const STORE = ${JSON.stringify(STORE)};\n` +
-      `export async function bump() {\n` +
+      `export async function bump(ctx: ServerActionContext) {\n` +
       `  const next = Number(await readFile(STORE, "utf8")) + 1;\n` +
       `  await writeFile(STORE, String(next));\n` +
+      `  ctx.refresh();\n` +
       `  return next;\n` +
+      `}\n` +
+      `export async function peek() {\n` +
+      `  return Number(await readFile(STORE, "utf8"));\n` +
       `}\n` +
       `export async function go() {\n` +
       `  redirect("/target/");\n` +
@@ -76,16 +80,20 @@ async function setupFixture() {
       `import * as React from "react";\n` +
       `export function Actions(props: {\n` +
       `  bump: () => Promise<number>;\n` +
+      `  peek: () => Promise<number>;\n` +
       `  go: () => Promise<void>;\n` +
       `  vanish: () => Promise<void>;\n` +
       `  explode: () => Promise<void>;\n` +
       `}) {\n` +
       `  const [n, setN] = React.useState(0);\n` +
       `  const [caught, setCaught] = React.useState("");\n` +
+      `  const [peeked, setPeeked] = React.useState("");\n` +
       `  return (\n` +
       `    <div>\n` +
       `      <button id="counter" onClick={() => setN((v) => v + 1)}>{"count:" + n}</button>\n` +
       `      <button id="bump" onClick={() => void props.bump()}>bump</button>\n` +
+      `      <button id="peek" onClick={() => props.peek().then((v) => setPeeked("peeked:" + v))}>peek</button>\n` +
+      `      {peeked ? <output id="peeked">{peeked}</output> : null}\n` +
       `      <button id="go" onClick={() => void props.go()}>go</button>\n` +
       `      <button id="vanish" onClick={() => void props.vanish()}>vanish</button>\n` +
       `      <button id="explode" onClick={() => props.explode().catch((e) => setCaught(e.message))}>explode</button>\n` +
@@ -98,12 +106,12 @@ async function setupFixture() {
     join(testDir, "src/page/page.tsx"),
     `import * as React from "react";\n` +
       `import { Actions } from "./Actions.client.js";\n` +
-      `import { bump, go, vanish, explode } from "./actions.js";\n` +
+      `import { bump, peek, go, vanish, explode } from "./actions.js";\n` +
       `export const Page = ({ value }: { value: number }) => (\n` +
       `  <main>\n` +
       `    <h1 id="heading">home</h1>\n` +
       `    <p id="value">{"value:" + value}</p>\n` +
-      `    <Actions bump={bump} go={go} vanish={vanish} explode={explode} />\n` +
+      `    <Actions bump={bump} peek={peek} go={go} vanish={vanish} explode={explode} />\n` +
       `  </main>\n` +
       `);\n`
   );
@@ -111,11 +119,11 @@ async function setupFixture() {
     join(testDir, "src/page/target.tsx"),
     `import * as React from "react";\n` +
       `import { Actions } from "./Actions.client.js";\n` +
-      `import { bump, go, vanish, explode } from "./actions.js";\n` +
+      `import { bump, peek, go, vanish, explode } from "./actions.js";\n` +
       `export const Page = () => (\n` +
       `  <main>\n` +
       `    <h1 id="heading">target-page</h1>\n` +
-      `    <Actions bump={bump} go={go} vanish={vanish} explode={explode} />\n` +
+      `    <Actions bump={bump} peek={peek} go={go} vanish={vanish} explode={explode} />\n` +
       `  </main>\n` +
       `);\n`
   );
@@ -165,6 +173,7 @@ describe.skipIf(!browserAvailable)("server-action outcomes (browser)", () => {
   let page: Page;
   let port: number;
   const documentRequests: string[] = [];
+  const flightRequests: string[] = [];
   let documentBaseline = 0;
 
   const text = async (selector: string) => {
@@ -216,6 +225,11 @@ describe.skipIf(!browserAvailable)("server-action outcomes (browser)", () => {
     page = await browser.newPage();
     page.on("request", (r) => {
       if (r.resourceType() === "document") documentRequests.push(r.url());
+      else if (
+        r.method() === "GET" &&
+        r.headers()["accept"]?.includes("text/x-component")
+      )
+        flightRequests.push(r.url());
     });
     await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
     await page.waitForFunction(
@@ -241,7 +255,7 @@ describe.skipIf(!browserAvailable)("server-action outcomes (browser)", () => {
       await rm(testDir, { recursive: true, force: true });
   });
 
-  it("a successful action refreshes the route and client state survives", async () => {
+  it("an action that calls ctx.refresh() refreshes the route; client state survives", async () => {
     expect(await text("#value")).toBe("value:0");
     await page.click("#counter");
     const before = await text("#counter");
@@ -249,6 +263,16 @@ describe.skipIf(!browserAvailable)("server-action outcomes (browser)", () => {
     await page.click("#bump");
     await waitFor(async () => (await text("#value")) === "value:1");
     expect(await text("#counter")).toBe(before);
+    expect(documentRequests.length).toBe(documentBaseline);
+  }, 60000);
+
+  it("an action that does not ask for a refresh fetches no flight", async () => {
+    const before = flightRequests.length;
+    await page.click("#peek");
+    await waitFor(async () => (await text("#peeked")) === "peeked:1");
+    // Long enough for a refresh refetch to have gone out if one were coming.
+    await new Promise((r) => setTimeout(r, 500));
+    expect(flightRequests.length).toBe(before);
     expect(documentRequests.length).toBe(documentBaseline);
   }, 60000);
 

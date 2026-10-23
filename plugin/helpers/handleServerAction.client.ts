@@ -60,6 +60,7 @@ export function writeServerActionOutcome(
     error?: string | Record<string, unknown>;
     flight?: string;
     result?: unknown;
+    refresh?: boolean;
   },
   passThrough: PassThrough,
   res: ServerResponse,
@@ -93,6 +94,7 @@ export function writeServerActionOutcome(
     }
     return;
   }
+  if (message.refresh) res.setHeader(OUTCOME_HEADER, OUTCOME.refresh);
   if (typeof message.flight === "string") {
     passThrough.write(message.flight);
     return;

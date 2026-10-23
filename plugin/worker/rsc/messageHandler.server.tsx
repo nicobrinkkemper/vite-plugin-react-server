@@ -7,6 +7,7 @@ import { handleRscRender } from "./handleRscRender.server.js";
 import { setMaxListenersOnPort } from "../../stream/setMaxListeners.js";
 import { describeProps } from "../../helpers/describeProps.js";
 import { isLoaderSignal } from "../../router/loaderSignals.js";
+import { createServerActionContext } from "../../utils/actionContext.js";
 import type {
   RscWorkerInputMessage,
   ComponentsResolvedMessage,
@@ -1388,7 +1389,8 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           // Execute the server action. The trailing ctx matches the sealed
           // gate's shape (bindings seam) — dev has no platform, so it is
           // empty, and action code behaves identically across environments.
-          const result = await action(...decodedArgs, { platform: [] });
+          const { context, refreshRequested } = createServerActionContext();
+          const result = await action(...decodedArgs, context);
 
           // Render `{ returnValue }` through the transport's flight renderer
           // so non-JSON values survive, and hand the finished payload to the
@@ -1414,7 +1416,13 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           });
 
           // Send success response
-          effectiveHandlers.onServerActionResponse?.(msg.id, result, undefined, flight);
+          effectiveHandlers.onServerActionResponse?.(
+            msg.id,
+            result,
+            undefined,
+            flight,
+            refreshRequested()
+          );
         } catch (error: unknown) {
           const err = toError(error);
           // Loader signals (redirect()/notFound() thrown by the action)

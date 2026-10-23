@@ -311,8 +311,9 @@ Whatever the runtime passes to your fetch handler after the request (workerd's
 - **Loaders**: `props(url, ctx)` receives it as `ctx.platform` — an array of
   the extra arguments, so `ctx.platform[0]` is workerd's `env`.
 - **Server actions**: every action is called with a trailing context argument,
-  `action(...args, { platform })`. Existing actions ignore it; an action that
-  declares the extra parameter reads its bindings from it. The shape is
+  `action(...args, { platform, refresh })`. Existing actions ignore it; an
+  action that declares the extra parameter reads its bindings from it
+  (`refresh()` is described in [server-actions.md](./server-actions.md)). The shape is
   identical in dev and on Node — `platform` is just empty there — so action
   code behaves the same everywhere.
 

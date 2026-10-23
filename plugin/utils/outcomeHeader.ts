@@ -12,6 +12,9 @@
  *    browser clients observe `response.redirected` instead of this header.
  *  - `error` — the action failed; the body is a flight-rendered
  *    `{ error: { message } }` envelope (never JSON/text for a flight client).
+ *  - `refresh` — the action succeeded and called `ctx.refresh()`; the body is
+ *    the usual `{ returnValue }` flight, and the client router refetches the
+ *    current route after decoding it. A success without it leaves the view.
  *
  * Plain constants, importable from every runtime (browser, Node, edge bake).
  */
@@ -21,6 +24,7 @@ export const OUTCOME = {
   notFound: "not-found",
   redirect: "redirect",
   error: "error",
+  refresh: "refresh",
 } as const;
 
 export type Outcome = (typeof OUTCOME)[keyof typeof OUTCOME];

@@ -63,6 +63,7 @@ export const handleServerAction: HandleWorkerServerActionFn =
                 error?: string | Record<string, unknown>;
                 flight?: string;
                 result?: unknown;
+                refresh?: boolean;
               },
               passThrough,
               res,

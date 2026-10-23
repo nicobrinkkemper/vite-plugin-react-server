@@ -15,7 +15,7 @@ function makeRouter(fetchFlight: (url: string) => Promise<string>): Router<strin
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
 describe("createActionOutcomeHooks", () => {
-  it("onSuccess drops every cached route, not just the current one", async () => {
+  it("onRefresh drops every cached route, not just the current one", async () => {
     const fetches: string[] = [];
     const router = makeRouter(async (url) => {
       fetches.push(url);
@@ -34,7 +34,7 @@ describe("createActionOutcomeHooks", () => {
     await router.flight("/item/");
     fetches.length = 0;
 
-    hooks.onSuccess();
+    hooks.onRefresh();
     await flush();
 
     // The current route refetched and was delivered.
@@ -61,8 +61,8 @@ describe("createActionOutcomeHooks", () => {
 
     // Two actions back-to-back: each success invalidates and refetches, and
     // resolution order is not start order.
-    hooks.onSuccess();
-    hooks.onSuccess();
+    hooks.onRefresh();
+    hooks.onRefresh();
     expect(resolvers).toHaveLength(2);
 
     resolvers[1]!("fresh"); // the newer refetch lands first
@@ -73,7 +73,7 @@ describe("createActionOutcomeHooks", () => {
     expect(delivered[delivered.length - 1]).toBe("fresh");
   });
 
-  it("onSuccess does not deliver a view for a route the user already left", async () => {
+  it("onRefresh does not deliver a view for a route the user already left", async () => {
     const router = makeRouter(async (url) => `flight:${url}`);
     const delivered: string[] = [];
     const hooks = createActionOutcomeHooks({
@@ -82,14 +82,14 @@ describe("createActionOutcomeHooks", () => {
       stripBasePath: (p) => p,
     });
 
-    hooks.onSuccess();
+    hooks.onRefresh();
     router.navigate("/elsewhere/");
     await flush();
 
     expect(delivered).toHaveLength(0);
   });
 
-  it("onSuccess leaves the view alone when the refresh fetch fails", async () => {
+  it("onRefresh leaves the view alone when the refresh fetch fails", async () => {
     let fail = false;
     const router = makeRouter(async (url) => {
       if (fail) throw new Error("offline");
@@ -103,7 +103,7 @@ describe("createActionOutcomeHooks", () => {
     });
 
     fail = true;
-    hooks.onSuccess();
+    hooks.onRefresh();
     await flush();
     expect(delivered).toHaveLength(0);
   });

@@ -99,6 +99,8 @@ export type ServerActionResponseMessage = {
   flight?: string;
   /** Legacy raw result (pre-flight protocol); main thread JSON-rows it. */
   result?: unknown;
+  /** The action called ctx.refresh(): the response carries the refresh outcome. */
+  refresh?: boolean;
   /** A string, or a serializeError object whose plain marker fields
    *  (loader signals, tagged statusCode) survive the thread boundary. */
   error?: string | Record<string, unknown>;
@@ -171,7 +173,9 @@ export type ServerOnlyStreamHandlers = {
     /** A string, or a serializeError object whose plain marker fields
      *  (loader signals, tagged statusCode) survive the thread boundary. */
     error?: string | Record<string, unknown>,
-    flight?: string
+    flight?: string,
+    /** The action called ctx.refresh(). */
+    refresh?: boolean
   ) => void;
   onError: (id: string, error: unknown, errorInfo?: { route?: string; context?: string }) => void;
   onPostpone?: (id: string, reason: string) => void;

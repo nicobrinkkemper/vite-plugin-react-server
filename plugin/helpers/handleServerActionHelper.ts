@@ -1,6 +1,10 @@
 import { logError, toError } from "../error/index.js";
 import { join } from "node:path";
 import { isPathWithin } from "./isPathWithin.js";
+import {
+  createServerActionContext,
+  type ServerActionContext,
+} from "../utils/actionContext.js";
 import type { Logger } from "vite";
 import type { ServerResponse } from "node:http";
 import type { IncomingMessage } from "node:http";
@@ -548,7 +552,8 @@ export async function executeServerAction(
   args: unknown[],
   verbose = false,
   logger?: Logger,
-  platform?: unknown[]
+  platform?: unknown[],
+  context: ServerActionContext = createServerActionContext(platform).context
 ): Promise<unknown> {
   if (verbose) {
     logger?.info(`[handleServerActionHelper] Executing action with args: ${JSON.stringify(args)}`);
@@ -556,10 +561,10 @@ export async function executeServerAction(
 
   // The bindings seam (host-spec Resolution 4): every action receives a
   // trailing ctx argument carrying the runtime's extra handler arguments
-  // (workerd's env/ctx; empty on Node/dev). Additive — an action that
-  // ignores it keeps working; one that declares it reads ctx.platform.
-  // Concurrency-safe by construction: no request-scoped globals.
-  const result = await action(...args, { platform: platform ?? [] });
+  // (workerd's env/ctx; empty on Node/dev) and refresh(). Additive — an
+  // action that ignores it keeps working; one that declares it reads
+  // ctx.platform. Concurrency-safe by construction: no request-scoped globals.
+  const result = await action(...args, context);
   
   if (verbose) {
     logger?.info(`[handleServerActionHelper] Action executed successfully: ${JSON.stringify(result)}`);

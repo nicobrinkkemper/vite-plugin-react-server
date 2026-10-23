@@ -8,3 +8,4 @@ export * from "./withParams.js";
 export * from "./head.js";
 export * from "./loaderSignals.js";
 export type { Register, RegisteredRoutes, ToPath } from "./register.js";
+export type { ServerActionContext } from "../utils/actionContext.js";
