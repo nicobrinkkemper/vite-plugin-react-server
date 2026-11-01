@@ -19,19 +19,73 @@ dist/
 │   ├── about/
 │   │   ├── index.html
 │   │   └── index.rsc
-│   ├── assets/                # Hashed JS/CSS bundles
+│   ├── assets/                # Everything the build generates, mirroring src/
+│   │   ├── components/
+│   │   │   └── Counter.client-CnBCzH8H.js
+│   │   └── page/
+│   │       ├── theme-D4k2xQ1a.css
+│   │       ├── hero-B7mN3pZq.png
+│   │       └── fonts/body-Hs8Lw2Rt.woff2
 │   └── .vite/manifest.json
 ├── client/                    # Client components built for Node
-│   └── components/
+│   └── assets/components/
 │       └── Counter.client-CnBCzH8H.js
 └── server/                    # Server components (react-server condition)
     ├── page/
     │   ├── page.js
     │   ├── props.js
     │   └── actions.server.js
-    └── components/
+    └── assets/components/
         └── Counter.client-CnBCzH8H.js
 ```
+
+### Where generated files go: `build.assetsDir`
+
+`build.assetsDir` (default `"assets"`, the same meaning as Vite's own
+`build.assetsDir`) is where every file the browser build *generates* goes:
+JS chunks, stylesheets, images, fonts, anything a module imports with `?url`
+or a stylesheet references with `url()`. One rule names them all:
+
+```
+<assetsDir>/<source directory, moduleBase stripped>/<name>-<hash>.<ext>
+```
+
+So `src/components/Link.client.tsx`'s chunk lands at
+`assets/components/Link.client-<hash>.js`, `src/page/theme.css` and the
+`src/page/hero.png` it references next to each other under `assets/page/`,
+and `src/page/fonts/body.woff2` under `assets/page/fonts/`. The pre-rendered
+`index.html` and `index.rsc` files and copies of `public/` keep their paths
+at the root: they are not generated names and are revalidated, not cached as
+immutable.
+
+Set `build.assetsDir: ""` for the tsc-like tree with no prefix, where the
+output mirrors `src/` directly:
+
+```
+assetsDir: "assets" (default)                  assetsDir: ""
+dist/static/                                   dist/static/
+├── index.html                                 ├── index.html
+└── assets/                                    ├── components/
+    ├── components/                            │   └── Link.client-<hash>.js
+    │   └── Link.client-<hash>.js              └── page/
+    └── page/                                      ├── theme-<hash>.css
+        ├── theme-<hash>.css                       ├── hero-<hash>.png
+        ├── hero-<hash>.png                        └── fonts/body-<hash>.woff2
+        └── fonts/body-<hash>.woff2
+```
+
+Because the browser file name is also the client-reference id (see
+[Consistent Hashing](#consistent-hashing)), `dist/client/` and the client
+references in `dist/server/` carry the same prefix; server-only modules keep
+their paths. A user-supplied `rollupOptions.output.assetFileNames` (or
+`entryFileNames` / `chunkFileNames`) replaces the rule for that kind of file.
+
+**Upgrading:** before this rule, stylesheets lived under `assets/` while JS
+chunks, images and fonts were written to the root of `dist/static/`. Every
+generated file now lives under `assets/`, so one host rule that caches
+`/assets/*` as immutable covers JS, CSS, images and fonts alike. Nothing in
+your source changes; a deploy script that copied `dist/static/*.js` or
+`dist/static/*.png` by path needs the new location.
 
 `dist/client/` holds **only** client components and their dependencies — the
 page server component lives in `dist/server/` alone (the renderer imports it
@@ -104,9 +158,9 @@ In every mode the `.rsc` files still serve later client-side navigations — whe
 With default hashing enabled, every browser file the bundler emits is named by Rollup's content hash: JavaScript chunks (virtual and dependency chunks included), stylesheets, and the images and fonts they reference. A stylesheet's hash covers what it inlines from `@import` and the hashed names of the files it `url()`s, so editing either renames it. A host can cache these hashed URLs as immutable. Files copied from `public/`, HTML, RSC payloads, and custom output names without a content hash do not have this guarantee; do not apply an immutable rule to every `*.js` file. The client build runs first and records what it emitted in `dist/static/.vite/manifest.json`. The `ssr` and `server` builds read that manifest: a client component's file takes the same name in all three outputs, and that name is the module ID baked into the flight payload:
 
 ```
-dist/static/components/Link.client-CnBCzH8H.js
-dist/client/components/Link.client-CnBCzH8H.js
-dist/server/components/Link.client-CnBCzH8H.js
+dist/static/assets/components/Link.client-CnBCzH8H.js
+dist/client/assets/components/Link.client-CnBCzH8H.js
+dist/server/assets/components/Link.client-CnBCzH8H.js
 ```
 
 So the ID resolves in the browser (`dist/static/`) and in Node (`dist/client/`). Stylesheets and other assets follow the same manifest: the `ssr` and `server` builds name each one as the client build did, so the `<link>` tags and flight payloads they write point at the files in `dist/static/`. Building the `ssr` or `server` environment without the client build's manifest is an error; `vite build --app` builds them in order.
@@ -129,7 +183,9 @@ cache, but cannot retrieve an older glue/binary pair once the host replaces it.
 ## CSS in the Output
 
 Stylesheets ride the same pipeline as the JS: the client build emits every
-imported CSS file in `dist/static/assets/`, named by the hash of its bytes. Static
+imported CSS file under `dist/static/assets/`, in its source directory and
+named by the hash of its bytes, with the images and fonts it `url()`s beside
+it (see [`build.assetsDir`](#where-generated-files-go-buildassetsdir)). Static
 generation then collects, per page, the CSS its chunks import and passes it
 to your `Html` and `Root` components as two maps of ready-to-render tag
 props: `cssFiles` (per-page) and `globalCss` (site-wide). Each entry is one

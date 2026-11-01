@@ -64,7 +64,7 @@ export const config = {
 | `batchSize` | `number` | Pages rendered concurrently when `renderMode` is `"parallel"` | `8` |
 | `inlineFlight` | `boolean \| "blob" \| "stream"` | How the flight payload rides inside the HTML. `"blob"` (alias `true`): buffer and inline it into each prerendered route's `index.html` as one non-executable `<script id="vprs-flight">` at the post-SSG point, in both build modes — static/CDN targets, simplest client. `"stream"`: interleave it into the HTML **as it streams** on per-request document renders — dynamic/edge targets, TTFB is the shell flush; prerendered pages have no streamed form — under `transport: "webpack"` the SSG freeze emits them with the blob form instead, under the esm pass they fall back to fetching `index.rsc`. `false`: no inlining, the client always fetches `.rsc`. See [Build Output](./build-output.md). | `false` |
 | `edge` | `boolean \| EdgeBuildConfig` | Single-isolate edge bundle (see [`build.edge`](#buildedge) below) | `true` |
-| `assetsDir` | `string` | Assets directory | `"assets"` |
+| `assetsDir` | `string` | Where every generated browser file goes (JS, CSS, images, fonts), mirroring the source tree: `assets/page/hero-<hash>.png`. `""` drops the prefix. See [Build Output](./build-output.md#where-generated-files-go-buildassetsdir). | `"assets"` |
 | `api` | `string` | API output directory | `"api"` |
 | `outDir` | `string` | Output directory | `"dist"` |
 | `rscOutputPath` | `string` | RSC output filename | `"index.rsc"` |
