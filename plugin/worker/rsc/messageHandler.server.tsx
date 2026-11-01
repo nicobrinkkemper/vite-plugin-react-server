@@ -805,8 +805,8 @@ export async function messageHandler(
             msg.options.build?.static || userOptions.build?.static || DEFAULT_CONFIG.BUILD.static,
           outDir:
             msg.options.build?.outDir || userOptions.build?.outDir || DEFAULT_CONFIG.BUILD.outDir,
-          assetsDir: 
-            msg.options.build?.assetsDir || userOptions.build?.assetsDir || DEFAULT_CONFIG.BUILD.assetsDir,
+          assetsDir:
+            msg.options.build?.assetsDir ?? userOptions.build?.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir,
           rscOutputPath:
             msg.options.build?.rscOutputPath || userOptions.build?.rscOutputPath || DEFAULT_CONFIG.BUILD.rscOutputPath,
           htmlOutputPath:

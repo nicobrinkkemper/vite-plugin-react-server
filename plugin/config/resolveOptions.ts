@@ -15,7 +15,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_LOADER_CONFIG,
 } from "./defaults.js";
-import { join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pluginRoot } from "../root.js";
 import { createInputNormalizer } from "../helpers/inputNormalizer.js";
 import { resolveRoutesOption } from "../router/fileRouter.js";
@@ -569,6 +569,21 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     return input + "-" + contentHash;
   };
 
+  /**
+   * Put a browser file under `build.assetsDir`. The one layout rule for every
+   * file the client build emits, chunk or asset:
+   * `<assetsDir>/<source dir, module base stripped>/<name>-<hash>.<ext>`.
+   * An empty assetsDir is the tsc-like layout with no prefix; it must never
+   * turn into a leading slash. A source directory that happens to share the
+   * prefix's name (`src/assets/logo.png` under `assets`) is prefixed like
+   * any other, so two sources never collide on one output name.
+   */
+  const withAssetsDir = (path: string): string => {
+    const assetsDir = build.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir;
+    const bare = path.replace(/^\/+/, "");
+    return assetsDir ? assetsDir + "/" + bare : bare;
+  };
+
   const clientBuildManifest = createClientBuildManifestLookup({
     projectRoot,
     outDir,
@@ -728,7 +743,11 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       }
     }
     
-    return hashChunk(outputPath, ssr, n, sourceContent);
+    const file = hashChunk(outputPath, ssr, n, sourceContent);
+    // Browser files take the assetsDir prefix; the ssr/server builds keep
+    // their own layout, and a client reference's file there is already the
+    // browser's name, prefix included (see hashChunk).
+    return ssr || !file ? file : withAssetsDir(file);
   }
 
   function chunkFile(n: PreRenderedChunk, ssr: boolean, sourceContent?: string): string {
@@ -748,7 +767,11 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       }
     }
     
-    return hashChunk(outputPath, ssr, n, sourceContent);
+    const file = hashChunk(outputPath, ssr, n, sourceContent);
+    // Browser files take the assetsDir prefix; the ssr/server builds keep
+    // their own layout, and a client reference's file there is already the
+    // browser's name, prefix included (see hashChunk).
+    return ssr || !file ? file : withAssetsDir(file);
   }
 
   /**
@@ -772,51 +795,76 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     return applyHashSuffix(input, "[hash]");
   };
 
+  /**
+   * The directory an asset's source sits in, relative to the project root,
+   * or undefined when the asset has no source (a plugin emitted it from
+   * memory) or its source is outside the project. Vite sets
+   * `originalFileNames` on every asset it emits for a file: a `?url` import,
+   * a `url()` in a stylesheet, the stylesheet itself.
+   */
+  const assetSourceDir = (n: PreRenderedAsset): string | undefined => {
+    const original = n.originalFileNames?.[0]?.split("?")[0];
+    if (!original) return undefined;
+    const posix = original.split("\\").join("/");
+    const source = isAbsolute(posix)
+      ? relative(projectRoot, posix).split(sep).join("/")
+      : posix;
+    if (source.startsWith("..")) return undefined;
+    const dir = dirname(source);
+    return dir === "." ? "" : dir;
+  };
+
+  /**
+   * Strip the module base from an asset path, so `src/page/theme.css` and
+   * `assets/src/page/theme.css` both end up as `page/theme.css`.
+   */
+  const stripModuleBase = (path: string, assetsDir: string): string => {
+    if (assetsDir && path.startsWith(assetsDir + "/" + moduleBase + "/")) {
+      return path.slice((assetsDir + "/" + moduleBase + "/").length);
+    }
+    if (moduleBasePath && path.startsWith(moduleBasePath)) {
+      return path.slice(moduleBasePath.length);
+    }
+    if (
+      moduleBaseURL &&
+      moduleBaseURL !== "/" &&
+      moduleBaseURL !== "" &&
+      path.startsWith(moduleBaseURL)
+    ) {
+      return path.slice(moduleBaseURL.length);
+    }
+    if (path.startsWith(moduleBase + "/")) {
+      return path.slice(moduleBase.length + 1);
+    }
+    return path;
+  };
+
+  /**
+   * One rule for every emitted asset, stylesheet or not: it lives under
+   * `build.assetsDir`, in its source directory with the module base
+   * stripped, named `<name>-<hash>.<ext>`. `src/page/theme.css` becomes
+   * `assets/page/theme-<hash>.css` and `src/page/hero.png` next to it
+   * becomes `assets/page/hero-<hash>.png`, whether the page imports it with
+   * `?url` or the stylesheet `url()`s it. A user's own `assetFileNames`
+   * replaces this function altogether (see resolveUserConfig.ts).
+   */
   function assetFile(n: PreRenderedAsset, ssr: boolean = false): string {
     // Rollup may report the same asset under several `names`; dedupe so we
     // don't emit invalid comma-joined filenames like `Foo.eot,Foo.eot`. When
     // multiple distinct names survive they all reference the same emitted
     // file, so use the first as the canonical output path.
     const uniqueNames = Array.from(new Set(n.names));
-    let firstName = uniqueNames[0];
+    const firstName = uniqueNames[0];
 
-    // Clean up asset paths by removing the moduleBase from within assets directory
-    // Transform: assets/src/page/file.css -> assets/page/file.css
-    const assetsDir = build.assetsDir || "assets";
-    if (firstName.startsWith(assetsDir + "/" + moduleBase + "/")) {
-      firstName =
-        assetsDir +
-        "/" +
-        firstName.slice((assetsDir + "/" + moduleBase + "/").length);
-    }
-    // Handle moduleBasePath removal
-    else if (moduleBasePath && firstName.startsWith(moduleBasePath)) {
-      firstName = firstName.slice(moduleBasePath.length);
-    } else if (
-      moduleBaseURL &&
-      moduleBaseURL !== "/" &&
-      moduleBaseURL !== "" &&
-      firstName.startsWith(moduleBaseURL)
-    ) {
-      firstName = firstName.slice(moduleBaseURL.length);
-    }
-    // Handle direct moduleBase removal
-    else if (firstName.startsWith(moduleBase + "/")) {
-      firstName = firstName.slice(moduleBase.length + 1);
-    }
-
-    // For CSS files, ensure they go into the assets directory
-    if (firstName.endsWith(".css")) {
-      // Add assets directory prefix if not already present
-      if (!firstName.startsWith(assetsDir + "/")) {
-        firstName = assetsDir + "/" + firstName;
-      }
-      return hashAsset(firstName, ssr, n);
-    }
-
-    // For other assets, apply the extension mapping if needed
-    // Pass isAsset=true to preserve extensions for non-module assets
-    return hashAsset(getOutputPath(firstName, true), ssr, n);
+    // Rollup's `name` for an image or a font is a bare basename; its source
+    // path puts it in its directory, the way a stylesheet's name already is.
+    const sourceDir = assetSourceDir(n);
+    let path = sourceDir ? sourceDir + "/" + basename(firstName) : firstName;
+    path = stripModuleBase(path, build.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir);
+    // The extension mapping applies to the rare module-shaped asset only;
+    // `isAsset` keeps every other extension as it is.
+    path = getOutputPath(path, true);
+    return hashAsset(withAssetsDir(path), ssr, n);
   }
 
   /**

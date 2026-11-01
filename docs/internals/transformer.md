@@ -77,7 +77,7 @@ export function Counter() { /* ... */ }
 import { registerClientReference } from "react-server-dom-esm/server";
 const Counter = registerClientReference(
   function() { throw new Error("Cannot call Counter() from the server..."); },
-  "/components/Counter.client-CnBCzH8H.js",
+  "/assets/components/Counter.client-CnBCzH8H.js",
   "Counter"
 );
 export { Counter };

@@ -340,7 +340,7 @@
     "test:both": "./scripts/test-both.sh",
     "test:build": "npm run test:examples -- test/examples/build.test.ts",
     "pretest:stable-names": "npm run build",
-    "test:stable-names": "./scripts/test-both.sh test/examples/stable-names.test.ts",
+    "test:stable-names": "./scripts/test-both.sh test/examples/stable-names.test.ts test/examples/stable-names-layout-default.test.ts test/examples/stable-names-layout-static.test.ts test/examples/stable-names-layout-none.test.ts",
     "test:unit": "NODE_OPTIONS='--conditions react-server' vitest run test/unit/*",
     "test:tee": "rm -f build.log && npm run test:build 2>&1 | tee build.log",
     "test:rsc-worker": "npm run build && vitest run test/client/rsc-worker.test.ts",

@@ -133,18 +133,37 @@ describe("client-manifest naming", () => {
     }
   }
 
-  it("browser entries and chunks are named by Rollup's [hash]", () => {
+  it("browser entries and chunks are named by Rollup's [hash], under build.assetsDir", () => {
     write("src/split.ts", "export const split = 1;\n");
     const names = fileNames("react-client", false);
     // A name ending in props/page/server is a server convention, not a browser one.
     for (const name of ["courseSave", "create-split-props", "homepage", "observer"]) {
       expect(names.chunkFileNames(chunkInfo(name, null, [join(root, "src/split.ts")]))).toBe(
-        `${name}-[hash].js`
+        `assets/${name}-[hash].js`
       );
     }
     expect(
       names.entryFileNames(chunkInfo("src/bridge", join(root, "src/bridge.ts"), [join(root, "src/bridge.ts")]))
-    ).toBe("bridge-[hash].js");
+    ).toBe("assets/bridge-[hash].js");
+  });
+
+  it("an empty build.assetsDir is the tsc-like tree: no prefix, no leading slash", () => {
+    write("src/split.ts", "export const split = 1;\n");
+    const result = resolveOptions(
+      { ...testUserOptions, projectRoot: root, build: { ...testUserOptions.build, assetsDir: "" } },
+      true
+    );
+    if (result.type !== "success") throw new Error(result.error.message);
+    const naming = result.userOptions.build;
+    expect(naming.chunkFile(chunkInfo("observer", null, [join(root, "src/split.ts")]), false)).toBe(
+      "observer-[hash].js"
+    );
+    expect(
+      naming.assetFile(
+        { type: "asset", names: ["hero.png"], originalFileNames: ["src/page/hero.png"], source: "png" },
+        false
+      )
+    ).toBe("page/hero-[hash].png");
   });
 
   it.each([false, true])(
@@ -211,18 +230,19 @@ describe("client-manifest naming", () => {
   it("SSR, RSC and the flight reference all name the file the client build emitted", () => {
     const source = '"use client";\nexport const Widget = () => null;\n';
     write("src/components/Widget.client.tsx", source);
-    writeClientManifest({ "src/components/Widget.client.tsx": "components/Widget.client-Bq2_x9Lm.js" });
+    // The client build writes the file under build.assetsDir; its id follows.
+    writeClientManifest({ "src/components/Widget.client.tsx": "assets/components/Widget.client-Bq2_x9Lm.js" });
     const facade = join(root, "src/components/Widget.client.tsx");
     const info = chunkInfo("src/components/Widget.client", facade, [facade]);
 
-    expect(fileNames("react-client", true).entryFileNames(info)).toBe("components/Widget.client-Bq2_x9Lm.js");
-    expect(fileNames("react-server", true).entryFileNames(info)).toBe("components/Widget.client-Bq2_x9Lm.js");
+    expect(fileNames("react-client", true).entryFileNames(info)).toBe("assets/components/Widget.client-Bq2_x9Lm.js");
+    expect(fileNames("react-server", true).entryFileNames(info)).toBe("assets/components/Widget.client-Bq2_x9Lm.js");
     const ref = createDefaultModuleID(userOptions(), buildEnv, "production")(
       "src/components/Widget.client.tsx",
       source,
       true
     );
-    expect(ref).toBe("/components/Widget.client-Bq2_x9Lm.js");
+    expect(ref).toBe("/assets/components/Widget.client-Bq2_x9Lm.js");
   });
 
   it.each(["observer", "homepage", "props"])(

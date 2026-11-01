@@ -30,7 +30,8 @@ export const createDefaultModuleID = (
   mode = getNodeEnv()
 ) => {
   const { moduleBase, moduleBasePath, build, moduleBaseURL, projectRoot, autoDiscover } = options;
-  const assetsDir = build.assetsDir || DEFAULT_CONFIG.BUILD.assetsDir;
+  // "" is a choice (no prefix), not an absence.
+  const assetsDir = build.assetsDir ?? DEFAULT_CONFIG.BUILD.assetsDir;
   const isBuild = configEnv?.command === "build";
   // Hashing + moduleBase-stripping must track `isBuild`, NOT `mode`. The chunk
   // EMISSION side (resolveOptions' entryFile/chunkFile hash() + Rollup's
@@ -234,7 +235,7 @@ export const createDefaultModuleID = (
 
     // Step 1: Handle assets directory paths - remove src from within assets path
     // Transform: assets/src/page/file.css -> assets/page/file.css
-    if (id.startsWith(assetsDir + sep + moduleBase + sep)) {
+    if (assetsDir && id.startsWith(assetsDir + sep + moduleBase + sep)) {
       id = assetsDir + sep + id.slice((assetsDir + sep + moduleBase + sep).length);
     }
     
@@ -273,8 +274,9 @@ export const createDefaultModuleID = (
       });
     }
     
-    // Step 7: Ensure CSS files are placed in the assets directory
-    if (isBuild && id.endsWith('.css') && !id.startsWith(assetsDir + sep)) {
+    // Step 7: Ensure CSS files are placed in the assets directory (when the
+    // build has one; an empty assetsDir must not become a leading slash)
+    if (isBuild && assetsDir && id.endsWith('.css') && !id.startsWith(assetsDir + sep)) {
       id = assetsDir + sep + id;
     }
     
