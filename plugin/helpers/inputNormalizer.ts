@@ -7,8 +7,6 @@ import type {
 import path, { join, relative, resolve, sep } from "path";
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 
-let stashedNormalizer: InputNormalizer | null = null;
-
 /**
  * Strip ONE trailing ".segment" from an extension-less module path —
  * `view/View.generated` → `view/View` — the normalization Rollup chunk names
@@ -226,9 +224,6 @@ export function createInputNormalizer({
   preserveModulesRoot = undefined,
   removeExtension = DEFAULT_CONFIG.AUTO_DISCOVER.modulePattern,
 }: CreateInputNormalizerProps): InputNormalizer {
-  if (stashedNormalizer) {
-    return stashedNormalizer;
-  }
   const relativeRoot = resolveRootOption(root, preserveModulesRoot);
   const handleExtension = resolveExtensionOptions(removeExtension);
   const normalizeEntryKey = createKeyNormalizer({
@@ -279,7 +274,7 @@ export function createInputNormalizer({
     throw new Error(`Invalid input type: ${typeof id}`);
   }
 
-  stashedNormalizer = (input: NormalizerInput): [string, string] => {
+  return (input: NormalizerInput): [string, string] => {
     const [key, path] = normalizeInput(input);
     
     
@@ -294,5 +289,4 @@ export function createInputNormalizer({
       : path;
     return [key, finalPath];
   };
-  return stashedNormalizer;
 }
