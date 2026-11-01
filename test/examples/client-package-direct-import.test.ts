@@ -64,9 +64,10 @@ export function FancyButton({ label }) {
           );
 
           // A dependency that is not a client package (no react peerDep, not
-          // listed): the RSC transform skips it, so the bundler gets its
-          // source as published, directive included. Only a client module
-          // imports it, so it bundles into the client graph like any library.
+          // listed), imported by a client module only. Whether the transform
+          // skips it or strips its directive, it bundles into the client
+          // graph like any library; this pins that, not the vendor skip
+          // itself (vendor-directive-noexternal.test.ts does that).
           const plain = resolve(testDir, "node_modules", "plain-dep");
           await mkdir(plain, { recursive: true });
           await writeFile(

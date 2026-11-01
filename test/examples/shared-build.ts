@@ -4,6 +4,7 @@ import { readFile, rm } from "fs/promises";
 import { resolve, join } from "node:path";
 import { doBuild } from "../doBuild.js";
 import { OutputAsset, OutputBundle, OutputChunk } from "rollup";
+import type { PluginOption } from "vite";
 import { getCondition } from "../../dist/plugin/config/getCondition.js";
 import { FileWriteDoneEvent, PluginEvent } from "../../dist/plugin/types.js";
 import { ensureFixture, hashSetupFn } from "./fixture-cache.js";
@@ -68,6 +69,9 @@ export interface SharedBuildOptions {
   // Setup options - handled by the utility
   setupProject?: (testDir: string) => Promise<void>;
   dir?: string;
+  // Vite plugins registered before vprs, the position a consumer config
+  // gives companions such as @vitejs/plugin-react or a config-only plugin.
+  siblingPlugins?: PluginOption[];
 
   // Plugin options - passed through directly to doBuild
   [key: string]: any; // Allow any plugin option to be passed through
@@ -175,7 +179,7 @@ export async function getSharedBuild(
   setupCache.set(setupKey, testDir);
 
   // Extract setup options (excluding them from plugin options)
-  const { setupProject, dir, ...pluginOptions } = options;
+  const { setupProject, dir, siblingPlugins = [], ...pluginOptions } = options;
 
   // Track plugin events for the teardown drain; chain to the caller's
   // onEvent afterwards (count first — the caller may throw deliberately).
@@ -213,7 +217,7 @@ export async function getSharedBuild(
     ...pluginOptions,
     // Don't collect events/metrics here since doBuild already collects them internally
     // This prevents double collection and duplicate metrics
-  });
+  }, siblingPlugins);
 
   pendingBuilds.add(buildPromise);
   let buildResult;

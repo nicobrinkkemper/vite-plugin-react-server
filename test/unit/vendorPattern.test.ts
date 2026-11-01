@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG } from "../../plugin/config/defaults.js";
 import { createTransformerPlugin } from "../../plugin/transformer/createTransformerPlugin.js";
 import { isVendorModule } from "../../plugin/transformer/isVendorModule.js";
+import { hasLeadingDirective } from "../../plugin/transformer/hasLeadingDirective.js";
 import { userProjectRoot } from "../../plugin/root.js";
 
 const vendorPattern = DEFAULT_CONFIG.AUTO_DISCOVER.vendorPattern;
@@ -70,6 +71,24 @@ describe("isVendorModule with a user vendorPattern", () => {
   });
 });
 
+describe("hasLeadingDirective", () => {
+  it("finds a prologue directive behind a BOM, comments and 'use strict'", () => {
+    expect(hasLeadingDirective(`"use client";\nexport const a = 1;`)).toBe(true);
+    expect(hasLeadingDirective(`'use server'\nexport async function act() {}`)).toBe(true);
+    expect(
+      hasLeadingDirective(`﻿/*! lib */\n// comment\n"use strict";\n"use client";\n`)
+    ).toBe(true);
+  });
+
+  it("ignores the words outside the prologue", () => {
+    expect(hasLeadingDirective(`import a from "a";\n"use client";`)).toBe(false);
+    expect(hasLeadingDirective(`// "use client"\nexport const a = 1;`)).toBe(false);
+    expect(hasLeadingDirective(`export const s = "use server";`)).toBe(false);
+    expect(hasLeadingDirective(`"use strict";\nexport const a = 1;`)).toBe(false);
+    expect(hasLeadingDirective(``)).toBe(false);
+  });
+});
+
 describe("transform-dynamic on a node_modules module", () => {
   const useClient = `"use client";\nimport { useState } from "react";\nexport function Widget() { useState(0); return null; }\n`;
   const id = `${userProjectRoot}/node_modules/some-dep/index.js`;
@@ -84,9 +103,24 @@ describe("transform-dynamic on a node_modules module", () => {
       plugin.transform.handler.call(server, code, moduleId, { moduleType: "js" });
   };
 
-  it("skips a dependency that is not a client package", async () => {
-    expect(await transform([])(useClient, id)).toBeNull();
-    expect(await transform([])(useClient, `${id}?v=abc`)).toBeNull();
+  it("skips a dependency module without a directive", async () => {
+    const plain = `import { useState } from "react";\nexport function Widget() { useState(0); return null; }\n`;
+    expect(await transform([])(plain, id)).toBeNull();
+    expect(await transform([])(plain, `${id}?v=abc`)).toBeNull();
+    // The word in a comment or a string is not a directive.
+    const mention = `// not "use client"\nexport const label = "use server";\n`;
+    expect(await transform([])(mention, id)).toBeNull();
+  });
+
+  it("still transforms a dependency module with a directive, client package or not", async () => {
+    const result = await transform([])(useClient, id);
+    expect(result?.code).toContain("registerClientReference");
+    expect(result?.code).toContain("Widget");
+    // A published prologue: license comment, then the directive.
+    const prologue = `/*! lib v1 */\n${useClient}`;
+    expect((await transform([])(prologue, id))?.code).toContain(
+      "registerClientReference"
+    );
   });
 
   it("still turns a client package's 'use client' module into a client reference", async () => {

@@ -23,6 +23,7 @@ import { detectClientModule, analyzeModule } from "react-server-loader/directive
 import { parse as rslParse } from "react-server-loader";
 import { isViteInjectedCode } from "../loader/isViteInjectedCode.js";
 import { isVendorModule } from "./isVendorModule.js";
+import { hasLeadingDirective } from "./hasLeadingDirective.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -244,9 +245,14 @@ export const createTransformerPlugin = (
           const ssr = meta?.ssr;
           const isWhitelistedClientPackage =
             getClientPackagesPattern()?.test(id) ?? false;
+          // A vendor module is skipped only when it carries no directive: the
+          // transform never changed such a module. One with a directive is
+          // transformed like any other module, whether or not its package is
+          // a client package (a dependency the app inlines with `noExternal`).
           if (
             (isVendorModule(nodeModulesPattern, id, viteRoot) &&
-              !isWhitelistedClientPackage) ||
+              !isWhitelistedClientPackage &&
+              !hasLeadingDirective(code)) ||
             !modulePattern.test(id) ||
             (!noDist(id) && !isWhitelistedClientPackage)
           ) {
