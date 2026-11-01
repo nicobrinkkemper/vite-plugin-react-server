@@ -31,6 +31,11 @@ const browserAvailable = (() => {
     return false;
   }
 })();
+if (!browserAvailable && process.env["VPRS_REQUIRE_BROWSER"]) {
+  throw new Error(
+    "VPRS_REQUIRE_BROWSER is set but Playwright Chromium is not installed"
+  );
+}
 
 const testDir = resolve(__dirname, "../fixtures/edge-stream-split-views.test");
 const PORT = 4191;
