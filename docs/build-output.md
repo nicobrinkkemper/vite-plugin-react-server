@@ -97,6 +97,8 @@ The dual-stream architecture (step c + e) is why the plugin produces both `.html
 - **`"stream"`** — on per-request document renders (the edge handler's document mode), the flight is interleaved into the HTML **as it streams**: executable push-script chunks between React's flushes, no full-document buffering, TTFB is the shell flush — the fit for dynamic/edge targets. Prerendered pages have no streamed form, and what they carry instead depends on the transport: under `transport: "webpack"` the SSG freeze emits its snapshots with the blob form (the interleaver's injection safety needs a producer that flushes at element boundaries, which prerender's replayed prelude is not), while under the esm SSG pass the post-SSG inliner skips and prerendered routes fetch `index.rsc`.
 - **`false`** (default) — no inlining; the client always fetches the flight.
 
+The inlined payload answers the request the document was served for, and only the first flight fetch after load can take it. That fetch takes it when it asks for the same route (base path, trailing slash, `index.rsc` and hash do not matter; a query only counts when the fetch names one). A client whose first fetch asks for a different URL than the document's gets that URL from the network, and the payload is dropped.
+
 In every mode the `.rsc` files still serve later client-side navigations — when a user clicks a link, the browser fetches the next route's `.rsc` instead of a full page reload. [`startClient`](./routing.md) is the client entry that boots all of this in the browser.
 
 ## Consistent Hashing

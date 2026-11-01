@@ -235,7 +235,7 @@ jobs:
           VPRS_REQUIRE_BROWSER: "1"
         run: |
           npm run build
-          ./scripts/test-both.sh static-suspense-hydration static-navigation static-notfound-navigation dev-error-recovery action-outcomes edge-streaming-suspense-reveal transport-webpack-suspense static-subpath-contracts
+          ./scripts/test-both.sh static-suspense-hydration static-navigation static-notfound-navigation dev-error-recovery action-outcomes edge-streaming-suspense-reveal transport-webpack-suspense static-subpath-contracts inline-flight-url
 
       # Exact-path invocation, deliberately separate: substring filters fail
       # open (a misspelled or deleted target matches nothing while the other
