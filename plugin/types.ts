@@ -953,12 +953,16 @@ export interface StreamPluginOptions<
          */
         nodePattern?: RegExpOpt;
         /**
-         * Pattern to match vendor files, which the RSC transform skips unless
-         * the package is in `clientPackages`. The transform tests it against
-         * the module id, its path relative to the project root, and that
-         * path from its first `node_modules/` directory (forward slashes, no
-         * query), so the default `/^\/node_modules\//` matches installed
-         * dependencies. No interpolation support.
+         * Pattern to match vendor files, which the RSC transform skips. A
+         * vendor module that carries a `"use client"` or `"use server"`
+         * directive, and any module of a package in `clientPackages`, is
+         * still transformed. The pattern is tested against three strings,
+         * and a match on any counts: the module id as the bundler gives it,
+         * the root-relative path with a leading slash
+         * (`/node_modules/react/index.js`), and that path from its first
+         * `/node_modules/` segment. The derived forms use forward slashes
+         * and drop the query, so the default `/^\/node_modules\//` matches
+         * installed dependencies. No interpolation support.
          * @example ```ts
          * autoDiscover: {
          *   vendorPattern: /node_modules|_virtual/
