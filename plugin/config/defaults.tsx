@@ -209,6 +209,12 @@ export const DEFAULT_CONFIG = {
     static: "static",
     api: "api",
     outDir: "dist",
+    // Where every browser file the build generates goes (the same meaning as
+    // Vite's build.assetsDir): JS chunks, stylesheets, images and fonts
+    // alike, each under its source directory with the module base stripped,
+    // so `src/page/hero.png` is `assets/page/hero-<hash>.png`. Pre-rendered
+    // index.html / index.rsc and public/ copies stay at the root. "" is the
+    // opt-in tsc-like tree with no prefix: `page/hero-<hash>.png`.
     assetsDir: "assets",
     hash: "hash",
     preserveModulesRoot: false,

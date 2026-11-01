@@ -251,7 +251,7 @@ describe("stylesheet asset naming", () => {
     expect(viaUrl).not.toBe(entry);
   });
 
-  it("leaves a non-stylesheet asset on its own name", () => {
+  it("puts a non-stylesheet asset in its source directory under assetsDir, like a stylesheet", () => {
     const out = outputOf(
       resolveUserConfig({
         condition: "react-server",
@@ -267,7 +267,16 @@ describe("stylesheet asset naming", () => {
       originalFileNames: [`${root}/src/assets/logo.png`],
       source: "png",
     });
-    expect(image).toContain("logo");
-    expect(image).not.toContain("routes/");
+    // src/assets/ is a source directory like any other: it sits under the
+    // prefix rather than being mistaken for it.
+    expect(image).toBe("assets/assets/logo-[hash].png");
+    // An asset no file emitted (a plugin's own) has no directory to mirror.
+    const emitted = out.assetFileNames({
+      type: "asset",
+      names: ["sprite.svg"],
+      originalFileNames: [],
+      source: "<svg/>",
+    });
+    expect(emitted).toBe("assets/sprite-[hash].svg");
   });
 });
