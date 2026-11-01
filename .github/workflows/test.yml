@@ -241,10 +241,10 @@ jobs:
       # open (a misspelled or deleted target matches nothing while the other
       # filters keep the shared run green), an exact path fails the job with
       # "no test files found".
-      - name: Stream-static regression (fail-closed by exact path)
+      - name: Stream regressions (fail-closed by exact path)
         env:
           VPRS_REQUIRE_BROWSER: "1"
-        run: ./scripts/test-both.sh test/examples/transport-webpack-stream-static.test.ts
+        run: ./scripts/test-both.sh test/examples/transport-webpack-stream-static.test.ts test/examples/edge-stream-split-views.test.ts
 
   # macOS is where contributors run this suite by hand, and it is where the
   # platform quietly diverges from every Linux lane above: stock /bin/bash is
