@@ -30,7 +30,7 @@ for demo in ~/code/bidoof-template ~/code/mmc ~/code/vprs-starter; do
   cp -f package-lock.json /tmp/$(basename "$demo").lock.bak 2>/dev/null || true
   node -e 'const p=require("./package.json");p.dependencies["vite-plugin-react-server"]="file:../vite-plugin-react-server";require("fs").writeFileSync("./package.json",JSON.stringify(p,null,2)+"\n");'
   npm install
-  npm run build           # bidoof-template: build:preview; mmc: build; vprs-starter: build:vercel
+  npm run build           # bidoof-template: build:preview; mmc: build; vprs-starter: npm test (build:vercel + hydration smoke test)
   # Smoke-test the dev server too:
   npx vite --port 4173 --strictPort &
   VITE_PID=$!
@@ -193,7 +193,7 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 - [ ] `npm run build` succeeds
 - [ ] `bidoof-template` linked via `file:../vite-plugin-react-server` — `npm run build:preview` AND dev server (`vite`) both succeed; home page returns 200 with content
 - [ ] `mmc` linked via `file:../vite-plugin-react-server` — `npm run build` succeeds; dev server starts cleanly
-- [ ] `vprs-starter` linked via `file:../vite-plugin-react-server` — `npm run typecheck && npm run build:vercel` succeeds (the only consumer of `runner: "edge"` + `transport: "webpack"` + `inlineFlight: "stream"`; once its browser hydration smoke test lands, nicobrinkkemper/vprs-starter#11, run `npm test` there instead)
+- [ ] `vprs-starter` linked via `file:../vite-plugin-react-server` — `npm test` succeeds: build:vercel plus the Playwright hydration smoke test over the per-request `/`, a prerendered docs page and a client navigation (the only consumer of `runner: "edge"` + `transport: "webpack"` + `inlineFlight: "stream"`)
 - [ ] All three demo repos restored to their committed `package.json`/`package-lock.json` afterwards
 - [ ] `npx playwright test` — full browser gate green (both dev conditions; do not substitute the hmr.spec.ts subset)
 - [ ] `npm run version:<type>` — commit `package.json` + `package-lock.json`, PR, merge
