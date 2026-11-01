@@ -4,7 +4,7 @@
  * whole document and splices one non-executable script before `</body>`, this
  * transform passes HTML through as it arrives and injects each flight chunk as
  * an executable `<script>(self.__vprsFlightChunks||=[]).push("<base64>")
- * </script>` at the next safe point, closing with a `push(null)` sentinel.
+ * </script>` at the next splice point, closing with a `push(null)` sentinel.
  * TTFB is the shell flush, the server never holds the whole document or
  * payload, and Suspense reveals progressively. (Not fully backpressured:
  * a consumer slower than the producers queues chunks in the stream
@@ -14,14 +14,21 @@
  * this must run on workerd/Deno/Vercel Edge as-is.
  *
  * Ordering guarantees:
- *  - HTML chunks pass through WHOLE: a script is only injected BETWEEN two
- *    producer chunks (or at the final `</body>` boundary) — never inside one.
- *    PRODUCER CONTRACT: chunk boundaries must not split an HTML token;
- *    React's renderer flushes at element boundaries and satisfies this. A
- *    producer that splits tags across chunks (e.g. byte-sized rechunking)
- *    voids the placement guarantee;
- *  - no flight script is emitted until the `<body` open tag has been emitted
- *    (a headless fragment without one gets its scripts appended at the end);
+ *  - a script is written only at a SPLICE POINT: directly after a tag end,
+ *    as a direct child of `<body>` (htmlSpliceCursor). Producer chunk
+ *    boundaries are not trusted: React's streaming renderer packs its output
+ *    into fixed-size views (4096 bytes on the edge build) and a view ends on
+ *    an arbitrary byte, an attribute value included. A script written there
+ *    is attribute text, never an element, and its payload is lost; a script
+ *    written between tags inside the hydrated tree does run, but hydration
+ *    then meets an element the server never rendered. A flight chunk pending
+ *    while HTML flows goes in at the first splice point from the boundary it
+ *    arrived on, which may be inside a producer chunk (the chunk is then
+ *    written in two pieces around it); a chunk without one passes through
+ *    whole and the flight waits;
+ *  - no flight script is emitted until the `<body>` start tag has been
+ *    written (a headless fragment without one gets its scripts appended at
+ *    the end);
  *  - flight chunks are emitted in flight order;
  *  - the document's closing `</body></html>` trailer is held back (whole
  *    chunks from the first `</body>` evidence onward) and re-emitted after
@@ -30,12 +37,11 @@
  *    byte holdback would otherwise pin the shell until a later chunk large
  *    enough to cover the window arrived, defeating TTFB = shell flush.
  *
- * Contract limits (byte matching is structure-blind by design):
- *  - a literal `<body` in head-side content (a comment, a code sample) opens
- *    the flight gate early, and a literal `</body>` mid-document starts the
- *    trailer hold early (remaining HTML waits until the stream ends; scripts
- *    still land before the last `</body>`) — such documents get their
- *    scripts delayed or mis-placed (they still parse and execute);
+ * Contract limits (trailer matching is structure-blind by design):
+ *  - a literal `</body>` mid-document (a comment, a code sample) starts the
+ *    trailer hold early: the remaining HTML waits until the stream ends and
+ *    the scripts land before the last `</body>` — delayed, still parsed and
+ *    executed;
  *  - bytes appended after `</html>` by an upstream transform scroll the real
  *    trailer out of reach and scripts append at the very end instead;
  *  - the trailer is held until the flight stream ENDS: bound a stallable
@@ -52,11 +58,11 @@
  */
 import { bytesToBase64 } from "../utils/inlineFlight.js";
 import { INLINE_FLIGHT_STREAM_GLOBAL } from "../utils/inlineFlightId.js";
+import { createHtmlSpliceCursor } from "./htmlSpliceCursor.js";
 
 const encoder = new TextEncoder();
 
 const BODY_CLOSE = new Uint8Array([0x3c, 0x2f, 0x62, 0x6f, 0x64, 0x79, 0x3e]); // "</body>"
-const BODY_OPEN = new Uint8Array([0x3c, 0x62, 0x6f, 0x64, 0x79]); // "<body"
 
 // Nonce values are token-like by spec (base64ish); refuse anything that could
 // break out of the attribute.
@@ -103,17 +109,6 @@ function lastIndexOfBodyClose(bytes: Uint8Array): number {
   return -1;
 }
 
-/** Whether "<body" occurs anywhere in `bytes`. */
-function hasBodyOpen(bytes: Uint8Array): boolean {
-  outer: for (let i = 0; i + BODY_OPEN.byteLength <= bytes.byteLength; i++) {
-    for (let j = 0; j < BODY_OPEN.byteLength; j++) {
-      if (bytes[i + j] !== BODY_OPEN[j]) continue outer;
-    }
-    return true;
-  }
-  return false;
-}
-
 /**
  * Longest suffix of `bytes` that is a proper prefix of `</body>`. Non-zero
  * means the next chunk might complete a close tag that started here — hold
@@ -147,11 +142,12 @@ export function interleaveFlightIntoHtmlStream({
 }): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
-      // Scripts flush only once the emitted bytes have opened <body> — a
-      // script between </head> and <body> (or inside head) would be
-      // re-parented by the parser. Forced true once the HTML completes, so a
+      // Where the emitted HTML stands: scripts go in only where the cursor
+      // says a direct child of <body> can start. Once the HTML is complete
+      // the remaining flight is written before the trailer regardless, so a
       // headless fragment (no <body> at all) still gets its scripts appended.
-      let bodyOpen = false;
+      const cursor = createHtmlSpliceCursor();
+      let htmlDone = false;
       let failed = false;
       const pendingFlight: string[] = [];
 
@@ -161,16 +157,21 @@ export function interleaveFlightIntoHtmlStream({
         controller.error(error);
       };
 
-      const flushFlight = () => {
-        if (!bodyOpen || failed) return;
+      const writeFlight = () => {
         while (pendingFlight.length > 0) {
           controller.enqueue(chunkScript(pendingFlight.shift()!, nonce));
         }
       };
 
+      /** Write the pending flight here, if a script can start here. */
+      const flushFlight = () => {
+        if (failed) return;
+        if (htmlDone || cursor.canSplice()) writeFlight();
+      };
+
       // Flight pump runs concurrently with the HTML read loop below; chunks
       // that arrive while HTML is still flowing are injected at the next
-      // flush point, chunks after HTML ends are drained before the trailer.
+      // splice point, chunks after HTML ends are drained before the trailer.
       const flightPump = (async () => {
         const reader = flightStream.getReader();
         for (;;) {
@@ -185,15 +186,6 @@ export function interleaveFlightIntoHtmlStream({
 
       try {
         const reader = htmlStream.getReader();
-        // HTML chunks pass through WHOLE, in order — a script is only ever
-        // injected BETWEEN two producer chunks (or before the trailer), never
-        // inside one. React's renderer flushes at element boundaries, so a
-        // between-chunks position can't land inside a tag, attribute, or
-        // text run. (Slicing chunks to hold back the trailer — the previous
-        // design — put splice points at arbitrary byte offsets and mangled
-        // markup: a flight script once landed inside a bootstrap script's
-        // src attribute.)
-        //
         // Trailer holdback is evidence-gated, not a fixed byte window: emit
         // every chunk immediately until `</body>` (or a proper prefix of it
         // at a chunk boundary) appears, then hold from that chunk onward.
@@ -202,26 +194,27 @@ export function interleaveFlightIntoHtmlStream({
         // finished" for the common small-trailer case.
         const held: Uint8Array[] = [];
         let holdingTrailer = false;
-        // "<body" / "</body>" detection runs with a small overlap carry so a
-        // tag split across chunks is still seen.
-        let openCarry: Uint8Array = new Uint8Array(0);
+        // "</body>" detection runs with a small overlap carry so a close tag
+        // split across chunks is still seen.
         let closeCarry: Uint8Array = new Uint8Array(0);
-        const emitWhole = (chunk: Uint8Array) => {
-          if (bodyOpen) flushFlight(); // between-chunks injection point
-          controller.enqueue(chunk);
-          if (!bodyOpen) {
-            const scan = concatBytes(openCarry, chunk);
-            if (hasBodyOpen(scan)) {
-              // The chunk that opens <body> is the first safe flush point —
-              // drain any flight that arrived during head/shell production
-              // now, not on a later HTML chunk or finalization.
-              bodyOpen = true;
-              flushFlight();
+        // Pass an HTML chunk through. Flight pending at this boundary goes
+        // in here when the boundary is a splice point, else at the first
+        // splice point inside the chunk, else it waits for a later chunk.
+        const emit = (chunk: Uint8Array) => {
+          if (pendingFlight.length > 0 && !failed && !cursor.canSplice()) {
+            const at = cursor.scan(chunk);
+            if (at === -1) {
+              controller.enqueue(chunk);
+              return;
             }
-            openCarry = scan.subarray(
-              Math.max(0, scan.byteLength - (BODY_OPEN.byteLength - 1))
-            );
+            controller.enqueue(chunk.subarray(0, at));
+            writeFlight();
+            if (at < chunk.byteLength) controller.enqueue(chunk.subarray(at));
+            return;
           }
+          flushFlight();
+          cursor.scan(chunk);
+          controller.enqueue(chunk);
         };
         for (;;) {
           const { done, value } = await reader.read();
@@ -240,7 +233,7 @@ export function interleaveFlightIntoHtmlStream({
             held.push(value);
             continue;
           }
-          emitWhole(value);
+          emit(value);
           closeCarry = closeScan.subarray(
             Math.max(0, closeScan.byteLength - (BODY_CLOSE.byteLength - 1))
           );
@@ -249,16 +242,18 @@ export function interleaveFlightIntoHtmlStream({
         // HTML is complete: split the held window into content + trailer.
         // The split point is the last "</body>" — a tag boundary, so the
         // final injection position is exactly where the blob splice goes.
+        // The content goes out whole, flight after it: the HTML is finished,
+        // so an earlier splice point inside it would buy nothing.
         let tail: Uint8Array = new Uint8Array(0);
         for (const chunk of held) tail = concatBytes(tail, chunk);
         const trailerIdx = lastIndexOfBodyClose(tail);
         const content = trailerIdx === -1 ? tail : tail.subarray(0, trailerIdx);
         const trailer = trailerIdx === -1 ? null : tail.subarray(trailerIdx);
         if (content.byteLength > 0) {
-          if (bodyOpen) flushFlight();
+          cursor.scan(content);
           controller.enqueue(content);
         }
-        bodyOpen = true;
+        htmlDone = true;
         flushFlight();
 
         // Remaining flight (a slow producer keeps streaming after the HTML
