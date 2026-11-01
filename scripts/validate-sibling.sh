@@ -12,6 +12,8 @@
 # Usage:
 #   scripts/validate-sibling.sh <sibling-dir> [test-cmd...]
 #   scripts/validate-sibling.sh ../bidoof-template "npm run test:e2e"
+#   scripts/validate-sibling.sh ../mmc "npm run build"
+#   scripts/validate-sibling.sh ../vprs-starter "npm run typecheck && npm run build:vercel"
 #   SKIP_BUILD=1 scripts/validate-sibling.sh ../bidoof-template   # reuse current dist/pack
 #
 # Knobs:

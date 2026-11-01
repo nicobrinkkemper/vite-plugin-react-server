@@ -374,6 +374,7 @@
     "test:ui": "npm run setup:test-fixtures && vitest --ui",
     "test:bidoof-template": "cd ../bidoof-template && npm run build:preview",
     "test:mmc": "cd ../mmc && npm run build",
+    "test:vprs-starter": "cd ../vprs-starter && npm run typecheck && npm run build:vercel",
     "test:app-build": "cd ../bidoof-template && npx vite build --app; cd -",
     "test-parse": "node -e \"const acorn = require('acorn'); const ast = acorn.parse('export async function test() {}', { sourceType: 'module', ecmaVersion: 'latest' }); console.log(JSON.stringify(ast, null, 2));\"",
     "precoverage": "npm run build",

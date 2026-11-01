@@ -39,8 +39,9 @@ Run all of these in order. Stop at the first failure and fix it before publishin
 3. **Link the local build into each demo repo and run their builds and dev servers**:
    - `bidoof-template` (`~/code/bidoof-template`): change `vite-plugin-react-server` in `package.json` to `"file:../vite-plugin-react-server"`, run `npm install`, then run `npm run build:preview` AND start `npm run dev:rsc` (or equivalent) and confirm the home page renders. Restore `package.json`/`package-lock.json` afterwards.
    - `mmc` (`~/code/mmc`): same shape — link, build, smoke the dev server, restore.
+   - `vprs-starter` (`~/code/vprs-starter`): same shape — link, `npm run typecheck && npm run build:vercel`, restore. It is the only consumer of `runner: "edge"` + `transport: "webpack"` + `build: { inlineFlight: "stream" }`, so nothing else exercises that path.
 4. `npx playwright test` — runs against `bidoof-template` (linked) per `playwright.config.ts`. All e2e specs pass.
-5. `npm run test:bidoof-template` and `npm run test:mmc` from inside this repo (the convenience wrappers).
+5. `npm run test:bidoof-template`, `npm run test:mmc` and `npm run test:vprs-starter` from inside this repo (the convenience wrappers).
 
 Only then bump the version, push, and `npm publish`. The 2FA step is the human gate.
 
