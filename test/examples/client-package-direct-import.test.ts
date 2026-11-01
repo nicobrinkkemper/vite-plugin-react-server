@@ -63,6 +63,29 @@ export function FancyButton({ label }) {
 `
           );
 
+          // A dependency that is not a client package (no react peerDep, not
+          // listed): the RSC transform skips it, so the bundler gets its
+          // source as published, directive included. Only a client module
+          // imports it, so it bundles into the client graph like any library.
+          const plain = resolve(testDir, "node_modules", "plain-dep");
+          await mkdir(plain, { recursive: true });
+          await writeFile(
+            resolve(plain, "package.json"),
+            JSON.stringify({
+              name: "plain-dep",
+              version: "1.0.0",
+              type: "module",
+              main: "index.js",
+              exports: { ".": "./index.js" },
+            })
+          );
+          await writeFile(
+            resolve(plain, "index.js"),
+            `"use client";
+export const toolbarLabel = (name) => "plain-dep:" + name;
+`
+          );
+
           // First-party client module importing the package: this is what
           // pulls fake-ui into the CLIENT build graph so its directive module
           // is emitted (hosted) under dist/*/node_modules/fake-ui/. Without
@@ -73,9 +96,10 @@ export function FancyButton({ label }) {
             resolve(testDir, "src/components/Toolbar.client.tsx"),
             `import React from "react";
 import { FancyButton } from "fake-ui";
+import { toolbarLabel } from "plain-dep";
 
 export function Toolbar() {
-  return <FancyButton label="toolbar" />;
+  return <FancyButton label={toolbarLabel("toolbar")} />;
 }
 `
           );
@@ -134,6 +158,21 @@ export function Page() {
       .join("\n");
     expect(rscContent).toMatch(/I\[/);
     expect(rscContent).toContain("FancyButton");
+  });
+
+  it("bundles a dependency that is not a client package into the client graph", () => {
+    const clientLike = [
+      ...buildResult.clientChunks(),
+      ...buildResult.staticChunks(),
+    ];
+    expect(
+      clientLike.some(([, code]) => code.includes("plain-dep:"))
+    ).toBe(true);
+    const rscContent = buildResult
+      .rscFiles()
+      .map(([, content]) => content)
+      .join("\n");
+    expect(rscContent).not.toContain("toolbarLabel");
   });
 
   it("emits the package's directive module as a client chunk", () => {
