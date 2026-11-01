@@ -101,7 +101,7 @@ In every mode the `.rsc` files still serve later client-side navigations — whe
 
 ## Consistent Hashing
 
-With default hashing enabled, browser JavaScript chunks emitted by the bundler are named by Rollup's content hash, including virtual and dependency chunks. A host can cache these hashed URLs as immutable. Files copied from `public/`, HTML, RSC payloads, and custom output names without a content hash do not have this guarantee; do not apply an immutable rule to every `*.js` file. The client build runs first and records what it emitted in `dist/static/.vite/manifest.json`. The `ssr` and `server` builds read that manifest: a client component's file takes the same name in all three outputs, and that name is the module ID baked into the flight payload:
+With default hashing enabled, every browser file the bundler emits is named by Rollup's content hash: JavaScript chunks (virtual and dependency chunks included), stylesheets, and the images and fonts they reference. A stylesheet's hash covers what it inlines from `@import` and the hashed names of the files it `url()`s, so editing either renames it. A host can cache these hashed URLs as immutable. Files copied from `public/`, HTML, RSC payloads, and custom output names without a content hash do not have this guarantee; do not apply an immutable rule to every `*.js` file. The client build runs first and records what it emitted in `dist/static/.vite/manifest.json`. The `ssr` and `server` builds read that manifest: a client component's file takes the same name in all three outputs, and that name is the module ID baked into the flight payload:
 
 ```
 dist/static/components/Link.client-CnBCzH8H.js
@@ -109,7 +109,7 @@ dist/client/components/Link.client-CnBCzH8H.js
 dist/server/components/Link.client-CnBCzH8H.js
 ```
 
-So the ID resolves in the browser (`dist/static/`) and in Node (`dist/client/`). Building the `ssr` or `server` environment without the client build's manifest is an error; `vite build --app` builds them in order.
+So the ID resolves in the browser (`dist/static/`) and in Node (`dist/client/`). Stylesheets and other assets follow the same manifest: the `ssr` and `server` builds name each one as the client build did, so the `<link>` tags and flight payloads they write point at the files in `dist/static/`. Building the `ssr` or `server` environment without the client build's manifest is an error; `vite build --app` builds them in order.
 
 ## Redeploying with cached clients
 
@@ -129,7 +129,7 @@ cache, but cannot retrieve an older glue/binary pair once the host replaces it.
 ## CSS in the Output
 
 Stylesheets ride the same pipeline as the JS: the client build emits every
-imported CSS file as a hashed asset in `dist/static/assets/`. Static
+imported CSS file in `dist/static/assets/`, named by the hash of its bytes. Static
 generation then collects, per page, the CSS its chunks import and passes it
 to your `Html` and `Root` components as two maps of ready-to-render tag
 props: `cssFiles` (per-page) and `globalCss` (site-wide). Each entry is one
