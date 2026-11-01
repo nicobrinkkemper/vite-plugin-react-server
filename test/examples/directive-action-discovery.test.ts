@@ -124,7 +124,7 @@ describe("directive-marked action imported only by a client component", () => {
   });
 
   it("the browser bundle carries the call-server PROXY, not the SSR stub", () => {
-    const routesDir = join(testDir, "dist/static/routes");
+    const routesDir = join(testDir, "dist/static/assets/routes");
     const pingBundle = readdirSync(routesDir).find((f) =>
       f.startsWith("PingButton.client-")
     );

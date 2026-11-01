@@ -138,16 +138,17 @@ describe.skipIf(!isolatedLeg)("runner 'edge' build contract", () => {
   it("pins client-reference IDs across browser, SSR, RSC and edge after a dependency-only edit", async () => {
     async function snapshot() {
       const names = await Promise.all(["static", "client", "server"].map(async (env) => {
-        const files = await readdir(join(testDir, "dist", env, "routes"));
+        // A client reference's file sits under build.assetsDir in every output.
+        const files = await readdir(join(testDir, "dist", env, "assets", "routes"));
         const matches = files.filter((file) => /^Counter\.client-[a-z0-9]+\.js$/i.test(file));
         expect(matches, env).toHaveLength(1);
         return matches[0];
       }));
       expect(new Set(names).size).toBe(1);
-      const ref = `/routes/${names[0]}`;
+      const ref = `/assets/routes/${names[0]}`;
       // The emitted RSC reference, edge producer and baked SSR registry all
       // point at the exact browser filename, not merely an equal hash suffix.
-      for (const file of ["server/routes/" + names[0], "server-edge/render.js", "server-edge/consumer.js", "static/index.rsc"]) {
+      for (const file of ["server/assets/routes/" + names[0], "server-edge/render.js", "server-edge/consumer.js", "static/index.rsc"]) {
         expect(await readFile(join(testDir, "dist", file), "utf8"), file).toContain(ref);
       }
       return names[0];
