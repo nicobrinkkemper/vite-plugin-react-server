@@ -244,7 +244,9 @@ describe("stylesheet asset naming", () => {
       source: ".manual { color: teal; }\n",
     });
 
-    expect(viaUrl).toMatch(/^assets\/routes\/manual\/manual-[a-z0-9]+\.css$/);
+    // No client manifest here, so the name carries Rollup's [hash] of the
+    // emitted bytes, which Rollup fills in.
+    expect(viaUrl).toBe("assets/routes/manual/manual-[hash].css");
     expect(viaChunk).toBe(viaUrl);
     expect(viaUrl).not.toBe(entry);
   });
