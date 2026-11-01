@@ -12,13 +12,23 @@
  * boundary falls on an arbitrary byte, an attribute value included.
  *
  * This is a byte-level tokenizer of just the states that decide where a
- * script can start: text, inside a tag (with quoted attribute values), inside
- * a comment or declaration, and inside a raw-text element (script, style,
- * textarea, title and friends) until its end tag. It counts open elements —
- * void elements and `/>` open none — and notes the depth just inside the
- * `<body>` start tag. It is fed every emitted byte, in order, and answers two
- * questions: can a script start right here, and where inside a chunk about
- * to be emitted is the first position where one can.
+ * script can start, following the HTML tokenizer where it matters:
+ *  - tags with quoted attribute values; comments including the `<!-->`,
+ *    `<!--->` and `--!>` endings; `<!doctype>`, `<?…>` and `<!…>` bogus
+ *    comments that run to the next `>`;
+ *  - raw text and RCDATA elements (style, textarea, title, …) up to their end
+ *    tag, and script data with its escaped and double-escaped states: after
+ *    `<!--` a `<script` makes `</script` content until the matching one, and
+ *    `-->` ends the escape;
+ *  - foreign content (svg, math), where `<![CDATA[` runs to `]]>`, `/>`
+ *    closes the element, and no element is raw text; outside it `<![CDATA[`
+ *    is a bogus comment and `/>` means nothing;
+ *  - the open elements, as a stack of names: void elements open none, an end
+ *    tag closes the nearest element of its name and anything still open
+ *    inside it, a stray end tag closes nothing.
+ * It is fed every emitted byte, in order, and answers two questions: can a
+ * script start right here, and where inside a chunk about to be emitted is
+ * the first position where one can.
  *
  * A SPLICE POINT is a text-state position directly after the `>` that closed
  * a tag or a comment, with exactly `<body>`'s children open: the script lands
@@ -40,11 +50,18 @@ const DECL = 5; // just after "<!"
 const DECL_DASH = 6; // just after "<!-"
 const BOGUS = 7; // "<!doctype …>", "<?…>", "<!…>": runs to the next ">"
 const COMMENT = 8; // "<!-- … -->"
-const RAW_TEXT = 9; // inside script/style/…, until its end tag
+const CDATA_OPEN = 9; // "<![" in foreign content, matching the rest of "[CDATA["
+const CDATA = 10; // "<![CDATA[ … ]]>"
+const RAW_TEXT = 11; // inside style/textarea/…, until its end tag
+const SCRIPT = 12; // script data, plain or (double-)escaped
+const SCRIPT_LT = 13; // script data just after "<"
+const SCRIPT_ESCAPE_START = 14; // just after "<!"
+const SCRIPT_ESCAPE_START_DASH = 15; // just after "<!-"
+const SCRIPT_END_TAG = 16; // after "</": a name that may be the end tag
+const SCRIPT_DOUBLE_START = 17; // escaped, after "<" and a letter: a name that may be "script"
 
-/** Content read as text up to the matching end tag. */
+/** Content read as text up to the matching end tag (script data is handled apart). */
 const RAW_TEXT_ELEMENTS = new Set([
-  "script",
   "style",
   "textarea",
   "title",
@@ -73,12 +90,16 @@ const VOID_ELEMENTS = new Set([
   "wbr",
 ]);
 
+const CDATA_START = "[CDATA[";
+
 const LT = 0x3c; // <
 const GT = 0x3e; // >
 const SLASH = 0x2f; // /
 const BANG = 0x21; // !
 const QUESTION = 0x3f; // ?
 const DASH = 0x2d; // -
+const BRACKET_OPEN = 0x5b; // [
+const BRACKET_CLOSE = 0x5d; // ]
 const DOUBLE_QUOTE = 0x22;
 const SINGLE_QUOTE = 0x27;
 
@@ -98,6 +119,11 @@ function isAlpha(byte: number): boolean {
 
 function lower(byte: number): number {
   return byte >= 0x41 && byte <= 0x5a ? byte | 0x20 : byte;
+}
+
+/** Whitespace, "/" or ">": what may follow a tag name. */
+function endsName(byte: number): boolean {
+  return isSpace(byte) || byte === SLASH || byte === GT;
 }
 
 export interface HtmlSpliceCursor {
@@ -120,37 +146,63 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
   let name = ""; // its name so far, lowercased
   let readingName = false;
   let selfClosing = false; // the last byte inside the tag was "/"
-  let dashes = 0; // consecutive "-" inside a comment
+  let buf = ""; // a name or marker being matched, lowercased
+  let dashes = 0; // consecutive "-" in a comment or escaped script data
+  let bang = false; // a comment saw "--!"
+  let brackets = 0; // consecutive "]" in a CDATA section
+  let escape = 0; // script data: 0 plain, 1 escaped, 2 double-escaped
   let rawEnd = ""; // "</style": the end tag that leaves RAW_TEXT
   let rawPos = 0; // how much of rawEnd has matched
-  let depth = 0; // open elements
-  let bodyDepth = -1; // depth just inside <body>, -1 until it opens
+  const open: string[] = []; // open elements, outermost first
+  let bodyDepth = -1; // open.length just inside <body>, -1 until it opens
+  let foreignAt = -1; // index in `open` of the outermost svg/math, -1 outside
 
   const canSplice = (): boolean =>
-    state === TEXT && afterTagEnd && bodyDepth !== -1 && depth === bodyDepth;
+    state === TEXT &&
+    afterTagEnd &&
+    bodyDepth !== -1 &&
+    open.length === bodyDepth;
 
   /** The ">" that closes the tag being read. */
   const finishTag = (): void => {
     afterTagEnd = true;
     readingName = false;
+    state = TEXT;
     if (endTag) {
-      if (depth > 0) depth--;
-      state = TEXT;
+      // The nearest open element of that name closes, with anything still
+      // open inside it; a stray end tag closes nothing.
+      const at = open.lastIndexOf(name);
+      if (at !== -1) open.length = at;
+      if (foreignAt >= open.length) foreignAt = -1;
       return;
     }
-    if (selfClosing || VOID_ELEMENTS.has(name)) {
-      state = TEXT;
-      return;
-    }
-    depth++;
-    if (name === "body") bodyDepth = depth;
-    if (RAW_TEXT_ELEMENTS.has(name)) {
+    const foreign = foreignAt !== -1;
+    if (foreign ? selfClosing : VOID_ELEMENTS.has(name)) return;
+    if (name === "body" && bodyDepth !== -1) return; // a second <body> is ignored
+    open.push(name);
+    if (name === "body") bodyDepth = open.length;
+    if (foreign) return;
+    if (name === "svg" || name === "math") {
+      foreignAt = open.length - 1;
+    } else if (name === "script") {
+      state = SCRIPT;
+      escape = 0;
+      dashes = 0;
+    } else if (RAW_TEXT_ELEMENTS.has(name)) {
       state = RAW_TEXT;
       rawEnd = `</${name}`;
       rawPos = 0;
-    } else {
-      state = TEXT;
     }
+  };
+
+  /** The byte after "</name" in script data decided the name was a real end tag. */
+  const endScript = (byte: number): void => {
+    endTag = true;
+    name = "script";
+    readingName = false;
+    selfClosing = byte === SLASH;
+    state = TAG;
+    if (byte === GT) finishTag();
   };
 
   const feed = (byte: number): void => {
@@ -193,7 +245,7 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
           return;
         }
         if (readingName) {
-          if (isSpace(byte) || byte === SLASH) readingName = false;
+          if (endsName(byte)) readingName = false;
           else name += String.fromCharCode(lower(byte));
         }
         selfClosing = byte === SLASH;
@@ -206,7 +258,10 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
         return;
       case DECL:
         if (byte === DASH) state = DECL_DASH;
-        else if (byte === GT) {
+        else if (byte === BRACKET_OPEN && foreignAt !== -1) {
+          buf = "[";
+          state = CDATA_OPEN;
+        } else if (byte === GT) {
           afterTagEnd = true;
           state = TEXT;
         } else state = BOGUS;
@@ -215,6 +270,7 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
         if (byte === DASH) {
           // "<!-->" and "<!--->" close at once, as if "--" was just read.
           dashes = 2;
+          bang = false;
           state = COMMENT;
         } else if (byte === GT) {
           afterTagEnd = true;
@@ -228,11 +284,43 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
         }
         return;
       case COMMENT:
-        if (byte === DASH) dashes++;
-        else if (byte === GT && dashes >= 2) {
+        if (byte === DASH) {
+          dashes = bang ? 1 : Math.min(dashes + 1, 2);
+          bang = false;
+        } else if (byte === BANG && dashes >= 2 && !bang) {
+          bang = true;
+        } else if (byte === GT && dashes >= 2) {
           afterTagEnd = true;
           state = TEXT;
-        } else dashes = 0;
+        } else {
+          dashes = 0;
+          bang = false;
+        }
+        return;
+      case CDATA_OPEN:
+        // "<![" in foreign content: "[CDATA[" opens a CDATA section, anything
+        // else was a bogus comment, which the first ">" ends.
+        if (byte === GT) {
+          afterTagEnd = true;
+          state = TEXT;
+          return;
+        }
+        buf += String.fromCharCode(byte);
+        if (buf === CDATA_START) {
+          brackets = 0;
+          state = CDATA;
+        } else if (!CDATA_START.startsWith(buf)) {
+          state = BOGUS;
+        }
+        return;
+      case CDATA:
+        if (byte === BRACKET_CLOSE) {
+          if (brackets < 2) brackets++;
+        } else if (byte === GT && brackets >= 2) {
+          state = TEXT; // "]]>" ends a text run, not a tag
+        } else {
+          brackets = 0;
+        }
         return;
       case RAW_TEXT:
         if (rawPos === rawEnd.length) {
@@ -252,6 +340,87 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
         }
         if (lower(byte) === rawEnd.charCodeAt(rawPos)) rawPos++;
         else rawPos = byte === LT ? 1 : 0;
+        return;
+      case SCRIPT:
+        if (byte === LT) {
+          dashes = 0;
+          state = SCRIPT_LT;
+          return;
+        }
+        if (escape !== 0) {
+          // "-->" (after any number of dashes) ends both escaped states.
+          if (byte === DASH) {
+            if (dashes < 2) dashes++;
+            return;
+          }
+          if (byte === GT && dashes >= 2) escape = 0;
+          dashes = 0;
+        }
+        return;
+      case SCRIPT_LT:
+        if (byte === SLASH) {
+          buf = "";
+          state = SCRIPT_END_TAG;
+        } else if (byte === BANG && escape === 0) {
+          state = SCRIPT_ESCAPE_START;
+        } else if (isAlpha(byte) && escape === 1) {
+          buf = String.fromCharCode(lower(byte));
+          state = SCRIPT_DOUBLE_START;
+        } else {
+          state = SCRIPT;
+          feed(byte);
+        }
+        return;
+      case SCRIPT_ESCAPE_START:
+        if (byte === DASH) {
+          state = SCRIPT_ESCAPE_START_DASH;
+        } else {
+          state = SCRIPT;
+          feed(byte);
+        }
+        return;
+      case SCRIPT_ESCAPE_START_DASH:
+        if (byte === DASH) {
+          escape = 1;
+          dashes = 2;
+        }
+        state = SCRIPT;
+        if (byte !== DASH) feed(byte);
+        return;
+      case SCRIPT_END_TAG:
+        // "</" + letters: "script" ends the double-escaped state when in it,
+        // otherwise it is the element's end tag; any other name is content.
+        if (isAlpha(byte)) {
+          buf += String.fromCharCode(lower(byte));
+          return;
+        }
+        if (buf === "script" && endsName(byte)) {
+          if (escape === 2) {
+            escape = 1;
+            dashes = 0;
+            state = SCRIPT;
+          } else {
+            endScript(byte);
+          }
+          return;
+        }
+        dashes = 0;
+        state = SCRIPT;
+        feed(byte);
+        return;
+      case SCRIPT_DOUBLE_START:
+        // Escaped, "<" + letters: "script" enters the double-escaped state.
+        if (isAlpha(byte)) {
+          buf += String.fromCharCode(lower(byte));
+          return;
+        }
+        dashes = 0;
+        state = SCRIPT;
+        if (endsName(byte)) {
+          if (buf === "script") escape = 2;
+          return;
+        }
+        feed(byte);
         return;
     }
   };

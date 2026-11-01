@@ -36,7 +36,7 @@ describe("createHtmlSpliceCursor", () => {
 
   it("never inside a tag, an attribute value, a text run, or a nested element", () => {
     // The ">" in text and in quoted values closes nothing; "after" is text.
-    const root = `<div class="_electronBall_1pcsx_292" data-x='a>b'>hello > world<i>x</i></div>`;
+    const root = `<div class="_electronBall_1pcsx_292" data-x='a>b' title="c > d/>">hello > world<i>x</i></div>`;
     expect(segments(`<body>${root}after`)).toEqual(["<body>", root]);
   });
 
@@ -126,6 +126,90 @@ describe("createHtmlSpliceCursor", () => {
       "<body>",
       "<p>héllo ✓ wörld</p>",
       "<p>→</p>",
+    ]);
+  });
+
+  it("script data: <!--<script enters the double-escaped state, where </script> is content", () => {
+    // In script data "<!--" enters the escaped state and "<script" then the
+    // double-escaped state; a "</script" there only returns to escaped, so
+    // the element closes at the end tag after the string.
+    const script = `<script>globalThis.sample="<!--<script></script>";</script>`;
+    expect(segments(`<body>${script}<p>x</p>`)).toEqual([
+      "<body>",
+      script,
+      "<p>x</p>",
+    ]);
+  });
+
+  it("script data: --> leaves the escaped states, and <!-- alone does not protect </script>", () => {
+    const a = `<script>a="<!--<script>"; // --></script>`;
+    // Escaped but not double-escaped: the first </script> is the end tag, the
+    // rest is text and a stray end tag that opens and closes nothing.
+    const b = `<script>b="<!--"; c="</script>`;
+    expect(segments(`<body>${a}<p>x</p>${b}";</script><p>y</p>`)).toEqual([
+      "<body>",
+      a,
+      "<p>x</p>",
+      b,
+      `";</script>`,
+      "<p>y</p>",
+    ]);
+  });
+
+  it("foreign content: <![CDATA[ inside svg or math ends only at ]]>", () => {
+    const svg = `<svg><![CDATA[a > </svg> b]]></svg>`;
+    const math = `<math><![CDATA[ > ]]></math>`;
+    expect(segments(`<body>${svg}<p>x</p>${math}<p>y</p>`)).toEqual([
+      "<body>",
+      svg,
+      "<p>x</p>",
+      math,
+      "<p>y</p>",
+    ]);
+  });
+
+  it("outside foreign content <![CDATA[ is a bogus comment that ends at the first >", () => {
+    expect(segments(`<body><![CDATA[x > y]]><p>z</p>`)).toEqual([
+      "<body>",
+      "<![CDATA[x >",
+      " y]]><p>z</p>",
+    ]);
+  });
+
+  it("foreign content: /> closes the element; title, style and script in svg are ordinary elements", () => {
+    const svg = `<svg viewBox="0 0 1 1"><path d="M0 0"/><title>a > b</title><style>c > d</style><script>1 < 2</script></svg>`;
+    expect(segments(`<body>${svg}<p>x</p>`)).toEqual(["<body>", svg, "<p>x</p>"]);
+  });
+
+  it("comments: <!-->, <!---> and --!> all close", () => {
+    expect(
+      segments(`<body><!--><p>a</p><!---><p>b</p><!-- x --!><p>c</p>`)
+    ).toEqual([
+      "<body>",
+      "<!-->",
+      "<p>a</p>",
+      "<!--->",
+      "<p>b</p>",
+      "<!-- x --!>",
+      "<p>c</p>",
+    ]);
+  });
+
+  it("<? opens a bogus comment that ends at the first >", () => {
+    expect(segments(`<body><?php echo "<p>" ?><p>a</p>`)).toEqual([
+      "<body>",
+      `<?php echo "<p>`,
+      `" ?><p>a</p>`,
+    ]);
+  });
+
+  it("textarea is RCDATA: no comments, no escaping; a stray end tag opens and closes nothing", () => {
+    const area = `<textarea><!--</textarea>`;
+    expect(segments(`<body>${area}--></textarea><p>x</p>`)).toEqual([
+      "<body>",
+      area,
+      "--></textarea>",
+      "<p>x</p>",
     ]);
   });
 });

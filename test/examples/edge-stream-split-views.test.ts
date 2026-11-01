@@ -40,6 +40,13 @@ if (!browserAvailable && process.env["VPRS_REQUIRE_BROWSER"]) {
 const testDir = resolve(__dirname, "../fixtures/edge-stream-split-views.test");
 const PORT = 4191;
 const CELLS = 600; // ~45 KB of markup: ten view boundaries, almost all inside a tag
+// Two places the tokenizer must read as content, not as a tag end: script
+// data in the double-escaped state, and a CDATA section in foreign content
+// (the browser serializes the parsed CDATA as escaped text, which React's dev
+// hydration would report as an innerHTML mismatch; that warning is unrelated
+// and suppressed on the element).
+const INLINE_SCRIPT = 'globalThis.sample="<!--<script></script>";';
+const CDATA = "<![CDATA[a > </svg> b]]>";
 
 const MIME: Record<string, string> = {
   ".js": "text/javascript",
@@ -74,6 +81,8 @@ async function setupFixture() {
       `  <div id="app">\n` +
       `    <h1>{"split-views"}</h1>\n` +
       `    <Counter />\n` +
+      `    <script dangerouslySetInnerHTML={{ __html: ${JSON.stringify(INLINE_SCRIPT)} }} />\n` +
+      `    <svg width="1" height="1" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: ${JSON.stringify(CDATA)} }} />\n` +
       `    <div id="grid">{cells}</div>\n` +
       `  </div>\n` +
       `);\n`
@@ -195,6 +204,9 @@ describe.skipIf(!createEdgeHandler || !browserAvailable)(
       }
       expect(rawHtml).toContain(".push(null)");
       expect(rawHtml.trimEnd().endsWith("</html>")).toBe(true);
+      // Nothing was written into the inline script's string or the CDATA.
+      expect(rawHtml).toContain(`<script>${INLINE_SCRIPT}</script>`);
+      expect(rawHtml).toContain(`${CDATA}</svg>`);
     });
 
     it("hydrates from the streamed payload: interactive, error-free, no /index.rsc fetch", async () => {
@@ -231,6 +243,11 @@ describe.skipIf(!createEdgeHandler || !browserAvailable)(
         );
         expect(await counter.textContent()).toMatch(/^count:[1-9]/);
         expect(await page.locator("#grid .cell").count()).toBe(CELLS);
+        // The inline script ran whole, and the CDATA stayed one text node.
+        expect(await page.evaluate(() => (globalThis as any).sample)).toBe(
+          '<!--<script></script>'
+        );
+        expect(await page.locator("svg").textContent()).toBe("a > </svg> b");
 
         // No lost payload (#412 "Connection closed"), no hydration mismatch
         // (#418/#423/#425) and no error of any kind.
