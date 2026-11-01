@@ -22,7 +22,10 @@
  *    `-->` ends the escape;
  *  - foreign content (svg, math), where `<![CDATA[` runs to `]]>`, `/>`
  *    closes the element, and no element is raw text; outside it `<![CDATA[`
- *    is a bogus comment and `/>` means nothing;
+ *    is a bogus comment and `/>` means nothing. The HTML rules return inside
+ *    an integration point (svg foreignObject, desc and title; MathML mi, mo,
+ *    mn, ms, mtext, and annotation-xml with an HTML encoding) until a nested
+ *    svg or math opens again;
  *  - the open elements, as a stack of names: void elements open none, an end
  *    tag closes the nearest element of its name and anything still open
  *    inside it, a stray end tag closes nothing.
@@ -92,6 +95,13 @@ const VOID_ELEMENTS = new Set([
 
 const CDATA_START = "[CDATA[";
 
+/** svg children whose content is HTML again. */
+const SVG_INTEGRATION_POINTS = new Set(["foreignobject", "desc", "title"]);
+/** MathML text integration points; annotation-xml is one with an HTML encoding. */
+const MATH_INTEGRATION_POINTS = new Set(["mi", "mo", "mn", "ms", "mtext"]);
+const ENCODING_ATTR_RE = /(?:^|\s)encoding\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
+const HTML_ENCODINGS = new Set(["text/html", "application/xhtml+xml"]);
+
 const LT = 0x3c; // <
 const GT = 0x3e; // >
 const SLASH = 0x2f; // /
@@ -153,9 +163,30 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
   let escape = 0; // script data: 0 plain, 1 escaped, 2 double-escaped
   let rawEnd = ""; // "</style": the end tag that leaves RAW_TEXT
   let rawPos = 0; // how much of rawEnd has matched
-  const open: string[] = []; // open elements, outermost first
+  let attrs = ""; // the attribute text of an annotation-xml tag being read
+  // Open elements, outermost first: the name, the foreign namespace it is in
+  // (null for HTML) and whether its children are parsed as foreign content.
+  const open: Array<{
+    name: string;
+    ns: "svg" | "math" | null;
+    foreignChildren: boolean;
+  }> = [];
   let bodyDepth = -1; // open.length just inside <body>, -1 until it opens
-  let foreignAt = -1; // index in `open` of the outermost svg/math, -1 outside
+
+  /** Whether the current position is in foreign content. */
+  const inForeign = (): boolean =>
+    open.length > 0 && open[open.length - 1].foreignChildren;
+
+  /** An element of `ns` whose children are parsed as HTML again. */
+  const isIntegrationPoint = (ns: "svg" | "math" | null): boolean => {
+    if (ns === "svg") return SVG_INTEGRATION_POINTS.has(name);
+    if (ns !== "math") return false;
+    if (MATH_INTEGRATION_POINTS.has(name)) return true;
+    if (name !== "annotation-xml") return false;
+    const m = ENCODING_ATTR_RE.exec(attrs);
+    const encoding = (m?.[1] ?? m?.[2] ?? m?.[3] ?? "").toLowerCase();
+    return HTML_ENCODINGS.has(encoding);
+  };
 
   const canSplice = (): boolean =>
     state === TEXT &&
@@ -171,20 +202,31 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
     if (endTag) {
       // The nearest open element of that name closes, with anything still
       // open inside it; a stray end tag closes nothing.
-      const at = open.lastIndexOf(name);
-      if (at !== -1) open.length = at;
-      if (foreignAt >= open.length) foreignAt = -1;
+      for (let at = open.length - 1; at >= 0; at--) {
+        if (open[at].name === name) {
+          open.length = at;
+          break;
+        }
+      }
       return;
     }
-    const foreign = foreignAt !== -1;
+    const foreign = inForeign();
     if (foreign ? selfClosing : VOID_ELEMENTS.has(name)) return;
     if (name === "body" && bodyDepth !== -1) return; // a second <body> is ignored
-    open.push(name);
-    if (name === "body") bodyDepth = open.length;
-    if (foreign) return;
+    if (foreign) {
+      // A child of a foreign element stays in its namespace; an integration
+      // point's own tag is foreign, its children are HTML.
+      const ns = open[open.length - 1].ns;
+      open.push({ name, ns, foreignChildren: !isIntegrationPoint(ns) });
+      return;
+    }
     if (name === "svg" || name === "math") {
-      foreignAt = open.length - 1;
-    } else if (name === "script") {
+      open.push({ name, ns: name, foreignChildren: true });
+      return;
+    }
+    open.push({ name, ns: null, foreignChildren: false });
+    if (name === "body") bodyDepth = open.length;
+    if (name === "script") {
       state = SCRIPT;
       escape = 0;
       dashes = 0;
@@ -223,6 +265,7 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
           name = String.fromCharCode(lower(byte));
           readingName = true;
           selfClosing = false;
+          attrs = "";
           state = TAG;
         } else if (byte === BANG) {
           state = DECL;
@@ -238,6 +281,9 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
           finishTag();
           return;
         }
+        if (!readingName && name === "annotation-xml") {
+          attrs += String.fromCharCode(byte);
+        }
         if (byte === DOUBLE_QUOTE || byte === SINGLE_QUOTE) {
           readingName = false;
           selfClosing = false;
@@ -251,14 +297,15 @@ export function createHtmlSpliceCursor(): HtmlSpliceCursor {
         selfClosing = byte === SLASH;
         return;
       case ATTR_DOUBLE:
-        if (byte === DOUBLE_QUOTE) state = TAG;
-        return;
       case ATTR_SINGLE:
-        if (byte === SINGLE_QUOTE) state = TAG;
+        if (name === "annotation-xml") attrs += String.fromCharCode(byte);
+        if (byte === (state === ATTR_DOUBLE ? DOUBLE_QUOTE : SINGLE_QUOTE)) {
+          state = TAG;
+        }
         return;
       case DECL:
         if (byte === DASH) state = DECL_DASH;
-        else if (byte === BRACKET_OPEN && foreignAt !== -1) {
+        else if (byte === BRACKET_OPEN && inForeign()) {
           buf = "[";
           state = CDATA_OPEN;
         } else if (byte === GT) {

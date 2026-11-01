@@ -212,4 +212,80 @@ describe("createHtmlSpliceCursor", () => {
       "<p>x</p>",
     ]);
   });
+
+  it("HTML integration points: inside foreignObject, desc and title the HTML rules return", () => {
+    // A script there is script data again, so a "</svg>" in its string is
+    // content; void elements open nothing and "/>" on a div is ignored.
+    const fo = `<svg><foreignObject><script>a="</svg>";</script><div/><br></foreignObject></svg>`;
+    const desc = `<svg><desc><script>b="</svg>";</script></desc></svg>`;
+    const title = `<svg><title><style>c > d</style></title></svg>`;
+    expect(segments(`<body>${fo}<p>x</p>${desc}<p>y</p>${title}<p>z</p>`)).toEqual([
+      "<body>",
+      fo,
+      "<p>x</p>",
+      desc,
+      "<p>y</p>",
+      title,
+      "<p>z</p>",
+    ]);
+  });
+
+  it("scan: a producer cut inside a foreignObject script's string offers no splice point before the real end tags", () => {
+    const cursor = createHtmlSpliceCursor();
+    const chunk1 = encoder.encode(`<body><svg><foreignObject><script>a="</sv`);
+    const chunk2 = encoder.encode(`g>";</script></foreignObject></svg><p>x</p>`);
+    expect(cursor.scan(chunk1)).toBe("<body>".length);
+    expect(cursor.canSplice()).toBe(false);
+    expect(cursor.scan(chunk2)).toBe(`g>";</script></foreignObject></svg>`.length);
+  });
+
+  it("inside foreignObject <![CDATA[ is a bogus comment again; a nested <svg> resumes CDATA", () => {
+    // The bogus comment ends at the first ">", so the end tags after it are
+    // real and close the svg; the rest is text and stray end tags.
+    expect(
+      segments(`<body><svg><foreignObject><![CDATA[ > </foreignObject></svg> ]]></foreignObject></svg><p>z</p>`)
+    ).toEqual([
+      "<body>",
+      "<svg><foreignObject><![CDATA[ > </foreignObject></svg>",
+      " ]]></foreignObject>",
+      "</svg>",
+      "<p>z</p>",
+    ]);
+    const nested = `<svg><foreignObject><svg><![CDATA[ > </svg> ]]></svg></foreignObject></svg>`;
+    expect(segments(`<body>${nested}<p>x</p>`)).toEqual(["<body>", nested, "<p>x</p>"]);
+  });
+
+  it("MathML text integration points: a script inside mtext (mi, mo, mn, ms) is script data", () => {
+    const math = `<math><mtext><script>a="</math>";</script></mtext><mi><script>b="</math>";</script></mi></math>`;
+    expect(segments(`<body>${math}<p>x</p>`)).toEqual(["<body>", math, "<p>x</p>"]);
+  });
+
+  it("annotation-xml is an integration point only with an HTML encoding", () => {
+    const html = `<math><annotation-xml encoding="text/html"><script>a="</math>";</script></annotation-xml></math>`;
+    const xhtml = `<math><annotation-xml encoding='Application/XHTML+XML'><script>b="</math>";</script></annotation-xml></math>`;
+    expect(segments(`<body>${html}<p>x</p>${xhtml}<p>y</p>`)).toEqual([
+      "<body>",
+      html,
+      "<p>x</p>",
+      xhtml,
+      "<p>y</p>",
+    ]);
+    // Any other encoding keeps the children foreign: the script is an
+    // ordinary element and the "</math>" in its text is a real end tag.
+    expect(
+      segments(`<body><math><annotation-xml encoding="MathML-Content"><script>c="</math>";</script></annotation-xml></math><p>z</p>`)
+    ).toEqual([
+      "<body>",
+      `<math><annotation-xml encoding="MathML-Content"><script>c="</math>`,
+      `";</script>`,
+      "</annotation-xml>",
+      "</math>",
+      "<p>z</p>",
+    ]);
+  });
+
+  it("an integration point's own tag is foreign: <foreignObject/> opens no level", () => {
+    const svg = `<svg><foreignObject/><circle r="1"/></svg>`;
+    expect(segments(`<body>${svg}<p>x</p>`)).toEqual(["<body>", svg, "<p>x</p>"]);
+  });
 });

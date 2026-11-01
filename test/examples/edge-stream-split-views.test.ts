@@ -47,6 +47,9 @@ const CELLS = 600; // ~45 KB of markup: ten view boundaries, almost all inside a
 // and suppressed on the element).
 const INLINE_SCRIPT = 'globalThis.sample="<!--<script></script>";';
 const CDATA = "<![CDATA[a > </svg> b]]>";
+// And an HTML integration point: inside foreignObject a script is script data
+// again, so the "</svg>" in its string is content.
+const FOREIGN_SCRIPT = '<foreignObject><script>globalThis.inner="</svg>";</script></foreignObject>';
 
 const MIME: Record<string, string> = {
   ".js": "text/javascript",
@@ -83,6 +86,7 @@ async function setupFixture() {
       `    <Counter />\n` +
       `    <script dangerouslySetInnerHTML={{ __html: ${JSON.stringify(INLINE_SCRIPT)} }} />\n` +
       `    <svg width="1" height="1" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: ${JSON.stringify(CDATA)} }} />\n` +
+      `    <svg width="1" height="1" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: ${JSON.stringify(FOREIGN_SCRIPT)} }} />\n` +
       `    <div id="grid">{cells}</div>\n` +
       `  </div>\n` +
       `);\n`
@@ -207,6 +211,7 @@ describe.skipIf(!createEdgeHandler || !browserAvailable)(
       // Nothing was written into the inline script's string or the CDATA.
       expect(rawHtml).toContain(`<script>${INLINE_SCRIPT}</script>`);
       expect(rawHtml).toContain(`${CDATA}</svg>`);
+      expect(rawHtml).toContain(`${FOREIGN_SCRIPT}</svg>`);
     });
 
     it("hydrates from the streamed payload: interactive, error-free, no /index.rsc fetch", async () => {
@@ -247,7 +252,8 @@ describe.skipIf(!createEdgeHandler || !browserAvailable)(
         expect(await page.evaluate(() => (globalThis as any).sample)).toBe(
           '<!--<script></script>'
         );
-        expect(await page.locator("svg").textContent()).toBe("a > </svg> b");
+        expect(await page.locator("svg").first().textContent()).toBe("a > </svg> b");
+        expect(await page.evaluate(() => (globalThis as any).inner)).toBe("</svg>");
 
         // No lost payload (#412 "Connection closed"), no hydration mismatch
         // (#418/#423/#425) and no error of any kind.
