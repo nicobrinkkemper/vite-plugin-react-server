@@ -3,7 +3,14 @@ import { createCallServer, type CallServerHooks } from "./createCallServer.js";
 import { loadBrowserFlightClient } from "./flightClient.browser.js";
 import { env } from "#env";
 import { createPageURL } from "./urls.js";
-import { takeStreamedFlight } from "./streamedFlight.js";
+import {
+  discardStreamedFlight,
+  takeStreamedFlight,
+} from "./streamedFlight.js";
+import {
+  inlineFlightDocumentURL,
+  inlineFlightMatches,
+} from "./inlineFlightUrl.js";
 import {
   INLINE_FLIGHT_ID,
   INLINE_FLIGHT_LENGTH_ATTR,
@@ -12,8 +19,26 @@ import {
 // The static build can inline the initial route's flight payload into the HTML
 // (see inlineFlightPayload). Consume it exactly once — for the first fetch after
 // load, i.e. the initial route's render — then fall back to the network for
-// client navigations, whose payloads aren't inlined.
+// client navigations, whose payloads aren't inlined. The first fetch only gets
+// it when it asks for the URL the document was served for (inlineFlightUrl.ts);
+// a first fetch for another URL discards it, so it can't surface later as a
+// stale answer either.
 let inlineFlightConsumed = false;
+let inlineFlightDecided = false;
+
+/**
+ * Settle, on the first fetch, whether this document's inline payload (either
+ * delivery shape) is the answer to it. A mismatch drops both shapes for good.
+ */
+function decideInlineFlight(requested: string, basePath: string): void {
+  if (inlineFlightDecided) return;
+  inlineFlightDecided = true;
+  if (inlineFlightMatches(requested, inlineFlightDocumentURL(), basePath)) {
+    return;
+  }
+  inlineFlightConsumed = true;
+  discardStreamedFlight();
+}
 
 /**
  * Decode the payload, but only if the element actually holds the whole thing.
@@ -93,6 +118,15 @@ function takeInlineFlight(): Uint8Array | PromiseLike<Uint8Array | null> | null 
   });
 }
 
+function basePathOf(moduleBaseURL: string): string {
+  try {
+    const path = new URL(moduleBaseURL, "http://vprs.invalid").pathname;
+    return path.endsWith("/") ? path : `${path}/`;
+  } catch {
+    return "/";
+  }
+}
+
 export function createReactFetcher({
   moduleBaseURL = env.BASE_URL,
   publicOrigin = env.PUBLIC_ORIGIN,
@@ -152,6 +186,7 @@ export function createReactFetcher({
   // base feeds action-response decodes through callServer, which keeps those
   // references coherent too.
   const flightBaseURL = parsedURL.moduleBaseURL.replace(/\/+$/, "");
+  decideInlineFlight(url, basePathOf(parsedURL.moduleBaseURL));
   const decodeOptions = {
     callServer: createCallServer(flightBaseURL, callServerHooks),
     moduleBaseURL: flightBaseURL,

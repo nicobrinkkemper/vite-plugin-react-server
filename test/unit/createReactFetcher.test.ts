@@ -310,3 +310,104 @@ describe("createReactFetcher inline flight payload", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * The inline payload answers the request that produced the document. A first
+ * fetch for ANOTHER url (a page whose client shows an inner route on first
+ * load) must go to the network, and the payload must not be handed to a later
+ * fetch either: only the first fetch may take it.
+ */
+describe("createReactFetcher inline flight url match", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const ask = (createReactFetcher: any, url: string, moduleBaseURL = "/") =>
+    createReactFetcher({ url, moduleBaseURL, publicOrigin: "http://localhost" });
+
+  const at = (pathname: string, search = "") =>
+    vi.stubGlobal("window", { location: { pathname, search } });
+
+  it("does not hand the payload to a first fetch for another url", async () => {
+    at("/stage/projects/");
+    const createReactFetcher = await importFetcher();
+    vi.stubGlobal("document", stubDocument().document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    ignore(ask(createReactFetcher, "/projects/"));
+    await settle();
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(String((globalThis.fetch as any).mock.calls[0][0])).toMatch(
+      /\/projects\/index\.rsc$/
+    );
+  });
+
+  it("keeps the payload away from a later fetch for the document url", async () => {
+    at("/stage/projects/");
+    const createReactFetcher = await importFetcher();
+    vi.stubGlobal("document", stubDocument().document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    ignore(ask(createReactFetcher, "/projects/"));
+    ignore(ask(createReactFetcher, "/stage/projects/"));
+    await settle();
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("still adopts the payload for the document url, under a deploy base", async () => {
+    at("/app/about/");
+    const createReactFetcher = await importFetcher();
+    vi.stubGlobal("document", stubDocument().document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    ignore(ask(createReactFetcher, "/about", "/app/"));
+    await settle();
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("judges by the url the document was served for, not a rewritten address", async () => {
+    // Client code rewrote the address before the first fetch; the navigation
+    // entry still names the url the server rendered.
+    at("/about/");
+    vi.stubGlobal("performance", {
+      getEntriesByType: (type: string) =>
+        type === "navigation" ? [{ name: "http://localhost/" }] : [],
+    });
+    const createReactFetcher = await importFetcher();
+    vi.stubGlobal("document", stubDocument().document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    ignore(ask(createReactFetcher, "/about/"));
+    await settle();
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a streamed payload for another url and swallows its late chunks", async () => {
+    at("/stage/projects/");
+    const G = globalThis as Record<string, unknown>;
+    G.__vprsFlightChunks = [btoa('0:"stage"\n')];
+    try {
+      const createReactFetcher = await importFetcher();
+      vi.stubGlobal("document", {
+        readyState: "loading",
+        getElementById: () => null,
+        addEventListener: () => {},
+      });
+      globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+      ignore(ask(createReactFetcher, "/projects/"));
+      await settle();
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      const arr = G.__vprsFlightChunks as unknown[];
+      arr.push("late");
+      expect(arr).toHaveLength(0);
+    } finally {
+      delete G.__vprsFlightChunks;
+    }
+  });
+});

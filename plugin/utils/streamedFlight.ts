@@ -79,6 +79,18 @@ function adoptChunkArray(arr: FlightChunkArray): ReadableStream<Uint8Array> {
 }
 
 /**
+ * Give up on the streamed flight without reading it: the first fetch asked for
+ * a different URL than the document was rendered for. Later fetches go to the
+ * network as usual, and chunk scripts still to come are dropped instead of
+ * piling up unread (they push into whatever array the global holds).
+ */
+export function discardStreamedFlight(): void {
+  streamedFlightConsumed = true;
+  const drop = Object.assign([] as FlightChunkArray, { push: () => 0 });
+  (globalThis as Record<string, unknown>)[INLINE_FLIGHT_STREAM_GLOBAL] = drop;
+}
+
+/**
  * Take the streamed flight, if this document delivers one.
  *
  * Synchronous `ReadableStream` when chunk scripts have already executed; a
