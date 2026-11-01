@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { interleaveFlightIntoHtmlStream } from "../../plugin/stream/interleaveFlightIntoHtml.js";
+import { createHtmlSpliceCursor } from "../../plugin/stream/htmlSpliceCursor.js";
 import { INLINE_FLIGHT_STREAM_GLOBAL } from "../../plugin/utils/inlineFlightId.js";
 
 const encoder = new TextEncoder();
@@ -59,6 +60,25 @@ function extractPushes(html: string): Array<string | null> {
 
 function stripScripts(html: string): string {
   return html.replace(SCRIPT_RE, "");
+}
+
+/** Where each injected script starts, in the coordinates of the HTML without them. */
+function scriptPositions(out: string): number[] {
+  return [...out.matchAll(SCRIPT_RE)].map(
+    (m) => stripScripts(out.slice(0, m.index!)).length
+  );
+}
+
+/** Every offset in an ASCII document where a body-level script may start. */
+function splicePointsOf(doc: string): number[] {
+  const bytes = encoder.encode(doc);
+  const cursor = createHtmlSpliceCursor();
+  const points: number[] = [];
+  for (let i = 0; i < bytes.length; i++) {
+    cursor.scan(bytes.subarray(i, i + 1));
+    if (cursor.canSplice()) points.push(i + 1);
+  }
+  return points;
 }
 
 const SHELL = `<html><head><title>t</title></head><body><div id="root">hello</div>`;
@@ -136,14 +156,15 @@ describe("interleaveFlightIntoHtmlStream", () => {
     expect(out.lastIndexOf("</script>")).toBeLessThan(out.lastIndexOf(TRAILER));
   });
 
-  it("never splices a script INSIDE a producer chunk (the mid-tag regression)", async () => {
+  it("never splices a script inside a tag when a chunk flushes with the flight pending (the mid-tag regression)", async () => {
     // The real-browser failure this guards: a flight chunk pending while a
-    // big HTML chunk flushes must NOT be spliced into the middle of it (the
-    // old byte-offset holdback once landed a script inside a bootstrap
-    // script's src attribute). Scripts may appear only at producer chunk
-    // boundaries or the final </body> position.
+    // big HTML chunk flushes must NOT be written into the middle of a tag
+    // (the old byte-offset holdback once landed a script inside a bootstrap
+    // script's src attribute). A script may start only after a tag end that
+    // leaves just <body>'s children open.
     const chunk1 = `<html><head></head><body><div>${"x".repeat(200)}</div>`;
     const chunk2 = `<link href="/index-abc123.js"><script src="/index-abc123.js" async></script>`;
+    const doc = chunk1 + chunk2 + TRAILER;
     const out = decodeAll(
       await collect(
         interleaveFlightIntoHtmlStream({
@@ -153,23 +174,56 @@ describe("interleaveFlightIntoHtmlStream", () => {
         })
       )
     );
-    expect(stripScripts(out)).toBe(chunk1 + chunk2 + TRAILER);
-    // Every injected script sits at a chunk boundary or the trailer seam.
-    const boundaries = new Set([
-      chunk1.length,
-      chunk1.length + chunk2.length, // == trailer seam here
-    ]);
-    const stripped = stripScripts(out);
-    let cursor = 0;
-    for (const m of out.matchAll(SCRIPT_RE)) {
-      const at = m.index!;
-      // Position of this script in ORIGINAL (stripped) coordinates.
-      const before = stripScripts(out.slice(0, at));
-      expect(boundaries.has(before.length)).toBe(true);
-      cursor = at;
+    expect(stripScripts(out)).toBe(doc);
+    const positions = scriptPositions(out);
+    expect(positions.length).toBeGreaterThan(0); // scripts were actually injected
+    for (const at of positions) expect(splicePointsOf(doc)).toContain(at);
+  });
+
+  it("splices only at body-level tag ends when producer chunks split tokens (React's fixed-size views)", async () => {
+    // React's edge renderer fills 4096-byte views and ends a view on whatever
+    // byte comes next, an attribute value included. A flight chunk pending at
+    // such a boundary used to be written right there, as attribute text that
+    // never ran: on vprs-starter's per-request "/" the whole payload sat
+    // inside a class attribute and hydration failed with React #412. Cut a
+    // tag-dense document so that every piece ends inside a class attribute,
+    // interleave a flight, and require every script to sit after a tag end
+    // with only <body>'s children open.
+    const rows = (n: number) =>
+      Array.from(
+        { length: n },
+        (_, i) => `<p class="cell cell-${i}" data-i="${i}">row ${i}</p>`
+      ).join("");
+    const doc =
+      `<!DOCTYPE html><html><head><title>t</title></head><body>` +
+      `<div id="root">${rows(20)}</div><div id="aside">${rows(20)}</div>` +
+      `<script>$RC("B:0","S:0")</script>${TRAILER}`;
+    const pieces = doc.split(/(?=cell-\d+")/);
+    expect(pieces.length).toBeGreaterThan(30);
+    for (const piece of pieces.slice(0, -1)) {
+      expect(piece.endsWith(`<p class="cell `)).toBe(true);
     }
-    expect(cursor).toBeGreaterThan(0); // scripts were actually injected
-    void stripped;
+    const flightChunks = Array.from({ length: 12 }, (_, i) => `flight-${i}`);
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf(pieces, 1),
+          flightStream: streamOf(flightChunks, 2),
+        })
+      )
+    );
+    expect(stripScripts(out)).toBe(doc);
+    const pushes = extractPushes(out);
+    expect(pushes.slice(0, -1).map((p) => atob(p!))).toEqual(flightChunks);
+    expect(pushes[pushes.length - 1]).toBeNull();
+    const allowed = splicePointsOf(doc);
+    expect(allowed).toEqual([
+      doc.indexOf("<body>") + "<body>".length,
+      doc.indexOf(`</div><div id="aside">`) + "</div>".length,
+      doc.indexOf("</div><script>") + "</div>".length,
+      doc.indexOf("</script>") + "</script>".length,
+    ]);
+    for (const at of scriptPositions(out)) expect(allowed).toContain(at);
   });
 
   it("reassembles multi-byte text intact (whole-chunk pass-through)", async () => {
