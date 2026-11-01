@@ -953,7 +953,12 @@ export interface StreamPluginOptions<
          */
         nodePattern?: RegExpOpt;
         /**
-         * Pattern to match vendor files. No interpolation support.
+         * Pattern to match vendor files, which the RSC transform skips unless
+         * the package is in `clientPackages`. The transform tests it against
+         * the module id, its path relative to the project root, and that
+         * path from its first `node_modules/` directory (forward slashes, no
+         * query), so the default `/^\/node_modules\//` matches installed
+         * dependencies. No interpolation support.
          * @example ```ts
          * autoDiscover: {
          *   vendorPattern: /node_modules|_virtual/

@@ -22,6 +22,7 @@ import { detectClientModule, analyzeModule } from "react-server-loader/directive
 // order:post once JSX is compiled away) and version-independent.
 import { parse as rslParse } from "react-server-loader";
 import { isViteInjectedCode } from "../loader/isViteInjectedCode.js";
+import { isVendorModule } from "./isVendorModule.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -77,6 +78,9 @@ export const createTransformerPlugin = (
     // emit here is NOT re-scanned for `import.meta.env` replacement — a literal
     // base is the robust way to give callServer its base URL.
     let viteBase = "/";
+    // Vite's root, captured at configResolved: vendorPattern is matched
+    // against the id relative to it (see isVendorModule).
+    let viteRoot = userProjectRoot;
     let runtimeResolvedUserOptions = resolvedUserOptions;
 
     // Use global cache for transformation results to ensure consistent hashing across all plugin instances
@@ -150,6 +154,7 @@ export const createTransformerPlugin = (
         isBuild = config.command === "build";
         isSSR = Boolean(config.build.ssr);
         viteBase = config.base ?? "/";
+        viteRoot = config.root;
         mode = config.mode as "development" | "production" | "test";
         if (!isValidEnv(mode)) {
           throw new Error(`Invalid mode: ${mode}`);
@@ -240,7 +245,8 @@ export const createTransformerPlugin = (
           const isWhitelistedClientPackage =
             getClientPackagesPattern()?.test(id) ?? false;
           if (
-            (nodeModulesPattern.test(id) && !isWhitelistedClientPackage) ||
+            (isVendorModule(nodeModulesPattern, id, viteRoot) &&
+              !isWhitelistedClientPackage) ||
             !modulePattern.test(id) ||
             (!noDist(id) && !isWhitelistedClientPackage)
           ) {

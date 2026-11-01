@@ -126,7 +126,7 @@ export const config = {
 | `propsPattern` | `RegExp \| string` | Pattern to match props files | `/[Pp]rops\.(js\|ts\|jsx\|tsx)$/` |
 | `dotPattern` | `RegExp \| string` | Pattern to match dot files | `/^\.[^/]+$/` |
 | `nodePattern` | `RegExp \| string` | Pattern to match Node.js native modules | `/\.node$/` |
-| `vendorPattern` | `RegExp \| string` | Pattern to match vendor files | `/node_modules\|_virtual/` |
+| `vendorPattern` | `RegExp \| string` | Vendor files the RSC transform skips (packages in `clientPackages` are still transformed). The transform tests it against the module id, against its path relative to the project root, and against that path from its first `node_modules/` directory, with forward slashes and no query. | `/^\/node_modules\//` |
 | `virtualPattern` | `RegExp \| string` | Pattern to match virtual files | `/^virtual:/` |
 
 ## Component Props
