@@ -34,8 +34,7 @@ import { createLogger, type Logger } from "vite";
 import { getCondition } from "./getCondition.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { stashUserOptions, getStashedUserOptions, getEnvironmentId } from "./stashedOptionsState.js";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { createRollupLikeHash } from "./createRollupLikeHash.js";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   createClientBuildManifestLookup,
   missingClientManifestError,
@@ -528,14 +527,10 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       : DEFAULT_LOADER_CONFIG.isClientComponentByName);
 
   const hashOption = options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash;
-  const hashCharacters: "base36" | "hex" =
-    typeof hashOption === "object" && hashOption?.format === "hex"
-      ? "hex"
-      : "base36";
 
   /**
-   * Outputs that must keep a stable path (assets/CSS still use single-file
-   * hashing; browser entries/chunks use the bundler hash).
+   * Server outputs that must keep a stable path. Browser entries, chunks and
+   * assets always carry the bundler hash.
    */
   const shouldLeaveUnhashed = (input: string, ssr: boolean, clientReference = false): boolean => {
     if (new RegExp(BASE_PATTERNS.EXT.NODE).test(input)) return true;
@@ -572,60 +567,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       return filename + "-" + contentHash + extension;
     }
     return input + "-" + contentHash;
-  };
-
-  /**
-   * Single-file hash for assets (CSS, fonts, …). Chunk/entry naming uses
-   * {@link hashChunk} so shared chunks track every module source.
-   */
-  const hash = (input: string | null, ssr: boolean, sourceContent?: string) => {
-    if (!input) return "";
-    if (shouldLeaveUnhashed(input, ssr)) {
-      return input;
-    }
-
-    let contentToHash: string;
-    if (sourceContent) {
-      contentToHash = sourceContent;
-    } else {
-      try {
-        const sourcePath = resolve(projectRoot, input);
-        if (existsSync(sourcePath)) {
-          contentToHash = readFileSync(sourcePath, "utf-8");
-          if (options.verbose) {
-            logger.info(
-              `[hash] Reading source: ${sourcePath} (${contentToHash.length} chars)`
-            );
-          }
-        } else {
-          contentToHash = input;
-          if (options.verbose) {
-            logger.warn(
-              `[hash] File not found: ${sourcePath}, using filename: ${input}`
-            );
-          }
-        }
-      } catch (error) {
-        contentToHash = input;
-        if (options.verbose) {
-          logger.warn(`[hash] Error reading ${input}: ${error}`);
-        }
-      }
-    }
-
-    // SSR: only client-reference modules need content-addressed names.
-    if (
-      ssr &&
-      !isClientComponentByName(input) &&
-      !isClientComponentByCode(contentToHash)
-    ) {
-      return input;
-    }
-
-    return applyHashSuffix(
-      input,
-      createRollupLikeHash(contentToHash, hashCharacters)
-    );
   };
 
   const clientBuildManifest = createClientBuildManifestLookup({
@@ -810,7 +751,28 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     return hashChunk(outputPath, ssr, n, sourceContent);
   }
 
-  function assetFile(n: PreRenderedAsset, _ssr: boolean = false): string {
+  /**
+   * Asset names (stylesheets, images, fonts).
+   *
+   * Browser (`ssr: false`): Rollup's `[hash]` of the emitted bytes, so a
+   * stylesheet is renamed when anything it inlines changes (an `@import`) or
+   * the name of a file it `url()`s does.
+   *
+   * SSR/RSC (`ssr: true`): the name the client build gave the same source
+   * (see clientBuildManifest.ts), so every `<link>` and `url()` the server
+   * outputs write names a file the browser build wrote.
+   */
+  const hashAsset = (input: string, ssr: boolean, asset: PreRenderedAsset) => {
+    if (!input || hashOption === "false") return input;
+    if (ssr) {
+      const source = asset.originalFileNames?.[0];
+      const file = source ? clientBuildManifest.assetOf(source) : undefined;
+      if (file) return file;
+    }
+    return applyHashSuffix(input, "[hash]");
+  };
+
+  function assetFile(n: PreRenderedAsset, ssr: boolean = false): string {
     // Rollup may report the same asset under several `names`; dedupe so we
     // don't emit invalid comma-joined filenames like `Foo.eot,Foo.eot`. When
     // multiple distinct names survive they all reference the same emitted
@@ -849,12 +811,12 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       if (!firstName.startsWith(assetsDir + "/")) {
         firstName = assetsDir + "/" + firstName;
       }
-      return hash(firstName, false);
+      return hashAsset(firstName, ssr, n);
     }
 
     // For other assets, apply the extension mapping if needed
     // Pass isAsset=true to preserve extensions for non-module assets
-    return hash(getOutputPath(firstName, true), false);
+    return hashAsset(getOutputPath(firstName, true), ssr, n);
   }
 
   /**

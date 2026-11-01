@@ -21,7 +21,7 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import { getNodeEnv } from "./getNodeEnv.js";
 import { REACT_CONDITION, type ReactCondition } from "./getCondition.js";
 import { getEnvValue, setEnvValue } from "../env/getEnvKey.js";
-import { resolveClientBuildManifestPath } from "./clientBuildManifest.js";
+import { resolveClientBuildManifestPath, STYLESHEET_RE } from "./clientBuildManifest.js";
 import { effectiveModuleBaseURL } from "./effectiveModuleBaseURL.js";
 import {
   mergeClientPackagesNoExternal,
@@ -42,10 +42,6 @@ import {
 const dropStaleRolldownAlias = {
   rolldownOptions: undefined,
 } as Record<string, undefined>;
-
-// Vite's CSS_LANGS_RE, minus the query it allows: what css-post emits as a
-// .css asset started as one of these.
-const STYLESHEET_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)$/;
 
 const stashedUserConfig: Record<string, ResolvedUserConfig | null> = {};
 let originalConfig: UserConfig | null = null;
