@@ -24,13 +24,13 @@ npm run build
 # 1c. Link the local build into each demo and exercise it end-to-end.
 #     A passing 'npm test' does not exclude regressions that only surface
 #     when the package is consumed via file:.. from a real downstream app.
-for demo in ~/code/bidoof-template ~/code/mmc; do
+for demo in ~/code/bidoof-template ~/code/mmc ~/code/vprs-starter; do
   pushd "$demo"
   cp package.json /tmp/$(basename "$demo").pkg.bak
   cp -f package-lock.json /tmp/$(basename "$demo").lock.bak 2>/dev/null || true
   node -e 'const p=require("./package.json");p.dependencies["vite-plugin-react-server"]="file:../vite-plugin-react-server";require("fs").writeFileSync("./package.json",JSON.stringify(p,null,2)+"\n");'
   npm install
-  npm run build           # bidoof-template: build:preview; mmc: build
+  npm run build           # bidoof-template: build:preview; mmc: build; vprs-starter: npm test (build:vercel + hydration smoke test)
   # Smoke-test the dev server too:
   npx vite --port 4173 --strictPort &
   VITE_PID=$!
@@ -110,7 +110,7 @@ way, then `npm publish --tag alpha`.
 
 ## 4. Update demo projects
 
-For each demo repo (`bidoof-template`, `mmc`):
+For each demo repo (`bidoof-template`, `mmc`, `vprs-starter`):
 
 ```bash
 cd ~/code/<demo-repo>
@@ -185,6 +185,7 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 |------|--------|--------|
 | bidoof-template | `nicobrinkkemper/vite-plugin-react-server-demo-official` | [GitHub Pages](https://nicobrinkkemper.github.io/vite-plugin-react-server-demo-official/) |
 | mmc | `nicobrinkkemper/mmc` | [GitHub Pages](https://nicobrinkkemper.github.io/mmc/) |
+| vprs-starter | `nicobrinkkemper/vprs-starter` | [Vercel](https://vprs-starter.vercel.app/) |
 
 ## Checklist
 
@@ -192,7 +193,8 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 - [ ] `npm run build` succeeds
 - [ ] `bidoof-template` linked via `file:../vite-plugin-react-server` — `npm run build:preview` AND dev server (`vite`) both succeed; home page returns 200 with content
 - [ ] `mmc` linked via `file:../vite-plugin-react-server` — `npm run build` succeeds; dev server starts cleanly
-- [ ] Both demo repos restored to their committed `package.json`/`package-lock.json` afterwards
+- [ ] `vprs-starter` linked via `file:../vite-plugin-react-server` — `npm test` succeeds: build:vercel plus the Playwright hydration smoke test over the per-request `/`, a prerendered docs page and a client navigation (the only consumer of `runner: "edge"` + `transport: "webpack"` + `inlineFlight: "stream"`)
+- [ ] All three demo repos restored to their committed `package.json`/`package-lock.json` afterwards
 - [ ] `npx playwright test` — full browser gate green (both dev conditions; do not substitute the hmr.spec.ts subset)
 - [ ] `npm run version:<type>` — commit `package.json` + `package-lock.json`, PR, merge
 - [ ] `git tag -a v<version> -m "v<version>" && git push origin v<version>` — on merged `main`
