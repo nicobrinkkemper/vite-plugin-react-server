@@ -98,7 +98,7 @@ refuses to publish unless `v<version>` exists and points at `HEAD` — a forgott
 tag now fails the publish instead of shipping. For a deliberate untagged publish,
 set `VPRS_SKIP_TAG_CHECK=1`. Last, `test:stable-names` builds the stable-names
 fixtures under both conditions and fails the publish if any hashed browser file
-(JS, CSS, image, font) kept its name while its bytes changed, or if a `<link>`,
+(JS, CSS, images) kept its name while its bytes changed, or if a `<link>`,
 flight payload or server build names a file the browser build did not write:
 the guarantee that lets a host cache those URLs as immutable. After `prepublishOnly`, npm's `prepack` step
 rebuilds `dist` with plain `tsc` and then verifies every exported entrypoint, so the
