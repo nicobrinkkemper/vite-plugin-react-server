@@ -96,7 +96,11 @@ needed backfilling; v3.1.9 nearly did). `prepublishOnly` runs `verify:tag`, then
 `build`, then `verify:package` (publint + entrypoint checks). `verify:tag`
 refuses to publish unless `v<version>` exists and points at `HEAD` — a forgotten
 tag now fails the publish instead of shipping. For a deliberate untagged publish,
-set `VPRS_SKIP_TAG_CHECK=1`. After `prepublishOnly`, npm's `prepack` step
+set `VPRS_SKIP_TAG_CHECK=1`. Last, `test:stable-names` builds the stable-names
+fixtures under both conditions and fails the publish if any hashed browser file
+(JS, CSS, image, font) kept its name while its bytes changed, or if a `<link>`,
+flight payload or server build names a file the browser build did not write:
+the guarantee that lets a host cache those URLs as immutable. After `prepublishOnly`, npm's `prepack` step
 rebuilds `dist` with plain `tsc` and then verifies every exported entrypoint, so the
 tarball's `dist` is the tsc output. Validate the packed output as well as the Vite
 build: entry files must be included in `tsconfig.json` to survive `prepack`.
@@ -192,7 +196,7 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 - [ ] `npx playwright test` — full browser gate green (both dev conditions; do not substitute the hmr.spec.ts subset)
 - [ ] `npm run version:<type>` — commit `package.json` + `package-lock.json`, PR, merge
 - [ ] `git tag -a v<version> -m "v<version>" && git push origin v<version>` — on merged `main`
-- [ ] `npm publish` (2FA — human step; `verify:tag` blocks an untagged publish)
+- [ ] `npm publish` (2FA — human step; `verify:tag` blocks an untagged publish, `test:stable-names` blocks a hashed URL whose bytes changed)
 - [ ] For each demo repo:
   - [ ] Create branch from main
   - [ ] Update `package.json` version

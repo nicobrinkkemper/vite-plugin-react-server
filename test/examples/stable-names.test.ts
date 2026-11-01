@@ -1,7 +1,7 @@
 import { join, relative, resolve } from "path";
 import { describe, it, expect } from "vitest";
 import { mkdir, readFile, writeFile } from "fs/promises";
-import { readdirSync, readFileSync, statSync } from "fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { setupTestProject } from "../setup.js";
 import { getSharedBuild, type SharedBuildResult } from "./shared-build.js";
 import { getCondition } from "../../dist/plugin/config/getCondition.js";
@@ -40,20 +40,25 @@ export function Two() { return <p>{${export_}()}</p>; }
     );
   };
 
-  // Every file this condition's browser build wrote (dist-…-<condition>/static),
-  // by name, except the pages and the manifest, which keep fixed names.
+  // Every hashed file this condition's browser build wrote
+  // (dist-…-<condition>/static), by name. Pages, the manifest and public/
+  // files keep fixed paths and are revalidated, not cached as immutable.
   const browserFiles = (testDir: string) => {
     const files = new Map<string, string>();
     const own = (d: string) => d.startsWith("dist") && d.endsWith(getCondition("-"));
+    const publicDir = join(testDir, "public");
+    const fixedPath = (name: string) =>
+      /\.(html|rsc)$/.test(name) || existsSync(join(publicDir, name));
     for (const dist of readdirSync(testDir).filter(own)) {
       const root = join(testDir, dist, "static");
       const walk = (dir: string) => {
         for (const entry of readdirSync(dir)) {
           const path = join(dir, entry);
+          const name = relative(root, path);
           if (statSync(path).isDirectory()) {
             if (entry !== ".vite") walk(path);
-          } else if (!/\.(html|rsc)$/.test(entry)) {
-            files.set(relative(root, path), readFileSync(path, "latin1"));
+          } else if (!fixedPath(name)) {
+            files.set(name, readFileSync(path, "latin1"));
           }
         }
       };
@@ -105,7 +110,8 @@ export function Two() { return <p>{${export_}()}</p>; }
   });
   // The page imports theme.css, which @imports base.css and url()s hero.png.
   // The image is over Vite's inline limit, so it is a file of its own.
-  type Styles = { theme: string; base: string; image: number };
+  // public/version.txt keeps its path and changes with every build.
+  type Styles = { theme: string; base: string; image: number; build?: string };
   const styles: Styles = { theme: "red", base: "0", image: 1 };
   const setupStyles = (s: Styles) => async (testDir: string) => {
     await setupTestProject(testDir);
@@ -115,13 +121,15 @@ export function Two() { return <p>{${export_}()}</p>; }
       `@import "./base.css";\n.hero { color: ${s.theme}; background: url("./hero.png") }\n`
     );
     await writeFile(resolve(testDir, "src/page/hero.png"), Buffer.alloc(6000, s.image));
+    await mkdir(resolve(testDir, "public"), { recursive: true });
+    await writeFile(resolve(testDir, "public/version.txt"), JSON.stringify(s));
     const page = await readFile(resolve(testDir, "src/page/page.tsx"), "utf8");
     await writeFile(resolve(testDir, "src/page/page.tsx"), `import "./theme.css";\n${page}`);
   };
   // The fixture cache keys on the setup's source, not the values it closes
   // over, so the values name the fixture.
   const buildStyles = (s: Styles) => {
-    const name = `stable-names-css-${s.theme}-${s.base}-${s.image}`;
+    const name = ["stable-names-css", s.theme, s.base, s.image, s.build].filter(Boolean).join("-");
     return getSharedBuild(name, name, { setupProject: setupStyles(s) });
   };
 
@@ -156,6 +164,8 @@ export function Two() { return <p>{${export_}()}</p>; }
   it("names stylesheets and the files they reference by their bytes, and every output uses the browser's names", async () => {
     const base = await buildStyles(styles);
     const edits = {
+      // The same sources again, in another directory.
+      none: await buildStyles({ ...styles, build: "again" }),
       // A direct edit to the stylesheet the page imports.
       theme: await buildStyles({ ...styles, theme: "blue" }),
       // An edit to the stylesheet it @imports.
@@ -165,12 +175,22 @@ export function Two() { return <p>{${export_}()}</p>; }
     };
 
     const before = browserFiles(base.testDir);
+    expect([...before.keys()]).not.toContain("version.txt");
     for (const [edit, build] of Object.entries(edits)) {
       const after = browserFiles(build.testDir);
       expectSameNameSameBytes(before, after);
+      if (edit === "none") {
+        expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
+        continue;
+      }
       // Each edit lands in theme.css's bytes, so it takes a new name.
       expect(named(after, themeCss), edit).not.toBe(named(before, themeCss));
     }
+
+    // The check fails when a name keeps its URL and changes its bytes.
+    const regressed = new Map(before);
+    regressed.set(named(before, themeCss), ".hero{color:blue}");
+    expect(() => expectSameNameSameBytes(before, regressed)).toThrow(/theme-/);
     const image = browserFiles(edits.image.testDir);
     expect(named(image, heroPng)).not.toBe(named(before, heroPng));
     expect(image.get(named(image, themeCss))).toContain(named(image, heroPng));
