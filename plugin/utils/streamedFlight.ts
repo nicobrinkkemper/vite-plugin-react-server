@@ -31,6 +31,7 @@ import { INLINE_FLIGHT_STREAM_GLOBAL } from "./inlineFlightId.js";
 type FlightChunkArray = Array<string | null>;
 
 let streamedFlightConsumed = false;
+let streamedFlightDiscarded = false;
 
 function base64ToBytes(encoded: string): Uint8Array {
   const binary = atob(encoded);
@@ -86,6 +87,7 @@ function adoptChunkArray(arr: FlightChunkArray): ReadableStream<Uint8Array> {
  */
 export function discardStreamedFlight(): void {
   streamedFlightConsumed = true;
+  streamedFlightDiscarded = true;
   const drop = Object.assign([] as FlightChunkArray, { push: () => 0 });
   (globalThis as Record<string, unknown>)[INLINE_FLIGHT_STREAM_GLOBAL] = drop;
 }
@@ -102,12 +104,13 @@ export function takeStreamedFlight():
   | PromiseLike<ReadableStream<Uint8Array> | null>
   | null {
   if (streamedFlightConsumed) return null;
+  // The first take owns the payload whatever it finds (as takeInlineFlight):
+  // chunk scripts that execute after it looked belong to its wait below, never
+  // to a later take for another route.
+  streamedFlightConsumed = true;
 
   const arr = currentChunkArray();
-  if (arr) {
-    streamedFlightConsumed = true;
-    return adoptChunkArray(arr);
-  }
+  if (arr) return adoptChunkArray(arr);
 
   // No chunk script has executed yet. If the parser is still running the
   // payload may simply not have arrived — re-check once it has seen the
@@ -120,8 +123,7 @@ export function takeStreamedFlight():
       "DOMContentLoaded",
       () => {
         const late = currentChunkArray();
-        if (!late || streamedFlightConsumed) return resolve(null);
-        streamedFlightConsumed = true;
+        if (!late || streamedFlightDiscarded) return resolve(null);
         resolve(adoptChunkArray(late));
       },
       { once: true }

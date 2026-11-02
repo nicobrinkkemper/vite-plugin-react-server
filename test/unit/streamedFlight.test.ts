@@ -75,6 +75,30 @@ describe("takeStreamedFlight", () => {
     expect(take()).toBeNull();
   });
 
+  it("the first take owns chunks that execute while it waits; a second take gets null", async () => {
+    const listeners: Array<() => void> = [];
+    vi.stubGlobal("document", {
+      readyState: "loading",
+      addEventListener: (_type: string, cb: () => void) => listeners.push(cb),
+    });
+    try {
+      const take = await freshTake();
+      const first = take();
+      expect(first).not.toBeNull();
+      expect(first && "getReader" in first).toBe(false); // waiting on the parser
+      pushChunk("hello");
+      // A navigation's take while the first still waits: not its payload.
+      expect(take()).toBeNull();
+      pushChunk(null);
+      for (const cb of listeners) cb();
+      const stream = await first;
+      expect(stream).not.toBeNull();
+      expect(await collectText(stream!)).toBe("hello");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("ignores pushes after the sentinel", async () => {
     pushChunk("a");
     pushChunk(null);
