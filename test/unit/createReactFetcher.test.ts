@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { INLINE_FLIGHT_STREAM_GLOBAL } from "../../plugin/utils/inlineFlightId.js";
 
 /**
  * createReactFetcher AbortSignal support.
@@ -354,6 +355,52 @@ describe("createReactFetcher inline flight url match", () => {
     await settle();
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("never hands a payload the parser reached late to a later fetch for another url", async () => {
+    at("/");
+    // A previous test's discard leaves its drop array on the global; this
+    // document has no streamed payload at all.
+    delete (globalThis as Record<string, unknown>)[INLINE_FLIGHT_STREAM_GLOBAL];
+    const createReactFetcher = await importFetcher();
+    // A cached async client entry runs before the parser has reached the
+    // payload element: the first fetch (for the document url) finds nothing.
+    let el: unknown = null;
+    const listeners: Array<() => void> = [];
+    const document = {
+      readyState: "loading",
+      getElementById: () => el,
+      addEventListener: (_type: string, cb: () => void) => listeners.push(cb),
+    };
+    vi.stubGlobal("document", document);
+    globalThis.fetch = vi.fn(async () => flightResponse()) as any;
+
+    ignore(ask(createReactFetcher, "/"));
+    await settle();
+
+    // The parser reaches the element; a navigation fetches another route
+    // before the document is done. The home payload must not be its answer.
+    el = {
+      textContent: PAYLOAD,
+      getAttribute: (name: string) =>
+        name === "data-length" ? String(PAYLOAD.length) : null,
+    };
+    ignore(ask(createReactFetcher, "/about/"));
+    await settle();
+    document.readyState = "complete";
+    for (const cb of listeners) cb();
+    // The first fetch resolves its wait and then fetches: two turns.
+    await settle();
+    await settle();
+
+    // Both went to the network: the navigation for its own route, the first
+    // fetch for the document's (it looked before the payload was there).
+    const urls = (globalThis.fetch as any).mock.calls.map((c: unknown[]) =>
+      String(c[0])
+    );
+    expect(urls).toHaveLength(2);
+    expect(urls.some((u: string) => /\/about\/index\.rsc$/.test(u))).toBe(true);
+    expect(urls.some((u: string) => /^(?:https?:\/\/localhost)?\/index\.rsc$/.test(u))).toBe(true);
   });
 
   it("still adopts the payload for the document url, under a deploy base", async () => {

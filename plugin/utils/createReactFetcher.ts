@@ -99,11 +99,15 @@ function decodeInlineFlight(el: Element): Uint8Array | null {
  */
 function takeInlineFlight(): Uint8Array | PromiseLike<Uint8Array | null> | null {
   if (inlineFlightConsumed || typeof document === "undefined") return null;
+  // The first fetch owns the payload whatever it finds. Claiming before the
+  // lookup matters: when the parser has not reached the element yet, a later
+  // fetch (a client navigation to another route) would otherwise find it and
+  // adopt the document's payload as that route's answer.
+  inlineFlightConsumed = true;
   const el = document.getElementById(INLINE_FLIGHT_ID);
   // No element: either this document has no inlined payload, or the parser has
   // not reached it yet. Both are served correctly by fetching index.rsc.
   if (!el) return null;
-  inlineFlightConsumed = true;
 
   const whole = decodeInlineFlight(el);
   if (whole) return whole;
