@@ -81,6 +81,11 @@ function splicePointsOf(doc: string): number[] {
   return points;
 }
 
+const chunkScriptText = (text: string) =>
+  `<script>(self.${INLINE_FLIGHT_STREAM_GLOBAL}||=[]).push("${btoa(text)}")</script>`;
+const doneScriptText = () =>
+  `<script>(self.${INLINE_FLIGHT_STREAM_GLOBAL}||=[]).push(null)</script>`;
+
 const SHELL = `<html><head><title>t</title></head><body><div id="root">hello</div>`;
 const TRAILER = `</body></html>`;
 
@@ -460,6 +465,90 @@ describe("interleaveFlightIntoHtmlStream (edges and volume)", () => {
     );
     expect(out.indexOf("<script>")).toBeGreaterThan(out.indexOf("<body"));
     expect(out.endsWith(TRAILER)).toBe(true);
+  });
+
+  it("releases a chunk ending on `<` once the next chunk shows it was an ordinary split tag", async () => {
+    // React's fixed-size views end on arbitrary bytes, so `<` + `section>` is
+    // a split tag, not the start of the trailer. Everything up to the real
+    // trailer must come out before the HTML ends: the test gates the trailer
+    // behind having read that content, so a hold that never re-checks hangs.
+    let openTrailer!: () => void;
+    const trailerGate = new Promise<void>((r) => (openTrailer = r));
+    const htmlStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(encoder.encode(`${SHELL}<`));
+        controller.enqueue(encoder.encode("section>more</section>"));
+        await trailerGate;
+        controller.enqueue(encoder.encode(TRAILER));
+        controller.close();
+      },
+    });
+    const reader = interleaveFlightIntoHtmlStream({
+      htmlStream,
+      flightStream: streamOf(["f"]),
+    }).getReader();
+    let seen = "";
+    while (!seen.includes("<section>more</section>")) {
+      const { done, value } = await reader.read();
+      if (done) throw new Error("stream ended before the split tag was released");
+      seen += decoder.decode(value, { stream: true });
+    }
+    openTrailer();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      seen += decoder.decode(value, { stream: true });
+    }
+    // The flight was ready first, so it lands at the first splice point
+    // (after the shell's `</div>`); the HTML around it is byte-identical.
+    expect(seen.replace(SCRIPT_RE, "")).toBe(
+      `${SHELL}<section>more</section>${TRAILER}`
+    );
+    expect(extractPushes(seen)).toEqual([btoa("f"), null]);
+  });
+
+  it("releases a close-tag prefix spread over several tiny chunks when it fails to complete", async () => {
+    let openTrailer!: () => void;
+    const trailerGate = new Promise<void>((r) => (openTrailer = r));
+    const htmlStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for (const piece of [SHELL, "<", "/", "b", "", "r>tail"]) {
+          controller.enqueue(encoder.encode(piece));
+        }
+        await trailerGate;
+        controller.enqueue(encoder.encode(TRAILER));
+        controller.close();
+      },
+    });
+    const reader = interleaveFlightIntoHtmlStream({
+      htmlStream,
+      flightStream: streamOf([]),
+    }).getReader();
+    let seen = "";
+    while (!seen.includes("</br>tail")) {
+      const { done, value } = await reader.read();
+      if (done) throw new Error("stream ended before the prefix was released");
+      seen += decoder.decode(value, { stream: true });
+    }
+    openTrailer();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      seen += decoder.decode(value, { stream: true });
+    }
+    expect(seen).toBe(`${SHELL}</br>tail${doneScriptText()}${TRAILER}`);
+  });
+
+  it("still holds a close tag that completes across tiny chunks", async () => {
+    const out = decodeAll(
+      await collect(
+        interleaveFlightIntoHtmlStream({
+          htmlStream: streamOf([SHELL, "<", "/", "bo", "dy", "></html>"]),
+          flightStream: streamOf(["f"]),
+        })
+      )
+    );
+    expect(out).toBe(`${SHELL}${chunkScriptText("f")}${doneScriptText()}${TRAILER}`);
   });
 
   it("ignores a literal </body> in mid-document content; only the final trailer moves", async () => {

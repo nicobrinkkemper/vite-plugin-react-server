@@ -125,11 +125,6 @@ function bodyClosePrefixLength(bytes: Uint8Array): number {
   return 0;
 }
 
-/** True when `bytes` contain `</body>` or end on a proper prefix of it. */
-function mayBeTrailer(bytes: Uint8Array): boolean {
-  return lastIndexOfBodyClose(bytes) !== -1 || bodyClosePrefixLength(bytes) > 0;
-}
-
 export function interleaveFlightIntoHtmlStream({
   htmlStream,
   flightStream,
@@ -187,16 +182,19 @@ export function interleaveFlightIntoHtmlStream({
       try {
         const reader = htmlStream.getReader();
         // Trailer holdback is evidence-gated, not a fixed byte window: emit
-        // every chunk immediately until `</body>` (or a proper prefix of it
-        // at a chunk boundary) appears, then hold from that chunk onward.
-        // A fixed N-byte window refused to release the shell whenever the
-        // next producer chunk was smaller than N — TTFB collapsed to "HTML
-        // finished" for the common small-trailer case.
+        // every chunk immediately until `</body>` appears, then hold from
+        // that chunk onward. A chunk that merely ENDS on a proper prefix of
+        // it (`<`, `</`, `</b`…) is held only until the next chunk settles
+        // it: completed, the hold is confirmed; not completed, the held
+        // chunks are released and the HTML keeps flowing. React's fixed-size
+        // views end on arbitrary bytes, so any tag can split there — a hold
+        // that never re-checked kept the shell and everything after a split
+        // `<section>` buffered until the HTML finished. A fixed N-byte window
+        // refused to release the shell whenever the next producer chunk was
+        // smaller than N — TTFB collapsed to "HTML finished" for the common
+        // small-trailer case.
         const held: Uint8Array[] = [];
-        let holdingTrailer = false;
-        // "</body>" detection runs with a small overlap carry so a close tag
-        // split across chunks is still seen.
-        let closeCarry: Uint8Array = new Uint8Array(0);
+        let trailerConfirmed = false;
         // Pass an HTML chunk through. Flight pending at this boundary goes
         // in here when the boundary is a splice point, else at the first
         // splice point inside the chunk, else it waits for a later chunk.
@@ -220,23 +218,29 @@ export function interleaveFlightIntoHtmlStream({
           const { done, value } = await reader.read();
           if (done) break;
           if (!value?.byteLength) continue;
-          if (holdingTrailer) {
-            held.push(value);
+          held.push(value);
+          if (trailerConfirmed) continue;
+          // The held chunks are at most a few bytes of a possible close tag
+          // plus this chunk; every chunk released before them ended on no
+          // prefix of `</body>`, so a close tag cannot start in released
+          // bytes and the window is all that needs scanning.
+          let window: Uint8Array = new Uint8Array(0);
+          for (const chunk of held) window = concatBytes(window, chunk);
+          if (lastIndexOfBodyClose(window) !== -1) {
+            // First evidence of the trailer: hold from here on. Shell / body
+            // content before this point has already been emitted.
+            trailerConfirmed = true;
             continue;
           }
-          const closeScan = concatBytes(closeCarry, value);
-          if (mayBeTrailer(closeScan)) {
-            // First evidence of the trailer (or a split close tag): hold
-            // this chunk and everything after. Shell / body content before
-            // this point has already been emitted.
-            holdingTrailer = true;
-            held.push(value);
-            continue;
+          // Release, in order, every whole chunk that ends before the prefix
+          // region (whole-chunk contract); what overlaps it stays held.
+          const keep = window.byteLength - bodyClosePrefixLength(window);
+          let end = 0;
+          while (held.length > 0 && end + held[0].byteLength <= keep) {
+            const chunk = held.shift()!;
+            end += chunk.byteLength;
+            emit(chunk);
           }
-          emit(value);
-          closeCarry = closeScan.subarray(
-            Math.max(0, closeScan.byteLength - (BODY_CLOSE.byteLength - 1))
-          );
         }
 
         // HTML is complete: split the held window into content + trailer.
