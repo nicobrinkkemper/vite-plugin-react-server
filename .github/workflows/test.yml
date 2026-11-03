@@ -80,6 +80,44 @@ jobs:
       - name: Root-install edge bake gate
         run: npm run test:root-install-bake
 
+  # Dev client navigation from a packed install, in Chromium. An installed
+  # package is pre-bundled by Vite's dep optimizer for the browser; the
+  # fixtures resolve the plugin by self-reference and are never pre-bundled,
+  # so they cannot see a client reference that loads a second copy of a
+  # package next to its pre-bundle (Link degrading to a document load, a
+  # package component missing its provider's context).
+  installed-dev-navigation:
+    name: packed-consumer dev navigation (browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Resolve Playwright version (cache key)
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Chromium
+        timeout-minutes: 20
+        run: npx playwright install --with-deps chromium
+
+      - name: Dev navigation gate (esm + webpack transports)
+        run: npm run test:installed-dev-navigation
+
   # The webpack bake pair on REAL workerd. The edge-bundle guard proves
   # "no node builtins" by static analysis; this job proves the runtime claims
   # by execution: one isolate, no nodejs_compat — boot, flight render,
