@@ -135,6 +135,11 @@ export function requestInfo(
   const routeForFilePath = value;
 
   let filePath = resolve(hostDir, routeForFilePath);
+  // Where this route's prerendered document lives, whatever the request was
+  // classified as. A static host answers a navigation from this file.
+  const htmlFilePath = isHtml
+    ? filePath
+    : resolve(hostDir, routeForFilePath, handlerOptions.build.htmlOutputPath);
   let contentType;
   if (isServerActionRequest) {
     // For server actions, we'll get the actual file path from the request body
@@ -216,6 +221,7 @@ export function requestInfo(
     isFolder,
     contentType,
     filePath,
+    htmlFilePath,
     isJS,
     isVendor,
     isVirtual,
