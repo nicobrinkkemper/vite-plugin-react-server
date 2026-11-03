@@ -3,6 +3,7 @@ import { resolve } from "path";
 import { mkdir, writeFile } from "fs/promises";
 import { setupIndexHTML } from "../setup.js";
 import { getSharedBuild, SharedBuildResult } from "./shared-build.js";
+import { inlineImportIds } from "../rsc-stream.js";
 
 /**
  * A dependency that ships a `"use client"` module but is not a client
@@ -120,10 +121,12 @@ export function Page() {
   });
 
   it("serializes the dependency's component as a hosted client reference", () => {
-    const rscContent = buildResult
-      .rscFiles()
-      .map(([, content]) => content)
-      .join("\n");
+    const rscContent = inlineImportIds(
+      buildResult
+        .rscFiles()
+        .map(([, content]) => content)
+        .join("\n")
+    );
     expect(rscContent).toContain('I["/node_modules/plain-dep/index.js","Counter"]');
   });
 

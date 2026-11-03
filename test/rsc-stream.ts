@@ -56,3 +56,20 @@ export async function handleRSCStream(url: string, options: RequestInit = {}) {
 }
 
 export type RSCStreamResponse = Awaited<ReturnType<typeof handleRSCStream>>;
+
+/**
+ * React 19.3 outlines a client reference's module id into its own string row
+ * and points the import row at it (`a:"/src/x.tsx"` + `b:I["$a","X"]`), where
+ * 19.2 wrote it inline (`b:I["/src/x.tsx","X"]`). Folds the outlined ids back
+ * in so an assertion about which module a reference names reads the same on
+ * both.
+ */
+export function inlineImportIds(flight: string): string {
+  const strings = new Map<string, string>();
+  for (const [, id, value] of flight.matchAll(/^([0-9a-f]+):("(?:[^"\\]|\\.)*")$/gm)) {
+    strings.set(id, value);
+  }
+  return flight.replace(/I\["\$([0-9a-f]+)"/g, (row, id) =>
+    strings.has(id) ? `I[${strings.get(id)}` : row
+  );
+}

@@ -4,7 +4,7 @@ import { vitePluginReactServer } from "vite-plugin-react-server";
 import { testUserOptions } from "../test-config";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
-import { handleRSCStream, type RSCStreamResponse } from "../rsc-stream.js";
+import { handleRSCStream, inlineImportIds, type RSCStreamResponse } from "../rsc-stream.js";
 
 /**
  * Tests for RSC stream format correctness.
@@ -147,8 +147,9 @@ describe("RSC Stream Format", () => {
     // the compiled .js). Forcing .js in dev produced a phantom
     // "<name>.client.js.tsx" import that 404'd on the second HMR fetch and broke
     // Fast Refresh after the first edit.
-    expect(response.result).toMatch(/I\[.*Link\.client.*\.tsx.*Link/);
-    expect(response.result).not.toMatch(/I\[.*\.client\.js[^.].*Link/);
+    const flight = inlineImportIds(response.result);
+    expect(flight).toMatch(/I\[.*Link\.client.*\.tsx.*Link/);
+    expect(flight).not.toMatch(/I\[.*\.client\.js[^.].*Link/);
   });
 
   it("should include Root component in the stream", () => {
