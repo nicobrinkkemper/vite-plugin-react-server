@@ -44,8 +44,8 @@ vprs runs on **stable React 19.2+** (`react` / `react-dom` at `^19.2.8`). The
 RSC transport underneath is version-locked by the
 [`react-server-loader`](https://www.npmjs.com/package/react-server-loader)
 peer dependency, which you install alongside `react` / `react-dom` (the
-command above covers stable). To switch to the experimental React train
-(e.g. for correct CSS preloading), install all three at the exact snapshot
+command above covers stable). To switch to the experimental React train,
+install all three at the exact snapshot
 vprs's peer range names — one copy in your tree, no `overrides`. See
 [React Compatibility](./react-type-compatibility.md) for the exact-version
 command.
