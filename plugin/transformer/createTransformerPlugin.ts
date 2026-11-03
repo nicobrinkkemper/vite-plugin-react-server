@@ -24,6 +24,7 @@ import { parse as rslParse } from "react-server-loader";
 import { isViteInjectedCode } from "../loader/isViteInjectedCode.js";
 import { isVendorModule } from "./isVendorModule.js";
 import { hasLeadingDirective } from "./hasLeadingDirective.js";
+import { dependencyClientReferenceId } from "./dependencyClientReferencePlugin.js";
 
 export interface TransformerPluginOptions {
   name: string;
@@ -385,16 +386,29 @@ export const createTransformerPlugin = (
             finalModuleID = "/" + finalModuleID;
           }
 
+          // Determine if this is a server environment
+          // Check both the environment name and if we're doing server-side rendering for static generation
+          const envName = this.environment?.name?.toLowerCase() || "";
+          const isServerEnvironment = envName === "server" || envName === "rsc" || envName === "react-server";
+
+          // Dev: a dependency's client module is referenced through the bare
+          // specifier the server graph imported it by, so the browser loads
+          // the same instance as its other imports of that package (see
+          // dependencyClientReferencePlugin).
+          if (!isBuild && isServerEnvironment && isClientByDirective) {
+            const dependencyId = await dependencyClientReferenceId(
+              this,
+              id,
+              code
+            );
+            if (dependencyId) finalModuleID = dependencyId;
+          }
+
           if (runtimeResolvedUserOptions.verbose) {
             this.environment?.logger?.info(
               `[react-${name}-transform] ModuleID transformation: ${normalizedPath} -> ${finalModuleID}`
             );
           }
-
-          // Determine if this is a server environment
-          // Check both the environment name and if we're doing server-side rendering for static generation
-          const envName = this.environment?.name?.toLowerCase() || "";
-          const isServerEnvironment = envName === "server" || envName === "rsc" || envName === "react-server";
 
           const transformer = createTransformer({
             parseFn: (source) => {

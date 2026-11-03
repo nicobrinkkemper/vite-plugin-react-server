@@ -103,6 +103,8 @@ describe("hook filters", () => {
       "vite-plugin-react-server:virtual-rsc-hmr load",
       "vite-plugin-react-server:server-reference-client resolveId",
       "vite-plugin-react-server:server-reference-client load",
+      "vite-plugin-react-server:dependency-client-reference resolveId",
+      "vite-plugin-react-server:dependency-client-reference load",
       "vite-plugin-react-server:server-cjs-fix transform",
       "vite-plugin-react-server:storybook:resolve-rsd resolveId",
       "vite-plugin-react-server:storybook:stub-virtual-rsc-hmr resolveId",
@@ -143,6 +145,9 @@ describe("hook filters", () => {
     expect(accepts("vite-plugin-react-server:server-reference-client resolveId", "./actions.server.tsx?import")).toBe(true);
     expect(accepts("vite-plugin-react-server:server-reference-client resolveId", "\0vprs-server-ref:/a.server.ts")).toBe(true);
     expect(accepts("vite-plugin-react-server:server-reference-client load", "\0vprs-server-ref:/a.server.ts")).toBe(true);
+    expect(accepts("vite-plugin-react-server:dependency-client-reference resolveId", "@chakra-ui/react")).toBe(true);
+    expect(accepts("vite-plugin-react-server:dependency-client-reference resolveId", "\0vprs-dep-client:pkg?names=A")).toBe(true);
+    expect(accepts("vite-plugin-react-server:dependency-client-reference load", "\0vprs-dep-client:pkg?names=A")).toBe(true);
     expect(accepts("vite-plugin-react-server:server-cjs-fix transform", "/app/src/page.tsx", `import { useState } from "react";`)).toBe(true);
   });
 });

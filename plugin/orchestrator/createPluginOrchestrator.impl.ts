@@ -5,6 +5,7 @@ import { createVendoredPackageJsonPlugin } from "../environments/createVendoredP
 import { createReactRequireInteropPlugin } from "../environments/createReactRequireInteropPlugin.js";
 import { createTransformerPlugin } from "../transformer/createTransformerPlugin.js";
 import { serverReferenceClientPlugin } from "../transformer/serverReferenceClientPlugin.js";
+import { dependencyClientReferencePlugin } from "../transformer/dependencyClientReferencePlugin.js";
 import { virtualRscHmrPlugin } from "../dev-server/virtualRscHmrPlugin.js";
 import { vitePluginVendorAlias } from "../vendor/vendor-alias.js";
 import { clientPackagesDiscoveryPlugin } from "../clientPackages/index.js";
@@ -53,6 +54,11 @@ export const createPluginOrchestratorImpl = (
   // Redirect client-side imports of "use server" modules to a virtual client
   // proxy (createServerReference). Must precede the transformer.
   plugins.push(serverReferenceClientPlugin(userOptions));
+
+  // Dev: a dependency's "use client" module referenced from a server
+  // component loads in the browser through its package specifier, not as a
+  // second copy of the raw file. Records specifiers before the transformer.
+  plugins.push(dependencyClientReferencePlugin());
 
   // Transformer first, so it runs before the other plugins.
   plugins.push(
