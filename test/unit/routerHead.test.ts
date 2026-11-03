@@ -22,7 +22,7 @@ describe("mergeHead", () => {
 
   it("unkeyed meta entries append instead of replacing", () => {
     const merged = mergeHead([
-      { meta: [{ charSet: "utf-8" }] },
+      { meta: [{ itemProp: "a", content: "first" }] },
       { meta: [{ content: "loose" }] },
     ]);
     expect(merged.meta).toHaveLength(2);
@@ -34,6 +34,30 @@ describe("mergeHead", () => {
       { meta: [{ property: "og:title", content: "b" }] },
     ]);
     expect(merged.meta).toEqual([{ property: "og:title", content: "b" }]);
+  });
+
+  it("leaf lang wins", () => {
+    expect(
+      mergeHead([{ lang: "en" }, undefined, { lang: "nl" }]).lang,
+    ).toBe("nl");
+  });
+
+  it("keeps an ancestor lang when the leaf contributes none", () => {
+    expect(mergeHead([{ lang: "nl" }, { title: "leaf" }]).lang).toBe("nl");
+    expect(mergeHead([{ title: "only" }]).lang).toBeUndefined();
+  });
+
+  it("drops charset meta: the document is always UTF-8", () => {
+    const merged = mergeHead([
+      { meta: [{ charSet: "iso-8859-1" }] },
+      {
+        meta: [
+          { charset: "windows-1252" },
+          { name: "description", content: "d" },
+        ],
+      },
+    ]);
+    expect(merged.meta).toEqual([{ name: "description", content: "d" }]);
   });
 
   it("links concatenate root→leaf", () => {

@@ -37,6 +37,11 @@ describe("default Html", () => {
     expect((doc.props as { lang?: string }).lang).toBe("en");
   });
 
+  it("takes the document language from the route head", () => {
+    const doc = renderHtml({ head: { lang: "nl" } });
+    expect((doc.props as { lang?: string }).lang).toBe("nl");
+  });
+
   it("renders charset and a viewport meta", () => {
     const children = headChildren(renderHtml());
     expect(children.some((c) => c.type === "meta" && c.props["charSet"] === "utf-8")).toBe(true);
@@ -75,6 +80,26 @@ describe("createElementWithReact hands the route head to Html", () => {
     expect(el.type).toBe(Html);
     expect(el.props.head?.meta).toEqual([{ name: "viewport", content: "b" }]);
     expect(viewports(renderHtml(el.props))).toHaveLength(0);
+  });
+
+  it("renders the leaf segment's lang as <html lang>", () => {
+    const el = createElementWithReact(React as never, {
+      PageComponent: (() => null) as never,
+      HtmlComponent: Html as never,
+      RootComponent: React.Fragment as never,
+      pageProps: {} as never,
+      layoutChain: [
+        { props: {}, head: { lang: "en" } },
+        { props: {}, head: { lang: "nl", meta: [{ charSet: "latin1" }] } },
+      ],
+    } as never) as React.ReactElement<HtmlProps>;
+
+    const doc = renderHtml(el.props);
+    expect((doc.props as { lang?: string }).lang).toBe("nl");
+    const charsets = headChildren(doc).filter(
+      (c) => c.type === "meta" && ("charSet" in c.props || "charset" in c.props),
+    );
+    expect(charsets.map((c) => c.props["charSet"])).toEqual(["utf-8"]);
   });
 
   it("passes no head without a layout chain", () => {
