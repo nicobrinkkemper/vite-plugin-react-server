@@ -11,11 +11,12 @@ export const Html: HtmlComponentType<any, any, any, any> = ({
   as = "div",
   head,
 }: HtmlProps) => (
-  <html lang="en">
+  <html lang={head?.lang ?? "en"}>
     <head>
       {/* Without an explicit charset a browser may parse the UTF-8 snapshot
           as windows-1252 — any non-ASCII text ("·", "—") then mismatches the
-          client render and hydration fails with React #418. */}
+          client render and hydration fails with React #418. Always UTF-8:
+          mergeHead drops a head.ts charSet meta. */}
       <meta charSet="utf-8" />
       {/* A route's head.ts may set its own viewport; two would conflict. */}
       {head?.meta?.some((m) => m["name"] === "viewport") ? null : (

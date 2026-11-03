@@ -1,6 +1,10 @@
 import type { GenericModuleLoader } from "../types.js";
 import type { RouteLayer } from "../router/scanRoutes.js";
-import type { RouteHeadContribution, RouteHeadExport } from "../router/head.js";
+import {
+  isCharsetMeta,
+  type RouteHeadContribution,
+  type RouteHeadExport,
+} from "../router/head.js";
 import {
   ERROR_EXPORT_NAME,
   HEAD_EXPORT_NAME,
@@ -43,7 +47,13 @@ export interface ResolveLayoutChainOptions {
   /** Export name a layer's `props.ts` uses (default "props"). */
   propsExportName: string;
   verbose?: boolean;
-  logger?: { info: (m: string) => void; warn: (m: string) => void } | undefined;
+  logger?:
+    | {
+        info: (m: string) => void;
+        warn: (m: string) => void;
+        warnOnce?: (m: string) => void;
+      }
+    | undefined;
 }
 
 /** Load one optional component module (error boundary / loading fallback). */
@@ -154,8 +164,14 @@ export async function resolveLayoutChain(
             const out = value({ url, params: ctx.params ?? {}, data: props });
             value = out instanceof Promise ? await out : out;
           }
-          if (value && typeof value === "object") head = value;
-          else if (value !== undefined) {
+          if (value && typeof value === "object") {
+            head = value;
+            if (head.meta?.some(isCharsetMeta)) {
+              const msg = `[resolveLayoutChain] ${layer.head} sets a charSet meta; ignored, the document is always UTF-8`;
+              if (opts.logger?.warnOnce) opts.logger.warnOnce(msg);
+              else opts.logger?.warn(msg);
+            }
+          } else if (value !== undefined) {
             opts.logger?.warn(
               `[resolveLayoutChain] ${layer.head} "${HEAD_EXPORT_NAME}" export is not an object; skipping`,
             );

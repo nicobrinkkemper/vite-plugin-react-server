@@ -98,11 +98,12 @@ export const createElementWithReact: CreateElementWithReactFN =
     // The chain's merged `head.ts` contribution is delivered two ways:
     // - DOCUMENT renders get raw hoistable tags — react-dom hoists them into
     //   the snapshot's <head> and out of the #root markup, so hydration never
-    //   sees them.
+    //   sees them. `lang` is the exception: Html gets the merged head as its
+    //   `head` prop and renders it as `<html lang>`.
     // - Every render (document and headless alike) gets an inert
     //   `<template data-vprs-head>` carrying the merged head as JSON; the
     //   client router reads it after hydration and after each navigation and
-    //   applies title/meta imperatively. Hoistables must NOT ride the
+    //   applies title/lang/meta imperatively. Hoistables must NOT ride the
     //   headless flight: when hydration suspends on a client-reference chunk
     //   React re-inserts them instead of adopting the server copies —
     //   duplicated <title>/<meta> plus hydration error #418, on both React
@@ -126,7 +127,8 @@ export const createElementWithReact: CreateElementWithReactFN =
             const hasHead =
               head !== undefined &&
               (head.title !== undefined ||
-              (head.meta?.length ?? 0) > 0 ||
+                head.lang !== undefined ||
+                (head.meta?.length ?? 0) > 0 ||
                 (head.links?.length ?? 0) > 0);
             const headTags =
               isDocumentRender && hasHead

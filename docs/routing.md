@@ -147,15 +147,19 @@ export const Loading = () => <p>Loading greeting…</p>;
 
 `head.ts` exports `head`: a static object, or a function receiving
 `{ url, params, data }` where `data` is the segment's resolved loader result.
-Contributions merge root→leaf — the deepest title wins, and a meta entry keyed
-by `name`/`property` overrides an ancestor's same-key entry:
+Contributions merge root→leaf. The deepest `title` and `lang` win, and a meta
+entry keyed by `name`/`property` overrides an ancestor's same-key entry:
 
 ```ts
 // src/routes/head.ts
 export const head = {
   title: "My site",
+  lang: "en",
   meta: [{ name: "description", content: "…" }],
 };
+
+// src/routes/nl/head.ts
+export const head = { lang: "nl" };
 
 // src/routes/greet/$name/head.ts
 import type { RouteHeadExport } from "vite-plugin-react-server/router";
@@ -172,6 +176,16 @@ after hydration and on every navigation. (Raw head tags deliberately don't
 ride the flight: React re-inserts instead of adopting them when hydration
 suspends on a client component, duplicating tags and throwing hydration
 error #418.) `links` and unkeyed meta are document-only.
+
+`lang` sets `<html lang>`: the built-in `Html` renders it (`"en"` when no
+segment sets one), and on navigation the client router updates
+`document.documentElement.lang`. A route without `lang` goes back to the
+language the document shell renders, the same one a fresh load of that route
+shows.
+
+The charset is not configurable. Every document is UTF-8 (React streams UTF-8,
+and a page declared as anything else fails hydration), so a `charSet` meta in
+`head.ts` is dropped with a warning.
 
 ## Redirect and notFound from a loader
 

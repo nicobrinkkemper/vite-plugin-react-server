@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { resolveLayoutChain } from "../../plugin/helpers/resolveLayoutChain.js";
 import { createElementWithReact } from "../../plugin/helpers/createElementWithReact.js";
 import { redirect } from "../../plugin/router/loaderSignals.js";
@@ -55,6 +55,26 @@ describe("resolveLayoutChain — boundaries + head", () => {
     expect(chain[0].Loading).toBe(Spinner);
     // Functional head evaluated with the segment's resolved loader data.
     expect(chain[0].head).toEqual({ title: "t-x" });
+  });
+
+  it("warns once when a head.ts sets a charSet meta", async () => {
+    const warnOnce = vi.fn();
+    const chain = await resolveLayoutChain({
+      layouts: [{ head: "routes/charset-head.ts" }],
+      url: "/",
+      ctx: { params: {} },
+      loader: makeLoader({
+        "routes/charset-head.ts#head": {
+          head: { meta: [{ charSet: "iso-8859-1" }] },
+        },
+      }),
+      layoutExportName: "Layout",
+      propsExportName: "props",
+      logger: { info: vi.fn(), warn: vi.fn(), warnOnce },
+    });
+    expect(chain).toHaveLength(1);
+    expect(warnOnce).toHaveBeenCalledTimes(1);
+    expect(warnOnce.mock.calls[0][0]).toContain("always UTF-8");
   });
 
   it("keeps a boundaries-only layer (no route.tsx)", async () => {
@@ -185,5 +205,21 @@ describe("createElementWithReact — boundary/suspense/head fold", () => {
     expect(meta?.props.content).toBe("d");
     expect(children.some((c) => c.type === "template")).toBe(true);
     expect(children.some((c) => c.type === Page)).toBe(true);
+  });
+
+  it("ships a lang-only head in the data template", () => {
+    const el = createElementWithReact(React as never, {
+      PageComponent: Page as never,
+      HtmlComponent: React.Fragment as never,
+      RootComponent: React.Fragment as never,
+      pageProps: {} as never,
+      layoutChain: [{ Component: RootLayout, props: {}, head: { lang: "nl" } }],
+    } as never) as React.ReactElement;
+    const tree = (el.type as (p: unknown) => React.ReactElement)(el.props);
+    const children = React.Children.toArray(
+      (tree.props.children as React.ReactElement).props.children,
+    ) as React.ReactElement[];
+    const template = children.find((c) => c.type === "template");
+    expect(JSON.parse(template!.props["data-vprs-head"]).lang).toBe("nl");
   });
 });

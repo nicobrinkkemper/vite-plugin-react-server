@@ -155,11 +155,12 @@ type HtmlProps = {
 };
 ```
 
-Without an `Html` option, vprs renders a built-in one: `<html lang="en">`, a
-UTF-8 charset, a `width=device-width, initial-scale=1` viewport (left out when
-the route's `head.ts` sets a `viewport` meta), the global CSS, and the `Root`.
-Supply your own `Html` for a different language or anything else in the
-document shell.
+Without an `Html` option, vprs renders a built-in one: `<html lang>` from the
+route's `head.ts` `lang` (default `"en"`), a UTF-8 charset, a
+`width=device-width, initial-scale=1` viewport (left out when the route's
+`head.ts` sets a `viewport` meta), the global CSS, and the `Root`. The charset
+is always UTF-8 and cannot be changed: `head.ts` drops a `charSet` meta. Supply
+your own `Html` for anything else in the document shell.
 
 ### RootProps
 

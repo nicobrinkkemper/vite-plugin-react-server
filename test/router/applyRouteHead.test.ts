@@ -36,6 +36,14 @@ describe("readRouteHead", () => {
   });
 });
 
+// A separate document per test: the shell language is remembered per document.
+let doc: Document;
+const freshDoc = (lang?: string) => {
+  doc = document.implementation.createHTMLDocument("");
+  if (lang) doc.documentElement.setAttribute("lang", lang);
+  return doc;
+};
+
 describe("applyRouteHead", () => {
   it("sets the document title", () => {
     applyRouteHead(mountPayload({ title: "Greeting ada" }));
@@ -75,6 +83,31 @@ describe("applyRouteHead", () => {
     document.body.innerHTML = "";
     applyRouteHead(mountPayload({ title: "next route" }));
     expect(document.head.querySelector("meta[property='og:title']")).toBeNull();
+  });
+
+  it("sets <html lang> from the route head on navigation", () => {
+    applyRouteHead(mountPayload({ title: "home" }), freshDoc());
+    applyRouteHead(mountPayload({ lang: "nl", title: "over" }), doc);
+    expect(doc.documentElement.lang).toBe("nl");
+  });
+
+  it("resets <html lang> to the shell's language when the next route sets none", () => {
+    doc = freshDoc("de");
+    applyRouteHead(mountPayload({ title: "home" }), doc);
+    applyRouteHead(mountPayload({ lang: "nl" }), doc);
+    expect(doc.documentElement.lang).toBe("nl");
+    applyRouteHead(mountPayload({ title: "back" }), doc);
+    expect(doc.documentElement.lang).toBe("de");
+    applyRouteHead(mountPayload({ lang: "fr" }), doc);
+    applyRouteHead(document.createElement("div"), doc);
+    expect(doc.documentElement.lang).toBe("de");
+  });
+
+  it("falls back to en when the first page applied set its own lang", () => {
+    doc = freshDoc("nl");
+    applyRouteHead(mountPayload({ lang: "nl" }), doc);
+    applyRouteHead(mountPayload({ title: "no lang" }), doc);
+    expect(doc.documentElement.lang).toBe("en");
   });
 
   it("leaves the head alone when the tree carries no payload", () => {

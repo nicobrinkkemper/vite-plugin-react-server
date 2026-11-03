@@ -5,7 +5,7 @@
 // After hydration and after each navigation the router calls this to read
 // that template and apply the head imperatively.
 //
-// Scope: `title`, and `meta` entries keyed by `name`/`property` (found or
+// Scope: `title`, `lang` (on <html>), and `meta` entries keyed by `name`/`property` (found or
 // created, created ones marked managed). `links` and unkeyed meta stay
 // document-render-only — they're in the prerendered <head> for crawlers, and
 // per-navigation updates to them rarely matter to a running client.
@@ -13,6 +13,23 @@
 import type { RouteHeadContribution } from "./head.js";
 
 const MANAGED_ATTR = "data-vprs-head-managed";
+
+// The language a route without `head.lang` gets: what the document shell
+// renders on its own. When the first page applied sets no lang, its
+// server-rendered <html lang> is that; otherwise it is the default Html's "en".
+const shellLang = new WeakMap<Document, string>();
+
+function applyLang(doc: Document, lang: string | undefined): void {
+  const html = doc.documentElement;
+  if (!shellLang.has(doc)) {
+    shellLang.set(
+      doc,
+      (lang === undefined && html.getAttribute("lang")) || "en",
+    );
+  }
+  const next = lang ?? shellLang.get(doc)!;
+  if (html.getAttribute("lang") !== next) html.setAttribute("lang", next);
+}
 
 const attrSelectorValue = (value: string) =>
   value.replace(/["\\]/g, "\\$&");
@@ -30,12 +47,15 @@ export function readRouteHead(root: ParentNode): RouteHeadContribution | null {
   }
 }
 
-/** Apply title + keyed meta from the current route's head payload. */
+/** Apply title, lang and keyed meta from the current route's head payload. */
 export function applyRouteHead(
   root: ParentNode,
   doc: Document = document,
 ): void {
   const head = readRouteHead(root);
+  // A route whose segments contribute no head carries no payload; a fresh
+  // load of it shows the shell's language, so navigation matches that.
+  applyLang(doc, typeof head?.lang === "string" ? head.lang : undefined);
   if (!head) return;
 
   if (typeof head.title === "string") {
