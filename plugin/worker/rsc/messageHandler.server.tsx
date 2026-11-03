@@ -39,10 +39,7 @@ import {
   clearAllCachedComponents,
 } from "./state.server.js";
 import { getRunner, getRpc } from "./runnerInstance.js";
-import {
-  combineCssFiles,
-  processInlineCssForState,
-} from "../../helpers/createUnifiedCssProcessor.js";
+import { combineCssFiles } from "../../helpers/createUnifiedCssProcessor.js";
 import { routeToURL } from "../../utils/routeToURL.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { resolvePageAndProps } from "../../helpers/resolvePageAndProps.js";
@@ -53,7 +50,7 @@ import {
 import { matchRoutes, normalizePathForMatch } from "../../router/matchRoute.js";
 import { resolveComponent } from "../../helpers/resolveComponent.js";
 import { handleError } from "../../error/handleError.js";
-import type { PanicThreshold } from "../../types.js";
+import type { CssContent, PanicThreshold } from "../../types.js";
 import type { RouteLayer } from "../../router/scanRoutes.js";
 import { workerUserOptions } from "./workerUserOptions.js";
 import { hydrateUserOptions } from "../../helpers/hydrateUserOptions.js";
@@ -933,12 +930,11 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
         }
 
         // Runner-mode CSS collection: the worker's Node ESM CSS loader
-        // never fires for runner-loaded modules, so the global cssFiles
-        // Map stays empty. Ask the main thread to walk Vite's server
-        // module graph for the page (populated as a side effect of the
-        // runner.import we just finished) and push the raw CSS code back.
-        // We feed each entry through addCssFileContent so it merges into
-        // the same global state the loader used to produce.
+        // never fires for runner-loaded modules. Ask the main thread to walk
+        // Vite's server module graph for the page (populated as a side effect
+        // of the runner.import we just finished) and push the raw CSS code
+        // back. The result belongs to this render only.
+        const collectedCssFiles = new Map<string, CssContent>();
         const rpc = getRpc();
         if (rpc && msg.options.pagePath) {
           try {
@@ -963,7 +959,12 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
               css: { ...cssFileUserOptions.css, inlineCss: false },
             };
             for (const { id, code } of collected) {
-              addCssFileContent(id, code, devLinkCssUserOptions);
+              addCssFileContent(
+                id,
+                code,
+                devLinkCssUserOptions,
+                collectedCssFiles
+              );
             }
             if (verbose) {
               logger?.info(
@@ -979,18 +980,13 @@ final buildConfig: ${JSON.stringify(buildConfig)}`
           }
         }
 
-        // Process CSS files using unified CSS processor
-        const messageCssFiles = new Map(msg.options.cssFiles || []);
-
-        // Process inline CSS for stateful system using unified helper
-        processInlineCssForState(
-          messageCssFiles,
-          addCssFileContent,
-          userOptions
+        // The route's css map from the main thread wins over collected
+        // entries with the same id.
+        const combinedCssFiles = combineCssFiles(
+          cssFiles,
+          collectedCssFiles,
+          new Map(msg.options.cssFiles || [])
         );
-
-        // Combine stateful CSS with message CSS using unified helper
-        const combinedCssFiles = combineCssFiles(cssFiles, messageCssFiles);
 
         // Create handler options exactly like server environment
         const handlerOptions = {
