@@ -26,11 +26,19 @@ from-scratch path below uses stable React.
 
 ## Start from scratch
 
+This guide uses manual mode: the config names the `Page` and `props` files
+for each URL. The project README and [Routing](./routing.md) use the
+file-based router instead, where a folder of `page.tsx` files does that
+mapping. Both produce the same build output and use the same client entry.
+
 ### Install
 
 ```bash
 npm install -D vite-plugin-react-server react react-dom react-server-loader
+npm install -D typescript @types/react
 ```
+
+The second line is for TypeScript, which the samples use.
 
 vprs runs on **stable React 19.2+** (`react` / `react-dom` at `^19.2.8`). The
 RSC transport underneath is version-locked by the
@@ -79,6 +87,38 @@ export default defineConfig({
   }),
 });
 ```
+
+### Client entry
+
+The browser needs an entry that hydrates the prerendered page and handles
+navigation:
+
+```tsx
+// src/client.tsx
+"use client";
+import { startClient } from "vite-plugin-react-server/router/client";
+
+startClient({ moduleBaseURL: import.meta.env.BASE_URL });
+```
+
+Load it from an `index.html` in the project root:
+
+```html
+<!-- index.html -->
+<!DOCTYPE html>
+<html>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/client.tsx"></script>
+  </body>
+</html>
+```
+
+`index.html` is Vite's entry point, not the document of your pages: those
+come from the `Html` component (see [Add an HTML Shell](#add-an-html-shell)).
+vprs finds the client entry through it, so you don't need the `clientEntry`
+option. `moduleBaseURL` tells the router the path the site is deployed under;
+see [Routing](./routing.md#client-side-navigation) for the other options.
 
 ### Development Server
 
@@ -258,16 +298,6 @@ does not count.)
 import { Counter } from "./components/Counter.js";
 // ...renders <Counter /> as a client reference
 ```
-
-#### Client entry
-
-Most projects have an `index.html` with something like:
-
-```html
-<script type="module" src="/src/client.tsx"></script>
-```
-
-vprs leaves that file to Vite's normal entry-point discovery — you do **not** need to set `clientEntry`, even though the file may carry a `"use client"` directive. The `clientEntry` option still exists for advanced cases that don't go through `index.html`.
 
 ### Add an HTML Shell
 

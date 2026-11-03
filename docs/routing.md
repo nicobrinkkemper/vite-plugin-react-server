@@ -225,7 +225,15 @@ import { startClient } from "vite-plugin-react-server/router/client";
 startClient({ patterns: ["/", "/greet/$name"] });
 ```
 
-`patterns` is what lets `useParams()` resolve for the current URL.
+`patterns` is what lets `useParams()` resolve for the current URL. Two more
+options matter for deploys:
+
+- `moduleBaseURL`: the path the site is served under. Pass
+  `import.meta.env.BASE_URL` (Vite's `base`) when that is a subpath.
+- `publicOrigin`: prepended to flight fetches. It defaults to
+  `import.meta.env.PUBLIC_ORIGIN`, set from `VITE_PUBLIC_ORIGIN` or the
+  `publicOrigin` plugin option, and that defaults to `""`: the page's own
+  origin.
 
 Then navigate with `Link`, which intercepts internal clicks and fetches the next
 route's flight instead of reloading the page:

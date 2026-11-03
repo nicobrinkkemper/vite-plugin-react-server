@@ -37,13 +37,20 @@ To add vprs to your own project:
 
 ```bash
 npm install -D vite-plugin-react-server react react-dom react-server-loader
+npm install -D typescript @types/react
 ```
 
-You need Node.js 22+ and Vite `^6.3.5`, `^7`, or `^8`. Stable React is supported
-with `react` and `react-dom` at `^19.2.8`, and `react-server-loader` at
+The second line is for TypeScript, which every sample below uses. You need
+Node.js 22+ and Vite `^6.3.5`, `^7`, or `^8`. Stable React is supported with
+`react` and `react-dom` at `^19.2.8`, and `react-server-loader` at
 `^19.2.20`. See [React versions](#react-versions) if you use experimental React.
 
 ## Minimal example
+
+This example uses the [file-based router](./docs/routing.md): pages come from
+a folder. [Getting Started](./docs/getting-started.md#start-from-scratch)
+builds the same kind of app in manual mode instead, mapping URLs to `Page` and
+`props` files in the config.
 
 Set `"type": "module"` in `package.json`. Then add the plugin:
 
@@ -65,14 +72,32 @@ vprs now looks for pages in `src/routes`. Put a `page.tsx` there to create `/`:
 
 ```tsx
 // src/routes/page.tsx
-import { Link } from "vite-plugin-react-server/router/client";
+import { Nav } from "../components/Nav.js";
 
 export const Page = ({ title }: { title: string }) => (
   <main>
     <h1>{title}</h1>
-    <Link to="/about">About</Link>
+    <Nav />
   </main>
 );
+```
+
+`Link` comes from the router's client side, so render it from a
+`"use client"` component:
+
+```tsx
+// src/components/Nav.tsx
+"use client";
+import { Link } from "vite-plugin-react-server/router/client";
+
+export function Nav() {
+  return (
+    <nav>
+      <Link to="/">Home</Link>
+      <Link to="/about">About</Link>
+    </nav>
+  );
+}
 ```
 
 A sibling `props.ts` supplies the page's props from the server:
@@ -105,7 +130,16 @@ startClient({
 });
 ```
 
-Load that entry from Vite's HTML template:
+Both options are optional. `moduleBaseURL` is the path the site is served
+under. `BASE_URL` is Vite's `base`, so passing it keeps links and flight
+fetches working on a subpath. `publicOrigin` is prepended to flight fetches.
+`PUBLIC_ORIGIN` comes from `VITE_PUBLIC_ORIGIN` or the `publicOrigin` plugin
+option and defaults to `""`, which means the page's own origin.
+[Routing](./docs/routing.md#client-side-navigation) calls the same function
+as `startClient({ patterns })`: `patterns` lists your route patterns so
+`useParams()` can read the current URL. Combine the options as needed.
+
+Vite needs an `index.html` that loads the entry:
 
 ```html
 <!-- index.html -->
@@ -114,6 +148,12 @@ Load that entry from Vite's HTML template:
   <script type="module" src="/src/client.tsx"></script>
 </body>
 ```
+
+This file is Vite's entry point, not the shell of your pages. Prerendered
+pages get their document from the `Html` component (a built-in one unless you
+set the `Html` option), and the build writes them over the copy of
+`index.html` in `dist/static/`. See
+[Build Output](./docs/build-output.md#diststatic--deploy-this).
 
 Now run the dev server or build the site:
 
