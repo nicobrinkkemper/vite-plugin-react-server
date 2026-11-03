@@ -45,6 +45,13 @@ const routeFromFlightUrl = (url: string): string => {
   return route;
 };
 
+// What a static host answers an action POST with: an error status or a page,
+// never a flight. Say why, since the status alone reads like a broken action.
+const NO_ACTION_SERVER =
+  "No server handled the action. A static build (dist/static on a static " +
+  "host, or vite preview) has nothing to run server actions; serve the " +
+  "build with an action handler (docs/server-actions.md#hosting).";
+
 export const createCallServer = (
   moduleBaseURL: string,
   hooks: CallServerHooks = {}
@@ -107,14 +114,14 @@ export const createCallServer = (
       }
       // Legacy / codec-less JSON error (or a proxy's error page): report it
       // without ever touching the decoder.
-      let message = `[vprs] server action failed (${response.status})`;
+      let message = `[vprs] server action failed (${response.status}). ${NO_ACTION_SERVER}`;
       try {
         const parsed = JSON.parse(await response.text()) as {
           error?: unknown;
         };
         if (parsed?.error) message = String(parsed.error);
       } catch {
-        // Not JSON — the status alone is the report.
+        // Not JSON: no action handler produced this response.
       }
       throw new Error(message);
     }
@@ -122,7 +129,8 @@ export const createCallServer = (
     if (!declaredFlight) {
       throw new Error(
         "[vprs] server action response is not a flight payload " +
-          `(content-type ${response.headers.get("content-type") ?? "<none>"})`
+          `(content-type ${response.headers.get("content-type") ?? "<none>"}). ` +
+          NO_ACTION_SERVER
       );
     }
 
