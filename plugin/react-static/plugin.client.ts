@@ -112,7 +112,8 @@ export const reactStaticPlugin: VitePluginFn = function _reactStaticPlugin(
   return {
     name: "vite:plugin-react-server/client-static",
     enforce: "post",
-    apply: "build", // Apply to build mode
+    // Build generates the static site; preview serves it (configurePreviewServer).
+    apply: (_config, env) => env.command === "build" || env.isPreview === true,
     api: {
       meta: { timing },
     },
