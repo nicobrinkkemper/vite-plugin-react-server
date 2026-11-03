@@ -151,8 +151,15 @@ type HtmlProps = {
   Root: RootComponentType | typeof React.Fragment;
   globalCss: Map<string, CssContent>;
   as?: keyof JSX.IntrinsicElements;
+  head?: RouteHeadContribution; // the route's merged head.ts, already in <head>
 };
 ```
+
+Without an `Html` option, vprs renders a built-in one: `<html lang="en">`, a
+UTF-8 charset, a `width=device-width, initial-scale=1` viewport (left out when
+the route's `head.ts` sets a `viewport` meta), the global CSS, and the `Root`.
+Supply your own `Html` for a different language or anything else in the
+document shell.
 
 ### RootProps
 

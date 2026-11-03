@@ -31,6 +31,7 @@ import type { AllowedDirectives, Program } from "react-server-loader/directives"
 import type { RoutesOption } from "./router/fileRouter.js";
 import type { RunnerName } from "./config/runner.js";
 import type { RouteLayer } from "./router/scanRoutes.js";
+import type { RouteHeadContribution } from "./router/head.js";
 import type { ResolvedLayoutLayer } from "./helpers/resolveLayoutChain.js";
 
 /**
@@ -1591,6 +1592,12 @@ export type HtmlProps<
   Root: RootComponentType<PageProps, As, InlineCSS, R> | typeof React.Fragment;
   globalCss: Map<string, CssContent<InlineCSS>>;
   as?: As;
+  /**
+   * The matched route's merged `head.ts` contribution (file router). Its tags
+   * are already rendered into the document `<head>`; an Html component reads
+   * it to avoid emitting a tag the route provides.
+   */
+  head?: RouteHeadContribution;
 };
 
 export type PageAsset = {

@@ -113,6 +113,9 @@ export const createElementWithReact: CreateElementWithReactFN =
     // `<Page {...pageProps}/>`); each layer closes over its own resolved props.
     // No layers → the leaf page passes through unchanged, so every branch below
     // stays byte-identical for the flat case.
+    const head = layoutChain?.length
+      ? mergeHead(layoutChain.map((l) => l.head))
+      : undefined;
     const EffectivePage =
       layoutChain && layoutChain.length && PageComponent
         ? function ComposedPage(leafProps: Record<string, unknown>) {
@@ -120,11 +123,11 @@ export const createElementWithReact: CreateElementWithReactFN =
               .createElement;
             const Suspense = (React as unknown as { Suspense?: unknown })
               .Suspense;
-            const head = mergeHead(layoutChain.map((l) => l.head));
             const hasHead =
-              head.title !== undefined ||
+              head !== undefined &&
+              (head.title !== undefined ||
               (head.meta?.length ?? 0) > 0 ||
-              (head.links?.length ?? 0) > 0;
+                (head.links?.length ?? 0) > 0);
             const headTags =
               isDocumentRender && hasHead
                 ? [
@@ -199,6 +202,7 @@ export const createElementWithReact: CreateElementWithReactFN =
           manifest={manifest}
           Page={EffectivePage ? EffectivePage : React.Fragment}
           as={as}
+          head={head}
         />
       ) as never;
     } else if (RootComponent != null && RootComponent !== React.Fragment) {
