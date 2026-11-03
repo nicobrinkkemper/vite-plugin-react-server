@@ -27,6 +27,14 @@ one copy in your tree serves both vprs and your app. For stable:
 npm install react@^19.2.8 react-dom@^19.2.8 react-server-loader
 ```
 
+`react-server-loader`'s stable minor follows React's: 19.3.x needs React
+19.3.1 or newer. To stay on React 19.2, pin the matching line explicitly,
+since a bare install picks the newest and npm reports a peer conflict:
+
+```bash
+npm install react@~19.2.8 react-dom@~19.2.8 react-server-loader@~19.2.20
+```
+
 For the experimental train, install all three at the exact snapshot vprs's
 peer range names (`react-server-loader`'s experimental versions carry the same
 version string as the React build they vendor). Do not use the floating
@@ -34,14 +42,15 @@ version string as the React build they vendor). Do not use the floating
 
 ```bash
 npm view vite-plugin-react-server peerDependencies  # names the exact snapshot
-npm install react@0.0.0-experimental-eb8feb71-20260814 react-dom@0.0.0-experimental-eb8feb71-20260814 react-server-loader@0.0.0-experimental-eb8feb71-20260814
+npm install react@0.0.0-experimental-e84e1492-20261031 react-dom@0.0.0-experimental-e84e1492-20261031 react-server-loader@0.0.0-experimental-e84e1492-20261031
 ```
 
-One practical reason to run experimental: stable React 19.2.x emits its
-CSS preload hint as an invalid `as="stylesheet"`, so browsers ignore the
-preload; styles still load, just not preloaded (see
-[troubleshooting](./troubleshooting.md)). The experimental channel carries
-the fix.
+React 19.2.x emits its CSS preload hint as an invalid `as="stylesheet"`, so
+browsers ignore the preload; styles still load, just not preloaded (see
+[troubleshooting](./troubleshooting.md)). React 19.3.1 with
+`react-server-loader` 19.3 and the experimental train both emit the valid
+`as="style"`. Move `react`, `react-dom` and `react-server-loader` together:
+`react-server-loader` 19.2.x on React 19.3 still emits the invalid hint.
 
 **React peer**: `react` / `react-dom` at `^19.2.8 || >=0.0.0-0 <0.0.1` (admits
 both trains). The transport binds to a single React build's internals and

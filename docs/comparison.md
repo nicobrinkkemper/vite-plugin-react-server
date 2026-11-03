@@ -80,9 +80,7 @@ snapshot vprs's peer range names (see
 transport ships both a stable and an experimental train for this reason.
 
 Running experimental buys you the newest RSC features ahead of the stable
-channel. A concrete example today: stable React 19.2.x emits a cosmetic
-`as="stylesheet"` preload warning that the experimental channel has already
-fixed. Our own [mmcelebration.com](https://www.mmcelebration.com) site runs vprs
+channel. Our own [mmcelebration.com](https://www.mmcelebration.com) site runs vprs
 on the experimental train. See
 [React Compatibility](./react-type-compatibility.md) for the support matrix and
 how to pin the versions.

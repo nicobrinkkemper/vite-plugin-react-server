@@ -330,12 +330,13 @@ packages. Check the plugin's peer dependencies before installing; the
 
 ```bash
 npm view vite-plugin-react-server peerDependencies
-npm install react@0.0.0-experimental-eb8feb71-20260814 react-dom@0.0.0-experimental-eb8feb71-20260814 react-server-loader@0.0.0-experimental-eb8feb71-20260814
+npm install react@0.0.0-experimental-e84e1492-20261031 react-dom@0.0.0-experimental-e84e1492-20261031 react-server-loader@0.0.0-experimental-e84e1492-20261031
 ```
 
 See [React Compatibility](./docs/react-type-compatibility.md) for the
 differences between stable and experimental, including the CSS preload
-warning in stable React 19.2.x.
+warning in React 19.2.x (fixed in React 19.3.1 with `react-server-loader`
+19.3).
 
 ## Documentation
 

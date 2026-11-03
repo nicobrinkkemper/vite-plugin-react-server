@@ -62,13 +62,19 @@ If your client-entry's CSS imports (global stylesheet, font CSS) aren't reaching
 
 You do **not** need to set `clientEntry` for the conventional case — vprs leaves index.html-referenced entries to Vite's own discovery so it can pick up their CSS through the normal Vite manifest.
 
-## `as="stylesheet"` Preload Warnings (Stable React)
+## `as="stylesheet"` Preload Warnings (React 19.2)
 
 **Symptoms:** Console floods with `<link rel=preload> uses an unsupported 'as' value` / "preload ignored" warnings; the offending tag is `<link rel="preload" as="stylesheet">`.
 
-**This is a stable-React bug, not a config problem — and it's cosmetic.** React 19.2.x stable's Flight server emits CSS preload hints with `as="stylesheet"` (`ReactFlightServerConfigDOM.processLink()`); the only valid preload token is `style`, so browsers reject the hint and warn. The real `<link rel="stylesheet">` is emitted separately and works — styling is unaffected. The fix already exists upstream on React `main` and reaches you when the next stable React lands (this plugin re-vendors its transport per stable release).
+**This is a React 19.2 transport bug, not a config problem, and it's cosmetic.** The Flight server in React 19.2.x emits CSS preload hints with `as="stylesheet"` (`ReactFlightServerConfigDOM.processLink()`); the only valid preload token is `style`, so browsers reject the hint and warn. The real `<link rel="stylesheet">` is emitted separately and works, so styling is unaffected.
 
-**If you want the warnings gone now**, move to the experimental channel — `react-server-loader` publishes an experimental train vendoring React `main`'s transport, with peers pinned to the exact matching React:
+**Fix:** move all three packages to React 19.3. The transport is the copy vendored inside `react-server-loader`, so upgrading React alone is not enough: `react-server-loader` 19.2.x keeps emitting the invalid token even on React 19.3.
+
+```bash
+npm install react@^19.3.1 react-dom@^19.3.1 react-server-loader@^19.3.0
+```
+
+The experimental channel carries the fix too. `react-server-loader` publishes an experimental train vendoring React `main`'s transport, with peers pinned to the exact matching React:
 
 ```bash
 npm view react-server-loader dist-tags   # find the current experimental version
