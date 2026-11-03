@@ -14,7 +14,10 @@ import { getModuleRef } from "../../helpers/moduleRefs.js";
 // Track active RSC streams
 export const activeStreams = new Map<string, PassThrough>();
 
-// Track CSS files
+// CSS the Node ESM css-loader announces as modules load (CSS_FILE). Only the
+// loader writes here: per-render css (the route's own map, the runner's module
+// graph walk) stays in that render, or every route would carry the stylesheets
+// of every route the worker rendered before it.
 export const cssFiles = new Map<string, CssContent>();
 
 // Track module IDs
@@ -165,14 +168,15 @@ export function addCssFileContent(
     | "normalizer"
     | "moduleID"
     | "publicOrigin"
-  >
+  >,
+  into: Map<string, CssContent> = cssFiles
 ) {
   if (typeof code !== "string") {
     throw new Error(
       `Expected css to be loaded as a string, but got ${typeof code}`
     );
   }
-  cssFiles.set(
+  into.set(
     id,
     createCssProps({
       id,

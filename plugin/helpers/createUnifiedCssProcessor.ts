@@ -141,25 +141,6 @@ export function combineCssFiles(
 }
 
 /**
- * Processes inline CSS content for stateful systems
- * 
- * @param cssFiles - CSS files map
- * @param addCssFileContent - Function to add CSS content to state
- * @param userOptions - User options
- */
-export function processInlineCssForState(
-  cssFiles: Map<string, CssContent>,
-  addCssFileContent: (id: string, content: string, userOptions: ResolvedUserOptions) => void,
-  userOptions: ResolvedUserOptions
-): void {
-  for (const [id, cssContent] of cssFiles.entries()) {
-    if (cssContent.children && typeof cssContent.children === 'string') {
-      addCssFileContent(id, cssContent.children, userOptions);
-    }
-  }
-}
-
-/**
  * Creates a unified CSS processor instance
  * 
  * @param options - Processing options
@@ -170,6 +151,5 @@ export function createUnifiedCssProcessor(options: UnifiedCssProcessorOptions) {
     processCssFromStaticBuild: (cssInputs: Record<string, string>) => 
       processCssFromStaticBuild(cssInputs, options),
     combineCssFiles,
-    processInlineCssForState,
   };
 }
