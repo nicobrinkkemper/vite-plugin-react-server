@@ -2,7 +2,6 @@ import type { HtmlComponentType, HtmlProps } from "../types.js";
 import { Css } from "./css.js";
 import React from 'react'
 
-
 export const Html: HtmlComponentType<any, any, any, any> = ({
   Root,
   cssFiles,
@@ -10,13 +9,18 @@ export const Html: HtmlComponentType<any, any, any, any> = ({
   pageProps,
   Page,
   as = "div",
+  head,
 }: HtmlProps) => (
-  <html>
+  <html lang="en">
     <head>
       {/* Without an explicit charset a browser may parse the UTF-8 snapshot
           as windows-1252 — any non-ASCII text ("·", "—") then mismatches the
           client render and hydration fails with React #418. */}
       <meta charSet="utf-8" />
+      {/* A route's head.ts may set its own viewport; two would conflict. */}
+      {head?.meta?.some((m) => m["name"] === "viewport") ? null : (
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      )}
       <Css cssFiles={globalCss} />
     </head>
     <body>
