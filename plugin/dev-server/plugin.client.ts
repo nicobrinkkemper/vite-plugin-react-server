@@ -64,6 +64,10 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // Configure the React server for client environment (worker-based)
       // This uses the existing configureReactServer.client.js implementation
       const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
+      watchRouteTree(server, {
+        routeTree: userOptions.routeTree,
+        autoDiscoveredFiles,
+      });
       hmrHandler = configureReactServer({
         server,
         autoDiscoveredFiles,
@@ -71,10 +75,6 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         configEnv: configEnv!,
         serverManifest: {}, 
         resolvedConfig: server.config,
-      });
-      watchRouteTree(server, {
-        routeTree: userOptions.routeTree,
-        autoDiscoveredFiles,
       });
     },
     hotUpdate(this: any, ctx: any) {
@@ -116,7 +116,9 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // Normalize paths for comparison (handle both absolute and relative)
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
       const isInModuleBase = normalizedFile.startsWith(moduleBase + '/');
-      const isSourceFile = isInModuleBase &&
+      // A route tree may sit outside the module base (`routes: fileRouter("app")`).
+      const isSourceFile =
+        (isInModuleBase || !!userOptions.routeTree?.isRouteFile(file)) &&
         (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
       // CSS edits route through the same worker-invalidation path so the
       // ModuleRunner cache drops every reachable CSS module before the

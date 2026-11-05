@@ -62,7 +62,10 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       const moduleBase = userOptions.moduleBase || "src";
       const projectRoot = userOptions.projectRoot || server?.config?.root || '';
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
-      const isSourceFile = normalizedFile.startsWith(moduleBase + '/');
+      // A route tree may sit outside the module base (`routes: fileRouter("app")`).
+      const isSourceFile =
+        normalizedFile.startsWith(moduleBase + '/') ||
+        !!userOptions.routeTree?.isRouteFile(file);
 
       // Outside the module base only files the server graph actually imports
       // count (markdown via `?raw` globs, JSON data); see isServerGraphFile.
@@ -159,16 +162,16 @@ applyToEnvironment(partialEnvironment: any) {
       // Configure the React server for server environment (direct RSC processing)
       // This uses the existing configureReactServer.server.js implementation
       const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
+      watchRouteTree(server, {
+        routeTree: userOptions.routeTree,
+        autoDiscoveredFiles,
+      });
       configureReactServer({
         server,
         autoDiscoveredFiles,
         userOptions,
         serverManifest: {},
         resolvedConfig: server.config,
-      });
-      watchRouteTree(server, {
-        routeTree: userOptions.routeTree,
-        autoDiscoveredFiles,
       });
     },
   };
