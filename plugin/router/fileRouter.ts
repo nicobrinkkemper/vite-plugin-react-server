@@ -65,12 +65,27 @@ export type FileRouterConfig = {
    */
   layouts: (url: string) => RouteLayer[];
   /**
-   * True when `file` (absolute) is one the route scan reads: under the scanned
-   * directory and named like a page, loader, layout, boundary, fallback or
-   * head. The table is a snapshot of the tree, so the dev server rescans when
-   * such a file is added or removed. Absent on a hand-rolled router table.
+   * The dev server's handle on the scanned tree. Absent on a hand-rolled
+   * router table.
    */
-  isRouteFile?: (file: string) => boolean;
+  routeTree?: RouteTree;
+};
+
+/** The scanned route tree, for the dev server's watcher. */
+export type RouteTree = {
+  /**
+   * True when `file` (absolute) is one the scan reads: under the scanned
+   * directory and named like a page, loader, layout, boundary, fallback or
+   * head (the patterns `resolveScanPatterns` resolves).
+   */
+  isRouteFile: (file: string) => boolean;
+  /**
+   * Scan again. When the route set is unchanged the table's url resolvers
+   * (Page, props, layouts) switch to the new scan. When a route appeared or
+   * disappeared nothing is swapped and `routeSetChanged` is true: the route
+   * list is part of the resolved config, so the config has to resolve again.
+   */
+  rescan: () => { routeSetChanged: boolean };
 };
 
 export function fileRouter(
@@ -106,7 +121,6 @@ export function fileRouter(
   const { root } = opts;
   const scanDir = root ? resolve(root, routesDir) : routesDir;
   const scanPatterns = resolveScanPatterns(opts.patterns);
-  const scanned = scanRoutes(scanDir, scanPatterns);
   const absScanDir = resolve(scanDir);
   const isRouteFile = (file: string) => {
     const rel = relative(absScanDir, resolve(file));
@@ -119,22 +133,32 @@ export function fileRouter(
     );
   };
   const toRel = (p: string) => relative(root!, p).split(sep).join("/");
-  const routes: RouteEntry[] = root
-    ? scanned.map((r) => ({
-        ...r,
-        page: toRel(r.page),
-        props: r.props ? toRel(r.props) : undefined,
-        layouts: r.layouts.map((l) => ({
-          component: l.component ? toRel(l.component) : undefined,
-          props: l.props ? toRel(l.props) : undefined,
-          error: l.error ? toRel(l.error) : undefined,
-          loading: l.loading ? toRel(l.loading) : undefined,
-          head: l.head ? toRel(l.head) : undefined,
-        })),
-      }))
-    : scanned;
+  const scan = (): RouteEntry[] => {
+    const scanned = scanRoutes(scanDir, scanPatterns);
+    return root
+      ? scanned.map((r) => ({
+          ...r,
+          page: toRel(r.page),
+          props: r.props ? toRel(r.props) : undefined,
+          layouts: r.layouts.map((l) => ({
+            component: l.component ? toRel(l.component) : undefined,
+            props: l.props ? toRel(l.props) : undefined,
+            error: l.error ? toRel(l.error) : undefined,
+            loading: l.loading ? toRel(l.loading) : undefined,
+            head: l.head ? toRel(l.head) : undefined,
+          })),
+        }))
+      : scanned;
+  };
+  // The current scan. The url resolvers below read it per call, so a rescan
+  // that keeps the route set (a head/props/layout/boundary file added or
+  // removed) takes effect on the next request with no restart.
+  let routes = scan();
+  let byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
+  // The route SET is fixed for the table's lifetime: it is copied into the
+  // resolved config (routePatterns, the prerender list), so a rescan that
+  // changes it reports that instead of swapping.
   const patterns = routes.map((r) => r.pattern);
-  const byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
   const rscOutputPath = opts.rscOutputPath ?? RSC_OUTPUT_PATH;
   const stripHtmlSuffix = opts.stripHtmlSuffix ?? true;
   const forMatch = (url: string) =>
@@ -144,6 +168,19 @@ export function fileRouter(
     const m = matchRoutes(patterns, forMatch(url));
     if (!m) throw new Error(`fileRouter: no route matches "${url}"`);
     return byPattern.get(m.pattern)!;
+  };
+
+  const rescan = (): { routeSetChanged: boolean } => {
+    const next = scan();
+    if (
+      next.length !== patterns.length ||
+      next.some((r, i) => r.pattern !== patterns[i])
+    ) {
+      return { routeSetChanged: true };
+    }
+    routes = next;
+    byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
+    return { routeSetChanged: false };
   };
 
   const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
@@ -174,12 +211,14 @@ export function fileRouter(
     Page: (url) => matched(url).page,
     props: (url) => matched(url).props,
     build: { pages },
-    routes,
+    get routes() {
+      return routes;
+    },
     routePatterns: patterns,
     stripHtmlSuffix: opts.stripHtmlSuffix,
     getParams: (url) => matchRoutes(patterns, forMatch(url))?.params ?? {},
     layouts: (url) => matched(url).layouts,
-    isRouteFile,
+    routeTree: { isRouteFile, rescan },
   };
 }
 

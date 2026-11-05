@@ -3,7 +3,7 @@ import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, restartOnRouteTreeChange } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 
@@ -51,6 +51,7 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
     // Prevent server/ssr environments from triggering page reload for client components.
     hotUpdate(this: any, ctx: any) {
       const { file, server } = ctx;
+      if (isRouteTreeAddOrRemove(userOptions.routeTree, ctx)) return [];
       // The environment lives on the HOOK CONTEXT (`this.environment`), not on
       // the options bag — on Vite 8 `ctx.environment` is undefined, so reading
       // only ctx left every call as 'unknown': the client branch (which pushes
@@ -147,14 +148,20 @@ applyToEnvironment(partialEnvironment: any) {
       
       // Configure the React server for server environment (direct RSC processing)
       // This uses the existing configureReactServer.server.js implementation
+      const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
       configureReactServer({
         server,
-        autoDiscoveredFiles: emptyAutoDiscoveredFiles(),
+        autoDiscoveredFiles,
         userOptions,
         serverManifest: {},
         resolvedConfig: server.config,
       });
-      restartOnRouteTreeChange(server, userOptions.isRouteFile);
+      watchRouteTree(server, {
+        routeTree: userOptions.routeTree,
+        projectRoot: userOptions.projectRoot,
+        autoDiscoveredFiles,
+        onRouteFilesChanged: () => getDevShellHeadProvider(server)?.invalidate(),
+      });
     },
   };
 

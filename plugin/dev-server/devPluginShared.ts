@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { detectClientModule } from "react-server-loader/directives";
 import type { AutoDiscoveredFiles } from "../types.js";
+import type { RouteTree } from "../router/fileRouter.js";
 
 /**
  * An empty AutoDiscoveredFiles. Both dev-server plugins (server + client) hand
@@ -138,30 +139,51 @@ export function isServerGraphFile(
 type RouteTreeWatchServer = {
   watcher: { on(event: "add" | "unlink", cb: (file: string) => void): unknown };
   restart(): Promise<void>;
-  config: { logger: { info(msg: string): void } };
+  ws: { send(payload: unknown): void };
+  config: { root: string; logger: { info(msg: string): void } };
 };
 
+/** The event `useRscHmr` refetches the current route's flight on. */
+export const SERVER_COMPONENT_UPDATE_EVENT =
+  "vite-plugin-react-server:server-component-update";
+
 /**
- * Restart the dev server when a file the route scan reads is added or
- * removed. The router table is a snapshot taken when the config resolves, so
- * a new `page.tsx`, `head.ts`, `props.ts`, `route.tsx`, `error.tsx`,
- * `loading.tsx` or `index.tsx` (or a removed one) is invisible until the scan
- * runs again; a restart re-resolves the config and rescans. Edits need
- * nothing here: the file set is unchanged and HMR reloads the module.
- * `isRouteFile` comes from the router itself, so the watched kinds are
- * exactly the ones the scan recognizes.
+ * Follow route files being added or removed while the dev server runs. The
+ * table the `routes` option builds is a scan of the tree, so each such change
+ * rescans it:
+ *
+ * - The route set is unchanged (a `head.ts`, `props.ts`, `route.tsx`,
+ *   `error.tsx` or `loading.tsx` came or went under existing routes, or a
+ *   page file was swapped for its alternate name): the table's resolvers
+ *   switch to the new scan, the per-url resolutions the dev server cached are
+ *   dropped, `onRouteFilesChanged` lets the plugin drop its own caches, and
+ *   the browser gets the same refetch a server-component edit sends. The open
+ *   page updates in place and client state survives.
+ * - A route appeared or disappeared: the route list is part of the resolved
+ *   config (request-time params, the prerender list), so the server restarts
+ *   and the config resolves again.
+ *
+ * Edits need nothing here: the file set is unchanged and HMR reloads the
+ * module. The dev plugins' `hotUpdate` leaves added and removed route files
+ * to this watcher (see {@link isRouteTreeAddOrRemove}), which runs first: the
+ * watcher calls listeners synchronously, Vite's own hot update after an await.
  */
-export function restartOnRouteTreeChange(
+export function watchRouteTree(
   server: RouteTreeWatchServer,
-  isRouteFile: ((file: string) => boolean) | undefined,
+  opts: {
+    routeTree: RouteTree | undefined;
+    projectRoot: string | undefined;
+    autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "urlMap">;
+    onRouteFilesChanged?: (file: string) => void;
+  },
 ): void {
-  if (!isRouteFile) return;
+  const { routeTree } = opts;
+  if (!routeTree) return;
   let restarting = false;
-  const onChange = (file: string) => {
-    if (restarting || !isRouteFile(file)) return;
+  const restart = (file: string) => {
     restarting = true;
     server.config.logger.info(
-      `[vite-plugin-react-server] route file added or removed (${file}), restarting to rescan routes`,
+      `[vite-plugin-react-server] route added or removed (${file}), restarting to rescan routes`,
     );
     // A burst (a folder moved in, several files saved at once) coalesces into
     // one restart; the new server gets a fresh watcher and a fresh scan.
@@ -171,6 +193,47 @@ export function restartOnRouteTreeChange(
       });
     }, 50);
   };
+  const onChange = (file: string) => {
+    if (restarting || !routeTree.isRouteFile(file)) return;
+    let routeSetChanged: boolean;
+    try {
+      ({ routeSetChanged } = routeTree.rescan());
+    } catch {
+      // A tree the scan rejects (two pages on one url): the restart's config
+      // resolution reports it.
+      routeSetChanged = true;
+    }
+    if (routeSetChanged) return restart(file);
+    opts.autoDiscoveredFiles.urlMap.clear();
+    opts.onRouteFilesChanged?.(file);
+    const root = opts.projectRoot || server.config.root;
+    server.ws.send({
+      type: "custom",
+      event: SERVER_COMPONENT_UPDATE_EVENT,
+      data: {
+        file: file.replace(root, "").replace(/^\/+/, ""),
+        path: file,
+        kind: "component",
+      },
+    });
+  };
   server.watcher.on("add", onChange);
   server.watcher.on("unlink", onChange);
+}
+
+/**
+ * True for a hot update {@link watchRouteTree} owns: a route file added or
+ * removed. `hotUpdate` returns `[]` for these so the change is not handled
+ * twice (and a new `"use client"` `error.tsx` is not mistaken for a client
+ * edit Vite owns).
+ */
+export function isRouteTreeAddOrRemove(
+  routeTree: RouteTree | undefined,
+  ctx: { type?: string; file: string },
+): boolean {
+  return (
+    !!routeTree &&
+    (ctx.type === "create" || ctx.type === "delete") &&
+    routeTree.isRouteFile(ctx.file)
+  );
 }

@@ -3,16 +3,22 @@ import { createServer, type ViteDevServer } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
 import { testUserOptions } from "../test-config";
 import { setupIndexHTML } from "../setup.js";
+import { handleRSCStream } from "../rsc-stream.js";
 import { mkdir, rm, writeFile, symlink, unlink } from "node:fs/promises";
 import { resolve, join } from "node:path";
 
 /**
- * The `routes` table is scanned once when the config resolves. A route file
- * added or removed while the dev server runs (a new `head.ts` for a segment, a
- * new page) changes what the scan returns, so the dev server must restart to
- * rescan; before, a new `about/head.ts` stayed invisible (the About flight
- * kept the root language) until Vite was restarted by hand. Every file kind
- * the scan recognizes counts, and only those, and only inside the route tree.
+ * The `routes` table is a scan of the route tree. While the dev server runs:
+ *
+ * - a route appearing or disappearing (a page file added or removed) changes
+ *   the route set the config was resolved with, so the server restarts;
+ * - any other file the scan reads (head, props, route, error, loading) added
+ *   or removed under an existing route swaps the scan in place: no restart,
+ *   the browser gets the server-component refetch, and the next flight
+ *   reflects the file. Before, a new `about/head.ts` stayed invisible (the
+ *   About flight kept the root language) until Vite was restarted by hand.
+ *
+ * Edits, files the scan ignores and files outside the tree restart nothing.
  */
 
 let server: ViteDevServer;
@@ -20,8 +26,17 @@ const port = 3149;
 const testDir = resolve(__dirname, "../fixtures/route-tree-rescan.test");
 const routesDir = join(testDir, "src/routes");
 const restart = vi.fn(async () => {});
+const refetches: string[] = [];
 
-const settle = () => new Promise((r) => setTimeout(r, 400));
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const aboutFlight = async () => {
+  const response = await handleRSCStream(
+    `http://localhost:${port}/about/index.rsc`,
+  );
+  expect(response.ok).toBe(true);
+  return response.result as string;
+};
 
 async function expectRestartAfter(change: () => Promise<void>) {
   const before = restart.mock.calls.length;
@@ -31,21 +46,44 @@ async function expectRestartAfter(change: () => Promise<void>) {
     { timeout: 10_000, interval: 50 },
   );
   // Let the coalescing window close before the next change.
-  await settle();
+  await pause(400);
+}
+
+/** No restart, a refetch for `file`, and the next About flight passes `check`. */
+async function expectInPlaceAfter(
+  file: string,
+  change: () => Promise<void>,
+  check: (flight: string) => void,
+) {
+  const before = restart.mock.calls.length;
+  const refetchesBefore = refetches.length;
+  await change();
+  await vi.waitFor(
+    () => expect(refetches.slice(refetchesBefore)).toContain(file),
+    { timeout: 10_000, interval: 50 },
+  );
+  check(await aboutFlight());
+  await pause(400);
+  expect(restart.mock.calls.length).toBe(before);
 }
 
 async function expectNoRestartAfter(change: () => Promise<void>) {
   const before = restart.mock.calls.length;
   await change();
-  await new Promise((r) => setTimeout(r, 1_500));
+  await pause(1_500);
   expect(restart.mock.calls.length).toBe(before);
 }
 
-describe("dev server rescans the route tree", () => {
+describe("dev server follows the route tree", () => {
   beforeAll(async () => {
     await rm(testDir, { recursive: true, force: true });
     await setupIndexHTML(testDir);
     await mkdir(join(routesDir, "about"), { recursive: true });
+    await mkdir(join(routesDir, "gone"), { recursive: true });
+    await writeFile(
+      join(routesDir, "gone/page.tsx"),
+      `export const Page = () => <div>gone</div>;`,
+    );
     await mkdir(join(testDir, "src/other"), { recursive: true });
     await writeFile(
       join(routesDir, "page.tsx"),
@@ -57,7 +95,7 @@ describe("dev server rescans the route tree", () => {
     );
     await writeFile(
       join(routesDir, "about/page.tsx"),
-      `export const Page = () => <div>About</div>;`,
+      `export const Page = ({ msg }: { msg?: string }) => <div>{"about:" + (msg ?? "no-props")}</div>;`,
     );
     try {
       await symlink(
@@ -73,19 +111,50 @@ describe("dev server rescans the route tree", () => {
       plugins: [
         vitePluginReactServer({
           ...testUserOptions,
-          projectRoot: testDir,
-          moduleBase: "src",
           Page: undefined,
           props: undefined,
+          projectRoot: testDir,
+          moduleBase: "src",
           routes: { dir: "routes" },
         }),
       ],
       server: { port },
     });
-    // Observe the restart instead of performing it.
+    // Observe the restart instead of performing it, and record refetches.
     server.restart = restart;
+    const send = server.ws.send.bind(server.ws) as (...a: unknown[]) => void;
+    server.ws.send = ((...args: unknown[]) => {
+      const payload = args[0] as { event?: string; data?: { path?: string } };
+      if (
+        payload?.event === "vite-plugin-react-server:server-component-update" &&
+        payload.data?.path
+      ) {
+        refetches.push(payload.data.path);
+      }
+      return send(...args);
+    }) as typeof server.ws.send;
     await server.listen();
-    await settle();
+    // The watcher reports changes only once its initial scan is done; under
+    // load that can trail listen(). Wait until it sees a probe file.
+    const probe = join(routesDir, "watcher-probe.txt");
+    const seen = new Promise<void>((resolve) => {
+      const onAdd = (f: string) => {
+        if (f !== probe) return;
+        server.watcher.off("add", onAdd);
+        resolve();
+      };
+      server.watcher.on("add", onAdd);
+    });
+    for (let i = 0; ; i++) {
+      await writeFile(probe, String(i));
+      const ok = await Promise.race([seen.then(() => true), pause(500).then(() => false)]);
+      if (ok) break;
+      await rm(probe, { force: true });
+      await pause(100);
+    }
+    await rm(probe, { force: true });
+    // Warm the route so later flights read cached resolutions if any survive.
+    expect(await aboutFlight()).toContain("about:no-props");
   }, 60_000);
 
   afterAll(async () => {
@@ -101,39 +170,117 @@ describe("dev server rescans the route tree", () => {
     await rm(testDir, { recursive: true, force: true });
   }, 30_000);
 
-  it("on adding and removing a segment's head.ts", async () => {
+  it("a segment's head.ts sets the language without a restart", async () => {
     const file = join(routesDir, "about/head.ts");
-    await expectRestartAfter(() =>
-      writeFile(file, `export const head = { lang: "nl" };`),
+    await expectInPlaceAfter(
+      file,
+      () => writeFile(file, `export const head = { lang: "nl" };`),
+      (flight) => expect(flight).toContain(`\\"lang\\":\\"nl\\"`),
     );
-    await expectRestartAfter(() => unlink(file));
+    await expectInPlaceAfter(
+      file,
+      () => unlink(file),
+      (flight) => {
+        expect(flight).toContain(`\\"lang\\":\\"en\\"`);
+        expect(flight).not.toContain(`\\"lang\\":\\"nl\\"`);
+      },
+    );
   }, 30_000);
 
-  it.each([
-    "page.tsx",
-    "index.tsx",
-    "props.ts",
-    "route.tsx",
-    "error.tsx",
-    "loading.tsx",
-  ])("on adding and removing %s", async (name) => {
-    const dir = join(routesDir, "kinds");
-    await mkdir(dir, { recursive: true });
-    const file = join(dir, name);
-    await expectRestartAfter(() => writeFile(file, `export {};`));
-    await expectRestartAfter(() => unlink(file));
+  it("a segment's props.ts loads without a restart", async () => {
+    const file = join(routesDir, "about/props.ts");
+    await expectInPlaceAfter(
+      file,
+      () => writeFile(file, `export const props = () => ({ msg: "from-props" });`),
+      (flight) => expect(flight).toContain("about:from-props"),
+    );
+    await expectInPlaceAfter(
+      file,
+      () => unlink(file),
+      (flight) => expect(flight).toContain("about:no-props"),
+    );
   }, 30_000);
 
-  it("not on editing an existing route file", async () => {
+  it("a segment's route.tsx wraps the page without a restart", async () => {
+    const file = join(routesDir, "about/route.tsx");
+    await expectInPlaceAfter(
+      file,
+      () =>
+        writeFile(
+          file,
+          `export const Layout = ({ children }: { children?: React.ReactNode }) => <section>{"about-layout"}{children}</section>;`,
+        ),
+      (flight) => expect(flight).toContain("about-layout"),
+    );
+    await expectInPlaceAfter(
+      file,
+      () => unlink(file),
+      (flight) => expect(flight).not.toContain("about-layout"),
+    );
+  }, 30_000);
+
+  it("a segment's loading.tsx joins the chain without a restart", async () => {
+    const file = join(routesDir, "about/loading.tsx");
+    await expectInPlaceAfter(
+      file,
+      () =>
+        writeFile(file, `export const Loading = () => <p>{"about-loading"}</p>;`),
+      (flight) => expect(flight).toContain("about-loading"),
+    );
+    await expectInPlaceAfter(
+      file,
+      () => unlink(file),
+      (flight) => expect(flight).not.toContain("about-loading"),
+    );
+  }, 30_000);
+
+  it("a segment's error.tsx joins the chain without a restart", async () => {
+    const file = join(routesDir, "about/error.tsx");
+    await expectInPlaceAfter(
+      file,
+      () =>
+        writeFile(
+          file,
+          `"use client";\nexport const ErrorBoundary = ({ children }: { children?: React.ReactNode }) => children;`,
+        ),
+      (flight) => expect(flight).toContain("about/error.tsx"),
+    );
+    await expectInPlaceAfter(
+      file,
+      () => unlink(file),
+      (flight) => expect(flight).not.toContain("about/error.tsx"),
+    );
+  }, 30_000);
+
+  it("no restart on editing an existing route file; HMR serves it", async () => {
     await expectNoRestartAfter(() =>
       writeFile(join(routesDir, "head.ts"), `export const head = { lang: "de" };`),
     );
+    expect(await aboutFlight()).toContain(`\\"lang\\":\\"de\\"`);
   }, 30_000);
 
-  it("not for files the scan ignores or outside the route tree", async () => {
+  it("no restart for files the scan ignores or outside the route tree", async () => {
     await expectNoRestartAfter(async () => {
       await writeFile(join(routesDir, "about/Widget.tsx"), `export {};`);
       await writeFile(join(testDir, "src/other/page.tsx"), `export {};`);
+      await writeFile(join(testDir, "src/other/head.ts"), `export {};`);
     });
+  }, 30_000);
+  // Last: the stubbed restart leaves the table on the route set it started
+  // with, so every later change would compare against that.
+  it.each(["page.tsx", "index.tsx"])(
+    "restarts when a %s adds a route",
+    async (name) => {
+      const file = join(routesDir, `fresh-${name.split(".")[0]}`, name);
+      await mkdir(join(file, ".."), { recursive: true });
+      await expectRestartAfter(() =>
+        writeFile(file, `export const Page = () => <div>fresh</div>;`),
+      );
+    },
+    30_000,
+  );
+
+  it("restarts when removing a page removes a route", async () => {
+    await expectRestartAfter(() => unlink(join(routesDir, "gone/page.tsx")));
   }, 30_000);
 });

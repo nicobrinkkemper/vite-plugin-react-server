@@ -2,7 +2,7 @@ import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, restartOnRouteTreeChange } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 import type { ConfigEnv } from "vite";
@@ -63,18 +63,30 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       // Configure the React server for client environment (worker-based)
       // This uses the existing configureReactServer.client.js implementation
+      const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
       hmrHandler = configureReactServer({
         server,
-        autoDiscoveredFiles: emptyAutoDiscoveredFiles(),
+        autoDiscoveredFiles,
         userOptions,
         configEnv: configEnv!,
         serverManifest: {}, 
         resolvedConfig: server.config,
       });
-      restartOnRouteTreeChange(server, userOptions.isRouteFile);
+      watchRouteTree(server, {
+        routeTree: userOptions.routeTree,
+        projectRoot: userOptions.projectRoot,
+        autoDiscoveredFiles,
+        onRouteFilesChanged: (file) => {
+          // Same caches a server-component edit drops: the document head and
+          // the worker's module cache.
+          getDevShellHeadProvider(server)?.invalidate();
+          hmrHandler?.sendHmrUpdate(file);
+        },
+      });
     },
     hotUpdate(this: any, ctx: any) {
       const { file, server } = ctx;
+      if (isRouteTreeAddOrRemove(userOptions.routeTree, ctx)) return [];
       // The environment lives on the hook context (`this.environment`); on
       // Vite 8 `ctx.environment` is undefined. Keep both fallbacks.
       const envName =

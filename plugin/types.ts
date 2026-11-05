@@ -28,7 +28,7 @@ import type {
   serializeResolvedUserConfig,
 } from "./helpers/serializeUserOptions.js";
 import type { AllowedDirectives, Program } from "react-server-loader/directives";
-import type { RoutesOption } from "./router/fileRouter.js";
+import type { RoutesOption, RouteTree } from "./router/fileRouter.js";
 import type { RunnerName } from "./config/runner.js";
 import type { RouteLayer } from "./router/scanRoutes.js";
 import type { RouteHeadContribution } from "./router/head.js";
@@ -482,11 +482,11 @@ export type ResolvedUserOptions = {
    */
   layoutsResolver?: StreamPluginOptions["layouts"];
   /**
-   * The `routes` option's {@link FileRouterConfig.isRouteFile}: which files the
-   * route scan reads. The dev server rescans (restarts) when one is added or
-   * removed. Absent without `routes` or for a hand-rolled router table.
+   * The `routes` option's scanned tree ({@link FileRouterConfig.routeTree}),
+   * which the dev server watches. Absent without `routes` or for a hand-rolled
+   * router table.
    */
-  isRouteFile?: (file: string) => boolean;
+  routeTree?: RouteTree;
   /** Export a `route.tsx` uses for its layout component (default "Layout"). */
   layoutExportName?: string;
 
