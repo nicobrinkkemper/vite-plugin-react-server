@@ -136,8 +136,14 @@ export function isServerGraphFile(
   return !!mods && mods.size > 0;
 }
 
+type RouteTreeModuleGraph = {
+  getModulesByFile(file: string): Set<unknown> | undefined;
+  invalidateModule(mod: never): void;
+};
+
 type RouteTreeWatchServer = {
   watcher: { on(event: "add" | "unlink", cb: (file: string) => void): unknown };
+  environments?: Record<string, { moduleGraph?: RouteTreeModuleGraph } | undefined>;
   restart(): Promise<void>;
   ws: { send(payload: unknown): void };
   config: { root: string; logger: { info(msg: string): void } };
@@ -159,9 +165,11 @@ export const SERVER_COMPONENT_UPDATE_EVENT =
  *   dropped, `onRouteFilesChanged` lets the plugin drop its own caches, and
  *   the browser gets the same refetch a server-component edit sends. The open
  *   page updates in place and client state survives.
- * - A route appeared or disappeared: the route list is part of the resolved
- *   config (request-time params, the prerender list), so the server restarts
- *   and the config resolves again.
+ * - A route appeared or disappeared: the table switches too, but config
+ *   derived from the route list at resolve time (build inputs) does not
+ *   follow, so the server restarts and the config resolves again. Plugin
+ *   instances passed inline survive a restart; they hold the same, already
+ *   rescanned table.
  *
  * Edits need nothing here: the file set is unchanged and HMR reloads the
  * module. The dev plugins' `hotUpdate` leaves added and removed route files
@@ -204,6 +212,16 @@ export function watchRouteTree(
       routeSetChanged = true;
     }
     if (routeSetChanged) return restart(file);
+    // `hotUpdate` hands these updates no modules, so Vite's own propagation
+    // (which invalidates them) never runs, and its delete handler keeps the
+    // transform cached: a head.ts deleted and recreated would serve the old
+    // exports. Drop the file's nodes in every environment.
+    for (const env of Object.values(server.environments ?? {})) {
+      const graph = env?.moduleGraph;
+      for (const mod of graph?.getModulesByFile(file) ?? []) {
+        graph!.invalidateModule(mod as never);
+      }
+    }
     opts.autoDiscoveredFiles.urlMap.clear();
     opts.onRouteFilesChanged?.(file);
     const root = opts.projectRoot || server.config.root;

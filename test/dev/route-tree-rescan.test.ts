@@ -187,6 +187,29 @@ describe("dev server follows the route tree", () => {
     );
   }, 30_000);
 
+  it("a head.ts deleted and recreated serves the new contents", async () => {
+    const file = join(routesDir, "about/head.ts");
+    await expectInPlaceAfter(
+      file,
+      () => writeFile(file, `export const head = { lang: "nl" };`),
+      (flight) => expect(flight).toContain(`\\"lang\\":\\"nl\\"`),
+    );
+    await expectInPlaceAfter(
+      file,
+      () => unlink(file),
+      (flight) => expect(flight).not.toContain(`\\"lang\\":\\"nl\\"`),
+    );
+    await expectInPlaceAfter(
+      file,
+      () => writeFile(file, `export const head = { lang: "fr" };`),
+      (flight) => {
+        expect(flight).toContain(`\\"lang\\":\\"fr\\"`);
+        expect(flight).not.toContain(`\\"lang\\":\\"nl\\"`);
+      },
+    );
+    await expectInPlaceAfter(file, () => unlink(file), () => {});
+  }, 30_000);
+
   it("a segment's props.ts loads without a restart", async () => {
     const file = join(routesDir, "about/props.ts");
     await expectInPlaceAfter(

@@ -80,10 +80,10 @@ export type RouteTree = {
    */
   isRouteFile: (file: string) => boolean;
   /**
-   * Scan again. When the route set is unchanged the table's url resolvers
-   * (Page, props, layouts) switch to the new scan. When a route appeared or
-   * disappeared nothing is swapped and `routeSetChanged` is true: the route
-   * list is part of the resolved config, so the config has to resolve again.
+   * Scan again and switch the table to the result. `routeSetChanged` is true
+   * when a route appeared or disappeared: the table's own lists follow, but
+   * config derived from them at resolve time (build inputs) has to resolve
+   * again, so the dev server restarts.
    */
   rescan: () => { routeSetChanged: boolean };
 };
@@ -151,13 +151,12 @@ export function fileRouter(
       : scanned;
   };
   // The current scan. The url resolvers below read it per call, so a rescan
-  // that keeps the route set (a head/props/layout/boundary file added or
-  // removed) takes effect on the next request with no restart.
+  // takes effect on the next request. `patterns` and the static page list are
+  // updated in place: the resolved config holds those arrays themselves, and
+  // a dev-server restart keeps plugin instances passed inline to Vite (and
+  // with them this table), so they must already show the new route set.
   let routes = scan();
   let byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
-  // The route SET is fixed for the table's lifetime: it is copied into the
-  // resolved config (routePatterns, the prerender list), so a rescan that
-  // changes it reports that instead of swapping.
   const patterns = routes.map((r) => r.pattern);
   const rscOutputPath = opts.rscOutputPath ?? RSC_OUTPUT_PATH;
   const stripHtmlSuffix = opts.stripHtmlSuffix ?? true;
@@ -170,20 +169,25 @@ export function fileRouter(
     return byPattern.get(m.pattern)!;
   };
 
+  const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
+
   const rescan = (): { routeSetChanged: boolean } => {
     const next = scan();
-    if (
+    const routeSetChanged =
       next.length !== patterns.length ||
-      next.some((r, i) => r.pattern !== patterns[i])
-    ) {
-      return { routeSetChanged: true };
-    }
+      next.some((r, i) => r.pattern !== patterns[i]);
     routes = next;
     byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
-    return { routeSetChanged: false };
+    if (routeSetChanged) {
+      patterns.splice(0, patterns.length, ...routes.map((r) => r.pattern));
+      staticRoutes.splice(
+        0,
+        staticRoutes.length,
+        ...routes.filter((r) => !r.dynamic).map((r) => r.pattern),
+      );
+    }
+    return { routeSetChanged };
   };
-
-  const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
 
   // Without staticPaths, only fully-static routes prerender; dynamic (`$`)
   // routes resolve per-request. With staticPaths, each dynamic route's concrete
@@ -270,11 +274,31 @@ export function resolveRoutesOption(
   // A pre-built router table has a `Page` resolver; a declarative config
   // doesn't (so `dir` can be omitted to mean "scan moduleBase itself").
   if ("Page" in routes) return routes;
-  return fileRouter(join(opts.moduleBase, routes.dir ?? ""), {
-    patterns: opts.patterns,
-    staticPaths: routes.staticPaths,
-    root: opts.projectRoot,
-    rscOutputPath: opts.rscOutputPath,
-    stripHtmlSuffix: opts.stripHtmlSuffix,
-  });
+  // Each plugin of one vitePluginReactServer(...) call resolves the options
+  // itself. Share one table per `routes` object (and inputs), so a dev-server
+  // rescan reaches every plugin holding it, the way a pre-built table does.
+  const key = JSON.stringify([
+    opts.moduleBase,
+    routes.dir,
+    opts.projectRoot,
+    opts.rscOutputPath,
+    opts.stripHtmlSuffix,
+    Object.entries(opts.patterns ?? {}).map(([k, v]) => [k, String(v)]),
+  ]);
+  let tables = sharedTables.get(routes);
+  if (!tables) sharedTables.set(routes, (tables = new Map()));
+  let table = tables.get(key);
+  if (!table) {
+    table = fileRouter(join(opts.moduleBase, routes.dir ?? ""), {
+      patterns: opts.patterns,
+      staticPaths: routes.staticPaths,
+      root: opts.projectRoot,
+      rscOutputPath: opts.rscOutputPath,
+      stripHtmlSuffix: opts.stripHtmlSuffix,
+    });
+    tables.set(key, table);
+  }
+  return table;
 }
+
+const sharedTables = new WeakMap<FileRoutesConfig, Map<string, FileRouterConfig>>();
