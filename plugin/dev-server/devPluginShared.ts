@@ -139,6 +139,7 @@ export function isServerGraphFile(
 type RouteTreeWatchServer = {
   watcher: { on(event: "add" | "unlink", cb: (file: string) => void): unknown };
   restart(): Promise<void>;
+  httpServer?: { once(event: "listening", cb: () => void): unknown } | null;
   config: { logger: { info(msg: string): void; error(msg: string): void } };
 };
 
@@ -159,8 +160,8 @@ type RouteTreeWatchServer = {
  *   table, so every change rescans, including one that lands while a restart
  *   is pending; only the restart itself is coalesced. A file written while
  *   the restart swaps servers reaches neither watcher (the old one closes
- *   first, the new one's initial scan takes it in silently), so the tree is
- *   rescanned once the restart is done.
+ *   first, the new one's initial scan takes it in silently), so each server
+ *   rescans its own table once it listens.
  *
  * Edits need nothing here: the file set is unchanged and HMR reloads the
  * module.
@@ -196,9 +197,7 @@ export function watchRouteTree(
     // one restart.
     pendingRestart = setTimeout(() => {
       pendingRestart = undefined;
-      void server
-        .restart()
-        .then(() => rescan("while the server restarted"));
+      void server.restart();
     }, 50);
   };
   const onChange = (file: string) => {
@@ -206,6 +205,10 @@ export function watchRouteTree(
   };
   server.watcher.on("add", onChange);
   server.watcher.on("unlink", onChange);
+  // A file written while a restart swaps servers reaches neither watcher, and
+  // a restart from a config file builds this server a table of its own. So
+  // each server rescans its own table once it listens, after the handover.
+  server.httpServer?.once("listening", () => rescan("while the server restarted"));
 }
 
 /**

@@ -135,6 +135,9 @@ export function fileRouter(
   };
   const toRel = (p: string) => relative(root!, p).split(sep).join("/");
   const scan = (): RouteEntry[] => {
+    // A routes dir that does not exist (yet, or any more: deleted or moved
+    // while the dev server runs) is an empty route set, not a scan error.
+    if (!existsSync(scanDir)) return [];
     const scanned = scanRoutes(scanDir, scanPatterns);
     return root
       ? scanned.map((r) => ({
@@ -173,9 +176,7 @@ export function fileRouter(
   const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
 
   const rescan = (): { routeSetChanged: boolean } => {
-    // The routes dir deleted or moved away is an empty route set, not a
-    // scan error.
-    const next = existsSync(scanDir) ? scan() : [];
+    const next = scan();
     const routeSetChanged =
       next.length !== patterns.length ||
       next.some((r, i) => r.pattern !== patterns[i]);

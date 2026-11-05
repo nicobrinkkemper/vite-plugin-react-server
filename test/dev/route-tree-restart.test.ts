@@ -8,16 +8,20 @@ import { resolve, join } from "node:path";
 
 /**
  * A page added while the dev server runs adds a route, and the route set is
- * part of the resolved config, so the server restarts. A restart reuses the
- * plugin instances passed inline to createServer (no config file is
- * re-imported), so the route table those instances hold must already carry
- * the new route: the real restart here, not a stub, is the point.
+ * part of the resolved config, so the server restarts: real restarts here,
+ * not stubs. Every case runs in both setups a restart treats differently:
+ *
+ * - plugins passed inline to createServer, which a restart reuses (with the
+ *   route table they hold);
+ * - a vite.config.ts, which a restart re-imports, building new plugins and a
+ *   new route table for the new server.
  */
 
+type Setup = "inline plugins" | "vite.config.ts";
 let server: ViteDevServer;
-const port = 3151;
-const testDir = resolve(__dirname, "../fixtures/route-tree-restart.test");
-const routesDir = join(testDir, "src/routes");
+let port = 3151;
+let testDir = "";
+let routesDir = "";
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let restartsLogged = 0;
 
@@ -37,8 +41,17 @@ async function flight(route: string): Promise<string | null> {
 // A fresh server per test: on the react-server leg a server restarted a
 // third time runs the process out of memory (with or without `routes`), so
 // no test here restarts one server more than twice.
-describe("dev server restart on a new route", () => {
+describe.each<[Setup, number]>([
+  ["inline plugins", 3151],
+  ["vite.config.ts", 3155],
+])("dev server restart on a new route (%s)", (setup, setupPort) => {
   beforeEach(async () => {
+    port = setupPort;
+    testDir = resolve(
+      __dirname,
+      `../fixtures/route-tree-restart-${setup === "inline plugins" ? "inline" : "config"}.test`,
+    );
+    routesDir = join(testDir, "src/routes");
     await rm(testDir, { recursive: true, force: true });
     await setupIndexHTML(testDir);
     await mkdir(join(routesDir, "about"), { recursive: true });
@@ -63,20 +76,27 @@ describe("dev server restart on a new route", () => {
       if (args.some((a) => String(a).includes("server restarted."))) restartsLogged++;
       log(...args);
     });
+    const pluginOptions = {
+      ...testUserOptions,
+      Page: undefined,
+      props: undefined,
+      projectRoot: testDir,
+      moduleBase: "src",
+      routes: { dir: "routes" },
+    };
+    if (setup === "vite.config.ts") {
+      await writeFile(
+        join(testDir, "vite.config.ts"),
+        `import { vitePluginReactServer } from "vite-plugin-react-server";\n` +
+          `export default { plugins: vitePluginReactServer(${JSON.stringify(pluginOptions)}) };\n`,
+      );
+    }
     server = await createServer({
       mode: "test",
       root: testDir,
-      configFile: false,
-      plugins: [
-        vitePluginReactServer({
-          ...testUserOptions,
-          Page: undefined,
-          props: undefined,
-          projectRoot: testDir,
-          moduleBase: "src",
-          routes: { dir: "routes" },
-        }),
-      ],
+      ...(setup === "vite.config.ts"
+        ? { configFile: join(testDir, "vite.config.ts") }
+        : { configFile: false, plugins: [vitePluginReactServer(pluginOptions)] }),
       server: { port, strictPort: true },
     });
     await server.listen();
@@ -205,6 +225,24 @@ describe("dev server restart on a new route", () => {
     expect(during).toContain("during-page");
     expect(during).toContain(NL);
   }, 60_000);
+  it("keeps a head.ts that lands while a restart runs", async () => {
+    // Only the head of an existing route changes during the swap, so the
+    // route set stays put: the new server's own table must pick it up.
+    const close = server.close.bind(server);
+    server.close = (async () => {
+      await writeFile(join(routesDir, "about/head.ts"), `export const head = { lang: "nl" };`);
+      return close();
+    }) as typeof server.close;
+    const restart = nextRestart();
+    await mkdir(join(routesDir, "trigger"), { recursive: true });
+    await writeFile(
+      join(routesDir, "trigger/page.tsx"),
+      `export const Page = () => <div>trigger-page</div>;`,
+    );
+    await restart;
+    expect(await served("/about", NL)).toContain(NL);
+  }, 60_000);
+
   it("a tree the scan rejects keeps the last good table, without restarting", async () => {
     // Two pages on one url make the scan throw. The error is reported and the
     // routes that were there keep serving; a restart would not scan any
