@@ -74,19 +74,11 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       });
       watchRouteTree(server, {
         routeTree: userOptions.routeTree,
-        projectRoot: userOptions.projectRoot,
         autoDiscoveredFiles,
-        onRouteFilesChanged: (file) => {
-          // Same caches a server-component edit drops: the document head and
-          // the worker's module cache.
-          getDevShellHeadProvider(server)?.invalidate();
-          hmrHandler?.sendHmrUpdate(file);
-        },
       });
     },
     hotUpdate(this: any, ctx: any) {
       const { file, server } = ctx;
-      if (isRouteTreeAddOrRemove(userOptions.routeTree, ctx)) return [];
       // The environment lives on the hook context (`this.environment`); on
       // Vite 8 `ctx.environment` is undefined. Keep both fallbacks.
       const envName =
@@ -180,7 +172,13 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         return clientOwnedCss as never[];
       }
 
-      const isServerFile = (isSourceFile && !isClientFile) || isServerContentFile;
+      // A route file added or removed changes the server tree around it even
+      // when it is a "use client" boundary: refetch as for a server edit,
+      // while Vite still owns the client module's own update.
+      const isServerFile =
+        (isSourceFile &&
+          (!isClientFile || isRouteTreeAddOrRemove(userOptions.routeTree, ctx))) ||
+        isServerContentFile;
       const shouldInvalidateWorker = isServerFile || isCssFile;
 
       if (shouldInvalidateWorker && hmrHandler) {

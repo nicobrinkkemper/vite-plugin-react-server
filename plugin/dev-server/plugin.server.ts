@@ -51,7 +51,6 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
     // Prevent server/ssr environments from triggering page reload for client components.
     hotUpdate(this: any, ctx: any) {
       const { file, server } = ctx;
-      if (isRouteTreeAddOrRemove(userOptions.routeTree, ctx)) return [];
       // The environment lives on the HOOK CONTEXT (`this.environment`), not on
       // the options bag — on Vite 8 `ctx.environment` is undefined, so reading
       // only ctx left every call as 'unknown': the client branch (which pushes
@@ -74,7 +73,18 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       if (envName === 'client') {
         const isClient = isClientModuleFile(file);
 
-        if (isClient) return; // Vite's client-side HMR owns this update
+        if (isClient) {
+          // Vite's client-side HMR owns this update. A "use client" route file
+          // added or removed also changes the server tree around it: refetch.
+          if (isRouteTreeAddOrRemove(userOptions.routeTree, ctx)) {
+            server.ws.send({
+              type: 'custom',
+              event: 'vite-plugin-react-server:server-component-update',
+              data: { file: normalizedFile, path: file, kind: 'component' },
+            });
+          }
+          return;
+        }
 
         const isCssFile = CSS_EXT.test(file);
 
@@ -158,9 +168,7 @@ applyToEnvironment(partialEnvironment: any) {
       });
       watchRouteTree(server, {
         routeTree: userOptions.routeTree,
-        projectRoot: userOptions.projectRoot,
         autoDiscoveredFiles,
-        onRouteFilesChanged: () => getDevShellHeadProvider(server)?.invalidate(),
       });
     },
   };

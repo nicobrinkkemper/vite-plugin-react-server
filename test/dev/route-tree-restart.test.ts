@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createServer, type ViteDevServer } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
 import { testUserOptions } from "../test-config";
@@ -19,6 +19,7 @@ const port = 3151;
 const testDir = resolve(__dirname, "../fixtures/route-tree-restart.test");
 const routesDir = join(testDir, "src/routes");
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let restartsLogged = 0;
 
 /** The route's flight, or null while it is not served (unmatched requests can hang). */
 async function flight(route: string): Promise<string | null> {
@@ -33,8 +34,11 @@ async function flight(route: string): Promise<string | null> {
   }
 }
 
+// A fresh server per test: on the react-server leg a server restarted a
+// third time runs the process out of memory (with or without `routes`), so
+// no test here restarts one server more than twice.
 describe("dev server restart on a new route", () => {
-  beforeAll(async () => {
+  beforeEach(async () => {
     await rm(testDir, { recursive: true, force: true });
     await setupIndexHTML(testDir);
     await mkdir(join(routesDir, "about"), { recursive: true });
@@ -54,6 +58,11 @@ describe("dev server restart on a new route", () => {
       );
     } catch {}
 
+    const log = console.log.bind(console);
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      if (args.some((a) => String(a).includes("server restarted."))) restartsLogged++;
+      log(...args);
+    });
     server = await createServer({
       mode: "test",
       root: testDir,
@@ -91,7 +100,7 @@ describe("dev server restart on a new route", () => {
     expect(await flight("/about")).toContain("about-page");
   }, 60_000);
 
-  afterAll(async () => {
+  afterEach(async () => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
       server?.close(),
@@ -101,24 +110,129 @@ describe("dev server restart on a new route", () => {
       }),
     ]);
     clearTimeout(timer);
+    vi.restoreAllMocks();
     await rm(testDir, { recursive: true, force: true });
   }, 30_000);
 
+  /**
+   * Resolve once Vite logs `count` more "server restarted." than now. The server
+   * object a restart runs on is not always the one this test holds, so the
+   * log is the observable.
+   */
+  function nextRestart(count = 1): Promise<void> {
+    const target = restartsLogged + count;
+    return vi.waitFor(
+      () => {
+        if (restartsLogged < target) throw new Error("not restarted yet");
+      },
+      { timeout: 30_000, interval: 50 },
+    );
+  }
+
+  async function served(route: string, marker: string): Promise<string | null> {
+    let body: string | null = null;
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      body = await flight(route);
+      if (body?.includes(marker)) break;
+      await pause(500);
+    }
+    return body;
+  }
+
+  const NL = `\\"lang\\":\\"nl\\"`;
+
   it("serves a page added while the server runs", async () => {
+    const restart = nextRestart();
     await mkdir(join(routesDir, "fresh"), { recursive: true });
     await writeFile(
       join(routesDir, "fresh/page.tsx"),
       `export const Page = () => <div>fresh-page</div>;`,
     );
-    let body: string | null = null;
-    const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline) {
-      body = await flight("/fresh");
-      if (body?.includes("fresh-page")) break;
-      await pause(500);
-    }
-    expect(body).toContain("fresh-page");
+    await restart;
+    expect(await served("/fresh", "fresh-page")).toContain("fresh-page");
     // The routes that were there still serve.
     expect(await flight("/about")).toContain("about-page");
+  }, 60_000);
+
+  it("keeps route files that land while a restart is pending", async () => {
+    // A burst: a page, then (inside the restart's coalescing window) its
+    // head.ts and another page. All three must be there after the restart.
+    const restart = nextRestart();
+    await mkdir(join(routesDir, "burst"), { recursive: true });
+    await mkdir(join(routesDir, "burst2"), { recursive: true });
+    await writeFile(
+      join(routesDir, "burst/page.tsx"),
+      `export const Page = () => <div>burst-page</div>;`,
+    );
+    await pause(10);
+    await writeFile(join(routesDir, "burst/head.ts"), `export const head = { lang: "nl" };`);
+    await writeFile(
+      join(routesDir, "burst2/page.tsx"),
+      `export const Page = () => <div>burst2-page</div>;`,
+    );
+    await restart;
+    const burst = await served("/burst", NL);
+    expect(burst).toContain("burst-page");
+    expect(burst).toContain(NL);
+    expect(await served("/burst2", "burst2-page")).toContain("burst2-page");
+  }, 60_000);
+
+  it("keeps route files that land while a restart runs", async () => {
+    // Written while the restart swaps servers: after the new server (and its
+    // watcher) exists, just before the old one closes. The old watcher closes
+    // before it reports them and the new one's initial scan swallows them.
+    const close = server.close.bind(server);
+    server.close = (async () => {
+      await mkdir(join(routesDir, "during"), { recursive: true });
+      await writeFile(
+        join(routesDir, "during/page.tsx"),
+        `export const Page = () => <div>during-page</div>;`,
+      );
+      await writeFile(join(routesDir, "during/head.ts"), `export const head = { lang: "nl" };`);
+      return close();
+    }) as typeof server.close;
+    // Two restarts: the one the trigger page starts, then the one the rescan
+    // after it starts for the page written meanwhile.
+    const restart = nextRestart(2);
+    await mkdir(join(routesDir, "trigger"), { recursive: true });
+    await writeFile(
+      join(routesDir, "trigger/page.tsx"),
+      `export const Page = () => <div>trigger-page</div>;`,
+    );
+    await restart;
+    const during = await served("/during", NL);
+    expect(during).toContain("during-page");
+    expect(during).toContain(NL);
+  }, 60_000);
+  it("a tree the scan rejects keeps the last good table, without restarting", async () => {
+    // Two pages on one url make the scan throw. The error is reported and the
+    // routes that were there keep serving; a restart would not scan any
+    // differently, so none happens (and none loops).
+    const lines: string[] = [];
+    const logged = console.log;
+    const log = vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => {
+      lines.push(a.join(" "));
+      (logged as (...x: unknown[]) => void)(...a);
+    });
+    const error = vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => {
+      lines.push(a.join(" "));
+    });
+    const clash = join(routesDir, "(group)/page.tsx");
+    try {
+      await mkdir(join(clash, ".."), { recursive: true });
+      await writeFile(clash, `export const Page = () => <div>clash</div>;`);
+      await vi.waitFor(
+        () => expect(lines.join("\n")).toContain("both resolve to"),
+        { timeout: 10_000, interval: 50 },
+      );
+      await pause(1_500);
+      expect(lines.join("\n")).not.toContain("restarting to rescan routes");
+      expect(await flight("/about")).toContain("about-page");
+    } finally {
+      log.mockRestore();
+      error.mockRestore();
+      await rm(join(clash, ".."), { recursive: true, force: true });
+    }
   }, 60_000);
 });

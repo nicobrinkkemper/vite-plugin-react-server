@@ -136,114 +136,82 @@ export function isServerGraphFile(
   return !!mods && mods.size > 0;
 }
 
-type RouteTreeModuleGraph = {
-  getModulesByFile(file: string): Set<unknown> | undefined;
-  invalidateModule(mod: never): void;
-};
-
 type RouteTreeWatchServer = {
   watcher: { on(event: "add" | "unlink", cb: (file: string) => void): unknown };
-  environments?: Record<string, { moduleGraph?: RouteTreeModuleGraph } | undefined>;
   restart(): Promise<void>;
-  ws: { send(payload: unknown): void };
-  config: { root: string; logger: { info(msg: string): void } };
+  config: { logger: { info(msg: string): void; error(msg: string): void } };
 };
 
-/** The event `useRscHmr` refetches the current route's flight on. */
-export const SERVER_COMPONENT_UPDATE_EVENT =
-  "vite-plugin-react-server:server-component-update";
-
 /**
- * Follow route files being added or removed while the dev server runs. The
- * table the `routes` option builds is a scan of the tree, so each such change
- * rescans it:
+ * Keep the `routes` table in step with the route tree while the dev server
+ * runs. The table is a scan of the tree; every route file added or removed
+ * rescans it, synchronously, before Vite's own hot update for the file runs
+ * (the watcher calls listeners at once, Vite's handler after an await):
  *
- * - The route set is unchanged (a `head.ts`, `props.ts`, `route.tsx`,
- *   `error.tsx` or `loading.tsx` came or went under existing routes, or a
- *   page file was swapped for its alternate name): the table's resolvers
- *   switch to the new scan, the per-url resolutions the dev server cached are
- *   dropped, `onRouteFilesChanged` lets the plugin drop its own caches, and
- *   the browser gets the same refetch a server-component edit sends. The open
- *   page updates in place and client state survives.
- * - A route appeared or disappeared: the table switches too, but config
- *   derived from the route list at resolve time (build inputs) does not
- *   follow, so the server restarts and the config resolves again. Plugin
- *   instances passed inline survive a restart; they hold the same, already
- *   rescanned table.
+ * - The table's resolvers (Page, props, layouts) switch to the new scan, and
+ *   the per-url page/props resolutions the dev server cached are dropped.
+ *   Vite's hot update for the file then runs as for any other module (server
+ *   and client graphs invalidated, client HMR), and the dev plugins'
+ *   `hotUpdate` sends the flight refetch, so the open page updates in place.
+ * - When a route appeared or disappeared, config derived from the route list
+ *   at resolve time (build inputs) is stale too, so the server restarts as
+ *   well. Plugin instances passed inline survive a restart and keep this
+ *   table, so every change rescans, including one that lands while a restart
+ *   is pending; only the restart itself is coalesced. A file written while
+ *   the restart swaps servers reaches neither watcher (the old one closes
+ *   first, the new one's initial scan takes it in silently), so the tree is
+ *   rescanned once the restart is done.
  *
  * Edits need nothing here: the file set is unchanged and HMR reloads the
- * module. The dev plugins' `hotUpdate` leaves added and removed route files
- * to this watcher (see {@link isRouteTreeAddOrRemove}), which runs first: the
- * watcher calls listeners synchronously, Vite's own hot update after an await.
+ * module.
  */
 export function watchRouteTree(
   server: RouteTreeWatchServer,
   opts: {
     routeTree: RouteTree | undefined;
-    projectRoot: string | undefined;
     autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "urlMap">;
-    onRouteFilesChanged?: (file: string) => void;
   },
 ): void {
   const { routeTree } = opts;
   if (!routeTree) return;
-  let restarting = false;
-  const restart = (file: string) => {
-    restarting = true;
-    server.config.logger.info(
-      `[vite-plugin-react-server] route added or removed (${file}), restarting to rescan routes`,
-    );
-    // A burst (a folder moved in, several files saved at once) coalesces into
-    // one restart; the new server gets a fresh watcher and a fresh scan.
-    setTimeout(() => {
-      void server.restart().finally(() => {
-        restarting = false;
-      });
-    }, 50);
-  };
-  const onChange = (file: string) => {
-    if (restarting || !routeTree.isRouteFile(file)) return;
+  let pendingRestart: ReturnType<typeof setTimeout> | undefined;
+  const rescan = (cause: string) => {
     let routeSetChanged: boolean;
     try {
       ({ routeSetChanged } = routeTree.rescan());
-    } catch {
-      // A tree the scan rejects (two pages on one url): the restart's config
-      // resolution reports it.
-      routeSetChanged = true;
-    }
-    if (routeSetChanged) return restart(file);
-    // `hotUpdate` hands these updates no modules, so Vite's own propagation
-    // (which invalidates them) never runs, and its delete handler keeps the
-    // transform cached: a head.ts deleted and recreated would serve the old
-    // exports. Drop the file's nodes in every environment.
-    for (const env of Object.values(server.environments ?? {})) {
-      const graph = env?.moduleGraph;
-      for (const mod of graph?.getModulesByFile(file) ?? []) {
-        graph!.invalidateModule(mod as never);
-      }
+    } catch (error) {
+      // A tree the scan rejects (two pages on one url) keeps the last good
+      // table until it is fixed; a restart would not scan any differently.
+      server.config.logger.error(
+        `[vite-plugin-react-server] ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
     }
     opts.autoDiscoveredFiles.urlMap.clear();
-    opts.onRouteFilesChanged?.(file);
-    const root = opts.projectRoot || server.config.root;
-    server.ws.send({
-      type: "custom",
-      event: SERVER_COMPONENT_UPDATE_EVENT,
-      data: {
-        file: file.replace(root, "").replace(/^\/+/, ""),
-        path: file,
-        kind: "component",
-      },
-    });
+    if (!routeSetChanged || pendingRestart) return;
+    server.config.logger.info(
+      `[vite-plugin-react-server] route added or removed (${cause}), restarting to rescan routes`,
+    );
+    // A burst (a folder moved in, several files saved at once) coalesces into
+    // one restart.
+    pendingRestart = setTimeout(() => {
+      pendingRestart = undefined;
+      void server
+        .restart()
+        .then(() => rescan("while the server restarted"));
+    }, 50);
+  };
+  const onChange = (file: string) => {
+    if (routeTree.isRouteFile(file)) rescan(file);
   };
   server.watcher.on("add", onChange);
   server.watcher.on("unlink", onChange);
 }
 
 /**
- * True for a hot update {@link watchRouteTree} owns: a route file added or
- * removed. `hotUpdate` returns `[]` for these so the change is not handled
- * twice (and a new `"use client"` `error.tsx` is not mistaken for a client
- * edit Vite owns).
+ * True when a hot update adds or removes a route file. The server tree around
+ * it changed even when the file is a `"use client"` module whose own update
+ * Vite owns, so `hotUpdate` sends the flight refetch for it either way.
  */
 export function isRouteTreeAddOrRemove(
   routeTree: RouteTree | undefined,

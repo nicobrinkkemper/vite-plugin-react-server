@@ -27,6 +27,8 @@ const testDir = resolve(__dirname, "../fixtures/route-tree-rescan.test");
 const routesDir = join(testDir, "src/routes");
 const restart = vi.fn(async () => {});
 const refetches: string[] = [];
+/** Module urls the client environment pushed an HMR update or reload for. */
+const clientUpdates: string[] = [];
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -133,6 +135,23 @@ describe("dev server follows the route tree", () => {
       }
       return send(...args);
     }) as typeof server.ws.send;
+    const hot = server.environments.client.hot;
+    const hotSend = hot.send.bind(hot) as (...a: unknown[]) => void;
+    hot.send = ((...args: unknown[]) => {
+      const payload = args[0] as {
+        type?: string;
+        updates?: { path: string }[];
+        triggeredBy?: string;
+      };
+      if (payload?.type === "update") {
+        for (const u of payload.updates ?? []) clientUpdates.push(u.path);
+      } else if (payload?.type === "full-reload" && payload.triggeredBy) {
+        clientUpdates.push(
+          "/" + payload.triggeredBy.slice(testDir.length + 1).split("\\").join("/"),
+        );
+      }
+      return hotSend(...args);
+    }) as typeof hot.send;
     await server.listen();
     // The watcher reports changes only once its initial scan is done; under
     // load that can trail listen(). Wait until it sees a probe file.
@@ -207,6 +226,28 @@ describe("dev server follows the route tree", () => {
         expect(flight).not.toContain(`\\"lang\\":\\"nl\\"`);
       },
     );
+    await expectInPlaceAfter(file, () => unlink(file), () => {});
+  }, 30_000);
+
+  it("a client route file deleted and recreated reaches the browser fresh", async () => {
+    // The browser fetches "use client" modules from the client environment by
+    // url; a recreated file must not be served from the old transform, and
+    // the browser must be told the module changed.
+    const file = join(routesDir, "about/error.tsx");
+    const url = "/src/routes/about/error.tsx";
+    const source = (marker: string) =>
+      `"use client";\nexport const ErrorBoundary = ({ children }: { children?: React.ReactNode }) => <>{"${marker}"}{children}</>;`;
+    const client = server.environments.client;
+    await expectInPlaceAfter(file, () => writeFile(file, source("err-v1")), () => {});
+    expect((await client.transformRequest(url))?.code).toContain("err-v1");
+    await expectInPlaceAfter(file, () => unlink(file), () => {});
+    const updatesBefore = clientUpdates.length;
+    await expectInPlaceAfter(file, () => writeFile(file, source("err-v2")), () => {});
+    await vi.waitFor(
+      () => expect(clientUpdates.slice(updatesBefore)).toContain(url),
+      { timeout: 5_000, interval: 50 },
+    );
+    expect((await client.transformRequest(url))?.code).toContain("err-v2");
     await expectInPlaceAfter(file, () => unlink(file), () => {});
   }, 30_000);
 
