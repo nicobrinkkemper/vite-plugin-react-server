@@ -481,6 +481,12 @@ export type ResolvedUserOptions = {
    * collides. Absent when no file-based router is configured.
    */
   layoutsResolver?: StreamPluginOptions["layouts"];
+  /**
+   * The `routes` option's {@link FileRouterConfig.isRouteFile}: which files the
+   * route scan reads. The dev server rescans (restarts) when one is added or
+   * removed. Absent without `routes` or for a hand-rolled router table.
+   */
+  isRouteFile?: (file: string) => boolean;
   /** Export a `route.tsx` uses for its layout component (default "Layout"). */
   layoutExportName?: string;
 

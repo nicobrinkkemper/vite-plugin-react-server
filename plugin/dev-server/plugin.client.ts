@@ -2,7 +2,7 @@ import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, restartOnRouteTreeChange } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 import type { ConfigEnv } from "vite";
@@ -71,6 +71,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         serverManifest: {}, 
         resolvedConfig: server.config,
       });
+      restartOnRouteTreeChange(server, userOptions.isRouteFile);
     },
     hotUpdate(this: any, ctx: any) {
       const { file, server } = ctx;

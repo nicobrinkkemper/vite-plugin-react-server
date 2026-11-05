@@ -46,6 +46,10 @@ two pages collapsing onto one URL is a scan-time error, not a silent override.
 conventional barrel filename, and a re-export barrel inside the routes tree must
 never become a route.
 
+The tree is scanned when the config resolves. While the dev server runs, adding
+or removing one of the files above restarts it so the scan sees the change;
+editing one reloads through HMR as usual.
+
 ```
 src/routes/
 ├── route.tsx              layout for every page

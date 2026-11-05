@@ -3,7 +3,7 @@ import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, restartOnRouteTreeChange } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 
@@ -154,6 +154,7 @@ applyToEnvironment(partialEnvironment: any) {
         serverManifest: {},
         resolvedConfig: server.config,
       });
+      restartOnRouteTreeChange(server, userOptions.isRouteFile);
     },
   };
 

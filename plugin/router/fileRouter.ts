@@ -1,4 +1,4 @@
-import { join, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   fillPattern,
   matchRoutes,
@@ -9,6 +9,8 @@ import {
   type RouteEntry,
   type RouteLayer,
   type ScanPatterns,
+  isScannedFileName,
+  resolveScanPatterns,
   scanRoutes,
 } from "./scanRoutes.js";
 
@@ -62,6 +64,13 @@ export type FileRouterConfig = {
    * renderer folds the nested tree. Empty array when the route is unwrapped.
    */
   layouts: (url: string) => RouteLayer[];
+  /**
+   * True when `file` (absolute) is one the route scan reads: under the scanned
+   * directory and named like a page, loader, layout, boundary, fallback or
+   * head. The table is a snapshot of the tree, so the dev server rescans when
+   * such a file is added or removed. Absent on a hand-rolled router table.
+   */
+  isRouteFile?: (file: string) => boolean;
 };
 
 export function fileRouter(
@@ -95,10 +104,20 @@ export function fileRouter(
   // produces (relative for a relative routesDir, which is the common case where
   // cwd is the project root). Supply `root` when cwd ≠ project root.
   const { root } = opts;
-  const scanned = scanRoutes(
-    root ? resolve(root, routesDir) : routesDir,
-    opts.patterns,
-  );
+  const scanDir = root ? resolve(root, routesDir) : routesDir;
+  const scanPatterns = resolveScanPatterns(opts.patterns);
+  const scanned = scanRoutes(scanDir, scanPatterns);
+  const absScanDir = resolve(scanDir);
+  const isRouteFile = (file: string) => {
+    const rel = relative(absScanDir, resolve(file));
+    return (
+      rel !== "" &&
+      rel !== ".." &&
+      !rel.startsWith(".." + sep) &&
+      !isAbsolute(rel) &&
+      isScannedFileName(basename(file), scanPatterns)
+    );
+  };
   const toRel = (p: string) => relative(root!, p).split(sep).join("/");
   const routes: RouteEntry[] = root
     ? scanned.map((r) => ({
@@ -160,6 +179,7 @@ export function fileRouter(
     stripHtmlSuffix: opts.stripHtmlSuffix,
     getParams: (url) => matchRoutes(patterns, forMatch(url))?.params ?? {},
     layouts: (url) => matched(url).layouts,
+    isRouteFile,
   };
 }
 

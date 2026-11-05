@@ -134,3 +134,43 @@ export function isServerGraphFile(
   const mods = server.environments?.["server"]?.moduleGraph?.getModulesByFile(file);
   return !!mods && mods.size > 0;
 }
+
+type RouteTreeWatchServer = {
+  watcher: { on(event: "add" | "unlink", cb: (file: string) => void): unknown };
+  restart(): Promise<void>;
+  config: { logger: { info(msg: string): void } };
+};
+
+/**
+ * Restart the dev server when a file the route scan reads is added or
+ * removed. The router table is a snapshot taken when the config resolves, so
+ * a new `page.tsx`, `head.ts`, `props.ts`, `route.tsx`, `error.tsx`,
+ * `loading.tsx` or `index.tsx` (or a removed one) is invisible until the scan
+ * runs again; a restart re-resolves the config and rescans. Edits need
+ * nothing here: the file set is unchanged and HMR reloads the module.
+ * `isRouteFile` comes from the router itself, so the watched kinds are
+ * exactly the ones the scan recognizes.
+ */
+export function restartOnRouteTreeChange(
+  server: RouteTreeWatchServer,
+  isRouteFile: ((file: string) => boolean) | undefined,
+): void {
+  if (!isRouteFile) return;
+  let restarting = false;
+  const onChange = (file: string) => {
+    if (restarting || !isRouteFile(file)) return;
+    restarting = true;
+    server.config.logger.info(
+      `[vite-plugin-react-server] route file added or removed (${file}), restarting to rescan routes`,
+    );
+    // A burst (a folder moved in, several files saved at once) coalesces into
+    // one restart; the new server gets a fresh watcher and a fresh scan.
+    setTimeout(() => {
+      void server.restart().finally(() => {
+        restarting = false;
+      });
+    }, 50);
+  };
+  server.watcher.on("add", onChange);
+  server.watcher.on("unlink", onChange);
+}

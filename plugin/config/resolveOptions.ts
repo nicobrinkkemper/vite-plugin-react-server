@@ -1146,6 +1146,7 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
       Page: effectivePage,
       props: effectiveProps,
       layoutsResolver: effectiveLayouts,
+      isRouteFile: routerTable?.isRouteFile,
       layoutExportName:
         options.layoutExportName ?? DEFAULT_CONFIG.LAYOUT_EXPORT_NAME,
       Html: options.Html ?? DEFAULT_CONFIG.HTML,
