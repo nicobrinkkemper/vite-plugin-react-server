@@ -37,7 +37,10 @@ describe("environments/resolveVendoredPackageDir", () => {
 });
 
 /** Minimal stand-in for the plugin context `generateBundle` runs under. */
-const runGenerateBundle = (fileNames: string[]) => {
+const runGenerateBundle = (
+  fileNames: string[],
+  consumer: "client" | "server" = "server"
+) => {
   const plugin = createVendoredPackageJsonPlugin();
   const bundle = Object.fromEntries(
     fileNames.map((f) => [f, { type: "chunk", fileName: f }])
@@ -45,7 +48,8 @@ const runGenerateBundle = (fileNames: string[]) => {
   const emitFile = vi.fn();
   const hook = plugin.generateBundle;
   const handler = typeof hook === "function" ? hook : hook?.handler;
-  handler?.call({ emitFile } as never, {} as never, bundle as never, false);
+  handler?.call(
+    { emitFile, environment: { config: { consumer } } } as never, {} as never, bundle as never, false);
   return emitFile;
 };
 
@@ -65,6 +69,18 @@ describe("environments/createVendoredPackageJsonPlugin", () => {
     expect(JSON.parse(emitFile.mock.calls[0][0].source)).toEqual({
       type: "module",
     });
+  });
+
+  it("skips the browser (client consumer) output", () => {
+    expect(
+      runGenerateBundle(["node_modules/pkg/dist/x.js"], "client")
+    ).not.toHaveBeenCalled();
+  });
+
+  it("stamps the server (server consumer) output", () => {
+    expect(
+      runGenerateBundle(["node_modules/pkg/dist/x.js"], "server")
+    ).toHaveBeenCalledTimes(1);
   });
 
   it("emits nothing when no chunk lands under node_modules", () => {

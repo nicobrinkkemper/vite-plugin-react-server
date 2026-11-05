@@ -60,6 +60,11 @@ export const createVendoredPackageJsonPlugin = (): Plugin => {
     apply: "build",
 
     generateBundle(_outputOptions, bundle) {
+      // Only output Node loads needs the stamp. The browser environment
+      // (`client`, written to `dist/static`) is served to browsers, where a
+      // package.json means nothing and would only leak a stray file.
+      if (this.environment?.config.consumer === "client") return;
+
       // Every vprs build environment emits `format: "esm"`, so this holds for
       // whichever output we're stamping.
       const packageDirs = new Set<string>();
