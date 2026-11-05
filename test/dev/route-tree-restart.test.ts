@@ -3,7 +3,7 @@ import { createServer, type ViteDevServer } from "vite";
 import { vitePluginReactServer } from "vite-plugin-react-server";
 import { testUserOptions } from "../test-config";
 import { setupIndexHTML } from "../setup.js";
-import { mkdir, rm, writeFile, symlink } from "node:fs/promises";
+import { mkdir, rm, writeFile, symlink, rename } from "node:fs/promises";
 import { resolve, join } from "node:path";
 
 /**
@@ -234,5 +234,23 @@ describe("dev server restart on a new route", () => {
       error.mockRestore();
       await rm(join(clash, ".."), { recursive: true, force: true });
     }
+  }, 60_000);
+  it("a routes dir moved away empties the route set, and moving it back restores it", async () => {
+    const moved = `${routesDir}-moved`;
+    const away = nextRestart();
+    await rename(routesDir, moved);
+    await away;
+    let body: string | null = "unset";
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      body = await flight("/about");
+      if (!body?.includes("about-page")) break;
+      await pause(500);
+    }
+    expect(body ?? "").not.toContain("about-page");
+    const back = nextRestart();
+    await rename(moved, routesDir);
+    await back;
+    expect(await served("/about", "about-page")).toContain("about-page");
   }, 60_000);
 });

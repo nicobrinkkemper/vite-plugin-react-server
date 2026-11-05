@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   fillPattern,
@@ -172,7 +173,9 @@ export function fileRouter(
   const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
 
   const rescan = (): { routeSetChanged: boolean } => {
-    const next = scan();
+    // The routes dir deleted or moved away is an empty route set, not a
+    // scan error.
+    const next = existsSync(scanDir) ? scan() : [];
     const routeSetChanged =
       next.length !== patterns.length ||
       next.some((r, i) => r.pattern !== patterns[i]);

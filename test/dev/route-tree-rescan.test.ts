@@ -229,10 +229,12 @@ describe("dev server follows the route tree", () => {
     await expectInPlaceAfter(file, () => unlink(file), () => {});
   }, 30_000);
 
-  it("a client route file deleted and recreated reaches the browser fresh", async () => {
+  it('a "use client" route file deleted and recreated gets Vite\'s client update (HMR or full reload) and serves the new source', async () => {
     // The browser fetches "use client" modules from the client environment by
     // url; a recreated file must not be served from the old transform, and
-    // the browser must be told the module changed.
+    // Vite must tell the browser the module changed. Without a Fast Refresh
+    // plugin that is a full reload: client route files follow Vite's normal
+    // client HMR and keep no client state, unlike server route files.
     const file = join(routesDir, "about/error.tsx");
     const url = "/src/routes/about/error.tsx";
     const source = (marker: string) =>
