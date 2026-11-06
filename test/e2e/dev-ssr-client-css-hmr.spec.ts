@@ -28,7 +28,7 @@ const serverCssFile = join(bidoofDir, "src/css/home.module.css");
 const clientCssFile = join(bidoofDir, "src/css/counterStyles.module.css");
 
 // dev:ssr — NO global react-server condition (unlike dev:rsc).
-const PORT = 33810;
+const PORT = 31810;
 const BASE_URL = `http://localhost:${PORT}`;
 
 const SERVER_FONT_FROM = "font-size: 42px";
