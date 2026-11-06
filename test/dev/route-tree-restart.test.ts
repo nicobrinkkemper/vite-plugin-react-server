@@ -98,23 +98,7 @@ describe.each<[Setup, number]>([
       server: { port, strictPort: true },
     });
     await server.listen();
-    // Wait until the watcher reports changes (its initial scan can trail listen()).
-    const probe = join(routesDir, "watcher-probe.txt");
-    const seen = new Promise<void>((resolve) => {
-      const onAdd = (f: string) => {
-        if (f !== probe) return;
-        server.watcher.off("add", onAdd);
-        resolve();
-      };
-      server.watcher.on("add", onAdd);
-    });
-    for (let i = 0; ; i++) {
-      await writeFile(probe, String(i));
-      if (await Promise.race([seen.then(() => true), pause(500).then(() => false)])) break;
-      await rm(probe, { force: true });
-      await pause(100);
-    }
-    await rm(probe, { force: true });
+    await watcherReports(routesDir);
     expect(await flight("/about")).toContain("about-page");
   }, 60_000);
 
@@ -131,6 +115,29 @@ describe.each<[Setup, number]>([
     vi.restoreAllMocks();
     await rm(testDir, { recursive: true, force: true });
   }, 30_000);
+
+  /**
+   * Resolve once the watcher reports a change in `dir`. Its initial scan can
+   * trail listen() and even its `ready`, and misses what changes meanwhile.
+   */
+  async function watcherReports(dir: string): Promise<void> {
+    const probe = join(dir, "watcher-probe.txt");
+    const seen = new Promise<void>((resolve) => {
+      const onAdd = (f: string) => {
+        if (f !== probe) return;
+        server.watcher.off("add", onAdd);
+        resolve();
+      };
+      server.watcher.on("add", onAdd);
+    });
+    for (let i = 0; ; i++) {
+      await writeFile(probe, String(i));
+      if (await Promise.race([seen.then(() => true), pause(500).then(() => false)])) break;
+      await rm(probe, { force: true });
+      await pause(100);
+    }
+    await rm(probe, { force: true });
+  }
 
   /**
    * Resolve once Vite logs `count` more "server restarted." than now. The server
@@ -328,6 +335,7 @@ describe.each<[Setup, number]>([
       await pause(500);
     }
     expect(body ?? "").not.toContain("about-page");
+    await watcherReports(join(testDir, "src"));
     const back = nextRestart();
     await rename(moved, routesDir);
     await back;
