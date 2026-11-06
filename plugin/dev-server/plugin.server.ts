@@ -171,7 +171,6 @@ applyToEnvironment(partialEnvironment: any) {
         autoDiscoveredFiles,
         userOptions,
         serverManifest: {},
-        resolvedConfig: server.config,
       });
     },
   };
