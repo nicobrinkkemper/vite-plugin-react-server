@@ -60,6 +60,7 @@ describe("dual-graph css edit", () => {
     await setupTestFiles();
     server = await createServer({
       root: testDir,
+      cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
       configFile: false,
       server: { port, strictPort: true },
       plugins: [

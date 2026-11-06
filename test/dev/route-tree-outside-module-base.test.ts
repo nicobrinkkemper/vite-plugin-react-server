@@ -41,6 +41,7 @@ describe("route tree outside the module base", () => {
     server = await createServer({
       mode: "test",
       root: testDir,
+      cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
       configFile: false,
       plugins: [
         vitePluginReactServer({

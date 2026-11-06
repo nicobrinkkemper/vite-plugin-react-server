@@ -94,6 +94,7 @@ describe.each<[Setup, number]>([
     server = await createServer({
       mode: "test",
       root: testDir,
+      cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
       ...(setup === "vite.config.ts"
         ? { configFile: join(testDir, "vite.config.ts") }
         : { configFile: false, plugins: [vitePluginReactServer(pluginOptions)] }),
