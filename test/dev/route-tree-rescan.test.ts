@@ -110,6 +110,7 @@ describe("dev server follows the route tree", () => {
     server = await createServer({
       mode: "test",
       root: testDir,
+      esbuild: { jsx: "automatic" },
       cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
       plugins: [
         vitePluginReactServer({
