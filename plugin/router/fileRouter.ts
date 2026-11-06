@@ -87,6 +87,8 @@ export type RouteTree = {
    * again, so the dev server restarts.
    */
   rescan: () => { routeSetChanged: boolean };
+  /** Counts the rescans that changed the route set. */
+  routeSetVersion: () => number;
 };
 
 export function fileRouter(
@@ -175,6 +177,7 @@ export function fileRouter(
 
   const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
 
+  let routeSetVersion = 0;
   const rescan = (): { routeSetChanged: boolean } => {
     const next = scan();
     const routeSetChanged =
@@ -183,6 +186,7 @@ export function fileRouter(
     routes = next;
     byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
     if (routeSetChanged) {
+      routeSetVersion++;
       patterns.splice(0, patterns.length, ...routes.map((r) => r.pattern));
       staticRoutes.splice(
         0,
@@ -226,7 +230,7 @@ export function fileRouter(
     stripHtmlSuffix: opts.stripHtmlSuffix,
     getParams: (url) => matchRoutes(patterns, forMatch(url))?.params ?? {},
     layouts: (url) => matched(url).layouts,
-    routeTree: { isRouteFile, rescan },
+    routeTree: { isRouteFile, rescan, routeSetVersion: () => routeSetVersion },
   };
 }
 

@@ -224,6 +224,34 @@ describe.each<[Setup, number]>([
     expect(during).toContain(NL);
   }, 60_000);
 
+  it("keeps route files the old watcher reports while a restart runs", async () => {
+    // The old watcher sees the page and its restart request fires before the
+    // swap, when restart() only hands back the run in flight.
+    const close = server.close.bind(server);
+    const { watcher } = server;
+    server.close = (async () => {
+      const page = join(routesDir, "seen/page.tsx");
+      const seen = new Promise<void>((resolve) => {
+        watcher.on("add", (file) => {
+          if (file === page) resolve();
+        });
+      });
+      await mkdir(join(routesDir, "seen"), { recursive: true });
+      await writeFile(page, `export const Page = () => <div>seen-page</div>;`);
+      await seen;
+      await pause(200);
+      return close();
+    }) as typeof server.close;
+    const restart = nextRestart(2);
+    await mkdir(join(routesDir, "trigger"), { recursive: true });
+    await writeFile(
+      join(routesDir, "trigger/page.tsx"),
+      `export const Page = () => <div>trigger-page</div>;`,
+    );
+    await restart;
+    expect(await served("/seen", "seen-page")).toContain("seen-page");
+  }, 60_000);
+
   it("a restart keeps one copy of each plugin", async () => {
     const copies = () =>
       server.config.plugins.filter((p) => p.name === "vite:plugin-react-server/environments")

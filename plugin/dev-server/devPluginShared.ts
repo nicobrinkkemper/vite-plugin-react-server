@@ -141,7 +141,7 @@ type RouteTreeWatchServer = {
     on(event: "add" | "unlink", cb: (file: string) => void): unknown;
     once(event: "ready", cb: () => void): unknown;
   };
-  httpServer?: { once(event: "listening", cb: () => void): unknown } | null;
+  httpServer?: { once(event: "listening" | "close", cb: () => void): unknown } | null;
   restart(): Promise<void>;
   config: { logger: { info(msg: string): void; error(msg: string): void } };
 };
@@ -161,10 +161,18 @@ type RouteTreeWatchServer = {
  *   at resolve time (build inputs) is stale too, so the server restarts as
  *   well. Plugin instances passed inline survive a restart and keep this
  *   table, so every change rescans, including one that lands while a restart
- *   is pending; only the restart itself is coalesced. A file written while
- *   the restart swaps servers reaches neither watcher (the old one closes
- *   first, the new one's initial scan takes it in silently), so each server
- *   rescans its own table when its watcher is ready and when it listens.
+ *   is pending; only the restart itself is coalesced.
+ *
+ * A restart swaps servers in steps, and a route change can land in any of
+ * them: seen by the old watcher while `restart()` would only return the run
+ * in flight, seen by the new watcher before the swap, when `restart()` would
+ * start a second run beside the first, or by neither (the old one closes
+ * first, the new one's initial scan takes the file in silently). So a server
+ * compares the table with the route set it was configured from, not with the
+ * last scan, and restarts only once it listens; until then the restart stays
+ * owed. It rescans when its watcher is ready and when it listens, which can
+ * come in either order. Without an http server (middleware mode) nothing
+ * marks the end of a swap, so it restarts at once.
  *
  * Edits need nothing here: the file set is unchanged and HMR reloads the
  * module.
@@ -178,11 +186,12 @@ export function watchRouteTree(
 ): void {
   const { routeTree } = opts;
   if (!routeTree) return;
+  const configuredFrom = routeTree.routeSetVersion();
+  let listening = !server.httpServer;
   let pendingRestart: ReturnType<typeof setTimeout> | undefined;
   const rescan = (cause: string) => {
-    let routeSetChanged: boolean;
     try {
-      ({ routeSetChanged } = routeTree.rescan());
+      routeTree.rescan();
     } catch (error) {
       // A tree the scan rejects (two pages on one url) keeps the last good
       // table until it is fixed; a restart would not scan any differently.
@@ -192,7 +201,7 @@ export function watchRouteTree(
       return;
     }
     opts.autoDiscoveredFiles.urlMap.clear();
-    if (!routeSetChanged || pendingRestart) return;
+    if (!listening || pendingRestart || routeTree.routeSetVersion() === configuredFrom) return;
     server.config.logger.info(
       `[vite-plugin-react-server] route added or removed (${cause}), restarting to rescan routes`,
     );
@@ -200,7 +209,11 @@ export function watchRouteTree(
     // one restart.
     pendingRestart = setTimeout(() => {
       pendingRestart = undefined;
-      void server.restart();
+      server.restart().catch((error: unknown) => {
+        server.config.logger.error(
+          `[vite-plugin-react-server] restart failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     }, 50);
   };
   const onChange = (file: string) => {
@@ -208,14 +221,13 @@ export function watchRouteTree(
   };
   server.watcher.on("add", onChange);
   server.watcher.on("unlink", onChange);
-  // A file written while a restart swaps servers reaches neither watcher (the
-  // new one's initial scan takes it in silently), and a restart from a config
-  // file builds this server a table of its own. So each server rescans its
-  // own table when its watcher is ready (also in middleware mode) and when
-  // its http server listens, which comes after the old server closed: either
-  // can come first.
   server.watcher.once("ready", () => rescan("while the server restarted"));
-  server.httpServer?.once("listening", () => rescan("while the server restarted"));
+  server.httpServer?.once("listening", () => {
+    listening = true;
+    rescan("while the server restarted");
+  });
+  // The server that replaces this one owes the restart from here on.
+  server.httpServer?.once("close", () => clearTimeout(pendingRestart));
 }
 
 /**
