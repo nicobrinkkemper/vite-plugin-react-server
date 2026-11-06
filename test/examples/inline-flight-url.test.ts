@@ -50,7 +50,8 @@ async function setupFixture() {
   // The client shows the route named by ?view= instead of the document's own.
   await writeFile(
     join(testDir, "src/client.tsx"),
-    `import { use, useState } from "react";\n` +
+    `import * as React from "react";\n` +
+      `import { use, useState } from "react";\n` +
       `import { createRoot } from "react-dom/client";\n` +
       `import { createReactFetcher } from "vite-plugin-react-server/utils";\n` +
       `const view = new URLSearchParams(location.search).get("view") ?? location.pathname;\n` +
