@@ -14,8 +14,12 @@
  * Call it in afterAll unconditionally: it is a no-op for a process that never
  * started or already exited.
  */
+import type { Browser } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
+
+/** The global `webServer` from playwright.config.ts, on the same demo tree. */
+const SHARED_DEV_SERVER = "http://localhost:3200";
 
 export function spawnViteDev(options: {
   dir: string;
@@ -63,4 +67,38 @@ export async function waitForServer(url: string, timeoutMs = 60_000): Promise<vo
     await new Promise((r) => setTimeout(r, 250));
   }
   throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
+}
+
+/**
+ * Delete a fixture route and return once the shared dev server has finished
+ * reacting to it.
+ *
+ * A dev server that follows the route tree restarts when a route goes away,
+ * and Vite's client reloads every open page once the new server is up. Landing
+ * in a later spec, that reload wipes the client state the spec is checking. So
+ * a page is held open across the removal, and its reload is the signal that the
+ * swap is over. A server that never picked the route up has nothing to react
+ * to: `routeUrl` (the route's flight url) tells the two apart, because only a
+ * server following the tree renders it while the route exists.
+ */
+export async function removeRouteFromSharedServer(
+  browser: Browser,
+  routeUrl: string,
+  remove: () => Promise<void>,
+): Promise<void> {
+  await waitForServer(SHARED_DEV_SERVER);
+  const flight = await fetch(SHARED_DEV_SERVER + routeUrl, {
+    headers: { Accept: "text/x-component" },
+  });
+  if (!flight.ok) {
+    await remove();
+    return;
+  }
+  const page = await browser.newPage();
+  try {
+    await page.goto(SHARED_DEV_SERVER);
+    await Promise.all([page.waitForEvent("load"), remove()]);
+  } finally {
+    await page.close();
+  }
 }

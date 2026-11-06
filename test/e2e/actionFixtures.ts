@@ -1,8 +1,8 @@
 /**
- * Install a minimal `/e2e-actions/` route whose props() reads the favorites
- * DB into the RSC payload. That is the surface the props()-cache regression
- * needs: FavoriteButton alone fetches favorites from the client after paint,
- * so a cached props() result would not hide a stale list from it.
+ * Install a minimal `/e2e-actions/` route whose props() reads persisted state
+ * into the RSC payload. That is the surface the props()-cache regression needs:
+ * a client that fetches its data after paint would not show a cached props()
+ * result, so the list has to come through props().
  *
  * Teardown restores/deletes only slots that were successfully captured.
  */
@@ -13,20 +13,25 @@ import {
   writeTracked,
   type CapturedFile,
 } from "./safeFiles.js";
+import {
+  installServerActions,
+  uninstallServerActions,
+  type ServerActionFixtureHandle,
+} from "./serverActionFixtures.js";
 
 const PAGE_SOURCE = `import * as React from "react";
-import { RemoveFavoriteButton } from "../../components/E2ERemoveFavorite.client.js";
+import { RemoveItemButton } from "../../components/E2ERemoveItem.client.js";
 import type { Props } from "./props.js";
 
 export function Page({ names }: Props) {
   return (
     <div>
       <h1>E2E Actions</h1>
-      <ul>
+      <ul data-testid="e2e-items">
         {names.map((name) => (
           <li key={name}>
             {name}{" "}
-            <RemoveFavoriteButton name={name} />
+            <RemoveItemButton name={name} />
           </li>
         ))}
       </ul>
@@ -35,10 +40,10 @@ export function Page({ names }: Props) {
 }
 `;
 
-const PROPS_SOURCE = `import { getFavorites } from "../../server/actions/favoriteActions.server.js";
+const PROPS_SOURCE = `import { getItems } from "../../server/actions/e2eActions.server.js";
 
 export const props = async () => {
-  const names = await getFavorites();
+  const names = await getItems();
   return { names };
 };
 
@@ -48,12 +53,12 @@ export type Props = Awaited<ReturnType<typeof props>>;
 const REMOVE_BUTTON_SOURCE = `"use client";
 
 import * as React from "react";
-import { toggleFavorite } from "../server/actions/favoriteActions.server.js";
+import { removeItem } from "../server/actions/e2eActions.server.js";
 
-/** Deletes (or re-adds) a favorite via a direct client→server-fn import. */
-export function RemoveFavoriteButton({ name }: { name: string }) {
+/** Deletes an item via a direct client→server-fn import. */
+export function RemoveItemButton({ name }: { name: string }) {
   return (
-    <button type="button" onClick={() => void toggleFavorite(name)}>
+    <button type="button" onClick={() => void removeItem(name)}>
       Delete
     </button>
   );
@@ -62,16 +67,18 @@ export function RemoveFavoriteButton({ name }: { name: string }) {
 
 export type ActionFixtureHandle = {
   slots: CapturedFile[];
+  actions: ServerActionFixtureHandle;
 };
 
 export async function installActionFixtures(
   bidoofDir: string,
 ): Promise<ActionFixtureHandle> {
   const slots: CapturedFile[] = [];
+  const actions = await installServerActions(bidoofDir);
   try {
     slots.push(
       await writeTracked(
-        join(bidoofDir, "src/components/E2ERemoveFavorite.client.tsx"),
+        join(bidoofDir, "src/components/E2ERemoveItem.client.tsx"),
         REMOVE_BUTTON_SOURCE,
       ),
     );
@@ -88,19 +95,23 @@ export async function installActionFixtures(
       ),
     );
   } catch (err) {
-    await uninstallActionFixtures({ slots }).catch((restoreErr: unknown) => {
+    await uninstallActionFixtures({ slots, actions }).catch((restoreErr: unknown) => {
       console.error(restoreErr);
     });
     throw err;
   }
-  return { slots };
+  return { slots, actions };
 }
 
 export async function uninstallActionFixtures(
   handle: ActionFixtureHandle | undefined,
 ): Promise<void> {
   if (!handle) return;
-  await restoreAll(handle.slots);
+  try {
+    await restoreAll(handle.slots);
+  } finally {
+    await uninstallServerActions(handle.actions);
+  }
   // Drop the route dir if we created it and it is now empty.
   const pageSlot = handle.slots.find((s) => s.path.endsWith(join("e2e-actions", "page.tsx")));
   if (pageSlot?.previous === null) {
