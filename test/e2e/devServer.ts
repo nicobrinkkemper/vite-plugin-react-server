@@ -20,6 +20,8 @@ import { join } from "node:path";
 
 /** The global `webServer` from playwright.config.ts, on the same demo tree. */
 const SHARED_DEV_SERVER = "http://localhost:3200";
+/** Ten polls of the shared server's file watcher (server.ts). */
+const ROUTE_SCAN_WINDOW_MS = 5000;
 
 export function spawnViteDev(options: {
   dir: string;
@@ -69,36 +71,80 @@ export async function waitForServer(url: string, timeoutMs = 60_000): Promise<vo
   throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
 }
 
+const answersFlight = async (url: string): Promise<boolean> => {
+  try {
+    const res = await fetch(url, { headers: { Accept: "text/x-component" } });
+    return res.ok;
+  } catch {
+    return false; // mid-restart
+  }
+};
+
+/**
+ * Run `change` with a page open on the shared server. A dev server that follows
+ * the route tree restarts when a route appears or goes away, and Vite's client
+ * reloads every open page once the new server is up. That reload is the signal
+ * that the swap is over, so `change` receives it as a promise.
+ */
+async function holdPageOnSharedServer(
+  browser: Browser,
+  change: (reloaded: Promise<void>) => Promise<void>,
+): Promise<void> {
+  await waitForServer(SHARED_DEV_SERVER);
+  const page = await browser.newPage();
+  try {
+    await page.goto(SHARED_DEV_SERVER);
+    await change(new Promise((resolve) => page.once("load", () => resolve())));
+  } finally {
+    await page.close();
+  }
+}
+
+/**
+ * Add a fixture route and return once the shared dev server has finished
+ * reacting to it. Its restart re-optimizes dependencies into the
+ * `node_modules/.vite` every dev server on the demo shares, which breaks a page
+ * loading from a server the spec starts meanwhile.
+ *
+ * Only a server following the route tree renders `routeUrl` (the route's flight
+ * url). A server that doesn't will not restart either, and never answers, so
+ * that case ends when the watcher has had time to notice.
+ */
+export async function addRouteToSharedServer(
+  browser: Browser,
+  routeUrl: string,
+  add: () => Promise<void>,
+): Promise<void> {
+  await holdPageOnSharedServer(browser, async (reloaded) => {
+    await add();
+    const deadline = Date.now() + ROUTE_SCAN_WINDOW_MS;
+    while (Date.now() < deadline) {
+      if (await answersFlight(SHARED_DEV_SERVER + routeUrl)) {
+        await reloaded;
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  });
+}
+
 /**
  * Delete a fixture route and return once the shared dev server has finished
- * reacting to it.
- *
- * A dev server that follows the route tree restarts when a route goes away,
- * and Vite's client reloads every open page once the new server is up. Landing
- * in a later spec, that reload wipes the client state the spec is checking. So
- * a page is held open across the removal, and its reload is the signal that the
- * swap is over. A server that never picked the route up has nothing to react
- * to: `routeUrl` (the route's flight url) tells the two apart, because only a
- * server following the tree renders it while the route exists.
+ * reacting to it. Landing in a later spec, its reload would wipe the client
+ * state that spec is checking. A server that doesn't render `routeUrl` while the
+ * route exists never picked it up and has nothing to react to.
  */
 export async function removeRouteFromSharedServer(
   browser: Browser,
   routeUrl: string,
   remove: () => Promise<void>,
 ): Promise<void> {
-  await waitForServer(SHARED_DEV_SERVER);
-  const flight = await fetch(SHARED_DEV_SERVER + routeUrl, {
-    headers: { Accept: "text/x-component" },
-  });
-  if (!flight.ok) {
+  if (!(await answersFlight(SHARED_DEV_SERVER + routeUrl))) {
     await remove();
     return;
   }
-  const page = await browser.newPage();
-  try {
-    await page.goto(SHARED_DEV_SERVER);
-    await Promise.all([page.waitForEvent("load"), remove()]);
-  } finally {
-    await page.close();
-  }
+  await holdPageOnSharedServer(browser, async (reloaded) => {
+    await remove();
+    await reloaded;
+  });
 }

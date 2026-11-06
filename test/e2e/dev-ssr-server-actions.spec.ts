@@ -27,6 +27,7 @@ import {
 } from "./actionFixtures.js";
 import { resolveBidoofDir } from "./bidoofDir.js";
 import {
+  addRouteToSharedServer,
   removeRouteFromSharedServer,
   spawnViteDev,
   stopViteDev,
@@ -48,8 +49,10 @@ const actionState = () => {
   return fixtures.actions;
 };
 
-test.beforeAll(async () => {
-  fixtures = await installActionFixtures(bidoofDir);
+test.beforeAll(async ({ browser }) => {
+  await addRouteToSharedServer(browser, "/e2e-actions/index.rsc", async () => {
+    fixtures = await installActionFixtures(bidoofDir);
+  });
 
   // dev:ssr-equivalent: NO --conditions react-server in NODE_OPTIONS.
   // The plugin runs in client-mode and spawns the RSC worker with the
