@@ -78,6 +78,18 @@ describe("watchRouteTree", () => {
     expect(server.restart).toHaveBeenCalledTimes(1);
   });
 
+  it("rescans on every ready, the watcher's first can precede the end of its scan", () => {
+    const tree = fakeTree();
+    const server = fakeServer();
+    watch(server, tree);
+    server.httpServer!.emit("listening");
+    server.watcher.emit("ready");
+    tree.change();
+    server.watcher.emit("ready");
+    vi.advanceTimersByTime(50);
+    expect(server.restart).toHaveBeenCalledTimes(1);
+  });
+
   it("a new server owes the restart for a change the old server's scan took in", () => {
     const tree = fakeTree();
     const previous = fakeServer();

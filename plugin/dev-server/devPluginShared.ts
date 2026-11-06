@@ -139,7 +139,7 @@ export function isServerGraphFile(
 type RouteTreeWatchServer = {
   watcher: {
     on(event: "add" | "unlink", cb: (file: string) => void): unknown;
-    once(event: "ready", cb: () => void): unknown;
+    on(event: "ready", cb: () => void): unknown;
   };
   httpServer?: { once(event: "listening" | "close", cb: () => void): unknown } | null;
   restart(): Promise<void>;
@@ -170,8 +170,9 @@ type RouteTreeWatchServer = {
  * first, the new one's initial scan takes the file in silently). So a server
  * compares the table with the route set it was configured from, not with the
  * last scan, and restarts only once it listens; until then the restart stays
- * owed. It rescans when its watcher is ready and when it listens, which can
- * come in either order. Without an http server (middleware mode) nothing
+ * owed. It rescans when it listens and on every `ready` of its watcher, in
+ * either order: chokidar can emit `ready` more than once, the first time
+ * before its scan is done. Without an http server (middleware mode) nothing
  * marks the end of a swap, so it restarts at once.
  *
  * Edits need nothing here: the file set is unchanged and HMR reloads the
@@ -221,7 +222,7 @@ export function watchRouteTree(
   };
   server.watcher.on("add", onChange);
   server.watcher.on("unlink", onChange);
-  server.watcher.once("ready", () => rescan("while the server restarted"));
+  server.watcher.on("ready", () => rescan("while the server restarted"));
   server.httpServer?.once("listening", () => {
     listening = true;
     rescan("while the server restarted");
