@@ -3,7 +3,7 @@ import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 
@@ -62,7 +62,10 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       const moduleBase = userOptions.moduleBase || "src";
       const projectRoot = userOptions.projectRoot || server?.config?.root || '';
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
-      const isSourceFile = normalizedFile.startsWith(moduleBase + '/');
+      // A route tree may sit outside the module base (`routes: fileRouter("app")`).
+      const isSourceFile =
+        normalizedFile.startsWith(moduleBase + '/') ||
+        !!userOptions.routeTree?.isRouteFile(file);
 
       // Outside the module base only files the server graph actually imports
       // count (markdown via `?raw` globs, JSON data); see isServerGraphFile.
@@ -73,7 +76,18 @@ export const vitePluginReactDevServer = function _vitePluginReactServerDevServer
       if (envName === 'client') {
         const isClient = isClientModuleFile(file);
 
-        if (isClient) return; // Vite's client-side HMR owns this update
+        if (isClient) {
+          // Vite's client-side HMR owns this update. A "use client" route file
+          // added or removed also changes the server tree around it: refetch.
+          if (isRouteTreeAddOrRemove(userOptions.routeTree, ctx)) {
+            server.ws.send({
+              type: 'custom',
+              event: 'vite-plugin-react-server:server-component-update',
+              data: { file: normalizedFile, path: file, kind: 'component' },
+            });
+          }
+          return;
+        }
 
         const isCssFile = CSS_EXT.test(file);
 
@@ -147,12 +161,16 @@ applyToEnvironment(partialEnvironment: any) {
       
       // Configure the React server for server environment (direct RSC processing)
       // This uses the existing configureReactServer.server.js implementation
+      const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
+      watchRouteTree(server, {
+        routeTree: userOptions.routeTree,
+        autoDiscoveredFiles,
+      });
       configureReactServer({
         server,
-        autoDiscoveredFiles: emptyAutoDiscoveredFiles(),
+        autoDiscoveredFiles,
         userOptions,
         serverManifest: {},
-        resolvedConfig: server.config,
       });
     },
   };
