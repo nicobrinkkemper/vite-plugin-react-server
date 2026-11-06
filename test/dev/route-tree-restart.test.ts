@@ -38,9 +38,6 @@ async function flight(route: string): Promise<string | null> {
   }
 }
 
-// A fresh server per test: on the react-server leg a server restarted a
-// third time runs the process out of memory (with or without `routes`), so
-// no test here restarts one server more than twice.
 describe.each<[Setup, number]>([
   ["inline plugins", 3151],
   ["vite.config.ts", 3155],
@@ -226,6 +223,22 @@ describe.each<[Setup, number]>([
     expect(during).toContain("during-page");
     expect(during).toContain(NL);
   }, 60_000);
+
+  it("a restart keeps one copy of each plugin", async () => {
+    const copies = () =>
+      server.config.plugins.filter((p) => p.name === "vite:plugin-react-server/environments")
+        .length;
+    expect(copies()).toBe(1);
+    const restart = nextRestart();
+    await mkdir(join(routesDir, "trigger"), { recursive: true });
+    await writeFile(
+      join(routesDir, "trigger/page.tsx"),
+      `export const Page = () => <div>trigger-page</div>;`,
+    );
+    await restart;
+    expect(copies()).toBe(1);
+  }, 60_000);
+
   it("keeps a head.ts that lands while a restart runs", async () => {
     // Only the head of an existing route changes during the swap, so the
     // route set stays put: the new server's own table must pick it up.
