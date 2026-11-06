@@ -28,8 +28,8 @@ import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 const bidoofDir = resolveBidoofDir();
 
 const MODES = [
-  { label: "dev:ssr (client-first)", condition: "", basePort: 33000 },
-  { label: "dev:rsc (server-first)", condition: "--conditions react-server", basePort: 34000 },
+  { label: "dev:ssr (client-first)", condition: "", basePort: 28000 },
+  { label: "dev:rsc (server-first)", condition: "--conditions react-server", basePort: 27000 },
 ];
 
 for (const mode of MODES) {

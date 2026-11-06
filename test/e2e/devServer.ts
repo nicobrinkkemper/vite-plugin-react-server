@@ -23,6 +23,10 @@ const SHARED_DEV_SERVER = "http://localhost:3200";
 /** Ten polls of the shared server's file watcher (server.ts). */
 const ROUTE_SCAN_WINDOW_MS = 5000;
 
+/**
+ * Specs pick their `port` below 32768: above it the kernel hands ports to
+ * outgoing connections, so on a busy machine a fixed port can already be taken.
+ */
 export function spawnViteDev(options: {
   dir: string;
   port: number;

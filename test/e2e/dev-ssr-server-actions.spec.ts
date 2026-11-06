@@ -38,7 +38,7 @@ import { readItems, writeItems } from "./serverActionFixtures.js";
 const bidoofDir = resolveBidoofDir();
 // Pick a random high port to avoid collisions with the global webServer
 // (3200) and with stale vite processes left by an aborted prior run.
-const PORT = 32000 + Math.floor(Math.random() * 1000);
+const PORT = 29000 + Math.floor(Math.random() * 1000);
 const BASE_URL = `http://localhost:${PORT}`;
 
 let server: ChildProcess | undefined;
